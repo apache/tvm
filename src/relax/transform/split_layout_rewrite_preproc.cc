@@ -34,8 +34,16 @@
 
 namespace tvm {
 namespace tirx {
-class SplitPrimFuncLayoutRewrite : public StmtMutator {
+using namespace tvm::prim;
+
+class SplitPrimFuncLayoutRewrite : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   explicit SplitPrimFuncLayoutRewrite(const PrimFunc& func) : original_func_(func) {}
   std::tuple<ffi::Optional<PrimFunc>, PrimFunc> Transform(const PrimFunc& func) {
     TVM_FFI_ICHECK(func->body.as<SBlockRealizeNode>())
@@ -146,7 +154,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     if (const auto* seq_stmt = body.as<SeqStmtNode>()) {
       for (const auto& stmt : seq_stmt->seq) {
         current_subtree_ = 0;
-        Stmt new_stmt = this->VisitStmt(stmt);
+        Stmt new_stmt = this->Mutate(stmt).ValueOrUnchanged(stmt);
         TVM_FFI_ICHECK(current_subtree_ != 0) << "There should be at least a block in the subtree.";
         if (current_subtree_ == 1) {
           layout_rewrite_preproc_stmts_.push_back(new_stmt);
@@ -156,13 +164,15 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
       }
     } else {
       current_subtree_ = 0;
-      this->VisitStmt(body);
+      this->Mutate(body, InplaceMode::kDisallow);
       TVM_FFI_ICHECK(current_subtree_ == -1)
           << "There should be a compute block if there is only one subtree under the root.";
     }
   }
-  Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = StmtMutator::VisitStmt_(op).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                       .as_or_throw<SBlock>();
     auto it = op->annotations.find(s_tir::attr::meta_schedule_layout_rewrite_preproc);
     bool is_layout_rewrite_preproc =
         it != op->annotations.end() && is_one((*it).second.cast<PrimExpr>());
@@ -243,13 +253,14 @@ class SplitLayoutRewritePreproc : public ExprMutator {
     // Step 1: Split the primfunc into preproc and compute
     for (auto [gv, func] : mod->functions) {
       if (func->IsInstance<tirx::PrimFuncNode>()) {
-        tirx::SplitPrimFuncLayoutRewrite tir_rewriter(func.as_or_throw<tirx::PrimFunc>());
+        auto tir_rewriter =
+            ffi::make_object<tirx::SplitPrimFuncLayoutRewrite>(func.as_or_throw<tirx::PrimFunc>());
         auto [preproc_func, compute_func] =
-            tir_rewriter.Transform(func.as_or_throw<tirx::PrimFunc>());
+            tir_rewriter->Transform(func.as_or_throw<tirx::PrimFunc>());
         if (preproc_func.has_value()) {
           mutator.split_funcs_.emplace(gv.get(),
                                        std::make_tuple(preproc_func.value(), compute_func));
-          mutator.rewrite_infos_.emplace(gv.get(), tir_rewriter.rewrite_infos_);
+          mutator.rewrite_infos_.emplace(gv.get(), tir_rewriter->rewrite_infos_);
         }
       }
     }

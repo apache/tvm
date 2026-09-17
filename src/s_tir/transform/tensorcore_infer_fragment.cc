@@ -39,7 +39,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 const VarNode* GetBufferVarFromData(const Expr& data) {
@@ -56,8 +55,9 @@ const VarNode* GetBufferVarFromData(const Expr& data) {
 // Get fragment information from tensor intrinsics
 class FragmentGetter : public StmtExprVisitor {
  public:
-  void VisitExpr_(const CallNode* op) final {
-    StmtExprVisitor::VisitExpr_(op);
+  using StmtExprVisitor::Visit_;
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
 
     static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
     static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
@@ -71,7 +71,7 @@ class FragmentGetter : public StmtExprVisitor {
       const IntImmNode* m = op->args[1].as<IntImmNode>();
       const IntImmNode* n = op->args[2].as<IntImmNode>();
       const IntImmNode* k = op->args[3].as<IntImmNode>();
-      const StringImmNode* layout = op->args[7].as<StringImmNode>();
+      const prim::StringImmNode* layout = op->args[7].as<prim::StringImmNode>();
       TVM_FFI_ICHECK(m);
       TVM_FFI_ICHECK(n);
       TVM_FFI_ICHECK(k);
@@ -122,10 +122,8 @@ class FragmentGetter : public StmtExprVisitor {
         fragments[buffer_var] = info;
       }
     }
+    return std::nullopt;
   }
-
-  // Get memory scope
-  void VisitStmt_(const AttrStmtNode* op) final { StmtExprVisitor::VisitStmt_(op); }
 
   // Fragment metadata for all fragments
   std::unordered_map<const VarNode*, FragmentInfo> fragments;
@@ -135,22 +133,22 @@ class FragmentGetter : public StmtExprVisitor {
 
 namespace tirx {
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt) {
-  s_tir::FragmentGetter getter;
-  getter(stmt);
-  return std::move(getter.fragments);
+  auto getter = ffi::make_object<s_tir::FragmentGetter>();
+  getter->Visit(stmt);
+  return std::move(getter->fragments);
 }
 }  // namespace tirx
 
 namespace s_tir {
-using namespace tvm::prim;
 
 // Check shape of fragment making sure it is a valid shape for tvm_mma_sync
 class FragmentChecker : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
   explicit FragmentChecker(const FragmentGetter& getter) : fragment_getter(getter) {}
 
-  void VisitExpr_(const CallNode* op) final {
-    StmtExprVisitor::VisitExpr_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     // Check shape when calling tvm_mma_sync
     static const Op& tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
     static const Op& tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
@@ -170,6 +168,7 @@ class FragmentChecker : public StmtExprVisitor {
       TVM_FFI_ICHECK(CheckShape(buffer_var_d, buffer_var_b));
       TVM_FFI_ICHECK(CheckShape(buffer_var_d, buffer_var_c));
     }
+    return std::nullopt;
   }
 
  private:
@@ -192,23 +191,30 @@ class FragmentChecker : public StmtExprVisitor {
 };
 
 // Store the metadata into attributes
-class InferFragmenter : public StmtMutator {
+class InferFragmenter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   explicit InferFragmenter(const FragmentGetter& getter) : fragment_getter(getter) {}
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Stmt stmt = StmtMutator::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     const VarNode* buffer = op->buffer.get();
     if (fragment_getter.fragments.count(buffer)) {
       FragmentInfo info = fragment_getter.fragments.at(buffer);
 
       std::string shape =
           std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k);
-      PrimExpr shape_expr = StringImm(shape);
+      PrimExpr shape_expr = prim::StringImm(shape);
       Stmt shape_attr = AttrStmt(op->buffer.var(), s_tir::attr::fragment_shape, shape_expr, stmt);
       if (info.layout != "") {
         Stmt layout_attr = AttrStmt(op->buffer.var(), s_tir::attr::fragment_layout,
-                                    StringImm(info.layout), shape_attr);
+                                    prim::StringImm(info.layout), shape_attr);
         return layout_attr;
       } else {
         return shape_attr;
@@ -223,11 +229,13 @@ class InferFragmenter : public StmtMutator {
 };
 
 Stmt InferFragment(Stmt stmt) {
-  FragmentGetter getter;
-  getter(stmt);
-  FragmentChecker checker(getter);
-  checker(stmt);
-  stmt = InferFragmenter(getter)(std::move(stmt));
+  auto getter = ffi::make_object<FragmentGetter>();
+  getter->Visit(stmt);
+  auto checker = ffi::make_object<FragmentChecker>(*getter);
+  checker->Visit(stmt);
+  stmt = ffi::make_object<InferFragmenter>(*getter)
+             ->Mutate(stmt, InplaceMode::kAllow)
+             .ValueOrUnchanged(std::move(stmt));
   return stmt;
 }
 

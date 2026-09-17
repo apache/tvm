@@ -23,11 +23,13 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 class AnnotateRegionRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   AnnotateRegionRewriter(BufferVar buffer, int buffer_index, BufferRegion new_region,
                          BufferIndexType buffer_index_type)
       : buffer_(buffer),
@@ -35,8 +37,10 @@ class AnnotateRegionRewriter : public StmtExprMutator {
         new_region_(new_region),
         buffer_index_type_(buffer_index_type) {}
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                       .as_or_throw<SBlock>();
 
     ffi::Array<BufferRegion> regions =
         buffer_index_type_ == BufferIndexType::kWrite ? block->writes : block->reads;
@@ -45,7 +49,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
         << "Buffer index out of range";
     regions.Set(buffer_index_, new_region_);
 
-    ffi::ObjectPtr<SBlockNode> n = CopyOnWrite(block.get());
+    SBlockNode* n = block.CopyOnWrite();
     if (buffer_index_type_ == BufferIndexType::kWrite) {
       n->writes = std::move(regions);
     } else {
@@ -76,7 +80,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
     }
     n->annotations = std::move(new_annotations);
 
-    return SBlock(n);
+    return block;
   }
 
  private:
@@ -108,8 +112,10 @@ void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int bu
 
   BufferRegion new_region(buffer, new_ranges);
 
-  AnnotateRegionRewriter mutator(buffer, buffer_index, new_region, buffer_index_type);
-  Stmt new_stmt = mutator(ffi::GetRef<Stmt>(block_sref->stmt));
+  auto mutator =
+      ffi::make_object<AnnotateRegionRewriter>(buffer, buffer_index, new_region, buffer_index_type);
+  Stmt new_stmt = mutator->Mutate(ffi::GetRef<Stmt>(block_sref->stmt))
+                      .ValueOrUnchanged(ffi::GetRef<Stmt>(block_sref->stmt));
 
   self->Replace(block_sref, new_stmt,
                 {{ffi::GetRef<SBlock>(block), new_stmt.as_or_throw<SBlock>()}});

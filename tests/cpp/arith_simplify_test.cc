@@ -29,11 +29,11 @@ TEST(Simplify, MinMax) {
   auto x = tvm::te::var("x");
   auto e1 = (tvm::max(x, 1) - tvm::max(x, 1));
   auto e1s = ana->canonical_simplify(e1);
-  TVM_FFI_ICHECK(tvm::tirx::is_zero(e1s));
+  TVM_FFI_ICHECK(tvm::prim::is_zero(e1s));
 
   auto e2 = (x * tvm::min(x, 1)) - (x * tvm::min(x, 1));
   auto e2s = ana->canonical_simplify(e2);
-  TVM_FFI_ICHECK(tvm::tirx::is_zero(e2s));
+  TVM_FFI_ICHECK(tvm::prim::is_zero(e2s));
 }
 
 TEST(Simplify, Mul) {
@@ -41,7 +41,7 @@ TEST(Simplify, Mul) {
   auto x = tvm::te::var("x");
   auto e = (x * x) - (x * x);
   auto es = ana->canonical_simplify(e);
-  TVM_FFI_ICHECK(tvm::tirx::is_zero(es));
+  TVM_FFI_ICHECK(tvm::prim::is_zero(es));
 }
 
 TEST(Simplify, Mod) {
@@ -53,7 +53,7 @@ TEST(Simplify, Mod) {
   // and therefore, the constant folding will be attempted in CanonicalSimplify
   auto mod = ana->canonical_simplify(tvm::prim::Mod(x, y));
   auto es = ana->canonical_simplify(mod - x);
-  TVM_FFI_ICHECK(tvm::tirx::is_zero(es));
+  TVM_FFI_ICHECK(tvm::prim::is_zero(es));
 }
 
 TEST(AnalyzerObjectRef, CopySharesMutableState) {
@@ -107,12 +107,12 @@ TEST(Simplify, AssumeConstraintKeepsBufferLoadStable) {
 
   {
     auto exit_scope = analyzer->rewrite_simplify.EnterConstraint(constraint);
-    EXPECT_FALSE(tirx::is_one(analyzer->rewrite_simplify(constraint)));
+    EXPECT_FALSE(tvm::prim::is_one(analyzer->rewrite_simplify(constraint)));
     exit_scope();
   }
   {
     auto exit_scope = analyzer->rewrite_simplify.EnterConstraint(constraint, true);
-    EXPECT_TRUE(tirx::is_one(analyzer->rewrite_simplify(constraint)));
+    EXPECT_TRUE(tvm::prim::is_one(analyzer->rewrite_simplify(constraint)));
     exit_scope();
   }
 
@@ -138,7 +138,7 @@ TEST(Simplify, AssumeConstraintKeepsBufferLoadStable) {
 TEST(ConstantFold, Broadcast) {
   tvm::ffi::StructuralEqual checker;
   auto i32x4 = tvm::prim::Broadcast(tvm::IntImm::Int32(10), 4);
-  auto i64x4 = tvm::cast(i32x4.ty().WithBits(64), i32x4);
+  auto i64x4 = tvm::prim::cast(i32x4.ty().WithBits(64), i32x4);
   auto i64x4_expected = tvm::prim::Broadcast(tvm::IntImm::Int64(10), 4);
   ASSERT_TRUE(checker(i64x4, i64x4_expected));
 }
@@ -146,11 +146,11 @@ TEST(ConstantFold, Broadcast) {
 TEST(ConstantFold, Ramp) {
   tvm::ffi::StructuralEqual checker;
   auto i32x4 = tvm::prim::Ramp(tvm::IntImm::Int32(10), tvm::IntImm::Int32(1), 4);
-  auto i64x4 = tvm::cast(i32x4.ty().WithBits(64), i32x4);
+  auto i64x4 = tvm::prim::cast(i32x4.ty().WithBits(64), i32x4);
   auto i64x4_expected = tvm::prim::Ramp(tvm::IntImm::Int64(10), tvm::IntImm::Int64(1), 4);
   ASSERT_TRUE(checker(i64x4, i64x4_expected));
 
-  auto f32x4 = tvm::cast(tvm::PrimType::Float(32, 4), i32x4);
+  auto f32x4 = tvm::prim::cast(tvm::PrimType::Float(32, 4), i32x4);
   auto f32x4_expected = tvm::prim::Cast(tvm::PrimType::Float(32, 4), i32x4);
   ASSERT_TRUE(checker(f32x4, f32x4_expected));
 }

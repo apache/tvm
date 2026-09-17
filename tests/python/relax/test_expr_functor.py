@@ -451,11 +451,11 @@ def test_call():
 
     visitor = ASTPrinter()
     visitor.visit_expr(tensor_load)
-    assert str(visitor.log) == "\n".join(["Call", "\tExprFallback"])
+    assert str(visitor.log) == "\n".join(["Call", "\tOp", "\tExprFallback"])
 
     mutator = ASTPostPrinterMutator()
     assert mutator.visit_expr(tensor_load).same_as(tensor_load)
-    assert str(mutator.log) == "\n".join(["ExprFallback", "Call"])
+    assert str(mutator.log) == "\n".join(["Op", "ExprFallback", "Call"])
 
 
 def test_if():

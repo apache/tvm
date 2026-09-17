@@ -94,7 +94,7 @@ TVM_REGISTER_OP("tirx.atan")
 TVM_REGISTER_OP("tirx.atan2")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.ceil")
+TVM_REGISTER_OP("prim.ceil")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tirx.cos")
@@ -118,7 +118,7 @@ TVM_REGISTER_OP("tirx.fma")
 TVM_REGISTER_OP("tirx.log")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.log2")
+TVM_REGISTER_OP("prim.log2")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tirx.pow")

@@ -42,12 +42,10 @@ class CheckContains : public StmtExprVisitor {
   static bool ExprContains(const PrimExpr& expr, std::function<bool(const PrimExpr&)> predicate);
   static bool StmtContains(const Stmt& stmt, std::function<bool(const PrimExpr&)> predicate);
 
- protected:
   // Constructor
   explicit CheckContains(std::function<bool(const PrimExpr&)> predicate);
 
-  void VisitExpr(const Expr& expr) override;
-  void VisitStmt(const Stmt& stmt) override;
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override;
 
  private:
   std::function<bool(const PrimExpr&)> predicate_;

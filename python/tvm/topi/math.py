@@ -764,7 +764,7 @@ def cast(x, dtype, span=None):
     if isinstance(x, te.tensor.Tensor):
         return te.compute(x.shape, lambda *i: x(*i).astype(dtype), tag=tag.ELEMWISE)
     # pylint: disable=import-outside-toplevel
-    from tvm.tirx import _ffi_api
+    from tvm.ir.prim import _ffi_api
 
     return _ffi_api._cast(dtype, x, span)
 
@@ -866,7 +866,7 @@ def ceil_log2(x):
     if target is not None:
         target_name = target.kind.name
         if "vulkan" in target_name:
-            clz = tvm.tirx.clz(x)
+            clz = tvm.ir.prim.clz(x)
             bits = x.ty.dtype.bits
             res = tvm.tirx.if_then_else(x & (x - 1) == 0, bits - clz - 1, bits - clz)
             if res.ty != x.ty:

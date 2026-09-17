@@ -727,6 +727,16 @@ class TorchFXImporter(BaseFXGraphImporter):
         num_classes = node.args[1] if len(node.args) > 1 else node.kwargs.get("num_classes")
         if num_classes is None:
             raise ValueError("num_classes not found in node.args or node.kwargs")
+        # torch only rejects a non-positive num_classes when the model runs, and neither
+        # fx tracing nor export runs it, so the invalid value reaches this converter.
+        # num_classes is a static attribute of relax.op.one_hot, so it has to be rejected
+        # here rather than by the C++ builder, whose `depth > 0` check never mentions it.
+        if isinstance(num_classes, int) and num_classes <= 0:
+            raise ValueError(
+                f"one_hot num_classes must be a positive integer, but got {num_classes}. "
+                "Inferring the depth from the input (torch's num_classes=-1) is not "
+                "supported because the resulting depth is data dependent."
+            )
         on_value = node.args[2] if len(node.args) > 2 else node.kwargs.get("on_value", 1)
         off_value = node.args[3] if len(node.args) > 3 else node.kwargs.get("off_value", 0)
         axis = node.args[4] if len(node.args) > 4 else node.kwargs.get("axis", -1)

@@ -33,11 +33,17 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
-class PTXRewriter : public StmtMutator {
+class PTXRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   Stmt AddAllocationsIfNeeded(Stmt body) {
     if (!needs_buffer || has_buffer_2) {
       return body;
@@ -48,8 +54,9 @@ class PTXRewriter : public StmtMutator {
     return body;
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Stmt result = StmtMutator::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    Stmt result =
+        StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     if (needs_buffer && !has_buffer_2) {
       EnsureBuffers();
       has_buffer_2 = true;
@@ -58,8 +65,9 @@ class PTXRewriter : public StmtMutator {
     return result;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* store) final {
-    Stmt result = StmtMutator::VisitStmt_(store);
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) final {
+    Stmt result =
+        StmtExprMutator::Mutate_(store, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(store));
     BufferVar load_buffer = store->buffer;
     PrimExpr load_value = store->value;
     // const TensorLoadNode* gload = load_value.as<TensorLoadNode>(); // take
@@ -67,7 +75,7 @@ class PTXRewriter : public StmtMutator {
     const CallNode* call = load_value.as<CallNode>();
     if (call != nullptr) {
       const OpNode* op = call->op.as<OpNode>();
-      if (op != nullptr && op->name == "ir.prim.if_then_else") {
+      if (op != nullptr && op->name == "prim.if_then_else") {
         PrimExpr predicate = call->args[0].as_or_throw<PrimExpr>();
         PrimExpr lhs = call->args[1].as_or_throw<PrimExpr>();
         PrimExpr rhs = call->args[2].as_or_throw<PrimExpr>();
@@ -82,7 +90,7 @@ class PTXRewriter : public StmtMutator {
           }
         }
         global_addr = load->indices[0];
-        const RampNode* ramp = global_addr.as<RampNode>();
+        const prim::RampNode* ramp = global_addr.as<prim::RampNode>();
         if (ramp != nullptr) {
           return result;
         }
@@ -137,9 +145,9 @@ Pass InjectPTXLDG32(bool enable_inject_ptx_intrin) {
         return f;
       }
       auto* n = f.CopyOnWrite();
-      PTXRewriter rewriter;
-      Stmt body = rewriter(n->body);
-      n->body = rewriter.AddAllocationsIfNeeded(body);
+      auto rewriter = ffi::make_object<PTXRewriter>();
+      Stmt body = rewriter->Mutate(n->body).ValueOrUnchanged(n->body);
+      n->body = rewriter->AddAllocationsIfNeeded(body);
       // inject ptx
     }
     return f;

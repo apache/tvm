@@ -415,7 +415,7 @@ ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, Span span) {
 
   n->values = values.Map([](PrimExpr value) {
     if (value->IsInstance<IntImmNode>()) {
-      return tvm::cast(PrimType::Int(64), value);
+      return tvm::prim::cast(PrimType::Int(64), value);
     }
     TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
         << "the value in ShapeType can only have dtype of int64";
@@ -731,7 +731,7 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty
       auto tir_vars = DefinableTIRVarsInType(TupleType(params.Map(GetType)));
       std::unordered_set<tirx::Var> lookup(tir_vars.begin(), tir_vars.end());
       return [lookup = std::move(lookup)](const Var& var) -> ffi::Optional<Expr> {
-        if (auto prim_var = var.as<tirx::PrimVar>(); prim_var && lookup.count(prim_var.value())) {
+        if (auto prim_var = var.as<PrimVar>(); prim_var && lookup.count(prim_var.value())) {
           return prim_var.value().as_or_throw<PrimExpr>();
         }
         return std::nullopt;

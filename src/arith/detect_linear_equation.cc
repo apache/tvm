@@ -25,15 +25,15 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr_functor.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
+
+#include <unordered_set>
 
 namespace tvm {
 namespace arith {
-
-using namespace tirx;
+using namespace tvm::prim;
 
 // Linear equation, the components can be undefined.
 struct LinearEqEntry {
@@ -46,12 +46,12 @@ struct IntervalEntry {
   PrimExpr max_value;
 };
 
-class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const PrimExpr&)> {
+class LinearEqDetector : public tvm::ExprFunctor<LinearEqEntry(const Expr&, const PrimExpr&)> {
  public:
   explicit LinearEqDetector(PrimVar var) : var_(var) {}
 
   bool Detect(const PrimExpr& e, LinearEqEntry* ret) {
-    *ret = VisitExpr(e, e);
+    *ret = Dispatch(e, e);
     if (fail_) return false;
     if (!ret->base.defined()) {
       ret->base = IntImm(var_->ty.as_or_throw<PrimType>(), 0);
@@ -62,30 +62,30 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const Pri
     return true;
   }
 
-  LinearEqEntry VisitExpr_(const prim::AddNode* op, const PrimExpr& e) final {
+  LinearEqEntry Dispatch_(const prim::AddNode* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
-    LinearEqEntry a = VisitExpr(op->a, op->a);
-    LinearEqEntry b = VisitExpr(op->b, op->b);
+    LinearEqEntry a = Dispatch(op->a, op->a);
+    LinearEqEntry b = Dispatch(op->b, op->b);
     LinearEqEntry ret;
     ret.base = AddCombine(a.base, b.base);
     ret.coeff = AddCombine(a.coeff, b.coeff);
     return ret;
   }
 
-  LinearEqEntry VisitExpr_(const prim::SubNode* op, const PrimExpr& e) final {
+  LinearEqEntry Dispatch_(const prim::SubNode* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
-    LinearEqEntry a = VisitExpr(op->a, op->a);
-    LinearEqEntry b = VisitExpr(op->b, op->b);
+    LinearEqEntry a = Dispatch(op->a, op->a);
+    LinearEqEntry b = Dispatch(op->b, op->b);
     LinearEqEntry ret;
     ret.base = SubCombine(a.base, b.base);
     ret.coeff = SubCombine(a.coeff, b.coeff);
     return ret;
   }
 
-  LinearEqEntry VisitExpr_(const prim::MulNode* op, const PrimExpr& e) final {
+  LinearEqEntry Dispatch_(const prim::MulNode* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
-    LinearEqEntry a = VisitExpr(op->a, op->a);
-    LinearEqEntry b = VisitExpr(op->b, op->b);
+    LinearEqEntry a = Dispatch(op->a, op->a);
+    LinearEqEntry b = Dispatch(op->b, op->b);
     if (a.coeff.defined()) {
       std::swap(a, b);
     }
@@ -98,17 +98,17 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const Pri
     ret.coeff = MulCombine(a.base, b.coeff);
     return ret;
   }
-  LinearEqEntry VisitExpr_(const VarNode* op, const PrimExpr& e) final {
+  LinearEqEntry Dispatch_(const VarNode* op, const PrimExpr& e) final {
     LinearEqEntry ret;
     if (op == var_.get()) {
       PrimType dtype = op->ty.as_or_throw<PrimType>();
-      ret.coeff = MakeConst(PrimType::Int(dtype.bits(), dtype.lanes()), 1);
+      ret.coeff = prim::MakeConst(PrimType::Int(dtype.bits(), dtype.lanes()), 1);
     } else {
       ret.base = e;
     }
     return ret;
   }
-  LinearEqEntry VisitExprDefault_(const ffi::Object* op, const PrimExpr& e) final {
+  LinearEqEntry DispatchDefault_(const ffi::Object* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
     auto walkfn = [this](const Var& var) -> ffi::Expected<ffi::WalkResult> {
       return var.get() == var_.get() ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
@@ -206,14 +206,14 @@ bool DetectClipBound(const PrimExpr& cond,
   if (const prim::LTNode* op = cond.as<prim::LTNode>()) {
     PrimType a_ty = op->a.ty();
     if (!a_ty.MatchesCode(DLDataTypeCode::kDLInt)) return false;
-    canonical = op->b - op->a - MakeConst(a_ty, 1);
+    canonical = op->b - op->a - prim::MakeConst(a_ty, 1);
   } else if (const prim::LENode* op = cond.as<prim::LENode>()) {
     if (!op->a.ty().MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->b - op->a;
   } else if (const prim::GTNode* op = cond.as<prim::GTNode>()) {
     PrimType a_ty = op->a.ty();
     if (!a_ty.MatchesCode(DLDataTypeCode::kDLInt)) return false;
-    canonical = op->a - op->b - MakeConst(a_ty, 1);
+    canonical = op->a - op->b - prim::MakeConst(a_ty, 1);
   } else if (const prim::GENode* op = cond.as<prim::GENode>()) {
     if (!op->a.ty().MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->a - op->b;

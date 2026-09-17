@@ -32,22 +32,27 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 std::pair<std::unordered_map<Stmt, std::vector<std::pair<IterVar, ffi::Map<ffi::String, ffi::Any>>>,
                              ffi::ObjectPtrHash, ffi::ObjectPtrEqual>,
           ffi::Map<Var, Var>>
 FindLoopLCA(const Stmt& root) {
-  class LCAFinder : public StmtVisitor {
+  class LCAFinder : public StmtExprVisitor {
    public:
-    void VisitStmt_(const ForNode* op) final {
+    using StmtExprVisitor::Visit_;
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
+    }
+    ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
       stack.push_back(ffi::GetRef<Stmt>(op));
-      StmtVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (op->kind == ForKind::kThreadBinding) {
         UpdateLCA(op);
       }
       stack.pop_back();
+      return std::nullopt;
     }
 
     void UpdateLCA(const ForNode* loop) {
@@ -88,13 +93,13 @@ FindLoopLCA(const Stmt& root) {
     ffi::Map<Var, Var> var_subst;
     std::vector<Stmt> stack;
   };
-  LCAFinder finder;
-  finder(root);
+  auto finder = ffi::make_object<LCAFinder>();
+  finder->Visit(root);
   std::unordered_map<Stmt, std::vector<std::pair<IterVar, ffi::Map<ffi::String, ffi::Any>>>,
                      ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       result;
   std::vector<std::string> sorted_thread_tags;
-  for (const auto& kv : finder.lca) {
+  for (const auto& kv : finder->lca) {
     sorted_thread_tags.push_back(kv.first);
   }
   std::sort(sorted_thread_tags.begin(), sorted_thread_tags.end(),
@@ -108,12 +113,12 @@ FindLoopLCA(const Stmt& root) {
               return lhs_scope.dim_index < rhs_scope.dim_index;
             });
   for (const auto& thread_tag : sorted_thread_tags) {
-    Stmt lca = finder.lca[thread_tag].back();
-    const IterVar& iter = finder.iters[thread_tag];
-    const ffi::Map<ffi::String, ffi::Any>& annotations = finder.annotations[thread_tag];
+    Stmt lca = finder->lca[thread_tag].back();
+    const IterVar& iter = finder->iters[thread_tag];
+    const ffi::Map<ffi::String, ffi::Any>& annotations = finder->annotations[thread_tag];
     result[lca].emplace_back(iter, annotations);
   }
-  return {result, finder.var_subst};
+  return {result, finder->var_subst};
 }
 
 /*!
@@ -122,7 +127,10 @@ FindLoopLCA(const Stmt& root) {
  */
 class ThreadBindingLifter : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const ForNode* _op) final {
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
+  UnchangedOr<Stmt> Mutate_(const ForNode* _op, InplaceMode inplace_mode) final {
     For op = ffi::GetRef<For>(_op);
     bool is_kernel_root = false;
     if (op->kind == ForKind::kThreadBinding) {
@@ -131,7 +139,9 @@ class ThreadBindingLifter : public StmtExprMutator {
         SetKernelRoot(_op);
       }
     }
-    For new_op = StmtExprMutator::VisitStmt_(_op).as_or_throw<For>();
+    For new_op = StmtExprMutator::Mutate_(_op, InplaceMode::kDisallow)
+                     .ValueOrUnchanged(ffi::GetRef<Stmt>(_op))
+                     .as_or_throw<For>();
     Stmt body = std::move(new_op.CopyOnWrite()->body);
     if (auto it = iter_lca.find(op); it != iter_lca.end()) {
       for (const auto& [iter_var, annotation] : it->second) {
@@ -144,7 +154,6 @@ class ThreadBindingLifter : public StmtExprMutator {
     }
     if (is_kernel_root) {
       iter_lca.clear();
-      var_subst.clear();
     }
     if (op->kind == ForKind::kThreadBinding) {
       return body;
@@ -157,22 +166,12 @@ class ThreadBindingLifter : public StmtExprMutator {
   void SetKernelRoot(const ForNode* op) {
     auto result = FindLoopLCA(ffi::GetRef<Stmt>(op));
     this->iter_lca = std::move(result.first);
-    this->var_subst = std::move(result.second);
-  }
-
-  Expr VisitExpr_(const VarNode* op) final {
-    auto it = var_subst.find(ffi::GetRef<Var>(op));
-    if (it != var_subst.end()) {
-      return (*it).second;
-    } else {
-      return ffi::GetRef<Var>(op);
-    }
+    for (const auto& [var, replacement] : result.second) VarRemapSet(var, replacement);
   }
 
   std::unordered_map<Stmt, std::vector<std::pair<IterVar, ffi::Map<ffi::String, ffi::Any>>>,
                      ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       iter_lca;
-  ffi::Map<Var, Var> var_subst;
 };
 
 namespace transform {
@@ -180,7 +179,9 @@ namespace transform {
 Pass LiftThreadBinding() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     PrimFuncNode* fptr = f.CopyOnWrite();
-    fptr->body = ThreadBindingLifter()(std::move(fptr->body));
+    fptr->body = ffi::make_object<ThreadBindingLifter>()
+                     ->Mutate(fptr->body, InplaceMode::kAllow)
+                     .ValueOrUnchanged(std::move(fptr->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.LiftThreadBinding", {});

@@ -44,6 +44,7 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
 
 namespace {
 
@@ -412,12 +413,12 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
   }
 }
 
-void CodeGenMetal::VisitExpr_(const prim::SelectNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenMetal::Dispatch_(const prim::SelectNode* op, std::ostream& os) {  // NOLINT(*)
   os << "select(" << PrintExpr(op->false_value) << ", " << PrintExpr(op->true_value) << ", "
      << PrintExpr(op->condition) << ")";
 }
 
-void CodeGenMetal::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenMetal::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   int lanes = op->ty.as_or_throw<PrimType>().lanes();
   PrintType(op->ty.as_or_throw<PrimType>(), os);
@@ -429,7 +430,7 @@ void CodeGenMetal::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {
   os << ')';
 }
 
-void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK(!op->op.as<GlobalVarNode>())
       << "CodegenMetal does not support inter-function calls, "
       << "but expression " << ffi::GetRef<Call>(op) << " calls PrimFunc " << op->op;
@@ -487,15 +488,15 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
        << PrintExpr(a) << "[" << PrintExpr(op->args[3]) << "], "  //
        << PrintExpr(b) << "[" << PrintExpr(op->args[5]) << "], "  //
        << PrintExpr(c) << "[" << PrintExpr(op->args[7]) << "])";
-  } else if (op->op.same_as(builtin::ptr_byte_offset()) ||
-             op->op.same_as(builtin::handle_add_byte_offset())) {
-    bool is_typed_offset = op->op.same_as(builtin::ptr_byte_offset());
+  } else if (op->op.same_as(tirx::builtin::ptr_byte_offset()) ||
+             op->op.same_as(tirx::builtin::handle_add_byte_offset())) {
+    bool is_typed_offset = op->op.same_as(tirx::builtin::ptr_byte_offset());
     TVM_FFI_ICHECK_EQ(op->args.size(), is_typed_offset ? 3U : 2U);
     const auto* pointer_type = op->ty.as<PointerTypeNode>();
     TVM_FFI_ICHECK(pointer_type)
         << "Metal pointer byte offsets must have a pointer result type, but got " << op->ty;
     if (pointer_type->storage_scope.empty()) {
-      return CodeGenC::VisitExpr_(op, os);
+      return CodeGenC::Dispatch_(op, os);
     }
 
     os << "((";
@@ -508,9 +509,9 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     os << ") + ";
     PrintExpr(op->args[1], os);
     os << "))";
-  } else if (op->op.same_as(builtin::reinterpret())) {
+  } else if (op->op.same_as(tirx::builtin::reinterpret())) {
     if (!op->ty.as<PrimTypeNode>() || !op->args[0]->ty.as<PrimTypeNode>()) {
-      return CodeGenC::VisitExpr_(op, os);
+      return CodeGenC::Dispatch_(op, os);
     }
     // generate as_type<TYPE>(ARG)
     os << "(as_type<";
@@ -519,11 +520,11 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     this->PrintExpr(op->args[0], os);
     os << "))";
   } else {
-    CodeGenC::VisitExpr_(op, os);
+    CodeGenC::Dispatch_(op, os);
   }
 }
 
-void CodeGenMetal::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenMetal::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   std::ostringstream temp;
   if (std::isinf(op->value)) {
     if (op->value < 0) {

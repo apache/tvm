@@ -25,7 +25,7 @@ from typing import Any
 
 import tvm
 from tvm import DataType, relax
-from tvm.ir import IRModule, VDevice
+from tvm.ir import IRModule
 from tvm.relax import (
     Call,
     Expr,
@@ -38,6 +38,7 @@ from tvm.relax import (
     const,
 )
 from tvm.relax.dpl import PatternMatchingRewriter
+from tvm.relax.global_info import VDevice
 
 ############################### Operators ###############################
 from tvm.relax.op import (

@@ -70,7 +70,9 @@ inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
   const OpNode* op = call->op.as<OpNode>();
   TVM_FFI_ICHECK(op != nullptr);
   std::string name = op->name;
-  TVM_FFI_ICHECK_EQ(name.substr(0, 5), "tirx.");
+  TVM_FFI_ICHECK(name.substr(0, 5) == "tirx." || name == "prim.ceil" || name == "prim.log2" ||
+                 name == "prim.clz")
+      << "Unexpected intrinsic name: " << name;
   if (dtype_from_arg) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1U);
   }

@@ -20,18 +20,16 @@
 #include "../src/arith/pattern_match.h"
 
 #include <gtest/gtest.h>
-#include <tvm/tirx/analysis.h>
+#include <tvm/ir/prim/expr.h>
 
 TEST(Pattern, Basic) {
   using namespace tvm;
-  using namespace tvm::tirx;
   using namespace tvm::arith;
-  tvm::tirx::PrimVar x("x"), y("y"), z("z");
+  tvm::PrimVar x("x"), y("y"), z("z");
   PrimExpr scalable_lanes = prim::Mul(Call(PrimType::Int(32), prim::builtin::vscale(), {}), 4);
   arith::PVar<PrimExpr> px, py, pz;
   arith::PVar<DLDataType> pt;
   arith::PVar<PrimExpr> planes;
-  arith::PCallExpr<PVscaleOp> vscale;
 
   // arithmetics
   auto r = 1 + (y + 1);
@@ -44,12 +42,12 @@ TEST(Pattern, Basic) {
     TVM_FFI_ICHECK((px + (py + px)).Match(r));
     auto rr = (px + py).Eval();
 
-    TVM_FFI_ICHECK(tirx::ExprDeepEqual()(rr, 1 + y));
-    TVM_FFI_ICHECK(tirx::ExprDeepEqual()(px.Eval() + py.Eval(), 1 + y));
+    TVM_FFI_ICHECK(prim::ExprDeepEqual()(rr, 1 + y));
+    TVM_FFI_ICHECK(prim::ExprDeepEqual()(px.Eval() + py.Eval(), 1 + y));
   }
   {
     TVM_FFI_ICHECK((px + max(py, px)).Match((x + 1) + max(y, (x + 1))));
-    TVM_FFI_ICHECK(tirx::ExprDeepEqual()(px.Eval(), x + 1));
+    TVM_FFI_ICHECK(prim::ExprDeepEqual()(px.Eval(), x + 1));
   }
   TVM_FFI_ICHECK(!(px + min(py, px)).Match((x + 1) + max(y, (x + 1))));
 
@@ -69,12 +67,12 @@ TEST(Pattern, Basic) {
   TVM_FFI_ICHECK((!(px > py || px != py)).Match(!(x > y || x != y)));
   {
     TVM_FFI_ICHECK(select(px >= pz, py, py + pz).Match(prim::Select((x + 1) >= 1, y, y + 1)));
-    TVM_FFI_ICHECK(tirx::ExprDeepEqual()(px.Eval(), x + 1));
+    TVM_FFI_ICHECK(prim::ExprDeepEqual()(px.Eval(), x + 1));
   }
   // bit intrinsics
   {
     TVM_FFI_ICHECK((px >> pz).Match(x >> 1));
-    TVM_FFI_ICHECK(is_const_int(pz.Eval(), 1));
+    TVM_FFI_ICHECK(prim::is_const_int(pz.Eval(), 1));
   }
   TVM_FFI_ICHECK(!(px >> pz).Match(x << 1));
   TVM_FFI_ICHECK((px << pz).Match(x << 1));
@@ -85,18 +83,18 @@ TEST(Pattern, Basic) {
   // select
   {
     TVM_FFI_ICHECK(select(px > pz, py, py + pz).Match(prim::Select(x > 1, y, y + 1)));
-    TVM_FFI_ICHECK(is_const_int(pz.Eval(), 1));
+    TVM_FFI_ICHECK(prim::is_const_int(pz.Eval(), 1));
   }
   TVM_FFI_ICHECK(!select(px > pz, py, py + pz).Match(prim::Select(x > 2, y, y + 1)));
   TVM_FFI_ICHECK(!select(px > pz, py, py).Match(prim::Select(x > 2, y, y + 1)));
   {
     TVM_FFI_ICHECK(select(px, py, pz).Match(prim::Select(x > 2, y, y + 1)));
-    TVM_FFI_ICHECK(tirx::ExprDeepEqual()(pz.Eval(), y + 1));
+    TVM_FFI_ICHECK(prim::ExprDeepEqual()(pz.Eval(), y + 1));
   }
   // if_then_else
   {
     TVM_FFI_ICHECK(if_then_else(px > pz, py, py + pz).Match(if_then_else(x > 1, y, y + 1)));
-    TVM_FFI_ICHECK(is_const_int(pz.Eval(), 1));
+    TVM_FFI_ICHECK(prim::is_const_int(pz.Eval(), 1));
   }
   // cast pattern
   {
@@ -116,7 +114,7 @@ TEST(Pattern, Basic) {
     TVM_FFI_ICHECK(ramp(px, PConst<PrimExpr>(1), planes).Match(prim::Ramp(x, 1, 10)));
     TVM_FFI_ICHECK(planes.Eval().as<IntImmNode>()->value == 10);
     TVM_FFI_ICHECK(ramp(px, PConst<PrimExpr>(1), planes).Match(prim::Ramp(x, 1, scalable_lanes)));
-    TVM_FFI_ICHECK((vscale * PConst<PrimExpr>(4)).Match(planes.Eval()));
+    TVM_FFI_ICHECK(prim::ExprDeepEqual()(planes.Eval(), scalable_lanes));
     TVM_FFI_ICHECK(!ramp(px, PConst<PrimExpr>(1), planes).Match(prim::Ramp(x, 2, 10)));
   }
   // broadcast pattern
@@ -125,15 +123,15 @@ TEST(Pattern, Basic) {
     TVM_FFI_ICHECK(planes.Eval().as<IntImmNode>()->value == 10);
     TVM_FFI_ICHECK(broadcast(px * py, planes).Match(prim::Broadcast(x * 10, 10)));
     TVM_FFI_ICHECK(broadcast(px, planes).Match(prim::Broadcast(x, scalable_lanes)));
-    TVM_FFI_ICHECK((vscale * PConst<PrimExpr>(4)).Match(planes.Eval()));
+    TVM_FFI_ICHECK(prim::ExprDeepEqual()(planes.Eval(), scalable_lanes));
   }
 }
 
 TEST(Pattern, IntImm) {
   using namespace tvm;
-  tirx::PrimVar tx("tx"), ty("ty");
+  PrimVar tx("tx"), ty("ty");
   arith::PVar<IntImm> c;
-  arith::PVar<tirx::Var> v;
+  arith::PVar<Var> v;
   {
     // We can match integer and Var, both of which are
     // special case container of Expr
@@ -151,20 +149,20 @@ TEST(Pattern, MatchWithType) {
   using namespace tvm;
   // match expr with specified dtype
   arith::PVarWithDataType<PrimExpr, arith::PConst<DLDataType>> pat(DLDataType{kDLFloat, 32, 1});
-  tirx::PrimVar x("x", PrimType::Float(32));
-  tirx::PrimVar y("y", PrimType::Float(32));
-  tirx::PrimVar x_int("x", PrimType::Int(32));
-  tirx::PrimVar y_int("y", PrimType::Int(32));
+  PrimVar x("x", PrimType::Float(32));
+  PrimVar y("y", PrimType::Float(32));
+  PrimVar x_int("x", PrimType::Int(32));
+  PrimVar y_int("y", PrimType::Int(32));
   TVM_FFI_ICHECK(pat.Match(x + y * 2.0f));
   TVM_FFI_ICHECK(!pat.Match(x_int + y_int * 2));
 
   // match vectorized expr with specified element dtype
   arith::PVecDataType vec_ty(DLDataType{kDLFloat, 32, 1});
   arith::PVarWithDataType<PrimExpr, arith::PVecDataType> vpat(vec_ty);
-  tirx::PrimVar vx("x", PrimType::Float(32, 8));
-  tirx::PrimVar vy("y", PrimType::Float(32, 8));
-  tirx::PrimVar vx_int("x", PrimType::Int(32, 8));
-  tirx::PrimVar vy_int("y", PrimType::Int(32, 8));
+  PrimVar vx("x", PrimType::Float(32, 8));
+  PrimVar vy("y", PrimType::Float(32, 8));
+  PrimVar vx_int("x", PrimType::Int(32, 8));
+  PrimVar vy_int("y", PrimType::Int(32, 8));
   TVM_FFI_ICHECK(vpat.Match(vx + vy * prim::Broadcast(2.0f, 8)));
   TVM_FFI_ICHECK(!vpat.Match(vx_int + vy_int * prim::Broadcast(2, 8)));
 }

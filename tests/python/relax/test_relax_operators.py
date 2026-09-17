@@ -509,7 +509,7 @@ def test_op_to_vdevice(exec_mode):
 
         @R.function
         def to_vdev(x: R.Tensor((3, 4), "float32")):
-            dst_vdev = tvm.ir.VDevice("llvm", 0, "global")
+            dst_vdev = tvm.relax.VDevice("llvm", 0, "global")
             ret = R.to_vdevice(x, "llvm")
             return ret
 

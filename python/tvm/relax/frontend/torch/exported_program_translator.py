@@ -1171,7 +1171,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 actual_dim = dim if dim >= 0 else len(in_shape) + dim
                 dim_expr = in_shape[actual_dim]
                 if tvm.ir.is_prim_expr(dim_expr):
-                    if tvm.tirx.analysis.expr_deep_equal(end_val, dim_expr):
+                    if tvm.ir.prim.expr_deep_equal(end_val, dim_expr):
                         return x
 
         axes = [dim]
@@ -1191,7 +1191,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             dim += len(x_shape)
 
         new_shape = x_shape[:dim] + sizes + x_shape[dim + 1 :]
-        return self.block_builder.emit(relax.op.reshape(x, new_shape))
+        return self._emit_torch_reshape(x, new_shape)
 
     ########## Creation ##########
 
@@ -1200,6 +1200,16 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         num_classes = node.args[1] if len(node.args) > 1 else node.kwargs.get("num_classes")
         if num_classes is None:
             raise ValueError("num_classes not found in node.args or node.kwargs")
+        # torch only rejects a non-positive num_classes when the model runs, and neither
+        # fx tracing nor export runs it, so the invalid value reaches this converter.
+        # num_classes is a static attribute of relax.op.one_hot, so it has to be rejected
+        # here rather than by the C++ builder, whose `depth > 0` check never mentions it.
+        if isinstance(num_classes, int) and num_classes <= 0:
+            raise ValueError(
+                f"one_hot num_classes must be a positive integer, but got {num_classes}. "
+                "Inferring the depth from the input (torch's num_classes=-1) is not "
+                "supported because the resulting depth is data dependent."
+            )
 
         on_value = node.args[2] if len(node.args) > 2 else node.kwargs.get("on_value", 1)
         off_value = node.args[3] if len(node.args) > 3 else node.kwargs.get("off_value", 0)
@@ -1477,7 +1487,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         f"size {size} is not supported"
                     )
 
-        return self.block_builder.emit(relax.op.reshape(x, size))
+        return self._emit_torch_reshape(x, size)
 
     ########## Symbolic Shape Constraints ##########
 
@@ -1637,7 +1647,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 self.env[ph] = param
 
             # Build the branch function (using a plain BindingBlock, not DataflowBlock).
-            with self.block_builder.function(name=unique_name, params=params):
+            with self.block_builder.function(
+                name=unique_name, params=params, pure=not self._has_assert_async(graph_module)
+            ):
                 inner = self._translate_fx_graph(graph_module, nodes, {})
                 if isinstance(inner, tuple | list):
                     if len(inner) == 1:
@@ -1699,6 +1711,32 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         return self.block_builder.emit(if_expr, name_hint="cond_result")
 
     ########## Others ##########
+
+    @staticmethod
+    def _has_assert_async(graph_module) -> bool:
+        return any(
+            node.op == "call_function"
+            and node.target
+            in (torch.ops.aten._assert_async.default, torch.ops.aten._assert_async.msg)
+            for module in graph_module.modules()
+            if isinstance(module, fx.GraphModule)
+            for node in module.graph.nodes
+        )
+
+    def _assert_async(self, node: fx.Node) -> relax.Var:
+        condition = self.env[node.args[0]]
+        if condition.ty.dtype.dtype != "bool":
+            condition = self.block_builder.emit(relax.op.astype(condition, "bool"))
+        if condition.ty.ndim != 0:
+            condition = self.block_builder.emit(relax.op.reshape(condition, []))
+        message = (
+            node.args[1]
+            if len(node.args) > 1
+            else node.kwargs.get("assert_msg", "Assertion Failed")
+        )
+        return self.block_builder.emit(
+            relax.op.assert_op(condition, [relax.StringImm(message)], format="{}")
+        )
 
     def create_convert_map(
         self,
@@ -2039,6 +2077,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "to.dtype_layout": self._to,
             "type_as.default": self._type_as,
             # other
+            "_assert_async.default": self._assert_async,
+            "_assert_async.msg": self._assert_async,
             "getitem": self._getitem,
             "item.default": self._item,
             "sym_size.int": self._sym_size_int,
@@ -2232,12 +2272,13 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # Find all the missing function types
         self._check_unsupported_func_type(nodes)
 
-        # When the graph contains torch.cond, we must avoid DataflowBlock
-        # because relax.If cannot appear inside a dataflow region.
-        use_dataflow = not self._has_cond_op(nodes)
+        # Assertions have side effects, including when they occur in a cond branch.
+        # Neither these effects nor relax.If may appear inside a dataflow region.
+        is_pure = not self._has_assert_async(exported_program.graph_module)
+        use_dataflow = is_pure and not self._has_cond_op(nodes)
 
         with self.block_builder.function(
-            name=func_name, params=list(inputs_vars.values()).copy(), attrs=func_attrs
+            name=func_name, params=list(inputs_vars.values()).copy(), attrs=func_attrs, pure=is_pure
         ):
             with contextlib.ExitStack() as stack:
                 if use_dataflow:

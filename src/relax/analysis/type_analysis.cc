@@ -36,6 +36,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 //--------------------------
 // GetStaticType
@@ -200,7 +201,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
 
       PrimExpr value = ret.value().as_or_throw<PrimExpr>();
       if (value->IsInstance<IntImmNode>()) {
-        return ffi::Any(tvm::cast(PrimType::Int(64), value));
+        return ffi::Any(tvm::prim::cast(PrimType::Int(64), value));
       }
       TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
           << "Can only provide i64 expressions in shape";
@@ -286,7 +287,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
                            ffi::Map<Var, Expr> var_map) {
                           for (const auto& [var, value] : shape_var_map) {
-                            TVM_FFI_CHECK(var.as<tirx::PrimVar>(), TypeError)
+                            TVM_FFI_CHECK(var.as<PrimVar>(), TypeError)
                                 << "Expected an exact primitive Var, but received " << var;
                             var_map.Set(var, value);
                           }
@@ -882,7 +883,7 @@ class CallRetTypeDeriver : public TypeBaseChecker {
       return TypeBaseChecker::PrimExprMatchCheck(param, arg);
     }
 
-    if (auto var = param.as<tirx::PrimVar>()) {
+    if (auto var = param.as<PrimVar>()) {
       auto it = var_map_.find(var.value());
       // not populated
       if (it == var_map_.end()) {
@@ -908,8 +909,7 @@ class CallRetTypeDeriver : public TypeBaseChecker {
       return TypeBaseChecker::ShapeMatchCheck(lhs, rhs);
     }
 
-    if (auto* ptr = lhs.as<VarNode>();
-        ptr && !lhs.as<DataflowVarNode>() && !lhs.as<tirx::PrimVar>()) {
+    if (auto* ptr = lhs.as<VarNode>(); ptr && !lhs.as<DataflowVarNode>() && !lhs.as<PrimVar>()) {
       auto var = ffi::GetRef<Var>(ptr);
       auto it = var_map_.find(var);
       // not populated
@@ -1184,12 +1184,12 @@ class TIRVarsDetector : public TypeVisitor {
  private:
   void VisitTypePrimExprField(PrimExpr expr) {
     if (collection_type == VarType::Definition) {
-      if (auto opt = expr.as<tirx::PrimVar>()) {
+      if (auto opt = expr.as<PrimVar>()) {
         RecordTIRVar(opt.value());
       }
     } else if (collection_type == VarType::Usage) {
       for (const tirx::Var& tir_var : tirx::UndefinedVars(expr)) {
-        if (auto prim_var = tir_var.as<tirx::PrimVar>()) {
+        if (auto prim_var = tir_var.as<PrimVar>()) {
           RecordTIRVar(prim_var.value());
         }
       }
@@ -1402,7 +1402,7 @@ class SymbolicVarCollector : public relax::ExprVisitor, public relax::TypeVisito
 
   void VisitTypeExprField(const PrimExpr& expr) final {
     if (mode_ & VisitMode::kProvideDefinition) {
-      if (auto var = expr.as<tirx::PrimVar>()) {
+      if (auto var = expr.as<PrimVar>()) {
         defined_symbolic_var_.insert(var.value());
       }
     }
@@ -1415,7 +1415,7 @@ class SymbolicVarCollector : public relax::ExprVisitor, public relax::TypeVisito
     if (!op->ty.as<PrimTypeNode>()) {
       return;
     }
-    tirx::PrimVar var = ffi::GetRef<Var>(op).as_or_throw<tirx::PrimVar>();
+    PrimVar var = ffi::GetRef<Var>(op).as_or_throw<PrimVar>();
     // default mode, check defined.
     if (defined_symbolic_var_.count(var) == 0) {
       free_symbolic_var_.insert(var);
@@ -1426,7 +1426,7 @@ class SymbolicVarCollector : public relax::ExprVisitor, public relax::TypeVisito
 
   void VisitVarDef_(const VarNode* op) final {
     if (op->ty.as<PrimTypeNode>()) {
-      defined_symbolic_var_.insert(ffi::GetRef<Var>(op).as_or_throw<tirx::PrimVar>());
+      defined_symbolic_var_.insert(ffi::GetRef<Var>(op).as_or_throw<PrimVar>());
     }
     relax::ExprVisitor::VisitVarDef_(op);
   }

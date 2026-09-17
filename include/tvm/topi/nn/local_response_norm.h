@@ -69,24 +69,24 @@ inline Tensor lrn(const Tensor& data, int size, int axis = 1, float alpha = 0.00
     sqr_sum = tvm::te::compute(
         input_shape,
         [&](PrimVar i, PrimVar l, PrimVar j, PrimVar k) {
-          return tvm::sum(pad_data(i, l + rxs, j, k) * pad_data(i, l + rxs, j, k), {rxs});
+          return tvm::prim::sum(pad_data(i, l + rxs, j, k) * pad_data(i, l + rxs, j, k), {rxs});
         },
         "tensor", "sqr_sum");
   } else if (axis == 3) {
     sqr_sum = tvm::te::compute(
         input_shape,
         [&](PrimVar i, PrimVar l, PrimVar j, PrimVar k) {
-          return tvm::sum(pad_data(i, l, j, k + rxs) * pad_data(i, l, j, k + rxs), {rxs});
+          return tvm::prim::sum(pad_data(i, l, j, k + rxs) * pad_data(i, l, j, k + rxs), {rxs});
         },
         "tensor", "sqr_sum");
   }
-  PrimExpr alpha_imm = tvm::te::MakeConst(PrimType(data->dtype), alpha);
-  PrimExpr beta_imm = tvm::te::MakeConst(PrimType(data->dtype), beta);
-  PrimExpr bias_imm = tvm::te::MakeConst(PrimType(data->dtype), bias);
+  PrimExpr alpha_imm = tvm::prim::MakeConst(PrimType(data->dtype), alpha);
+  PrimExpr beta_imm = tvm::prim::MakeConst(PrimType(data->dtype), beta);
+  PrimExpr bias_imm = tvm::prim::MakeConst(PrimType(data->dtype), bias);
   auto sqrt_sum_up = tvm::te::compute(
       input_shape,
       [&](PrimVar i, PrimVar j, PrimVar k, PrimVar l) {
-        return tvm::pow(bias_imm + (div(alpha_imm * sqr_sum(i, j, k, l), size)), beta_imm);
+        return tvm::prim::pow(bias_imm + (div(alpha_imm * sqr_sum(i, j, k, l), size)), beta_imm);
       },
       "tensor", kElementWise);
   return topi::divide(data, sqrt_sum_up);

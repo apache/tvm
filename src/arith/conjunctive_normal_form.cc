@@ -25,7 +25,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
 
 #include <optional>
 #include <unordered_map>
@@ -250,7 +250,7 @@ void AndOfOrs::TrySimplifyOr(Key* a_ptr, Key* b_ptr, AnalyzerObj* analyzer) {
   Key& b = *b_ptr;
   PrimExpr joint = GetExpr(a) || GetExpr(b);
   PrimExpr simplified = analyzer->rewrite_simplify(joint);
-  if (!ExprDeepEqual()(simplified, joint)) {
+  if (!prim::ExprDeepEqual()(simplified, joint)) {
     if (auto* simplified_or = simplified.as<prim::OrNode>()) {
       a = GetKey(simplified_or->a);
       b = GetKey(simplified_or->b);
@@ -266,7 +266,7 @@ void AndOfOrs::TrySimplifyAnd(Key* a_ptr, Key* b_ptr, AnalyzerObj* analyzer) {
   Key& b = *b_ptr;
   PrimExpr joint = GetExpr(a) && GetExpr(b);
   PrimExpr simplified = analyzer->rewrite_simplify(joint);
-  if (!ExprDeepEqual()(simplified, joint)) {
+  if (!prim::ExprDeepEqual()(simplified, joint)) {
     if (auto* simplified_and = simplified.as<prim::AndNode>()) {
       a = GetKey(simplified_and->a);
       b = GetKey(simplified_and->b);

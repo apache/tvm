@@ -24,7 +24,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tirx, topi
-from tvm.ir import DummyGlobalInfo, VDevice
+from tvm.relax import DummyGlobalInfo, VDevice
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T

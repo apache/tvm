@@ -36,7 +36,6 @@
 
 namespace tvm {
 namespace te {
-
 using arith::IntSet;
 using namespace tvm::tirx;
 
@@ -207,10 +206,10 @@ class Tensor : public OpaqueExpr {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tensor, OpaqueExpr, TensorNode);
 };
 
-/*! \brief Return whether an expression is a Call whose callee is a TE Tensor. */
+/*! \brief Return whether an expression calls the registered te.tensor_load operator. */
 TVM_DLL bool IsTensorLoad(const Expr& expr);
 
-/*! \brief Recover and validate the Tensor callee of a tensor-load Call. */
+/*! \brief Recover and validate the first Tensor argument of a tensor-load Call. */
 TVM_DLL Tensor GetTensorFromLoad(const Call& call);
 
 /*! \brief Recover and validate the primitive indices of a tensor-load Call. */

@@ -27,20 +27,18 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/cow.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
 
 #include <algorithm>
 #include <unordered_map>
 #include <vector>
 
 #include "const_fold.h"
-#include "ir_mutator_with_analyzer.h"
 #include "pattern_match.h"
+#include "simplify_base.h"
 
 namespace tvm {
 namespace arith {
-
-using namespace tirx;
 
 /* \brief Usage counters for RewriteSimplifier
  *
@@ -84,39 +82,40 @@ struct RewriteSimplifierStats : ffi::ObjectRef {
  *
  * This class can be inheritated for other simplifiers.
  */
-class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
+class RewriteSimplifier::Impl : public SimplifierBase {
  public:
-  using IRMutatorWithAnalyzer::VisitExpr_;
-  using IRMutatorWithAnalyzer::VisitPrimExpr;
+  using SimplifierBase::Mutate;
+  using SimplifierBase::Mutate_;
 
-  explicit Impl(AnalyzerObj* parent) : IRMutatorWithAnalyzer(parent) {}
+  explicit Impl(AnalyzerObj* parent) : SimplifierBase(parent) {}
 
-  Expr VisitExpr(const Expr& e) override;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value,
+                               InplaceMode inplace_mode = InplaceMode::kDisallow) override;
 
   void Update(const Var& var, const PrimExpr& info, bool override_info);
-  Expr VisitExpr_(const prim::AddNode* op) override;
-  Expr VisitExpr_(const prim::SubNode* op) override;
-  Expr VisitExpr_(const prim::MulNode* op) override;
-  Expr VisitExpr_(const prim::DivNode* op) override;
-  Expr VisitExpr_(const prim::ModNode* op) override;
-  Expr VisitExpr_(const prim::FloorDivNode* op) override;
-  Expr VisitExpr_(const prim::FloorModNode* op) override;
-  Expr VisitExpr_(const prim::MinNode* op) override;
-  Expr VisitExpr_(const prim::MaxNode* op) override;
-  Expr VisitExpr_(const prim::EQNode* op) override;
-  Expr VisitExpr_(const prim::NENode* op) override;
-  Expr VisitExpr_(const prim::LTNode* op) override;
-  Expr VisitExpr_(const prim::LENode* op) override;
-  Expr VisitExpr_(const prim::GTNode* op) override;
-  Expr VisitExpr_(const prim::GENode* op) override;
-  Expr VisitExpr_(const prim::AndNode* op) override;
-  Expr VisitExpr_(const prim::OrNode* op) override;
-  Expr VisitExpr_(const prim::NotNode* op) override;
-  Expr VisitExpr_(const prim::SelectNode* op) override;
-  Expr VisitExpr_(const CallNode* op) override;
-  Expr VisitExpr_(const VarNode* op) override;
-  Expr VisitExpr_(const prim::CastNode* op) override;
-  Expr VisitExpr_(const prim::LetNode* op) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::SubNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::MulNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::DivNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::ModNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::MinNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::MaxNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::NENode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LTNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LENode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::GTNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::GENode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::AndNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::OrNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::NotNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) override;
 
   std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume);
 
@@ -207,24 +206,24 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
 
   /*! \brief Rewrite rules for Less Than comparisons
    *
-   * These are separate from the VisitExpr_(const LTNode*) method, as
+   * These are separate from the Mutate_(const LTNode*) method, as
    * they may required from rewrites of LT or LE.
    */
-  PrimExpr ApplyRewriteRules(prim::LT node);
+  PrimExpr ApplyRewriteRules(prim::LT node, InplaceMode inplace_mode);
 
   /*! \brief Rewrite rules for Equal comparisons
    *
-   * These are separate from the VisitExpr_(const EQNode*) method, as
+   * These are separate from the Mutate_(const EQNode*) method, as
    * they may required from rewrites of LE or NE.
    */
-  PrimExpr ApplyRewriteRules(prim::EQ node);
+  PrimExpr ApplyRewriteRules(prim::EQ node, InplaceMode inplace_mode);
 
   /*! \brief Rewrite rules for Equal comparisons
    *
-   * These are separate from the VisitExpr_(const EQNode*) method, as
+   * These are separate from the Mutate_(const EQNode*) method, as
    * they may required from rewrites of LT, LE, or NE.
    */
-  PrimExpr ApplyRewriteRules(prim::Not node);
+  PrimExpr ApplyRewriteRules(prim::Not node, InplaceMode inplace_mode);
 
  private:
   CompareResult TryCompareUsingKnownInequalities(const PrimExpr& x, const PrimExpr& y);
@@ -248,14 +247,16 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   // Recursive rewrite x
   // we limit maximum depth of recursive rewrite allowed to
   // avoid infinite loop
-  PrimExpr RecursiveRewrite(const PrimExpr& x) {
+  PrimExpr RecursiveRewrite(const PrimExpr& x, InplaceMode inplace_mode) {
     stats_.num_recursive_rewrites++;
     if (recur_depth_ >= kMaxRecurDepth) return x;
-    ++recur_depth_;
+    struct DepthGuard {
+      int64_t& depth;
+      explicit DepthGuard(int64_t& depth) : depth(depth) { ++depth; }
+      ~DepthGuard() { --depth; }
+    } depth_guard(recur_depth_);
     stats_.max_recursive_depth = std::max(recur_depth_, stats_.max_recursive_depth);
-    PrimExpr res = this->VisitPrimExpr(x);
-    --recur_depth_;
-    return res;
+    return Mutate(x, inplace_mode).ValueOrUnchanged(x);
   }
 
   template <typename TA>

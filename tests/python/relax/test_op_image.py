@@ -24,7 +24,8 @@ pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
 import tvm.topi.testing
 from tvm import relax, tirx
-from tvm.ir import Op, VDevice
+from tvm.ir import Op
+from tvm.relax import VDevice
 from tvm.script import relax as R
 
 

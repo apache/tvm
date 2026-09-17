@@ -39,21 +39,25 @@ using namespace tvm::tirx;
  */
 class OpaqueBlockLower : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   static Stmt Rewrite(Stmt body) {
-    OpaqueBlockLower lower;
-    lower.storage_align_ = CollectStorageAlignAnnotation(body);
-    return lower(std::move(body));
+    auto lower = ffi::make_object<OpaqueBlockLower>();
+    lower->storage_align_ = CollectStorageAlignAnnotation(body);
+    return lower->Mutate(body, InplaceMode::kAllow).ValueOrUnchanged(std::move(body));
   }
 
  private:
-  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     // We have convert blocks into opaque blocks in previous passes.
     TVM_FFI_ICHECK(op->iter_values.empty())
         << "Non-opaque blocks are not allowed in FlattenBuffer. Please "
            "call pass ConvertBlocksToOpaque before.";
     // Step 1. Visit the body
-    SBlock new_block = this->VisitStmt(op->block).as_or_throw<SBlock>();
-    PrimExpr predicate = this->VisitPrimExpr(op->predicate);
+    SBlock new_block =
+        this->Mutate(op->block, inplace_mode).ValueOrUnchanged(op->block).as_or_throw<SBlock>();
+    PrimExpr predicate = this->Mutate(op->predicate, inplace_mode).ValueOrUnchanged(op->predicate);
     // Step 2. Transform the `predicate` to if-then-else
     Stmt body = new_block->body;
     if (!is_one(predicate)) {
@@ -86,17 +90,17 @@ class OpaqueBlockLower : public StmtExprMutator {
     return body;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Step 1. Update unit loop info.
-    PrimExpr min = this->VisitPrimExpr(op->min);
-    PrimExpr extent = this->VisitPrimExpr(op->extent);
+    PrimExpr min = this->Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
+    PrimExpr extent = this->Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
     if (is_one(extent) && op->annotations.empty()) {
       // handling unit loop
-      unit_loop_vars_[op->loop_var] = min;
+      VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
     }
 
     // Step 2. Visit recursively
-    Stmt body = this->VisitStmt(op->body);
+    Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
 
     // Step 3. Handle annotations
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
@@ -122,22 +126,6 @@ class OpaqueBlockLower : public StmtExprMutator {
       body = AttrStmt(op->loop_var, it->first, it->second, std::move(body));
     }
     return body;
-  }
-
-  Expr VisitExpr_(const VarNode* op) final {
-    Var var = ffi::GetRef<Var>(op);
-    auto it = unit_loop_vars_.find(var);
-    if (it == unit_loop_vars_.end()) {
-      return var;
-
-    } else {
-      PrimExpr expr = it->second;
-      PrimType var_ty = var->ty.as_or_throw<PrimType>();
-      if (expr.ty() != var_ty) {
-        expr = tvm::cast(var_ty, std::move(expr));
-      }
-      return expr;
-    }
   }
 
   static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, ffi::String thread_tag,
@@ -201,7 +189,6 @@ class OpaqueBlockLower : public StmtExprMutator {
   }
 
   /*! \brief Record the loop_var and loop start value of unit loops, whose extent is one. */
-  std::unordered_map<Var, PrimExpr> unit_loop_vars_;
 
   /*! \brief Attr keys to preserve into loop annotations. */
   std::unordered_set<std::string> preserved_annotations_;

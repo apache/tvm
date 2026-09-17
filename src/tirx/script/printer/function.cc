@@ -24,6 +24,7 @@
 
 namespace tvm {
 namespace script {
+
 namespace printer {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -164,7 +165,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           const tirx::SBlockRealizeNode* root_block_realize =
               func->body.as<tirx::SBlockRealizeNode>();
           if (root_block_realize && !root_block_realize->iter_values.size() &&
-              tirx::is_one(root_block_realize->predicate)) {
+              tvm::prim::is_one(root_block_realize->predicate)) {
             tirx::SBlock root_block = root_block_realize->block;
             if (!root_block->annotations.size() && !root_block->match_buffers.size() &&
                 !root_block->reads.size() && !root_block->writes.size() &&

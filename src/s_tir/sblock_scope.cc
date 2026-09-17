@@ -169,27 +169,30 @@ void SRefTreeCreator::PopAndRecordSRef() {
   srefs_.pop_back();
 }
 
-void SRefTreeCreator::VisitStmt_(const ForNode* loop) {
+ffi::Optional<VisitInterrupt> SRefTreeCreator::Visit_(const ForNode* loop) {
   if (!include_loops_) {
-    VisitStmt(loop->body);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(loop->body));
   } else {
     PushSRef(loop);
-    VisitStmt(loop->body);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(loop->body));
     PopAndRecordSRef();
   }
+  return std::nullopt;
 }
 
-void SRefTreeCreator::VisitStmt_(const SBlockRealizeNode* realize) {
+ffi::Optional<VisitInterrupt> SRefTreeCreator::Visit_(const SBlockRealizeNode* realize) {
   const SBlockNode* block = realize->block.get();
   PushSRef(block);
-  VisitStmt(block->body);  // `block->init` is not visited
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(block->body));  // `block->init` is not visited
   PopAndRecordSRef();
+  return std::nullopt;
 }
 
-void SRefTreeCreator::VisitStmt_(const SeqStmtNode* seq_stmt) {
+ffi::Optional<VisitInterrupt> SRefTreeCreator::Visit_(const SeqStmtNode* seq_stmt) {
   // Set `seq_index` information for SeqStmtNode
-  StmtVisitor::VisitStmt_(seq_stmt);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(seq_stmt));
   SetSeqIndexInChildren(stmt2ref_, seq_stmt, include_loops_);
+  return std::nullopt;
 }
 
 /******** FFI ********/

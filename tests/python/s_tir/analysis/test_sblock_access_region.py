@@ -457,5 +457,72 @@ def test_buffer_access_with_nested_let_binding():
     tvm.ir.assert_structural_equal(block.writes, ret[1])
 
 
+@pytest.mark.parametrize("case", ["coupled", "equal", "nonlinear", "empty", "unbounded", "rounded"])
+def test_conditional_inequality_access_regions(case):
+    # Retain the live cases from the former arith inequality solver tests through
+    # the block-access consumer, including its conservative unresolved fallback.
+    tirx = tvm.tirx
+    x, y, z = [tirx.Var(name, "int32") for name in ("x", "y", "z")]
+    free_var = tirx.Var("free_var", "int32")
+    unbounded_extent = tirx.Cast("int32", 1 + tirx.log(free_var))
+    cases = {
+        "coupled": (
+            [x, y],
+            [(-100, 200), (0, 10)],
+            tirx.all(x + y <= 20, x - y >= 10),
+            [(-100, 200), (0, 10)],
+        ),
+        "equal": (
+            [x, y],
+            [(-100, 200), (-100, 200)],
+            tirx.all(x + y >= 10, x - y >= 2, x <= 6),
+            [(6, 1), (4, 1)],
+        ),
+        "nonlinear": (
+            [x, y, z],
+            [(-100, 200)] * 3,
+            tirx.all(x <= 6, x >= 6, x - z * y >= 0, x - z * y <= 0),
+            [(-100, 200)] * 3,
+        ),
+        "empty": (
+            [x],
+            [(-20, 41)],
+            tirx.all(-x - 4 <= -5 * x + 2, x * 4 + 5 <= x * 5),
+            [(-20, 41)],
+        ),
+        "unbounded": ([x], [(0, unbounded_extent)], x > 3, [(0, 256)]),
+        "rounded": ([x], [(-20, 41)], tirx.all(x * 3 >= -7, x * 2 <= 9), [(-2, 7)]),
+    }
+    variables, domains, condition, expected = cases[case]
+    inside = tirx.decl_buffer([256] * len(variables), name="inside")
+    outside = tirx.decl_buffer([256] * len(variables), name="outside")
+    body = tirx.SeqStmt(
+        [
+            tirx.IfThenElse(condition, tirx.Evaluate(inside[tuple(variables)]), None),
+            tirx.Evaluate(outside[tuple(variables)]),
+        ]
+    )
+    for var, (minimum, extent) in reversed(list(zip(variables, domains))):
+        body = tirx.For(var, minimum, extent, tirx.ForKind.SERIAL, body)
+    block = tirx.SBlock([], [], [], "conditional", body)
+    # Unbounded access sets conservatively cover the whole buffer.
+    outside_expected = [(0, 256)] if case == "unbounded" else domains
+    reads, writes, opaque = s_tir.analysis.get_sblock_access_region(
+        block, {inside: inside, outside: outside}
+    )
+    tvm.ir.assert_structural_equal(
+        reads,
+        [
+            tirx.BufferRegion(inside, [Range.from_min_extent(*bounds) for bounds in expected]),
+            # Leaving the conditional scope must restore the original domains.
+            tirx.BufferRegion(
+                outside, [Range.from_min_extent(*bounds) for bounds in outside_expected]
+            ),
+        ],
+    )
+    assert not writes
+    assert not opaque
+
+
 if __name__ == "__main__":
     tvm.testing.main()

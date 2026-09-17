@@ -23,7 +23,6 @@
  */
 
 #include <tvm/arith/int_set.h>
-#include <tvm/arith/int_solver.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -38,12 +37,12 @@
 #include "../../support/arena.h"
 #include "../../support/utils.h"
 #include "../../tirx/transform/ir_utils.h"
+#include "../analysis/conditional_bounds.h"
 #include "../schedule/utils.h"
 #include "../support/nd_int_set.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using support::NDIntSet;
@@ -71,23 +70,24 @@ NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
  */
 class Var2BufferCollector : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
   /*! \brief Map the buffer var to all aliased buffers. */
   std::unordered_map<Var, std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>>
       var2buffer_;
 
  private:
-  void VisitStmt_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
     var2buffer_[op->buffer.var()].insert(op->buffer);
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
     var2buffer_[buffer.var()].insert(buffer);
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     for (const BufferVar& buffer : op->alloc_buffers) {
       var2buffer_[buffer.var()].insert(buffer);
     }
@@ -95,17 +95,17 @@ class Var2BufferCollector : public StmtExprVisitor {
       var2buffer_[region->buffer.var()].insert(region->buffer);
       var2buffer_[region->source->buffer.var()].insert(region->source->buffer);
     }
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const DeclBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
     var2buffer_[op->buffer.var()].insert(op->buffer);
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
     var2buffer_[op->buffer.var()].insert(op->buffer);
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 };
 
@@ -115,25 +115,23 @@ class Var2BufferCollector : public StmtExprVisitor {
  */
 class BufferAccessRegionCollector : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
   static std::unordered_map<BufferVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
       const PrimFunc& f, bool collect_inbound) {
-    BufferAccessRegionCollector region_collector(collect_inbound);
-
+    auto region_collector = ffi::make_object<BufferAccessRegionCollector>(collect_inbound);
     // collect buffer var to aliased buffer mapping
-    Var2BufferCollector var2buffer_collector;
-    var2buffer_collector(f->body);
-    std::swap(region_collector.var2buffer_, var2buffer_collector.var2buffer_);
+    auto var2buffer_collector = ffi::make_object<Var2BufferCollector>();
+    var2buffer_collector->Visit(f->body);
+    std::swap(region_collector->var2buffer_, var2buffer_collector->var2buffer_);
 
     // collect buffer access regions
-    region_collector(f->body);
+    region_collector->Visit(f->body);
     // Compact any remaining flat AllocBuffer nodes at function scope
-    region_collector.CompactPendingFlatAllocBuffers();
-    return std::move(region_collector.buffer_access_region_);
+    region_collector->CompactPendingFlatAllocBuffers();
+    return std::move(region_collector->buffer_access_region_);
   }
 
  private:
-  using StmtExprVisitor::VisitBufferDef;
-
   struct BufferAccessInfo {
     /*! \brief The buffer. */
     BufferVar buffer;
@@ -144,16 +142,27 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         : buffer(buffer), accessed_region(region) {}
   };
 
+ public:
   explicit BufferAccessRegionCollector(bool collect_inbound) : collect_inbound_(collect_inbound) {}
 
+ private:
   /**************** Visitor overload ****************/
 
-  void VisitStmt_(const BufferStoreNode* op) final {
-    VisitBufferAccess(BufferRegion::FromPoint(op->buffer, op->indices));
-    VisitExpr(op->value);
+  // Declared regions carry bounds, not opaque runtime accesses.
+  ffi::Optional<VisitInterrupt> Visit_(const BufferRegionNode* op) final {
+    for (const Range& range : op->region) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
+    }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+    VisitBufferAccess(BufferRegion::FromPoint(op->buffer, op->indices));
+    return Visit(op->value);
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
     auto explicit_it = explicit_access_annotations_.find(buffer);
     if (explicit_it != explicit_access_annotations_.end()) {
@@ -161,12 +170,19 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     } else {
       VisitBufferAccess(BufferRegion::FromPoint(buffer, op->indices));
     }
-    StmtExprVisitor::VisitExpr_(op);
+    for (const auto& index : op->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const VarNode* op) final { VisitBufferVar(ffi::GetRef<Var>(op)); }
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+    VisitBufferVar(ffi::GetRef<Var>(op));
+    return std::nullopt;
+  }
 
-  void VisitStmt_(const ForNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     Range loop_range = Range::FromMinExtent(op->min, op->extent);
     IterVar iter = op->kind == ForKind::kThreadBinding
                        ? IterVar(Range(), op->loop_var, IterVarType::kThreadIndex,
@@ -176,73 +192,77 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     dom_analyzer_->Bind(op->loop_var, loop_range);
     dom_map_.emplace(op->loop_var.get(), arith::IntSet::FromRange(loop_range));
     size_t n_pending_before = pending_flat_alloc_buffers_.size();
-    StmtExprVisitor::VisitStmt_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     // Compact flat AllocBuffers defined inside this For scope
     CompactPendingFlatAllocBuffers(n_pending_before);
     dom_map_.erase(op->loop_var.get());
     ancestor_iters_.pop_back();
+    return std::nullopt;
   }
 
-  void VisitStmt_(const BindNode* op) final {
-    StmtExprVisitor::VisitExpr(op->value);
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->value));
     if (auto value = op->value.as<PrimExpr>(); value && arith::IsIndexTypedExpr(value.value())) {
       dom_analyzer_->Bind(op->var, value.value());
       dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(value.value()));
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const LetNode* op) final {
-    StmtExprVisitor::VisitExpr(op->value);
+  ffi::Optional<VisitInterrupt> Visit_(const LetNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->value));
     if (arith::IsIndexTypedExpr(op->value)) {
       dom_analyzer_->Bind(op->var, op->value);
       dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(op->value));
     }
-    StmtExprVisitor::VisitExpr(op->body);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->body));
     if (arith::IsIndexTypedExpr(op->value)) {
       dom_map_.erase(op->var.get());
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const IfThenElseNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final {
     // Visit condition
-    StmtExprVisitor::VisitExpr(op->condition);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->condition));
     {
       // Visit then branch
       With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_,
                                          &pending_conditions_);
-      StmtExprVisitor::VisitStmt(op->then_case);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->then_case));
     }
     if (op->else_case) {
       // Visit else branch
       With<ConditionalBoundsContext> ctx(!op->condition, &dom_map_, &hint_map_,
                                          &pending_conditions_);
-      StmtExprVisitor::VisitStmt(op->else_case.value());
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->else_case.value()));
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const CallNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if (op->op.same_as(prim::builtin::if_then_else())) {
       PrimExpr condition = op->args[0].as_or_throw<PrimExpr>();
       PrimExpr then_value = op->args[1].as_or_throw<PrimExpr>();
       PrimExpr else_value = op->args[2].as_or_throw<PrimExpr>();
       // Visit condition
-      StmtExprVisitor::VisitExpr(condition);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(condition));
       {
         // Visit then branch
         With<ConditionalBoundsContext> ctx(condition, &dom_map_, &hint_map_, &pending_conditions_);
-        StmtExprVisitor::VisitExpr(then_value);
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(then_value));
       }
       {
         // Visit else branch
         With<ConditionalBoundsContext> ctx(!condition, &dom_map_, &hint_map_, &pending_conditions_);
-        StmtExprVisitor::VisitExpr(else_value);
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(else_value));
       }
-      return;
+      return std::nullopt;
     }
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     // Step 0. Check there is no init part and block is opaque
     TVM_FFI_ICHECK(!op->init.has_value());
     TVM_FFI_ICHECK_EQ(op->iter_vars.size(), 0) << "CompactBufferRegion only works on opaque blocks";
@@ -283,14 +303,14 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
     // Step 3. Record relax position of ancestor_loops_
     for (const BufferVar& buffer : op->alloc_buffers) {
-      VisitBufferDef(buffer.var());
+      RecordBufferDefinition(buffer.var());
     }
     // Step 4. Visit match buffers
     for (const MatchBufferRegion& region : op->match_buffers) {
       VisitBufferAccess(region->source);
     }
     // Step 5. Visit block body recursively
-    StmtExprVisitor::VisitStmt_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     // Step 6. Recover read/write region annotations
     for (auto& p : cur_access_annotations) {
       auto& regions = access_annotations_[p.first];
@@ -308,21 +328,22 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
           << "Block allocation buffer shoud not be alised";
       SimplifyAndNarrowBufferRegionFromNDIntSet(buffer);
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SBlockRealizeNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* op) final {
     With<ConditionalBoundsContext> ctx(op->predicate, &dom_map_, &hint_map_, &pending_conditions_);
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
     // AllocBuffer is flat: register the buffer def and track for post-scope compaction.
-    VisitBufferDef(op->buffer.var());
+    RecordBufferDefinition(op->buffer.var());
     pending_flat_alloc_buffers_.push_back(op->buffer);
-    return StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iter = op->node.as_or_throw<IterVar>();
       ancestor_iters_.push_back(iter);
@@ -333,19 +354,19 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       dom_analyzer_->Bind(iter->var, dom);
       dom_map_.emplace(iter->var.get(), arith::IntSet::FromRange(dom));
       size_t n_pending_before = pending_flat_alloc_buffers_.size();
-      StmtExprVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       CompactPendingFlatAllocBuffers(n_pending_before);
       dom_map_.erase(iter->var.get());
       ancestor_iters_.pop_back();
-      return;
+      return std::nullopt;
     }
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   /**************** Helper functions ****************/
 
   /*! \brief Record information on the buffer defining point. */
-  void VisitBufferDef(const Var& buffer_data) {
+  void RecordBufferDefinition(const Var& buffer_data) {
     auto it = buffer_scope_depth_.find(buffer_data);
     TVM_FFI_ICHECK(it == buffer_scope_depth_.end()) << buffer_data << " has duplicate definitions";
     buffer_scope_depth_.insert(it, {buffer_data, ancestor_iters_.size()});
@@ -577,26 +598,34 @@ struct BufferAllocInfo {
 /*! \brief Reallocate the buffers with minimal region. */
 class BufferCompactor : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   explicit BufferCompactor(std::unordered_map<Var, BufferAllocInfo> buffer_info)
       : buffer_info_(std::move(buffer_info)) {}
 
-  Stmt VisitStmt_(const BufferStoreNode* _op) final {
-    BufferStore store = StmtExprMutator::VisitStmt_(_op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* _op, InplaceMode inplace_mode) final {
+    BufferVar original_buffer = _op->buffer;
+    BufferStore store = StmtExprMutator::Mutate_(_op, inplace_mode)
+                            .ValueOrUnchanged(ffi::GetRef<Stmt>(_op))
+                            .as_or_throw<BufferStore>();
     BufferStoreNode* op = store.CopyOnWrite();
-    RewriteBufferAccess(_op->buffer, &op->buffer, &op->indices);
+    RewriteBufferAccess(original_buffer, &op->buffer, &op->indices);
     return store;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* _op) final {
-    TensorLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* _op, InplaceMode inplace_mode) final {
     BufferVar original_buffer = _op->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorLoad load = StmtExprMutator::Mutate_(_op, inplace_mode)
+                          .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_op))
+                          .as_or_throw<TensorLoad>();
     BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
     ffi::Array<PrimExpr> indices = load->indices;
     RewriteBufferAccess(original_buffer, &buffer, &indices);
     return BufferLoad(buffer, indices, load->span);
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     // Step 0. Check there is no Init part.
     TVM_FFI_ICHECK(!op->init.has_value());
     // Rewrite the signature while its buffer identities still match buffer_info_.
@@ -608,17 +637,21 @@ class BufferCompactor : public StmtExprMutator {
     n->alloc_buffers =
         op->alloc_buffers.Map([this](const BufferVar& buf) { return RewriteAllocBuffer(buf); });
     // Recursively rewrite the body after installing the allocation remaps.
-    return StmtExprMutator::VisitStmt_(block.get());
+    return StmtExprMutator::Mutate_(block.get(),
+                                    block.unique() ? inplace_mode : InplaceMode::kDisallow)
+        .ValueOrUnchanged(block);
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
     RewriteAllocBuffer(op->buffer);
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     RewriteAllocBuffer(op->buffer);
-    AllocBuffer alloc_buf = StmtExprMutator::VisitStmt_(op).as_or_throw<AllocBuffer>();
+    AllocBuffer alloc_buf = StmtExprMutator::Mutate_(op, inplace_mode)
+                                .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                                .as_or_throw<AllocBuffer>();
     auto it = buffer_info_.find(op->buffer.var());
     if (it == buffer_info_.end()) {
       return alloc_buf;
@@ -636,7 +669,7 @@ class BufferCompactor : public StmtExprMutator {
     if (it != buffer_info_.end()) {
       const BufferVar& new_buffer = it->second.new_buffer;
       if (!new_buffer.same_as(buffer)) {
-        buffer_remap_.Set(buffer, new_buffer);
+        VarRemapSet(buffer, new_buffer);
       }
       return new_buffer;
     }
@@ -764,8 +797,8 @@ Stmt BufferCompactorCompact(
     alloc_info.region = region;
     buffer_info.emplace(buffer.var(), std::move(alloc_info));
   }
-  BufferCompactor compactor(std::move(buffer_info));
-  Stmt stmt = compactor(f->body);
+  auto compactor = ffi::make_object<BufferCompactor>(std::move(buffer_info));
+  Stmt stmt = compactor->Mutate(f->body).ValueOrUnchanged(f->body);
   return stmt;
 }
 

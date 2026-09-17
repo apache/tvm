@@ -25,7 +25,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -53,7 +52,7 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buff
   ffi::Array<Var> indices;
   indices.reserve(buffer_region->region.size());
   for (const Range& range : buffer_region->region) {
-    if (!tirx::is_one(range->extent)) {
+    if (!tvm::prim::is_one(range->extent)) {
       return std::nullopt;
     }
     if (range->min->IsInstance<IntImmNode>()) {
@@ -69,7 +68,7 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buff
 }
 
 /*! \brief The schedule error class when the padding size is invalid. */
-class InvalidPaddingError : public ScheduleError {
+class InvalidPaddingError : public ScheduleErrorContextObj {
  public:
   InvalidPaddingError(IRModule mod, SBlock block, ffi::Array<int64_t> padding)
       : mod_(std::move(mod)), block_(std::move(block)), padding_(std::move(padding)) {}
@@ -87,11 +86,11 @@ class InvalidPaddingError : public ScheduleError {
 
   static void Check(const ScheduleState& self, const SBlock& block, ffi::Array<int64_t> padding) {
     if (padding.size() != block->iter_vars.size()) {
-      throw InvalidPaddingError(self->mod, block, padding);
+      throw MakeScheduleError<InvalidPaddingError>(self->mod, block, padding);
     }
     for (int64_t pad : padding) {
       if (pad <= 0) {
-        throw InvalidPaddingError(self->mod, block, padding);
+        throw MakeScheduleError<InvalidPaddingError>(self->mod, block, padding);
       }
     }
   }
@@ -103,7 +102,7 @@ class InvalidPaddingError : public ScheduleError {
 };
 
 /*! \brief The schedule error class when the block body is not an Einsum pattern. */
-class NonEinsumError : public ScheduleError {
+class NonEinsumError : public ScheduleErrorContextObj {
  public:
   explicit NonEinsumError(IRModule mod, SBlock block)
       : mod_(std::move(mod)), block_(std::move(block)) {}
@@ -192,8 +191,8 @@ struct BufferPadding {
         }
       }
       PrimExpr rhs = BufferLoad(buffer, indices);
-      body =
-          BufferStore(padded_buffer, if_then_else(predicate, rhs, MakeConst(rhs.ty(), 0)), indices);
+      body = BufferStore(padded_buffer, if_then_else(predicate, rhs, prim::MakeConst(rhs.ty(), 0)),
+                         indices);
     } else {
       body = BufferStore(buffer, BufferLoad(padded_buffer, indices), indices);
     }
@@ -224,34 +223,34 @@ Einsum ExtractEinsum(const ScheduleState& self, const SBlock& block) {
   for (int i = 0; i < n_reads; ++i) {
     const BufferVar& buffer = block->reads[i]->buffer;
     if (buffer_used.count(buffer.get()) != 0) {
-      throw NonEinsumError(self->mod, block);
+      throw MakeScheduleError<NonEinsumError>(self->mod, block);
     }
     buffer_used.insert(buffer.get());
     if (ffi::Optional<ffi::Array<Var>> opt_indices = CheckTrivialBufferAccess(block->reads[i])) {
       result.input_buffers.push_back(buffer);
       result.input_indices.Set(buffer, opt_indices.value());
     } else {
-      throw NonEinsumError(self->mod, block);
+      throw MakeScheduleError<NonEinsumError>(self->mod, block);
     }
   }
   int n_writes = block->writes.size();
   for (int i = 0; i < n_writes; ++i) {
     const BufferVar& buffer = block->writes[i]->buffer;
     if (buffer_used.count(buffer.get()) != 0) {
-      throw NonEinsumError(self->mod, block);
+      throw MakeScheduleError<NonEinsumError>(self->mod, block);
     }
     buffer_used.insert(buffer.get());
     if (ffi::Optional<ffi::Array<Var>> opt_indices = CheckTrivialBufferAccess(block->writes[i])) {
       result.output_buffers.push_back(buffer);
       result.output_indices.Set(buffer, opt_indices.value());
     } else {
-      throw NonEinsumError(self->mod, block);
+      throw MakeScheduleError<NonEinsumError>(self->mod, block);
     }
   }
   return result;
 }
 
-class BufferNotAllocatedInScopeError : public ScheduleError {
+class BufferNotAllocatedInScopeError : public ScheduleErrorContextObj {
  public:
   explicit BufferNotAllocatedInScopeError(IRModule mod, BufferVar buffer)
       : mod_(std::move(mod)), buffer_(std::move(buffer)) {}
@@ -277,7 +276,7 @@ class BufferNotAllocatedInScopeError : public ScheduleError {
 };
 
 /*! \brief The schedule error class when the producer block cannot be padded. */
-class InvalidProducerError : public ScheduleError {
+class InvalidProducerError : public ScheduleErrorContextObj {
  public:
   explicit InvalidProducerError(IRModule mod, SBlock producer)
       : mod_(std::move(mod)), producer_(std::move(producer)) {}
@@ -304,9 +303,14 @@ class InvalidProducerError : public ScheduleError {
 
 class PadEinsumBufferReplacer : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const SBlockNode* old_block_ptr) final {
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* old_block_ptr, InplaceMode inplace_mode) final {
     SBlock old_block = ffi::GetRef<SBlock>(old_block_ptr);
-    SBlock block = StmtMutator::VisitStmt_(old_block_ptr).as_or_throw<SBlock>();
+    SBlock block = StmtExprMutator::Mutate_(old_block_ptr, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(old_block_ptr))
+                       .as_or_throw<SBlock>();
     ffi::Array<IterVar> iter_vars;
     iter_vars.reserve(block->iter_vars.size());
     for (const IterVar& iter_var : block->iter_vars) {
@@ -321,7 +325,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     ffi::Array<BufferRegion> reads;
     reads.reserve(block->reads.size());
     for (const BufferRegion& read : block->reads) {
-      if (ffi::Optional<BufferVar> buffer = buffer_map_.Get(read->buffer)) {
+      if (ffi::Optional<BufferVar> buffer = VarRemapGet(read->buffer).as<BufferVar>()) {
         reads.push_back(BufferRegion(buffer.value(), read->region));
       } else {
         reads.push_back(read);
@@ -330,7 +334,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     ffi::Array<BufferRegion> writes;
     writes.reserve(block->writes.size());
     for (const BufferRegion& write : block->writes) {
-      if (ffi::Optional<BufferVar> buffer = buffer_map_.Get(write->buffer)) {
+      if (ffi::Optional<BufferVar> buffer = VarRemapGet(write->buffer).as<BufferVar>()) {
         writes.push_back(BufferRegion(buffer.value(), write->region));
       } else {
         writes.push_back(write);
@@ -343,9 +347,11 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     return new_block;
   }
 
-  Stmt VisitStmt_(const ForNode* old_for_ptr) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* old_for_ptr, InplaceMode inplace_mode) final {
     For old_for = ffi::GetRef<For>(old_for_ptr);
-    For new_for = StmtMutator::VisitStmt_(old_for_ptr).as_or_throw<For>();
+    For new_for = StmtExprMutator::Mutate_(old_for_ptr, inplace_mode)
+                      .ValueOrUnchanged(ffi::GetRef<Stmt>(old_for_ptr))
+                      .as_or_throw<For>();
     if (ffi::Optional<PrimExpr> new_extent = loop_var2padded_extent.Get(new_for->loop_var)) {
       ffi::ObjectPtr<ForNode> new_for_ptr = ffi::make_object<ForNode>(*new_for.get());
       new_for_ptr->extent = new_extent.value();
@@ -354,19 +360,23 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     return new_for;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* old_store_ptr) final {
-    BufferStore store = StmtMutator::VisitStmt_(old_store_ptr).as_or_throw<BufferStore>();
-    if (ffi::Optional<BufferVar> buffer = buffer_map_.Get(store->buffer)) {
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* old_store_ptr, InplaceMode inplace_mode) final {
+    BufferStore store = StmtExprMutator::Mutate_(old_store_ptr, inplace_mode)
+                            .ValueOrUnchanged(ffi::GetRef<Stmt>(old_store_ptr))
+                            .as_or_throw<BufferStore>();
+    if (ffi::Optional<BufferVar> buffer = VarRemapGet(store->buffer).as<BufferVar>()) {
       return BufferStore(buffer.value(), store->value, store->indices);
     } else {
       return store;
     }
   }
 
-  Expr VisitExpr_(const TensorLoadNode* old_load_ptr) final {
-    TensorLoad load = ExprMutator::VisitExpr_(old_load_ptr).as_or_throw<TensorLoad>();
-    if (ffi::Optional<BufferVar> buffer =
-            buffer_map_.Get(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* old_load_ptr,
+                                InplaceMode inplace_mode) final {
+    TensorLoad load = StmtExprMutator::Mutate_(old_load_ptr, inplace_mode)
+                          .ValueOrUnchanged(ffi::GetRef<PrimExpr>(old_load_ptr))
+                          .as_or_throw<TensorLoad>();
+    if (ffi::Optional<BufferVar> buffer = VarRemapGet(load->source).as<BufferVar>()) {
       return BufferLoad(buffer.value(), load->indices);
     } else {
       return load;
@@ -375,7 +385,6 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
 
   ffi::Map<Var, PrimExpr> iter2padded_extents;
   ffi::Map<Var, PrimExpr> loop_var2padded_extent;
-  ffi::Map<BufferVar, BufferVar> buffer_map_;
   ffi::Map<SBlock, SBlock> block_sref_reuse_;
 };
 
@@ -390,24 +399,24 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   // Step 2. Extract the Einsum pattern
   ExtractEinsum(self, ffi::GetRef<SBlock>(block));
   // Step 3. Figure out the padding needed
-  PadEinsumBufferReplacer replacer;
+  auto replacer = ffi::make_object<PadEinsumBufferReplacer>();
   for (int i = 0, n = padding.size(); i < n; ++i) {
     const IterVar& iter = block->iter_vars[i];
     PrimExpr dom = iter->dom->extent;
     PrimExpr pad_imm = IntImm(dom.ty(), padding[i]);
     PrimExpr new_dom = analyzer->Simplify(ceildiv(dom, pad_imm) * pad_imm);
     if (!analyzer->CanProveEqual(new_dom, dom)) {
-      replacer.iter2padded_extents.Set(iter->var, new_dom);
+      replacer->iter2padded_extents.Set(iter->var, new_dom);
       if (auto loop_var = realize->iter_values[i].as<PrimVar>()) {
-        replacer.iter2padded_extents.Set(loop_var.value(), new_dom);
-        replacer.loop_var2padded_extent.Set(loop_var.value(), new_dom);
+        replacer->iter2padded_extents.Set(loop_var.value(), new_dom);
+        replacer->loop_var2padded_extent.Set(loop_var.value(), new_dom);
       }
     }
   }
   auto f_needs_padding = [&replacer](const ffi::Array<Range>& region) {
     for (const Range& range : region) {
       if (auto var = range->min.as<PrimVar>()) {
-        if (replacer.iter2padded_extents.count(var.value())) {
+        if (replacer->iter2padded_extents.count(var.value())) {
           return true;
         }
       }
@@ -445,8 +454,8 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   for (const BufferRegion& buffer_region : block->reads) {
     if (f_needs_padding(buffer_region->region)) {
       BufferPadding bp =
-          BufferPadding::FromBufferRegion(buffer_region, replacer.iter2padded_extents);
-      replacer.buffer_map_.Set(bp.buffer, bp.padded_buffer);
+          BufferPadding::FromBufferRegion(buffer_region, replacer->iter2padded_extents);
+      replacer->VarRemapSet(bp.buffer, bp.padded_buffer);
       read_blocks.push_back(bp.MakeCopyBlock(true, &new_copy_blocks, analyzer.get()));
       alloc_buffers.push_back(bp.padded_buffer);
     }
@@ -454,8 +463,8 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   for (const BufferRegion& buffer_region : block->writes) {
     if (f_needs_padding(buffer_region->region)) {
       BufferPadding bp =
-          BufferPadding::FromBufferRegion(buffer_region, replacer.iter2padded_extents);
-      replacer.buffer_map_.Set(bp.buffer, bp.padded_buffer);
+          BufferPadding::FromBufferRegion(buffer_region, replacer->iter2padded_extents);
+      replacer->VarRemapSet(bp.buffer, bp.padded_buffer);
       write_blocks.push_back(bp.MakeCopyBlock(false, &new_copy_blocks, analyzer.get()));
       alloc_buffers.push_back(bp.padded_buffer);
     }
@@ -468,7 +477,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
       continue;
     }
     new_scope_body.insert(new_scope_body.end(), read_blocks.begin(), read_blocks.end());
-    new_scope_body.push_back(replacer(scope_body[i]));
+    new_scope_body.push_back(replacer->Mutate(scope_body[i]).ValueOrUnchanged(scope_body[i]));
     new_scope_body.insert(new_scope_body.end(), write_blocks.begin(), write_blocks.end());
   }
   // Step 7. Create new scope
@@ -479,9 +488,9 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
     n->alloc_buffers.insert(n->alloc_buffers.end(), alloc_buffers.begin(), alloc_buffers.end());
     new_scope_block = SBlock(n);
   }
-  replacer.block_sref_reuse_.Set(ffi::GetRef<SBlock>(scope_block), new_scope_block);
+  replacer->block_sref_reuse_.Set(ffi::GetRef<SBlock>(scope_block), new_scope_block);
   // Step 8. Do replacement and update flags
-  self->Replace(scope_sref, new_scope_block, replacer.block_sref_reuse_);
+  self->Replace(scope_sref, new_scope_block, replacer->block_sref_reuse_);
   for (const SBlock& block : new_copy_blocks) {
     StmtSRef block_sref = self->stmt2ref.at(block.get());
     SBlockInfo& block_info = self->block_info[block_sref];

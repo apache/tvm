@@ -49,9 +49,9 @@ namespace te {
 class CommReducerNode : public ffi::Object {
  public:
   /*! \brief The left argument of reducer */
-  ffi::Array<tirx::PrimVar> lhs;
+  ffi::Array<PrimVar> lhs;
   /*! \brief The right argument of reducer */
-  ffi::Array<tirx::PrimVar> rhs;
+  ffi::Array<PrimVar> rhs;
   /*! \brief The result of reducer */
   ffi::Array<PrimExpr> result;
   /*!
@@ -88,9 +88,8 @@ class CommReducerNode : public ffi::Object {
  */
 class CommReducer : public ffi::ObjectRef {
  public:
-  TVM_DLL CommReducer(ffi::Array<tirx::PrimVar> lhs, ffi::Array<tirx::PrimVar> rhs,
-                      ffi::Array<PrimExpr> result, ffi::Array<PrimExpr> identity_element,
-                      Span span = Span());
+  TVM_DLL CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs, ffi::Array<PrimExpr> result,
+                      ffi::Array<PrimExpr> identity_element, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CommReducer, ffi::ObjectRef, CommReducerNode);
 };
 

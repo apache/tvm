@@ -25,7 +25,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -38,8 +37,10 @@ inline bool HasAnnOrBinding(const ForNode* loop) {
 }
 
 /*! \brief The visitor for extracting the stride of a var in a PrimExpr. */
-class StrideExtractor : public ExprVisitor {
+class StrideExtractor : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   /*!
    * \brief Extracting the stride of a var in a PrimExpr.
    *        e.g the stride of `x` in `(x * 2 + 1) * 3 + 1` is 6
@@ -48,16 +49,16 @@ class StrideExtractor : public ExprVisitor {
    * \return The stride of the var.
    */
   static int64_t Extract(const PrimExpr& expr, const Var& var) {
-    StrideExtractor extractor(var);
-    extractor.VisitExpr(expr);
-    return extractor.strides_[expr.get()];
+    auto extractor = ffi::make_object<StrideExtractor>(var);
+    extractor->Visit(expr);
+    return extractor->strides_[expr.get()];
   }
 
- private:
   explicit StrideExtractor(const Var& var) : var_(var) {}
 
-  void VisitExpr_(const MulNode* node) final {
-    ExprVisitor::VisitExpr_(node);
+ private:
+  ffi::Optional<VisitInterrupt> Visit_(const MulNode* node) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
 
     if (const auto* a = node->a.as<IntImmNode>()) {
       if (strides_.count(node->b.get())) {
@@ -68,10 +69,11 @@ class StrideExtractor : public ExprVisitor {
         strides_[node] = strides_[node->a.get()] * b->value;
       }
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const AddNode* node) final {
-    ExprVisitor::VisitExpr_(node);
+  ffi::Optional<VisitInterrupt> Visit_(const AddNode* node) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
     int64_t stride_a, stride_b;
     if (strides_.count(node->a.get())) {
       stride_a = strides_[node->a.get()];
@@ -86,12 +88,14 @@ class StrideExtractor : public ExprVisitor {
     if (stride_a != INT64_MAX || stride_b != INT64_MAX) {
       strides_[node] = std::min(stride_a, stride_b);
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const VarNode* node) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* node) final {
     if (node == var_.get()) {
       strides_[node] = 1;
     }
+    return std::nullopt;
   }
 
   const Var& var_;
@@ -435,7 +439,6 @@ void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const
 }  // namespace s_tir
 
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 using s_tir::Schedule;
@@ -477,7 +480,10 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
             int max_step = parsed.unroll_explicit + parsed.unroll_implicit + 1;
             s_tir::RewriteUnroll(sch, unroll_explicit, max_step, block_rv, loop_rvs[0]);
           }
-        } catch (const s_tir::ScheduleError& e) {
+        } catch (const ffi::Error& e) {
+          if (s_tir::GetScheduleErrorContext(e) == nullptr) {
+            throw;
+          }
           DLOG(WARNING) << "Failed to apply parallelization/vectorization: " << e.what();
           return false;
         }

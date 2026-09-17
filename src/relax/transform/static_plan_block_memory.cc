@@ -83,6 +83,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 /*!
  * \brief A representation of a block of reusable memory required at runtime.
@@ -117,7 +118,7 @@ class StorageTokenNode : public ffi::Object {
   /*! \brief Get the constant number of bytes that this token requires, or -1 if the number of bytes
    * is symbolic */
   int64_t const_bytes() const {
-    const int64_t* const_val = tirx::as_const_int(bytes);
+    const int64_t* const_val = tvm::prim::as_const_int(bytes);
     if (const_val) {
       return *const_val;
     } else {
@@ -1070,9 +1071,9 @@ PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DLDataType
   struct Shape {
     const ffi::Array<PrimExpr>& shape;
     int64_t operator[](size_t i) const {
-      TVM_FFI_ICHECK(tirx::as_const_int(shape[i]))
+      TVM_FFI_ICHECK(tvm::prim::as_const_int(shape[i]))
           << "Dymamic shapes not suported over texture now";
-      return *tirx::as_const_int(shape[i]);
+      return *tvm::prim::as_const_int(shape[i]);
     }
     int size() { return this->shape.size(); }
   };

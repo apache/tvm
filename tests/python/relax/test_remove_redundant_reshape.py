@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401
 
 """
 Test relax transform - Eliminate redundant reshape operations
@@ -111,6 +110,57 @@ def test_remove_redundant_reshape_pass_three_arg():
             return x
 
     _run_pass_compare_output(Before, Expected)
+
+
+def _return_shape(mod):
+    ret = mod["main"].ret_ty
+    field = ret.fields[0] if hasattr(ret, "fields") else ret
+    return [int(dim) for dim in field.shape]
+
+
+def test_remove_redundant_reshape_pass_keeps_zero_sized_chain():
+    # A literal 0 in a reshape target means "copy the corresponding input dimension",
+    # and relax.op.reshape resolves it against the input it is handed. Combining these
+    # two calls re-reads the zeros against x and asks for (0, 3, 5) instead of the
+    # (0, 0, 0) the pair produces, so the pair has to survive the pass.
+    #
+    # Built with the block builder rather than TVMScript because reshape resolves its
+    # target at construction: the printed R.shape([0, 0, 5]) is the resolved shape, and
+    # parsing it back would resolve those zeros a second time.
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", relax.TensorType([0, 3, 5], "float32"))
+    with bb.function("main", [x]):
+        with bb.dataflow():
+            lv = bb.emit(relax.op.reshape(x, [0, -1, 5]))
+            gv = bb.emit_output(relax.op.reshape(lv, [0, 0, -1]))
+        bb.emit_func_output(gv)
+    before = bb.get()
+    assert _return_shape(before) == [0, 0, 0]
+
+    after = DeadCodeElimination()(RemoveRedundantReshape()(before))
+    assert _return_shape(after) == [0, 0, 0], (
+        "combining the reshapes re-read the literal zeros against x and changed the shape"
+    )
+
+
+def test_remove_redundant_reshape_pass_still_combines_without_zero_dims():
+    # The guard above must not stop the pass doing its job on an ordinary chain.
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", relax.TensorType([1, 1001, 1, 1], "float32"))
+    with bb.function("main", [x]):
+        with bb.dataflow():
+            lv = bb.emit(relax.op.reshape(x, [1, 1001, 1]))
+            gv = bb.emit_output(relax.op.reshape(lv, [1, 1001]))
+        bb.emit_func_output(gv)
+    after = DeadCodeElimination()(RemoveRedundantReshape()(bb.get()))
+    assert _return_shape(after) == [1, 1001]
+    reshapes = [
+        binding
+        for block in after["main"].body.blocks
+        for binding in block.bindings
+        if isinstance(binding.value, tvm.relax.Call)
+    ]
+    assert len(reshapes) == 1, "the chain without zeros should still collapse to one reshape"
 
 
 if __name__ == "__main__":

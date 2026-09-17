@@ -32,7 +32,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief The builder's input, containing an IRModule and the target. */

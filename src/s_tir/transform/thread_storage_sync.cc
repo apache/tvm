@@ -39,11 +39,11 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 class ThreadSyncPlanner : public StorageAccessVisitor {
  public:
+  using StorageAccessVisitor::Visit_;
   explicit ThreadSyncPlanner(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
   // The syncs inserted before each statement
@@ -233,7 +233,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
       if (prev_intset.IsSinglePoint() && curr_intset.IsSinglePoint()) {
         PrimExpr prev_index = prev_intset.PointValue();
         PrimExpr curr_index = curr_intset.PointValue();
-        has_same_index = ExprDeepEqual()(prev_index, curr_index);
+        has_same_index = prim::ExprDeepEqual()(prev_index, curr_index);
         if (thread_index_var != nullptr) {
           auto f_uses_thread_index = [=](const tvm::tirx::VarNode* parameter) {
             return parameter == thread_index_var;
@@ -298,12 +298,15 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 // duplicate syncthreads if it finds an existing one at the synchronization point.
 class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   explicit ThreadSyncAfterWaitQueueInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
       auto sync = Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(),
-                                {StringImm(sync_scope_.to_string())})
+                                {prim::StringImm(sync_scope_.to_string())})
                                .as_or_throw<PrimExpr>());
       auto inner = op->body.as<AttrStmtNode>();
       TVM_FFI_ICHECK(inner && inner->attr_key == s_tir::attr::async_wait_inflight_count);
@@ -311,7 +314,7 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
       return AttrStmt(0, s_tir::attr::async_wait_queue_scope, op->value,
                       AttrStmt(0, s_tir::attr::async_wait_inflight_count, inner->value, new_body));
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  private:
@@ -320,22 +323,24 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
 
 class ThreadSyncInserter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   ThreadSyncInserter(StorageScope sync_scope, const std::unordered_set<const ffi::Object*>& syncs)
       : sync_scope_(sync_scope), syncs_(syncs) {}
 
-  Stmt VisitStmt(const Stmt& stmt) final {
-    if (syncs_.size() == 0) return stmt;
-    if (syncs_.count(stmt.get())) {
-      Stmt barrier = Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(),
-                                   {StringImm(sync_scope_.to_string())})
-                                  .as_or_throw<PrimExpr>());
-      // Mutate after query, to avoid stmt change.
-      auto ret = StmtExprMutator::VisitStmt(stmt);
-      ret = SeqStmt({barrier, ret});
-      return ret;
-    } else {
-      return StmtExprMutator::VisitStmt(stmt);
-    }
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
+    const auto* stmt = value.as<StmtNode>();
+    if (!stmt) return StmtExprMutator::Mutate(value, inplace_mode);
+    if (syncs_.empty()) return ffi::Unchanged();
+    if (!syncs_.count(stmt)) return StmtExprMutator::Mutate(value, inplace_mode);
+    Stmt barrier = Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(),
+                                 {prim::StringImm(sync_scope_.to_string())})
+                                .as_or_throw<PrimExpr>());
+    // Mutate after query, to avoid stmt change.
+    auto result = StmtExprMutator::Mutate(value, inplace_mode);
+    Stmt body = std::move(result).ValueOrUnchanged(value).as_or_throw<Stmt>();
+    return ffi::Any(SeqStmt({barrier, body}));
   }
 
  private:
@@ -347,11 +352,15 @@ class ThreadSyncInserter : public StmtExprMutator {
 Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
   StorageScope sync_scope = StorageScope::Create(storage_scope);
   if (sync_scope.rank == StorageRank::kShared && sync_scope.tag == "") {
-    stmt = ThreadSyncAfterWaitQueueInserter(sync_scope)(stmt);
+    stmt = ffi::make_object<ThreadSyncAfterWaitQueueInserter>(sync_scope)
+               ->Mutate(stmt)
+               .ValueOrUnchanged(stmt);
   }
-  ThreadSyncPlanner planner(sync_scope);
-  planner(stmt);
-  return ThreadSyncInserter(sync_scope, planner.syncs_inserted_)(std::move(stmt));
+  auto planner = ffi::make_object<ThreadSyncPlanner>(sync_scope);
+  planner->Visit(stmt);
+  return ffi::make_object<ThreadSyncInserter>(sync_scope, planner->syncs_inserted_)
+      ->Mutate(stmt, InplaceMode::kAllow)
+      .ValueOrUnchanged(std::move(stmt));
 }
 
 namespace transform {

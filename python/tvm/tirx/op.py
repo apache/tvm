@@ -23,9 +23,12 @@ import tvm_ffi
 from tvm_ffi import Array
 
 import tvm
+import tvm.ir.prim._ffi_api as _prim_ffi_api
 from tvm import tirx
 from tvm.ir import Call, Expr, ExprWithOp, Op, PointerType, PrimType, TensorLoad
 from tvm.ir.base import Span
+from tvm.ir.prim import clz as clz
+from tvm.ir.prim import max_value, min_value
 from tvm.ir.type import TensorMapType
 from tvm.runtime import const
 
@@ -1247,9 +1250,9 @@ def any(*args, span=None):
         raise ValueError("Any must take at least 1 argument")
     if len(args) == 1:
         return args[0]
-    val = _ffi_api._OpOr(args[0], args[1], span)  # type: ignore
+    val = _prim_ffi_api._OpOr(args[0], args[1], span)  # type: ignore
     for i in range(2, len(args)):
-        val = _ffi_api._OpOr(val, args[i], span)  # type: ignore
+        val = _prim_ffi_api._OpOr(val, args[i], span)  # type: ignore
     return val
 
 
@@ -1274,9 +1277,9 @@ def all(*args, span=None):
         raise ValueError("Any must take at least 1 argument")
     if len(args) == 1:
         return args[0]
-    val = _ffi_api._OpAnd(args[0], args[1], span)  # type: ignore
+    val = _prim_ffi_api._OpAnd(args[0], args[1], span)  # type: ignore
     for i in range(2, len(args)):
-        val = _ffi_api._OpAnd(val, args[i], span)  # type: ignore
+        val = _prim_ffi_api._OpAnd(val, args[i], span)  # type: ignore
     return val
 
 
@@ -1319,44 +1322,6 @@ def trace(args, trace_action="tvm.default_trace_action"):
     tracing_value = args[-1]
     ret_ty = tracing_value.ty if isinstance(tracing_value, Expr) else tracing_value.dtype
     return tvm.ir.Call(Op.get("tirx.tvm_call_trace_packed"), call_args, ret_ty=ret_ty)
-
-
-def min_value(dtype, span=None):
-    """minimum value of dtype
-
-    Parameters
-    ----------
-    dtype : str
-        The data type.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    value : tvm.Expr
-        The minimum value of dtype.
-    """
-    return _ffi_api.min_value(dtype, span)  # type: ignore
-
-
-def max_value(dtype: str, span: Span | None = None) -> Any:
-    """maximum value of dtype
-
-    Parameters
-    ----------
-    dtype : str
-        The data type.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    value : tvm.Expr
-        The maximum value of dtype.
-    """
-    return _ffi_api.max_value(dtype, span)  # type: ignore
 
 
 def infinity(dtype: str, span: Span | None = None) -> Any:
@@ -1562,7 +1527,7 @@ def log2(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.log2", x)
+    return call_intrin(_primexpr_ty(x), "prim.log2", x)
 
 
 def log10(x):
@@ -1841,23 +1806,6 @@ def rsqrt(x):
     return call_intrin(_primexpr_ty(x), "tirx.rsqrt", x)
 
 
-def clz(x):
-    """Count leading zero bits of an integer x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input 32 or 64 bit integer.
-        The result is undefined if the input is 0.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    return call_intrin("int32", "tirx.clz", x)
-
-
 def floor(x: ExprWithOp, span=None):
     """Take floor of float input x.
 
@@ -1893,7 +1841,7 @@ def ceil(x, span=None):
     y : Expr
         The result.
     """
-    return _ffi_api.ceil(x, span)  # type: ignore
+    return _prim_ffi_api.ceil(x, span)  # type: ignore
 
 
 def trunc(x, span=None):
@@ -1956,7 +1904,7 @@ def bitwise_and(x, y, span=None):
     res : Expr
         The result.
     """
-    return _ffi_api.bitwise_and(x, y, span)
+    return _prim_ffi_api.bitwise_and(x, y, span)
 
 
 def bitwise_not(x, span=None):
@@ -1975,7 +1923,7 @@ def bitwise_not(x, span=None):
     res : Expr
         The result.
     """
-    return _ffi_api.bitwise_not(x, span)
+    return _prim_ffi_api.bitwise_not(x, span)
 
 
 def bitwise_or(x, y, span=None):
@@ -1997,7 +1945,7 @@ def bitwise_or(x, y, span=None):
     res : Expr
         The result.
     """
-    return _ffi_api.bitwise_or(x, y, span)
+    return _prim_ffi_api.bitwise_or(x, y, span)
 
 
 def bitwise_xor(x, y, span=None):
@@ -2019,7 +1967,7 @@ def bitwise_xor(x, y, span=None):
     res : Expr
         The result.
     """
-    return _ffi_api.bitwise_xor(x, y, span)
+    return _prim_ffi_api.bitwise_xor(x, y, span)
 
 
 def round(x, span=None):
@@ -2168,7 +2116,7 @@ def likely(cond, span=None):
     y : Expr
         The marked expression.
     """
-    return _ffi_api.likely(cond, span)  # type: ignore
+    return _prim_ffi_api.likely(cond, span)  # type: ignore
 
 
 def filter(var, pred, *, span=None):  # pylint: disable=redefined-builtin
@@ -2431,7 +2379,7 @@ def shift_left(x, y, span=None):
     z : Expr
         The result.
     """
-    return _ffi_api.left_shift(x, y, span)
+    return _prim_ffi_api.left_shift(x, y, span)
 
 
 def shift_right(x, y, span=None):
@@ -2450,7 +2398,7 @@ def shift_right(x, y, span=None):
     z : Expr
         The result.
     """
-    return _ffi_api.right_shift(x, y, span)
+    return _prim_ffi_api.right_shift(x, y, span)
 
 
 def fmod(x, y):
@@ -2503,7 +2451,7 @@ def if_then_else(cond, t, f, span=None):
     Unlike Select, if_then_else cannot be vectorized
     if some lanes in the vector have different conditions.
     """
-    return _ffi_api._OpIfThenElse(cond, t, f, span)  # type: ignore
+    return _prim_ffi_api._OpIfThenElse(cond, t, f, span)  # type: ignore
 
 
 def div(a, b, span=None):
@@ -2528,7 +2476,7 @@ def div(a, b, span=None):
     ----
     When operands are integers, returns truncdiv(a, b, span).
     """
-    return _ffi_api._OpDiv(a, b, span)  # type: ignore
+    return _prim_ffi_api._OpDiv(a, b, span)  # type: ignore
 
 
 def indexdiv(a, b, span=None):
@@ -2556,7 +2504,7 @@ def indexdiv(a, b, span=None):
     This function may take advantage of operands'
     non-negativeness.
     """
-    return _ffi_api._OpIndexDiv(a, b, span)  # type: ignore
+    return _prim_ffi_api._OpIndexDiv(a, b, span)  # type: ignore
 
 
 def indexmod(a, b, span=None):
@@ -2584,7 +2532,7 @@ def indexmod(a, b, span=None):
     This function may take advantage of operands'
     non-negativeness.
     """
-    return _ffi_api._OpIndexMod(a, b, span)  # type: ignore
+    return _prim_ffi_api._OpIndexMod(a, b, span)  # type: ignore
 
 
 def truncdiv(a, b, span=None):
@@ -2610,7 +2558,7 @@ def truncdiv(a, b, span=None):
     ----
     This is the default integer division behavior in C.
     """
-    return _ffi_api._OpTruncDiv(a, b, span)  # type: ignore
+    return _prim_ffi_api._OpTruncDiv(a, b, span)  # type: ignore
 
 
 def truncmod(a, b, span=None):
@@ -2636,7 +2584,7 @@ def truncmod(a, b, span=None):
     ----
     This is the default integer division behavior in C.
     """
-    return _ffi_api._OpTruncMod(a, b, span)  # type: ignore
+    return _prim_ffi_api._OpTruncMod(a, b, span)  # type: ignore
 
 
 def floordiv(a, b, span=None):
@@ -2658,7 +2606,7 @@ def floordiv(a, b, span=None):
     res : Expr
         The result expression.
     """
-    return _ffi_api._OpFloorDiv(a, b, span)  # type: ignore
+    return _prim_ffi_api._OpFloorDiv(a, b, span)  # type: ignore
 
 
 def logaddexp(a, b, span=None):
@@ -2702,7 +2650,7 @@ def floormod(a, b, span=None):
     res : Expr
         The result expression.
     """
-    return _ffi_api._OpFloorMod(a, b, span)  # type: ignore
+    return _prim_ffi_api._OpFloorMod(a, b, span)  # type: ignore
 
 
 def ceildiv(lhs, rhs, span=None):
@@ -2722,7 +2670,7 @@ def ceildiv(lhs, rhs, span=None):
     op : tvm.Expr
         The result Expr of ceildiv operaton.
     """
-    return _ffi_api._OpCeilDiv(lhs, rhs, span)  # type: ignore
+    return _prim_ffi_api._OpCeilDiv(lhs, rhs, span)  # type: ignore
 
 
 def comm_reducer(fcombine, fidentity, name="reduce"):
@@ -3005,7 +2953,7 @@ def vscale():
     call : Expr
         Call to the vscale intrinsic
     """
-    return call_intrin("int32", "ir.prim.vscale")
+    return call_intrin("int32", "prim.vscale")
 
 
 def get_active_lane_mask(dtype, base, limit):
@@ -3105,8 +3053,8 @@ def ignore_loop_partition(predicate) -> Expr:
 
 # pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x + y, lambda t: const(0, dtype=t), name="sum")
-min = comm_reducer(lambda x, y: _ffi_api._OpMin(x, y, None), max_value, name="min")  # type: ignore
-max = comm_reducer(lambda x, y: _ffi_api._OpMax(x, y, None), min_value, name="max")  # type: ignore
+min = comm_reducer(lambda x, y: _prim_ffi_api._OpMin(x, y, None), max_value, name="min")  # type: ignore
+max = comm_reducer(lambda x, y: _prim_ffi_api._OpMax(x, y, None), min_value, name="max")  # type: ignore
 
 
 def tvm_load_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):

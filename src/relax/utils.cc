@@ -22,15 +22,16 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op_attr_types.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/index.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/utils.h>
-#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 /*! \brief Helper to implement bind params.*/
 class ExprBinder : public ExprMutator {
@@ -122,7 +123,7 @@ tvm::ffi::Map<Var, Expr> InferSymbolicVarMap(
   tvm::ffi::Map<Var, Expr> var_remap = relax_var_remap;
 
   for (const auto& [var, value] : relax_var_remap) {
-    if (!var.as<tirx::PrimVar>()) continue;
+    if (!var.as<PrimVar>()) continue;
     TVM_FFI_CHECK(value.as<PrimExpr>().has_value(), ValueError)
         << "Explicit binding for symbolic variable " << var
         << " must be a primitive expression, but received " << value;
@@ -130,7 +131,7 @@ tvm::ffi::Map<Var, Expr> InferSymbolicVarMap(
 
   auto bind_from_prim_expr = [&relax_var_remap, &var_remap, &analyzer](const PrimExpr& var_shape,
                                                                        const PrimExpr& expr_shape) {
-    if (auto var = var_shape.as<tirx::PrimVar>()) {
+    if (auto var = var_shape.as<PrimVar>()) {
       if (auto it = relax_var_remap.find(var.value()); it != relax_var_remap.end()) {
         auto explicit_value = (*it).second.as<PrimExpr>();
         TVM_FFI_CHECK(explicit_value.has_value(), ValueError)
@@ -242,11 +243,11 @@ bool IsImpureCall(const Call& call) {
     if (purity_map.count(op)) {
       return !(purity_map[op]);
     }
-    static auto effect_map = Op::GetAttrMap<tirx::TCallEffectKind>("TCallEffectKind");
+    static auto effect_map = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
     TVM_FFI_ICHECK(effect_map.count(op))
         << "Cannot find the registered purity or call effect of this op: " << op->name;
-    auto effect = static_cast<tirx::CallEffectKind>(effect_map[op]);
-    return effect > tirx::CallEffectKind::kPure;
+    auto effect = static_cast<CallEffectKind>(effect_map[op]);
+    return effect > CallEffectKind::kPure;
   }
   // the Type must be FuncType
   auto func_ty = GetTypeAs<FuncTypeNode>(call->op);

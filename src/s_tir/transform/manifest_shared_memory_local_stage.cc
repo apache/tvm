@@ -44,7 +44,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Rewriter for the block storing to the target buffer. Create an intermediate cache stage
@@ -180,23 +179,32 @@ class IntermediateStageRewriter {
   const std::vector<Stmt>& ancestor_loop_or_blocks_;
 };
 
-class SharedMemoryLocalStageInserter : public StmtMutator {
+class SharedMemoryLocalStageInserter : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const ForNode* op) final {
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     ancestor_loop_or_blocks_.push_back(ffi::GetRef<Stmt>(op));
-    Stmt new_stmt = StmtMutator::VisitStmt_(op);
+    Stmt new_stmt = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
+                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     ancestor_loop_or_blocks_.pop_back();
     return new_stmt;
   }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     ancestor_loop_or_blocks_.push_back(ffi::GetRef<Stmt>(op));
-    Stmt new_stmt = StmtMutator::VisitStmt_(op);
+    Stmt new_stmt = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
+                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     ancestor_loop_or_blocks_.pop_back();
     return new_stmt;
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     if (op->annotations.count(s_tir::attr::manifest_shared_memory_local_stage)) {
       // Rewrite the shared memory access to load from the intermediate buffer.
       // The annotated block must be a leaf block (will be checked during rewriting). No need to
@@ -238,24 +246,29 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
       bool changed = false;  // whether the SeqStmt has been changed
       for (int i = 0, n = seq->seq.size(); i < n; ++i) {
         int subtree_start = target_buffers_.size();
-        Stmt new_seq_elem = VisitStmt(seq->seq[i]);
+        auto new_seq_elem_result = Mutate(seq->seq[i]);
+        bool new_seq_elem_unchanged = new_seq_elem_result.UnchangedOrSameAs(seq->seq[i]);
+        Stmt new_seq_elem =
+            std::move(new_seq_elem_result).ValueOrUnchanged(seq->seq[i]).as_or_throw<Stmt>();
         int subtree_end = target_buffers_.size();
         f_check_subtree(subtree_start, subtree_end);
         new_seq.push_back(new_seq_elem);
-        if (!new_seq_elem.same_as(seq->seq[i])) {
+        if (!new_seq_elem_unchanged) {
           changed = true;
         }
       }
       if (!changed) {
-        return ffi::GetRef<Stmt>(op);
+        return ffi::Unchanged();
       }
     } else {
       int subtree_start = target_buffers_.size();
-      Stmt body = VisitStmt(op->body);
+      auto body_result = Mutate(op->body, inplace_mode);
+      bool body_unchanged = body_result.UnchangedOrSameAs(op->body);
+      Stmt body = std::move(body_result).ValueOrUnchanged(op->body);
       int subtree_end = target_buffers_.size();
       f_check_subtree(subtree_start, subtree_end);
-      if (body.same_as(op->body)) {
-        return ffi::GetRef<Stmt>(op);
+      if (body_unchanged) {
+        return ffi::Unchanged();
       }
       new_seq.push_back(body);
     }
@@ -283,7 +296,9 @@ namespace transform {
 Pass ManifestSharedMemoryLocalStage() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = SharedMemoryLocalStageInserter()(std::move(n->body));
+    n->body = ffi::make_object<SharedMemoryLocalStageInserter>()
+                  ->Mutate(n->body, InplaceMode::kAllow)
+                  .ValueOrUnchanged(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.ManifestSharedMemoryLocalStage", {});

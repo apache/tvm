@@ -43,6 +43,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 namespace {
 
@@ -349,7 +350,7 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(arith::AnalyzerObj* analyzer,
   const PrimExpr* search_ptr = inner;
   PrimExpr mult_inner;  // The inner multiplication factor
   PrimExpr no_opt_sum;  // Sum of the exprs that cannot be optimized
-  tirx::ExprDeepEqual expr_equal;
+  prim::ExprDeepEqual expr_equal;
 
   while (true) {
     auto inner_div_ptr = search_ptr->as<IndexDiv>();
@@ -731,7 +732,7 @@ tirx::BufferVar BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType d
                                           std::string memory_scope) {
   PrimExpr elem_offset;
   if (offset_factor != 0) {
-    elem_offset = tirx::PrimVar(name + "_elem_offset", shape[0].ty());
+    elem_offset = PrimVar(name + "_elem_offset", shape[0].ty());
   } else {
     elem_offset = PrimExpr();
   }
@@ -764,9 +765,9 @@ PrimExpr BufferVar::OffsetOf_p(const Array<PrimExpr>& indices) const {
 bool BufferVar::IsScalar(bool alloc_or_decl) const {
   // TODO(@bohan): logical scope is not considered
   return (*this)->shape.size() == 1 && is_one((*this)->shape[0]) && (*this)->strides.size() == 0 &&
-         (!alloc_or_decl || tirx::is_zero((*this)->elem_offset)) && (*this)->data_alignment == 64 &&
-         (*this)->offset_factor == 1 && (*this)->allocated_addr.size() == 0 &&
-         (*this)->layout.has_value() &&
+         (!alloc_or_decl || tvm::prim::is_zero((*this)->elem_offset)) &&
+         (*this)->data_alignment == 64 && (*this)->offset_factor == 1 &&
+         (*this)->allocated_addr.size() == 0 && (*this)->layout.has_value() &&
          ffi::StructuralEqual()((*this)->layout.value(), TileLayoutNode::DefaultLayout({1}));
 }
 

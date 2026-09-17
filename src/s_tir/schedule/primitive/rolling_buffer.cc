@@ -66,7 +66,7 @@ BufferRegion GetRelaxedBufferRegion(const SBlockRealize& realize, const BufferRe
   return BufferRegion(buffer_region->buffer, relaxed_region);
 }
 
-class RollingBufferDependencyError : public ScheduleError {
+class RollingBufferDependencyError : public ScheduleErrorContextObj {
  public:
   explicit RollingBufferDependencyError(IRModule mod, SBlock block)
       : mod_(mod), block_(std::move(block)) {}
@@ -95,13 +95,15 @@ class RollingBufferDependencyError : public ScheduleError {
     for (const Dependency& producers : scope->GetDepsByDst(block_sref)) {
       if (!(producers->kind == DepKind::kRAW)) {
         const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-        throw RollingBufferDependencyError(self->mod, ffi::GetRef<SBlock>(block));
+        throw MakeScheduleError<RollingBufferDependencyError>(self->mod,
+                                                              ffi::GetRef<SBlock>(block));
       }
     }
     for (const Dependency& consumers : scope->GetDepsBySrc(block_sref)) {
       if (!(consumers->kind == DepKind::kRAW)) {
         const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-        throw RollingBufferDependencyError(self->mod, ffi::GetRef<SBlock>(block));
+        throw MakeScheduleError<RollingBufferDependencyError>(self->mod,
+                                                              ffi::GetRef<SBlock>(block));
       }
     }
   }
@@ -111,7 +113,7 @@ class RollingBufferDependencyError : public ScheduleError {
   SBlock block_;
 };
 
-class RollingBufferMatchError : public ScheduleError {
+class RollingBufferMatchError : public ScheduleErrorContextObj {
  public:
   RollingBufferMatchError(IRModule mod, SBlock block, BufferRegion buffer_region)
       : mod_(mod), block_(block), buffer_region_(buffer_region) {}
@@ -137,7 +139,7 @@ class RollingBufferMatchError : public ScheduleError {
   BufferRegion buffer_region_;
 };
 
-class RollingBufferInsertionError : public ScheduleError {
+class RollingBufferInsertionError : public ScheduleErrorContextObj {
  public:
   RollingBufferInsertionError(IRModule mod, BufferVar buffer, SBlock block)
       : mod_(mod), buffer_(std::move(buffer)), block_(block) {}
@@ -170,7 +172,8 @@ class RollingBufferInfoCollector {
     RollingBufferInfoCollector collector;
     if (!collector.MatchRollingBuffer(block_sref, buffer_region)) {
       const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-      throw RollingBufferMatchError(mod, ffi::GetRef<SBlock>(block), buffer_region);
+      throw MakeScheduleError<RollingBufferMatchError>(mod, ffi::GetRef<SBlock>(block),
+                                                       buffer_region);
     }
     return collector.info_;
   }
@@ -270,15 +273,19 @@ class RollingBufferInfoCollector {
 
 class RollingBufferRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   static Stmt Rewrite(const StmtSRef& scope_sref, RollingBufferInfo* info) {
-    RollingBufferRewriter rewriter(scope_sref, info);
-    return rewriter(ffi::GetRef<Stmt>(scope_sref->stmt));
+    auto rewriter = ffi::make_object<RollingBufferRewriter>(scope_sref, info);
+    return rewriter->Mutate(ffi::GetRef<Stmt>(scope_sref->stmt))
+        .ValueOrUnchanged(ffi::GetRef<Stmt>(scope_sref->stmt));
   }
 
- private:
   explicit RollingBufferRewriter(const StmtSRef& scope_sref, RollingBufferInfo* info)
       : scope_sref_(scope_sref), info_(info) {}
 
+ private:
   void RewriteAccessRegion(ffi::Array<BufferRegion>* old_access_regions,
                            const ffi::Array<BufferRegion>& infered_access_regions) {
     auto fmutate = [this, &infered_access_regions](const BufferRegion& buffer_region) {
@@ -308,9 +315,11 @@ class RollingBufferRewriter : public StmtExprMutator {
     *indices = std::move(new_indices);
   }
 
-  Stmt VisitStmt_(const SBlockNode* block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
-    SBlock stmt = StmtExprMutator::VisitStmt_(block).as_or_throw<SBlock>();
+    SBlock stmt = StmtExprMutator::Mutate_(block, inplace_mode)
+                      .ValueOrUnchanged(ffi::GetRef<Stmt>(block))
+                      .as_or_throw<SBlock>();
     SBlockNode* n = stmt.CopyOnWrite();
     if (block == scope_sref_->stmt) {
       ffi::Array<BufferVar> new_alloc_buffers;
@@ -352,8 +361,10 @@ class RollingBufferRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
-    SBlockRealize stmt = StmtExprMutator::VisitStmt_(realize).as_or_throw<SBlockRealize>();
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
+    SBlockRealize stmt = StmtExprMutator::Mutate_(realize, inplace_mode)
+                             .ValueOrUnchanged(ffi::GetRef<Stmt>(realize))
+                             .as_or_throw<SBlockRealize>();
     // Append block predicate to avoid recomputing elements.
     if (rewrite_block_predicate_) {
       rewrite_block_predicate_ = false;
@@ -377,8 +388,10 @@ class RollingBufferRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore stmt = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    BufferStore stmt = StmtExprMutator::Mutate_(op, inplace_mode)
+                           .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                           .as_or_throw<BufferStore>();
     if (stmt->buffer.same_as(info_->old_buffer)) {
       BufferStoreNode* n = stmt.CopyOnWrite();
       RewriteBufferAccess(&n->buffer, &n->indices);
@@ -388,8 +401,10 @@ class RollingBufferRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    TensorLoad stmt = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    TensorLoad stmt = StmtExprMutator::Mutate_(op, inplace_mode)
+                          .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
+                          .as_or_throw<TensorLoad>();
     if (stmt->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->old_buffer)) {
       BufferVar buffer = stmt->source.as_or_throw<tvm::tirx::BufferVar>();
       ffi::Array<PrimExpr> indices = stmt->indices;
@@ -399,7 +414,6 @@ class RollingBufferRewriter : public StmtExprMutator {
     return stmt;
   }
 
- private:
   const StmtSRef& scope_sref_;
   RollingBufferInfo* info_;
   bool rewrite_block_predicate_ = false;
@@ -438,7 +452,7 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buf
   consumers_sref.push_back(block_sref);
   StmtSRef lca = GetSRefLowestCommonAncestor(consumers_sref);
   if (!lca->StmtAs<ForNode>()) {
-    throw RollingBufferInsertionError(self->mod, buffer_region->buffer, block);
+    throw MakeScheduleError<RollingBufferInsertionError>(self->mod, buffer_region->buffer, block);
   }
 
   for (auto it = loop_srefs.rbegin(); it != loop_srefs.rend(); ++it) {

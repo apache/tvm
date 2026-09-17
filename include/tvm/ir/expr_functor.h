@@ -282,7 +282,7 @@ class ExprFunctor<R(const Expr&, Args...)> {
  *  public:
  *   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(MyExprVisitor, ExprVisitor)
  *   using ExprVisitor::Visit_;
- *   virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const MyExprNode* node);
+ *   virtual ffi::Optional<VisitInterrupt> Visit_(const MyExprNode* node);
  *
  *  protected:
  *   static void InitVTable(VTable* vtable) {
@@ -298,45 +298,45 @@ class TVM_DLL ExprVisitor : public ObjectVisitor {
   /*! \brief Construct a visitor with the core expression hooks. */
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(ExprVisitor, ObjectVisitor)
 
-  using ObjectVisitor::VisitExpected;
+  using ObjectVisitor::Visit;
 
   // Override existing hooks directly. Extra types need a fresh inherited table.
-  // Hooks borrow the node and return None, an owning interrupt, or an Error.
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const OpaqueExprNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const TupleNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const TupleGetItemNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const TensorLoadNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const VarNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const GlobalVarNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const CallNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const IntImmNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const FloatImmNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const OpNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::StringImmNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::CastNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::AddNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::SubNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::MulNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::DivNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::ModNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::FloorDivNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::FloorModNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::MinNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::MaxNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::EQNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::NENode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::LTNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::LENode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::GTNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::GENode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::AndNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::OrNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::NotNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::SelectNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::LetNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::RampNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::BroadcastNode* node);
-  virtual Expected<ffi::Optional<VisitInterrupt>> Visit_(const prim::ShuffleNode* node);
+  // Hooks borrow the node and return None or an owning interrupt, and throw on failure.
+  virtual ffi::Optional<VisitInterrupt> Visit_(const OpaqueExprNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const TupleNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const TupleGetItemNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const VarNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const GlobalVarNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const CallNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const IntImmNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const FloatImmNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const OpNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::StringImmNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::CastNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::AddNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::SubNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::MulNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::DivNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::ModNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::FloorDivNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::FloorModNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::MinNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::MaxNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::EQNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::NENode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::LTNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::LENode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::GTNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::GENode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::AndNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::OrNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::NotNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::SelectNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::RampNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::BroadcastNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::ShuffleNode* node);
 
  protected:
   /*!
@@ -357,7 +357,7 @@ class TVM_DLL ExprVisitor : public ObjectVisitor {
  *
  * Prefer StructuralMap for common cases; use ExprMutator for extensive per-kind
  * customization or optimization.
- * The default Var hook leaves PrimType variables unchanged before remap lookup.
+ * The default Var hook consults the inherited remap before visiting definition types.
  *
  * Native hooks match exact node types; derived node types need their own registrations.
  * Existing hooks only require overriding. For an extra MyExprNode derived from
@@ -367,7 +367,7 @@ class TVM_DLL ExprVisitor : public ObjectVisitor {
  *  public:
  *   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(MyExprMutator, ExprMutator)
  *   using ExprMutator::Mutate_;
- *   virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const MyExprNode* node, InplaceMode
+ *   virtual UnchangedOr<Expr> Mutate_(const MyExprNode* node, InplaceMode
  * inplace_mode);
  *
  *  protected:
@@ -384,77 +384,76 @@ class TVM_DLL ExprMutator : public ObjectMutator {
   /*! \brief Construct a mutator with the core expression hooks. */
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(ExprMutator, ObjectMutator)
 
-  using ObjectMutator::MutateExpected;
+  using ObjectMutator::Mutate;
+
+  /*!
+   * \brief Mutate a primitive expression, preserving its expression category.
+   * \param expr The borrowed primitive expression.
+   * \param inplace_mode Inherited mutation permission.
+   * \return Unchanged or an owning primitive expression replacement.
+   * \note Calls the virtual AnyView entry. Overrides must preserve PrimExpr;
+   *       the result storage is transferred without a runtime type check.
+   */
+  TVM_FFI_INLINE UnchangedOr<PrimExpr> Mutate(const PrimExpr& expr,
+                                              InplaceMode inplace_mode = InplaceMode::kDisallow) {
+    return ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
+        ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(Mutate(ffi::AnyView(expr), inplace_mode)));
+  }
+
+  /*!
+   * \brief Mutate an expression, preserving its expression category.
+   * \param expr The borrowed expression.
+   * \param inplace_mode Inherited mutation permission.
+   * \return Unchanged or an owning expression replacement.
+   * \note Calls the virtual AnyView entry. Overrides must preserve Expr;
+   *       the result storage is transferred without a runtime type check.
+   */
+  TVM_FFI_INLINE UnchangedOr<Expr> Mutate(const Expr& expr,
+                                          InplaceMode inplace_mode = InplaceMode::kDisallow) {
+    return ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<Expr>(
+        ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(Mutate(ffi::AnyView(expr), inplace_mode)));
+  }
 
   // A downstream class overrides any existing hook without rebuilding the table.
   // Extra node types use a fresh inherited table and SetDispatch<Self, ExtraNode>.
-  // Hooks borrow the node and return an owning Expr replacement in Any, Unchanged, or Error.
-  // Narrower field types are checked separately. Forward inplace_mode on every child edge.
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const OpaqueExprNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const TupleNode* node, InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const TupleGetItemNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const TensorLoadNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const VarNode* node, InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const GlobalVarNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const CallNode* node, InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const IntImmNode* node, InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const FloatImmNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const OpNode* node, InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::StringImmNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::CastNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::AddNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::SubNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::MulNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::DivNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::ModNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::FloorDivNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::FloorModNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::MinNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::MaxNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::EQNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::NENode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::LTNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::LENode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::GTNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::GENode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::AndNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::OrNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::NotNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::SelectNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::LetNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::RampNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::BroadcastNode* node,
-                                                  InplaceMode inplace_mode);
-  virtual Expected<UnchangedOr<ffi::Any>> Mutate_(const prim::ShuffleNode* node,
-                                                  InplaceMode inplace_mode);
+  // Hooks borrow the node and return Unchanged or an owning replacement in its expression
+  // category, throwing on failure. Narrower field types are checked separately. Forward
+  // inplace_mode on every child edge.
+  virtual UnchangedOr<Expr> Mutate_(const OpaqueExprNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<Expr> Mutate_(const TupleNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<Expr> Mutate_(const TupleGetItemNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<Expr> Mutate_(const VarNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<Expr> Mutate_(const GlobalVarNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<Expr> Mutate_(const CallNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const IntImmNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const FloatImmNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<Expr> Mutate_(const OpNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::StringImmNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::SubNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::MulNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::DivNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::ModNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::MinNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::MaxNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::NENode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::LTNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::LENode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::GTNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::GENode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::AndNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::OrNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::NotNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::RampNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::BroadcastNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::ShuffleNode* node, InplaceMode inplace_mode);
 
  protected:
   /*!

@@ -91,7 +91,7 @@ using namespace tirx;
 /*!
  * \brief A base class to generate a LLVM.
  */
-class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
+class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
                     public StmtFunctor<void(const Stmt&)> {
  public:
   CodeGenLLVM();           // Do not make it default here.
@@ -181,11 +181,11 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
    * \param e The expression to be created value for.
    * \return created value.
    */
-  llvm::Value* MakeValue(const PrimExpr& e) { return VisitExpr(e); }
+  llvm::Value* MakeValue(const PrimExpr& e) { return Dispatch(e); }
   llvm::Value* MakeValue(const Expr& e) {
     if (auto prim = e.as<PrimExpr>()) return MakeValue(prim.value());
     if (const auto* var = e.as<VarNode>()) return GetVarValue(var);
-    if (const auto* call = e.as<CallNode>()) return VisitExpr_(call);
+    if (const auto* call = e.as<CallNode>()) return Dispatch_(call);
     TVM_FFI_THROW(TypeError) << "Cannot lower non-primitive expression " << e->GetTypeKey();
     TVM_FFI_UNREACHABLE();
   }
@@ -198,34 +198,34 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
     return llvm::ConstantInt::getSigned(t_int64_, value);
   }
   // override codegen
-  llvm::Value* VisitExpr_(const VarNode* op) override;
-  llvm::Value* VisitExpr_(const prim::CastNode* op) override;
-  llvm::Value* VisitExpr_(const IntImmNode* op) override;
-  llvm::Value* VisitExpr_(const FloatImmNode* op) override;
-  llvm::Value* VisitExpr_(const prim::StringImmNode* op) override;
-  llvm::Value* VisitExpr_(const prim::AddNode* op) override;
-  llvm::Value* VisitExpr_(const prim::SubNode* op) override;
-  llvm::Value* VisitExpr_(const prim::MulNode* op) override;
-  llvm::Value* VisitExpr_(const prim::DivNode* op) override;
-  llvm::Value* VisitExpr_(const prim::ModNode* op) override;
-  llvm::Value* VisitExpr_(const prim::MinNode* op) override;
-  llvm::Value* VisitExpr_(const prim::MaxNode* op) override;
-  llvm::Value* VisitExpr_(const prim::LTNode* op) override;
-  llvm::Value* VisitExpr_(const prim::LENode* op) override;
-  llvm::Value* VisitExpr_(const prim::GTNode* op) override;
-  llvm::Value* VisitExpr_(const prim::GENode* op) override;
-  llvm::Value* VisitExpr_(const prim::EQNode* op) override;
-  llvm::Value* VisitExpr_(const prim::NENode* op) override;
-  llvm::Value* VisitExpr_(const prim::AndNode* op) override;
-  llvm::Value* VisitExpr_(const prim::OrNode* op) override;
-  llvm::Value* VisitExpr_(const prim::NotNode* op) override;
-  llvm::Value* VisitExpr_(const prim::SelectNode* op) override;
-  llvm::Value* VisitExpr_(const prim::LetNode* op) override;
-  llvm::Value* VisitExpr_(const TensorLoadNode* op) override;
-  llvm::Value* VisitExpr_(const CallNode* op) override;
-  llvm::Value* VisitExpr_(const prim::RampNode* op) override;
-  llvm::Value* VisitExpr_(const prim::ShuffleNode* op) override;
-  llvm::Value* VisitExpr_(const prim::BroadcastNode* op) override;
+  llvm::Value* Dispatch_(const VarNode* op) override;
+  llvm::Value* Dispatch_(const prim::CastNode* op) override;
+  llvm::Value* Dispatch_(const IntImmNode* op) override;
+  llvm::Value* Dispatch_(const FloatImmNode* op) override;
+  llvm::Value* Dispatch_(const prim::StringImmNode* op) override;
+  llvm::Value* Dispatch_(const prim::AddNode* op) override;
+  llvm::Value* Dispatch_(const prim::SubNode* op) override;
+  llvm::Value* Dispatch_(const prim::MulNode* op) override;
+  llvm::Value* Dispatch_(const prim::DivNode* op) override;
+  llvm::Value* Dispatch_(const prim::ModNode* op) override;
+  llvm::Value* Dispatch_(const prim::MinNode* op) override;
+  llvm::Value* Dispatch_(const prim::MaxNode* op) override;
+  llvm::Value* Dispatch_(const prim::LTNode* op) override;
+  llvm::Value* Dispatch_(const prim::LENode* op) override;
+  llvm::Value* Dispatch_(const prim::GTNode* op) override;
+  llvm::Value* Dispatch_(const prim::GENode* op) override;
+  llvm::Value* Dispatch_(const prim::EQNode* op) override;
+  llvm::Value* Dispatch_(const prim::NENode* op) override;
+  llvm::Value* Dispatch_(const prim::AndNode* op) override;
+  llvm::Value* Dispatch_(const prim::OrNode* op) override;
+  llvm::Value* Dispatch_(const prim::NotNode* op) override;
+  llvm::Value* Dispatch_(const prim::SelectNode* op) override;
+  llvm::Value* Dispatch_(const prim::LetNode* op) override;
+  llvm::Value* Dispatch_(const TensorLoadNode* op) override;
+  llvm::Value* Dispatch_(const CallNode* op) override;
+  llvm::Value* Dispatch_(const prim::RampNode* op) override;
+  llvm::Value* Dispatch_(const prim::ShuffleNode* op) override;
+  llvm::Value* Dispatch_(const prim::BroadcastNode* op) override;
   // stmt
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
@@ -572,7 +572,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
   // set of volatile buffer.
   std::unordered_set<const VarNode*> volatile_buf_;
   // deep comparison of PrimExpr
-  ExprDeepEqual deep_equal_;
+  prim::ExprDeepEqual deep_equal_;
   // binding of let variables. Enables duplicate var defs that map to same value
   std::unordered_map<Var, const prim::LetNode*> let_binding_;
   // debug info for function being compiled

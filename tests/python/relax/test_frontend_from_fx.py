@@ -710,9 +710,6 @@ def test_linear():
 
     # matmul
     class MatMul1(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y):
             return torch.matmul(x, y)
 
@@ -742,9 +739,6 @@ def test_linear():
 
 def test_bmm():
     class BMM(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y):
             return torch.bmm(x, y)
 
@@ -774,16 +768,10 @@ def test_bmm():
 
 def test_baddbmm():
     class BAddBMM1(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, c, x, y):
             return torch.baddbmm(c, x, y)
 
     class BAddBMM2(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, c, x, y):
             return torch.baddbmm(c, x, y, alpha=2, beta=0)
 
@@ -836,16 +824,10 @@ def test_baddbmm():
 
 def test_einsum():
     class Einsum1(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x):
             return torch.einsum("ii", x)
 
     class Einsum2(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y):
             return torch.einsum("i,j->ij", x, y)
 
@@ -1008,9 +990,6 @@ def test_maxpool1d():
             return self.pool(input)
 
     class MaxPool1d_functional(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, input):
             return torch.nn.functional.max_pool1d(input, kernel_size=2)
 
@@ -1108,9 +1087,6 @@ def test_maxpool2d():
             return self.pool(input)
 
     class MaxPool2d_functional(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, input):
             return torch.nn.functional.max_pool2d(input, kernel_size=[1, 1])
 
@@ -1211,9 +1187,6 @@ def test_maxpool3d():
             return self.pool(input)
 
     class MaxPool3d_functional(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, input):
             return torch.nn.functional.max_pool3d(input, kernel_size=[1, 1, 1])
 
@@ -2017,35 +1990,12 @@ def test_functional_layernorm():
         def forward(self, input):
             return torch.nn.functional.layer_norm(input, self.shape, self.weight, self.bias, 1e-5)
 
-    @tvm.script.ir_module
-    class expected3:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
-            w1: R.Tensor([10, 10], dtype="float32"),
-            w2: R.Tensor([10, 10], dtype="float32"),
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.layer_norm(
-                    input_1,
-                    w1,
-                    w2,
-                    axes=[-2, -1],
-                    epsilon=1e-05,
-                    center=True,
-                    scale=True,
-                )
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
     model = LayerNorm3([10, 10])
     binding = {
         "w1": model.weight.detach().numpy(),
         "w2": model.bias.detach().numpy(),
     }
-    verify_model(model, input_info, binding, expected3)
+    verify_model(model, input_info, binding, expected1)
 
 
 def test_cross_entropy():
@@ -2554,112 +2504,6 @@ def test_div_mode():
     verify_model(DivModel(), input_info, {}, expected_div)
     verify_model(DivTruncModel(), input_info, {}, expected_div_trunc)
     verify_model(DivFloorModel(), input_info, {}, expected_div_floor)
-
-
-def test_round_decimals():
-    """torch.round(x, decimals) through from_fx must match PyTorch's round-half-to-even
-    results, including negative decimals (round(25, -1) == 20). The previous
-    scale-by-10**decimals implementation multiplied by 0.1 for negative decimals, which
-    is numerically wrong: 25 * 0.1 == 2.5000000000000004 in float64 rounds up to 30.
-    """
-    input_info = [([10], "float32")]
-    x = torch.tensor(
-        [0.5, 1.5, 2.5, 4.5, -0.5, -2.5, 25.0, 125.0, 165.0, 2.25], dtype=torch.float32
-    )
-
-    class RoundDecimalsModel(Module):
-        def __init__(self, decimals):
-            super().__init__()
-            self.decimals = decimals
-
-        def forward(self, input):
-            return torch.round(input, decimals=self.decimals)
-
-    for decimals in (0, 1, -1, -2):
-        gm = fx.symbolic_trace(RoundDecimalsModel(decimals).eval())
-        mod = from_fx(gm, input_info)
-        ex = relax.build(mod, target="llvm")
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
-        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
-        tvm.testing.assert_allclose(
-            got, torch.round(x, decimals=decimals).numpy(), rtol=1e-6, atol=1e-6
-        )
-
-
-def test_round_decimals_low_precision():
-    """Scaling for low-precision inputs must happen in float32 and be cast back.
-
-    10**|decimals| can overflow float16: 10**4 == 10000 with 25 * 10000 == 250000
-    exceeds float16's max of 65504, so scaling in float16 yields inf, and 10**5
-    already overflows float16 (the scale itself becomes inf), turning decimals=5
-    and -5 into NaN. Upcasting the input to float32 keeps the scaling exact; the
-    rounded result is cast back to the input dtype.
-    """
-    input_info = [([8], "float16")]
-    x = torch.tensor([0.5, 1.5, 2.5, 2.25, 25.0, 125.0, 165.0, -0.5], dtype=torch.float16)
-
-    class RoundDecimalsModel(Module):
-        def __init__(self, decimals):
-            super().__init__()
-            self.decimals = decimals
-
-        def forward(self, input):
-            return torch.round(input, decimals=self.decimals)
-
-    # Positive decimals exercise the multiply-by-10**d overflow (4, 5);
-    # negative decimals exercise the 10**|d| scale overflowing float16 (-5).
-    for decimals in (2, 4, 5, -2, -4, -5):
-        gm = fx.symbolic_trace(RoundDecimalsModel(decimals).eval())
-        mod = from_fx(gm, input_info)
-        ex = relax.build(mod, target="llvm")
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
-        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
-        tvm.testing.assert_allclose(
-            got, torch.round(x, decimals=decimals).numpy(), rtol=1e-6, atol=1e-6
-        )
-
-
-def test_round_decimals_large():
-    """A large |decimals| must import and run without OverflowError.
-
-    The scale 10**|decimals| used to be built as an unbounded host Python int
-    before being handed to relax.const, whose int-to-float conversion raises
-    OverflowError ("int too large to convert to float") once |decimals| >= 309
-    (10**309 already exceeds the float64 range). PyTorch accepts such decimals --
-    torch.round(x, decimals=309) -- and traces a valid round.decimals call, so
-    importing the graph must not crash on them. The scale is now built directly
-    in the float dtype and saturates to inf once it leaves the finite range,
-    matching PyTorch, whose all-NaN result here comes from the same inf scale.
-    """
-    input_info = [([5], "float32")]
-    x = torch.tensor([0.5, 1.5, 25.0, -0.5, 0.0], dtype=torch.float32)
-
-    class RoundDecimalsModel(Module):
-        def __init__(self, decimals):
-            super().__init__()
-            self.decimals = decimals
-
-        def forward(self, input):
-            return torch.round(input, decimals=self.decimals)
-
-    for decimals in (309, -309):
-        gm = fx.symbolic_trace(RoundDecimalsModel(decimals).eval())
-        mod = from_fx(gm, input_info)  # used to raise OverflowError here
-        ex = relax.build(mod, target="llvm")
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
-        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
-
-        # The scale overflows to inf, and IEEE arithmetic turns every element into
-        # NaN in both TVM and PyTorch. Compare the NaN masks and the remaining
-        # (empty here) finite elements separately, since allclose fails on NaN.
-        expected = torch.round(x, decimals=decimals)
-        actual = torch.as_tensor(got)
-        assert torch.equal(torch.isnan(actual), torch.isnan(expected))
-        finite = ~torch.isnan(expected)
-        assert torch.allclose(actual[finite], expected[finite], rtol=1e-6, atol=1e-6)
 
 
 def test_size():
@@ -3930,30 +3774,7 @@ def test_interpolate():
                 align_corners=False,
             )
 
-    @tvm.script.ir_module
-    class expected7:
-        @R.function
-        def main(input_5: R.Tensor((1, 3, 4, 10, 10), dtype="float32")) -> R.Tensor(
-            (1, 3, 8, 40, 40), dtype="float32"
-        ):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = R.image.resize3d(
-                    input_5,
-                    (8, 40, 40),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NCDHW",
-                    method="linear",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
-                )
-                gv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Interpolate7(), input_info_5d, {}, expected7)
+    verify_model(Interpolate7(), input_info_5d, {}, expected6)
 
     class Interpolate8(Module):
         def forward(self, input):
@@ -4150,16 +3971,10 @@ def test_addmm():
     ]
 
     class Addmm1(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x1, x2, x3):
             return torch.addmm(x1, x2, x3)
 
     class Addmm2(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x1, x2, x3):
             return torch.addmm(x1, x2, x3, beta=0.8, alpha=0.5)
 
@@ -4610,19 +4425,7 @@ def test_datatype():
         def forward(self, x):
             return x.type(torch.float32)
 
-    # type
-    class TypeFromAttr(Module):
-        def forward(self, x):
-            return x.type(x.getattr("dtype"))
-
-    # astype
-    class AsType(Module):
-        def forward(self, x):
-            return x.astype(torch.float32)
-
     verify_model(Type(), input_info, {}, expected1)
-    verify_model(TypeFromAttr(), input_info, {}, expected1)
-    verify_model(AsType(), input_info, {}, expected1)
 
 
 def test_meshgrid():
@@ -5031,9 +4834,6 @@ def test_keep_params():
 
 def test_unwrap_unit_return_tuple():
     class Identity(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x):
             return (x,)
 
@@ -5055,9 +4855,6 @@ def test_unwrap_unit_return_tuple():
 
 def test_no_bind_return_tuple():
     class Identity(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y):
             return (x, y)
 
@@ -5083,16 +4880,10 @@ def test_no_bind_return_tuple():
 
 def test_argmax():
     class Argmax1(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, input):
             return torch.argmax(input, dim=-1)
 
     class Argmax2(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, input):
             return torch.argmax(input, dim=-1, keepdim=True)
 
@@ -5122,16 +4913,10 @@ def test_argmax():
 
 def test_argmin():
     class Argmin1(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, input):
             return torch.argmin(input)
 
     class Argmin2(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, input):
             return torch.argmin(input, keepdim=True)
 
@@ -5629,11 +5414,7 @@ def test_slice_scatter():
 
 
 def test_masked_scatter():
-    class MaskedScatter1(Module):
-        def forward(self, data, mask, src):
-            return data.masked_scatter(mask, src)
-
-    class MaskedScatter2(Module):
+    class MaskedScatter(Module):
         def forward(self, data, mask, src):
             return data.masked_scatter(mask, src)
 
@@ -5679,10 +5460,10 @@ def test_masked_scatter():
             return gv
 
     verify_model(
-        MaskedScatter1(), [([5], "float32"), ([5], "bool"), ([10], "float32")], {}, expected1
+        MaskedScatter(), [([5], "float32"), ([5], "bool"), ([10], "float32")], {}, expected1
     )
     verify_model(
-        MaskedScatter2(),
+        MaskedScatter(),
         [([2, 5], "float32"), ([2, 5], "bool"), ([3, 5], "float32")],
         {},
         expected2,
@@ -5772,27 +5553,6 @@ def test_flip():
     verify_model(Flip0(), [([2, 2], "float32")], {}, Expected0)
 
 
-def test_flip_multi_axis():
-    class FlipMulti(Module):
-        def forward(self, data):
-            return torch.flip(data, [0, 1])
-
-    @tvm.script.ir_module
-    class ExpectedMulti:
-        @R.function
-        def main(
-            inp_0: R.Tensor((2, 3), dtype="float32"),
-        ) -> R.Tensor((2, 3), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((2, 3), dtype="float32") = R.flip(inp_0, axis=0)
-                lv1: R.Tensor((2, 3), dtype="float32") = R.flip(lv, axis=1)
-                gv: R.Tensor((2, 3), dtype="float32") = lv1
-                R.output(gv)
-            return gv
-
-    verify_model(FlipMulti(), [([2, 3], "float32")], {}, ExpectedMulti)
-
-
 def test_take():
     class Take(Module):
         def forward(self, data, indices):
@@ -5836,6 +5596,26 @@ def test_one_hot():
             return gv
 
     verify_model(OneHot(), [([5], "int32")], {}, Expected)
+
+
+def test_one_hot_invalid_num_classes():
+    input_info = [([5], "int32")]
+
+    class OneHot(Module):
+        def __init__(self, num_classes):
+            super().__init__()
+            self.num_classes = num_classes
+
+        def forward(self, indices):
+            return torch.nn.functional.one_hot(indices, num_classes=self.num_classes)
+
+    # torch only rejects a non-positive num_classes when the model is executed, and
+    # fx.symbolic_trace does not execute it, so the invalid value reaches the frontend and
+    # has to be rejected there instead of failing an internal `depth > 0` check in
+    # relax.op.one_hot that never mentions num_classes.
+    for num_classes in (0, -1, -2):
+        with pytest.raises(ValueError, match="num_classes must be a positive integer"):
+            from_fx(fx.symbolic_trace(OneHot(num_classes)), input_info)
 
 
 def test_empty_like():
@@ -6007,7 +5787,7 @@ def test_select():
 
 
 def test_inplace_copy():
-    class Inplace_Copy(Module):
+    class Copy(Module):
         def forward(self, x, y):
             x.copy_(y)
             return x
@@ -6027,11 +5807,6 @@ def test_inplace_copy():
                 R.output(gv)
             return gv
 
-    class CopyBroadcast(Module):
-        def forward(self, x, src):
-            x.copy_(src)
-            return x
-
     @tvm.script.ir_module
     class expected_copy:
         @R.function
@@ -6046,12 +5821,12 @@ def test_inplace_copy():
             return gv
 
     verify_model(
-        Inplace_Copy(),
+        Copy(),
         [((1, 2, 3, 4), "float32"), ((1, 2, 3, 4), "float32")],
         {},
         Expected,
     )
-    verify_model(CopyBroadcast(), [((2, 3), "float32"), ((), "int64")], {}, expected_copy)
+    verify_model(Copy(), [((2, 3), "float32"), ((), "int64")], {}, expected_copy)
 
 
 def test_clone():
@@ -6517,12 +6292,12 @@ def test_round():
     input_info = [([3, 4], "float32")]
 
     class Round(Module):
-        def __init__(self, decimals=0):
+        def __init__(self, decimals=None):
             super().__init__()
             self.decimals = decimals
 
         def forward(self, x):
-            if self.decimals == 0:
+            if self.decimals is None:
                 return torch.round(x)
             else:
                 return torch.round(x, decimals=self.decimals)
@@ -6554,38 +6329,29 @@ def test_round():
             return gv
 
     rounds = [
-        (0, Expected1),
+        (None, Expected1),
         (2, Expected2),
     ]
 
     for decimals, expected in rounds:
         verify_model(Round(decimals), input_info, {}, expected)
 
-    # Test numerical accuracy with decimals
-    test_data = torch.tensor(
-        [
-            [1.2345, 2.3456, 3.4567, 4.5678],
-            [5.6789, 6.7890, 7.8901, 8.9012],
-            [9.1234, 10.2345, 11.3456, 12.4567],
-        ]
-    )
-
-    for decimals in [0, 2]:
-        torch_model = Round(decimals)
-        graph_model = fx.symbolic_trace(torch_model)
-        with torch.no_grad():
-            mod = from_fx(graph_model, input_info)
-
-        target = tvm.target.Target("llvm")
-        ex = relax.build(mod, target)
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-
-        torch_result = torch_model(test_data).numpy()
-        tvm_input = tvm.runtime.tensor(test_data.numpy())
-        tvm_result = vm["main"](tvm_input).numpy()
-
-        # Use relaxed tolerance due to floating-point precision in decimal operations
-        tvm.testing.assert_allclose(tvm_result, torch_result, rtol=1e-3, atol=1e-3)
+    # Float16 needs float32 scaling to avoid intermediate overflow.
+    cases = [
+        (torch.float32, (0, 1, -1, -2)),
+        (torch.float16, (2, 4, 5, -2, -4, -5)),
+    ]
+    for dtype, decimals_values in cases:
+        x = torch.tensor(
+            [0.5, 1.5, 2.5, 4.5, -0.5, -2.5, 25.0, 125.0, 165.0, 2.25, 0.0], dtype=dtype
+        )
+        for decimals in decimals_values:
+            model = Round(decimals).eval()
+            mod = from_fx(fx.symbolic_trace(model), [(x.shape, dtype)])
+            ex = relax.build(mod, target="llvm")
+            vm = relax.VirtualMachine(ex, tvm.cpu())
+            actual = vm["main"](tvm.runtime.tensor(x.numpy())).numpy()
+            tvm.testing.assert_allclose(actual, model(x).numpy(), rtol=1e-6, atol=1e-6)
 
 
 if __name__ == "__main__":

@@ -41,6 +41,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 constexpr const char* kLiftTransformConsumeParams = "relax.lift_transform_params.consume_params";
 TVM_REGISTER_PASS_CONFIG_OPTION(kLiftTransformConsumeParams, bool);
@@ -240,7 +241,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
       ffi::Array<tirx::Var> global_tir_vars = global_info->GetPropagatedSymbolicVariables();
       global_tir_vars = global_tir_vars.Map([&](const tirx::Var& var) -> tirx::Var {
         if (auto it = global_to_local.find(var); it != global_to_local.end()) {
-          return (*it).second.as_or_throw<tirx::PrimVar>();
+          return (*it).second.as_or_throw<PrimVar>();
         } else {
           // This is the case when the some of the outputs of the shared transform is not used in
           // this function.
@@ -251,7 +252,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
     }();
     if (propagated_tir_vars.size()) {
       ShapeType shape_ty(propagated_tir_vars.Map(
-          [](tirx::Var var) { return var.as_or_throw<tirx::PrimVar>().as_or_throw<PrimExpr>(); }));
+          [](tirx::Var var) { return var.as_or_throw<PrimVar>().as_or_throw<PrimExpr>(); }));
       Var shape_expr("vars_from_compile_time_params", shape_ty);
       params.push_back(shape_expr);
     }

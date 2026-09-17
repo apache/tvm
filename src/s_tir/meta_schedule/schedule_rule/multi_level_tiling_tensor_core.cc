@@ -31,7 +31,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 using s_tir::GetSBlockVarTypes;
@@ -799,11 +798,11 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   const tirx::IndexMap& index_map = mapping_info->mappings[0];
 
   // Find the correspondence between block iters and the iters in the index map.
-  std::unordered_map<tirx::PrimVar, tirx::PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<PrimVar, PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       lhs_to_index_map_src;
-  std::unordered_map<tirx::PrimVar, PrimExpr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<PrimVar, PrimExpr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       rhs_to_index_map_tgt;
-  std::unordered_set<tirx::PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> unmapped_index_map_src;
+  std::unordered_set<PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> unmapped_index_map_src;
   TVM_FFI_ICHECK_EQ(mapping_info->lhs_iters.size(), index_map->initial_indices.size());
   for (int i = 0; i < static_cast<int>(mapping_info->lhs_iters.size()); ++i) {
     lhs_to_index_map_src[mapping_info->lhs_iters[i]->var] = index_map->initial_indices[i];
@@ -817,7 +816,7 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
                static_cast<int>(mapping_info->rhs_iters.size());
   TVM_FFI_ICHECK_GE(offset, 0);
   for (int i = 0; i < offset; ++i) {
-    auto var = index_map->final_indices[i].as<tirx::PrimVar>();
+    auto var = index_map->final_indices[i].as<PrimVar>();
     TVM_FFI_ICHECK(var.has_value());
     unmapped_index_map_src.insert(var.value());
   }
@@ -827,21 +826,21 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
 
   auto f_get_sub_index_map = [&](const tirx::BufferVar& lhs_buffer,
                                  const ffi::Array<Range>& lhs_region) {
-    std::vector<tirx::PrimVar> sub_index_map_src;
+    std::vector<PrimVar> sub_index_map_src;
     std::vector<PrimExpr> sub_index_map_tgt;
     const tirx::BufferVar& rhs_buffer = mapping_info->lhs_buffer_map[lhs_buffer];
     for (const Range& range : lhs_region) {
-      TVM_FFI_ICHECK(tirx::is_one(range->extent));
-      auto var = range->min.as<tirx::PrimVar>();
+      TVM_FFI_ICHECK(tvm::prim::is_one(range->extent));
+      auto var = range->min.as<PrimVar>();
       TVM_FFI_ICHECK(var.has_value());
-      const tirx::PrimVar& lhs_representer = lhs_to_index_map_src[var.value()];
+      const PrimVar& lhs_representer = lhs_to_index_map_src[var.value()];
       sub_index_map_src.push_back(lhs_representer);
       if (unmapped_index_map_src.count(lhs_representer)) {
         sub_index_map_tgt.push_back(lhs_representer);
       }
     }
     for (size_t i = 0; i < mapping_info->rhs_buffer_indices[rhs_buffer].size(); ++i) {
-      auto var = mapping_info->rhs_buffer_indices[rhs_buffer][i].as<tirx::PrimVar>();
+      auto var = mapping_info->rhs_buffer_indices[rhs_buffer][i].as<PrimVar>();
       TVM_FFI_ICHECK(var.has_value());
       sub_index_map_tgt.push_back(rhs_to_index_map_tgt[var.value()]);
     }

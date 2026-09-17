@@ -22,6 +22,7 @@ from tvm_ffi import structural_walk
 
 import tvm
 import tvm.testing
+from tvm.ir.prim import expr_deep_equal
 from tvm.s_tir import Schedule
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.s_tir.schedule.analysis import (
@@ -48,7 +49,6 @@ from tvm.tirx import (
     floordiv,
     floormod,
 )
-from tvm.tirx.analysis import expr_deep_equal
 from tvm.tirx.function import TensorIntrin
 
 

@@ -20,6 +20,7 @@
 #include <gtest/gtest.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
@@ -96,4 +97,21 @@ TEST(ExprNodeRef, Basic) {
   PrimExpr z = max(x + 1 + 2, 100);
   const prim::MaxNode* op = z.as<prim::MaxNode>();
   TVM_FFI_ICHECK(ffi::GetRef<ffi::ObjectRef>(op).same_as(z));
+}
+
+TEST(Expr, DeepEqualTensorLoadSourceIdentity) {
+  using namespace tvm;
+  Var source("source", PointerType(PrimType::Float(32)));
+  Var other_source("source", PointerType(PrimType::Float(32)));
+  auto load = [](Expr source, PrimExpr index) {
+    auto node = ffi::make_object<TensorLoadNode>();
+    node->ty = PrimType::Float(32);
+    node->source = source;
+    node->indices = {index};
+    return TensorLoad(node);
+  };
+  prim::ExprDeepEqual equal;
+  EXPECT_TRUE(equal(load(source, 0), load(source, 0)));
+  EXPECT_FALSE(equal(load(source, 0), load(other_source, 0)));
+  EXPECT_FALSE(equal(load(source, 0), load(source, 1)));
 }

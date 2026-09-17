@@ -20,8 +20,8 @@ import tvm_ffi
 
 import tvm
 from tvm import te, topi
+from tvm.ir.prim import expr_deep_equal
 from tvm.script import tirx as T
-from tvm.tirx.analysis import expr_deep_equal
 
 
 def test_expr_constructor():
@@ -184,12 +184,12 @@ def test_expr_constructor():
     cond0 = tvm.tirx.Var("cond0", "bool")
     cond1 = tvm.tirx.Var("cond1", "bool")
     inner_if = tvm.ir.Call(
-        "ir.prim.if_then_else",
+        "prim.if_then_else",
         [cond1, tvm.tirx.IntImm("int32", 1), tvm.tirx.IntImm("int32", 0)],
         ret_ty="int32",
     )
     outer_if = tvm.ir.Call(
-        "ir.prim.if_then_else",
+        "prim.if_then_else",
         [cond0, inner_if, tvm.tirx.IntImm("int32", 0)],
         attrs={"keep": True},
         ret_ty="int32",

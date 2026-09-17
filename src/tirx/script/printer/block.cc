@@ -20,6 +20,7 @@
 
 namespace tvm {
 namespace script {
+
 namespace printer {
 
 Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
@@ -48,12 +49,12 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
   std::vector<int> remap_vars_indices;
   auto add_remapped_iter_var = [&](int i) -> bool {
     if (realize && d->cfg->syntax_sugar) {
-      tirx::ExprDeepEqual expr_equal;
+      prim::ExprDeepEqual expr_equal;
       tirx::IterVar iter_var = block->iter_vars[i];
       PrimExpr value = realize->iter_values[i];
       if (iter_var->iter_type == tirx::IterVarType::kDataPar ||
           iter_var->iter_type == tirx::IterVarType::kCommReduce) {
-        if (auto var = value.as<tirx::PrimVar>()) {
+        if (auto var = value.as<PrimVar>()) {
           if (loop_vars.count(var.value().get())) {
             tirx::For for_loop = loop_vars.at(var.value().get());
             if (expr_equal(for_loop->min, iter_var->dom->min) &&
@@ -85,7 +86,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
                                 << tirx::IterVarType2String(iter_var->iter_type);
     }
     ExprDoc dom{ffi::UnsafeInit()};
-    if (tirx::is_zero(iter_var->dom->min)) {
+    if (tvm::prim::is_zero(iter_var->dom->min)) {
       ExprDoc extent = d->AsDoc<ExprDoc>(iter_var->dom->extent,  //
                                          iter_var_p->Attr("dom")->Attr("extent"));
       dom = extent;
@@ -152,7 +153,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
     PrimType predicate_ty = realize->predicate.ty();
     TVM_FFI_ICHECK(realize->predicate.defined() &&
                    predicate_ty.MatchesCode(DLDataTypeCode::kDLBool));
-    if (!tirx::is_one(realize->predicate)) {
+    if (!tvm::prim::is_one(realize->predicate)) {
       (*frame)->stmts.push_back(ExprStmtDoc(
           TIR(d, "where")
               ->Call({d->AsDoc<ExprDoc>(realize->predicate, realize_p->Attr("predicate"))})));

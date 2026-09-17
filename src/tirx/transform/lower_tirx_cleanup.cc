@@ -38,18 +38,20 @@
 #include <utility>
 #include <vector>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
+#include "../ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {
 namespace tirx {
 
-class LayoutApplier : public arith::IRMutatorWithAnalyzer {
+class LayoutApplier : public IRMutatorWithAnalyzer {
  public:
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
   static std::pair<Stmt, ffi::Array<Var>> Flatten(const Stmt& stmt, const ffi::Array<Var>& params,
                                                   const Target& target) {
     arith::Analyzer ana;
-    LayoutApplier storage_lower(ana, target);
+    auto storage_lower = ffi::make_object<LayoutApplier>(ana, target);
     ffi::Array<Var> new_params;
     new_params.reserve(params.size());
     std::vector<std::pair<BufferVar, BufferVar>> param_flattened_buffers;
@@ -59,9 +61,9 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
         new_params.push_back(param);
         continue;
       }
-      storage_lower.buffer_aliases_.Set(buffer.value().var(), buffer.value().var());
+      storage_lower->buffer_aliases_.Set(buffer.value().var(), buffer.value().var());
       if (buffer.value()->layout.has_value()) {
-        BufferVar flattened = storage_lower.GetFlattenedBuffer(buffer.value());
+        BufferVar flattened = storage_lower->GetFlattenedBuffer(buffer.value());
         auto type = CopyBufferType(buffer.value());
         type->layout = std::nullopt;
         BufferVar source = RebuildBufferVar(buffer.value(), std::move(type));
@@ -71,20 +73,18 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
         new_params.push_back(buffer.value().var());
       }
     }
-    auto new_stmt = storage_lower(stmt);
+    auto new_stmt = storage_lower->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
     for (const auto& [buf, source] : param_flattened_buffers) {
       new_stmt = SeqStmt::Flatten(DeclBuffer(buf, source.data()), std::move(new_stmt));
     }
     return std::make_pair(new_stmt, new_params);
   }
 
- protected:
-  using IRMutatorWithAnalyzer::VisitExpr_;
-  using IRMutatorWithAnalyzer::VisitStmt_;
-
+ public:
   explicit LayoutApplier(const arith::Analyzer& analyzer, const Target& target)
-      : arith::IRMutatorWithAnalyzer(analyzer), target_(target) {}
+      : IRMutatorWithAnalyzer(analyzer), target_(target) {}
 
+ protected:
   ffi::Any VisitAny(const ffi::Any& any) {
     if (any == nullptr) {
       return any;
@@ -92,22 +92,14 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
     if (auto buffer = any.as<BufferVar>()) {
       return GetFlattenedBuffer(buffer.value());
     } else if (auto prim_expr = any.as<PrimExpr>()) {
-      return VisitPrimExpr(prim_expr.value());
+      return Mutate(prim_expr.value(), InplaceMode::kDisallow).ValueOrUnchanged(prim_expr.value());
     } else if (auto stmt = any.as<Stmt>()) {
-      return VisitStmt(stmt.value());
+      return Mutate(stmt.value(), InplaceMode::kDisallow).ValueOrUnchanged(stmt.value());
     }
     return any;
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
-    Var var = ffi::GetRef<Var>(op);
-    if (auto it = var_remap_.find(var); it != var_remap_.end()) {
-      return it->second;
-    }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
-  }
-
-  Expr VisitExpr_(const CallNode* op) final {
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
@@ -116,16 +108,16 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
             << "buffer_data projects " << var.value()->name << ", which has no visible definition "
             << "(AllocBuffer/DeclBuffer/PrimFunc parameter) at this point";
         Var root = root_opt.value();
-        if (auto it = var_remap_.find(root); it != var_remap_.end()) {
-          root = it->second;
+        if (auto mapped = VarRemapGet(root); mapped != nullptr) {
+          root = mapped.as_or_throw<Var>();
         }
         return BufferVar(root).data();
       }
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     buffer_aliases_.Set(op->buffer.var(), op->buffer.var());
     auto mutate = [this](BufferVar buf) {
       if (target_->kind->name == "trn" && !buf->layout.has_value()) {
@@ -135,27 +127,33 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
     };
     auto buffer = mutate(op->buffer);
     if (buffer.same_as(op->buffer)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     }
-    auto n = CopyOnWrite(op);
+    if (inplace_mode == InplaceMode::kAllow) {
+      auto* n = const_cast<AllocBufferNode*>(op);
+      n->buffer = buffer;
+      return ffi::Unchanged();
+    }
+    auto n = ffi::make_object<AllocBufferNode>(*op);
     n->buffer = buffer;
     return Stmt(n);
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
     RegisterBufferAlias(op->buffer, op->data);
-    Expr data = VisitExpr(op->data);
+    auto data_result = Mutate(op->data, inplace_mode);
+    bool data_unchanged = data_result.UnchangedOrSameAs(op->data);
+    Expr data = std::move(data_result).ValueOrUnchanged(op->data);
     auto buffer = GetFlattenedBuffer(op->buffer);
-    if (buffer.same_as(op->buffer) && data.same_as(op->data)) {
-      return ffi::GetRef<Stmt>(op);
+    if (buffer.same_as(op->buffer) && data_unchanged) {
+      return ffi::Unchanged();
     }
     return DeclBuffer(buffer, std::move(data), op->span);
   }
 
   BufferVar GetFlattenedBuffer(BufferVar buf, bool is_alloc = false) {
-    auto it = var_remap_.find(buf.var());
-    if (it != var_remap_.end()) {
-      return BufferVar(it->second);
+    if (auto mapped = VarRemapGet(buf); mapped != nullptr) {
+      return mapped.as_or_throw<BufferVar>();
     }
     auto trn_layout = buf->layout.as<TileLayoutNode>();
     BufferVar flattened;
@@ -208,41 +206,67 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
     // another local buffer), then canonicalize.
     for (size_t i = 0; i < type->shape.size(); ++i) {
       type->shape.Set(
-          i, analyzer_->canonical_simplify(StmtExprMutator::VisitPrimExpr(type->shape[i])));
+          i, analyzer_->canonical_simplify(
+                 StmtExprMutator::Mutate(ffi::AnyView(type->shape[i]), InplaceMode::kDisallow)
+                     .ValueOrUnchanged(type->shape[i])
+                     .as_or_throw<PrimExpr>()));
     }
     for (size_t i = 0; i < type->strides.size(); ++i) {
-      type->strides.Set(i, StmtExprMutator::VisitPrimExpr(type->strides[i]));
+      type->strides.Set(
+          i, StmtExprMutator::Mutate(ffi::AnyView(type->strides[i]), InplaceMode::kDisallow)
+                 .ValueOrUnchanged(type->strides[i])
+                 .as_or_throw<PrimExpr>());
     }
     type->layout = std::nullopt;
-    type->elem_offset = StmtExprMutator::VisitPrimExpr(buf->elem_offset);
+    type->elem_offset =
+        StmtExprMutator::Mutate(ffi::AnyView(buf->elem_offset), InplaceMode::kDisallow)
+            .ValueOrUnchanged(buf->elem_offset)
+            .as_or_throw<PrimExpr>();
     if (ffi::StructuralEqual()(buf.type(), BufferType(type))) {
       return buf;
     }
     flattened = RebuildBufferVar(flattened, std::move(type));
 
-    var_remap_[buf.var()] = flattened.var();
+    VarRemapSet(buf, flattened);
     return flattened;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
-    store = VisitBufferAccess(store);
-    return std::move(store);
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    // Preserve the logical buffer until VisitBufferAccess linearizes its indices.
+    auto value = Mutate(op->value, inplace_mode);
+    auto indices =
+        Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
+    BufferStore store = ffi::GetRef<BufferStore>(op);
+    if (!value.UnchangedOrSameAs(op->value) || !indices.UnchangedOrSameAs(op->indices)) {
+      auto* n = store.CopyOnWrite();
+      n->value = std::move(value).ValueOrUnchanged(op->value);
+      n->indices = std::move(indices).ValueOrUnchanged(op->indices);
+    }
+    return VisitBufferAccess(std::move(store));
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
-    load = VisitBufferAccess(load);
-    return std::move(load);
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    auto indices =
+        Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
+    TensorLoad load = ffi::GetRef<TensorLoad>(op);
+    if (!indices.UnchangedOrSameAs(op->indices)) {
+      load.CopyOnWrite()->indices = std::move(indices).ValueUnchecked();
+    }
+    return VisitBufferAccess(std::move(load));
   }
 
-  Stmt VisitStmt_(const tirx::TilePrimitiveCallNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const tirx::TilePrimitiveCallNode* op, InplaceMode inplace_mode) final {
     ffi::Array<ffi::Any> args = op->args;
     args.MutateByApply([this](ffi::Any arg) -> ffi::Any { return VisitAny(arg); });
     if (args.same_as(op->args)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     } else {
-      auto n = CopyOnWrite(op);
+      if (inplace_mode == InplaceMode::kAllow) {
+        auto* n = const_cast<tirx::TilePrimitiveCallNode*>(op);
+        n->args = std::move(args);
+        return ffi::Unchanged();
+      }
+      auto n = ffi::make_object<tirx::TilePrimitiveCallNode>(*op);
       n->args = std::move(args);
       return Stmt(n);
     }
@@ -304,7 +328,6 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
   }
 
   /*! \brief Map of variables being remapped, including buffer variables. */
-  std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap_;
 
  private:
   void RegisterBufferAlias(BufferVar buffer, const Expr& data) {
@@ -330,78 +353,23 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
 
 class BufferOffsetRemover : public StmtExprMutator {
  public:
-  static Stmt Remove(const Stmt& stmt) { return BufferOffsetRemover()(stmt); }
-
- private:
-  Expr VisitExpr_(const VarNode* op) final {
-    Var var = ffi::GetRef<Var>(op);
-    if (auto it = var_remap_.find(var); it != var_remap_.end()) {
-      return it->second;
-    }
-    return StmtExprMutator::VisitExpr_(op);
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  static Stmt Remove(const Stmt& stmt) {
+    return ffi::make_object<BufferOffsetRemover>()
+        ->Mutate(stmt, InplaceMode::kAllow)
+        .ValueOrUnchanged(stmt);
   }
 
-  Expr VisitExpr_(const CallNode* call) final {
+ private:
+  UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) final {
     if (call->op.same_as(tirx::builtin::buffer_offset())) {
       auto buffer_load = call->args[0].as_or_throw<TensorLoad>();
       TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";
       return buffer_load->indices[0];
     }
-    return StmtExprMutator::VisitExpr_(call);
+    return StmtExprMutator::Mutate_(call, inplace_mode);
   }
-
-  Stmt VisitStmt_(const DeclBufferNode* op) {
-    auto buffer = op->buffer;
-    Expr data = VisitExpr(op->data);
-    auto elem_offset = this->VisitPrimExpr(buffer->elem_offset);
-    if (!elem_offset.same_as(buffer->elem_offset)) {
-      auto type = CopyBufferType(buffer);
-      type->elem_offset = std::move(elem_offset);
-      buffer = RebuildBufferVar(buffer, std::move(type));
-      var_remap_[op->buffer.var()] = buffer.var();
-    }
-    if (buffer.same_as(op->buffer) && data.same_as(op->data)) {
-      return ffi::GetRef<Stmt>(op);
-    }
-    return DeclBuffer(buffer, std::move(data), op->span);
-  }
-
-  using StmtExprMutator::VisitExpr_;
-  using StmtExprMutator::VisitStmt_;
-
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
-    store = VisitBufferAccess(store);
-    return std::move(store);
-  }
-
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
-    load = VisitBufferAccess(load);
-    return std::move(load);
-  }
-
-  template <typename Node>
-  Node VisitBufferAccess(Node node) {
-    TVM_FFI_ICHECK(node->buffer.defined());
-    auto it = var_remap_.find(node->buffer.var());
-    if (it != var_remap_.end()) {
-      auto writer = node.CopyOnWrite();
-      writer->buffer = BufferVar(it->second);
-      return node;
-    }
-    return node;
-  }
-
-  TensorLoad VisitBufferAccess(TensorLoad node) {
-    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
-    TVM_FFI_ICHECK(buffer.defined());
-    auto it = var_remap_.find(buffer.var());
-    return it == var_remap_.end() ? node
-                                  : BufferLoad(BufferVar(it->second), node->indices, node->span);
-  }
-
-  std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap_;
 };
 
 namespace {

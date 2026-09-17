@@ -39,6 +39,8 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
+
 namespace {
 std::string PrintShapeAsList(const ffi::Array<PrimExpr>& shape) {
   std::ostringstream os;
@@ -346,7 +348,7 @@ void CodeGenTrainium::VisitStmt_(const EvaluateNode* op) {
   }
 }
 
-void CodeGenTrainium::VisitExpr_(const TensorLoadNode* op, std::ostream& os) {
+void CodeGenTrainium::Dispatch_(const TensorLoadNode* op, std::ostream& os) {
   std::string buffer_str;
   if (buffer_idmap_.count(op->source.as_or_throw<tvm::tirx::BufferVar>())) {
     buffer_str = buffer_idmap_[op->source.as_or_throw<tvm::tirx::BufferVar>()];
@@ -360,7 +362,7 @@ void CodeGenTrainium::VisitExpr_(const TensorLoadNode* op, std::ostream& os) {
 
 std::string PrintBool(bool b) { return b ? "True" : "False"; }
 
-void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenTrainium::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK(!op->op.as<GlobalVarNode>())
       << "CodegenTrainium does not support inter-function calls, "
       << "but expression " << ffi::GetRef<Call>(op) << " calls PrimFunc " << op->op;
@@ -541,7 +543,7 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
   os << ")";
 }
 
-void CodeGenTrainium::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenTrainium::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   std::ostringstream temp;
   if (std::isinf(op->value)) {
     if (op->value < 0) {
@@ -557,7 +559,7 @@ void CodeGenTrainium::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  //
   os << temp.str();
 }
 
-void CodeGenTrainium::VisitExpr_(const VarNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenTrainium::Dispatch_(const VarNode* op, std::ostream& os) {  // NOLINT(*)
   os << GetVarID(op);
   if (!ctx_.tensorized_loop_vars.count(op)) {
     // this var is not a tensorized loop variable
@@ -599,16 +601,16 @@ void CodeGenTrainium::VisitExpr_(const VarNode* op, std::ostream& os) {  // NOLI
   ctx_.buffer_index++;
 }
 
-void CodeGenTrainium::VisitExpr_(const prim::CastNode* op, std::ostream& os) {
+void CodeGenTrainium::Dispatch_(const prim::CastNode* op, std::ostream& os) {
   ctx_.dst_dtype = op->ty.as_or_throw<PrimType>();
-  CodeGenTrainium::VisitExpr(op->value, os);
+  CodeGenTrainium::Dispatch(op->value, os);
 }
 
-void CodeGenTrainium::VisitExpr_(const prim::FloorDivNode* op, std::ostream& os) {
+void CodeGenTrainium::Dispatch_(const prim::FloorDivNode* op, std::ostream& os) {
   os << PrintExpr(op->a) << " // " << PrintExpr(op->b);
 }
 
-void CodeGenTrainium::VisitExpr_(const prim::FloorModNode* op, std::ostream& os) {
+void CodeGenTrainium::Dispatch_(const prim::FloorModNode* op, std::ostream& os) {
   os << PrintExpr(op->a) << " % " << PrintExpr(op->b);
 }
 
@@ -618,7 +620,7 @@ void CodeGenTrainium::VisitStmt_(const DeclBufferNode* op) {
   }
   const VarNode* data = op->data.as<VarNode>();
   if (const auto* call = op->data.as<CallNode>();
-      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     data = call->args[0].as<VarNode>();
   }
   TVM_FFI_ICHECK(data) << "Trainium codegen expects DeclBuffer data to be a buffer variable";
@@ -705,11 +707,11 @@ void CodeGenTrainium::VisitStmt_(const IfThenElseNode* op) {
   }
 }
 
-void CodeGenTrainium::VisitExpr_(const prim::AndNode* op, std::ostream& os) {
+void CodeGenTrainium::Dispatch_(const prim::AndNode* op, std::ostream& os) {
   os << PrintExpr(op->a) << " & " << PrintExpr(op->b);
 }
 
-void CodeGenTrainium::VisitExpr_(const prim::OrNode* op, std::ostream& os) {
+void CodeGenTrainium::Dispatch_(const prim::OrNode* op, std::ostream& os) {
   os << PrintExpr(op->a) << " | " << PrintExpr(op->b);
 }
 

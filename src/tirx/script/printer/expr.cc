@@ -259,7 +259,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-LambdaDoc PrintIndexMap(const ffi::ObjectRef& map, const ffi::Array<tirx::PrimVar>& vs,
+LambdaDoc PrintIndexMap(const ffi::ObjectRef& map, const ffi::Array<PrimVar>& vs,
                         const AccessPath& vs_p, const ffi::Array<PrimExpr>& es,
                         const AccessPath& es_p, const IRDocsifier& d) {
   With<TIRFrame> f(d, map);

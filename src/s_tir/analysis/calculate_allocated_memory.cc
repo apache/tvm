@@ -37,7 +37,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 std::string GetStorageScope(const Var& var) {
@@ -51,8 +50,10 @@ std::string GetStorageScope(const Var& var) {
  */
 class AllocBufferCalculator : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   tvm::ffi::Map<ffi::String, int64_t> operator()(const PrimFunc& func) {
-    this->VisitStmt(func->body);
+    this->Visit(func->body);
     tvm::ffi::Map<ffi::String, int64_t> res;
     for (auto [k, v] : _max_size) {
       res.Set(ffi::String(k), v);
@@ -61,7 +62,7 @@ class AllocBufferCalculator : public StmtExprVisitor {
   }
 
  private:
-  void VisitStmt_(const AllocBufferNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) override {
     std::string storage_scope = op->buffer.scope();
     auto search = _current_size.find(storage_scope);
     if (search == _current_size.end()) {
@@ -80,22 +81,25 @@ class AllocBufferCalculator : public StmtExprVisitor {
     size *= static_cast<int64_t>(op->buffer->dtype.StorageBytes());
     _current_size[storage_scope] += size;
     _max_size[storage_scope] = std::max(_current_size[storage_scope], _max_size[storage_scope]);
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
-  void VisitStmt_(const ForNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override {
     auto snapshot = _current_size;
-    StmtExprVisitor::VisitStmt_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     _current_size = snapshot;
+    return std::nullopt;
   }
-  void VisitStmt_(const IfThenElseNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) override {
     auto snapshot = _current_size;
-    StmtExprVisitor::VisitStmt_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     _current_size = snapshot;
+    return std::nullopt;
   }
-  void VisitStmt_(const AttrStmtNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) override {
     auto snapshot = _current_size;
-    StmtExprVisitor::VisitStmt_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     _current_size = snapshot;
+    return std::nullopt;
   }
   std::unordered_map<std::string, int64_t> _max_size;
   std::unordered_map<std::string, int64_t> _current_size;
@@ -104,7 +108,7 @@ class AllocBufferCalculator : public StmtExprVisitor {
 tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAllocatedBytes(
     const PrimFunc& func) {
   tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > results;
-  auto alloc_buffer_result = AllocBufferCalculator()(func);
+  auto alloc_buffer_result = ffi::make_object<AllocBufferCalculator>()->operator()(func);
   results.Set("main", alloc_buffer_result);
   return results;
 }
@@ -115,7 +119,8 @@ tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAlloca
   for (const auto& kv : mod->functions) {
     if (auto prim_func = kv.second.as<tirx::PrimFunc>()) {
       ffi::String func_name = kv.first->name_hint;
-      auto alloc_buffer_result = AllocBufferCalculator()(prim_func.value());
+      auto alloc_buffer_result =
+          ffi::make_object<AllocBufferCalculator>()->operator()(prim_func.value());
       results.Set(func_name, alloc_buffer_result);
     }
   }

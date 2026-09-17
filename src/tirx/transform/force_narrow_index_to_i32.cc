@@ -32,9 +32,12 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 class Int32DTypeNarrower : public IndexDataTypeNormalizer {
  public:
+  using IndexDataTypeNormalizer::Mutate;
+  using IndexDataTypeNormalizer::Mutate_;
   static PrimFunc RewriteDataType(PrimFunc func) {
     // Check if the integer parameter buffers have dtype other than int32.
     for (const Var& param : func->params) {
@@ -46,27 +49,30 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
       }
     }
 
-    Int32DTypeNarrower narrower(func);
-    return narrower.Rewrite(func);
+    auto narrower = ffi::make_object<Int32DTypeNarrower>(func);
+    return narrower->Rewrite(func);
   }
 
- private:
+ public:
   explicit Int32DTypeNarrower(PrimFunc func)
       : IndexDataTypeNormalizer(PrimType::Int(32)), func_(std::move(func)) {}
 
+ private:
   bool ShouldClampShiftAmounts() const final { return true; }
 
-  Expr VisitExpr_(const IntImmNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const IntImmNode* op, InplaceMode inplace_mode) final {
     // ignore the enabled condition and always rewrite i64
     if (op->ty.as_or_throw<PrimType>() == PrimType::Int(64)) {
       TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<IntImm>()->value);
       return IntImm::Int32(op->value);
     }
-    return ffi::GetRef<IntImm>(op);
+    return ffi::Unchanged();
   }
 
-  Stmt VisitStmt_(const SBlockNode* block) final {
-    SBlock block_ = IndexDataTypeNormalizer::VisitStmt_(block).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
+    SBlock block_ = IndexDataTypeNormalizer::Mutate_(block, inplace_mode)
+                        .ValueOrUnchanged(ffi::GetRef<Stmt>(block))
+                        .as_or_throw<SBlock>();
     // Check if the allocated integer buffers have dtype other than int32.
     for (const BufferVar& buf : block_->alloc_buffers) {
       if (buf->dtype.MatchesCode(DLDataTypeCode::kDLInt) && buf->dtype.bits() > 32) {

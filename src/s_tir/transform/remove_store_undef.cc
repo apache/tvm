@@ -33,7 +33,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 struct UndefInfo {
@@ -43,20 +42,21 @@ struct UndefInfo {
 
 class StoreUndefLocator : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
   static UndefInfo Locate(Stmt stmt) {
-    StoreUndefLocator locator;
-    locator(std::move(stmt));
-    return {locator.undef_stores_, locator.var_bindings_with_undef_};
+    auto locator = ffi::make_object<StoreUndefLocator>();
+    locator->Visit(std::move(stmt));
+    return {locator->undef_stores_, locator->var_bindings_with_undef_};
   }
 
- private:
   StoreUndefLocator() = default;
 
-  void VisitStmt_(const BufferStoreNode* op) final {
+ private:
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
     // Check the value for undef.
     bool stash_undef = false;
     std::swap(has_undef_, stash_undef);
-    StmtExprVisitor::VisitExpr(op->value);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->value));
     std::swap(has_undef_, stash_undef);
     if (stash_undef) {
       auto value = op->value.as<PrimExpr>();
@@ -73,27 +73,29 @@ class StoreUndefLocator : public StmtExprVisitor {
     bool idx_undef = false;
     std::swap(has_undef_, idx_undef);
     for (const auto& idx : op->indices) {
-      StmtExprVisitor::VisitExpr(idx);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(idx));
     }
     std::swap(has_undef_, idx_undef);
     TVM_FFI_ICHECK(!idx_undef) << "Error: T.undef() may not be used in buffer indices";
+    return std::nullopt;
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     // Check indices for undef.  Undef in buffer indices is always an error.
     bool idx_undef = false;
     std::swap(has_undef_, idx_undef);
     for (const auto& idx : op->indices) {
-      StmtExprVisitor::VisitExpr(idx);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(idx));
     }
     std::swap(has_undef_, idx_undef);
     TVM_FFI_ICHECK(!idx_undef) << "Error: T.undef() may not be used in buffer indices";
+    return std::nullopt;
   }
 
-  void VisitStmt_(const BindNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     bool stash_undef = false;
     std::swap(has_undef_, stash_undef);
-    StmtExprVisitor::VisitExpr(op->value);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->value));
     std::swap(has_undef_, stash_undef);
     if (stash_undef) {
       auto value = op->value.as<PrimExpr>();
@@ -102,19 +104,21 @@ class StoreUndefLocator : public StmtExprVisitor {
           << "must not have other side effects";
       var_bindings_with_undef_.insert(op->var.get());
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const VarNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     if (var_bindings_with_undef_.count(op)) {
       has_undef_ = true;
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const CallNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if (op->op.same_as(tirx::builtin::undef())) {
       has_undef_ = true;
     }
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   bool has_undef_{false};
@@ -128,31 +132,36 @@ class StoreUndefLocator : public StmtExprVisitor {
 // indices is already caught eagerly in the locator phase.
 class StoreUndefRemover : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   static Stmt Apply(Stmt stmt) {
     auto info = StoreUndefLocator::Locate(stmt);
-    StoreUndefRemover mutator(info);
-    return mutator(std::move(stmt));
+    auto mutator = ffi::make_object<StoreUndefRemover>(info);
+    return mutator->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt));
   }
 
  private:
   using Parent = StmtExprMutator;
 
+ public:
   explicit StoreUndefRemover(const UndefInfo& info)
       : stores_to_remove_(info.undef_stores), bind_vars_to_remove_(info.undef_bind_vars) {}
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
+ private:
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     if (stores_to_remove_.count(op)) {
       return Evaluate(0);
     } else {
-      return Parent::VisitStmt_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
   }
 
-  Stmt VisitStmt_(const BindNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (bind_vars_to_remove_.count(op->var.get())) {
       return Evaluate(0);
     } else {
-      return Parent::VisitStmt_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
   }
 
@@ -163,18 +172,19 @@ class StoreUndefRemover : public StmtExprMutator {
 // Check that no tirx::builtin::undef() remains in the IR.
 class ContainsUndefChecker : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
   static bool Check(const Stmt& stmt) {
-    ContainsUndefChecker checker;
-    checker(stmt);
-    return checker.contains_undef;
+    auto checker = ffi::make_object<ContainsUndefChecker>();
+    checker->Visit(stmt);
+    return checker->contains_undef;
   }
 
  private:
-  void VisitExpr_(const CallNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if (op->op.same_as(tirx::builtin::undef())) {
       contains_undef = true;
     }
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   bool contains_undef{false};

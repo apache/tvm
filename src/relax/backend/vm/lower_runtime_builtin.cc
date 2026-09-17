@@ -34,6 +34,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 // This pass lowers most ops to VM specific builtins.
 // TODO(relax-team): revisit after PrimExpr.

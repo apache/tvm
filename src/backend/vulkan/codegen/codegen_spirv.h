@@ -50,7 +50,7 @@ using namespace tirx;
 /*!
  * \brief Code generator into SPIRV
  */
-class CodeGenSPIRV : public ExprFunctor<spirv::Value(const Expr&)>,
+class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
                      public StmtFunctor<void(const Stmt&)> {
  public:
   /*!
@@ -73,37 +73,37 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const Expr&)>,
    * \param e The expression to be created value for.
    * \return created value.
    */
-  spirv::Value MakeValue(const PrimExpr& e) { return VisitExpr(e); }
-  spirv::Value MakeValue(const Expr& e) { return VisitExpr(e); }
+  spirv::Value MakeValue(const PrimExpr& e) { return Dispatch(e); }
+  spirv::Value MakeValue(const Expr& e) { return Dispatch(e); }
   // override codegen
-  spirv::Value VisitExpr_(const VarNode* op) override;
-  spirv::Value VisitExpr_(const prim::CastNode* op) override;
-  spirv::Value VisitExpr_(const IntImmNode* op) override;
-  spirv::Value VisitExpr_(const FloatImmNode* op) override;
-  spirv::Value VisitExpr_(const prim::StringImmNode* op) override;
-  spirv::Value VisitExpr_(const prim::AddNode* op) override;
-  spirv::Value VisitExpr_(const prim::SubNode* op) override;
-  spirv::Value VisitExpr_(const prim::MulNode* op) override;
-  spirv::Value VisitExpr_(const prim::DivNode* op) override;
-  spirv::Value VisitExpr_(const prim::ModNode* op) override;
-  spirv::Value VisitExpr_(const prim::MinNode* op) override;
-  spirv::Value VisitExpr_(const prim::MaxNode* op) override;
-  spirv::Value VisitExpr_(const prim::LTNode* op) override;
-  spirv::Value VisitExpr_(const prim::LENode* op) override;
-  spirv::Value VisitExpr_(const prim::GTNode* op) override;
-  spirv::Value VisitExpr_(const prim::GENode* op) override;
-  spirv::Value VisitExpr_(const prim::EQNode* op) override;
-  spirv::Value VisitExpr_(const prim::NENode* op) override;
-  spirv::Value VisitExpr_(const prim::AndNode* op) override;
-  spirv::Value VisitExpr_(const prim::OrNode* op) override;
-  spirv::Value VisitExpr_(const prim::NotNode* op) override;
-  spirv::Value VisitExpr_(const prim::SelectNode* op) override;
-  spirv::Value VisitExpr_(const prim::LetNode* op) override;
-  spirv::Value VisitExpr_(const CallNode* op) override;
-  spirv::Value VisitExpr_(const prim::RampNode* op) override;
-  spirv::Value VisitExpr_(const prim::BroadcastNode* op) override;
-  spirv::Value VisitExpr_(const TensorLoadNode* op) override;
-  spirv::Value VisitExpr_(const prim::ShuffleNode* op) override;
+  spirv::Value Dispatch_(const VarNode* op) override;
+  spirv::Value Dispatch_(const prim::CastNode* op) override;
+  spirv::Value Dispatch_(const IntImmNode* op) override;
+  spirv::Value Dispatch_(const FloatImmNode* op) override;
+  spirv::Value Dispatch_(const prim::StringImmNode* op) override;
+  spirv::Value Dispatch_(const prim::AddNode* op) override;
+  spirv::Value Dispatch_(const prim::SubNode* op) override;
+  spirv::Value Dispatch_(const prim::MulNode* op) override;
+  spirv::Value Dispatch_(const prim::DivNode* op) override;
+  spirv::Value Dispatch_(const prim::ModNode* op) override;
+  spirv::Value Dispatch_(const prim::MinNode* op) override;
+  spirv::Value Dispatch_(const prim::MaxNode* op) override;
+  spirv::Value Dispatch_(const prim::LTNode* op) override;
+  spirv::Value Dispatch_(const prim::LENode* op) override;
+  spirv::Value Dispatch_(const prim::GTNode* op) override;
+  spirv::Value Dispatch_(const prim::GENode* op) override;
+  spirv::Value Dispatch_(const prim::EQNode* op) override;
+  spirv::Value Dispatch_(const prim::NENode* op) override;
+  spirv::Value Dispatch_(const prim::AndNode* op) override;
+  spirv::Value Dispatch_(const prim::OrNode* op) override;
+  spirv::Value Dispatch_(const prim::NotNode* op) override;
+  spirv::Value Dispatch_(const prim::SelectNode* op) override;
+  spirv::Value Dispatch_(const prim::LetNode* op) override;
+  spirv::Value Dispatch_(const CallNode* op) override;
+  spirv::Value Dispatch_(const prim::RampNode* op) override;
+  spirv::Value Dispatch_(const prim::BroadcastNode* op) override;
+  spirv::Value Dispatch_(const TensorLoadNode* op) override;
+  spirv::Value Dispatch_(const prim::ShuffleNode* op) override;
   // stmt
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
@@ -226,7 +226,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const Expr&)>,
   arith::Analyzer analyzer_;
 
   // deep comparison of PrimExpr
-  ExprDeepEqual deep_equal_;
+  prim::ExprDeepEqual deep_equal_;
 
   // binding of let variables. Enables duplicate var defs that map to same value
   std::unordered_map<Var, const prim::LetNode*> let_binding_;

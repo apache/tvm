@@ -26,7 +26,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -324,18 +323,21 @@ Stmt WmmaToShared::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
 
 class WmmaToGlobalRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   WmmaToGlobalRewriter(const SeqStmtNode* tgt_stmt, const ConstraintSet& constraints)
       : tgt_stmt_(tgt_stmt), constraints_(constraints) {}
 
  private:
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     if (op == tgt_stmt_) {
       TVM_FFI_ICHECK_EQ(op->seq.size(), 2);
       Stmt wmma_to_shared = RewriteWmmaStore(op->seq[0]);
       Stmt shared_to_global = CoalescedAccess().Rewrite(op->seq[1], constraints_, nullptr);
       return SeqStmt({wmma_to_shared, shared_to_global});
     } else {
-      return StmtMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 
@@ -356,8 +358,8 @@ Stmt WmmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   output->alloc_buffer.push_back(cache_buffer);
   output->padding_min.Set(cache_buffer, 8);
   // Step 2. do coalesced rewrite and tensor core rewrite respectively for 2 parts
-  WmmaToGlobalRewriter rewriter(seq.get(), constraints);
-  return rewriter(body);
+  auto rewriter = ffi::make_object<WmmaToGlobalRewriter>(seq.get(), constraints);
+  return rewriter->Mutate(body).ValueOrUnchanged(body);
 }
 
 std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
@@ -535,11 +537,14 @@ Stmt RewriteMmaStore(Stmt stmt) {
 
 class MmaToGlobalRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   MmaToGlobalRewriter(const SeqStmtNode* tgt_stmt, const ConstraintSet& constraints)
       : tgt_stmt_(tgt_stmt), constraints_(constraints) {}
 
  private:
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     if (op == tgt_stmt_) {
       TVM_FFI_ICHECK_EQ(op->seq.size(), 2);
       // Rewrite for local to shared.dyn
@@ -549,7 +554,7 @@ class MmaToGlobalRewriter : public StmtExprMutator {
       Stmt shared_to_global = CoalescedAccess().Rewrite(op->seq[1], constraints_, nullptr);
       return SeqStmt({mma_to_shared, shared_to_global});
     } else {
-      return StmtMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 
@@ -570,8 +575,8 @@ Stmt MmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   output->alloc_buffer.push_back(cache_buffer);
   output->padding_min.Set(cache_buffer, 8);
   // Step 2. do coalesced rewrite and tensor core rewrite respectively for 2 parts
-  MmaToGlobalRewriter rewriter(seq.get(), constraints);
-  return rewriter(body);
+  auto rewriter = ffi::make_object<MmaToGlobalRewriter>(seq.get(), constraints);
+  return rewriter->Mutate(body).ValueOrUnchanged(body);
 }
 
 }  // namespace s_tir

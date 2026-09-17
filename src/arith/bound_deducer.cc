@@ -22,41 +22,46 @@
  * \brief Utility to deduce bound of expression
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/expr_functor.h>
 
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include "interval_set.h"
 
 namespace tvm {
 namespace arith {
 
-using namespace tirx;
-
-// a visitor to find the path to the target variable
-// from a expression.
-class VariablePathFinder : public ExprVisitor {
+// Find a target path through structural expression fields, including dynamic types.
+// BoundDeduceInputChecker counts occurrences over the same broader domain and can
+// conservatively decline deduction when a target also appears in type metadata.
+class VariablePathFinder {
  public:
   explicit VariablePathFinder(PrimExpr target) : target_(target) {}
 
-  void VisitExpr(const Expr& node) final {
-    if (visited_.count(node.get()) != 0) return;
-    visited_.insert(node.get());
+  void operator()(const Expr& node) {
+    ffi::StructuralVisit(
+        node,
+        [this](const Expr& child,
+               ffi::StructuralVisitorObj* visitor) -> Expected<ffi::Optional<ffi::VisitInterrupt>> {
+          if (!visited_.insert(child.get()).second) return std::nullopt;
+          path_.push_back(child.get());
+          if (child.same_as(target_)) return ffi::VisitInterrupt();
 
-    if (!found_) path_.push_back(node.get());
-    if (node.same_as(target_)) found_ = true;
-    ExprVisitor::VisitExpr(node);
-    if (!found_) path_.pop_back();
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->DefaultVisitExpected(child));
+          path_.pop_back();
+          return std::nullopt;
+        });
   }
 
   std::vector<const ffi::Object*> path_;
 
  private:
-  bool found_{false};
   PrimExpr target_;
   std::unordered_set<const ffi::Object*> visited_;
 };
@@ -72,7 +77,7 @@ std::vector<const ffi::Object*> GetPath(PrimExpr target, PrimExpr expr) {
 enum CompareOp { kGreater, kLess, kEqual };
 
 // a visitor to deduce the bound of a variable from a expression
-class BoundDeducer : public ExprFunctor<void(const Expr&)> {
+class BoundDeducer : public tvm::ExprFunctor<void(const Expr&)> {
  public:
   friend class BoundDeduceInputChecker;
   friend class Converter;
@@ -83,17 +88,17 @@ class BoundDeducer : public ExprFunctor<void(const Expr&)> {
 
   void Deduce();
 
-  void VisitExpr(const Expr& e) final {
+  void Dispatch(const Expr& e) final {
     if (!success_) return;
     if (iter_ < path_.size() && e.get() == path_[iter_++]) {
-      ExprFunctor::VisitExpr(e);
+      ExprFunctor::Dispatch(e);
     } else {
       success_ = false;
       return;
     }
   }
 
-  void VisitExprDefault_(const ffi::Object* op) final { success_ = false; }
+  void DispatchDefault_(const ffi::Object* op) final { success_ = false; }
 
   SignType GetSignType(const PrimExpr& e) {
     PrimType e_ty = e.ty();
@@ -103,15 +108,15 @@ class BoundDeducer : public ExprFunctor<void(const Expr&)> {
     return expr_map_[e].GetSignType();
   }
 
-  void VisitExpr_(const VarNode* op) final {}
+  void Dispatch_(const VarNode* op) final {}
 
-  void VisitExpr_(const prim::AddNode* op) final {
+  void Dispatch_(const prim::AddNode* op) final {
     bool left = op->a.get() == path_[iter_];
     result_ -= left ? op->b : op->a;
-    this->VisitExpr(left ? op->a : op->b);
+    this->Dispatch(left ? op->a : op->b);
   }
 
-  void VisitExpr_(const prim::SubNode* op) final {
+  void Dispatch_(const prim::SubNode* op) final {
     bool left = op->a.get() == path_[iter_];
     if (left) {
       result_ += op->b;
@@ -120,10 +125,10 @@ class BoundDeducer : public ExprFunctor<void(const Expr&)> {
       result_ = -result_;
       comp_op = ReverseOp(comp_op);
     }
-    this->VisitExpr(left ? op->a : op->b);
+    this->Dispatch(left ? op->a : op->b);
   }
 
-  void VisitExpr_(const prim::MulNode* op) final {
+  void Dispatch_(const prim::MulNode* op) final {
     bool left = op->a.get() == path_[iter_];
     PrimExpr operand = left ? op->b : op->a;
     PrimExpr target_var = left ? op->a : op->b;
@@ -162,10 +167,10 @@ class BoundDeducer : public ExprFunctor<void(const Expr&)> {
         // ( x <= -3/-2 --> x <= 1)
       }
     }
-    this->VisitExpr(left ? op->a : op->b);
+    this->Dispatch(left ? op->a : op->b);
   }
 
-  void VisitExpr_(const prim::FloorDivNode* op) final {
+  void Dispatch_(const prim::FloorDivNode* op) final {
     if (op->b.get() == path_[iter_]) {
       // Skip cases where the var is divisor.
       success_ = false;
@@ -208,7 +213,7 @@ class BoundDeducer : public ExprFunctor<void(const Expr&)> {
       result_ = result_ - divisor + 1;
     }
 
-    this->VisitExpr(op->a);
+    this->Dispatch(op->a);
   }
 
   PrimExpr result_;
@@ -231,22 +236,17 @@ class BoundDeducer : public ExprFunctor<void(const Expr&)> {
   Analyzer analyzer_;
 };
 
-class BoundDeduceInputChecker : public ExprVisitor {
+class BoundDeduceInputChecker {
  public:
   bool Check(BoundDeducer* deducer) {
-    deducer_ = deducer;
-    this->VisitExpr(deducer_->expr_);
+    size_t target_count = 0;
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+        deducer->expr_, [&](const Expr& expr) -> ffi::Expected<ffi::WalkResult> {
+          if (expr.same_as(deducer->target_)) ++target_count;
+          return ffi::WalkResult::Advance();
+        });
     return target_count == 1;
   }
-
-  void VisitExpr(const Expr& e) final {
-    if (e.same_as(deducer_->target_)) ++target_count;
-    ExprVisitor::VisitExpr(e);
-  }
-
- private:
-  BoundDeducer* deducer_;
-  size_t target_count{0};
 };
 
 void BoundDeducer::Init() {
@@ -345,7 +345,7 @@ void BoundDeducer::Deduce() {
   }
   expr_map_ = EvalSetForEachSubExpr(expr_, hint_map_);
 
-  this->VisitExpr(expr_);
+  this->Dispatch(expr_);
 
   if (success_) {
     result_ = analyzer_->Simplify(result_);

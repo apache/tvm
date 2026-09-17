@@ -899,6 +899,8 @@ class TestMaxIndex(BaseCompare):
     x, y, z = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32"), tvm.tirx.Var("z", "int32")
 
     test_case = tvm.testing.parameter(
+        # Identical operands simplify even when they contain an opaque call.
+        TestCase(tvm.tirx.max(x + tirx.vscale() * 4, x + tirx.vscale() * 4), x + tirx.vscale() * 4),
         # const int bound
         TestCase(tvm.tirx.max(tmod(x, 2), tmod(y, 2) + 10), tmod(y, 2) + 10),
         TestCase(tvm.tirx.max(flm(x, 2), flm(y, 2) + 10), flm(y, 2) + 10),
@@ -976,44 +978,6 @@ class TestMaxIndex(BaseCompare):
         TestCase(tvm.tirx.max(fld(x, 4) * 4, x), x),
         TestCase(tvm.tirx.max(x, fld(x, 4) * 4), x),
     )
-
-
-# These simplifications relied on arith::CanProve being able to prove
-# vscale-bearing inequalities (e.g. vscale() > 0) by substituting known
-# vscale values for the current VLA target. That proof loop has been removed
-# from the arith layer -- arith no longer attempts to reason about scalable
-# vector lengths at the target level. The simplifications are correct in
-# principle but can no longer be proven without the substitution loop.
-@pytest.mark.xfail(reason="arith no longer proves vscale-bearing inequalities via substitution")
-class TestScalableIndex(BaseCompare):
-    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
-    test_case = tvm.testing.parameter(
-        # MinNode
-        TestCase(tvm.tirx.min(x + tirx.vscale() * 4, x), x),
-        TestCase(tvm.tirx.min(x - tirx.vscale() * 4, x), x + tirx.vscale() * -4),
-        TestCase(tvm.tirx.min(x + tirx.vscale() * 4, x + tirx.vscale() * 8), tirx.vscale() * 4 + x),
-        TestCase(tvm.tirx.min(x + tirx.vscale() * 4 - flm(4, tirx.vscale() * 4), x), x),
-        TestCase(tvm.tirx.min(tirx.vscale() * x, tirx.vscale() * y), tirx.vscale() * x, x < y),
-        # MaxNode
-        TestCase(tvm.tirx.max(x + tirx.vscale() * 4, x), x + tirx.vscale() * 4),
-        TestCase(tvm.tirx.max(x - tirx.vscale() * 4, x), x),
-        TestCase(tvm.tirx.max(x + tirx.vscale() * 4, x + tirx.vscale() * 4), x + tirx.vscale() * 4),
-        TestCase(
-            tvm.tirx.max(x + tirx.vscale() * 4 - flm(4, tirx.vscale() * 4), x),
-            x + tirx.vscale() * 4 - flm(4, tirx.vscale() * 4),
-        ),
-        TestCase(tvm.tirx.max(tirx.vscale() * x, tirx.vscale() * y), tirx.vscale() * x, x > y),
-        # FloorDiv
-        TestCase(fld(x * tirx.vscale() * 4 + y, tirx.vscale() * 4), x + fld(y, tirx.vscale() * 4)),
-        TestCase(fld(x, tirx.vscale() * 4), 0, [x >= 0, x < tirx.vscale() * 4]),
-        # FloorMod
-        TestCase(flm(x * tirx.vscale() * 4 + y, tirx.vscale() * 4), flm(y, tirx.vscale() * 4)),
-        TestCase(flm(x, tirx.vscale() * 4), x, [x >= 0, x < tirx.vscale() * 4]),
-    )
-
-    def test_simplify(self, test_case):
-        with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
-            super().test_simplify(test_case)
 
 
 class TestComparisons(BaseCompare):
@@ -1314,7 +1278,7 @@ class TestCast(BaseCompare):
 
 
 class TestShiftLeft(BaseCompare):
-    z = tvm.tirx.op.call_intrin("int32", "ir.prim.shift_left", 1, 10)
+    z = tvm.tirx.op.call_intrin("int32", "prim.shift_left", 1, 10)
     test_case = tvm.testing.parameter(
         TestCase(z, tvm.tirx.const(1 << 10, "int32")),
     )
@@ -1358,21 +1322,21 @@ class TestIfThenElse(BaseCompare):
 
 class TestCLZ(BaseCompare):
     test_case = tvm.testing.parameter(
-        TestCase(tvm.tirx.call_intrin("int32", "tirx.clz", 0), T.int32(32)),
-        TestCase(tvm.tirx.call_intrin("int32", "tirx.clz", 1), T.int32(31)),
-        TestCase(tvm.tirx.call_intrin("int32", "tirx.clz", 2), T.int32(30)),
-        TestCase(tvm.tirx.call_intrin("int32", "tirx.clz", 128), T.int32(24)),
+        TestCase(tvm.tirx.call_intrin("int32", "prim.clz", 0), T.int32(32)),
+        TestCase(tvm.tirx.call_intrin("int32", "prim.clz", 1), T.int32(31)),
+        TestCase(tvm.tirx.call_intrin("int32", "prim.clz", 2), T.int32(30)),
+        TestCase(tvm.tirx.call_intrin("int32", "prim.clz", 128), T.int32(24)),
         TestCase(
-            tvm.tirx.call_intrin("int32", "tirx.clz", tvm.tirx.IntImm("int64", 0)), T.int32(64)
+            tvm.tirx.call_intrin("int32", "prim.clz", tvm.tirx.IntImm("int64", 0)), T.int32(64)
         ),
         TestCase(
-            tvm.tirx.call_intrin("int32", "tirx.clz", tvm.tirx.IntImm("int64", 1)), T.int32(63)
+            tvm.tirx.call_intrin("int32", "prim.clz", tvm.tirx.IntImm("int64", 1)), T.int32(63)
         ),
         TestCase(
-            tvm.tirx.call_intrin("int32", "tirx.clz", tvm.tirx.IntImm("int64", 2)), T.int32(62)
+            tvm.tirx.call_intrin("int32", "prim.clz", tvm.tirx.IntImm("int64", 2)), T.int32(62)
         ),
         TestCase(
-            tvm.tirx.call_intrin("int32", "tirx.clz", tvm.tirx.IntImm("int64", 128)), T.int32(56)
+            tvm.tirx.call_intrin("int32", "prim.clz", tvm.tirx.IntImm("int64", 128)), T.int32(56)
         ),
     )
 

@@ -98,6 +98,7 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
 
 namespace {
 
@@ -1405,9 +1406,9 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     } else {
       return builder_->CreateLShr(MakeValue(args[0]), MakeValue(args[1]));
     }
-  } else if (op->op.same_as(builtin::tvm_storage_sync())) {
+  } else if (op->op.same_as(tirx::builtin::tvm_storage_sync())) {
     return CreateStorageSync(op);
-  } else if (op->op.same_as(builtin::address_of())) {
+  } else if (op->op.same_as(tirx::builtin::address_of())) {
     const TensorLoadNode* load = args[0].as<TensorLoadNode>();
     TVM_FFI_ICHECK(args.size() == 1 && load);
 
@@ -1426,15 +1427,15 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
                         load->source.as_or_throw<tvm::tirx::BufferVar>()->dtype, indices_val,
                         PrimType(load->ty.as_or_throw<PrimType>()->dtype));
     return buffer_ptr.addr;
-  } else if (op->op.same_as(builtin::reinterpret()) && args[0].as<PrimExpr>() &&
+  } else if (op->op.same_as(tirx::builtin::reinterpret()) && args[0].as<PrimExpr>() &&
              is_zero(args[0].as<PrimExpr>().value())) {
     llvm::Type* target = GetLLVMType(ret_type);
     TVM_FFI_ICHECK(target->isPointerTy())
         << "A zero reinterpret shortcut requires pointer result type, but got " << ret_type;
     return llvm::Constant::getNullValue(target);
-  } else if (op->op.same_as(builtin::isnullptr())) {
+  } else if (op->op.same_as(tirx::builtin::isnullptr())) {
     return builder_->CreateIsNull(MakeValue(args[0]));
-  } else if (op->op.same_as(builtin::handle_add_byte_offset())) {
+  } else if (op->op.same_as(tirx::builtin::handle_add_byte_offset())) {
     llvm::Value* ptr = MakeValue(args[0]);
     llvm::Value* offset = MakeValue(args[1]);
     llvm::Value* result = builder_->CreateInBoundsGEP(t_int8_, ptr, offset);
@@ -1443,7 +1444,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       result = builder_->CreatePointerCast(result, target);
     }
     return result;
-  } else if (op->op.same_as(builtin::large_uint_imm())) {
+  } else if (op->op.same_as(tirx::builtin::large_uint_imm())) {
     TVM_FFI_ICHECK_EQ(args.size(), 2U);
     uint64_t low = static_cast<uint64_t>(args[0].as_or_throw<IntImm>()->value);
     uint64_t high = static_cast<uint64_t>(args[1].as_or_throw<IntImm>()->value);
@@ -1470,7 +1471,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     value->addIncoming(then_value, then_value_block);
     value->addIncoming(else_value, else_value_block);
     return value;
-  } else if (op->op.same_as(builtin::continue_loop())) {
+  } else if (op->op.same_as(tirx::builtin::continue_loop())) {
     TVM_FFI_ICHECK(!loop_frame_jump_tgts_.empty())
         << "the tirx.continue_loop should be inserted under at least one For or While stmts.";
     builder_->CreateBr(loop_frame_jump_tgts_.back().first);
@@ -1480,7 +1481,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
         llvm::BasicBlock::Create(*llvm_target_->GetContext(), "post_cont_dummy", function_);
     builder_->SetInsertPoint(post_dummy);
     return post_dummy;
-  } else if (op->op.same_as(builtin::break_loop())) {
+  } else if (op->op.same_as(tirx::builtin::break_loop())) {
     TVM_FFI_ICHECK(!loop_frame_jump_tgts_.empty())
         << "the tirx.break_loop should be inserted under at least one For or While stmts.";
     builder_->CreateBr(loop_frame_jump_tgts_.back().second);
@@ -1490,7 +1491,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
         llvm::BasicBlock::Create(*llvm_target_->GetContext(), "post_break_dummy", function_);
     builder_->SetInsertPoint(post_dummy);
     return post_dummy;
-  } else if (op->op.same_as(builtin::reinterpret())) {
+  } else if (op->op.same_as(tirx::builtin::reinterpret())) {
     llvm::Type* target = GetLLVMType(ret_type);
     llvm::Value* value = MakeValue(args[0]);
     if (value->getType()->isPointerTy() && target->isIntegerTy()) {
@@ -1499,19 +1500,19 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       return builder_->CreateIntToPtr(value, target);
     }
     return builder_->CreateBitCast(value, target);
-  } else if (op->op.same_as(builtin::isnan())) {
+  } else if (op->op.same_as(tirx::builtin::isnan())) {
     // TODO(hgt312): set fast math flag
     llvm::Value* a = MakeValue(args[0]);
     return builder_->CreateFCmpUNO(a, a);
-  } else if (op->op.same_as(builtin::vectorlow())) {
+  } else if (op->op.same_as(tirx::builtin::vectorlow())) {
     llvm::Value* v = MakeValue(args[0]);
     int l = GetVectorNumElements(v);
     return CreateVecSlice(v, 0, l / 2);
-  } else if (op->op.same_as(builtin::vectorhigh())) {
+  } else if (op->op.same_as(tirx::builtin::vectorhigh())) {
     llvm::Value* v = MakeValue(args[0]);
     int l = GetVectorNumElements(v);
     return CreateVecSlice(v, l / 2, l / 2);
-  } else if (op->op.same_as(builtin::vectorcombine())) {
+  } else if (op->op.same_as(tirx::builtin::vectorcombine())) {
     llvm::Value* v0 = MakeValue(args[0]);
     llvm::Value* v1 = MakeValue(args[1]);
     int num_elems = GetVectorNumElements(v0) * 2;
@@ -1520,23 +1521,23 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       indices.push_back(i);
     }
     return builder_->CreateShuffleVector(v0, v1, indices);
-  } else if (op->op.same_as(builtin::atomic_add())) {
+  } else if (op->op.same_as(tirx::builtin::atomic_add())) {
     // TODO(masahi): Support atomic for CPU backend
     TVM_FFI_THROW(InternalError) << "CPU backend does not support atomic add yet.";
-  } else if (op->op.same_as(builtin::start_profile_intrinsic()) ||
-             op->op.same_as(builtin::end_profile_intrinsic())) {
+  } else if (op->op.same_as(tirx::builtin::start_profile_intrinsic()) ||
+             op->op.same_as(tirx::builtin::end_profile_intrinsic())) {
     LOG(INFO) << "Ignoring profile_intrinsic ... " << op->op;
     return nullptr;
-  } else if (op->op.same_as(builtin::assume())) {
+  } else if (op->op.same_as(tirx::builtin::assume())) {
     llvm::Value* cond = MakeValue(args[0]);
     return builder_->CreateAssumption(cond);
-  } else if (op->op.same_as(builtin::tvm_thread_invariant())) {
+  } else if (op->op.same_as(tirx::builtin::tvm_thread_invariant())) {
     return MakeValue(args[0]);
   } else if (op->op.same_as(prim::builtin::vscale())) {
     llvm::Intrinsic::ID id = llvm::Intrinsic::vscale;
     llvm::Function* f = GetIntrinsicDecl(id, builder_->getInt32Ty(), {});
     return builder_->CreateCall(f);
-  } else if (op->op.same_as(builtin::get_active_lane_mask())) {
+  } else if (op->op.same_as(tirx::builtin::get_active_lane_mask())) {
     llvm::Intrinsic::ID id = llvm::Intrinsic::get_active_lane_mask;
     llvm::Function* f = GetIntrinsicDecl(id, DTypeToLLVMType(ret_type.as_or_throw<PrimType>()),
                                          {builder_->getInt32Ty(), builder_->getInt32Ty()});
@@ -1561,23 +1562,23 @@ void CodeGenLLVM::Scalarize(const PrimExpr& e, std::function<void(int i, llvm::V
 }
 
 // Visitors
-llvm::Value* CodeGenLLVM::VisitExpr_(const VarNode* op) { return GetVarValue(op); }
+llvm::Value* CodeGenLLVM::Dispatch_(const VarNode* op) { return GetVarValue(op); }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::CastNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::CastNode* op) {
   return CreateCast(PrimType(op->value.ty()->dtype),
                     PrimType(op->ty.as_or_throw<PrimType>()->dtype), MakeValue(op->value));
 }
-llvm::Value* CodeGenLLVM::VisitExpr_(const IntImmNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const IntImmNode* op) {
   return llvm::ConstantInt::getSigned(
       DTypeToLLVMType(PrimType(op->ty.as_or_throw<PrimType>()->dtype)), op->value);
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const FloatImmNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const FloatImmNode* op) {
   return llvm::ConstantFP::get(DTypeToLLVMType(PrimType(op->ty.as_or_throw<PrimType>()->dtype)),
                                op->value);
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::StringImmNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::StringImmNode* op) {
   return GetConstString(op->value);
 }
 
@@ -1600,7 +1601,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const prim::StringImmNode* op) {
       return builder_->CreateF##Op(a, b);                                                \
     }                                                                                    \
   }                                                                                      \
-  llvm::Value* CodeGenLLVM::VisitExpr_(const prim::Op##Node* op) {                       \
+  llvm::Value* CodeGenLLVM::Dispatch_(const prim::Op##Node* op) {                        \
     return Create##Op(PrimType(op->ty.as_or_throw<PrimType>()->dtype), MakeValue(op->a), \
                       MakeValue(op->b));                                                 \
   }
@@ -1620,7 +1621,7 @@ DEFINE_CODEGEN_BINARY_OP(Mul);
       return builder_->CreateFCmpO##Op(a, b);                                           \
     }                                                                                   \
   }                                                                                     \
-  llvm::Value* CodeGenLLVM::VisitExpr_(const prim::Op##Node* op) {                      \
+  llvm::Value* CodeGenLLVM::Dispatch_(const prim::Op##Node* op) {                       \
     return Create##Op(PrimType(op->a.ty()->dtype), MakeValue(op->a), MakeValue(op->b)); \
   }
 
@@ -1629,7 +1630,7 @@ DEFINE_CODEGEN_CMP_OP(LE);
 DEFINE_CODEGEN_CMP_OP(GT);
 DEFINE_CODEGEN_CMP_OP(GE);
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::DivNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::DivNode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   PrimType dtype(op->ty.as_or_throw<PrimType>()->dtype);
@@ -1643,7 +1644,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const prim::DivNode* op) {
   }
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::ModNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::ModNode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   PrimType dtype(op->ty.as_or_throw<PrimType>()->dtype);
@@ -1657,19 +1658,19 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const prim::ModNode* op) {
   }
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::MinNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::MinNode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   return builder_->CreateSelect(CreateLT(PrimType(op->a.ty()->dtype), a, b), a, b);
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::MaxNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::MaxNode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   return builder_->CreateSelect(CreateGT(PrimType(op->a.ty()->dtype), a, b), a, b);
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::EQNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::EQNode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   PrimType dtype(op->a.ty()->dtype);
@@ -1680,7 +1681,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const prim::EQNode* op) {
   }
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::NENode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::NENode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   PrimType dtype(op->a.ty()->dtype);
@@ -1691,24 +1692,24 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const prim::NENode* op) {
   }
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::AndNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::AndNode* op) {
   return builder_->CreateAnd(MakeValue(op->a), MakeValue(op->b));
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::OrNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::OrNode* op) {
   return builder_->CreateOr(MakeValue(op->a), MakeValue(op->b));
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::NotNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::NotNode* op) {
   return builder_->CreateNot(MakeValue(op->a));
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::SelectNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::SelectNode* op) {
   return builder_->CreateSelect(MakeValue(op->condition), MakeValue(op->true_value),
                                 MakeValue(op->false_value));
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::LetNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::LetNode* op) {
   auto it = let_binding_.find(op->var);
   if (it != let_binding_.end()) {
     TVM_FFI_ICHECK(deep_equal_(it->second->value, op->value))
@@ -1848,7 +1849,7 @@ void CodeGenLLVM::BufferAccessHelper(
   }
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const TensorLoadNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const TensorLoadNode* op) {
   PrimType value_dtype = op->ty.as_or_throw<PrimType>();
   PrimType access_dtype = BufferAccessType(value_dtype);
 
@@ -1955,11 +1956,11 @@ llvm::Value* CodeGenLLVM::CreateMaskedStore(const CallNode* op) {
   return last_store;
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const CallNode* op) {
   const ffi::Array<Expr>& args = op->args;
-  if (op->op.same_as(builtin::masked_load())) return CreateMaskedLoad(op);
-  if (op->op.same_as(builtin::masked_store())) return CreateMaskedStore(op);
-  if (op->op.same_as(builtin::buffer_data())) {
+  if (op->op.same_as(tirx::builtin::masked_load())) return CreateMaskedLoad(op);
+  if (op->op.same_as(tirx::builtin::masked_store())) return CreateMaskedStore(op);
+  if (op->op.same_as(tirx::builtin::buffer_data())) {
     TVM_FFI_ICHECK_EQ(args.size(), 1U);
     return MakeValue(args[0]);
   }
@@ -1995,7 +1996,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
   }
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::RampNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::RampNode* op) {
   PrimType dtype(op->ty.as_or_throw<PrimType>()->dtype);
   llvm::Type* vec_type = DTypeToLLVMType(dtype);
   if (dtype.IsScalableVector()) {
@@ -2031,11 +2032,11 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const prim::RampNode* op) {
   return vec;
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::ShuffleNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::ShuffleNode* op) {
   std::vector<llvm::Value*> vecs(op->vectors.size());
   int total_lanes = 0;
   for (int i = 0, e = op->vectors.size(); i < e; ++i) {
-    vecs[i] = VisitExpr(op->vectors[i]);
+    vecs[i] = Dispatch(op->vectors[i]);
     total_lanes += PrimType(op->vectors[i].ty()->dtype).lanes();
   }
   llvm::Value* v0 = CreateVecConcat(vecs);
@@ -2056,7 +2057,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const prim::ShuffleNode* op) {
   return res;
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const prim::BroadcastNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::BroadcastNode* op) {
   PrimType dtype(op->ty.as_or_throw<PrimType>()->dtype);
   llvm::Value* value = MakeValue(op->value);
   llvm::Type* type = DTypeToLLVMType(dtype);
@@ -2313,7 +2314,7 @@ void CodeGenLLVM::VisitStmt_(const DeclBufferNode* op) {
   llvm::Value* value = MakeValue(op->data);
   const VarNode* source = op->data.as<VarNode>();
   if (const auto* call = op->data.as<CallNode>();
-      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     source = call->args[0].as<VarNode>();
   }
   if (source) {

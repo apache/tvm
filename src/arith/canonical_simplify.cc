@@ -23,9 +23,10 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/expected.h>
 #include <tvm/ir/cow.h>
-#include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 
 #include "const_fold.h"
 #include "pattern_match.h"
@@ -34,8 +35,6 @@
 
 namespace tvm {
 namespace arith {
-
-using namespace tirx;
 
 class SumExpr;
 class SplitExpr;
@@ -106,8 +105,8 @@ bool CastIsSafe(PrimType dtype, PrimExpr value, AnalyzerObj* analyzer) {
     return false;
   }
   ConstIntBound bound = analyzer->const_int_bound(value);
-  int64_t ubound = max_value(dtype).as_or_throw<IntImm>()->value;
-  int64_t lbound = min_value(dtype).as_or_throw<IntImm>()->value;
+  int64_t ubound = prim::max_value(dtype).as_or_throw<IntImm>()->value;
+  int64_t lbound = prim::min_value(dtype).as_or_throw<IntImm>()->value;
   if (value.ty().bits() <= dtype.bits() ||  // upcast is safe
       (bound->max_value <= ubound && bound->min_value >= lbound)) {
     return true;
@@ -175,8 +174,8 @@ class SplitExprNode : public CanonicalExprNode {
    * \return whether the cast can be safely pushed to children
    */
   bool CanPushCastToChildren(PrimType dtype, AnalyzerObj* analyzer) const {
-    // cast(dtype, index % upper_factor / lower_factor * scale) ==
-    // cast(dtype, index) % upper_factor / lower_factor * scale
+    // prim::cast(dtype, index % upper_factor / lower_factor * scale) ==
+    // prim::cast(dtype, index) % upper_factor / lower_factor * scale
     // iff it is an upcast (dtype.bits >= self.dtype.bits) or all of
     // its intermediate results fit in the range of dtype
     PrimType self_dtype = this->ExprNode::ty.as_or_throw<PrimType>();
@@ -213,11 +212,11 @@ class SplitExprNode : public CanonicalExprNode {
   }
 
   /*!
-   * \brief self = cast(dtype, self)
+   * \brief self = prim::cast(dtype, self)
    * \param dtype The target datatype
    */
   void PushCastToChildren(PrimType dtype) {
-    this->index = cast(dtype, this->index);
+    this->index = prim::cast(dtype, this->index);
     this->ExprNode::ty = dtype;
   }
 
@@ -238,7 +237,7 @@ class SplitExpr : public PrimExpr {
 
 inline bool SplitExprNode::IndexEqual(const SplitExpr& other) const {
   if (index.same_as(other->index)) return true;
-  return tirx::ExprDeepEqual()(index, other->index);
+  return prim::ExprDeepEqual()(index, other->index);
 }
 
 inline bool SplitExprNode::DivModeCompatibleTo(DivMode mode) const {
@@ -358,8 +357,8 @@ class SumExprNode : public CanonicalExprNode {
   bool CanPushCastToChildren(PrimType dtype, AnalyzerObj* analyzer) const {
     bool is_min_value = dtype.bits() == 64 ? base == std::numeric_limits<int64_t>::lowest()
                                            : base == -(1LL << (dtype.bits() - 1));
-    // cast(dtype, arg_1 + arg_2 + ... arg_n) ==
-    // cast(dtype, arg_1) + ... + cast(dtype, arg_n)
+    // prim::cast(dtype, arg_1 + arg_2 + ... arg_n) ==
+    // prim::cast(dtype, arg_1) + ... + prim::cast(dtype, arg_n)
     // iff it is an upcast (dtype.bits >= self.dtype.bits) or all of
     // its intermediate results fit in the range of dtype
     PrimType self_dtype = this->ExprNode::ty.as_or_throw<PrimType>();
@@ -405,7 +404,7 @@ class SumExprNode : public CanonicalExprNode {
   }
 
   /*!
-   * \brief self = cast(dtype, self)
+   * \brief self = prim::cast(dtype, self)
    * \param dtype The target datatype
    */
   void PushCastToChildren(PrimType dtype) {
@@ -567,38 +566,46 @@ void SumExprNode::AddToSelf(const SumExpr& other, int64_t scale) {
 class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
  public:
   using Rewriter = RewriteSimplifier::Impl;
+  using Rewriter::Mutate;
 
   explicit Impl(AnalyzerObj* parent) : Rewriter(parent) {}
 
-  PrimExpr CanonicalSimplify(PrimExpr expr) {
-    expr = VisitPrimExpr(expr);
-    return expr;
+  // Bypass only this entry override; the parent checks the target and descendants stay virtual.
+  TVM_FFI_INLINE UnchangedOr<PrimExpr> DirectMutate(
+      const PrimExpr& value, InplaceMode inplace_mode = InplaceMode::kDisallow) {
+    return ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<PrimExpr>(
+        ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
+            Rewriter::Mutate(ffi::AnyView(value), inplace_mode)));
   }
 
-  // override the original mutate function.
-  Expr VisitExpr(const Expr& input_expr) final {
-    Expr expr = Rewriter::VisitExpr(input_expr);
-    if (auto prim_expr = expr.as<PrimExpr>()) {
-      return Normalize(prim_expr.value());
+  // Normalize replacements; qualified parent calls bypass this root only.
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value,
+                               InplaceMode inplace_mode = InplaceMode::kDisallow) final {
+    UnchangedOr<ffi::Any> expr_u = Rewriter::Mutate(value, inplace_mode);
+    try {
+      // Only replacements need normalization; an unchanged result preserves the input form.
+      if (expr_u.IsUnchanged()) return ffi::Unchanged();
+      ffi::Any expr = std::move(expr_u).ValueUnchecked();
+      if (auto prim_expr = expr.as<PrimExpr>()) {
+        return Normalize(*std::move(prim_expr));
+      }
+      return expr;
+    } catch (ffi::Error& error) {
+      ffi::details::UpdateVisitErrorContext(error, value);
+      throw;
     }
-    return expr;
   }
 
-  // Normal mutation without normalization.
-  PrimExpr CanonicalMutate(PrimExpr expr) {
-    return Rewriter::VisitExpr(expr).as_or_throw<PrimExpr>();
-  }
-
-  using Rewriter::VisitExpr_;
-  Expr VisitExpr_(const prim::AddNode* op) final;
-  Expr VisitExpr_(const prim::SubNode* op) final;
-  Expr VisitExpr_(const prim::MulNode* op) final;
-  Expr VisitExpr_(const prim::DivNode* op) final;
-  Expr VisitExpr_(const prim::ModNode* op) final;
-  Expr VisitExpr_(const prim::FloorDivNode* op) final;
-  Expr VisitExpr_(const prim::FloorModNode* op) final;
-  Expr VisitExpr_(const prim::CastNode* op) final;
-  Expr VisitExpr_(const prim::LTNode* op) final;
+  using Rewriter::Mutate_;
+  UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::SubNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::MulNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::DivNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::ModNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LTNode* op, InplaceMode inplace_mode) final;
 
  private:
   /*!
@@ -616,7 +623,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
    * \param div_mode The division mode.
    * \return The result expression;
    */
-  SplitExpr SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode);
+  SplitExpr SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode, InplaceMode inplace_mode);
   /*!
    * \brief Separate psum into divisible and non-divisible parts.
    * \param psum The sum expression.
@@ -723,16 +730,17 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
   }
 };
 
-Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::AddNode* op) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::AddNode* op,
+                                                         InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
-    return Rewriter::VisitExpr_(op);
+    return Rewriter::Mutate_(op, inplace_mode);
   }
   // normalize
-  PrimExpr a = this->CanonicalMutate(op->a);
-  PrimExpr b = this->CanonicalMutate(op->b);
+  PrimExpr a = DirectMutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
+  PrimExpr b = DirectMutate(op->b, inplace_mode).ValueOrUnchanged(op->b);
 
   // const folding
-  if (auto const_res = TryConstFold<prim::Add>(a, b)) return const_res.value();
+  if (auto const_res = TryConstFold<prim::Add>(a, b)) return *std::move(const_res);
 
   // canonical form simplification.
   SumExpr ret = ToSumExpr(std::move(a));
@@ -747,16 +755,17 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::AddNode* op) {
   return ret;
 }
 
-Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::SubNode* op) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::SubNode* op,
+                                                         InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
-    return Rewriter::VisitExpr_(op);
+    return Rewriter::Mutate_(op, inplace_mode);
   }
   // normalize
-  PrimExpr a = this->CanonicalMutate(op->a);
-  PrimExpr b = this->CanonicalMutate(op->b);
+  PrimExpr a = DirectMutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
+  PrimExpr b = DirectMutate(op->b, inplace_mode).ValueOrUnchanged(op->b);
 
   // const folding
-  if (auto const_res = TryConstFold<prim::Sub>(a, b)) return const_res.value();
+  if (auto const_res = TryConstFold<prim::Sub>(a, b)) return *std::move(const_res);
 
   // canonical form simplification.
   SumExpr ret = ToSumExpr(std::move(a));
@@ -771,16 +780,17 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::SubNode* op) {
   return ret;
 }
 
-Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::MulNode* op) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::MulNode* op,
+                                                         InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
-    return Rewriter::VisitExpr_(op);
+    return Rewriter::Mutate_(op, inplace_mode);
   }
   // normalize
-  PrimExpr a = this->CanonicalMutate(op->a);
-  PrimExpr b = this->CanonicalMutate(op->b);
+  PrimExpr a = DirectMutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
+  PrimExpr b = DirectMutate(op->b, inplace_mode).ValueOrUnchanged(op->b);
 
   // const folding
-  if (auto const_res = TryConstFold<prim::Mul>(a, b)) return const_res.value();
+  if (auto const_res = TryConstFold<prim::Mul>(a, b)) return *std::move(const_res);
 
   // x * c
   if (a.as<IntImmNode>()) {
@@ -808,7 +818,8 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::MulNode* op) {
   const prim::MulNode* mul = ret.as<prim::MulNode>();
 
   if (mul && mul->a.same_as(op->a) && mul->b.same_as(op->b)) {
-    return ffi::GetRef<PrimExpr>(op);
+    // Keep the original expression; it needs no replacement normalization.
+    return ffi::Unchanged();
   } else {
     return ret;
   }
@@ -941,16 +952,17 @@ bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
   return true;
 }
 
-Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::DivNode* op) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::DivNode* op,
+                                                         InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
-    return Rewriter::VisitExpr_(op);
+    return Rewriter::Mutate_(op, inplace_mode);
   }
 
-  PrimExpr a = this->CanonicalMutate(op->a);
-  PrimExpr b = this->CanonicalMutate(op->b);
+  PrimExpr a = DirectMutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
+  PrimExpr b = DirectMutate(op->b, inplace_mode).ValueOrUnchanged(op->b);
 
   // const folding
-  if (auto const_res = TryConstFold<prim::Div>(a, b)) return const_res.value();
+  if (auto const_res = TryConstFold<prim::Div>(a, b)) return *std::move(const_res);
   PVar<IntImm> c1;
   // x / c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
@@ -999,21 +1011,23 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::DivNode* op) {
     return truncdiv(a, b);
   }
   if (op->a.same_as(a) && op->b.same_as(b)) {
-    return ffi::GetRef<PrimExpr>(op);
+    // Keep the original expression; it needs no replacement normalization.
+    return ffi::Unchanged();
   } else {
     return prim::Div(a, b);
   }
 }
 
-Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::FloorDivNode* op) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorDivNode* op,
+                                                         InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
-    return Rewriter::VisitExpr_(op);
+    return Rewriter::Mutate_(op, inplace_mode);
   }
-  PrimExpr a = this->CanonicalMutate(op->a);
-  PrimExpr b = this->CanonicalMutate(op->b);
+  PrimExpr a = DirectMutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
+  PrimExpr b = DirectMutate(op->b, inplace_mode).ValueOrUnchanged(op->b);
 
   // const folding
-  if (auto const_res = TryConstFold<prim::FloorDiv>(a, b)) return const_res.value();
+  if (auto const_res = TryConstFold<prim::FloorDiv>(a, b)) return *std::move(const_res);
   PVar<IntImm> c1;
   // x / c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
@@ -1055,7 +1069,11 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::FloorDivNode* op) {
       if (split_a->lower_factor == 1 && split_a->scale == 1 &&
           split_a->upper_factor != SplitExprNode::kPosInf && split_a->upper_factor % cval == 0 &&
           split_a->DivModeCompatibleTo(kFloorDiv)) {
-        PrimExpr raw_index = this->CanonicalMutate(split_a->index);
+        InplaceMode index_mode = inplace_mode;
+        // This descent skips the SplitExpr that owns the index.
+        if (!a.unique()) index_mode = InplaceMode::kDisallow;
+        PrimExpr raw_index =
+            DirectMutate(split_a->index, index_mode).ValueOrUnchanged(split_a->index);
         if (const auto* psum = raw_index.as<SumExprNode>()) {
           SumExpr lhs, extra;
           SeparateDivisibleParts(psum, cval, &lhs, &extra);
@@ -1075,7 +1093,8 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::FloorDivNode* op) {
             }
             // Apply floormod(floordiv_result, m) to complete the identity
             PrimExpr div_result = Normalize(lhs);
-            return this->VisitPrimExpr(floormod(div_result, IntImm(a.ty(), new_mod)));
+            PrimExpr expr = floormod(div_result, IntImm(a.ty(), new_mod));
+            return Mutate(expr, inplace_mode).ValueOrUnchanged(expr);
           }
         }
       }
@@ -1091,13 +1110,15 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::FloorDivNode* op) {
     return floordiv(a, b);
   }
   if (op->a.same_as(a) && op->b.same_as(b)) {
-    return ffi::GetRef<PrimExpr>(op);
+    // Keep the original expression; it needs no replacement normalization.
+    return ffi::Unchanged();
   } else {
     return prim::FloorDiv(a, b);
   }
 }
 
-SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
+SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode,
+                                                   InplaceMode inplace_mode) {
   TVM_FFI_ICHECK_GT(cval, 0);
   lhs = ConvertDivMode(lhs, div_mode);
 
@@ -1121,8 +1142,10 @@ SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, 
       // Perhaps there are more chances in simplifying the index
       // Do a recursive call to simplify the mod with the new factor.
       if (new_upper_factor < lhs->upper_factor && lhs->upper_factor != SplitExprNode::kPosInf) {
-        auto updated = ToSplitExpr(
-            this->VisitPrimExpr(ModImpl(lhs->index, IntImm(lhs.ty(), new_upper_factor), div_mode)));
+        PrimExpr reduced = ModImpl(lhs->index, IntImm(lhs.ty(), new_upper_factor), div_mode);
+        // Unchanged belongs to the reduced expression, not the caller's original modulo.
+        auto updated =
+            ToSplitExpr(Mutate(reduced, inplace_mode).ValueOrUnchanged(std::move(reduced)));
         // re-apply the lower_factor
         if (lhs->lower_factor != 1) {
           auto ret = SplitDivConst(updated, lhs->lower_factor, div_mode);
@@ -1151,16 +1174,17 @@ SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, 
   return lhs;
 }
 
-Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::ModNode* op) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::ModNode* op,
+                                                         InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
-    return Rewriter::VisitExpr_(op);
+    return Rewriter::Mutate_(op, inplace_mode);
   }
   // normalize
-  PrimExpr a = this->CanonicalMutate(op->a);
-  PrimExpr b = this->CanonicalMutate(op->b);
+  PrimExpr a = DirectMutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
+  PrimExpr b = DirectMutate(op->b, inplace_mode).ValueOrUnchanged(op->b);
 
   // const folding
-  if (auto const_res = TryConstFold<prim::Mod>(a, b)) return const_res.value();
+  if (auto const_res = TryConstFold<prim::Mod>(a, b)) return *std::move(const_res);
 
   PVar<IntImm> c1;
   // x % c1
@@ -1197,7 +1221,7 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::ModNode* op) {
       if (cbound->min_value >= 0 && cbound->min_value - psum->base + new_base >= 0) {
         SumExpr sum_expr = a.as_or_throw<SumExpr>();
         sum_expr.CopyOnWrite()->base = new_base;
-        return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kTruncDiv);
+        return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kTruncDiv, inplace_mode);
       }
     } else {
       // if a >= 0 && a < cval, then result == 0
@@ -1206,7 +1230,7 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::ModNode* op) {
         return a;
       }
     }
-    return SplitModConst(ToSplitExpr(std::move(a)), cval, kTruncDiv);
+    return SplitModConst(ToSplitExpr(std::move(a)), cval, kTruncDiv, inplace_mode);
   }
   // normal path
   a = Normalize(a);
@@ -1219,22 +1243,24 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::ModNode* op) {
   }
 
   if (op->a.same_as(a) && op->b.same_as(b)) {
-    return ffi::GetRef<PrimExpr>(op);
+    // Keep the original expression; it needs no replacement normalization.
+    return ffi::Unchanged();
   } else {
     return prim::Mod(a, b);
   }
 }
 
-Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::FloorModNode* op) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorModNode* op,
+                                                         InplaceMode inplace_mode) {
   if (!IsIndexTypedExpr(op)) {
-    return Rewriter::VisitExpr_(op);
+    return Rewriter::Mutate_(op, inplace_mode);
   }
   // normalize
-  PrimExpr a = this->CanonicalMutate(op->a);
-  PrimExpr b = this->CanonicalMutate(op->b);
+  PrimExpr a = DirectMutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
+  PrimExpr b = DirectMutate(op->b, inplace_mode).ValueOrUnchanged(op->b);
 
   // const folding
-  if (auto const_res = TryConstFold<prim::FloorMod>(a, b)) return const_res.value();
+  if (auto const_res = TryConstFold<prim::FloorMod>(a, b)) return *std::move(const_res);
 
   PVar<IntImm> c1;
   // x % c1
@@ -1263,7 +1289,7 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::FloorModNode* op) {
       int64_t new_base = floormod(psum->base, cval);
       SumExpr sum_expr = std::move(a).as_or_throw<SumExpr>();
       sum_expr.CopyOnWrite()->base = new_base;
-      return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kFloorDiv);
+      return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kFloorDiv, inplace_mode);
     } else {
       // if a >= 0 && a < cval, then result == a
       auto cbound = analyzer_->const_int_bound(Normalize(a));
@@ -1271,7 +1297,7 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::FloorModNode* op) {
         return a;
       }
     }
-    return SplitModConst(ToSplitExpr(std::move(a)), cval, kFloorDiv);
+    return SplitModConst(ToSplitExpr(std::move(a)), cval, kFloorDiv, inplace_mode);
   }
   // normal path
   a = Normalize(a);
@@ -1284,22 +1310,24 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::FloorModNode* op) {
   }
 
   if (op->a.same_as(a) && op->b.same_as(b)) {
-    return ffi::GetRef<PrimExpr>(op);
+    // Keep the original expression; it needs no replacement normalization.
+    return ffi::Unchanged();
   } else {
     return prim::FloorMod(a, b);
   }
 }
 
-Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::CastNode* op) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::CastNode* op,
+                                                         InplaceMode inplace_mode) {
   // The cast reasoning below is index-centric; for unsigned operands it runs
   // only under the caller's no-overflow assertion (uint_as_index).
   if (!IsIndexTypedExpr(op) &&
       !(uint_as_index::Enabled() && op->ExprNode::ty.as<PrimTypeNode>()->dtype.code ==
                                         static_cast<uint8_t>(DLDataTypeCode::kDLUInt))) {
-    return Rewriter::VisitExpr_(op);
+    return Rewriter::Mutate_(op, inplace_mode);
   }
   // normalize
-  PrimExpr value = this->CanonicalMutate(op->value);
+  PrimExpr value = DirectMutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
   // PushCastToChildren
   if (value.as<SumExprNode>()) {
     SumExpr se = value.as_or_throw<SumExpr>();
@@ -1315,12 +1343,14 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::CastNode* op) {
       return se;
     }
   }
-  return Rewriter::VisitExpr_(op);
+  return Rewriter::Mutate_(op, inplace_mode);
 }
 
-Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::LTNode* op) {
+UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::LTNode* op,
+                                                         InplaceMode inplace_mode) {
   // First convert a < b into a - b < 0
-  PrimExpr expr = this->CanonicalMutate(op->a - op->b);
+  PrimExpr difference = op->a - op->b;
+  PrimExpr expr = DirectMutate(difference, inplace_mode).ValueOrUnchanged(std::move(difference));
   // Case: x0 * s0 + x1 * s1 + ... + xn + c < 0, let d = gcd(s0, s1, ..., s{n-1}, c)
   // 1. if can prove 0 <= xn < d, then we can simplify
   //    the expression to x0 * (s0/d) + x1 * (s1/d) + ... + x{n-1} * (s{n-1}/d) < c/d,
@@ -1340,7 +1370,7 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::LTNode* op) {
     }
     // Skip if gcd == 1 or all s_n are 1
     if (!has_non_one_scale || gcd <= 1) {
-      return Rewriter::VisitExpr_(op);
+      return Rewriter::Mutate_(op, inplace_mode);
     }
     SumExpr divisible, extra;
     SeparateDivisibleParts(lhs, gcd, &divisible, &extra);
@@ -1351,7 +1381,8 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::LTNode* op) {
         this->analyzer_->CanProve(normal_extra >= IntImm(dtype, 0))) {
       // Case 1. 0 <= xn < d
       divisible.CopyOnWrite()->DivideBy(gcd);
-      return Rewriter::VisitExpr(divisible->Normalize() < IntImm(dtype, 0));
+      PrimExpr normalized = divisible->Normalize() < IntImm(dtype, 0);
+      return DirectMutate(normalized, inplace_mode).ValueOrUnchanged(std::move(normalized));
     } else if (extra->args.size() == 1 && extra->args[0]->scale == 1 &&
                extra->args[0]->upper_factor != ConstIntBoundNode::kPosInf &&
                extra->args[0]->upper_factor % (gcd * extra->args[0]->lower_factor) == 0) {
@@ -1368,24 +1399,27 @@ Expr CanonicalSimplifier::Impl::VisitExpr_(const prim::LTNode* op) {
       int64_t lower_factor = gcd * extra->args[0]->lower_factor;
       PrimExpr extra_expr = floormod(floordiv(split_expr->index, lower_factor),
                                      floordiv(split_expr->upper_factor, lower_factor));
-      return Rewriter::VisitExpr(divisible->Normalize() + extra_expr < IntImm(dtype, 0));
+      PrimExpr normalized = divisible->Normalize() + extra_expr < IntImm(dtype, 0);
+      // Unchanged belongs to the new comparison, not the original input.
+      return DirectMutate(normalized, inplace_mode).ValueOrUnchanged(std::move(normalized));
     }
   }
 
-  return Rewriter::VisitExpr_(op);
+  return Rewriter::Mutate_(op, inplace_mode);
 }
 
 PrimExpr CanonicalSimplifier::operator()(const PrimExpr& expr) {
-  return impl_->CanonicalSimplify(expr);
+  return impl_->Mutate(expr).ValueOrUnchanged(expr);
 }
 
 void CanonicalSimplifier::Update(const Var& var, const PrimExpr& info, bool override) {
   impl_->Update(var, info, override);
 }
 
-CanonicalSimplifier::CanonicalSimplifier(AnalyzerObj* parent) : impl_(new Impl(parent)) {}
+CanonicalSimplifier::CanonicalSimplifier(AnalyzerObj* parent)
+    : impl_(ffi::make_object<Impl>(parent)) {}
 
-CanonicalSimplifier::~CanonicalSimplifier() { delete impl_; }
+CanonicalSimplifier::~CanonicalSimplifier() = default;
 
 void CanonicalSimplifier::CopyFrom(const CanonicalSimplifier& other) {
   impl_->CopyFrom(*other.impl_);

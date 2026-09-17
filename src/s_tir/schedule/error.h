@@ -20,22 +20,22 @@
 #define TVM_S_TIR_SCHEDULE_ERROR_H_
 
 #include <tvm/ffi/error.h>
+#include <tvm/ffi/memory.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/schedule/state.h>
 
 #include <string>
+#include <type_traits>
 #include <utility>
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
-/*! \brief Error that happens during TensorIR scheduling */
-class ScheduleError : public tvm::ffi::Error {
+/*! \brief Diagnostic payload for an error that happens during TensorIR scheduling. */
+class ScheduleErrorContextObj : public ffi::Object {
  public:
-  /*! \brief Base constructor */
-  ScheduleError() : tvm::ffi::Error("ScheduleError", "", TVMFFIBacktrace(nullptr, 0, nullptr, 0)) {}
+  virtual ~ScheduleErrorContextObj() = default;
   /*! \brief The error occurred in this IRModule */
   virtual IRModule mod() const = 0;
   /*! \brief The locations of interest that we want to point out */
@@ -57,9 +57,28 @@ class ScheduleError : public tvm::ffi::Error {
   virtual ffi::String FastErrorString() const = 0;
   /*! \brief Render the ScheduleError with the template provided by `DetailRenderTemplate` */
   ffi::String RenderReport(const ffi::String& primitive) const;
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUnsupported;
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.ScheduleErrorContext", ScheduleErrorContextObj, ffi::Object);
 };
 
-class LoopPositionError : public ScheduleError {
+/*! \brief Create a plain FFI error carrying a lazily rendered scheduling diagnostic. */
+template <typename Context, typename... Args>
+ffi::Error MakeScheduleError(Args&&... args) {
+  static_assert(std::is_base_of_v<ScheduleErrorContextObj, Context>);
+  const TVMFFIByteArray* backtrace = TVMFFIBacktrace(nullptr, 0, nullptr, 0);
+  return ffi::Error("ScheduleError", "", std::string(backtrace->data, backtrace->size),
+                    std::nullopt,
+                    ffi::ObjectRef(ffi::make_object<Context>(std::forward<Args>(args)...)));
+}
+
+/*!
+ * \brief Get the scheduling payload, directly or behind one visit-context wrapper.
+ * \return The payload owned by error, or nullptr if the error has no scheduling payload.
+ */
+const ScheduleErrorContextObj* GetScheduleErrorContext(const ffi::Error& error);
+
+class LoopPositionError : public ScheduleErrorContextObj {
  public:
   explicit LoopPositionError(IRModule mod, For loop, SBlock block, const std::string& primitive)
       : mod_(std::move(mod)),

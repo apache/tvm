@@ -33,7 +33,6 @@
 
 namespace tvm {
 namespace topi {
-
 /*!
  * \brief Creates an operation that broadcasts a tensor into a compatible
  * shape according to numpy's rules
@@ -63,7 +62,7 @@ inline tvm::te::Tensor broadcast_to(const tvm::te::Tensor& t,
       oshape.push_back(bh.common_shape[i]);
     }
   }
-  auto l = [&](tvm::ffi::Array<tvm::tirx::PrimVar> ovars) {
+  auto l = [&](tvm::ffi::Array<tvm::PrimVar> ovars) {
     return t(detail::InputIndexFromBroadcast(ovars, t, bh.vars2, bh.all_vars));
   };
   return tvm::te::compute(oshape, l, name, tag);
@@ -80,15 +79,15 @@ inline tvm::te::Tensor broadcast_to(const tvm::te::Tensor& t,
                               std::string name = "T_" #Name, std::string tag = kElementWise) {  \
     auto l = [](tvm::PrimExpr a, tvm::PrimExpr b) { ComputeRule; };                             \
     return tvm::te::compute(                                                                    \
-        A->shape, [&](const ::tvm::ffi::Array<::tvm::tirx::PrimVar>& i) { return l(A(i), B); }, \
-        name, tag);                                                                             \
+        A->shape, [&](const ::tvm::ffi::Array<::tvm::PrimVar>& i) { return l(A(i), B); }, name, \
+        tag);                                                                                   \
   }                                                                                             \
   inline tvm::te::Tensor Name(const tvm::PrimExpr& A, const tvm::te::Tensor& B,                 \
                               std::string name = "T_" #Name, std::string tag = kElementWise) {  \
     auto l = [&](tvm::PrimExpr a, tvm::PrimExpr b) { ComputeRule; };                            \
     return tvm::te::compute(                                                                    \
-        B->shape, [&](const ::tvm::ffi::Array<::tvm::tirx::PrimVar>& i) { return l(A, B(i)); }, \
-        name, tag);                                                                             \
+        B->shape, [&](const ::tvm::ffi::Array<::tvm::PrimVar>& i) { return l(A, B(i)); }, name, \
+        tag);                                                                                   \
   }
 
 #define TOPI_DEFINE_OP_OVERLOAD(Name, OpName)                                       \
@@ -242,7 +241,7 @@ TOPI_DEFINE_BCAST_OP(divide, { return div(a, b); });
 
 /*!
  * \fn floor divide
- * \brief Compute floor(A / B) with auto-broadcasting.
+ * \brief Compute prim::floor(A / B) with auto-broadcasting.
  *
  * \param A The first tensor, or Expr
  * \param B The second tensor, or Expr
@@ -256,7 +255,7 @@ TOPI_DEFINE_BCAST_OP(floor_divide, {
   if (a_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     return floordiv(a, b);
   } else {
-    return floor(div(a, b));
+    return prim::floor(div(a, b));
   }
 });
 
@@ -274,11 +273,11 @@ TOPI_DEFINE_BCAST_OP(floor_divide, {
  *
  * \return The computed log-sum-exp result.
  */
-TOPI_DEFINE_BCAST_OP(log_add_exp, { return logaddexp(a, b); });
+TOPI_DEFINE_BCAST_OP(log_add_exp, { return prim::logaddexp(a, b); });
 
 /*!
  * \fn trunc divide
- * \brief Compute trunc(A / B) with auto-broadcasting.
+ * \brief Compute prim::trunc(A / B) with auto-broadcasting.
  *
  * \param A The first tensor, or Expr
  * \param B The second tensor, or Expr
@@ -292,7 +291,7 @@ TOPI_DEFINE_BCAST_OP(trunc_divide, {
   if (a_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     return truncdiv(a, b);
   } else {
-    return trunc(div(a, b));
+    return prim::trunc(div(a, b));
   }
 });
 
@@ -386,7 +385,7 @@ TOPI_DEFINE_BCAST_OP(minimum, { return tvm::min(a, b); });
  *
  * \return The result.
  */
-TOPI_DEFINE_BCAST_OP(power, { return tvm::pow(a, b); });
+TOPI_DEFINE_BCAST_OP(power, { return tvm::prim::pow(a, b); });
 
 /*!
  * \fn atan2
@@ -399,7 +398,7 @@ TOPI_DEFINE_BCAST_OP(power, { return tvm::pow(a, b); });
  *
  * \return The result.
  */
-TOPI_DEFINE_BCAST_OP(atan2, { return tvm::atan2(a, b); });
+TOPI_DEFINE_BCAST_OP(atan2, { return tvm::prim::atan2(a, b); });
 
 /*!
  * \fn left_shift

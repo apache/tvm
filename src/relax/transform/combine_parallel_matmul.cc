@@ -38,6 +38,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 using FCheck = ffi::TypedFunction<bool(Var, ffi::Array<Var>, ffi::Array<Var>, ffi::Map<Var, Expr>)>;
 

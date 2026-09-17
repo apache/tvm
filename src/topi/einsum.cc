@@ -30,6 +30,7 @@
 
 namespace tvm {
 namespace topi {
+using namespace tvm::prim;
 
 EinsumEquation EinsumEquation::FromString(const std::string& equation) {
   EinsumEquation result;

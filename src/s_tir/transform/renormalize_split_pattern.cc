@@ -29,12 +29,11 @@
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../arith/pattern_match.h"
+#include "../../tirx/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using namespace arith;
@@ -53,13 +52,14 @@ using namespace arith;
 
 class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
  public:
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
+
   explicit SplitPatternReNormalizer(const Analyzer& analyzer) : IRMutatorWithAnalyzer(analyzer) {}
 
-  using IRMutatorWithAnalyzer::VisitExpr_;
-
-  Expr VisitExpr_(const FloorDivNode* op) final {
-    PrimExpr a = VisitPrimExpr(op->a);
-    PrimExpr b = VisitPrimExpr(op->b);
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) final {
+    PrimExpr a = Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
+    PrimExpr b = Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b);
     PrimExpr ret = floordiv(a, b);
     // Pattern var to match any expression
     PVar<PrimExpr> x, y, z;
@@ -98,10 +98,10 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
         if (c3 > 1) {
           IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
           IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
-          return RecursiveRewrite(
-              floordiv(x.Eval() * Broadcast(c1_div, lanes.Eval()) +
-                           floordiv(y.Eval(), Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
-                       Broadcast(c2_div, lanes.Eval())));
+          return RecursiveRewrite(floordiv(
+              x.Eval() * prim::Broadcast(c1_div, lanes.Eval()) +
+                  floordiv(y.Eval(), prim::Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
+              prim::Broadcast(c2_div, lanes.Eval())));
         }
       }
     }
@@ -129,10 +129,10 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
           IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
           IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
           return RecursiveRewrite(
-              floordiv(x.Eval() * Broadcast(c1_div, lanes.Eval()) +
+              floordiv(x.Eval() * prim::Broadcast(c1_div, lanes.Eval()) +
                            floordiv(y.Eval() + z.Eval(),
-                                    Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
-                       Broadcast(c2_div, lanes.Eval())));
+                                    prim::Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
+                       prim::Broadcast(c2_div, lanes.Eval())));
         }
       }
     }
@@ -140,15 +140,24 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     return ret;
   }
 
-  Expr VisitExpr_(const LENode* op) { return this->VisitExpr(Not(op->b < op->a)); }
+  UnchangedOr<PrimExpr> Mutate_(const prim::LENode* op, InplaceMode inplace_mode) {
+    PrimExpr rewritten = prim::Not(op->b < op->a);
+    return Mutate(rewritten, inplace_mode).ValueOrUnchanged(std::move(rewritten));
+  }
 
-  Expr VisitExpr_(const GTNode* op) { return this->VisitExpr(op->b < op->a); }
+  UnchangedOr<PrimExpr> Mutate_(const prim::GTNode* op, InplaceMode inplace_mode) {
+    PrimExpr rewritten = op->b < op->a;
+    return Mutate(rewritten, inplace_mode).ValueOrUnchanged(std::move(rewritten));
+  }
 
-  Expr VisitExpr_(const GENode* op) { return this->VisitExpr(Not(op->a < op->b)); }
+  UnchangedOr<PrimExpr> Mutate_(const prim::GENode* op, InplaceMode inplace_mode) {
+    PrimExpr rewritten = prim::Not(op->a < op->b);
+    return Mutate(rewritten, inplace_mode).ValueOrUnchanged(std::move(rewritten));
+  }
 
-  Expr VisitExpr_(const LTNode* op) {
-    PrimExpr a = VisitPrimExpr(op->a);
-    PrimExpr b = VisitPrimExpr(op->b);
+  UnchangedOr<PrimExpr> Mutate_(const prim::LTNode* op, InplaceMode inplace_mode) {
+    PrimExpr a = Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
+    PrimExpr b = Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b);
     PrimExpr ret = prim::LT(a, b);
     // Pattern var to match any expression
     PVar<PrimExpr> x;
@@ -159,8 +168,9 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     return ret;
   }
 
-  Expr VisitExpr_(const NotNode* op) {
-    PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<PrimExpr>();
+  UnchangedOr<PrimExpr> Mutate_(const prim::NotNode* op, InplaceMode inplace_mode) {
+    PrimExpr ret = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     // Pattern var to match any expression
     PVar<PrimExpr> x, y;
     TRY_REWRITE(!(!x), x);
@@ -171,12 +181,12 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     return ret;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
     With<ConstraintContext> ctx2(analyzer_,
                                  static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
-    return IRMutatorWithAnalyzer::VisitStmt_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   // Recursive rewrite x
@@ -185,7 +195,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
   PrimExpr RecursiveRewrite(const PrimExpr& x) {
     if (recur_depth_ >= kMaxRecurDepth) return x;
     ++recur_depth_;
-    PrimExpr res = this->VisitPrimExpr(x);
+    PrimExpr res = Mutate(x, InplaceMode::kDisallow).ValueOrUnchanged(x);
     --recur_depth_;
     return res;
   }
@@ -203,7 +213,9 @@ Pass RenormalizeSplitPattern() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     arith::Analyzer analyzer;
-    n->body = SplitPatternReNormalizer(analyzer)(std::move(n->body));
+    n->body = ffi::make_object<SplitPatternReNormalizer>(analyzer)
+                  ->Mutate(n->body, InplaceMode::kAllow)
+                  .ValueOrUnchanged(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.RenormalizeSplitPattern", {});

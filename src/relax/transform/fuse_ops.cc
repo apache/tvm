@@ -50,6 +50,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 struct ExprIdentityLess {
   bool operator()(const Expr& lhs, const Expr& rhs) const { return lhs.get() < rhs.get(); }

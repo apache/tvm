@@ -102,7 +102,7 @@ def estimate_region_lower_bound(region, var_dom, predicate, analyzer=None):
     region : List[Range]
         The region to be analyzed.
 
-    var_dom : Dict[tvm.tirx.Var, Range]
+    var_dom : Dict[tvm.ir.Var, Range]
         The ranges of the variables
 
     predicate : Expr
@@ -129,7 +129,7 @@ def estimate_region_strict_bound(region, var_dom, predicate, analyzer=None):
     region : List[Range]
         The region to be analyzed.
 
-    var_dom : Dict[tvm.tirx.Var, Range]
+    var_dom : Dict[tvm.ir.Var, Range]
         The ranges of the variables
 
     predicate : Expr
@@ -157,7 +157,7 @@ def estimate_region_upper_bound(region, var_dom, predicate, analyzer=None):
     region : List[Range]
         The region to be analyzed.
 
-    var_dom : Dict[tvm.tirx.Var, Range]
+    var_dom : Dict[tvm.ir.Var, Range]
         The ranges of the variables
 
     predicate : Expr
@@ -180,7 +180,7 @@ def pos_inf():
 
     Returns
     ----------
-    pos_inf : tvm.tirx.Var
+    pos_inf : tvm.ir.Var
         A symbolic var that indicates positive infinity
     """
     return _ffi_api.PosInf()
@@ -191,7 +191,7 @@ def neg_inf():
 
     Returns
     ----------
-    neg_inf : tvm.tirx.Var
+    neg_inf : tvm.ir.Var
         A symbolic var that indicates positive infinity
     """
     return _ffi_api.NegInf()

@@ -28,7 +28,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -37,6 +36,8 @@ using namespace tvm::tirx;
  */
 class BufferReadPosCollector : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   explicit BufferReadPosCollector(const BufferVar& buffer) : buffer_(buffer.get()) {}
 
   const std::pair<SBlock, int>& GetBufferLocation() const { return buffer_loc_; }
@@ -44,20 +45,22 @@ class BufferReadPosCollector : public StmtExprVisitor {
   const ffi::Optional<IndexMap> GetBufferIndexMap() const { return buffer_index_map_; }
 
  private:
-  void VisitStmt_(const ForNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     loop_stack_.push_back(ffi::GetRef<For>(op));
-    StmtVisitor::VisitStmt_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     loop_stack_.pop_back();
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SBlockRealizeNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* op) final {
     SBlockRealize outer_block_realize = ffi::GetRef<SBlockRealize>(op);
     std::swap(outer_block_realize, cur_realize_);
-    StmtVisitor::VisitStmt_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     std::swap(cur_realize_, outer_block_realize);
+    return std::nullopt;
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     TVM_FFI_ICHECK(cur_realize_.defined()) << "TensorLoad occurred outside of any block";
 
     const BufferVar& buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
@@ -87,6 +90,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
       TVM_FFI_ICHECK(buffer_index != -1);
       buffer_loc_ = std::make_pair(cur_realize_->block, buffer_index);
     }
+    return std::nullopt;
   }
 
   static int GetReadBufferIndex(const SBlock& block, const BufferVar& buffer) {
@@ -98,7 +102,6 @@ class BufferReadPosCollector : public StmtExprVisitor {
     return -1;
   }
 
- private:
   /*! \brief The buffer of interest. */
   const VarNode* buffer_;
   /*! \brief The block that consumes the buffer and the corresponding read index. */
@@ -114,15 +117,23 @@ class BufferReadPosCollector : public StmtExprVisitor {
   SBlockRealize cur_realize_;
 };
 
-class LayoutFreeBufferCollector : public StmtVisitor {
+class LayoutFreeBufferCollector : public StmtExprVisitor {
  public:
-  void VisitStmt_(const SBlockNode* block) final {
-    StmtVisitor::VisitStmt_(block);
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
     if (auto ann = block->annotations.Get("layout_free_placeholders")) {
       for (BufferVar buffer : ann.value().as_or_throw<ffi::Array<BufferVar>>()) {
         buffers.insert(buffer);
       }
     }
+    return std::nullopt;
   }
 
   std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffers;
@@ -140,10 +151,10 @@ ffi::Array<BufferVar> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
     layout_free_buffers.push_back(param.as_or_throw<tvm::tirx::BufferVar>());
   }
 
-  LayoutFreeBufferCollector collector;
-  collector(func->body);
+  auto collector = ffi::make_object<LayoutFreeBufferCollector>();
+  collector->Visit(func->body);
 
-  for (auto buf : collector.buffers) {
+  for (auto buf : collector->buffers) {
     layout_free_buffers.push_back(buf);
   }
   return layout_free_buffers;
@@ -151,34 +162,41 @@ ffi::Array<BufferVar> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
 
 std::optional<std::tuple<SBlock, int, IndexMap>> GetSuggestedIndexMap(
     BufferVar buffer, const PrimFuncNode* prim_func) {
-  BufferReadPosCollector collector(buffer);
-  collector(prim_func->body);
+  auto collector = ffi::make_object<BufferReadPosCollector>(buffer);
+  collector->Visit(prim_func->body);
 
-  const auto& index_map = collector.GetBufferIndexMap();
+  const auto& index_map = collector->GetBufferIndexMap();
 
   if (!index_map.has_value()) {
     return std::nullopt;
   }
 
-  const auto& [anchor_block, buffer_index] = collector.GetBufferLocation();
+  const auto& [anchor_block, buffer_index] = collector->GetBufferLocation();
 
   return std::make_tuple(anchor_block, buffer_index, index_map.value());
 }
 
 /*! \brief Get a chain of cache-read blocks, starting from the one consuming buf. */
 std::vector<std::string> GetCacheReadChain(const BufferVar& buf, const PrimFuncNode* prim_func) {
-  class BufferReadChainCollector : public StmtVisitor {
+  class BufferReadChainCollector : public StmtExprVisitor {
    public:
+    using StmtExprVisitor::Visit_;
+
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
+    }
+
     explicit BufferReadChainCollector(const BufferVar& buffer) : cur_buffer_(buffer.get()) {}
 
-    void VisitStmt_(const SBlockNode* op) final {
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
       // Check if this block is doing cache_read or a similar operation that consumes cur_buffer_.
       if (!op->init && op->reads.size() == 1 && op->writes.size() == 1 &&
           op->reads[0]->buffer.get() == cur_buffer_) {
         cache_read_chain.push_back(op->name_hint);
         cur_buffer_ = op->writes[0]->buffer.get();
       }
-      StmtVisitor::VisitStmt_(op);
+      return StmtExprVisitor::Visit_(op);
     }
 
     std::vector<std::string> cache_read_chain;
@@ -187,9 +205,9 @@ std::vector<std::string> GetCacheReadChain(const BufferVar& buf, const PrimFuncN
     const VarNode* cur_buffer_;
   };
 
-  BufferReadChainCollector collector(buf);
-  collector(prim_func->body);
-  return collector.cache_read_chain;
+  auto collector = ffi::make_object<BufferReadChainCollector>(buf);
+  collector->Visit(prim_func->body);
+  return collector->cache_read_chain;
 }
 
 bool RewriteLayout(const Schedule& sch) {
@@ -256,7 +274,6 @@ bool RewriteLayout(const Schedule& sch) {
 }  // namespace s_tir
 
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 /*! \brief Layout Rewrite. */
 class RewriteLayoutNode : public PostprocNode {

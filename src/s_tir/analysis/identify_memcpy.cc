@@ -38,11 +38,10 @@
 #include <string>
 #include <variant>
 
-#include "../../arith/ir_visitor_with_analyzer.h"
+#include "../../tirx/ir_visitor_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
@@ -297,29 +296,31 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("s_tir.analysis._identify_memcpy", [](const Stmt& stmt) {
     ffi::Array<ffi::ObjectRef> output;
 
-    struct Visitor : arith::IRVisitorWithAnalyzer {
+    struct Visitor : tirx::IRVisitorWithAnalyzer {
+     public:
+      using tirx::IRVisitorWithAnalyzer::Visit_;
+
       explicit Visitor(ffi::Array<ffi::ObjectRef>* output) : output(output) {}
       ffi::Array<ffi::ObjectRef>* output;
 
      private:
-      using IRVisitorWithAnalyzer::VisitStmt_;
-      void VisitStmt_(const ForNode* op) override {
+      ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override {
         For loop = ffi::GetRef<For>(op);
         auto result = IdentifyMemCpyImpl(loop, Visitor::analyzer_.get());
         if (auto* ptr = std::get_if<MemCpyDetails>(&result)) {
           output->push_back(ffi::Array{ptr->source, ptr->dest});
         } else if (auto* ptr = std::get_if<std::string>(&result)) {
-          output->push_back(StringImm(*ptr));
+          output->push_back(prim::StringImm(*ptr));
         } else {
           TVM_FFI_THROW(InternalError) << "Internal error, unhandled std::variant type";
         }
 
-        IRVisitorWithAnalyzer::VisitStmt_(op);
+        return IRVisitorWithAnalyzer::Visit_(op);
       }
     };
 
-    Visitor visitor(&output);
-    visitor(stmt);
+    auto visitor = ffi::make_object<Visitor>(&output);
+    visitor->Visit(stmt);
 
     return output;
   });

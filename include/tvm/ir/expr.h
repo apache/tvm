@@ -31,6 +31,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/base_expr.h>
 #include <tvm/ir/cow.h>
+#include <tvm/ir/op_attr_types.h>
 #include <tvm/ir/source_map.h>
 
 #include <algorithm>
@@ -38,11 +39,9 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace tvm {
-
-// Forward-declare VirtualDevice to avoid circular imports.
-class VirtualDevice;
 
 /*! \brief Tuple container */
 class TupleNode : public ExprNode {
@@ -388,6 +387,37 @@ class Var : public Expr {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, Expr, VarNode);
 };
 
+/*!
+ * \brief Checked scalar view over a VarNode.
+ *
+ * PrimVar is a zero-state reference view over the same VarNode as Var.  It additionally
+ * guarantees that the inherited ExprNode::ty is PrimType.
+ */
+class PrimVar : public PrimExpr {
+ public:
+  /*! \brief Construct a scalar variable directly from a primitive type. */
+  explicit PrimVar(ffi::String name, PrimType dtype = PrimType::Int(32), Span span = Span())
+      : PrimExpr(Var(std::move(name), std::move(dtype), std::move(span)).as_or_throw<PrimExpr>()) {}
+
+  /*! \brief Construct a scalar variable directly from a checked type annotation. */
+  explicit PrimVar(ffi::String name, Type type_annotation, Span span = Span())
+      : PrimExpr(Var(std::move(name), std::move(type_annotation), std::move(span))
+                     .as_or_throw<PrimExpr>()) {}
+
+  /*! \brief Safe widening to a general Var view over the same node. */
+  operator Var() const { return this->as_or_throw<Var>(); }
+
+  PrimVar CopyWithSuffix(const ffi::String& suffix) const {
+    return this->as_or_throw<Var>().CopyWithSuffix(suffix).as_or_throw<PrimVar>();
+  }
+  PrimVar CopyWithDType(PrimType dtype) const {
+    return this->as_or_throw<Var>().CopyWithDType(dtype).as_or_throw<PrimVar>();
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimVar, PrimExpr, VarNode);
+  static constexpr bool _type_container_is_exact = false;
+};
+
 class GlobalVar;
 /*!
  * \brief Global variable that lives in the top-level module.
@@ -634,7 +664,62 @@ class Range : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Range, ffi::ObjectRef, RangeNode);
 };
 
+/*!
+ * \brief Analyze the runtime effects of an expression.
+ *
+ * Accumulates effects of evaluated expression children, excluding type and vector
+ * lane-count metadata. Non-operator callees are conservatively opaque. Missing
+ * operator effect attributes are errors unless an earlier update effect stops
+ * traversal. Returns kPure, kReadState, or kUpdateState.
+ *
+ * Shared IR contains only minimal analyses of expression properties. Arithmetic
+ * reasoning, constraint solving, and target- or dialect-specific analyses belong
+ * in their respective modules.
+ * \param expr The expression to inspect.
+ * \return The strongest runtime effect of the expression.
+ */
+TVM_DLL CallEffectKind SideEffect(const Expr& expr);
+
 namespace ffi {
+
+template <>
+inline constexpr bool use_default_type_traits_v<PrimVar> = false;
+
+template <>
+struct TypeTraits<PrimVar> : public ObjectRefTypeTraitsBase<PrimVar> {
+  using Base = ObjectRefTypeTraitsBase<PrimVar>;
+  using Base::CopyFromAnyViewAfterCheck;
+  using Base::CopyToAnyView;
+  using Base::GetMismatchTypeInfo;
+  using Base::MoveFromAnyAfterCheck;
+  using Base::MoveToAny;
+  using Base::TypeSchema;
+  using Base::TypeStr;
+
+  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFINone) {
+      return PrimVar::_type_is_nullable;
+    }
+    if (src->type_index != VarNode::RuntimeTypeIndex()) {
+      return false;
+    }
+    const auto* var = static_cast<const VarNode*>(
+        details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj).get());
+    return details::AnyUnsafe::CheckAnyStrict<PrimType>(var->ExprNode::ty);
+  }
+
+  TVM_FFI_INLINE static std::optional<PrimVar> TryCastFromAnyView(const TVMFFIAny* src) {
+    if (CheckAnyStrict(src)) {
+      if (src->type_index == TypeIndex::kTVMFFINone) {
+        return details::ObjectUnsafe::ObjectRefFromObjectPtr<PrimVar>(nullptr);
+      }
+      return details::ObjectUnsafe::ObjectRefFromObjectPtr<PrimVar>(
+          details::ObjectUnsafe::ObjectPtrFromUnowned<VarNode>(src->v_obj));
+    }
+    return std::nullopt;
+  }
+};
+
 template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, IntImmNode> = true;
 template <>
@@ -669,6 +754,7 @@ struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, d
   }
 };
 }  // namespace ffi
+
 }  // namespace tvm
 
 /* \brief Allow tvm.Var and tvm.GlobalVar as keys in STL tables

@@ -33,6 +33,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 namespace {
 std::optional<int64_t> GetNumInputParams(const FunctionNode* func) {
@@ -74,7 +75,7 @@ class LazyInputMutator : public ExprMutator {
     std::unordered_set<tirx::Var> externally_visible_vars(array_externally_visible_vars.begin(),
                                                           array_externally_visible_vars.end());
     Type new_ret_ty = EraseToWellDefined(func->ret_ty, [&](const Var& var) -> ffi::Optional<Expr> {
-      if (auto prim_var = var.as<tirx::PrimVar>();
+      if (auto prim_var = var.as<PrimVar>();
           prim_var && externally_visible_vars.count(prim_var.value())) {
         return prim_var.value().as_or_throw<PrimExpr>();
       }

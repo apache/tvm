@@ -24,12 +24,11 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/transform.h>
 
-#include "../../arith/ir_visitor_with_analyzer.h"
+#include "../../tirx/ir_visitor_with_analyzer.h"
 #include "../schedule/error.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 namespace transform {
 struct OOBLocation {
@@ -40,7 +39,7 @@ struct OOBLocation {
   arith::IntSet shape_bounds;
 };
 
-class OOBError : public s_tir::ScheduleError {
+class OOBError : public s_tir::ScheduleErrorContextObj {
  public:
   OOBError(IRModule mod, std::vector<OOBLocation> locations) : mod_(mod), locations_(locations) {}
   ffi::String FastErrorString() const final { return "Out of bound memory access"; }
@@ -70,23 +69,22 @@ class OOBError : public s_tir::ScheduleError {
   IRModule mod_;
   std::vector<OOBLocation> locations_;
 };
-class OOBCheckerVisitor final : public arith::IRVisitorWithAnalyzer {
-  using IRVisitorWithAnalyzer::VisitExpr_;
-  using IRVisitorWithAnalyzer::VisitStmt_;
-
+class OOBCheckerVisitor final : public tirx::IRVisitorWithAnalyzer {
  public:
-  void VisitStmt_(const BufferStoreNode* node) final {
+  using tirx::IRVisitorWithAnalyzer::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* node) final {
     for (size_t i = 0; i < node->buffer->shape.size(); i++) {
       CheckBounds(node, node->buffer, i);
     }
-    IRVisitorWithAnalyzer::VisitStmt_(node);
+    return IRVisitorWithAnalyzer::Visit_(node);
   }
-  void VisitExpr_(const TensorLoadNode* node) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* node) final {
     BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
     for (size_t i = 0; i < buffer->shape.size(); i++) {
       CheckBounds(node, buffer, i);
     }
-    IRVisitorWithAnalyzer::VisitExpr_(node);
+    return IRVisitorWithAnalyzer::Visit_(node);
   }
 
   template <class T>
@@ -115,13 +113,13 @@ class OOBCheckerVisitor final : public arith::IRVisitorWithAnalyzer {
 
 tvm::transform::Pass OOBChecker() {
   auto pass_func = [=](tirx::PrimFunc func, IRModule mod, tvm::transform::PassContext ctx) {
-    OOBCheckerVisitor checker;
-    checker(func->body);
-    if (checker.errors.size() > 0) {
+    auto checker = ffi::make_object<OOBCheckerVisitor>();
+    checker->Visit(func->body);
+    if (checker->errors.size() > 0) {
       // mod doesn't contain our function, so we construct a new mod with out function
       IRModule func_mod({{GlobalVar("main"), func}});
       TVM_FFI_THROW(ScheduleError)
-          << OOBError(func_mod, checker.errors).RenderReport("Out of bounds checker");
+          << OOBError(func_mod, checker->errors).RenderReport("Out of bounds checker");
     }
     return func;
   };

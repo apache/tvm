@@ -24,7 +24,6 @@
 #include "ir_utils.h"
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/arith/int_solver.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -41,6 +40,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
   // use reverse iteration
@@ -90,6 +90,8 @@ Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body) {
 
 class IRConvertSSA final : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   PrimFunc VisitPrimFunc(PrimFunc func) {
     // Remap parameters, if they were used in another function.
     // Function-scope remaps use function_scope_var_remap_ (not the scope stack),
@@ -163,9 +165,10 @@ class IRConvertSSA final : public StmtExprMutator {
       for (const auto& [key, old_value] : func->attrs->dict) {
         auto value = old_value;
         if (auto expr = value.as<PrimExpr>()) {
-          value = VisitPrimExpr(expr.value());
+          value = Mutate(expr.value(), InplaceMode::kDisallow).ValueOrUnchanged(expr.value());
         } else if (auto* stmt = value.as<StmtNode>()) {
-          value = VisitStmt(ffi::GetRef<Stmt>(stmt));
+          value = Mutate(ffi::GetRef<Stmt>(stmt), InplaceMode::kDisallow)
+                      .ValueOrUnchanged(ffi::GetRef<Stmt>(stmt));
         }
 
         made_change = made_change || !value.same_as(old_value);
@@ -179,11 +182,13 @@ class IRConvertSSA final : public StmtExprMutator {
       }
     }();
 
-    auto body = VisitStmt(func->body);
+    auto body_result = Mutate(func->body, InplaceMode::kDisallow);
+    bool body_unchanged = body_result.UnchangedOrSameAs(func->body);
+    auto body = std::move(body_result).ValueOrUnchanged(func->body);
 
     // If anything changed, update the returned function
     if (!params.same_as(func->params) || buffer_params_changed || !attrs.same_as(func->attrs) ||
-        !body.same_as(func->body)) {
+        !body_unchanged) {
       func = PrimFunc(params, body, func->ret_type, attrs);
     }
 
@@ -193,45 +198,44 @@ class IRConvertSSA final : public StmtExprMutator {
     return func;
   }
 
-  // Do not use the base VisitBufferDef for buffer remapping.
-  //
-  // IRConvertSSA has its own scoped buffer remapping via GetRemappedBuffer and
-  // buf_remap_, which handles SSA conversion of buffer data vars, shape, strides,
-  // and elem_offset with proper scope tracking. The base StmtMutator::VisitBufferDef
-  // would create a conflicting second remap (into base buffer_remap_) when called
-  // from the default DeclBuffer/AllocBuffer handlers, producing buffers with
-  // undefined SSA-renamed variables.
-  BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) override { return buffer; }
-
-  Expr VisitExpr_(const VarNode* op) final { return GetRemappedVar(ffi::GetRef<Var>(op)); }
-  Expr VisitExpr_(const prim::LetNode* op) final {
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
+    Var var = ffi::GetRef<Var>(op);
+    Var mapped = GetRemappedVar(var);
+    if (!mapped.same_as(var)) return mapped;
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final {
     const Var& v = op->var;
     if (defined_.count(v.get())) {
-      PrimExpr value = this->VisitPrimExpr(op->value);
+      PrimExpr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
       Var new_var = MakeNewVar(v);
       PushVarRemap(v, new_var);
-      PrimExpr body = this->VisitPrimExpr(op->body);
+      PrimExpr body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
       PopVarRemap(v, new_var);
       return prim::Let(new_var, value, body);
     } else {
       defined_.insert(v.get());
-      return StmtExprMutator::VisitExpr_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
+                    .as_or_throw<TensorLoad>();
     auto output = VisitBufferAccess(std::move(node));
     return output;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                    .as_or_throw<BufferStore>();
     auto output = VisitBufferAccess(std::move(node));
     return output;
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
     Var v = op->buffer.var();
     if (defined_.count(v.get())) {
       Var new_var = MakeNewVar(v);
@@ -239,7 +243,9 @@ class IRConvertSSA final : public StmtExprMutator {
     } else {
       defined_.insert(v.get());
     }
-    DeclBuffer decl = StmtExprMutator::VisitStmt_(op).as_or_throw<DeclBuffer>();
+    DeclBuffer decl = StmtExprMutator::Mutate_(op, inplace_mode)
+                          .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                          .as_or_throw<DeclBuffer>();
     BufferVar new_buffer = GetRemappedBuffer(decl->buffer);
     if (!new_buffer.same_as(decl->buffer)) {
       decl.CopyOnWrite()->buffer = std::move(new_buffer);
@@ -247,7 +253,7 @@ class IRConvertSSA final : public StmtExprMutator {
     return decl;
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     SBlock block = ffi::GetRef<SBlock>(op);
 
     // The SBlockNode is the point of definition for the IterVar
@@ -277,7 +283,10 @@ class IRConvertSSA final : public StmtExprMutator {
         write_ptr->iter_vars = iter_vars;
       }
 
-      return StmtExprMutator::VisitStmt_(block.get()).as_or_throw<SBlock>();
+      return StmtExprMutator::Mutate_(block.get(),
+                                      block.unique() ? inplace_mode : InplaceMode::kDisallow)
+          .ValueOrUnchanged(block)
+          .as_or_throw<SBlock>();
     });
   }
 
@@ -302,7 +311,8 @@ class IRConvertSSA final : public StmtExprMutator {
   }
 
   Var GetRemappedVar(Var var) {
-    if (auto it = var_remap_.find(var.get()); it != var_remap_.end() && it->second.size()) {
+    if (auto it = scoped_var_remap_.find(var.get());
+        it != scoped_var_remap_.end() && it->second.size()) {
       return it->second.back();
     } else if (auto it = function_scope_var_remap_.find(var.get());
                it != function_scope_var_remap_.end()) {
@@ -317,8 +327,11 @@ class IRConvertSSA final : public StmtExprMutator {
     // given the current scope.  If no redefines are present, then the
     // buffer var is unchanged.
     Var new_buffer_var = GetRemappedVar(buf.var());
-    PrimExpr elem_offset = VisitPrimExpr(buf->elem_offset);
-    auto visit_expr = [this](const PrimExpr& expr) { return VisitPrimExpr(expr); };
+    PrimExpr elem_offset =
+        Mutate(buf->elem_offset, InplaceMode::kDisallow).ValueOrUnchanged(buf->elem_offset);
+    auto visit_expr = [this](const PrimExpr& expr) {
+      return Mutate(expr, InplaceMode::kDisallow).ValueOrUnchanged(expr);
+    };
     ffi::Array<PrimExpr> shape = buf->shape.Map(visit_expr);
     ffi::Array<PrimExpr> strides = buf->strides.Map(visit_expr);
 
@@ -332,8 +345,10 @@ class IRConvertSSA final : public StmtExprMutator {
     if (buf->layout.has_value()) {
       if (auto opt_tile = buf->layout.value().as<TileLayoutNode>()) {
         auto remap_iter = [&](const Iter& it) -> Iter {
-          PrimExpr new_extent = VisitPrimExpr(it->extent);
-          PrimExpr new_stride = VisitPrimExpr(it->stride);
+          PrimExpr new_extent =
+              Mutate(it->extent, InplaceMode::kDisallow).ValueOrUnchanged(it->extent);
+          PrimExpr new_stride =
+              Mutate(it->stride, InplaceMode::kDisallow).ValueOrUnchanged(it->stride);
           if (new_extent.same_as(it->extent) && new_stride.same_as(it->stride)) {
             return it;
           }
@@ -391,8 +406,9 @@ class IRConvertSSA final : public StmtExprMutator {
     // metadata required a fresh Var, make it the active remap as well.  This
     // keeps BufferLoad/BufferStore and ordinary Var uses (such as
     // buffer_data) on the same identity.
-    auto it = var_remap_.find(buf.get());
-    if (it != var_remap_.end() && it->second.size() && it->second.back().same_as(new_buffer_var)) {
+    auto it = scoped_var_remap_.find(buf.get());
+    if (it != scoped_var_remap_.end() && it->second.size() &&
+        it->second.back().same_as(new_buffer_var)) {
       it->second.back() = new_buf.var();
     } else if (auto function_it = function_scope_var_remap_.find(buf.get());
                function_it != function_scope_var_remap_.end() &&
@@ -405,58 +421,69 @@ class IRConvertSSA final : public StmtExprMutator {
     return new_buf;
   }
 
-  Stmt VisitStmt_(const BindNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     // Bind var remaps are tracked in the current scope so they persist
     // across SeqStmt siblings and are cleaned up when the enclosing
     // body-carrying statement's scope exits.
     const Var& v = op->var;
     if (defined_.count(v.get())) {
-      Expr value = this->VisitExpr(op->value);
+      Expr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
       Var new_var = MakeNewVar(v);
       PushVarRemap(v, new_var);
       return Bind(new_var, value);
     } else {
       defined_.insert(v.get());
-      return StmtExprMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 
-  Stmt VisitStmt_(const IfThenElseNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final {
     // Each branch gets its own scope so Bind remaps in one branch
     // do not leak into the other.
-    PrimExpr condition = VisitPrimExpr(op->condition);
-    Stmt then_case = scope_.WithNewScope([&]() -> Stmt { return VisitStmt(op->then_case); });
+    auto condition_result = Mutate(op->condition, inplace_mode);
+    bool condition_unchanged = condition_result.UnchangedOrSameAs(op->condition);
+    PrimExpr condition = std::move(condition_result).ValueOrUnchanged(op->condition);
+    Stmt then_case = scope_.WithNewScope([&]() -> Stmt {
+      return Mutate(op->then_case, inplace_mode).ValueOrUnchanged(op->then_case);
+    });
     ffi::Optional<Stmt> else_case;
     if (op->else_case) {
-      else_case = scope_.WithNewScope([&]() -> Stmt { return VisitStmt(op->else_case.value()); });
+      else_case = scope_.WithNewScope([&]() -> Stmt {
+        return Mutate(op->else_case.value(), inplace_mode).ValueOrUnchanged(op->else_case.value());
+      });
     }
-    if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
+    if (condition_unchanged && then_case.same_as(op->then_case) &&
         else_case.same_as(op->else_case)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     }
     return IfThenElse(condition, then_case, else_case);
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     const Var& v = op->loop_var;
     if (defined_.count(v.get())) {
       return scope_.WithNewScope([&]() -> Stmt {
         Var new_var = MakeNewVar(v);
         PushVarRemap(v, new_var);
-        Stmt stmt = StmtExprMutator::VisitStmt_(op);
+        Stmt stmt =
+            StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
         auto n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
         n->loop_var = new_var.as_or_throw<PrimVar>();
         return For(n);
       });
     } else {
       defined_.insert(v.get());
-      return scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::VisitStmt_(op); });
+      return scope_.WithNewScope([&]() -> Stmt {
+        return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+      });
     }
   }
-  Stmt VisitStmt_(const WhileNode* op) final {
-    return scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::VisitStmt_(op); });
+  UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) final {
+    return scope_.WithNewScope([&]() -> Stmt {
+      return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    });
   }
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     Var v = op->buffer.var();
     if (defined_.count(v.get())) {
       Var new_var = MakeNewVar(v);
@@ -464,7 +491,7 @@ class IRConvertSSA final : public StmtExprMutator {
     } else {
       defined_.insert(v.get());
     }
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<AllocBufferNode>();
     // Use GetRemappedBuffer so that the AllocBuffer's buffer is the same
     // object as the one used by BufferStore/TensorLoad in subsequent siblings.
@@ -476,12 +503,13 @@ class IRConvertSSA final : public StmtExprMutator {
     }
     return stmt;
   }
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (const IterVarNode* iter_var = op->node.as<IterVarNode>()) {
       Range dom = iter_var->dom;
       if (dom.defined()) {
-        auto min = VisitPrimExpr(dom->min);
-        auto extent = VisitPrimExpr(dom->extent);
+        // Retain the original domain while comparing and rebuilding its replacement.
+        auto min = Mutate(dom->min, InplaceMode::kDisallow).ValueOrUnchanged(dom->min);
+        auto extent = Mutate(dom->extent, InplaceMode::kDisallow).ValueOrUnchanged(dom->extent);
         if (!min.same_as(iter_var->dom->min) || !extent.same_as(iter_var->dom->extent)) {
           dom = Range::FromMinExtent(min, extent);
         }
@@ -524,12 +552,14 @@ class IRConvertSSA final : public StmtExprMutator {
         new_iter_var = IterVar(dom, var.as_or_throw<PrimVar>(), iter_var->iter_type,
                                iter_var->thread_tag, iter_var->span);
       }
-
-      auto value = VisitPrimExpr(op->value);
-      auto body = scope_.WithNewScope([&]() -> Stmt { return VisitStmt(op->body); });
+      auto value_result = Mutate(op->value, inplace_mode);
+      bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
+      auto value = std::move(value_result).ValueOrUnchanged(op->value);
+      auto body = scope_.WithNewScope(
+          [&]() -> Stmt { return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body); });
 
       Stmt output;
-      if (new_iter_var.get() == iter_var && body.same_as(op->body) && value.same_as(op->value)) {
+      if (new_iter_var.get() == iter_var && body.same_as(op->body) && value_unchanged) {
         output = ffi::GetRef<Stmt>(op);
       } else {
         output = AttrStmt(new_iter_var, op->attr_key, value, body, iter_var->span);
@@ -545,15 +575,19 @@ class IRConvertSSA final : public StmtExprMutator {
       return output;
 
     } else if (const VarNode* v = op->node.as<VarNode>()) {
-      Stmt stmt = scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::VisitStmt_(op); });
+      Stmt stmt = scope_.WithNewScope([&]() -> Stmt {
+        return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+      });
       op = stmt.as<AttrStmtNode>();
-      if (var_remap_.count(v) && var_remap_[v].size() != 0) {
-        return AttrStmt(var_remap_[v].back(), op->attr_key, op->value, op->body);
+      if (scoped_var_remap_.count(v) && scoped_var_remap_[v].size() != 0) {
+        return AttrStmt(scoped_var_remap_[v].back(), op->attr_key, op->value, op->body);
       } else {
         return stmt;
       }
     } else {
-      return scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::VisitStmt_(op); });
+      return scope_.WithNewScope([&]() -> Stmt {
+        return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+      });
     }
   }
 
@@ -599,9 +633,9 @@ class IRConvertSSA final : public StmtExprMutator {
   /*! \brief Create a new variable with the same name and type as the original. */
   static Var MakeNewVar(const Var& old_var) { return Var(old_var->name, old_var->ty); }
 
-  /*! \brief Push a variable remap to the current scope and the var_remap_ stack. */
+  /*! \brief Push a variable remap to the current scope and the scoped_var_remap_ stack. */
   void PushVarRemap(const Var& old_var, const Var& new_var) {
-    var_remap_[old_var.get()].push_back(new_var);
+    scoped_var_remap_[old_var.get()].push_back(new_var);
     auto& level = scope_.Current();
     level.parent = this;
     level.push_back({old_var, new_var});
@@ -609,7 +643,7 @@ class IRConvertSSA final : public StmtExprMutator {
 
   /*! \brief Pop a single variable remap (used for expression-level Let scoping). */
   void PopVarRemap(const Var& old_var, const Var& new_var) {
-    var_remap_[old_var.get()].pop_back();
+    scoped_var_remap_[old_var.get()].pop_back();
     for (auto& kv : buf_remap_) {
       std::vector<BufferVar>& buffers = kv.second;
       if (buffers.size() && BufferDependsOnVar(buffers.back(), new_var.get())) {
@@ -628,7 +662,7 @@ class IRConvertSSA final : public StmtExprMutator {
     auto& current = scope_.Current();
     while (current.size()) {
       auto& remap = current.back();
-      var_remap_[remap.old_var.get()].pop_back();
+      scoped_var_remap_[remap.old_var.get()].pop_back();
       for (auto& kv : buf_remap_) {
         std::vector<BufferVar>& buffers = kv.second;
         if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
@@ -665,7 +699,7 @@ class IRConvertSSA final : public StmtExprMutator {
       // Pop remaps in reverse order
       while (remaps.size()) {
         auto& remap = remaps.back();
-        parent->var_remap_[remap.old_var.get()].pop_back();
+        parent->scoped_var_remap_[remap.old_var.get()].pop_back();
         for (auto& kv : parent->buf_remap_) {
           std::vector<BufferVar>& buffers = kv.second;
           if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
@@ -689,7 +723,7 @@ class IRConvertSSA final : public StmtExprMutator {
         if (parent) {
           while (remaps.size()) {
             auto& remap = remaps.back();
-            parent->var_remap_[remap.old_var.get()].pop_back();
+            parent->scoped_var_remap_[remap.old_var.get()].pop_back();
             for (auto& kv : parent->buf_remap_) {
               std::vector<BufferVar>& buffers = kv.second;
               if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
@@ -707,14 +741,16 @@ class IRConvertSSA final : public StmtExprMutator {
     }
   };
 
-  std::unordered_map<const VarNode*, std::vector<Var>> var_remap_;
+  std::unordered_map<const VarNode*, std::vector<Var>> scoped_var_remap_;
   std::unordered_set<const VarNode*> defined_;
   std::unordered_map<const VarNode*, std::vector<BufferVar>> buf_remap_;
   std::unordered_map<const VarNode*, Var> function_scope_var_remap_;
   ScopeStack<ScopeLevel> scope_;
 };
 
-Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }
+Stmt ConvertSSA(Stmt stmt) {
+  return ffi::make_object<IRConvertSSA>()->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
+}
 
 ffi::String GetPtrStorageScope(Var buffer_var) {
   if (const auto* buffer_type = buffer_var->ty.as<BufferTypeNode>()) {
@@ -785,272 +821,6 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
   return result;
 }
 
-namespace {
-
-std::optional<uint64_t> GetConstUInt(const PrimExpr& value) {
-  if (const auto* imm = value.as<IntImmNode>()) {
-    if (imm->value >= 0) return static_cast<uint64_t>(imm->value);
-  } else if (const auto* call = value.as<CallNode>()) {
-    if (call->op.same_as(builtin::large_uint_imm())) {
-      return static_cast<uint64_t>(call->args[0].as_or_throw<IntImm>()->value) |
-             (static_cast<uint64_t>(call->args[1].as_or_throw<IntImm>()->value) << 32);
-    }
-  }
-  return std::nullopt;
-}
-
-std::optional<std::pair<Var, Range>> GetUnsignedRange(const PrimExpr& e) {
-  auto match = [&e](const auto* op) -> std::optional<std::pair<Var, Range>> {
-    if (!op) return std::nullopt;
-    for (bool reverse : {false, true}) {
-      PrimExpr value = reverse ? op->b : op->a;
-      PrimExpr bound = reverse ? op->a : op->b;
-      const auto* var = value.as<VarNode>();
-      PrimType dtype = value.ty();
-      // Only direct comparisons are safe; unsigned arithmetic may wrap.
-      if (!var || !dtype.IsScalar() || !dtype.MatchesCode(DLDataTypeCode::kDLUInt) ||
-          dtype.bits() > 64) {
-        continue;
-      }
-      auto constant = GetConstUInt(bound);
-      if (!constant) continue;
-      uint64_t c = *constant;
-      uint64_t maximum = UINT64_MAX >> (64 - dtype.bits());
-      uint64_t lower = 0, upper = maximum;
-      if (e->IsInstance<prim::EQNode>()) {
-        lower = upper = c;
-      } else if (e->IsInstance<prim::NENode>()) {
-        // Only an excluded endpoint can be represented by a single interval.
-        if (c == 0) {
-          lower = 1;
-        } else if (c == maximum) {
-          upper = maximum - 1;
-        } else {
-          return std::nullopt;
-        }
-      } else {
-        bool is_lower = e->IsInstance<prim::GTNode>() || e->IsInstance<prim::GENode>();
-        bool strict = e->IsInstance<prim::GTNode>() || e->IsInstance<prim::LTNode>();
-        if (reverse) is_lower = !is_lower;
-        // Leave impossible endpoint comparisons unresolved, rather than wrap.
-        if (strict && ((is_lower && c == maximum) || (!is_lower && c == 0))) {
-          return std::nullopt;
-        }
-        if (is_lower) {
-          lower = c + strict;
-        } else {
-          upper = c - strict;
-        }
-      }
-      // The full type domain has no representable unsigned extent and adds no bound.
-      if (lower == 0 && upper == maximum) return std::nullopt;
-      return std::make_pair(
-          ffi::GetRef<Var>(var),
-          Range::FromMinExtent(MakeConst(dtype, lower), MakeConst(dtype, upper - lower + 1)));
-    }
-    return std::nullopt;
-  };
-  if (const auto* op = e.as<prim::EQNode>()) return match(op);
-  if (const auto* op = e.as<prim::NENode>()) return match(op);
-  if (const auto* op = e.as<prim::LTNode>()) return match(op);
-  if (const auto* op = e.as<prim::LENode>()) return match(op);
-  if (const auto* op = e.as<prim::GTNode>()) return match(op);
-  if (const auto* op = e.as<prim::GENode>()) return match(op);
-  return std::nullopt;
-}
-
-}  // namespace
-
-ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition() {
-  // extract equations and related vars from condition expression.
-  // currently only extract simple integral equations which could be solvable.
-  arith::Analyzer analyzer;
-  PrimExpr condition = analyzer->Simplify(condition_);
-  if (is_const_int(condition)) {
-    return std::nullopt;
-  }
-  ffi::Array<PrimExpr> equations;
-  ffi::Array<PrimVar> vars;
-  std::function<void(const PrimExpr&)> fvisit = [&equations, &vars, &fvisit](const PrimExpr& e) {
-    if (e->IsInstance<prim::GENode>() || e->IsInstance<prim::GTNode>() ||
-        e->IsInstance<prim::LENode>() || e->IsInstance<prim::LTNode>() ||
-        e->IsInstance<prim::EQNode>() || e->IsInstance<prim::NENode>()) {
-      if (GetUnsignedRange(e)) {
-        equations.push_back(e);
-        return;
-      }
-      bool is_simple = true;
-      std::vector<PrimVar> cand_vars;
-      auto walk_fn = [&cand_vars, &is_simple,
-                      &e](const PrimExpr& obj) -> ffi::Expected<ffi::WalkResult> {
-        if (obj.same_as(e)) {
-          return ffi::WalkResult::Advance();
-        } else if (const VarNode* var = obj.as<VarNode>()) {
-          PrimType var_ty = var->ty.as_or_throw<PrimType>();
-          if (var_ty.MatchesCode(DLDataTypeCode::kDLInt)) {
-            cand_vars.push_back(ffi::GetRef<Var>(var).as_or_throw<PrimVar>());
-          } else {
-            // The inequality solver constructs signed coefficients in the
-            // variable's type. Unsigned arithmetic cannot be treated as
-            // ordered integer arithmetic; leave such conditions unresolved.
-            is_simple = false;
-          }
-        } else {
-          is_simple &= obj->IsInstance<prim::AddNode>() || obj->IsInstance<prim::SubNode>() ||
-                       obj->IsInstance<prim::MulNode>() || obj->IsInstance<prim::FloorDivNode>() ||
-                       obj->IsInstance<prim::FloorModNode>() || obj->IsInstance<IntImmNode>();
-        }
-        return ffi::WalkResult::Advance();
-      };
-      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(e, walk_fn);
-      if (is_simple && !cand_vars.empty()) {
-        for (const PrimVar& new_var : cand_vars) {
-          if (!std::any_of(vars.begin(), vars.end(),
-                           [&new_var](const PrimVar& v) { return v.same_as(new_var); })) {
-            vars.push_back(new_var);
-          }
-        }
-        equations.push_back(e.as_or_throw<PrimExpr>());
-      }
-    } else if (e->IsInstance<prim::AndNode>()) {
-      prim::And op = e.as_or_throw<prim::And>();
-      fvisit(op->a);
-      fvisit(op->b);
-    } else if (e->IsInstance<CallNode>()) {
-      Call op = e.as_or_throw<Call>();
-      if (op->op.same_as(prim::builtin::likely())) {
-        fvisit(op->args[0].as_or_throw<PrimExpr>());
-      }
-    }
-  };
-  fvisit(condition);
-  if (equations.empty()) {
-    return std::nullopt;
-  }
-  // build dom ranges for related vars
-  ffi::Map<Var, Range> ranges;
-  for (const Var& v : vars) {
-    arith::IntSet dom;
-    auto relax_it = relax_map_->find(v.get());
-    if (relax_it != relax_map_->end()) {
-      dom = relax_it->second;
-    } else {
-      auto hint_it = hint_map_->find(v.get());
-      if (hint_it != hint_map_->end()) {
-        dom = hint_it->second;
-      }
-    }
-    if (dom.defined()) {
-      ranges.Set(v, Range::FromMinExtent(dom.min(), analyzer->Simplify(dom.max() - dom.min() + 1)));
-    }
-  }
-  // Keep unsigned comparisons out of signed-coefficient elimination.
-  ffi::Array<PrimExpr> signed_equations;
-  for (const PrimExpr& e : equations) {
-    if (!GetUnsignedRange(e)) signed_equations.push_back(e);
-  }
-  arith::IntConstraints constraint(vars, ranges, signed_equations);
-  arith::IntConstraints result =
-      vars.empty() ? constraint : arith::SolveInequalitiesToRange(constraint);
-  if (result->relations.empty()) {
-    ranges = result->ranges;
-  } else {
-    ranges.clear();
-  }
-  // Reuse the same range map for directly solved unsigned comparisons.
-  for (const PrimExpr& e : equations) {
-    if (auto bound = GetUnsignedRange(e)) {
-      auto [var, range] = *bound;
-      if (auto previous = ranges.Get(var)) {
-        uint64_t min = GetConstUInt(range->min).value();
-        uint64_t extent = GetConstUInt(range->extent).value();
-        uint64_t previous_min = GetConstUInt(previous.value()->min).value();
-        uint64_t previous_extent = GetConstUInt(previous.value()->extent).value();
-        uint64_t lower = std::max(min, previous_min);
-        uint64_t upper = std::min(min + (extent - 1), previous_min + (previous_extent - 1));
-        if (lower > upper) return std::nullopt;
-        range = Range::FromMinExtent(MakeConst(range->min.ty(), lower),
-                                     MakeConst(range->min.ty(), upper - lower + 1));
-      }
-      ranges.Set(var, range);
-    }
-  }
-  if (ranges.empty()) return std::nullopt;
-  return arith::IntConstraints(vars, ranges, {});
-}
-
-ConditionalBoundsContext::ConditionalBoundsContext(
-    const PrimExpr& condition, std::unordered_map<const VarNode*, arith::IntSet>* relax_map,
-    std::unordered_map<const VarNode*, arith::IntSet>* hint_map,
-    std::vector<PrimExpr>* pending_conditions)
-    : condition_(condition),
-      relax_map_(relax_map),
-      hint_map_(hint_map),
-      pending_conditions_(pending_conditions),
-      origin_pending_conditions_num_(pending_conditions->size()) {}
-
-void ConditionalBoundsContext::EnterWithScope() {
-  ffi::Optional<arith::IntConstraints> constraints = TrySolveCondition();
-  if (!constraints.has_value()) {
-    // fail to process the condition, add to unresolved
-    pending_conditions_->push_back(condition_);
-    return;
-  }
-  // update solved var ranges
-  for (const auto& kv : constraints.value()->ranges) {
-    const VarNode* var = kv.first.get();
-    arith::IntSet new_dom;
-    if (var->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLUInt)) {
-      // These static ranges are nonempty. Compute the endpoint without unsigned
-      // wraparound or signed-int64 constant folding in IntSet::FromRange.
-      uint64_t min = GetConstUInt(kv.second->min).value();
-      uint64_t extent = GetConstUInt(kv.second->extent).value();
-      new_dom = arith::IntSet::Interval(
-          kv.second->min,
-          extent == 1 ? kv.second->min : MakeConst(kv.second->min.ty(), min + (extent - 1)));
-    } else {
-      new_dom = arith::IntSet::FromRange(kv.second);
-    }
-    auto relax_it = relax_map_->find(var);
-    if (relax_it != relax_map_->end()) {
-      // this is a bound for relaxed var
-      origin_map_.emplace(var, relax_it->second);
-      relax_it->second = arith::Intersect({relax_it->second, new_dom});
-    } else {
-      // this is a bound for free var
-      auto hint_it = hint_map_->find(var);
-      if (hint_it != hint_map_->end()) {
-        origin_map_.emplace(var, hint_it->second);
-        hint_it->second = arith::Intersect({hint_it->second, new_dom});
-      } else {
-        origin_map_.emplace(var, arith::IntSet::Nothing());
-        hint_map_->insert(hint_it, {var, new_dom});
-      }
-    }
-  }
-}
-
-void ConditionalBoundsContext::ExitWithScope() {
-  pending_conditions_->resize(origin_pending_conditions_num_);
-  for (const auto& p : origin_map_) {
-    const auto* var = p.first;
-    auto relax_it = relax_map_->find(var);
-    if (relax_it != relax_map_->end()) {
-      // recover bound for relaxed var
-      relax_it->second = p.second;
-    } else {
-      // recover bound for free var
-      auto hint_it = hint_map_->find(var);
-      TVM_FFI_ICHECK(hint_it != hint_map_->end());
-      if (p.second.IsNothing()) {
-        hint_map_->erase(hint_it);
-      } else {
-        hint_it->second = p.second;
-      }
-    }
-  }
-}
-
 std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op) {
   TVM_FFI_ICHECK(op && op->attr_key == s_tir::attr::async_wait_queue_scope);
   auto inner = op->body.as<AttrStmtNode>();
@@ -1059,13 +829,19 @@ std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op) {
 }
 
 /*! \brief Collect storage alignment information from annotations. */
-class StorageAlignCollector : public StmtVisitor {
+class StorageAlignCollector : public StmtExprVisitor {
+ public:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
  private:
   friend std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(
       const Stmt& body);
 
   /*! \brief For s-stir, the alignment annotations reside in block annotations. */
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     auto it = op->annotations.find(s_tir::attr::buffer_dim_align);
     if (it != op->annotations.end()) {
       auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
@@ -1075,11 +851,11 @@ class StorageAlignCollector : public StmtVisitor {
         storage_align_[buffer.var()].push_back(storage_align_tuple);
       }
     }
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   /*! \brief AllocBuffer: check for buffer_dim_align annotations. */
-  void VisitStmt_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
     auto it = op->annotations.find(s_tir::attr::buffer_dim_align);
     if (it != op->annotations.end()) {
       auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
@@ -1091,7 +867,7 @@ class StorageAlignCollector : public StmtVisitor {
         storage_align_[op->buffer.var()].push_back(storage_align_tuple);
       }
     }
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   /*! \brief The map from buffer var to its storage alignment information. */
@@ -1099,9 +875,9 @@ class StorageAlignCollector : public StmtVisitor {
 };
 
 std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(const Stmt& body) {
-  StorageAlignCollector collector;
-  collector(body);
-  return std::move(collector.storage_align_);
+  auto collector = ffi::make_object<StorageAlignCollector>();
+  collector->Visit(body);
+  return std::move(collector->storage_align_);
 }
 
 int Stoi(const std::string& str) {
@@ -1147,12 +923,12 @@ std::optional<bool> IsHostFunc(const PrimFunc& func) {
 namespace transform {
 Pass ConvertSSA() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
-    tirx::IRConvertSSA converter;
+    auto converter = ffi::make_object<tirx::IRConvertSSA>();
     ffi::Map<GlobalVar, BaseFunc> functions;
     bool made_change = false;
     for (auto [gvar, base_func] : mod->functions) {
       if (auto* ptr = base_func.as<tirx::PrimFuncNode>()) {
-        auto updated = converter.VisitPrimFunc(ffi::GetRef<tirx::PrimFunc>(ptr));
+        auto updated = converter->VisitPrimFunc(ffi::GetRef<tirx::PrimFunc>(ptr));
         if (!updated.same_as(base_func)) {
           made_change = true;
           base_func = updated;

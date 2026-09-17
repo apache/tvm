@@ -27,10 +27,10 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/expr_functor.h>
-#include <tvm/tirx/op.h>
 
 #include <algorithm>
 #include <unordered_map>
@@ -44,15 +44,13 @@
 
 namespace tvm {
 namespace arith {
+using namespace tvm::prim;
 
-using tirx::is_one;
-using tirx::is_zero;
-using tirx::MakeConst;
+using prim::is_one;
+using prim::is_zero;
+using prim::MakeConst;
 
 TVM_FFI_STATIC_INIT_BLOCK() { IntervalSetNode::RegisterReflection(); }
-
-PrimExpr SymbolicLimits::pos_inf_ = tirx::PrimVar("pos_inf", PrimType::Int(64));
-PrimExpr SymbolicLimits::neg_inf_ = tirx::PrimVar("neg_inf", PrimType::Int(64));
 
 IntervalSet::IntervalSet(PrimExpr min_value, PrimExpr max_value) {
   auto node = ffi::make_object<IntervalSetNode>();
@@ -261,7 +259,7 @@ inline IntervalSet Combine<prim::Mod>(AnalyzerObj* analyzer, IntervalSet a, Inte
     if (analyzer->CanProveGreaterEqual(divisor, 0)) {
       return IntervalSet(IntImm(divisor.ty(), 0), divisor - 1);
     } else {
-      PrimExpr bound = abs(divisor) - 1;
+      PrimExpr bound = prim::IntegerAbs(divisor) - 1;
       return IntervalSet(-bound, bound);
     }
   }
@@ -358,7 +356,7 @@ inline IntervalSet Combine<prim::FloorMod>(AnalyzerObj* analyzer, IntervalSet a,
       }
       return IntervalSet(IntImm(divisor.ty(), 0), divisor - 1);
     } else {
-      PrimExpr bound = abs(divisor) - 1;
+      PrimExpr bound = prim::IntegerAbs(divisor) - 1;
       return IntervalSet(-bound, bound);
     }
   }
@@ -397,11 +395,9 @@ IntervalSet ToIntervalSet(IntSet set) {
   return IntervalSet::Everything();
 }
 
-using namespace tirx;
-
 // Simplified version of int set evaluator that operates on IntervalSet
 // We might use better set analysis in the future to replace the intervalset.
-class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
+class IntervalSetEvaluator : public tvm::ExprFunctor<IntervalSet(const Expr&)> {
  public:
   IntervalSetEvaluator(AnalyzerObj* analyzer, const ffi::Map<Var, IntSet>& dom_map,
                        const std::vector<std::pair<Var, IntSet>>* dom_constraints = nullptr,
@@ -411,7 +407,7 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
         dom_constraints_(dom_constraints),
         eval_vec_(eval_vec) {}
 
-  IntervalSet Eval(const PrimExpr& val) { return this->VisitExpr(val); }
+  IntervalSet Eval(const PrimExpr& val) { return this->Dispatch(val); }
   // evaluate and relax the set
   IntervalSet Eval(IntervalSet val) {
     // avoid recursive indefinite recursive expansion.
@@ -424,11 +420,11 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
     return IntervalSet(min_set->min_value, max_set->max_value);
   }
 
-  IntervalSet VisitExpr_(const IntImmNode* op) final {
+  IntervalSet Dispatch_(const IntImmNode* op) final {
     return IntervalSet::SinglePoint(ffi::GetRef<PrimExpr>(op));
   }
 
-  IntervalSet VisitExpr_(const VarNode* op) final {
+  IntervalSet Dispatch_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
 
     auto it = dom_map_.find(var);
@@ -486,45 +482,45 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
     return relaxed;
   }
 
-  IntervalSet VisitExpr_(const prim::AddNode* op) final { return VisitBinaryExpr_<prim::Add>(op); }
+  IntervalSet Dispatch_(const prim::AddNode* op) final { return VisitBinaryExpr_<prim::Add>(op); }
 
-  IntervalSet VisitExpr_(const prim::SubNode* op) final { return VisitBinaryExpr_<prim::Sub>(op); }
+  IntervalSet Dispatch_(const prim::SubNode* op) final { return VisitBinaryExpr_<prim::Sub>(op); }
 
-  IntervalSet VisitExpr_(const prim::MulNode* op) final { return VisitBinaryExpr_<prim::Mul>(op); }
+  IntervalSet Dispatch_(const prim::MulNode* op) final { return VisitBinaryExpr_<prim::Mul>(op); }
 
-  IntervalSet VisitExpr_(const prim::DivNode* op) final { return VisitBinaryExpr_<prim::Div>(op); }
+  IntervalSet Dispatch_(const prim::DivNode* op) final { return VisitBinaryExpr_<prim::Div>(op); }
 
-  IntervalSet VisitExpr_(const prim::ModNode* op) final { return VisitBinaryExpr_<prim::Mod>(op); }
+  IntervalSet Dispatch_(const prim::ModNode* op) final { return VisitBinaryExpr_<prim::Mod>(op); }
 
-  IntervalSet VisitExpr_(const prim::FloorDivNode* op) final {
+  IntervalSet Dispatch_(const prim::FloorDivNode* op) final {
     return VisitBinaryExpr_<prim::FloorDiv>(op);
   }
 
-  IntervalSet VisitExpr_(const prim::FloorModNode* op) final {
+  IntervalSet Dispatch_(const prim::FloorModNode* op) final {
     return VisitBinaryExpr_<prim::FloorMod>(op);
   }
 
-  IntervalSet VisitExpr_(const prim::MinNode* op) final { return VisitBinaryExpr_<prim::Min>(op); }
+  IntervalSet Dispatch_(const prim::MinNode* op) final { return VisitBinaryExpr_<prim::Min>(op); }
 
-  IntervalSet VisitExpr_(const prim::MaxNode* op) final { return VisitBinaryExpr_<prim::Max>(op); }
+  IntervalSet Dispatch_(const prim::MaxNode* op) final { return VisitBinaryExpr_<prim::Max>(op); }
 
-  IntervalSet VisitExpr_(const prim::EQNode* op) final { return VisitBinaryExpr_<prim::EQ>(op); }
+  IntervalSet Dispatch_(const prim::EQNode* op) final { return VisitBinaryExpr_<prim::EQ>(op); }
 
-  IntervalSet VisitExpr_(const prim::NENode* op) final { return VisitBinaryExpr_<prim::NE>(op); }
+  IntervalSet Dispatch_(const prim::NENode* op) final { return VisitBinaryExpr_<prim::NE>(op); }
 
-  IntervalSet VisitExpr_(const prim::LTNode* op) final { return VisitBinaryExpr_<prim::LT>(op); }
+  IntervalSet Dispatch_(const prim::LTNode* op) final { return VisitBinaryExpr_<prim::LT>(op); }
 
-  IntervalSet VisitExpr_(const prim::LENode* op) final { return VisitBinaryExpr_<prim::LE>(op); }
+  IntervalSet Dispatch_(const prim::LENode* op) final { return VisitBinaryExpr_<prim::LE>(op); }
 
-  IntervalSet VisitExpr_(const prim::GTNode* op) final { return VisitBinaryExpr_<prim::GT>(op); }
+  IntervalSet Dispatch_(const prim::GTNode* op) final { return VisitBinaryExpr_<prim::GT>(op); }
 
-  IntervalSet VisitExpr_(const prim::GENode* op) final { return VisitBinaryExpr_<prim::GE>(op); }
+  IntervalSet Dispatch_(const prim::GENode* op) final { return VisitBinaryExpr_<prim::GE>(op); }
 
-  IntervalSet VisitExpr_(const prim::AndNode* op) final { return VisitBinaryExpr_<prim::And>(op); }
+  IntervalSet Dispatch_(const prim::AndNode* op) final { return VisitBinaryExpr_<prim::And>(op); }
 
-  IntervalSet VisitExpr_(const prim::OrNode* op) final { return VisitBinaryExpr_<prim::Or>(op); }
+  IntervalSet Dispatch_(const prim::OrNode* op) final { return VisitBinaryExpr_<prim::Or>(op); }
 
-  IntervalSet VisitExpr_(const prim::RampNode* op) final {
+  IntervalSet Dispatch_(const prim::RampNode* op) final {
     TVM_FFI_ICHECK(eval_vec_);
     IntervalSet base = Eval(op->base);
     PVar<IntImm> stride;
@@ -534,28 +530,16 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
       if (op->lanes->IsInstance<IntImmNode>()) {
         int lanes = static_cast<int>(op->lanes.as_or_throw<IntImm>()->value);
         if (vstride > 0) {
-          PrimExpr stride_expr = MakeConst(t, vstride * (lanes - 1));
+          PrimExpr stride_expr = prim::MakeConst(t, vstride * (lanes - 1));
           auto add_op = prim::Add(op->base, stride_expr);
           auto add_node = add_op.as<prim::AddNode>();
           return Combine<prim::Add>(analyzer_, base, IntervalSet(IntImm(t, 0), stride_expr),
                                     add_node);
         } else {
-          PrimExpr stride_expr = MakeConst(t, vstride * (lanes - 1));
+          PrimExpr stride_expr = prim::MakeConst(t, vstride * (lanes - 1));
           auto add_op = prim::Add(op->base, stride_expr);
           auto add_node = add_op.as<prim::AddNode>();
           return Combine<prim::Add>(analyzer_, base, IntervalSet(stride_expr, IntImm(t, 0)),
-                                    add_node);
-        }
-      } else { /* Scalable vector */
-        if (vstride > 0) {
-          auto add_op = prim::Add(op->base, IntImm(t, 0));
-          auto add_node = add_op.as<prim::AddNode>();
-          return Combine<prim::Add>(analyzer_, base, IntervalSet(IntImm(t, 0), pos_inf()),
-                                    add_node);
-        } else {
-          auto add_op = prim::Add(op->base, IntImm(t, 0));
-          auto add_node = add_op.as<prim::AddNode>();
-          return Combine<prim::Add>(analyzer_, base, IntervalSet(neg_inf(), IntImm(t, 0)),
                                     add_node);
         }
       }
@@ -564,34 +548,35 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
     return IntervalSet::Everything();
   }
 
-  IntervalSet VisitExpr_(const prim::BroadcastNode* op) final {
+  IntervalSet Dispatch_(const prim::BroadcastNode* op) final {
     TVM_FFI_ICHECK(eval_vec_);
-    return VisitExpr(op->value);
+    return Dispatch(op->value);
   }
 
-  IntervalSet VisitExpr_(const prim::SelectNode* op) final {
+  IntervalSet Dispatch_(const prim::SelectNode* op) final {
     IntervalSet true_set = this->Eval(op->true_value);
     IntervalSet false_set = this->Eval(op->false_value);
     return Union(analyzer_, false_set, true_set);
   }
 
-  IntervalSet VisitExpr_(const prim::CastNode* op) final {
+  IntervalSet Dispatch_(const prim::CastNode* op) final {
     IntervalSet value_set = this->Eval(op->value);
     // short cut for the int set.
     if (value_set->min_value.same_as(value_set->max_value)) {
       if (value_set->IsEmpty()) return value_set;
-      return IntervalSet::SinglePoint(cast(op->ty.as_or_throw<PrimType>(), value_set->min_value));
+      return IntervalSet::SinglePoint(
+          prim::cast(op->ty.as_or_throw<PrimType>(), value_set->min_value));
     }
     PrimExpr min_value = value_set->HasLowerBound()
-                             ? cast(op->ty.as_or_throw<PrimType>(), value_set->min_value)
+                             ? prim::cast(op->ty.as_or_throw<PrimType>(), value_set->min_value)
                              : neg_inf();
     PrimExpr max_value = value_set->HasUpperBound()
-                             ? cast(op->ty.as_or_throw<PrimType>(), value_set->max_value)
+                             ? prim::cast(op->ty.as_or_throw<PrimType>(), value_set->max_value)
                              : pos_inf();
     return IntervalSet(min_value, max_value);
   }
 
-  IntervalSet VisitExpr_(const TensorLoadNode* op) final {
+  IntervalSet Dispatch_(const TensorLoadNode* op) final {
     PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (!op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
       DLOG(WARNING) << "cannot evaluate set TensorLoad which loads from a " << op_ty->dtype
@@ -613,15 +598,9 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
     return IntervalSet::SinglePoint(ffi::GetRef<PrimExpr>(op));
   }
 
-  IntervalSet VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(prim::builtin::vscale())) {
-      PrimExpr call = ffi::GetRef<Call>(op).as_or_throw<PrimExpr>();
-      return IntervalSet(call, call);
-    }
-    return IntervalSet::Everything();
-  }
+  IntervalSet Dispatch_(const CallNode* op) final { return IntervalSet::Everything(); }
 
-  IntervalSet VisitExprDefault_(const ffi::Object* op) final {
+  IntervalSet DispatchDefault_(const ffi::Object* op) final {
     DLOG(WARNING) << "cannot evaluate set type " << op->GetTypeKey();
     return IntervalSet::Everything();
   }
@@ -727,12 +706,12 @@ void IntSetAnalyzer::Impl::Update(const Var& var, const IntSet& info, bool can_o
     if (it != dom_map_.end()) {
       const IntSet& old_info = (*it).second;
 
-      TVM_FFI_ICHECK(ExprDeepEqual()(old_info.min(), info.min()))
+      TVM_FFI_ICHECK(prim::ExprDeepEqual()(old_info.min(), info.min()))
           << "Trying to update var \'" << var << "\'"
           << " with a different minimum value: "
           << "original=" << old_info.min() << ", new=" << info.min();
 
-      TVM_FFI_ICHECK(ExprDeepEqual()(old_info.max(), info.max()))
+      TVM_FFI_ICHECK(prim::ExprDeepEqual()(old_info.max(), info.max()))
           << "Trying to update var \'" << var << "\'"
           << " with a different maximum value: "
           << "original=" << old_info.max() << ", new=" << info.max();
@@ -1044,14 +1023,6 @@ IntSet Intersect(const ffi::Array<IntSet>& sets) {
   return IntervalSet(ana->Simplify(x->min_value), ana->Simplify(x->max_value));
 }
 
-ffi::Map<Var, IntSet> ConvertDomMap(const ffi::Map<IterVar, IntSet>& dom_map) {
-  ffi::Map<Var, IntSet> dmap;
-  for (auto kv : dom_map) {
-    dmap.Set(kv.first->var, kv.second);
-  }
-  return dmap;
-}
-
 ffi::Map<Var, IntSet> ConvertDomMap(const std::unordered_map<const VarNode*, IntSet>& dom_map) {
   ffi::Map<Var, IntSet> dmap;
   for (auto kv : dom_map) {
@@ -1075,10 +1046,6 @@ IntSet IntSet::Vector(PrimExpr x) {
     ffi::Map<Var, IntSet> dmap;
     return IntervalSetEvaluator(ana.get(), dmap, {}, true).Eval(x);
   }
-}
-
-IntSet EvalSet(PrimExpr e, const ffi::Map<IterVar, IntSet>& dom_map) {
-  return EvalSet(e, ConvertDomMap(dom_map));
 }
 
 IntSet EvalSet(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom_map) {
@@ -1130,8 +1097,8 @@ class SubExprIntervalSetEvaluator : public IntervalSetEvaluator {
   explicit SubExprIntervalSetEvaluator(AnalyzerObj* analyzer, const ffi::Map<Var, IntSet>& dom_map)
       : IntervalSetEvaluator(analyzer, dom_map) {}
 
-  IntervalSet VisitExpr(const Expr& n) final {
-    IntervalSet ret = IntervalSetEvaluator::VisitExpr(n);
+  IntervalSet Dispatch(const Expr& n) final {
+    IntervalSet ret = IntervalSetEvaluator::Dispatch(n);
     expr_map[n.as_or_throw<PrimExpr>()] = ret;
     return ret;
   }
@@ -1146,10 +1113,6 @@ ExprIntSetMap EvalSetForEachSubExpr(PrimExpr e,
   SubExprIntervalSetEvaluator m(ana.get(), dmap);
   m.Eval(e);
   return m.expr_map;
-}
-
-IntSet EvalSet(Range r, const ffi::Map<IterVar, IntSet>& dom_map) {
-  return EvalSet(r, ConvertDomMap(dom_map));
 }
 
 ffi::Map<Var, arith::IntSet> AsIntSet(const ffi::Map<Var, Range>& var_dom) {

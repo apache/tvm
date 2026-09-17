@@ -32,7 +32,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 /*!
  * \brief Get the buffer dimensions for all the read buffers of a block, but marks the reduction
@@ -49,7 +48,6 @@ std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref);
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*!

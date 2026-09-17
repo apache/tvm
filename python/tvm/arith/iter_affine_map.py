@@ -138,7 +138,7 @@ def detect_iter_map(
     indices : List[Expr]
         The input indices
 
-    input_iters : Map[tvm.tirx.Var, Range]
+    input_iters : Map[tvm.ir.Var, Range]
         The domain of each input iterators.
 
     predicate : Expr
@@ -183,7 +183,7 @@ def normalize_to_iter_sum(index, input_iters, analyzer=None):
     index : Expr
         The input index
 
-    input_iters : Map[tvm.tirx.Var, Range]
+    input_iters : Map[tvm.ir.Var, Range]
         The domain of each input iterators.
 
     analyzer : Optional[tvm.arith.Analyzer]
@@ -221,7 +221,7 @@ def iter_map_simplify(
     indices : List[Expr]
         The input indices
 
-    input_iters : Map[tvm.tirx.Var, Range]
+    input_iters : Map[tvm.ir.Var, Range]
         The domain of each input iterators.
 
     predicate : Expr
@@ -304,10 +304,10 @@ def subspace_divide(
     bindings : List[Expr]
         The input bindings
 
-    input_iters : Map[tvm.tirx.Var, Range]
+    input_iters : Map[tvm.ir.Var, Range]
         The domain of input iterator, which is the basis of the whole space
 
-    sub_iters : Array[tvm.tirx.Var]
+    sub_iters : Array[tvm.ir.Var]
         The subset of input_iters, which is the basis of the subspace
 
     predicate : Expr
@@ -369,7 +369,7 @@ def inverse_affine_iter_map(iter_map, outputs):
 
     Returns
     -------
-    results : Map[tvm.tirx.Var, Expr]
+    results : Map[tvm.ir.Var, Expr]
         The map from the input to the transformed result.
     """
     return _ffi_api.InverseAffineIterMap(iter_map, outputs)

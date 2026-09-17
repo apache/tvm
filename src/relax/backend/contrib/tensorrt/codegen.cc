@@ -50,6 +50,8 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
+
 namespace contrib {
 
 /*! \brief Attributes to store the compiler options for TensorRT. */
@@ -197,7 +199,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     if (initial.size() != final_indices.size()) return true;
     ffi::Array<int64_t> permutation;
     for (const PrimExpr& expr : final_indices) {
-      auto var = expr.as<tirx::PrimVar>();
+      auto var = expr.as<PrimVar>();
       if (!var.has_value()) return true;
       int64_t pos = -1;
       for (size_t j = 0; j < initial.size(); ++j) {

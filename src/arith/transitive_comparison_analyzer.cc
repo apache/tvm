@@ -22,9 +22,9 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/analysis.h>
 
 #include <optional>
+#include <unordered_set>
 #include <vector>
 
 #include "constraint_extract.h"
@@ -32,8 +32,9 @@
 
 namespace tvm {
 namespace arith {
+using namespace tvm::prim;
 
-using namespace tirx;
+using prim::is_const_int;
 
 class TransitiveComparisonAnalyzer::Impl {
  public:
@@ -48,7 +49,7 @@ class TransitiveComparisonAnalyzer::Impl {
    * compared.  If false, only use the known comparison that have been
    * directly provided.  Using `propagate_inequalities = false` is
    * roughly equivalent to comparing against all known values with
-   * `ExprDeepEqual`, but also allowing for constant offsets on either
+   * `prim::ExprDeepEqual`, but also allowing for constant offsets on either
    * side of the inequality.
    *
    * \return The most specific result that can be proven about the
@@ -63,7 +64,7 @@ class TransitiveComparisonAnalyzer::Impl {
    * \param expr The bound expression
    * \param allow_override Whether to allow override of existing information.
    */
-  void Bind(const tirx::Var& var, const PrimExpr& expr, bool allow_override = false);
+  void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
 
   /*! \brief Bind a variable as being within a specified range
    *
@@ -71,7 +72,7 @@ class TransitiveComparisonAnalyzer::Impl {
    * \param range The known range
    * \param allow_override Whether to allow override of existing information.
    */
-  void Bind(const tirx::Var& var, const Range& expr, bool allow_override = false);
+  void Bind(const Var& var, const Range& expr, bool allow_override = false);
 
   /*!
    * \brief Update the internal state to enter constraint.
@@ -96,8 +97,8 @@ class TransitiveComparisonAnalyzer::Impl {
    *
    * 1. Providing efficiency, as compared to a PrimExpr.  Two keys are
    *    equal if and only if the corresponding PrimExprs would satisfy
-   *    ExprDeepEqual.  This allows two expressions to be checked for
-   *    equivalency, without requiring a call to ExprDeepEqual for
+   *    prim::ExprDeepEqual.  This allows two expressions to be checked for
+   *    equivalency, without requiring a call to prim::ExprDeepEqual for
    *    each comparison.
    *
    * 2. Providing type-safety, as compared to using `size_t` directly.
@@ -558,7 +559,7 @@ std::function<void()> TransitiveComparisonAnalyzer::EnterConstraint(const PrimEx
 void TransitiveComparisonAnalyzer::Impl::AddKnown(const PrimExpr& expr,
                                                   std::vector<Comparison>* vec) {
   for (const auto& subexpr : ExtractConstraints(expr, false)) {
-    if (tirx::SideEffect(expr) <= tirx::CallEffectKind::kPure) {
+    if (SideEffect(expr) <= CallEffectKind::kPure) {
       if (auto cmp = FromExpr(subexpr)) {
         vec->push_back(cmp.value());
       }
@@ -566,11 +567,11 @@ void TransitiveComparisonAnalyzer::Impl::AddKnown(const PrimExpr& expr,
   }
 }
 
-void TransitiveComparisonAnalyzer::Impl::Bind(const tirx::Var& var, const Range& range,
+void TransitiveComparisonAnalyzer::Impl::Bind(const Var& var, const Range& range,
                                               bool allow_override) {
   auto it = prev_bindings_.find(var);
   if (it != prev_bindings_.end()) {
-    ExprDeepEqual expr_equal;
+    prim::ExprDeepEqual expr_equal;
     bool differs_from_previous = !expr_equal(range->min, (*it).second->min) ||
                                  !expr_equal(range->extent, (*it).second->extent);
     if (differs_from_previous) {
@@ -595,7 +596,7 @@ void TransitiveComparisonAnalyzer::Impl::Bind(const tirx::Var& var, const Range&
   }
 }
 
-void TransitiveComparisonAnalyzer::Impl::Bind(const tirx::Var& var, const PrimExpr& expr,
+void TransitiveComparisonAnalyzer::Impl::Bind(const Var& var, const PrimExpr& expr,
                                               bool allow_override) {
   Bind(var, Range::FromMinExtent(expr, 1), allow_override);
 }

@@ -24,14 +24,12 @@
 #include "presburger_set.h"
 
 #include <tvm/arith/int_set.h>
-#include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/expr_functor.h>
 
 #include <algorithm>
 #include <unordered_map>
@@ -43,11 +41,11 @@
 
 namespace tvm {
 namespace arith {
+using namespace tvm::prim;
 
 #if defined(TVM_MLIR_VERSION) && TVM_MLIR_VERSION >= 150
 
 TVM_FFI_STATIC_INIT_BLOCK() { PresburgerSetNode::RegisterReflection(); }
-using namespace tirx;
 
 static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
   auto& space = intset->space;

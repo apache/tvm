@@ -30,10 +30,9 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
-using ExprComparator = ExprFunctor<bool(const Expr& n, const PrimExpr& other)>;
+using ExprComparator = tirx::ExprFunctor<bool(const Expr& n, const PrimExpr& other)>;
 using StmtComparator = StmtFunctor<bool(const Stmt& n, const Stmt& other)>;
 
 /*! \brief Deep comparison to check if two IR ASTs are equivalent for tensorization*/
@@ -47,39 +46,39 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   explicit TensorizeComparator(IRModule lhs_mod, bool assert_mode = true)
       : lhs_mod_(std::move(lhs_mod)), assert_mode_(assert_mode) {}
 
-  bool VisitExpr(const Expr& n, const PrimExpr& other) override;
+  bool Dispatch(const Expr& n, const PrimExpr& other) override;
   bool VisitStmt(const Stmt& n, const Stmt& other) override;
 
-  bool VisitExpr_(const CallNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const CallNode* op, const PrimExpr& other) override;
   bool VisitStmt_(const ForNode* op, const Stmt& other) override;
   bool VisitStmt_(const SeqStmtNode* op, const Stmt& other) override;
   bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) override;
   bool VisitStmt_(const SBlockRealizeNode* op, const Stmt& other) override;
   bool VisitStmt_(const SBlockNode* op, const Stmt& other) override;
 
-  bool VisitExpr_(const AddNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const SubNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const MulNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const DivNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const ModNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const EQNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const NENode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const LTNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const LENode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const GTNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const GENode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const AndNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const OrNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const MinNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const MaxNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const FloorDivNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const FloorModNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const IntImmNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const FloatImmNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const CastNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const VarNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const TensorLoadNode* op, const PrimExpr& other) override;
-  bool VisitExpr_(const SelectNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const AddNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const SubNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const MulNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const DivNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const ModNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const EQNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const NENode* op, const PrimExpr& other) override;
+  bool Dispatch_(const LTNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const LENode* op, const PrimExpr& other) override;
+  bool Dispatch_(const GTNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const GENode* op, const PrimExpr& other) override;
+  bool Dispatch_(const AndNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const OrNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const MinNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const MaxNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const FloorDivNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const FloorModNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const IntImmNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const FloatImmNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const CastNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const VarNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const TensorLoadNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const SelectNode* op, const PrimExpr& other) override;
 
   /*! \brief Map from RHS buffer to LHS buffer */
   std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rhs_buffer_map_;
@@ -139,13 +138,13 @@ class AutoTensorizeComparator : public TensorizeComparator {
       : TensorizeComparator(lhs_mod, /* assert_mode=*/false) {}
 
  private:
-  bool VisitExprDefault_(const ffi::Object* op, const PrimExpr& other) override;
+  bool DispatchDefault_(const ffi::Object* op, const PrimExpr& other) override;
   bool VisitStmtDefault_(const ffi::Object* op, const Stmt& other) override;
 
   bool VisitStmt_(const SBlockNode* op, const Stmt& other) override;
   bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) override;
 
-  bool VisitExpr_(const TensorLoadNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const TensorLoadNode* op, const PrimExpr& other) override;
 
   bool CompareBuffer(const BufferVar& lhs, const BufferVar& rhs) override;
   template <typename T>

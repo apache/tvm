@@ -36,10 +36,11 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/transform.h>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
+#include "../ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace arith {
+using namespace tvm::prim;
 
 using namespace tirx;
 
@@ -100,62 +101,56 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tirx.StmtSimplify", StmtSimplifyConfig);
 
 class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
   static PrimFunc Apply(PrimFunc func, const Analyzer& analyzer,
                         ffi::Optional<StmtSimplifyConfig> config_opt = std::nullopt) {
     auto config = config_opt.value_or(MakeDefaultStmtSimplifyConfig());
     analyzer->rewrite_simplify.SetEnabledExtensions(config->GetEnabledExtensions());
 
-    StmtSimplifier simplifier(analyzer, config);
-    simplifier.MarkBufferParamShapes(func);
-    func.CopyOnWrite()->body = simplifier(func->body);
+    auto simplifier = ffi::make_object<StmtSimplifier>(analyzer, config);
+    simplifier->MarkBufferParamShapes(func);
+    auto* n = func.CopyOnWrite();
+    n->body = simplifier->Mutate(n->body, InplaceMode::kAllow).ValueOrUnchanged(n->body);
     return func;
   }
 
- private:
+ public:
   explicit StmtSimplifier(const Analyzer& analyzer, StmtSimplifyConfig config)
       : IRMutatorWithAnalyzer(analyzer), config_(config) {}
 
+ private:
   using Parent = IRMutatorWithAnalyzer;
-  using Parent::VisitExpr_;
-  using Parent::VisitStmt;
-  using Parent::VisitStmt_;
 
-  // Do not simplify buffer definition fields (shape, strides, elem_offset).
-  //
-  // The simplifier's VisitExpr override calls analyzer_->Simplify() directly,
-  // bypassing the normal ExprMutator dispatch. This means TensorLoad expressions
-  // inside values (e.g., BufferStore value) skip VisitExpr_(TensorLoadNode*) and
-  // thus skip VisitBufferUse. If VisitBufferDef remaps buffers at DeclBuffer sites,
-  // the TensorLoad use sites won't pick up the remap, causing DeclBuffer/BufferLoad
-  // buffer identity divergence and well-formedness violations.
-  //
-  // Instead, we keep buffer definitions unchanged and rely on used_in_buffer_def_
-  // to prevent inlining LetStmt vars that appear in buffer definitions.
-  BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) override { return buffer; }
-
-  Expr VisitExpr(const Expr& expr) final {
-    if (auto prim_expr = expr.as<PrimExpr>()) {
-      return analyzer_->Simplify(prim_expr.value());
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) final {
+    if (input.as<BufferType>()) {
+      return ffi::Unchanged();
     }
-    return Parent::VisitExpr(expr);
+    if (auto expr = input.as<PrimExpr>()) {
+      PrimExpr simplified = analyzer_->Simplify(*expr);
+      if (simplified.same_as(*expr)) return ffi::Unchanged();
+      return simplified;
+    }
+    return Parent::Mutate(input, inplace_mode);
   }
 
-  Stmt Simplify(Stmt stmt) { return operator()(std::move(stmt)); }
+  Stmt Simplify(Stmt stmt) { return Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt); }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
     With<ConstraintContext> ctx2(analyzer_,
                                  static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
-    return Parent::VisitStmt_(op);
+    return Parent::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const BindNode* op) override {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override {
     auto prim_value = op->value.as<PrimExpr>();
     if (!prim_value) {
-      return Parent::VisitStmt_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
-    PrimExpr value = this->VisitPrimExpr(prim_value.value());
+    PrimExpr value =
+        this->Mutate(prim_value.value(), inplace_mode).ValueOrUnchanged(prim_value.value());
     // Bind in analyzer for constraint proving and simplification of
     // subsequent expressions.  Don't remove the Bind statement --
     // with flat Bind there's no body to inspect for usage patterns,
@@ -163,7 +158,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     if (SideEffect(value) <= CallEffectKind::kPure) {
       analyzer_->Bind(op->var, value);
       // Record the binding so we can substitute it into assert conditions
-      // (see VisitStmt_(const AssertStmtNode*)).  Under SSA each var is
+      // (see Mutate_(const AssertStmtNode*, InplaceMode)).  Under SSA each var is
       // bound exactly once, so the map grows monotonically without key
       // conflicts.  No scope-based cleanup is needed because vars bound
       // in inner scopes are only referenced within those scopes; stale
@@ -172,50 +167,43 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
 
     if (value.same_as(op->value)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     } else {
-      auto n = this->CopyOnWrite(op);
+      if (inplace_mode == InplaceMode::kAllow) {
+        auto* n = const_cast<BindNode*>(op);
+        n->value = std::move(value);
+        return ffi::Unchanged();
+      }
+      auto n = ffi::make_object<BindNode>(*op);
       n->value = std::move(value);
       return Stmt(n);
     }
   }
 
-  Stmt VisitStmt_(const IfThenElseNode* op) override {
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) override {
     if (ffi::Optional<bool> cond = ProveCondition(op->condition)) {
       if (cond.value()) {
-        return this->VisitStmt(op->then_case);
+        return this->Mutate(op->then_case, inplace_mode).ValueOrUnchanged(op->then_case);
       } else if (op->else_case) {
-        return this->VisitStmt(op->else_case.value());
+        return this->Mutate(op->else_case.value(), inplace_mode)
+            .ValueOrUnchanged(op->else_case.value());
       } else {
         return Evaluate(0);
       }
     } else {
-      return Parent::VisitStmt_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
   }
-
-  Expr VisitExpr_(const CallNode* op) override {
-    if (op->op.same_as(prim::builtin::if_then_else())) {
-      if (ffi::Optional<bool> cond = ProveCondition(op->args[0].as_or_throw<PrimExpr>())) {
-        if (cond.value()) {
-          return this->VisitExpr(op->args[1]);
-        } else {
-          return this->VisitExpr(op->args[2]);
-        }
-      }
-    }
-    return Parent::VisitExpr_(op);
-  }
-
-  Expr VisitExpr_(const TensorLoadNode* op) override { return Parent::VisitExpr_(op); }
 
   // eliminate useless stores
-  Stmt VisitStmt_(const BufferStoreNode* op) override {
-    BufferStore store = Parent::VisitStmt_(op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override {
+    BufferStore store = Parent::Mutate_(op, inplace_mode)
+                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                            .as_or_throw<BufferStore>();
     if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
       BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
       if (buffer.same_as(store->buffer) && ArrayDeepEqual(load->indices, store->indices) &&
-          tirx::ExprDeepEqual()(buffer->elem_offset, store->buffer->elem_offset) &&
+          prim::ExprDeepEqual()(buffer->elem_offset, store->buffer->elem_offset) &&
           ArrayDeepEqual(buffer->shape, store->buffer->shape) &&
           ArrayDeepEqual(buffer->strides, store->buffer->strides)) {
         return Evaluate(0);
@@ -223,14 +211,12 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
     return store;
   }
-
- private:
   bool ArrayDeepEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimExpr>& rhs) {
     if (lhs.size() != rhs.size()) {
       return false;
     }
     for (size_t i = 0; i < lhs.size(); i++) {
-      if (!tirx::ExprDeepEqual()(lhs[i], rhs[i])) {
+      if (!prim::ExprDeepEqual()(lhs[i], rhs[i])) {
         return false;
       }
     }

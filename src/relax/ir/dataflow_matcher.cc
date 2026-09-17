@@ -53,6 +53,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 using tvm::arith::Analyzer;
 using tvm::arith::AnalyzerObj;
@@ -462,7 +463,7 @@ PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
 
   auto sort_key = [](PrimExpr expr) -> ffi::String {
     if (const auto* equal = expr.as<prim::EQNode>()) {
-      if (auto var = equal->a.as<tirx::PrimVar>()) {
+      if (auto var = equal->a.as<PrimVar>()) {
         return var.value()->name;
       }
     }
@@ -484,7 +485,7 @@ static bool ShapeEqual(AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& lhs,
                        const ffi::Array<PrimExpr>& rhs) {
   if (lhs.size() != rhs.size()) return false;
   for (size_t i = 0; i < lhs.size(); ++i)
-    if (!tirx::is_one(analyzer->Simplify(lhs[i] == rhs[i]))) return false;
+    if (!tvm::prim::is_one(analyzer->Simplify(lhs[i] == rhs[i]))) return false;
   return true;
 }
 

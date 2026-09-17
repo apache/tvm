@@ -33,6 +33,7 @@
 
 namespace tvm {
 namespace script {
+
 namespace ir_builder {
 namespace tirx {
 
@@ -50,17 +51,18 @@ namespace {
 // This normalizer runs at PrimFunc construction time: it strips any defined
 // layout from buffers in `buffer_map` / `root_alloc_buffers` and rewrites
 // matching body references through the StmtExprMutator's built-in
-// `buffer_remap_` machinery, so the body remains well-formed.
+// variable remapping, so the body remains well-formed.
 class STirBufferLayoutNormalizer : public tvm::tirx::StmtExprMutator {
  public:
+  using tvm::tirx::StmtExprMutator::Mutate;
+  using tvm::tirx::StmtExprMutator::Mutate_;
   void Register(const tvm::tirx::BufferVar& old_buf, const tvm::tirx::BufferVar& new_buf) {
-    this->buffer_remap_.Set(old_buf, new_buf);
+    VarRemapSet(old_buf, new_buf);
   }
-  bool Empty() const { return this->buffer_remap_.empty(); }
-  tvm::tirx::BufferVar Lookup(const tvm::tirx::BufferVar& buf) const {
-    auto it = this->buffer_remap_.find(buf);
-    if (it != this->buffer_remap_.end()) {
-      return (*it).second;
+  bool Empty() const { return var_remap_.empty(); }
+  tvm::tirx::BufferVar Lookup(const tvm::tirx::BufferVar& buf) {
+    if (auto mapped = VarRemapGet(buf); mapped != nullptr) {
+      return mapped.as_or_throw<tvm::tirx::BufferVar>();
     }
     return buf;
   }
@@ -117,7 +119,7 @@ void PrimFuncFrameNode::ExitWithScope() {
   // STirBufferLayoutNormalizer above) and rewrite body references coherently.
   ffi::Array<tvm::tirx::BufferVar> effective_root_alloc_buffers = root_alloc_buffers;
   tvm::tirx::Stmt body = AsStmt(stmts);
-  STirBufferLayoutNormalizer normalizer;
+  auto normalizer = ffi::make_object<STirBufferLayoutNormalizer>();
   ffi::Array<tvm::tirx::Var> effective_args;
   ffi::Map<tvm::tirx::Var, tvm::Expr> param_replacements;
   for (const tvm::tirx::Var& arg : args) {
@@ -135,7 +137,7 @@ void PrimFuncFrameNode::ExitWithScope() {
       ffi::ObjectPtr<tvm::tirx::BufferTypeNode> type = tvm::tirx::CopyBufferType(buffer);
       type->layout = std::nullopt;
       tvm::tirx::BufferVar new_buffer = tvm::tirx::RebuildBufferVar(buffer, std::move(type));
-      normalizer.Register(buffer, new_buffer);
+      normalizer->Register(buffer, new_buffer);
       buffer = new_buffer;
     }
     effective_args.push_back(buffer.var());
@@ -144,14 +146,14 @@ void PrimFuncFrameNode::ExitWithScope() {
       tvm::Expr data = buffer.data();
       param_replacements.Set(arg, ffi::StructuralEqual()(arg->ty, data->ty)
                                       ? data
-                                      : tvm::reinterpret(arg->ty, std::move(data)));
+                                      : tvm::prim::reinterpret(arg->ty, std::move(data)));
     }
   }
-  if (!normalizer.Empty()) {
-    body = normalizer(std::move(body));
+  if (!normalizer->Empty()) {
+    body = normalizer->Mutate(body, InplaceMode::kAllow).ValueOrUnchanged(body);
     ffi::Array<tvm::tirx::BufferVar> new_root_alloc_buffers;
     for (const tvm::tirx::BufferVar& buffer : root_alloc_buffers) {
-      new_root_alloc_buffers.push_back(normalizer.Lookup(buffer));
+      new_root_alloc_buffers.push_back(normalizer->Lookup(buffer));
     }
     effective_root_alloc_buffers = std::move(new_root_alloc_buffers);
   }
