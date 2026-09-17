@@ -30,19 +30,19 @@ class TIRVisitorWithPath : public tirx::TIRVisitorWithPath {
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(TIRVisitorWithPath, Parent)
  protected:
   using AccessPath = ffi::reflection::AccessPath;
-  using Parent::VisitStmt_;
-  virtual void VisitStmt_(const SBlockNode* op, AccessPath path);
-  virtual void VisitStmt_(const SBlockRealizeNode* op, AccessPath path);
+  using Parent::Dispatch_;
+  virtual void Dispatch_(const SBlockNode* op, AccessPath path);
+  virtual void Dispatch_(const SBlockRealizeNode* op, AccessPath path);
   static void InitVTable(VTable* vtable) {
     Parent::InitVTable(vtable);
     vtable->SetDispatch<SBlockNode>(
         [](const ffi::ObjectRef& node, StmtVisitor* self, AccessPath path) {
-          static_cast<TIRVisitorWithPath*>(self)->VisitStmt_(
+          static_cast<TIRVisitorWithPath*>(self)->Dispatch_(
               static_cast<const SBlockNode*>(node.get()), path);
         });
     vtable->SetDispatch<SBlockRealizeNode>(
         [](const ffi::ObjectRef& node, StmtVisitor* self, AccessPath path) {
-          static_cast<TIRVisitorWithPath*>(self)->VisitStmt_(
+          static_cast<TIRVisitorWithPath*>(self)->Dispatch_(
               static_cast<const SBlockRealizeNode*>(node.get()), path);
         });
   }

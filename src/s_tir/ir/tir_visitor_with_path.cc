@@ -26,7 +26,7 @@ namespace s_tir {
 using namespace tirx;
 using AccessPath = ffi::reflection::AccessPath;
 
-void TIRVisitorWithPath::VisitStmt_(const SBlockNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const SBlockNode* op, AccessPath path) {
   std::vector<std::variant<DefContext<Var>, DefContext<IterVar>, DefContext<BufferVar>>> context;
 
   {
@@ -71,7 +71,7 @@ void TIRVisitorWithPath::VisitStmt_(const SBlockNode* op, AccessPath path) {
   while (context.size()) context.pop_back();
 }
 
-void TIRVisitorWithPath::VisitStmt_(const SBlockRealizeNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const SBlockRealizeNode* op, AccessPath path) {
   Visit(op->iter_values, path->Attr("iter_values"));
   Visit(op->predicate, path->Attr("predicate"));
   Visit(op->block, path->Attr("block"));

@@ -53,7 +53,7 @@ TVMFFIAny MatchBufferRegionMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVi
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
                                       return mutator->MutateExpected(self->buffer);
                                     }));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<BufferRegion>, mapped_source,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<TensorRegion>, mapped_source,
                                     mutator->MutateExpected(self->source));
   if (mapped_buffer.UnchangedOrSameAs(self->buffer) &&
       mapped_source.UnchangedOrSameAs(self->source)) {
@@ -76,7 +76,7 @@ TVMFFIAny MatchBufferRegionMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator
                                                                      ffi::InplaceMode::kAllow);
                                     }));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<BufferRegion>, mapped_source,
+      ffi::UnchangedOr<TensorRegion>, mapped_source,
       mutator->MutateExpected(self->source, ffi::InplaceMode::kAllow));
   if (mapped_buffer.UnchangedOrSameAs(self->buffer) &&
       mapped_source.UnchangedOrSameAs(self->source)) {
@@ -120,9 +120,9 @@ TVMFFIAny SBlockMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) n
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<MatchBufferRegion>>,
                                     mapped_match_buffers,
                                     mutator->MutateExpected(self->match_buffers));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<BufferRegion>>, mapped_reads,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<TensorRegion>>, mapped_reads,
                                     mutator->MutateExpected(self->reads));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<BufferRegion>>, mapped_writes,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<TensorRegion>>, mapped_writes,
                                     mutator->MutateExpected(self->writes));
   using AnnotationMap = ffi::Map<ffi::String, ffi::Any>;
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<AnnotationMap>, mapped_annotations,
@@ -172,10 +172,10 @@ TVMFFIAny SBlockMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<ffi::Array<MatchBufferRegion>>, mapped_match_buffers,
       mutator->MutateExpected(self->match_buffers, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<BufferRegion>>, mapped_reads,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<TensorRegion>>, mapped_reads,
                                     mutator->MutateExpected(self->reads, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<ffi::Array<BufferRegion>>, mapped_writes,
+      ffi::UnchangedOr<ffi::Array<TensorRegion>>, mapped_writes,
       mutator->MutateExpected(self->writes, ffi::InplaceMode::kAllow));
   using AnnotationMap = ffi::Map<ffi::String, ffi::Any>;
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
@@ -269,8 +269,10 @@ TVMFFIAny SBlockRealizeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
 }  // namespace
 
 // MatchBufferRegion
-MatchBufferRegion::MatchBufferRegion(BufferVar buffer, BufferRegion source) {
-  const BufferVar& source_buffer = source->buffer;
+MatchBufferRegion::MatchBufferRegion(BufferVar buffer, TensorRegion source) {
+  const BufferVar& source_buffer = source->source.as_or_throw<BufferVar>();
+  TVM_FFI_ICHECK_EQ(source_buffer->shape.size(), source->region.size())
+      << "MatchBufferRegion source must match its buffer rank";
   arith::Analyzer analyzer;
   // Check scope and dtype
   TVM_FFI_ICHECK_EQ(buffer.scope(), source_buffer.scope())
@@ -322,17 +324,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&MatchBufferRegionMaybeInplaceMutate));
 
-  refl::GlobalDef().def("s_tir.MatchBufferRegion", [](BufferVar buffer, BufferRegion source) {
+  refl::GlobalDef().def("s_tir.MatchBufferRegion", [](BufferVar buffer, TensorRegion source) {
     return MatchBufferRegion(buffer, source);
   });
 }
 
 // Block
-SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
-               ffi::Array<BufferRegion> writes, ffi::String name_hint, Stmt body,
+SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<TensorRegion> reads,
+               ffi::Array<TensorRegion> writes, ffi::String name_hint, Stmt body,
                ffi::Optional<Stmt> init, ffi::Array<BufferVar> alloc_buffers,
                ffi::Array<MatchBufferRegion> match_buffers, ffi::Map<ffi::String, Any> annotations,
                Span span) {
+  for (const auto& regions : {reads, writes}) {
+    for (const TensorRegion& region : regions) {
+      const auto buffer = region->source.as_or_throw<BufferVar>();
+      TVM_FFI_ICHECK_EQ(buffer->shape.size(), region->region.size())
+          << "SBlock region must match its buffer rank";
+    }
+  }
   ffi::ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>();
   node->iter_vars = std::move(iter_vars);
   node->reads = std::move(reads);
@@ -372,8 +381,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             reinterpret_cast<void*>(&SBlockMaybeInplaceMutate));
 
   refl::GlobalDef().def("s_tir.SBlock",
-                        [](ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
-                           ffi::Array<BufferRegion> writes, ffi::String name_hint, Stmt body,
+                        [](ffi::Array<IterVar> iter_vars, ffi::Array<TensorRegion> reads,
+                           ffi::Array<TensorRegion> writes, ffi::String name_hint, Stmt body,
                            ffi::Optional<Stmt> init, ffi::Array<BufferVar> alloc_buffers,
                            ffi::Array<MatchBufferRegion> match_buffers,
                            ffi::Map<ffi::String, Any> annotations, Span span) {

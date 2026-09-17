@@ -63,10 +63,10 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlock(tirx::StmtExprVisitor*
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitBufferMetadata(match_buffer_region->buffer));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(match_buffer_region->source));
   }
-  for (const BufferRegion& region : op->reads) {
+  for (const TensorRegion& region : op->reads) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(region));
   }
-  for (const BufferRegion& region : op->writes) {
+  for (const TensorRegion& region : op->writes) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(region));
   }
   if (op->init.has_value()) {
@@ -131,9 +131,9 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
   auto match_buffers = mutator->Mutate(op->match_buffers, inplace_mode)
                            .as_or_throw<UnchangedOr<ffi::Array<MatchBufferRegion>>>();
   auto reads =
-      mutator->Mutate(op->reads, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<BufferRegion>>>();
+      mutator->Mutate(op->reads, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<TensorRegion>>>();
   auto writes = mutator->Mutate(op->writes, inplace_mode)
-                    .as_or_throw<UnchangedOr<ffi::Array<BufferRegion>>>();
+                    .as_or_throw<UnchangedOr<ffi::Array<TensorRegion>>>();
   auto init =
       mutator->Mutate(op->init, inplace_mode).as_or_throw<UnchangedOr<ffi::Optional<Stmt>>>();
   auto body = mutator->Mutate(op->body, inplace_mode);

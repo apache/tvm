@@ -51,9 +51,11 @@ class SIRConvertSSA final : public tirx::IRConvertSSA {
         if (!var.same_as(iter->var)) iter.CopyOnWrite()->var = var.as_or_throw<PrimVar>();
         return iter;
       });
-      auto remap_region = [&](BufferRegion region) {
-        BufferVar buffer = GetRemappedBuffer(region->buffer);
-        if (!buffer.same_as(region->buffer)) region.CopyOnWrite()->buffer = buffer;
+      auto remap_region = [&](TensorRegion region) {
+        BufferVar buffer = GetRemappedBuffer(region->source.as_or_throw<BufferVar>());
+        if (!buffer.same_as(region->source.as_or_throw<BufferVar>())) {
+          region.CopyOnWrite()->source = buffer.var();
+        }
         return region;
       };
       auto reads = block->reads.Map(remap_region);
@@ -101,7 +103,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
                                     const ffi::Array<PrimExpr>& indices) {
   const BufferVar& target = match_buffer->buffer;
-  const BufferRegion& source = match_buffer->source;
+  const TensorRegion& source = match_buffer->source;
   TVM_FFI_ICHECK_EQ(indices.size(), target->shape.size());
 
   arith::Analyzer analyzer;
@@ -123,7 +125,7 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
 
 Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region) {
   const BufferVar& target = match_buffer->buffer;
-  const BufferRegion& source = match_buffer->source;
+  const TensorRegion& source = match_buffer->source;
   TVM_FFI_ICHECK_EQ(region.size(), target->shape.size());
 
   arith::Analyzer analyzer;
@@ -162,7 +164,8 @@ class StorageAlignCollector : public StmtExprVisitor {
     if (it != op->annotations.end()) {
       auto annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& item : annotation) {
-        storage_align_[op->writes[item.get<0>()]->buffer.var()].push_back(item);
+        storage_align_[op->writes[item.get<0>()]->source.as_or_throw<BufferVar>().var()].push_back(
+            item);
       }
     }
     return StmtExprVisitor::Visit_(op);

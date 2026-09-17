@@ -97,7 +97,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   virtual void Visit(const PrimFunc& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const GlobalVar& obj, ffi::reflection::AccessPath path) {}
   virtual void Visit(const Range& obj, ffi::reflection::AccessPath path);
-  virtual void Visit(const BufferRegion& obj, ffi::reflection::AccessPath path);
+  virtual void Visit(const TensorRegion& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const IterVar& obj, ffi::reflection::AccessPath path);
 
   // Called when entering/exiting the scope of a GlobalVar definition.
@@ -136,23 +136,23 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
     }
   }
 
-  using StmtFunctor::VisitStmt;
-  void VisitStmt_(const BindNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const AttrStmtNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const IfThenElseNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const ForNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const WhileNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const ReturnNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const BreakNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const ContinueNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const DeclBufferNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const AssertStmtNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const SeqStmtNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const EvaluateNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const ScopeIdDefStmtNode* op, ffi::reflection::AccessPath path) override;
+  using StmtFunctor::Dispatch;
+  void Dispatch_(const BindNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const AttrStmtNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const IfThenElseNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const ForNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const WhileNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const ReturnNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const BreakNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const ContinueNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const DeclBufferNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const AssertStmtNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const SeqStmtNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const EvaluateNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const ScopeIdDefStmtNode* op, ffi::reflection::AccessPath path) override;
 
   using ExprFunctor::Dispatch;
   void Dispatch_(const VarNode* op, ffi::reflection::AccessPath path) override;
@@ -320,7 +320,7 @@ class Verifier : protected PathVisitor {
 
  protected:
   explicit Verifier(bool assert_on_error) : assert_on_error_(assert_on_error) {}
-  void VisitStmtDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+  void DispatchDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIR verifier does not support statement " << op->GetTypeKey() << " at "
                   << path;
   }

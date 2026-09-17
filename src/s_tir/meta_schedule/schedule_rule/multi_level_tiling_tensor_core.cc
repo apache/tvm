@@ -868,7 +868,7 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     visited_buffers.insert(lhs_buffer);
     // Refresh block pointer (block sref is not invalidated)
     block = TVM_SREF_TO_SBLOCK(block_sref);
-    const tirx::BufferRegion& reindexed_buffer_region = s_tir::GetNthAccessBufferRegion(
+    const tvm::TensorRegion& reindexed_buffer_region = s_tir::GetNthAccessBufferRegion(
         state->sch->state(), ffi::GetRef<s_tir::SBlock>(block), buffer_index, index_type);
     auto sub_index_map = f_get_sub_index_map(lhs_buffer, reindexed_buffer_region->region);
     buffer_sub_index_map.Set(lhs_buffer, sub_index_map);

@@ -274,7 +274,7 @@ class ForMatcher : public TensorizeComparator {
     return Dispatch(op->body, rhs->body);
   }
 
-  bool VisitStmt_(const s_tir::SBlockNode* op, const Stmt& other) final {
+  bool Dispatch_(const s_tir::SBlockNode* op, const Stmt& other) final {
     const auto* rhs = other.as<s_tir::SBlockNode>();
     // Check block equality.
     // All iter vars and buffer regions including the order should match.
@@ -303,7 +303,7 @@ class ForMatcher : public TensorizeComparator {
     return Dispatch(op->body, rhs->body);
   }
 
-  bool VisitStmt_(const s_tir::SBlockRealizeNode* op, const Stmt& other) final {
+  bool Dispatch_(const s_tir::SBlockRealizeNode* op, const Stmt& other) final {
     const auto* rhs = other.as<s_tir::SBlockRealizeNode>();
     // Only allow trivial bindings
     for (size_t i = 0; i < op->iter_values.size(); ++i) {

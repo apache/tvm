@@ -33,7 +33,7 @@ from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import Expr, Range, Span, Type
+from tvm.ir import Expr, Range, Span, TensorRegion, Type
 from tvm.runtime import Object, Scriptable
 
 from . import _ffi_api

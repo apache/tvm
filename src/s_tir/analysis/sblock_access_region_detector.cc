@@ -436,7 +436,7 @@ void BlockReadWriteDetector::Update(std::vector<BufferVar>* buffers,
   auto it = match_buffers_.find(buffer.get());
   if (it != match_buffers_.end()) {
     const s_tir::MatchBufferRegion& match_buffer = it->second;
-    buffer = match_buffer->source->buffer;
+    buffer = match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>();
     region = ConvertMatchedRegion(match_buffer, std::move(region));
   }
   TVM_FFI_ICHECK_EQ(buffers->size(), regions->size())
@@ -497,7 +497,7 @@ void BlockReadWriteDetector::UpdateOpaque(const Var& buffer_var) {
   }
 }
 
-ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
+ffi::Array<ffi::Array<TensorRegion>> GetSBlockAccessRegion(
     const s_tir::SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map) {
   auto detector = ffi::make_object<BlockReadWriteDetector>(buffer_var_map);
   detector->operator()(block);
@@ -514,7 +514,7 @@ ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
   return {reads, writes, opaques};
 }
 
-ffi::Array<ffi::Array<BufferRegion>> GetSBlockReadWriteRegion(
+ffi::Array<ffi::Array<TensorRegion>> GetSBlockReadWriteRegion(
     const s_tir::SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map) {
   auto detector = ffi::make_object<BlockReadWriteDetector>(buffer_var_map);
   detector->operator()(block);

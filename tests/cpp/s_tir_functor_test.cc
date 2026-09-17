@@ -34,10 +34,10 @@ using namespace tirx;
 TEST(STIRFunctor, LegacyInheritedDispatchAndContainsNode) {
   class Dispatch : public StmtFunctor<int(const Stmt&, int)> {
    public:
-    using StmtFunctor::VisitStmt_;
-    int VisitStmt_(const SBlockNode*, int value) final { return value + 1; }
-    int VisitStmt_(const SBlockRealizeNode*, int value) final { return value + 2; }
-    int VisitStmt_(const EvaluateNode*, int value) final { return value + 3; }
+    using StmtFunctor::Dispatch_;
+    int Dispatch_(const SBlockNode*, int value) final { return value + 1; }
+    int Dispatch_(const SBlockRealizeNode*, int value) final { return value + 2; }
+    int Dispatch_(const EvaluateNode*, int value) final { return value + 3; }
   } dispatch;
   Stmt body = Evaluate(0);
   SBlock block({}, {}, {}, "block", body);
@@ -53,9 +53,9 @@ TEST(STIRFunctor, LegacyInheritedDispatchAndContainsNode) {
 TEST(STIRFunctor, CoreLegacyDispatchReachesDefaultForDialectNodes) {
   class Dispatch : public tirx::StmtFunctor<bool(const Stmt&)> {
    public:
-    using tirx::StmtFunctor<bool(const Stmt&)>::VisitStmt_;
-    bool VisitStmt_(const EvaluateNode*) final { return true; }
-    bool VisitStmtDefault_(const ffi::Object*) final { return false; }
+    using tirx::StmtFunctor<bool(const Stmt&)>::Dispatch_;
+    bool Dispatch_(const EvaluateNode*) final { return true; }
+    bool DispatchDefault_(const ffi::Object*) final { return false; }
   } dispatch;
   SBlock block({}, {}, {}, "block", Evaluate(0));
   EXPECT_FALSE(dispatch(block));
@@ -88,7 +88,7 @@ TEST(STIRFunctor, NativeBlockOverrideReusesInheritedCoreHooks) {
 TEST(STIRFunctor, NativeVisitPreservesBlockOrderAndBinders) {
   PrimVar index("index"), extent("extent"), annotation("annotation");
   BufferVar buffer = decl_buffer({16});
-  BufferRegion region(buffer, {Range::FromMinExtent(0, 16)});
+  TensorRegion region = BufferRegion(buffer, {Range::FromMinExtent(0, 16)});
   IterVar iter(Range::FromMinExtent(0, extent), index, IterVarType::kDataPar);
   SBlock block({iter}, {region}, {}, "block", Evaluate(index), std::nullopt, {buffer}, {},
                {{"annotation", annotation}});
@@ -165,9 +165,9 @@ void CheckMutationRemapsBufferDefinitionsAndUses() {
   PrimVar extent("extent");
   BufferVar allocated = decl_buffer({extent + 1}, PrimType::Int(32));
   BufferVar matched = decl_buffer({extent + 1}, PrimType::Int(32));
-  BufferRegion region(allocated, {Range::FromMinExtent(0, extent + 1)});
+  TensorRegion region = BufferRegion(allocated, {Range::FromMinExtent(0, extent + 1)});
   MatchBufferRegion match(matched, region);
-  BufferRegion matched_region(matched, {Range::FromMinExtent(0, extent + 1)});
+  TensorRegion matched_region = BufferRegion(matched, {Range::FromMinExtent(0, extent + 1)});
   Stmt body = SeqStmt({BufferStore(allocated, 0, {0}), BufferStore(matched, 0, {0})});
   SBlock block({}, {region, matched_region}, {region, matched_region}, "block", body, std::nullopt,
                {allocated}, {match});
@@ -186,11 +186,12 @@ void CheckMutationRemapsBufferDefinitionsAndUses() {
   EXPECT_FALSE(new_matched.same_as(matched));
   EXPECT_TRUE(new_allocated->shape[0].same_as(extent));
   EXPECT_TRUE(new_matched->shape[0].same_as(extent));
-  EXPECT_TRUE(changed->reads[0]->buffer.same_as(new_allocated));
-  EXPECT_TRUE(changed->writes[0]->buffer.same_as(new_allocated));
-  EXPECT_TRUE(changed->reads[1]->buffer.same_as(new_matched));
-  EXPECT_TRUE(changed->writes[1]->buffer.same_as(new_matched));
-  EXPECT_TRUE(changed->match_buffers[0]->source->buffer.same_as(new_allocated));
+  EXPECT_TRUE(changed->reads[0]->source.as_or_throw<BufferVar>().same_as(new_allocated));
+  EXPECT_TRUE(changed->writes[0]->source.as_or_throw<BufferVar>().same_as(new_allocated));
+  EXPECT_TRUE(changed->reads[1]->source.as_or_throw<BufferVar>().same_as(new_matched));
+  EXPECT_TRUE(changed->writes[1]->source.as_or_throw<BufferVar>().same_as(new_matched));
+  EXPECT_TRUE(
+      changed->match_buffers[0]->source->source.as_or_throw<BufferVar>().same_as(new_allocated));
   const auto* statements = changed->body.as<SeqStmtNode>();
   ASSERT_NE(statements, nullptr);
   EXPECT_TRUE(statements->seq[0].as<BufferStoreNode>()->buffer.same_as(new_allocated));
@@ -211,8 +212,8 @@ TEST(STIRFunctor, StructuralAndGenericSubstitutionPreserveDefinitionUses) {
   PrimVar extent("extent"), new_extent("new_extent"), index("index"), new_index("new_index");
   BufferVar allocated = decl_buffer({extent}, PrimType::Int(32));
   BufferVar matched = decl_buffer({extent}, PrimType::Int(32));
-  BufferRegion region(allocated, {Range::FromMinExtent(0, extent)});
-  BufferRegion matched_region(matched, {Range::FromMinExtent(0, extent)});
+  TensorRegion region = BufferRegion(allocated, {Range::FromMinExtent(0, extent)});
+  TensorRegion matched_region = BufferRegion(matched, {Range::FromMinExtent(0, extent)});
   MatchBufferRegion match(matched, region);
   IterVar iter(Range::FromMinExtent(0, extent), index, IterVarType::kDataPar);
   Stmt body =
@@ -231,11 +232,16 @@ TEST(STIRFunctor, StructuralAndGenericSubstitutionPreserveDefinitionUses) {
     EXPECT_TRUE(changed->iter_vars[0]->dom->extent.same_as(new_extent));
     EXPECT_TRUE(changed->alloc_buffers[0]->shape[0].same_as(new_extent));
     EXPECT_TRUE(changed->match_buffers[0]->buffer->shape[0].same_as(new_extent));
-    EXPECT_TRUE(changed->match_buffers[0]->source->buffer.same_as(changed->alloc_buffers[0]));
-    EXPECT_TRUE(changed->reads[0]->buffer.same_as(changed->alloc_buffers[0]));
-    EXPECT_TRUE(changed->reads[1]->buffer.same_as(changed->match_buffers[0]->buffer));
-    EXPECT_TRUE(changed->writes[0]->buffer.same_as(changed->alloc_buffers[0]));
-    EXPECT_TRUE(changed->writes[1]->buffer.same_as(changed->match_buffers[0]->buffer));
+    EXPECT_TRUE(changed->match_buffers[0]->source->source.as_or_throw<BufferVar>().same_as(
+        changed->alloc_buffers[0]));
+    EXPECT_TRUE(
+        changed->reads[0]->source.as_or_throw<BufferVar>().same_as(changed->alloc_buffers[0]));
+    EXPECT_TRUE(changed->reads[1]->source.as_or_throw<BufferVar>().same_as(
+        changed->match_buffers[0]->buffer));
+    EXPECT_TRUE(
+        changed->writes[0]->source.as_or_throw<BufferVar>().same_as(changed->alloc_buffers[0]));
+    EXPECT_TRUE(changed->writes[1]->source.as_or_throw<BufferVar>().same_as(
+        changed->match_buffers[0]->buffer));
     EXPECT_TRUE(changed->reads[0]->region[0]->extent.same_as(new_extent));
     EXPECT_TRUE(changed->reads[1]->region[0]->extent.same_as(new_extent));
     const auto* statements = changed->body.as<SeqStmtNode>();
@@ -307,7 +313,7 @@ TEST(STIRFunctor, StructuralAndGenericSubstitutionPreserveDefinitionUses) {
 TEST(STIRFunctor, GenericTIRXVisitorUsesFullStructuralTraversal) {
   PrimVar index("index"), annotation("annotation");
   BufferVar buffer = decl_buffer({16});
-  BufferRegion region(buffer, {Range::FromMinExtent(0, 16)});
+  TensorRegion region = BufferRegion(buffer, {Range::FromMinExtent(0, 16)});
   IterVar iter(Range::FromMinExtent(0, 16), index, IterVarType::kDataPar);
   SBlock block({iter}, {region}, {}, "block", Evaluate(index), std::nullopt, {buffer}, {},
                {{"annotation", annotation}});

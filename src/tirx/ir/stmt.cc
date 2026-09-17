@@ -721,50 +721,6 @@ TVMFFIAny BufferRegionTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::An
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
-TVMFFIAny BufferRegionVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  const BufferRegionNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferRegionNode>(value);
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->buffer));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->region));
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
-}
-
-TVMFFIAny BufferRegionMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  const BufferRegionNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferRegionNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<BufferVar>, mapped_buffer,
-                                    mutator->MutateExpected(self->buffer));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Range>>, mapped_region,
-                                    mutator->MutateExpected(self->region));
-  if (mapped_buffer.UnchangedOrSameAs(self->buffer) &&
-      mapped_region.UnchangedOrSameAs(self->region)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
-  }
-  ffi::ObjectPtr<BufferRegionNode> copy = ffi::make_object<BufferRegionNode>(*self);
-  copy->buffer = std::move(mapped_buffer).ValueOrUnchanged(std::move(copy->buffer));
-  copy->region = std::move(mapped_region).ValueOrUnchanged(std::move(copy->region));
-  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
-}
-
-TVMFFIAny BufferRegionMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
-                                         ffi::AnyView value) noexcept {
-  BufferRegionNode* self = const_cast<BufferRegionNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferRegionNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<BufferVar>, mapped_buffer,
-      mutator->MutateExpected(self->buffer, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<ffi::Array<Range>>, mapped_region,
-      mutator->MutateExpected(self->region, ffi::InplaceMode::kAllow));
-  if (mapped_buffer.UnchangedOrSameAs(self->buffer) &&
-      mapped_region.UnchangedOrSameAs(self->region)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
-  }
-  if (!mapped_buffer.IsUnchanged()) self->buffer = std::move(mapped_buffer).ValueUnchecked();
-  if (!mapped_region.IsUnchanged()) self->region = std::move(mapped_region).ValueUnchecked();
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
 TVMFFIAny ScopeIdDefStmtVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const ScopeIdDefStmtNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ScopeIdDefStmtNode>(value);

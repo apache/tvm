@@ -19,6 +19,7 @@
 import json
 
 _PRIM_TYPE_KEY_RENAMES = {
+    "tirx.BufferRegion": "ir.TensorRegion",
     "tirx.SBlock": "s_tir.SBlock",
     "tirx.SBlockRealize": "s_tir.SBlockRealize",
     "tirx.MatchBufferRegion": "s_tir.MatchBufferRegion",
@@ -124,6 +125,11 @@ def upgrade_json(json_str):
     # written before the canonical Var field was renamed to `name`.  Rewriting
     # nodes in place preserves node indices and shared references.
     for node in data.get("nodes", []):
+        if node.get("type") == "tirx.BufferRegion":
+            # TensorRegion keeps the inherited type/span and range references;
+            # only the buffer field became the shared expression source.
+            fields = node.get("data", {})
+            fields["source"] = fields.pop("buffer")
         node["type"] = _PRIM_TYPE_KEY_RENAMES.get(node.get("type"), node.get("type"))
         if node.get("type") == "relax.expr.Var":
             node["type"] = "ir.Var"

@@ -394,8 +394,8 @@ def test_specialize_structural_buffer_definitions():
     assert not after.params
     assert result.alloc_buffers[0].shape[0] == 8
     assert result.match_buffers[0].buffer.shape[0] == 8
-    assert result.match_buffers[0].source.buffer.same_as(result.alloc_buffers[0])
-    assert result.reads[0].buffer.same_as(result.match_buffers[0].buffer)
+    assert result.match_buffers[0].source.source.same_as(result.alloc_buffers[0])
+    assert result.reads[0].source.same_as(result.match_buffers[0].buffer)
     assert result.body.value.source.same_as(result.match_buffers[0].buffer)
     assert result.body.value.indices[0] == 7
     assert result.annotations["extent"] == 8

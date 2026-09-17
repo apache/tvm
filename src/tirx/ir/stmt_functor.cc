@@ -58,7 +58,6 @@ void StmtExprVisitor::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprVisitor, EvaluateNode>(vtable);
   SetDispatch<StmtExprVisitor, ScopeIdDefStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, TilePrimitiveCallNode>(vtable);
-  SetDispatch<StmtExprVisitor, BufferRegionNode>(vtable);
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const VarNode* op) { return std::nullopt; }
@@ -290,7 +289,6 @@ void StmtExprMutator::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprMutator, EvaluateNode>(vtable);
   SetDispatch<StmtExprMutator, ScopeIdDefStmtNode>(vtable);
   SetDispatch<StmtExprMutator, TilePrimitiveCallNode>(vtable);
-  SetDispatch<StmtExprMutator, BufferRegionNode>(vtable);
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
@@ -491,24 +489,6 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BufferStoreNode* op, InplaceMod
   if (!value.IsUnchanged()) copy->value = std::move(value).ValueUnchecked();
   if (!indices.IsUnchanged()) copy->indices = std::move(indices).ValueUnchecked();
   return Stmt(std::move(copy));
-}
-
-UnchangedOr<Expr> StmtExprMutator::Mutate_(const BufferRegionNode* op, InplaceMode inplace_mode) {
-  auto buffer = Mutate(op->buffer, inplace_mode).as_or_throw<UnchangedOr<BufferVar>>();
-  auto region = Mutate(op->region, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Range>>>();
-  if (buffer.UnchangedOrSameAs(op->buffer) && region.UnchangedOrSameAs(op->region)) {
-    return ffi::Unchanged();
-  }
-  if (inplace_mode == InplaceMode::kAllow) {
-    auto* writable = const_cast<BufferRegionNode*>(op);
-    if (!buffer.IsUnchanged()) writable->buffer = std::move(buffer).ValueUnchecked();
-    if (!region.IsUnchanged()) writable->region = std::move(region).ValueUnchecked();
-    return ffi::Unchanged();
-  }
-  auto copy = ffi::make_object<BufferRegionNode>(*op);
-  if (!buffer.IsUnchanged()) copy->buffer = std::move(buffer).ValueUnchecked();
-  if (!region.IsUnchanged()) copy->region = std::move(region).ValueUnchecked();
-  return Expr(std::move(copy));
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) {

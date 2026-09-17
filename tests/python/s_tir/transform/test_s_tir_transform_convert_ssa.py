@@ -54,7 +54,7 @@ def test_shared_buffer_parameter_regions_across_functions():
     assert not first.params[0].same_as(second.params[0])
     for updated in [first, second]:
         updated_block = updated.body.block
-        assert updated_block.reads[0].buffer.same_as(updated.params[0])
+        assert updated_block.reads[0].source.same_as(updated.params[0])
         assert updated_block.body.value.source.same_as(updated.params[0])
         assert updated_block.reads[0].region[0].extent.same_as(updated.params[0].ty.shape[0])
 

@@ -50,7 +50,7 @@ class ExecScopeVerifier : public Verifier<ExecScopeVerifier> {
  private:
   using Verifier::Visit;
 
-  void VisitStmtDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+  void DispatchDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
                   << path;
   }
@@ -129,7 +129,7 @@ class LayoutVerifier : public Verifier<LayoutVerifier> {
  private:
   using Verifier::Visit;
 
-  void VisitStmtDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+  void DispatchDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
                   << path;
   }
@@ -142,7 +142,7 @@ class AsyncStructsVerifier : public Verifier<AsyncStructsVerifier> {
  private:
   using Verifier::Visit;
 
-  void VisitStmtDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+  void DispatchDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
                   << path;
   }
@@ -155,7 +155,7 @@ class DeviceFuncVerifier : public Verifier<DeviceFuncVerifier> {
  private:
   using Verifier::Visit;
 
-  void VisitStmtDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+  void DispatchDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
                   << path;
   }

@@ -27,7 +27,6 @@
 
 namespace tvm {
 namespace s_tir {
-using tirx::BufferRegion;
 using tirx::ForNode;
 using tirx::PrimFunc;
 
@@ -95,7 +94,7 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
     // Step 0. Skip block iter var's domain
 
     // Step 1. Visit read/write regions
-    auto fvisit_buffer_region = [this](const BufferRegion& s) -> ffi::Optional<VisitInterrupt> {
+    auto fvisit_buffer_region = [this](const TensorRegion& s) -> ffi::Optional<VisitInterrupt> {
       for (const auto& range : s->region) {
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->min));
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->extent));

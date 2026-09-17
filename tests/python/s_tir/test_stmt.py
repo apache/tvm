@@ -26,10 +26,12 @@ from tvm import s_tir, tirx
 
 
 @pytest.mark.parametrize("legacy", [False, True])
-def test_sblock_serialization(legacy):
+@pytest.mark.parametrize("legacy_region", [False, True])
+def test_sblock_serialization(legacy, legacy_region):
     source = tirx.decl_buffer((4,), "float32", name="source")
     target = tirx.decl_buffer((4,), "float32", name="target")
-    region = tirx.BufferRegion(source, [tvm.ir.Range(0, 4)])
+    span = tvm.ir.Span(tvm.ir.SourceName("region"), 2, 3, 4, 5)
+    region = tvm.ir.TensorRegion(source, [tvm.ir.Range(0, 4)], tirx.BufferRegionType(), span)
     match = s_tir.MatchBufferRegion(target, region)
     block = s_tir.SBlock([], [region], [region], "copy", tirx.Evaluate(0), match_buffers=[match])
     realize = s_tir.SBlockRealize([], True, block)
@@ -41,6 +43,13 @@ def test_sblock_serialization(legacy):
         assert getattr(s_tir, name).__module__ == "tvm.s_tir.stmt"
         assert not hasattr(tirx, name)
         assert not hasattr(tirx.stmt, name)
+    assert "ir.TensorRegion" in type_keys
+    assert "tirx.BufferRegion" not in type_keys
+    if legacy_region:
+        for node in graph["nodes"]:
+            if node.get("type") == "ir.TensorRegion":
+                node["type"] = "tirx.BufferRegion"
+                node["data"]["buffer"] = node["data"].pop("source")
     if legacy:
         for node in graph["nodes"]:
             if node.get("type") in {
@@ -59,7 +68,47 @@ def test_sblock_serialization(legacy):
     assert restored_block.match_buffers[0].same_as(restored_match)
     assert restored_block.reads[0].same_as(restored_block.writes[0])
     assert restored_match.source.same_as(restored_block.reads[0])
+    restored_region = restored_match.source
+    assert isinstance(restored_region, tvm.ir.TensorRegion)
+    assert isinstance(restored_region.ty, tirx.BufferRegionType)
+    assert restored_region.span.source_name.name == "region"
+    assert restored_region.span.line == 2
+    assert restored_region.span.end_line == 3
+    assert restored_region.span.column == 4
+    assert restored_region.span.end_column == 5
     tvm.ir.assert_structural_equal(restored_realize, realize, map_free_vars=True)
+    canonical = json.loads(tvm.ir.save_json([restored_block, restored_realize, restored_match]))
+    assert not any(
+        node.get("type")
+        in {
+            "tirx.BufferRegion",
+            "tirx.SBlock",
+            "tirx.SBlockRealize",
+            "tirx.MatchBufferRegion",
+        }
+        for node in canonical["nodes"]
+    )
+
+
+@pytest.mark.parametrize("field", ["reads", "writes", "match_source"])
+@pytest.mark.parametrize("invalid", ["source", "rank"])
+def test_region_requires_buffer_source_and_rank(field, invalid):
+    source = (
+        tirx.Var("source", "int32") if invalid == "source" else tirx.decl_buffer((4, 4), "float32")
+    )
+    region = tvm.ir.TensorRegion(source, [tvm.ir.Range(0, 4)], tirx.BufferRegionType())
+    message = None if invalid == "source" else "must match its buffer rank"
+    with pytest.raises((TypeError, tvm.error.InternalError), match=message):
+        if field == "match_source":
+            s_tir.MatchBufferRegion(tirx.decl_buffer((4,), "float32"), region)
+        else:
+            s_tir.SBlock(
+                [],
+                [region] if field == "reads" else [],
+                [region] if field == "writes" else [],
+                "invalid",
+                tirx.Evaluate(0),
+            )
 
 
 if __name__ == "__main__":

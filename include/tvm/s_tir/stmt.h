@@ -46,7 +46,7 @@ class MatchBufferRegionNode : public ffi::Object {
   /*! \brief The target buffer. */
   tirx::BufferVar buffer;
   /*! \brief The source buffer region. */
-  tirx::BufferRegion source;
+  TensorRegion source;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -65,7 +65,7 @@ class MatchBufferRegionNode : public ffi::Object {
  */
 class MatchBufferRegion : public ffi::ObjectRef {
  public:
-  TVM_DLL explicit MatchBufferRegion(tirx::BufferVar buffer, tirx::BufferRegion source);
+  TVM_DLL explicit MatchBufferRegion(tirx::BufferVar buffer, TensorRegion source);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchBufferRegion, ffi::ObjectRef,
                                              MatchBufferRegionNode);
@@ -98,9 +98,9 @@ class SBlockNode : public tirx::StmtNode {
   /*! \brief The variables of the block. */
   ffi::Array<tirx::IterVar> iter_vars;
   /*! \brief The read buffer regions of the block. */
-  ffi::Array<tirx::BufferRegion> reads;
+  ffi::Array<TensorRegion> reads;
   /*! \brief The write buffer regions of the block. */
-  ffi::Array<tirx::BufferRegion> writes;
+  ffi::Array<TensorRegion> writes;
   /*! \brief The name_hint of the block. */
   ffi::String name_hint;
   /*! \brief The buffer allocated in the block. */
@@ -144,8 +144,8 @@ class SBlockNode : public tirx::StmtNode {
 class SBlock : public tirx::Stmt {
  public:
   TVM_DLL explicit SBlock(
-      ffi::Array<tirx::IterVar> iter_vars, ffi::Array<tirx::BufferRegion> reads,
-      ffi::Array<tirx::BufferRegion> writes, ffi::String name_hint, tirx::Stmt body,
+      ffi::Array<tirx::IterVar> iter_vars, ffi::Array<TensorRegion> reads,
+      ffi::Array<TensorRegion> writes, ffi::String name_hint, tirx::Stmt body,
       ffi::Optional<tirx::Stmt> init = std::nullopt,
       ffi::Array<tirx::BufferVar> alloc_buffers = ffi::Array<tirx::BufferVar>(),
       ffi::Array<MatchBufferRegion> match_buffers = ffi::Array<MatchBufferRegion>(),

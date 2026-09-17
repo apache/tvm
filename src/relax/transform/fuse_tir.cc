@@ -195,8 +195,8 @@ class FuseTIRBufferSubstitutor : public s_tir::StmtExprMutator {
     s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                               .as_or_throw<s_tir::SBlock>();
-    ffi::Array<BufferRegion> reads = UnionAccessRegion(block->reads);
-    ffi::Array<BufferRegion> writes = UnionAccessRegion(block->writes);
+    ffi::Array<TensorRegion> reads = UnionAccessRegion(block->reads);
+    ffi::Array<TensorRegion> writes = UnionAccessRegion(block->writes);
     if (!reads.same_as(block->reads) || !writes.same_as(block->writes)) {
       auto* n = block.CopyOnWrite();
       n->reads = std::move(reads);

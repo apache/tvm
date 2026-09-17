@@ -48,7 +48,7 @@ namespace tirx {
  *           - second: write regions
  *           - third: opaque regions
  */
-TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
+TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockAccessRegion(
     const s_tir::SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
 
 /*!
@@ -59,7 +59,7 @@ TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
  *                       It is a map from buffer var to the buffer
  * \return An array only consisting of the read regions and write regions of the input block
  */
-TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockReadWriteRegion(
+TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockReadWriteRegion(
     const s_tir::SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
 
 /*!

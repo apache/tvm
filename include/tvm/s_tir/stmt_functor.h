@@ -31,7 +31,7 @@ namespace s_tir {
 
 /*!
  * \brief Extend TIRX statement dispatch with schedulable blocks.
- * \tparam FType The statement signature, retaining the VisitStmt API.
+ * \tparam FType The statement signature, using the native Dispatch API.
  */
 template <typename FType>
 class StmtFunctor;
@@ -43,13 +43,13 @@ class StmtFunctor<R(const tirx::Stmt&, Args...)>
 
  public:
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtFunctor, Parent)
-  using Parent::VisitStmt_;
+  using Parent::Dispatch_;
 
-  virtual R VisitStmt_(const SBlockNode* op, Args... args) {
-    return this->VisitStmtDefault_(op, std::forward<Args>(args)...);
+  virtual R Dispatch_(const SBlockNode* op, Args... args) {
+    return this->DispatchDefault_(op, std::forward<Args>(args)...);
   }
-  virtual R VisitStmt_(const SBlockRealizeNode* op, Args... args) {
-    return this->VisitStmtDefault_(op, std::forward<Args>(args)...);
+  virtual R Dispatch_(const SBlockRealizeNode* op, Args... args) {
+    return this->DispatchDefault_(op, std::forward<Args>(args)...);
   }
 
  protected:

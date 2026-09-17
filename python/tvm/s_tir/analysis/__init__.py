@@ -23,7 +23,6 @@ from typing import Optional, Union
 import tvm
 from tvm.ir import IRModule, TensorRegion
 from tvm.tirx.expr import Var
-from tvm.tirx.stmt import BufferRegion
 from tvm.s_tir import SBlock
 
 from tvm.tirx import Buffer, Stmt
