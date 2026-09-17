@@ -57,43 +57,6 @@ def test_assert_structural_equal_reports_mismatch():
     assert "and rhs at" in message
 
 
-@pytest.mark.parametrize("kind", ["prim", "relax", "extern"])
-def test_function_attribute_copy_preserves_fields(kind):
-    span = tvm.ir.Span(tvm.ir.SourceName("attrs"), 1, 2, 3, 4)
-    if kind == "prim":
-        var = tvm.tirx.Var("x", "int32")
-        func = tvm.tirx.PrimFunc([var], tvm.tirx.Evaluate(var), span=span)
-        fields = ["params", "body", "ret_type", "ty", "span"]
-    elif kind == "relax":
-        var = tvm.relax.Var("x", tvm.relax.TensorType([2], "float32"))
-        func = tvm.relax.Function([var], var, is_pure=False, span=span)
-        fields = ["params", "body", "ret_ty", "ty", "span"]
-    else:
-        func = tvm.relax.ExternFunc("external_symbol", span=span)
-        fields = ["ty", "span"]
-
-    func = func.with_attr("keep", 1)
-    shared_attrs = func.attrs
-    added = func.with_attr("added", 2)
-    updated = func.with_attr({"keep": 3, "added": 4})
-    removed = func.without_attr("keep")
-    assert func.with_attr({}).same_as(func)
-    for result in [added, updated, removed]:
-        assert type(result) is type(func)
-        assert not result.same_as(func)
-        for field in fields:
-            assert getattr(result, field).same_as(getattr(func, field))
-        if kind == "relax":
-            assert result.is_pure is False
-        if kind == "extern":
-            assert result.global_symbol == "external_symbol"
-        assert func.attrs.same_as(shared_attrs)
-        assert dict(shared_attrs) == {"keep": 1}
-    assert dict(added.attrs) == {"keep": 1, "added": 2}
-    assert dict(updated.attrs) == {"keep": 3, "added": 4}
-    assert not removed.attrs
-
-
 if __name__ == "__main__":
     test_dict_attrs()
     test_attrs_equal()

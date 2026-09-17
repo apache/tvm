@@ -37,8 +37,6 @@
 namespace tvm {
 namespace arith {
 
-using namespace tirx;
-
 // Find a target path through structural expression fields, including dynamic types.
 // BoundDeduceInputChecker counts occurrences over the same broader domain and can
 // conservatively decline deduction when a target also appears in type metadata.

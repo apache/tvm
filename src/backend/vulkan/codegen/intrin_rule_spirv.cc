@@ -163,7 +163,7 @@ void RegisterVulkanLegalizeRules() {
   registered = true;
 
   // clang-format off
-TVM_REGISTER_OP("tirx.clz")
+TVM_REGISTER_OP("prim.clz")
     .set_attr<FLegalize>("vulkan.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
