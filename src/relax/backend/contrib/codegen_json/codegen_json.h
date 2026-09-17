@@ -127,7 +127,7 @@ class OpAttrExtractor {
           if (auto opt_int = (*an)[i].try_cast<int64_t>()) {
             attr.push_back(opt_int.value());
           } else if (const auto* im = (*an)[i].as<IntImmNode>()) {
-            attr.push_back(im->value);
+            attr.push_back(static_cast<int64_t>(im->value));
           }
         }
         SetNodeAttr(key, std::move(attr));

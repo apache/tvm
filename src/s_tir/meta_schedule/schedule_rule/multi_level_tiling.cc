@@ -235,7 +235,9 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state,
       }
       idx = &s_indices_;
       if (spatial_loop_product != -1) {
-        if (const int64_t* extent = s_tir::GetLoopIntExtent(sch->Get(loop).get())) {
+        const auto* extent_imm = sch->Get(loop)->extent.as<IntImmNode>();
+        if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+            extent.has_value()) {
           spatial_loop_product *= *extent;
         } else {
           spatial_loop_product = -1;

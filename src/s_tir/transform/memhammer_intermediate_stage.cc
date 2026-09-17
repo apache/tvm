@@ -127,7 +127,7 @@ class IndexPatternFinder : public StmtExprVisitor {
     }
     if (ffi::Optional<Range> range = var_range_.Get(ffi::GetRef<Var>(op))) {
       PrimExpr index = ffi::GetRef<Var>(op).as_or_throw<PrimExpr>();
-      int64_t max = range.value()->extent.as<IntImmNode>()->value;
+      int64_t max = static_cast<int64_t>(range.value()->extent.as<IntImmNode>()->value);
       int64_t extent = max;
       for (int i = static_cast<int>(operator_stack.size()) - 1; i >= 0; i--) {
         Operator o = operator_stack[i];
@@ -177,7 +177,7 @@ class IndexPatternFinder : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const FloorDivNode* op) final {
-    int64_t b = op->b.as<IntImmNode>()->value;
+    int64_t b = static_cast<int64_t>(op->b.as<IntImmNode>()->value);
     operator_stack.push_back(Operator{Operator::OpKind::FloorDiv, b});
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     operator_stack.pop_back();
@@ -185,7 +185,7 @@ class IndexPatternFinder : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const FloorModNode* op) final {
-    int64_t b = op->b.as<IntImmNode>()->value;
+    int64_t b = static_cast<int64_t>(op->b.as<IntImmNode>()->value);
     operator_stack.push_back(Operator{Operator::OpKind::FloorMod, b});
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     operator_stack.pop_back();
@@ -193,7 +193,7 @@ class IndexPatternFinder : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const MulNode* op) final {
-    int64_t b = op->b.as<IntImmNode>()->value;
+    int64_t b = static_cast<int64_t>(op->b.as<IntImmNode>()->value);
     operator_stack.push_back(Operator{Operator::OpKind::Mul, b});
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     operator_stack.pop_back();

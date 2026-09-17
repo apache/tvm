@@ -72,7 +72,7 @@ std::vector<int64_t> GetBufferShape(const BufferVar& buffer, arith::AnalyzerObj*
   result.reserve(ndim);
   for (const PrimExpr& i : buffer->shape) {
     if (const IntImmNode* int_imm = i.as<IntImmNode>()) {
-      result.push_back(int_imm->value);
+      result.push_back(static_cast<int64_t>(int_imm->value));
       continue;
     }
     arith::ConstIntBound bound = analyzer->const_int_bound(i);
@@ -93,7 +93,7 @@ std::vector<int64_t> GetBufferShape(const BufferVar& buffer, arith::AnalyzerObj*
 int64_t GetPragmaAutoUnroll(const ForNode* loop) {
   if (ffi::Optional<IntImm> auto_unroll =
           GetAnn<IntImm>(loop, tirx::attr::pragma_auto_unroll_max_step)) {
-    return auto_unroll.value()->value;
+    return static_cast<int64_t>(auto_unroll.value()->value);
   }
   return -1;
 }
@@ -109,7 +109,9 @@ int64_t GetPragmaAutoUnroll(const ForNode* loop) {
  */
 int64_t FirstLoopExtent(const ForVec& loops, int64_t default_value) {
   if (!loops.empty()) {
-    if (const int64_t* extent = GetLoopIntExtent(loops[0])) {
+    const auto* extent_imm = loops[0]->extent.as<IntImmNode>();
+    if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+        extent.has_value()) {
       return *extent;
     }
   }
@@ -177,10 +179,10 @@ int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices, const IntVec&
       if (visited_var && !visited_add) {
         if (const auto* a = node->a.as<IntImmNode>()) {
           visited_mul = true;
-          stride = a->value;
+          stride = static_cast<int64_t>(a->value);
         } else if (const auto* b = node->b.as<IntImmNode>()) {
           visited_mul = true;
-          stride = b->value;
+          stride = static_cast<int64_t>(b->value);
         }
       }
       return std::nullopt;
@@ -357,7 +359,9 @@ struct LoopNest {
    * \return A list of for loops that the loop is bound to
    */
   ForVec* Push(const ForNode* loop, int64_t* auto_unroll_attr) {
-    if (const int64_t* extent = GetLoopIntExtent(loop)) {
+    const auto* extent_imm = loop->extent.as<IntImmNode>();
+    if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+        extent.has_value()) {
       this->prod *= *extent;
     }
     this->loops.push_back(loop);
@@ -410,7 +414,9 @@ struct LoopNest {
     if (auto_unroll_attr > 0) {
       this->auto_unroll.pop_back();
     }
-    if (const int64_t* extent = GetLoopIntExtent(loop)) {
+    const auto* extent_imm = loop->extent.as<IntImmNode>();
+    if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+        extent.has_value()) {
       this->prod /= *extent;
     }
     this->loops.pop_back();
@@ -631,13 +637,17 @@ Feature::ForKindFeature::ForKindFeature(const ForVec& loops) {
     this->len = 0;
     this->pos = ForKindFeature::Pos::kPosNone;
   } else {
-    const int64_t* last_loop_extent = GetLoopIntExtent(loops.back());
+    const auto* last_loop_extent_imm = loops.back()->extent.as<IntImmNode>();
+    auto last_loop_extent =
+        last_loop_extent_imm ? last_loop_extent_imm->value.as<int64_t>() : std::nullopt;
     this->num = loops.size();
-    this->len = last_loop_extent ? *last_loop_extent : 1;
+    this->len = last_loop_extent.has_value() ? *last_loop_extent : 1;
     this->pos = ForKindFeature::Pos::kPosMixed;
     int64_t& prod = this->prod = 1;
     for (const ForNode* loop : loops) {
-      if (const int64_t* extent = GetLoopIntExtent(loop)) {
+      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+          extent.has_value()) {
         prod *= *extent;
       }
     }
@@ -912,7 +922,9 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::AnalyzerOb
   // Calculate this->prod
   int64_t& prod = this->prod_non_strided_loop_extent = 1;
   for (int j = n_loops - 1; j > i; --j) {
-    if (const int64_t* extent = GetLoopIntExtent(loops[j])) {
+    const auto* extent_imm = loops[j]->extent.as<IntImmNode>();
+    if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+        extent.has_value()) {
       prod *= *extent;
     }
   }
@@ -948,14 +960,18 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
     // Case 1. Find an invariant loop, i.e. reuse with kLoopMultipleRead
     if (!region_vars.count(loop->loop_var.get())) {
       reuse_type = ReuseType::kLoopMultipleRead;
-      if (const int64_t* extent = GetLoopIntExtent(loop)) {
+      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+          extent.has_value()) {
         reuse_ct = *extent;
       } else {
         reuse_ct = 1;
       }
       reuse_dis_iter = 1;
       for (int j = n_loops - 1; j > i; --j) {
-        if (const int64_t* extent = GetLoopIntExtent(loops[j])) {
+        const auto* extent_imm = loops[j]->extent.as<IntImmNode>();
+        if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+            extent.has_value()) {
           reuse_dis_iter *= *extent;
         }
       }
@@ -976,7 +992,8 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
     const IntVec& touched = buffer_touched_under_loop.at(loop).at(buffer);
     if (touched.size() >= 2) {
       int64_t extent = 1;
-      if (const int64_t* ext = GetLoopIntExtent(loop)) {
+      const auto* ext_imm = loop->extent.as<IntImmNode>();
+      if (auto ext = ext_imm ? ext_imm->value.as<int64_t>() : std::nullopt; ext.has_value()) {
         extent = *ext;
       }
       reuse_type = ReuseType::kSerialMultipleReadWrite;
@@ -1108,7 +1125,9 @@ struct Feature {
                                arith_ops.float_math_func + arith_ops.float_other_func;
     total_compute_ops /= loop_nest.prod;
     for (int i = n_loops - 1; i >= 0; --i) {
-      if (const int64_t* extent = GetLoopIntExtent(loops[i])) {
+      const auto* extent_imm = loops[i]->extent.as<IntImmNode>();
+      if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+          extent.has_value()) {
         total_compute_ops *= *extent;
       }
       compute_ops.push_back(total_compute_ops);

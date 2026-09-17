@@ -72,7 +72,7 @@ void AnalyzerObj::Bind(const Var& var, const Range& range, bool allow_override) 
 
 void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
   // decompose value as symbol * scale + offset
-  int64_t offset = 0;
+  ffi::BigInt offset = 0;
   PrimType value_ty = value.ty();
   PrimExpr symbol_scale = prim::MakeConst(value_ty, 0);
 
@@ -90,7 +90,7 @@ void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
   UnpackSum(value, fcollect_sum);
 
   // split out the symbol and non-symbolic part
-  int64_t cscale = 1;
+  ffi::BigInt cscale = 1;
   PrimExpr symbol = prim::MakeConst(value_ty, 1);
   auto fcollect_prod = [&](PrimExpr val) {
     if (const auto* intimm = val.as<IntImmNode>()) {
@@ -116,8 +116,9 @@ void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
     // mark the constant bound is sufficient
     // we cannot mark interval set as that will cause relaxation of the var
     // during bound proof which is not our intention
-    this->const_int_bound.Update(var, ConstIntBound(-offset, ConstIntBound::kPosInf),
-                                 allow_override);
+    if (-offset <= ConstIntBound::kNegInf || -offset >= ConstIntBound::kPosInf) return;
+    this->const_int_bound.Update(
+        var, ConstIntBound(static_cast<int64_t>(-offset), ConstIntBound::kPosInf), allow_override);
   }
 }
 
@@ -184,14 +185,17 @@ bool AnalyzerObj::CanProveLessEqualThanSymbolicShapeValue(const PrimExpr& lhs,
   if (prim::is_const_int(shape)) return false;
   // collect constant scale and ignore symbolic part
   // so 32 * n => cscale = 32
-  int64_t cscale = 1;
+  ffi::BigInt cscale = 1;
   auto fcollect = [&](const PrimExpr& expr) {
     if (auto* ptr = expr.as<IntImmNode>()) {
       cscale *= ptr->value;
     }
   };
   UnpackReduction<prim::MulNode>(shape, fcollect);
-  PrimExpr const_shape_bound = IntImm(shape.ty(), std::abs(cscale));
+  cscale = cscale < 0 ? -cscale : cscale;
+  int value_bits = shape.ty().bits() - shape.ty().MatchesCode(DLDataTypeCode::kDLInt);
+  if (cscale >= (ffi::BigInt(1) << value_bits)) return false;
+  PrimExpr const_shape_bound = IntImm(shape.ty(), cscale);
   if (this->CanProve(lhs <= const_shape_bound, ProofStrength::kSymbolicBound)) return true;
   return false;
 }
@@ -202,8 +206,8 @@ bool AnalyzerObj::CanProve(const PrimExpr& expr, ProofStrength strength) {
     return ptr->value != 0;
   }
   PrimExpr simplified = Simplify(expr);
-  const int64_t* as_int = prim::as_const_int(simplified);
-  if (as_int && *as_int) return true;
+  const auto* as_int = simplified.as<IntImmNode>();
+  if (as_int && as_int->value != 0) return true;
   if (strength >= ProofStrength::kSymbolicBound) {
     // NOTE: we intentionally only pattern match common bound predicate i < bound
     // and put this implementation at the top-level.

@@ -132,9 +132,9 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm buffer_index,
                                       IntImm buffer_index_type, IndexMap index_map) {
-    return sch->AnnotateBufferAccess(block, buffer_index->value,
-                                     static_cast<BufferIndexType>(buffer_index_type->value),
-                                     index_map);
+    return sch->AnnotateBufferAccess(
+        block, buffer_index->value.as<int>().value(),
+        static_cast<BufferIndexType>(buffer_index_type->value.as<int>().value()), index_map);
   }
 
   static ffi::String IndexMap2GenNewRangesLambda(const IndexMap& index_map) {
@@ -173,10 +173,12 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
                                       IndexMap index_map) {
     PythonAPICall py("annotate_buffer_access");
     py.Input("block", block);
-    py.Input("buffer_index", buffer_index->value);
+    py.Input("buffer_index", buffer_index->value.as<int>().value());
 
     std::ostringstream os;
-    os << "\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
+    os << "\""
+       << BufferIndexType2Str(
+              static_cast<BufferIndexType>(buffer_index_type->value.as<int>().value()))
        << "\"";
     py.Input("buf_type", ffi::String(os.str()));
 

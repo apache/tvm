@@ -323,7 +323,7 @@ runtime::Tensor IndexMapNode::MapTensor(runtime::Tensor arr_src) const {
 
   std::vector<int64_t> dst_shape_int;
   for (size_t i = 0; i < dst_shape.size(); ++i) {
-    dst_shape_int.push_back(dst_shape[i].as<IntImmNode>()->value);
+    dst_shape_int.push_back(static_cast<int64_t>(dst_shape[i].as<IntImmNode>()->value));
   }
 
   auto elem_bytes = (arr_src->dtype.bits / 8) * arr_src->dtype.lanes;
@@ -347,14 +347,14 @@ runtime::Tensor IndexMapNode::MapTensor(runtime::Tensor arr_src) const {
 
     // Convert an N-d coordinate to a linear coordinate
     // (z, y, x) -> z * height * width + y * width + x
-    size_t dst_linear_index = 0;
+    ffi::BigInt dst_linear_index = 0;
     auto mul_factor = size_1d;
     for (size_t j = 0; j < dst_indices.size(); ++j) {
       mul_factor /= dst_shape_int[j];
       dst_linear_index += dst_indices[j].as<IntImmNode>()->value * mul_factor;
     }
     std::copy(bytes_src.begin() + i * elem_bytes, bytes_src.begin() + (i + 1) * elem_bytes,
-              bytes_dst.begin() + dst_linear_index * elem_bytes);
+              bytes_dst.begin() + static_cast<int64_t>(dst_linear_index) * elem_bytes);
   }
 
   auto arr_dst = runtime::Tensor::Empty(dst_shape_int, arr_src->dtype, arr_src->device);

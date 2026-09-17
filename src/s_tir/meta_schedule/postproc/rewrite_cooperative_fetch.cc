@@ -46,7 +46,8 @@ ffi::Optional<int64_t> ParseThreadBinding(const Schedule& sch, const Instruction
   if (thread_axis != axis) {
     return std::nullopt;
   }
-  return sch->Get(inst->inputs[0].as_or_throw<LoopRV>())->extent.as_or_throw<IntImm>()->value;
+  return static_cast<int64_t>(
+      sch->Get(inst->inputs[0].as_or_throw<LoopRV>())->extent.as_or_throw<IntImm>()->value);
 }
 
 /*!
@@ -68,7 +69,8 @@ ffi::Optional<SBlockRV> ParseAnnotate(const Schedule& sch, const Instruction& in
   if (ann_key != s_tir::attr::meta_schedule_cooperative_fetch) {
     return std::nullopt;
   }
-  *vector_lane = sch->Get(inst->inputs[1].as_or_throw<ExprRV>()).as_or_throw<IntImm>()->value;
+  *vector_lane = static_cast<int64_t>(
+      sch->Get(inst->inputs[1].as_or_throw<ExprRV>()).as_or_throw<IntImm>()->value);
   return inst->inputs[0].as_or_throw<SBlockRV>();
 }
 
@@ -189,7 +191,9 @@ bool RewriteCooperativeFetchNode::Apply(const s_tir::Schedule& sch) {
       sch->Unannotate(block, s_tir::attr::meta_schedule_cooperative_fetch);
       s_tir::LoopRV fused = sch->GetLoops(block).back();
       int64_t fused_extent = -1;
-      if (const int64_t* extent = s_tir::GetLoopIntExtent(sch->Get(fused).get())) {
+      const auto* extent_imm = sch->Get(fused)->extent.as<IntImmNode>();
+      if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+          extent.has_value()) {
         fused_extent = *extent;
       } else {
         return;

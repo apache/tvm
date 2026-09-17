@@ -161,7 +161,7 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
       TVM_FFI_ICHECK(unpacked_axes.size() > 1)
           << "Invalid layout " << name << ": found empty/single packed axis";
       std::stringstream ss;
-      int64_t extent = 1;
+      ffi::BigInt extent = 1;
       for (auto& axis : unpacked_axes) {
         TVM_FFI_ICHECK(axis->dom->extent.as<IntImmNode>())
             << "Invalid SLayout " << name << ": can't have variable sized node(" << axis->var->name
@@ -169,7 +169,7 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
         auto axis_name = axis->var->name.operator std::string();
         auto factor = axis->dom->extent.as<IntImm>().value();
         ss << axis_name;
-        extent = extent * factor->value;
+        extent *= factor->value;
       }
       std::string grouped_name = ss.str();
       IterVar grouped_axis(Range(IntImm(index_ty, 0), IntImm(index_ty, extent)),
@@ -271,7 +271,8 @@ IterVar SLayout::PackIterVar(ffi::Array<IterVar> iter_vars) {
     TVM_FFI_ICHECK(itvar->dom->extent.as<IntImm>())
         << "Packed Axis can contain only Subordinate Axes";
     name << itvar->dom->extent.as<IntImm>().value() << itvar->var->name;
-    extent = extent * itvar->dom->extent.as<IntImm>().value()->value;
+    extent =
+        (ffi::BigInt(extent) * itvar->dom->extent.as<IntImm>().value()->value).as<size_t>().value();
   }
 
   return IterVar(Range(IntImm(index_ty, 0), IntImm(index_ty, extent)),
@@ -288,7 +289,7 @@ int32_t SLayout::FactorOf(const SLayoutAxis& axis) const {
     for (auto itvar : UnpackIterVar(packed_itvar)) {
       if (sub == SLayoutAxis::Get(itvar)) {
         has_sub = true;
-        int32_t val = itvar->dom->extent.as<IntImmNode>()->value;
+        int32_t val = itvar->dom->extent.as<IntImmNode>()->value.as<int32_t>().value();
         factor *= val;
       }
     }
@@ -329,24 +330,25 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
             src_layout.PackedAxisAt(i) * src_layout.FactorOf(prim_axis);
       exists[prim_axis.name()[0]] = true;
     } else {
-      int64_t value = 1;
-      std::vector<int> index_divs(src_unpacked_axes.size());
+      ffi::BigInt value = 1;
+      std::vector<ffi::BigInt> index_divs(src_unpacked_axes.size());
       for (size_t j = 0; j < src_unpacked_axes.size(); j++) {
         index_divs[j] = value;
         const auto* extent = src_unpacked_axes[j]->dom->extent.as<IntImmNode>();
         TVM_FFI_ICHECK(extent) << "Expected Integer Extents for Offset Calculation";
         index_divs.push_back(value);
-        value = value * extent->value;
+        value *= extent->value;
       }
       std::reverse(index_divs.begin(), index_divs.end());
 
       for (size_t j = 0; j < src_unpacked_axes.size(); j++) {
-        const int extent = src_unpacked_axes[j]->dom->extent.as<IntImmNode>()->value;
+        PrimExpr extent = src_unpacked_axes[j]->dom->extent;
         const SLayoutAxis& store_axis_impl = SLayoutAxis::Get(src_unpacked_axes[j]);
         const SLayoutAxis& sub_axis = store_axis_impl.ToSubordinate(); /* Not Needed */
         const SLayoutAxis& prim_axis = store_axis_impl.ToPrimal();
 
-        PrimExpr factor_ij = indexdiv(src_layout.PackedAxisAt(i), index_divs[j]);
+        PrimExpr factor_ij = indexdiv(src_layout.PackedAxisAt(i),
+                                      IntImm(src_layout.PackedAxisAt(i)->var.ty(), index_divs[j]));
         if (j != 0) factor_ij = indexmod(factor_ij, extent);
 
         for (size_t k = i; k < src_layout.ndim(); k++) {
@@ -407,13 +409,13 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
             if (sub_axis == axis) {
               const auto* sub_extent = inter_unpacked_axes[l]->dom->extent.as<IntImmNode>();
               TVM_FFI_ICHECK(sub_extent) << "Expected Integer Extents for Offset Calculation";
-              divfactor = divfactor * sub_extent->value;
+              divfactor = (ffi::BigInt(divfactor) * sub_extent->value).as<size_t>().value();
             }
           }
         }
 
         factor = factor + indexmod(indexdiv(norm_indexes[prim_axis.name()[0] - 'A'], divfactor),
-                                   extent->value);
+                                   IntImm(extent->ty.as_or_throw<PrimType>(), extent->value));
         for (size_t k = j + 1; k < dst_unpacked_axes.size(); k++) {
           factor = factor * dst_unpacked_axes[k]->dom->extent.as<IntImm>().value();
         }

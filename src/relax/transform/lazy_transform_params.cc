@@ -38,7 +38,7 @@ using namespace tvm::prim;
 namespace {
 std::optional<int64_t> GetNumInputParams(const FunctionNode* func) {
   if (auto opt_int_imm = func->GetAttr<IntImm>(attr::kNumInput)) {
-    int64_t num_input_params = opt_int_imm.value()->value;
+    int64_t num_input_params = static_cast<int64_t>(opt_int_imm.value()->value);
     TVM_FFI_CHECK_GE(num_input_params, 0, ValueError)
         << "Annotation for attr::kNumInput (\"" << attr::kNumInput
         << "\") must be non-negative, but was " << num_input_params;

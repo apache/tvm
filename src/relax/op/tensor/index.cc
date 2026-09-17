@@ -415,7 +415,7 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
 
     ffi::Array<int64_t> axes_tuple_i64;
     axes_tuple_i64.reserve(axes_tuple.size());
-    for (const IntImm& v : axes_tuple) axes_tuple_i64.push_back(v->value);
+    for (const IntImm& v : axes_tuple) axes_tuple_i64.push_back(static_cast<int64_t>(v->value));
     std::vector<int> axes = NormalizeAxes(call, ctx, data_ty->ndim, axes_tuple_i64);
     auto attrs = call->attrs.as<StridedSliceAttrs>();
 
@@ -478,7 +478,7 @@ InferLayoutOutput InferLayoutStridedSlice(
 
   ffi::Array<Expr> new_axes;
   for (const auto& axis : axes_tuple) {
-    int new_axis = FindAxis(existing_layout->layout, axis->value);
+    int new_axis = FindAxis(existing_layout->layout, axis->value.as<int>().value());
     new_axes.push_back(IntImm::Int64(new_axis));
   }
 

@@ -845,7 +845,8 @@ struct ComputeAtTraits : public UnpackedInstTraits<ComputeAtTraits> {
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, LoopRV loop_rv,
                                       IntImm preserve_unit_loops, IntImm index) {
-    return sch->ComputeAt(block_rv, loop_rv, preserve_unit_loops->value != 0, index->value);
+    return sch->ComputeAt(block_rv, loop_rv, preserve_unit_loops->value != 0,
+                          index->value.as<int>().value());
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
@@ -874,7 +875,8 @@ struct ReverseComputeAtTraits : public UnpackedInstTraits<ReverseComputeAtTraits
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, LoopRV loop_rv,
                                       IntImm preserve_unit_loops, IntImm index) {
-    return sch->ReverseComputeAt(block_rv, loop_rv, preserve_unit_loops->value != 0, index->value);
+    return sch->ReverseComputeAt(block_rv, loop_rv, preserve_unit_loops->value != 0,
+                                 index->value.as<int>().value());
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,

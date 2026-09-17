@@ -1053,8 +1053,7 @@ std::pair<ffi::Array<StmtSRef>, std::vector<int>> CollectComputeLocation(
   location_indices.reserve(n_candidate + 2);
   bool visited_reduce = false;
   for (size_t i = 0; i < n_candidate; ++i) {
-    const int64_t* loop_extent = GetLoopIntExtent(loop_srefs[i]);
-    if (loop_extent != nullptr && *loop_extent == 1) {
+    if (is_one(TVM_SREF_TO_FOR(loop_srefs[i])->extent)) {
       continue;
     }
 
@@ -1426,7 +1425,7 @@ AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& wri
   var2idx.reserve(w_dim);
   for (int i = 0; i < w_dim; ++i) {
     const Range& dom = write_region->region[i];
-    if (as_const_int(dom->extent) == nullptr) {
+    if (!dom->extent.as<IntImmNode>()) {
       return kNotExist;
     }
     if (auto var = dom->min.as<PrimVar>()) {
@@ -1442,11 +1441,11 @@ AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& wri
   std::vector<int> mapped(r_dim, -1);
   for (int i = 0; i < r_dim; ++i) {
     const Range& dom = read_region->region[i];
-    if (as_const_int(dom->extent) == nullptr) {
+    if (!dom->extent.as<IntImmNode>()) {
       return kNotExist;
     }
     // Case 1. Read index is a constant
-    if (as_const_int(dom->min) != nullptr) {
+    if (dom->min.as<IntImmNode>()) {
       no_const_read = false;
       continue;
     }
@@ -1572,10 +1571,7 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
   std::vector<const VarNode*> spatial_block_vars;
   spatial_block_vars.reserve(block->iter_vars.size());
   for (const IterVar& block_var : block->iter_vars) {
-    const int64_t* dom_min = as_const_int(block_var->dom->min);
-    const int64_t* dom_extent = as_const_int(block_var->dom->extent);
-    bool has_trivial_dom =
-        dom_min != nullptr && dom_extent != nullptr && *dom_min == 0 && *dom_extent == 1;
+    bool has_trivial_dom = is_zero(block_var->dom->min) && is_one(block_var->dom->extent);
     if (block_var->iter_type == IterVarType::kDataPar && !has_trivial_dom) {
       spatial_block_vars.push_back(block_var->var.get());
     }
@@ -1599,7 +1595,7 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
     // Step 2.3. Collect the block vars that are used to index the read region
     std::unordered_set<const VarNode*> vars;
     for (const Range& range : regions) {
-      if (as_const_int(range->extent) == nullptr) {
+      if (!range->extent.as<IntImmNode>()) {
         return false;
       }
       for (const Var& var : UndefinedVars(range->min)) {
@@ -1643,15 +1639,17 @@ std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const s_tir::Sc
   for (const tirx::StmtSRef& loop_sref : loops) {
     tirx::IterVarType type = GetLoopIterType(loop_sref);
     if (type == tirx::kDataPar) {
-      const int64_t* extent = GetLoopIntExtent(loop_sref);
-      if (extent && *extent != -1) {
+      const auto* extent_imm = TVM_SREF_TO_FOR(loop_sref)->extent.as<IntImmNode>();
+      auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+      if (extent.has_value() && *extent != -1) {
         cum_space_len *= *extent;
       } else {
         return std::make_pair(-1, -1);
       }
     } else if (type == tirx::kCommReduce) {
-      const int64_t* extent = GetLoopIntExtent(loop_sref);
-      if (extent && *extent != -1) {
+      const auto* extent_imm = TVM_SREF_TO_FOR(loop_sref)->extent.as<IntImmNode>();
+      auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+      if (extent.has_value() && *extent != -1) {
         cum_reduce_len *= *extent;
       } else {
         return std::make_pair(-1, -1);
@@ -1917,12 +1915,12 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
       if (!int_block_extent) {
         return std::nullopt;
       }
-      int64_t remainder = int_block_extent->value % int_desc_extent->value;
+      ffi::BigInt remainder = int_block_extent->value % int_desc_extent->value;
       if (remainder != 0) {
         if (allow_padding) {
           // If the block loop is not divisible by the desc loop, we pad the block loop to make it
           // divisible if padding is allowed.
-          block_index_to_padding[current_block_ind] = int_desc_extent->value;
+          block_index_to_padding[current_block_ind] = static_cast<int64_t>(int_desc_extent->value);
         } else {
           return std::nullopt;
         }

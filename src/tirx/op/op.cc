@@ -641,7 +641,9 @@ int ExtractInt(const ffi::PackedArgs& args, int index) {
     // Handle IntImm case (from TIR parsing)
     PrimExpr expr = args[index].cast<PrimExpr>();
     if (auto int_imm = expr.as<IntImmNode>()) {
-      return static_cast<int>(int_imm->value);
+      auto value = int_imm->value.as<int>();
+      TVM_FFI_CHECK(value.has_value(), OverflowError) << "Integer argument does not fit int";
+      return *value;
     }
     LOG(FATAL) << "Cannot extract int from argument at index " << index;
     return 0;

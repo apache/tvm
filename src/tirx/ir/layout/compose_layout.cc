@@ -79,7 +79,8 @@ void CollectOffsetTerms(const PrimExpr& expr, int sign, std::vector<PrimExpr>* d
   PrimExpr simplified = analyzer->Simplify(expr);
   if (const auto* imm = simplified.as<IntImmNode>()) {
     int64_t signed_value;
-    if (!MulWithoutOverflow(imm->value, sign, &signed_value) ||
+    auto value = imm->value.as<int64_t>();
+    if (!value.has_value() || !MulWithoutOverflow(*value, sign, &signed_value) ||
         !AddWithoutOverflow(*constant, signed_value, constant)) {
       *valid = false;
     }
@@ -192,11 +193,13 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
     const Iter& iter = tile->shard[i];
     if (analyzer->CanProveEqual(iter->extent, 1)) continue;
     PrimExpr simplified_stride = analyzer->Simplify(iter->stride);
-    const int64_t* stride = as_const_int(simplified_stride);
-    if (stride == nullptr || *stride < 0) return fallback();
+    const auto* stride_imm = simplified_stride.as<IntImmNode>();
+    auto stride = stride_imm ? stride_imm->value.as<int64_t>() : std::nullopt;
+    if (!stride.has_value() || *stride < 0) return fallback();
     PrimExpr term = analyzer->Simplify(coord[i] * iter->stride);
     if (const auto* imm = term.as<IntImmNode>()) {
-      if (!add_constant(imm->value)) return fallback();
+      auto value = imm->value.as<int64_t>();
+      if (!value.has_value() || !add_constant(*value)) return fallback();
       continue;
     }
     if (auto quotient = DivideExactTerm(term, atom, analyzer); quotient.has_value()) {
@@ -204,8 +207,9 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
       continue;
     }
     PrimExpr simplified_extent = analyzer->Simplify(iter->extent);
-    const int64_t* extent = as_const_int(simplified_extent);
-    if (extent == nullptr || *extent <= 0) return fallback();
+    const auto* extent_imm = simplified_extent.as<IntImmNode>();
+    auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+    if (!extent.has_value() || *extent <= 0) return fallback();
     int64_t term_max;
     if (!MulWithoutOverflow(*extent - 1, *stride, &term_max)) return fallback();
 

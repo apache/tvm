@@ -404,8 +404,8 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
     const auto* int_desc_extent = desc_extent.as<IntImmNode>();
     TVM_FFI_ICHECK(int_block_extent != nullptr && int_desc_extent != nullptr);
     // Check divisibility
-    int64_t total = int_block_extent->value;
-    int64_t inner = int_desc_extent->value;
+    const ffi::BigInt& total = int_block_extent->value;
+    const ffi::BigInt& inner = int_desc_extent->value;
     TVM_FFI_ICHECK_EQ(total % inner, 0);
     // Do the split. Leave the outer extent as std::nullopt (unspecified) so that the split factors
     // can be used for different extents (needed during tuning).

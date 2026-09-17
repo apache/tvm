@@ -68,10 +68,10 @@ class HipblasJSONSerializer : public JSONSerializer {
     NodeEntries inputs(inputs_tmp.size());
 
     auto arg_idx = backend::ExtractArgIdx(composite_name, fn);
-    inputs[0] = inputs_tmp[arg_idx["lhs"]->value];
-    inputs[1] = inputs_tmp[arg_idx["rhs"]->value];
+    inputs[0] = inputs_tmp[static_cast<int64_t>(arg_idx["lhs"]->value)];
+    inputs[1] = inputs_tmp[static_cast<int64_t>(arg_idx["rhs"]->value)];
     if (inputs_tmp.size() == 3) {
-      inputs[2] = inputs_tmp[arg_idx["bias"]->value];
+      inputs[2] = inputs_tmp[static_cast<int64_t>(arg_idx["bias"]->value)];
     }
 
     auto node = std::make_shared<JSONGraphNode>(composite_name, /* name_ */

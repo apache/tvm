@@ -1597,9 +1597,10 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
                                       IntImm buffer_index, IntImm buffer_index_type,
                                       ffi::Optional<IndexMap> pad_value,
                                       IntImm assume_injective_transform) {
-    return sch->TransformLayout(block_rv, buffer_index->value,
-                                static_cast<BufferIndexType>(buffer_index_type->value), index_map,
-                                pad_value, assume_injective_transform->value != 0);
+    return sch->TransformLayout(
+        block_rv, buffer_index->value.as<int>().value(),
+        static_cast<BufferIndexType>(buffer_index_type->value.as<int>().value()), index_map,
+        pad_value, assume_injective_transform->value != 0);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
@@ -1610,7 +1611,9 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     py.Input("block", block_rv);
 
     std::ostringstream os;
-    os << "(\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
+    os << "(\""
+       << BufferIndexType2Str(
+              static_cast<BufferIndexType>(buffer_index_type->value.as<int>().value()))
        << "\", " << buffer_index << ")";
     py.Input("buffer", os.str());
     py.Input("index_map", index_map->ToPythonString());

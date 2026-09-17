@@ -104,9 +104,11 @@ class SplitExprCollector {
  private:
   void Visit(const arith::IterSplitExpr& expr) {
     if (auto var = expr->source->source.as<PrimVar>()) {
-      const int64_t* lower_factor = as_const_int(expr->lower_factor);
-      const int64_t* extent = as_const_int(expr->extent);
-      if (lower_factor == nullptr || extent == nullptr) {
+      const auto* lower_factor_imm = expr->lower_factor.as<IntImmNode>();
+      auto lower_factor = lower_factor_imm ? lower_factor_imm->value.as<int64_t>() : std::nullopt;
+      const auto* extent_imm = expr->extent.as<IntImmNode>();
+      auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+      if (!lower_factor.has_value() || !extent.has_value()) {
         failed_ = true;
         return;
       }

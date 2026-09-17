@@ -86,7 +86,7 @@ inline Tensor dilate(const Tensor& x, ffi::Array<PrimExpr> strides, double dilat
         ffi::Array<PrimExpr> not_zero;
         ffi::Array<PrimExpr> index_tuple;
         for (size_t i = 0; i < n; ++i) {
-          if (IsConstInt(strides[i]) && GetConstInt(strides[i]) == 1) {
+          if (IsConstInt(strides[i]) && strides[i].as_or_throw<IntImm>()->value == 1) {
             index_tuple.push_back(indices[i]);
           } else {
             index_tuple.push_back(indexdiv(indices[i], strides[i]));

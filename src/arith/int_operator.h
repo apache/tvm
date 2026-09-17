@@ -24,6 +24,7 @@
 #ifndef TVM_ARITH_INT_OPERATOR_H_
 #define TVM_ARITH_INT_OPERATOR_H_
 
+#include <tvm/ffi/big_int.h>
 #include <tvm/ir/prim/expr.h>
 
 #include <limits>
@@ -141,6 +142,20 @@ inline int64_t ExtendedEuclidean(int64_t a, int64_t b, int64_t* x, int64_t* y) {
  * \return The result.
  */
 inline int64_t ZeroAwareGCD(int64_t a, int64_t b) {
+  if (a < 0) a = -a;
+  if (b < 0) b = -b;
+  if (a < b) std::swap(a, b);
+  if (b == 0) return a;
+  // perform GCD (greatest common divisor)
+  // ax + by = gcd(a, b) z if a != 0, b != 0
+  while (a % b != 0) {
+    a = a % b;
+    std::swap(a, b);
+  }
+  return b;
+}
+
+inline ffi::BigInt ZeroAwareGCD(ffi::BigInt a, ffi::BigInt b) {
   if (a < 0) a = -a;
   if (b < 0) b = -b;
   if (a < b) std::swap(a, b);

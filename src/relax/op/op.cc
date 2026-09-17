@@ -41,21 +41,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
-  if (const int64_t* pvalue = tvm::prim::as_const_int(lhs)) {
-    return pvalue[0] == value;
+  if (const auto* pvalue = lhs.as<IntImmNode>()) {
+    return pvalue->value == value;
   }
   return false;
 }
 
 bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
   PrimExpr diff = lhs - rhs;
-  if (const int64_t* pdiff = tvm::prim::as_const_int(diff)) {
-    return pdiff[0] == 0;
+  if (const auto* pdiff = diff.as<IntImmNode>()) {
+    return pdiff->value == 0;
   }
   tvm::arith::Analyzer ana;
   diff = ana->Simplify(diff);
-  if (const int64_t* pdiff = tvm::prim::as_const_int(diff)) {
-    return pdiff[0] == 0;
+  if (const auto* pdiff = diff.as<IntImmNode>()) {
+    return pdiff->value == 0;
   }
   return false;
 }
@@ -1066,7 +1066,7 @@ Type ReturnTensorToShapeType(const Call& call, const BlockBuilder& ctx) {
     ShapeExpr shape_expr = tensor_ty->shape.value().as_or_throw<ShapeExpr>();
     const IntImmNode* ndim = shape_expr->values[0].as<IntImmNode>();
     if (ndim) {
-      return ShapeType(ndim->value);
+      return ShapeType(ndim->value.as<int>().value());
     }
   }
   return ShapeType(kUnknownNDim);
@@ -1129,7 +1129,7 @@ Type InferTypeAllocateTensor(const Call& call, const BlockBuilder& ctx) {
   }
   int64_t vdevice_index = -1;
   if (const auto* int_imm = call->args[2].as<IntImmNode>()) {
-    vdevice_index = int_imm->value;
+    vdevice_index = int_imm->value.as<int>().value();
   }
   auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
 
@@ -1207,7 +1207,7 @@ Type InferTypeMemAllocTensor(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() == 5) {
     int64_t vdevice_index = -1;
     if (const auto* int_imm = call->args[4].as<IntImmNode>()) {
-      vdevice_index = int_imm->value;
+      vdevice_index = int_imm->value.as<int>().value();
     }
     auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
     if (vdevice.has_value()) {
@@ -1330,7 +1330,7 @@ Type InferTypeVMAllocTensor(const Call& call, const BlockBuilder& ctx) {
   }
   int64_t vdevice_index = -1;
   if (const auto* int_imm = call->args[4].as<IntImmNode>()) {
-    vdevice_index = int_imm->value;
+    vdevice_index = int_imm->value.as<int>().value();
   }
   auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
 

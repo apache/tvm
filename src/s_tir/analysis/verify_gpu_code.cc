@@ -73,7 +73,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
     int64_t const_size = 1;
     for (const PrimExpr& e : op->buffer->shape) {
       if (auto* imm = e.as<IntImmNode>()) {
-        const_size *= imm->value;
+        const_size = static_cast<int64_t>(const_size * imm->value);
       } else {
         const_size = 0;
         break;
@@ -115,7 +115,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
       // record the number of threads in a block
       if (name == "threadIdx.x" || name == "threadIdx.y" || name == "threadIdx.z" ||
           name == "vthread") {
-        size_t length = static_cast<size_t>(extent->value);
+        size_t length = extent->value.as<size_t>().value();
         if (!visited_threads_.count(name)) {
           visited_threads_.insert(name);
           thread_per_block_ *= length;
@@ -192,7 +192,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
       const auto* extent = op->extent.as<IntImmNode>();
       TVM_FFI_ICHECK(extent);
 
-      size_t num_vthread = static_cast<size_t>(extent->value);
+      size_t num_vthread = extent->value.as<size_t>().value();
       if (num_vthread > max_vthread_) {
         std::stringstream s;
         s << "Number of vthreads (" << num_vthread << ") is greater than the allowed maximum ("
@@ -313,23 +313,23 @@ std::vector<ffi::String> VerifyGPUCode_(const PrimFunc& func,
   for (auto iter : constraints) {
     const IntImmNode* val = iter.second.as<IntImmNode>();
     if (iter.first == "max_local_memory_per_block") {
-      max_local_memory_per_block = val->value;
+      max_local_memory_per_block = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_shared_memory_per_block") {
-      max_shared_memory_per_block = val->value;
+      max_shared_memory_per_block = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_threads_per_block") {
-      max_threads_per_block = val->value;
+      max_threads_per_block = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_thread_x") {
-      max_thread_x = val->value;
+      max_thread_x = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_thread_y") {
-      max_thread_y = val->value;
+      max_thread_y = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_thread_z") {
-      max_thread_z = val->value;
+      max_thread_z = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_vthread") {
-      max_vthread = val->value;
+      max_vthread = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_vector_bytes") {
-      max_vector_bytes = val->value;
+      max_vector_bytes = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_kernels") {
-      max_kernels = val->value;
+      max_kernels = static_cast<int64_t>(val->value);
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid check item: " << iter.first;
     }

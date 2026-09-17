@@ -201,25 +201,6 @@ inline bool IsThreadIdx(const runtime::ThreadScope& thread_scope) {
   return thread_scope.rank == 1 && thread_scope.dim_index >= 0;
 }
 
-/**************** Loop extents ****************/
-
-/*!
- * \brief Get the extents of a loop
- * \param loop The loop to be queried
- * \return The extent of the loop, nullptr if the extent is not constant
- */
-inline const int64_t* GetLoopIntExtent(const ForNode* loop) { return as_const_int(loop->extent); }
-
-/*!
- * \brief Get the extents of a loop
- * \param loop_sref The loop to be queried
- * \return The extent of the loop, nullptr if the extent is not constant
- */
-inline const int64_t* GetLoopIntExtent(const StmtSRef& loop_sref) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  return as_const_int(loop->extent);
-}
-
 /*!
  * \brief Check if an expression consists of a single variable,
  * or a variable plus/minus an constant integer shift

@@ -240,7 +240,7 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
         auto width = splits[i].split_size.as<IntImmNode>();
         TVM_FFI_CHECK(width, InternalError)
             << "All splits except the last one must have a static shape";
-        split_index += width->value;
+        split_index = (split_index + width->value).as<int>().value();
         sections.push_back(IntImm::Int64(split_index));
       }
 

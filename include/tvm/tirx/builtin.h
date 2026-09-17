@@ -78,17 +78,6 @@ TVM_DLL const Op& filter();
 TVM_DLL const Op& selector();
 
 /*!
- * \brief See pesudo code
- *
- *  Construct a big uint that may not be representable by int64
- *
- *  Expr large_uint_imm(uint32_t v0, uin32_t v1) {
- *    return (v1 << 32) | v0;
- *  }
- */
-TVM_DLL const Op& large_uint_imm();
-
-/*!
  * \brief Execute a multiplication between two Q-numbers x and y
  * followed by a right shift s
  * The default rounding rule is to the nearest value, rounding half up

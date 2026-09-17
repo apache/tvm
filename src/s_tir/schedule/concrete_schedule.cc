@@ -462,7 +462,7 @@ class WrongFactorError : public ScheduleErrorContextObj {
 
 class NonPositiveFactorError : public ScheduleErrorContextObj {
  public:
-  explicit NonPositiveFactorError(IRModule mod, int64_t factor, size_t idx)
+  explicit NonPositiveFactorError(IRModule mod, ffi::BigInt factor, size_t idx)
       : mod_(std::move(mod)), factor_(factor), idx_(idx) {}
 
   ffi::String FastErrorString() const final {
@@ -480,7 +480,7 @@ class NonPositiveFactorError : public ScheduleErrorContextObj {
 
  private:
   IRModule mod_;
-  int64_t factor_;
+  ffi::BigInt factor_;
   size_t idx_;
 };
 

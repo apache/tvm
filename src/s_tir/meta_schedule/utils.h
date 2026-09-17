@@ -470,7 +470,7 @@ inline ffi::Array<FloatImm> AsFloatArray(const ffi::ObjectRef& obj) {
   for (Any val : *arr) {
     auto float_value = [&]() -> FloatImm {
       if (auto opt_int_imm = val.try_cast<IntImm>()) {
-        return FloatImm(PrimType::Float(32), (*opt_int_imm)->value);
+        return FloatImm(PrimType::Float(32), static_cast<double>((*opt_int_imm)->value));
       } else if (auto opt_float_imm = val.try_cast<FloatImm>()) {
         return *std::move(opt_float_imm);
       } else {
@@ -498,7 +498,7 @@ inline ffi::Array<int64_t> AsIntArray(const ffi::ObjectRef& obj) {
   for (Any val : *arr) {
     auto int_value = [&]() -> int64_t {
       if (auto opt_int_imm = val.try_cast<IntImm>()) {
-        return (*opt_int_imm)->value;
+        return static_cast<int64_t>((*opt_int_imm)->value);
       } else {
         TVM_FFI_THROW(TypeError) << "Expect an array of integers, but gets: " << val.GetTypeKey();
         TVM_FFI_UNREACHABLE();

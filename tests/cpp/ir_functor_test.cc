@@ -157,7 +157,7 @@ TEST(IRF, ExprTransform) {
   class MyExprFunctor : public tirx::ExprFunctor<int(const Expr&, int)> {
    public:
     int Dispatch_(const VarNode* op, int b) final { return b; }
-    int Dispatch_(const IntImmNode* op, int b) final { return op->value; }
+    int Dispatch_(const IntImmNode* op, int b) final { return op->value.as<int>().value(); }
     int Dispatch_(const prim::AddNode* op, int b) final {
       return Dispatch(op->a, b) + Dispatch(op->b, b);
     }

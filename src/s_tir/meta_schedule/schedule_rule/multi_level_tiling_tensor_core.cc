@@ -374,7 +374,9 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMATileLoopNest(TensorCoreSta
     if (iter_types[i] == IterVarType::kDataPar) {
       idx = &s_indices_;
       if (spatial_loop_product != -1) {
-        if (const int64_t* extent = s_tir::GetLoopIntExtent(sch->Get(loop).get())) {
+        const auto* extent_imm = sch->Get(loop)->extent.as<IntImmNode>();
+        if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+            extent.has_value()) {
           spatial_loop_product *= *extent;
         } else {
           spatial_loop_product = -1;
@@ -656,7 +658,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
 
   Schedule& sch = state->sch;
   // Check reduction length after blockize.
-  int64_t reduction_length = 1;
+  ffi::BigInt reduction_length = 1;
   for (int r_index : r_indices_) {
     const ffi::Array<LoopRV>& tiles = state->tiles[r_index];
     for (const LoopRV& tile : tiles) {

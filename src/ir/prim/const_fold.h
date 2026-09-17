@@ -87,16 +87,25 @@ inline bool IsIndexTypedExpr(const ExprNode* expr) {
 
 inline bool IsIndexTypedExpr(const PrimExpr& expr) { return IsIndexTypedExpr(expr.get()); }
 
-/*! \brief Helper to get const folding result repr in int64. */
-inline int64_t GetFoldResultInt64Repr(int64_t x, const PrimType& dtype) {
-  if (dtype.bits() < 64) {
-    x &= (1LL << dtype.bits()) - 1;
+/*! \brief Normalize exact arithmetic to the result's integer width. */
+inline ffi::BigInt GetFoldResult(ffi::BigInt value, const PrimType& dtype) {
+  bool is_signed = dtype.MatchesCode(DLDataTypeCode::kDLInt);
+  if (auto small = value.as<int64_t>(); small.has_value()) {
+    if (dtype.bits() >= 64 && (is_signed || *small >= 0)) return value;
+    if (dtype.bits() < 64) {
+      uint64_t bits = static_cast<uint64_t>(*small) & ((uint64_t{1} << dtype.bits()) - 1);
+      int64_t result = static_cast<int64_t>(bits);
+      if (is_signed) {
+        int64_t sign_bit = int64_t{1} << (dtype.bits() - 1);
+        result = (result ^ sign_bit) - sign_bit;
+      }
+      return ffi::BigInt(result);
+    }
   }
-  if (dtype.MatchesCode(DLDataTypeCode::kDLInt)) {
-    int64_t m = 1LL << (dtype.bits() - 1);
-    x = (x ^ m) - m;
-  }
-  return x;
+  ffi::BigInt modulus = ffi::BigInt(1) << dtype.bits();
+  value &= modulus - 1;
+  if (is_signed && value >= (modulus >> 1)) value -= modulus;
+  return value;
 }
 
 /*! \brief Helper to get fp32 const folding result repr in double. */
@@ -140,8 +149,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::Add>(PrimExpr a, PrimExpr b) {
   TVM_PRIM_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
     if (pa && pb) {
-      int64_t res = pa->value + pb->value;
-      return IntImm(result_ty, GetFoldResultInt64Repr(res, result_ty));
+      ffi::BigInt res = pa->value + pb->value;
+      return IntImm(result_ty, GetFoldResult(res, result_ty));
     }
     if (pa && pa->value == 0) return b;
     if (pb && pb->value == 0) return a;
@@ -170,8 +179,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::Sub>(PrimExpr a, PrimExpr b) {
         << "while Subtrahend's dtype is uint; which will cause a negative uint";
     PrimType result_ty = a.ty();
     if (pa && pb) {
-      int64_t res = pa->value - pb->value;
-      return IntImm(result_ty, GetFoldResultInt64Repr(res, result_ty));
+      ffi::BigInt res = pa->value - pb->value;
+      return IntImm(result_ty, GetFoldResult(res, result_ty));
     }
     if (pb && pb->value == 0) return a;
     if (fa && fb) {
@@ -192,8 +201,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::Mul>(PrimExpr a, PrimExpr b) {
   TVM_PRIM_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
     if (pa && pb) {
-      int64_t res = pa->value * pb->value;
-      return IntImm(result_ty, GetFoldResultInt64Repr(res, result_ty));
+      ffi::BigInt res = pa->value * pb->value;
+      return IntImm(result_ty, GetFoldResult(res, result_ty));
     }
     if (pa) {
       if (pa->value == 1) return b;
@@ -231,8 +240,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::Div>(PrimExpr a, PrimExpr b) {
       // due to division and mod can have different modes
       // NOTE: this will assumes truc div.
       TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
-      int64_t res = pa->value / pb->value;
-      return IntImm(result_ty, GetFoldResultInt64Repr(res, result_ty));
+      ffi::BigInt res = pa->value / pb->value;
+      return IntImm(result_ty, GetFoldResult(res, result_ty));
     }
     if (pa) {
       if (pa->value == 0) return a;
@@ -265,8 +274,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::Mod>(PrimExpr a, PrimExpr b) {
     PrimType result_ty = a.ty();
     if (pa && pb) {
       TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
-      int64_t res = pa->value % pb->value;
-      return IntImm(result_ty, GetFoldResultInt64Repr(res, result_ty));
+      ffi::BigInt res = pa->value % pb->value;
+      return IntImm(result_ty, GetFoldResult(res, result_ty));
     }
     if (pa) {
       if (pa->value == 0) return a;
@@ -276,6 +285,11 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::Mod>(PrimExpr a, PrimExpr b) {
       TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
     }
   });
+  // Fold wide literals without enabling symbolic index rewrites for their type.
+  if (pa && pb && a.ty().bits() >= 64) {
+    TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
+    return IntImm(a.ty(), GetFoldResult(pa->value % pb->value, a.ty()));
+  }
   return std::nullopt;
 }
 
@@ -285,8 +299,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::FloorDiv>(PrimExpr a, PrimExpr
     PrimType result_ty = a.ty();
     if (pa && pb) {
       TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
-      int64_t res = detail::floordiv(pa->value, pb->value);
-      return IntImm(result_ty, GetFoldResultInt64Repr(res, result_ty));
+      ffi::BigInt res = ffi::floordiv(pa->value, pb->value);
+      return IntImm(result_ty, GetFoldResult(res, result_ty));
     }
     if (pa) {
       if (pa->value == 0) return a;
@@ -317,28 +331,12 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::FloorDiv>(PrimExpr a, PrimExpr
 
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<prim::FloorMod>(PrimExpr a, PrimExpr b) {
-  const IntImmNode* ua = a.as<IntImmNode>();
-  const IntImmNode* ub = b.as<IntImmNode>();
-  PrimType utype = a.ty();
-  if (utype.MatchesCode(DLDataTypeCode::kDLUInt) && utype == b.ty() && ua && ub) {
-    auto as_uint = [](int64_t value, const PrimType& dtype) -> uint64_t {
-      uint64_t result = static_cast<uint64_t>(value);
-      if (dtype.bits() < 64) {
-        result &= (uint64_t{1} << dtype.bits()) - 1;
-      }
-      return result;
-    };
-    uint64_t lhs = as_uint(ua->value, utype);
-    uint64_t rhs = as_uint(ub->value, b.ty());
-    TVM_FFI_ICHECK_NE(rhs, 0U) << "Divide by zero";
-    return IntImm(utype, static_cast<int64_t>(lhs % rhs));
-  }
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
     if (pa && pb) {
       TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
-      int64_t res = detail::floormod(pa->value, pb->value);
-      return IntImm(result_ty, GetFoldResultInt64Repr(res, result_ty));
+      ffi::BigInt res = ffi::floormod(pa->value, pb->value);
+      return IntImm(result_ty, GetFoldResult(res, result_ty));
     }
     if (pa) {
       if (pa->value == 0) return a;
@@ -348,6 +346,11 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::FloorMod>(PrimExpr a, PrimExpr
       TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
     }
   });
+  // Fold wide literals without enabling symbolic index rewrites for their type.
+  if (pa && pb && (a.ty().bits() >= 64 || a.ty().MatchesCode(DLDataTypeCode::kDLUInt))) {
+    TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
+    return IntImm(a.ty(), GetFoldResult(ffi::floormod(pa->value, pb->value), a.ty()));
+  }
   return std::nullopt;
 }
 

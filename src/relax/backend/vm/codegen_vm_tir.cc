@@ -341,7 +341,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     std::vector<int64_t> shape;
     for (PrimExpr e : op->values) {
       if (auto* int_value = e.as<IntImmNode>()) {
-        shape.push_back(int_value->value);
+        shape.push_back(static_cast<int64_t>(int_value->value));
       } else {
         TVM_FFI_THROW(InternalError)
             << "Should only use constant shape after shape lowering: " << op->values;
@@ -460,7 +460,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     }
     int64_t vdevice_index = -1;
     if (const auto* int_imm = call_node->args[4].as<IntImmNode>()) {
-      vdevice_index = int_imm->value;
+      vdevice_index = int_imm->value.as<int>().value();
     }
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
@@ -486,7 +486,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     TVM_FFI_ICHECK(
         p_dst_reg->ty.as_or_throw<PrimType>().MatchesElementType(DLDataTypeCode::kDLInt, 32));
 
-    int64_t dst_reg = p_dst_reg->value;
+    int64_t dst_reg = static_cast<int64_t>(p_dst_reg->value);
     this->EmitCallPacked("vm.builtin.null_value", {}, dst_reg);
     return dst_reg;
   }

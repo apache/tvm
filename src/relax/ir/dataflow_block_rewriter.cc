@@ -212,15 +212,15 @@ static std::optional<MatchState> TryValidate(
       auto [necessary_condition, is_sufficient] = constraint->AsCondition(query_match_state);
 
       necessary_condition = analyzer->Simplify(necessary_condition);
-      const auto* known = tvm::prim::as_const_int(necessary_condition);
+      const auto* known = necessary_condition.as<IntImmNode>();
 
-      if (known && *known && is_sufficient) {
+      if (known && known->value != 0 && is_sufficient) {
         // The condition passes, and the expression provided is both
         // necessary and sufficient for the constraint to pass.  Mark
         // the constraint as passing, to avoid re-checking it unless
         // we backtrack.
         new_match.add(constraint.get());
-      } else if (known && !*known) {
+      } else if (known && known->value == 0) {
         // The condition fails.  Even if additional information would
         // be required to pass a constraint, it may bail out early as
         // a failure (e.g. shape mismatch in the first two items out

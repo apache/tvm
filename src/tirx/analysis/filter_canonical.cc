@@ -181,7 +181,9 @@ bool TryParseCompareAtom(const PrimExpr& expr, const ScopeIdPredicate& is_scope_
   CmpOp normalized = mirrored ? Reflect(op) : op;
   int64_t lo = 0;
   int64_t hi = 0;
-  OpToRange(normalized, imm_node->value, &lo, &hi);
+  auto value = imm_node->value.as<int64_t>();
+  if (!value.has_value()) return false;
+  OpToRange(normalized, *value, &lo, &hi);
 
   out->kind = FilterAtomKind::kRange;
   out->scopeid_var = var;

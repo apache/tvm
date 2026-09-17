@@ -331,21 +331,21 @@ inline IntervalSet Combine<prim::FloorMod>(AnalyzerObj* analyzer, IntervalSet a,
         }
       }
       // Enhanced: Use ModularSet analysis for better bounds
-      if (auto* div_imm = divisor.as<IntImmNode>()) {
-        int64_t div_val = div_imm->value;
+      if (auto div_value = divisor.as<IntImm>(); div_value.has_value()) {
+        const ffi::BigInt& div_val = (*div_value)->value;
 
         // Analyze the modular properties of the dividend
         ModularSet dividend_mod = analyzer->modular_set(op->a);
 
         if (dividend_mod.defined() && dividend_mod->coeff > 0) {
           // Calculate GCD of dividend coefficient and divisor
-          int64_t gcd = ZeroAwareGCD(dividend_mod->coeff, div_val);
+          ffi::BigInt gcd = ZeroAwareGCD(dividend_mod->coeff, div_val);
 
           if (gcd > 1 && div_val % gcd == 0) {
             // The dividend is a multiple of gcd, and divisor is also a multiple of gcd
             // So the result is also a multiple of gcd, with max value = (div_val/gcd - 1) * gcd
-            int64_t max_quotient = (div_val / gcd) - 1;
-            int64_t max_mod_result = max_quotient * gcd + (dividend_mod->base % gcd);
+            ffi::BigInt max_quotient = (div_val / gcd) - 1;
+            ffi::BigInt max_mod_result = max_quotient * gcd + (dividend_mod->base % gcd);
 
             if (max_mod_result >= 0 && max_mod_result < div_val) {
               PrimType result_ty = op->ty.as_or_throw<PrimType>();
@@ -522,21 +522,26 @@ class IntervalSetEvaluator : public tvm::ExprFunctor<IntervalSet(const Expr&)> {
 
   IntervalSet Dispatch_(const prim::RampNode* op) final {
     TVM_FFI_ICHECK(eval_vec_);
+    // Unsigned ramp addition can wrap, so its endpoints need not be monotone.
+    if (op->base.ty().MatchesCode(DLDataTypeCode::kDLUInt)) return IntervalSet::Everything();
     IntervalSet base = Eval(op->base);
     PVar<IntImm> stride;
     if (stride.Match(op->stride)) {
       PrimType t = op->base.ty();
-      int64_t vstride = stride.Eval()->value;
+      const ffi::BigInt& vstride = stride.Eval()->value;
       if (op->lanes->IsInstance<IntImmNode>()) {
-        int lanes = static_cast<int>(op->lanes.as_or_throw<IntImm>()->value);
+        int lanes = op->lanes.as_or_throw<IntImm>()->value.as<int>().value();
+        ffi::BigInt span = vstride * (lanes - 1);
+        ffi::BigInt limit = ffi::BigInt(1) << (t.bits() - 1);
+        if (span < -limit || span >= limit) return IntervalSet::Everything();
         if (vstride > 0) {
-          PrimExpr stride_expr = prim::MakeConst(t, vstride * (lanes - 1));
+          PrimExpr stride_expr = prim::MakeConst(t, span);
           auto add_op = prim::Add(op->base, stride_expr);
           auto add_node = add_op.as<prim::AddNode>();
           return Combine<prim::Add>(analyzer_, base, IntervalSet(IntImm(t, 0), stride_expr),
                                     add_node);
         } else {
-          PrimExpr stride_expr = prim::MakeConst(t, vstride * (lanes - 1));
+          PrimExpr stride_expr = prim::MakeConst(t, span);
           auto add_op = prim::Add(op->base, stride_expr);
           auto add_node = add_op.as<prim::AddNode>();
           return Combine<prim::Add>(analyzer_, base, IntervalSet(stride_expr, IntImm(t, 0)),

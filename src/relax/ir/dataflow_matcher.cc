@@ -439,13 +439,13 @@ bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& ex
 
   PrimExpr new_constraint = TypeBaseCheckPrecondition(op->ty, expr_ty);
   if (auto* as_int = new_constraint.as<IntImmNode>()) {
-    return as_int->value;
+    return static_cast<bool>(as_int->value);
   }
 
   symbolic_expr_condition_ = SimplifyCondition(symbolic_expr_condition_ && new_constraint);
 
   if (auto* as_int = symbolic_expr_condition_.as<IntImmNode>()) {
-    return as_int->value;
+    return static_cast<bool>(as_int->value);
   } else {
     return true;
   }

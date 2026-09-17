@@ -188,7 +188,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
              "dimension is not divisible by 64";
     }
 
-    return buffer_row_size;
+    return buffer_row_size.as<int>().value();
   }
 
   ffi::Array<PrimExpr> HandleBufferIndices(BufferVar buffer, ffi::Array<PrimExpr> indices) {

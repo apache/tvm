@@ -235,8 +235,8 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     condition = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(condition, f_substitute)
                     .as_or_throw<PrimExpr>();
     condition = analyzer_->Simplify(condition);
-    if (const int64_t* as_int = as_const_int(condition)) {
-      return *as_int != 0;
+    if (const auto* as_int = condition.as<IntImmNode>()) {
+      return as_int->value != 0;
     } else {
       return std::nullopt;
     }

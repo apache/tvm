@@ -1570,7 +1570,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       const prim::RampNode* ramp_index = indices[indices.size() - 1].as<prim::RampNode>();
       if (ramp_index && is_one(ramp_index->stride)) {
         if (ramp_index->lanes->IsInstance<IntImmNode>()) {
-          int lanes = static_cast<int>(ramp_index->lanes.as_or_throw<IntImm>()->value);
+          int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
           arith::ModularSet me = analyzer_->modular_set(ramp_index->base);
           if ((me->coeff % lanes == 0) && (me->base % lanes == 0)) {
             lanes_used = lanes;
@@ -1583,8 +1583,12 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       const PrimExpr last_dim_index = indices[indices.size() - 1];
       if (last_dim_index.ty().lanes() == 1) {
         arith::ModularSet me = analyzer_->modular_set(last_dim_index);
-        var_info.scalar_read_dtype.emplace(access_dtype.WithLanes(me->coeff));
-        return;
+        // Fixed lane counts use 15 bits; retain the scalar access when the modular
+        // coefficient cannot be represented by the vector type.
+        if (int64_t lanes = me->coeff; lanes >= 0 && lanes <= 32767) {
+          var_info.scalar_read_dtype.emplace(access_dtype.WithLanes(static_cast<int>(lanes)));
+          return;
+        }
       }
     }
     var_info.access_dtype.insert(access_dtype.WithLanes(lanes_used));
@@ -1747,7 +1751,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     }
 
     if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
-      int lanes = static_cast<int>(ramp_index->lanes.as_or_throw<IntImm>()->value);
+      int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
       PrimExpr new_index = ramp_index->base / MakeConst(ramp_index->base.ty(), lanes);
       if (lanes != info.factor()) {
         TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);
@@ -1792,7 +1796,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     }
 
     if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
-      int lanes = static_cast<int>(ramp_index->lanes.as_or_throw<IntImm>()->value);
+      int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
       PrimExpr new_index = ramp_index->base / MakeConst(ramp_index->base.ty(), lanes);
       if (lanes != info.factor()) {
         TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);

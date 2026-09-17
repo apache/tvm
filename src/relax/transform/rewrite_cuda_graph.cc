@@ -685,9 +685,9 @@ Function MergeAllocationPlans(const std::vector<LiftedFunctionRewritePlan*>& all
       TVM_FFI_ICHECK(alloc_storage->op.same_as(mem_alloc_storage_op));
       auto storage_shape = alloc_storage->args[0].as_or_throw<ShapeExpr>();
       TVM_FFI_ICHECK_EQ(storage_shape->values.size(), 1);
-      int64_t size = storage_shape->values[0].as_or_throw<IntImm>()->value;
-      int64_t virtual_device_id =
-          alloc_storage->args[1].as_or_throw<PrimExpr>().as_or_throw<IntImm>()->value;
+      int64_t size = static_cast<int64_t>(storage_shape->values[0].as_or_throw<IntImm>()->value);
+      int64_t virtual_device_id = static_cast<int64_t>(
+          alloc_storage->args[1].as_or_throw<PrimExpr>().as_or_throw<IntImm>()->value);
       TVM_FFI_ICHECK_EQ(virtual_device_id, 0);
       ffi::String storage_scope = alloc_storage->args[2].as_or_throw<StringImm>()->value;
       auto [it, _] = storage_records.try_emplace(storage_scope, alloc_plans.size());

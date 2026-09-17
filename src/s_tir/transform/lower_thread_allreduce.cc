@@ -268,7 +268,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       if (e.scope.rank == 1) {
         const auto* ptr = attr->value.as<IntImmNode>();
         TVM_FFI_ICHECK(ptr) << "Need constant extent for reduce set " << iv;
-        e.extent = static_cast<int>(ptr->value);
+        e.extent = ptr->value.as<int>().value();
         // ignore variables equal to 0
         if (e.extent == 1) {
           continue;

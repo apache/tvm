@@ -245,7 +245,7 @@ class LayoutConvertMutator : public ExprMutator {
       // Convert the layout according to the inferred layout output.
       ffi::Array<Expr> new_args = RewriteArgs(call_node->args, res.value()->input_layouts);
       for (const auto& [i, arg] : res.value()->new_args) {
-        new_args.Set(i->value, arg);
+        new_args.Set(i->value.as<size_t>().value(), arg);
       }
       new_call->args = std::move(new_args);
 

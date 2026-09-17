@@ -560,7 +560,12 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
     for (int i = static_cast<int>(ndim) - 1; i >= 0; --i) {
       parent_rm_strides[i] = stride;
       if (auto* s = parent->shape[i].as<IntImmNode>()) {
-        stride *= s->value;
+        auto product = (stride * s->value).as<int64_t>();
+        if (!product.has_value()) {
+          all_const = false;
+          break;
+        }
+        stride = *product;
       } else {
         all_const = false;
         break;

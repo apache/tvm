@@ -73,7 +73,7 @@ inline bool IsConstIntArray(ffi::Array<PrimExpr> array) {
  */
 inline int64_t GetConstInt(PrimExpr expr) {
   if (expr->IsInstance<tvm::IntImmNode>()) {
-    return expr.as<tvm::IntImmNode>()->value;
+    return static_cast<int64_t>(expr.as<tvm::IntImmNode>()->value);
   }
   LOG(ERROR) << "expr must be a constant integer";
   return -1;

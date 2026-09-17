@@ -24,6 +24,7 @@
 #ifndef TVM_IR_EXPR_H_
 #define TVM_IR_EXPR_H_
 
+#include <tvm/ffi/big_int.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -520,7 +521,7 @@ class Call : public Expr {
 class IntImmNode : public ExprNode {
  public:
   /*! \brief the Internal value. */
-  int64_t value;
+  ffi::BigInt value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -542,7 +543,12 @@ class IntImm : public PrimExpr {
    * \param value The internal value.
    * \param span The location of this object in the source code.
    */
-  TVM_DLL IntImm(PrimType value_ty, int64_t value, Span span = Span());
+  TVM_DLL IntImm(PrimType value_ty, ffi::BigInt value, Span span = Span());
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
+  IntImm(PrimType value_ty, Enum value, Span span = Span())
+      : IntImm(std::move(value_ty), ffi::BigInt(static_cast<std::underlying_type_t<Enum>>(value)),
+               std::move(span)) {}
 
   /*!
    * \brief Construct a scalar boolean constant.
@@ -558,8 +564,13 @@ class IntImm : public PrimExpr {
    * \param value The integer value.
    * \param span The location of this object in the source code.
    */
-  static IntImm Int32(int64_t value, Span span = Span()) {
-    return IntImm(PrimType::Int(32), value, span);
+  static IntImm Int32(ffi::BigInt value, Span span = Span()) {
+    return IntImm(PrimType::Int(32), std::move(value), span);
+  }
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
+  static IntImm Int32(Enum value, Span span = Span()) {
+    return IntImm(PrimType::Int(32), value, std::move(span));
   }
 
   /*!
@@ -567,8 +578,13 @@ class IntImm : public PrimExpr {
    * \param value The integer value.
    * \param span The location of this object in the source code.
    */
-  static IntImm Int64(int64_t value, Span span = Span()) {
-    return IntImm(PrimType::Int(64), value, span);
+  static IntImm Int64(ffi::BigInt value, Span span = Span()) {
+    return IntImm(PrimType::Int(64), std::move(value), span);
+  }
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
+  static IntImm Int64(Enum value, Span span = Span()) {
+    return IntImm(PrimType::Int(64), value, std::move(span));
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntImm, PrimExpr, IntImmNode);

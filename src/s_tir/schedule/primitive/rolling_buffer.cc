@@ -198,12 +198,17 @@ class RollingBufferInfoCollector {
         // They take this form: floordiv(hh.outer, 2)
         // Strip the floordiv and keep track of the divisor
         iter_var = p_var.Eval();
-        divisor = p_divisor.Eval()->value;
-        stride = std::ceil(static_cast<float>(p_stride.Eval()->value) / divisor);
+        auto divisor_value = p_divisor.Eval()->value.as<int>();
+        auto stride_value = p_stride.Eval()->value.as<int>();
+        if (!divisor_value.has_value() || !stride_value.has_value()) return false;
+        divisor = *divisor_value;
+        stride = std::ceil(static_cast<float>(*stride_value) / divisor);
       } else if ((p_var * p_stride).Match(bound->min)) {
         // The bound is the iter var multiplied by the stride
         iter_var = p_var.Eval();
-        stride = p_stride.Eval()->value;
+        auto stride_value = p_stride.Eval()->value.as<int>();
+        if (!stride_value.has_value()) return false;
+        stride = *stride_value;
       } else if (p_var.Match(bound->min)) {
         // If the bound is just a Var, that implies the stride is 1
         iter_var = p_var.Eval();
@@ -217,8 +222,8 @@ class RollingBufferInfoCollector {
       }
       auto bound_overlap = 0;
       if (iter_var.has_value()) {
-        auto extent = bound->extent.as_or_throw<IntImm>()->value;
-        bound_overlap = extent - stride;
+        const auto& extent = bound->extent.as_or_throw<IntImm>()->value;
+        bound_overlap = (extent - stride).as<int>().value();
         // Since Pass CompactBufferAllocation will be responsible for compacting the buffer
         // allocation region, there is no need to roll over the axis where the overlap is not
         // positive, so reset iter_var to std::nullopt.
@@ -491,7 +496,7 @@ struct RollingBufferTraits : public UnpackedInstTraits<RollingBufferTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm write_buffer_index) {
-    return sch->RollingBuffer(block, write_buffer_index->value);
+    return sch->RollingBuffer(block, write_buffer_index->value.as<int>().value());
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,

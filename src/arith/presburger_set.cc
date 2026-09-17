@@ -47,6 +47,14 @@ using namespace tvm::prim;
 
 TVM_FFI_STATIC_INIT_BLOCK() { PresburgerSetNode::RegisterReflection(); }
 
+static int64_t GetPresburgerCoefficient(const PrimExpr& coefficient) {
+  const auto* imm = coefficient.as<IntImmNode>();
+  auto value = imm ? imm->value.as<int64_t>() : std::nullopt;
+  TVM_FFI_ICHECK(value.has_value())
+      << "Presburger coefficients must be constant integers that fit int64: " << coefficient;
+  return *value;
+}
+
 static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
   auto& space = intset->space;
   auto constraints_union = ExtractComponents(constraint);
@@ -61,7 +69,8 @@ static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
         auto coeffs_b = DetectLinearEquation(entry.as<prim::LENode>()->b, vars);
         std::vector<int64_t> int_coeffs;
         for (size_t i = 0; i < coeffs_a.size(); i++) {
-          int_coeffs.push_back(*as_const_int(coeffs_b[i]) - *as_const_int(coeffs_a[i]));
+          int_coeffs.push_back(GetPresburgerCoefficient(coeffs_b[i]) -
+                               GetPresburgerCoefficient(coeffs_a[i]));
         }
         disjunct.addInequality(int_coeffs);
       } else if (entry.as<prim::LTNode>()) {
@@ -69,7 +78,8 @@ static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
         auto coeffs_b = DetectLinearEquation(entry.as<prim::LTNode>()->b, vars);
         std::vector<int64_t> int_coeffs;
         for (size_t i = 0; i < coeffs_a.size(); i++) {
-          int_coeffs.push_back(*as_const_int(coeffs_b[i]) - *as_const_int(coeffs_a[i]));
+          int_coeffs.push_back(GetPresburgerCoefficient(coeffs_b[i]) -
+                               GetPresburgerCoefficient(coeffs_a[i]));
         }
         int_coeffs[int_coeffs.size() - 1] -= 1;
         disjunct.addInequality(int_coeffs);
@@ -78,7 +88,8 @@ static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
         auto coeffs_b = DetectLinearEquation(entry.as<prim::EQNode>()->b, vars);
         std::vector<int64_t> int_coeffs;
         for (size_t i = 0; i < coeffs_a.size(); i++) {
-          int_coeffs.push_back(*as_const_int(coeffs_a[i]) - *as_const_int(coeffs_b[i]));
+          int_coeffs.push_back(GetPresburgerCoefficient(coeffs_a[i]) -
+                               GetPresburgerCoefficient(coeffs_b[i]));
         }
         disjunct.addEquality(int_coeffs);
       } else {
@@ -232,11 +243,11 @@ IntSet EvalSet(const PrimExpr& e, const PresburgerSet& set) {
   coeffs.reserve(tvm_coeffs.size());
   for (const PrimExpr& it : tvm_coeffs) {
 #if TVM_MLIR_VERSION >= 190
-    coeffs.push_back(llvm::DynamicAPInt(*as_const_int(it)));
+    coeffs.push_back(llvm::DynamicAPInt(GetPresburgerCoefficient(it)));
 #elif TVM_MLIR_VERSION >= 160
-    coeffs.push_back(mlir::presburger::MPInt(*as_const_int(it)));
+    coeffs.push_back(mlir::presburger::MPInt(GetPresburgerCoefficient(it)));
 #else
-    coeffs.push_back(*as_const_int(it));
+    coeffs.push_back(GetPresburgerCoefficient(it));
 #endif
   }
 

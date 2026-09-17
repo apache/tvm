@@ -91,9 +91,11 @@ class FragmentGetter : public StmtExprVisitor {
         // store metadata
         FragmentInfo info;
         if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
-          info = FragmentInfo(m->value, n->value, k->value, layout->value, scope);
+          info = FragmentInfo(m->value.as<int>().value(), n->value.as<int>().value(),
+                              k->value.as<int>().value(), layout->value, scope);
         } else if (scope == "wmma.accumulator") {
-          info = FragmentInfo(m->value, n->value, k->value, "", scope);
+          info = FragmentInfo(m->value.as<int>().value(), n->value.as<int>().value(),
+                              k->value.as<int>().value(), "", scope);
         }
         fragments[buffer_var] = info;
       }
@@ -118,7 +120,8 @@ class FragmentGetter : public StmtExprVisitor {
         TVM_FFI_ICHECK_EQ(k->value, info.k);
       } else {
         // default to row major ordering
-        FragmentInfo info(m->value, n->value, k->value, "row_major", scope);
+        FragmentInfo info(m->value.as<int>().value(), n->value.as<int>().value(),
+                          k->value.as<int>().value(), "row_major", scope);
         fragments[buffer_var] = info;
       }
     }
