@@ -502,6 +502,38 @@ class Call(_CallableExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.Call, ret_ty, op, args, attrs, ty_args, span)
 
 
+@tvm_ffi.register_object("ir.TensorRegion")
+class TensorRegion(Expr, Scriptable):
+    """A region of an arbitrary tensor expression.
+
+    Parameters
+    ----------
+    source : Expr
+        The source expression.
+
+    region : list[Range]
+        The ranges describing the region.
+
+    ty : tvm.ir.Type
+        The result type, including any dialect-specific subscript semantics.
+
+    span : Span | None
+        The location of the expression in the source code.
+    """
+
+    source: Expr
+    region: list["Range"]
+
+    def __init__(
+        self,
+        source: Expr,
+        region: list["Range"],
+        ty: "tvm.ir.Type",
+        span: Span | None = None,
+    ) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.TensorRegion, source, region, ty, span)
+
+
 @tvm_ffi.register_object("ir.Var")
 class Var(_CallableExprWithOp):
     """A canonical local variable in the IR.

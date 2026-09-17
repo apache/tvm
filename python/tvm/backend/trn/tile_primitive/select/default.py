@@ -18,8 +18,9 @@
 """Implementation of select schedules."""
 
 from tvm.backend.trn.layout import is_trainium_layout
+from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion, FloatImm, PrimFunc, TilePrimitiveCall
+from tvm.tirx import FloatImm, PrimFunc, TilePrimitiveCall
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
     fail,
@@ -55,17 +56,17 @@ def select_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
         pred = not pred
         true_value, false_value = false_value, true_value
 
-    assert isinstance(true_value, BufferRegion), f"{op} expects one of the source to be a buffer"
+    assert isinstance(true_value, TensorRegion), f"{op} expects one of the source to be a buffer"
 
     # Initialize analyzer and validate buffers
     analyzer = init_analyzer(sctx)
 
     # Validate buffer layout and scope
     buffer_conditions = [
-        dst.buffer.ty.layout and true_value.buffer.ty.layout,
-        dst.buffer.scope() == "trn.sbuf" and true_value.buffer.scope() == "trn.sbuf",
-        is_trainium_layout(true_value.buffer.ty.layout),
-        is_trainium_layout(dst.buffer.ty.layout),
+        dst.source.ty.layout and true_value.source.ty.layout,
+        dst.source.scope() == "trn.sbuf" and true_value.source.scope() == "trn.sbuf",
+        is_trainium_layout(true_value.source.ty.layout),
+        is_trainium_layout(dst.source.ty.layout),
     ]
 
     if not all(buffer_conditions):
@@ -98,14 +99,14 @@ def select_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     p_var = T.Var("p", "int32")
     b_var = T.Var("b", "int32")
     f_var = T.Var("f", "int32")
-    p_size = dst.buffer.ty.layout.size("P")
+    p_size = dst.source.ty.layout.size("P")
     inst_gen.bind_inst_iter(dst, f_var, inst_repr.size, inst_repr.stride, True)
     inst_gen.bind_inst_iter(dst, p_var, p_size, 1, False)
     b_extent = inst_gen.fill_in_block_dim(dst, b_var)
 
     # Get buffer references and guard function
-    dst_buffer = dst.buffer
-    true_value_buffer = true_value.buffer
+    dst_buffer = dst.source
+    true_value_buffer = true_value.source
 
     # fmt: off
     @T.prim_func

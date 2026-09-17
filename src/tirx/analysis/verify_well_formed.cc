@@ -106,7 +106,7 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
     // Step 0. Skip block iter var's domain
 
     // Step 1. Visit read/write regions
-    auto fvisit_buffer_region = [this](const BufferRegion& s) -> ffi::Optional<VisitInterrupt> {
+    auto fvisit_buffer_region = [this](const TensorRegion& s) -> ffi::Optional<VisitInterrupt> {
       for (const auto& range : s->region) {
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->min));
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->extent));
@@ -246,7 +246,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
  *   - SBlock::alloc_buffers
  *   - SBlock::match_buffers
  *
- * it must not appear in a BufferLoad, BufferStore, or BufferRegion outside that declaration's
+ * it must not appear in a BufferLoad, BufferStore, or TensorRegion outside that declaration's
  * scope.
  *
  * All buffers that appear in TensorLoad or BufferStore must have a prior declaration.

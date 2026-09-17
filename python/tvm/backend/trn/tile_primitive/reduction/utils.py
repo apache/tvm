@@ -40,7 +40,7 @@ def generate_intermediate_buffer(
     Returns:
         Tuple[Optional[buffer], int]: The intermediate buffer and reduction factor size.
     """
-    intermediate_shape = [dst_buffer_region.buffer.ty.layout.size("P"), rfactor_size]
+    intermediate_shape = [dst_buffer_region.source.ty.layout.size("P"), rfactor_size]
 
     if "partial_reduce" in workspace:
         intermediate_buffer = workspace["partial_reduce"]
@@ -51,7 +51,7 @@ def generate_intermediate_buffer(
         )
         intermediate_buffer = T.buffer(
             intermediate_shape,
-            dtype=dst_buffer_region.buffer.ty.dtype,
+            dtype=dst_buffer_region.source.ty.dtype,
             scope="trn.sbuf",
             buffer_name="partial_reduce",
         )
@@ -83,8 +83,8 @@ def reduction_trn(
     assert reduce_op in reduce_ops, f"Unsupported reduce operation {reduce_op}"
 
     # Extract buffers
-    dst = dst_buffer_region.buffer
-    src = src_buffer_region.buffer
+    dst = dst_buffer_region.source
+    src = src_buffer_region.source
     axes = [i if i >= 0 else len(src.ty.shape) + i for i in axes]
     dim_map = get_reduction_dim_map(src_buffer_region, dst_buffer_region, axes, analyzer)
 

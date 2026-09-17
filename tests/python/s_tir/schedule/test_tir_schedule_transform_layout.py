@@ -310,7 +310,7 @@ def test_simplify():
     )
     actual_block = sch.get(block_outer)
     actual = tvm.tirx.PrimFunc(
-        [actual_block.reads[0].buffer, actual_block.writes[0].buffer],
+        [actual_block.reads[0].source, actual_block.writes[0].source],
         sch.get(sch.get_loops(block_outer)[0]),
     )
     tvm.ir.assert_structural_equal(expected, actual)
@@ -1023,7 +1023,7 @@ def test_padded_transform_repeated_buffer_element():
                     B[vi] = A[vi // 4, vi % 4]
 
     sch = tvm.s_tir.Schedule(Before)
-    A = sch.get(sch.get_sblock("block")).reads[0].buffer
+    A = sch.get(sch.get_sblock("block")).reads[0].source
     sch.transform_layout(
         "block",
         "A",
@@ -1052,7 +1052,7 @@ def test_pad_value_may_not_reference_other_buffer():
                     B[vi] = A[vi]
 
     sch = tvm.s_tir.Schedule(Before)
-    A = sch.get(sch.get_sblock("block")).reads[0].buffer
+    A = sch.get(sch.get_sblock("block")).reads[0].source
     other = tirx.decl_buffer(1, A.ty.dtype, name="other")
     with pytest.raises(tvm.s_tir.schedule.schedule.ScheduleError):
         sch.transform_layout(

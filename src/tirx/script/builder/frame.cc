@@ -213,10 +213,9 @@ void SBlockFrameNode::ExitWithScope() {
   if (int detect_access = (!reads.has_value()) | (!writes.has_value() << 1)) {
     attrs.Set("tirx.script_parsing_detect_access", tvm::IntImm::Int64(detect_access));
   }
-  tvm::tirx::SBlock block(iter_vars, reads.value_or(ffi::Array<tvm::tirx::BufferRegion>()),
-                          writes.value_or(ffi::Array<tvm::tirx::BufferRegion>()), name,
-                          AsStmt(stmts), init, tir_alloc_buffers, match_buffers, attrs,
-                          tvm::Span());
+  tvm::tirx::SBlock block(iter_vars, reads.value_or(ffi::Array<tvm::TensorRegion>()),
+                          writes.value_or(ffi::Array<tvm::TensorRegion>()), name, AsStmt(stmts),
+                          init, tir_alloc_buffers, match_buffers, attrs, tvm::Span());
   if (no_realize) {
     TVM_FFI_CHECK(iter_values.empty(), ValueError)
         << "Block bindings are not allowed when `no_realize=True`";

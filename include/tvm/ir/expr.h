@@ -664,6 +664,36 @@ class Range : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Range, ffi::ObjectRef, RangeNode);
 };
 
+/*! \brief A region of an indexed expression source. */
+class TensorRegionNode : public ExprNode {
+ public:
+  /*! \brief The indexed source expression. */
+  Expr source;
+  /*! \brief The ranges selected from the source. */
+  ffi::Array<Range> region;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    // A region's source and symbolic source type form a definition pattern;
+    // ranges then refer to those same identities.
+    refl::ObjectDef<TensorRegionNode>()
+        .def_ro("source", &TensorRegionNode::source, refl::AttachFieldFlag::SEqHashDefPattern())
+        .def_ro("region", &TensorRegionNode::region);
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TensorRegion", TensorRegionNode, ExprNode);
+};
+
+/*! \brief Managed reference to TensorRegionNode. */
+class TensorRegion : public Expr {
+ public:
+  TVM_DLL TensorRegion(Expr source, ffi::Array<Range> region, Type ty, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorRegion, Expr, TensorRegionNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TensorRegionNode);
+};
+
 /*!
  * \brief Analyze the runtime effects of an expression.
  *

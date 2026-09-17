@@ -22,7 +22,7 @@ import tvm_ffi
 import tvm
 import tvm.script
 import tvm.testing
-from tvm.ir import PointerType, PrimType, assert_structural_equal
+from tvm.ir import PointerType, PrimType, TensorRegion, assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
@@ -2191,8 +2191,6 @@ def test_buffer_chunk_ir():
     into n equal chunks. chunk(spec)[picks] is the exact same BufferRegion as
     the hand-written a*k:(a+1)*k slice — no reshape, no extra dim."""
 
-    from tvm.tirx.stmt import BufferRegion
-
     compose = T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(4, 512) : (512, 1)]))
     A = tvm.tirx.decl_buffer(
         (4, 8, 16), "float16", layout=tvm.tirx.layout.TileLayout(T.S[(4, 8, 16) : (128, 16, 1)])
@@ -2202,7 +2200,7 @@ def test_buffer_chunk_ir():
     # chunk((None, None, 2))[:, :, 1] narrows dim 2 (extent 16) to chunk 1 of 2
     # → [8:16] (k = 16 // 2 = 8); rank preserved, dims 0/1 pass through as ':'.
     reg = A.chunk((None, None, 2))[:, :, 1]
-    assert isinstance(reg, BufferRegion)
+    assert isinstance(reg, TensorRegion)
     assert len(reg.region) == 3  # rank-preserving: no extra extent-1 chunk dim
     assert (int(reg.region[2].min), int(reg.region[2].extent)) == (8, 8)
     assert_structural_equal(reg, A[:, :, 8:16])
@@ -2265,12 +2263,11 @@ def test_buffer_view_dtype_ir():
 
 def test_buffer_slice_region():
     """Verify A[slice] returns BufferRegion (not DeclBuffer)."""
-    from tvm.tirx.stmt import BufferRegion
 
     buf = tvm.tirx.decl_buffer((128, 64), "float16")
     br = buf[32:64, 0:32]
-    assert isinstance(br, BufferRegion)
-    assert br.buffer.same_as(buf)
+    assert isinstance(br, TensorRegion)
+    assert br.source.same_as(buf)
     assert int(br.region[0].extent) == 32
     assert int(br.region[1].extent) == 32
 
@@ -2278,11 +2275,11 @@ def test_buffer_slice_region():
     assert isinstance(load, tvm.ir.TensorLoad)
 
     partial = buf[1]
-    assert isinstance(partial, BufferRegion)
+    assert isinstance(partial, TensorRegion)
 
     narrowed = br[4:12, 2:10]
-    assert isinstance(narrowed, BufferRegion)
-    assert narrowed.buffer.same_as(buf)
+    assert isinstance(narrowed, TensorRegion)
+    assert narrowed.source.same_as(buf)
     assert [(int(dim.min), int(dim.extent)) for dim in narrowed.region] == [
         (36, 8),
         (2, 8),
@@ -2294,7 +2291,7 @@ def test_buffer_slice_region():
     assert [int(index) for index in chained_load.indices] == [35, 4]
 
     point_then_region = br[3]
-    assert isinstance(point_then_region, BufferRegion)
+    assert isinstance(point_then_region, TensorRegion)
     assert [(int(dim.min), int(dim.extent)) for dim in point_then_region.region] == [
         (35, 1),
         (0, 32),

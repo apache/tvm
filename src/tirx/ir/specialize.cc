@@ -189,10 +189,10 @@ class PrimFuncSpecializer : public StmtExprMutator {
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(iter->dom->min));
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(iter->dom->extent));
       }
-      for (const BufferRegion& region : op->reads) {
+      for (const TensorRegion& region : op->reads) {
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(region));
       }
-      for (const BufferRegion& region : op->writes) {
+      for (const TensorRegion& region : op->writes) {
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(region));
       }
       for (const MatchBufferRegion& match : op->match_buffers) {
@@ -238,11 +238,14 @@ class PrimFuncSpecializer : public StmtExprMutator {
     return load;
   }
 
-  UnchangedOr<Expr> Mutate_(const BufferRegionNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
     auto result = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow);
     if (result.UnchangedOrSameAs(ffi::GetRef<Expr>(op))) return ffi::Unchanged();
-    auto region = std::move(result).ValueUnchecked().as_or_throw<BufferRegion>();
-    return BufferRegion(region->buffer, region->region);
+    auto region = std::move(result).ValueUnchecked().as_or_throw<TensorRegion>();
+    if (auto buffer = region->source.as<BufferVar>()) {
+      return BufferRegion(buffer.value(), region->region, region->span);
+    }
+    return region;
   }
 
   DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::AddNode, add);

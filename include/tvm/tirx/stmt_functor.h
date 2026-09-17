@@ -176,7 +176,6 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
   virtual ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const ScopeIdDefStmtNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const TilePrimitiveCallNode* op);
-  virtual ffi::Optional<VisitInterrupt> Visit_(const BufferRegionNode* op);
 
   // Preserve TIRx operand traversal where it differs from the shared defaults.
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) override;
@@ -204,7 +203,7 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
  * Base hooks preserve stored types and derived fields. They rewrite structural
  * children without re-inferring types or repeating constructor validation,
  * including on in-place writes. Passes that change dtypes or index lanes must
- * provide the corresponding TensorLoad, BufferStore, or BufferRegion inference.
+ * provide the corresponding TensorLoad, BufferStore, or TensorRegion inference.
  */
 class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
  public:
@@ -243,8 +242,6 @@ class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
   virtual UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const ScopeIdDefStmtNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const TilePrimitiveCallNode* op, InplaceMode inplace_mode);
-
-  virtual UnchangedOr<Expr> Mutate_(const BufferRegionNode* op, InplaceMode inplace_mode);
 
  protected:
   explicit StmtExprMutator(const VTable* vtable) : tvm::ExprMutator(vtable) {}

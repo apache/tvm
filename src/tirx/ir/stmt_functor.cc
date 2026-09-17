@@ -60,7 +60,6 @@ void StmtExprVisitor::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprVisitor, SBlockRealizeNode>(vtable);
   SetDispatch<StmtExprVisitor, ScopeIdDefStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, TilePrimitiveCallNode>(vtable);
-  SetDispatch<StmtExprVisitor, BufferRegionNode>(vtable);
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const VarNode* op) { return std::nullopt; }
@@ -79,15 +78,6 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TensorLoadNode* op) 
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->source));
   for (const auto& child : op->indices) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
-  }
-  return std::nullopt;
-}
-
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const BufferRegionNode* op) {
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->buffer));
-  for (const auto& range : op->region) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->min));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->extent));
   }
   return std::nullopt;
 }
@@ -249,10 +239,10 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const SBlockNode* op) {
         this->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(buf); }));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(buf));
   }
-  for (const BufferRegion& region : op->reads) {
+  for (const TensorRegion& region : op->reads) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(region));
   }
-  for (const BufferRegion& region : op->writes) {
+  for (const TensorRegion& region : op->writes) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(region));
   }
   for (const MatchBufferRegion& match_buffer_region : op->match_buffers) {
@@ -295,7 +285,7 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TilePrimitiveCallNod
   std::function<ffi::Optional<VisitInterrupt>(const ffi::Any&)> fvisit;
   fvisit = [this, &fvisit](const ffi::Any& e) -> ffi::Optional<VisitInterrupt> {
     if (e == nullptr) return std::nullopt;
-    if (auto buffer_region = e.as<BufferRegion>()) {
+    if (auto buffer_region = e.as<TensorRegion>()) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer_region.value()));
     } else if (auto var = e.as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(BufferVar(var.value())));
@@ -339,7 +329,6 @@ void StmtExprMutator::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprMutator, SBlockRealizeNode>(vtable);
   SetDispatch<StmtExprMutator, ScopeIdDefStmtNode>(vtable);
   SetDispatch<StmtExprMutator, TilePrimitiveCallNode>(vtable);
-  SetDispatch<StmtExprMutator, BufferRegionNode>(vtable);
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
@@ -597,9 +586,9 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const SBlockNode* op, InplaceMode inp
   auto alloc_buffers = WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
                          return Mutate(op->alloc_buffers, inplace_mode);
                        }).as_or_throw<UnchangedOr<ffi::Array<BufferVar>>>();
-  auto reads = Mutate(op->reads, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<BufferRegion>>>();
+  auto reads = Mutate(op->reads, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<TensorRegion>>>();
   auto writes =
-      Mutate(op->writes, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<BufferRegion>>>();
+      Mutate(op->writes, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<TensorRegion>>>();
   auto match_buffers = Mutate(op->match_buffers, inplace_mode)
                            .as_or_throw<UnchangedOr<ffi::Array<MatchBufferRegion>>>();
   auto init = Mutate(op->init, inplace_mode).as_or_throw<UnchangedOr<ffi::Optional<Stmt>>>();
@@ -631,24 +620,6 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const SBlockNode* op, InplaceMode inp
   if (!init.IsUnchanged()) copy->init = std::move(init).ValueUnchecked();
   if (!body.IsUnchanged()) copy->body = std::move(body).ValueUnchecked();
   return Stmt(std::move(copy));
-}
-
-UnchangedOr<Expr> StmtExprMutator::Mutate_(const BufferRegionNode* op, InplaceMode inplace_mode) {
-  auto buffer = Mutate(op->buffer, inplace_mode).as_or_throw<UnchangedOr<BufferVar>>();
-  auto region = Mutate(op->region, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Range>>>();
-  if (buffer.UnchangedOrSameAs(op->buffer) && region.UnchangedOrSameAs(op->region)) {
-    return ffi::Unchanged();
-  }
-  if (inplace_mode == InplaceMode::kAllow) {
-    auto* writable = const_cast<BufferRegionNode*>(op);
-    if (!buffer.IsUnchanged()) writable->buffer = std::move(buffer).ValueUnchecked();
-    if (!region.IsUnchanged()) writable->region = std::move(region).ValueUnchecked();
-    return ffi::Unchanged();
-  }
-  auto copy = ffi::make_object<BufferRegionNode>(*op);
-  if (!buffer.IsUnchanged()) copy->buffer = std::move(buffer).ValueUnchecked();
-  if (!region.IsUnchanged()) copy->region = std::move(region).ValueUnchecked();
-  return Expr(std::move(copy));
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) {
@@ -709,7 +680,7 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const TilePrimitiveCallNode* op,
                                            InplaceMode inplace_mode) {
   std::function<UnchangedOr<ffi::Any>(ffi::AnyView, InplaceMode)> mutate_arg;
   mutate_arg = [&](ffi::AnyView value, InplaceMode mode) -> UnchangedOr<ffi::Any> {
-    if (value.as<BufferRegionNode>()) {
+    if (value.as<TensorRegionNode>()) {
       return Mutate(value, mode);
     }
     if (const auto* var = value.as<VarNode>(); var && var->ty.as<BufferTypeNode>()) {
