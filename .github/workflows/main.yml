@@ -56,13 +56,20 @@ jobs:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         run: |
           pip install scikit-build-core
-          export CMAKE_ARGS="-DUSE_LLVM=ON -DBUILD_TESTING=OFF"
+          # Link LLVM statically, as the published wheels do. Plain USE_LLVM=ON picks conda's
+          # libLLVM-23.dylib, which would sit in the process alongside the LLVM the orcjit
+          # package links statically; two LLVM copies in one process crash the JIT.
+          export CMAKE_ARGS="-DUSE_LLVM='llvm-config --link-static' -DZLIB_USE_STATIC_LIBS=ON -DBUILD_TESTING=OFF"
           pip wheel --no-deps -w dist . -v
       - name: Install TVM from wheel
         shell: bash -l {0}
         run: |
           export TVM_FFI_VERSION="$(python -c 'from importlib.metadata import version; print(version("apache-tvm-ffi"))')"
           pip install ml_dtypes
+          # --no-deps: this package requires apache-tvm-ffi>=0.1.0, and the source-built core
+          # versions as 0.1.dev1+g<sha> from the shallow checkout, which is < 0.1.0 under PEP 440.
+          # Without it pip replaces the source-matched core with a PyPI build.
+          pip install --no-deps apache-tvm-ffi-orcjit==0.1.1
           # Keep the source-matched tvm-ffi installed by the setup action.
           pip install --no-deps dist/*.whl
           python - <<'PY'
@@ -71,6 +78,7 @@ jobs:
 
           assert version("apache-tvm-ffi") == os.environ["TVM_FFI_VERSION"]
           assert "apache-tvm-ffi>=0.1.13.post2" in requires("apache-tvm")
+          assert "apache-tvm-ffi-orcjit==0.1.1" in requires("apache-tvm")
           PY
 
       - name: Test
@@ -113,6 +121,9 @@ jobs:
         shell: cmd /C call {0}
         run: |
           pip install psutil cloudpickle ml_dtypes numpy packaging scipy tornado typing_extensions
+          rem --no-deps keeps the source-built apache-tvm-ffi (versioned below 0.1.0 from the
+          rem shallow checkout) from being replaced by a PyPI build.
+          pip install --no-deps apache-tvm-ffi-orcjit==0.1.1
       - name: Test
         shell: cmd /C call {0}
         run: >-
