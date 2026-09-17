@@ -34,6 +34,7 @@
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/type.h>
 #include <tvm/tirx/var.h>
 
 #include <cmath>
@@ -104,7 +105,7 @@ Type GetType(const PrimExpr& expr) {
 
       if (auto var = address_of->args[0].as<Var>()) {
         if (auto* ptr = var.value()->ty.as<PointerTypeNode>()) {
-          if (ptr->element_type.as<TensorMapTypeNode>()) {
+          if (ptr->element_type.as<tirx::TensorMapTypeNode>()) {
             return PrimType::UInt(64);
           }
         }
@@ -147,6 +148,15 @@ PrimExpr continue_loop(Span span) {
 PrimExpr break_loop(Span span) {
   return Call(PrimType::Void(), tirx::builtin::break_loop(), {}, {}, {}, span)
       .as_or_throw<PrimExpr>();
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.RegisterOpLowerIntrinsic",
+                        [](ffi::String name, ffi::Function f, ffi::String target, int plevel) {
+                          OpRegEntry::RegisterOrGet(name).set_attr<tirx::FLowerIntrinsic>(
+                              target + ".FLowerIntrinsic", f, plevel);
+                        });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

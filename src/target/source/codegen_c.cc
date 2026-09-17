@@ -25,6 +25,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/unique_name_supply.h>
+#include <tvm/tirx/type.h>
 
 #include <cctype>
 #include <iomanip>
@@ -99,7 +100,7 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
 
     auto is_tensormap_ptr = [&]() -> bool {
       if (auto* ptr = v->ty.as<PointerTypeNode>()) {
-        return ptr->element_type.as<TensorMapTypeNode>();
+        return ptr->element_type.as<tirx::TensorMapTypeNode>();
       }
       return false;
     };
@@ -112,7 +113,7 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
     bool no_alias = func->HasNonzeroAttr(tirx::attr::kNoAlias);
     bool is_handle = v->ty.as<PointerTypeNode>();
     auto* ptr = v->ty.as<PointerTypeNode>();
-    if (ptr && ptr->element_type.as<TensorMapTypeNode>()) {
+    if (ptr && ptr->element_type.as<tirx::TensorMapTypeNode>()) {
       is_handle = false;
     }
     if (no_alias && is_handle) {
@@ -799,7 +800,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
             << "Builtin address_of() expects the argument to be a TensorLoad or Var, but "
             << "received argument " << op->args[0];
         if (auto* ptr = var->ty.as<PointerTypeNode>()) {
-          if (ptr->element_type.as<TensorMapTypeNode>()) {
+          if (ptr->element_type.as<tirx::TensorMapTypeNode>()) {
             os << "((unsigned long long)(&(";
             this->PrintExpr(op->args[0], os);
             os << ")))";

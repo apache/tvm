@@ -19,6 +19,7 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
+#include <tvm/tirx/type.h>
 
 #include "./utils.h"
 
@@ -72,7 +73,7 @@ ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IR
                           kwargs_keys, kwargs_values);
         }
       }
-    } else if (ptr_type->element_type->IsInstance<TensorMapTypeNode>()) {
+    } else if (ptr_type->element_type->IsInstance<tirx::TensorMapTypeNode>()) {
       rhs = TIR(d, "TensorMap")->Call({}, {}, {});
     }
   } else {
@@ -448,6 +449,12 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
   }
   if (dtype_print_location == tirx::ScriptDtypePrintLocation::kLast) {
     args.push_back(get_call_type_doc(call_p->Attr("dtype")));
+  }
+  if (call->op.as<GlobalVarNode>() && !call->ty.IsMissing()) {
+    // GlobalVar call syntax uses the shared Call default of a missing return type.
+    // Retain explicit result types when printing a typed PrimFunc call.
+    return TIR(d, "Call")->Call({prefix.value(), ListDoc(args)}, {"ret_ty"},
+                                {get_call_type_doc(call_p->Attr("ty"))});
   }
   return prefix.value()->Call(args);
 }

@@ -53,6 +53,6 @@ from . import prim
 from .function import BaseFunc, CallingConv
 from .global_info import GlobalInfo
 from .module import IRModule
-from .op import Op, register_intrin_lowering, register_op_attr
+from .op import Op, register_op_attr
 
 from tvm_ffi import Array, Map

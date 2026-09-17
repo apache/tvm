@@ -28,12 +28,12 @@ from tvm import tirx
 from tvm.ir import Call, Expr, ExprWithOp, Op, PointerType, PrimType, TensorLoad
 from tvm.ir.base import Span
 from tvm.ir.prim import max_value, min_value
-from tvm.ir.type import TensorMapType
 from tvm.runtime import const
 
 from . import _ffi_api
 from .buffer import Buffer, buffer_data, is_buffer_var
 from .expr import BufferLoad, CommReducer, ExprOp, IntImm, Var
+from .type import TensorMapType
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
 
@@ -47,6 +47,43 @@ _DEVICE_INTRIN_PREFIX_TO_NAMESPACE = {
     "nvshmem_": "nvshmem",
     "nki_": "nki",
 }
+
+
+def register_intrin_lowering(
+    op_name,
+    target,
+    *,
+    f=None,
+    level=10,
+):
+    """Register Op lowering function
+
+    Parameters
+    ----------
+    op_name : str
+        The op name
+
+    target : str
+        The target string for given intrinsic lowering function
+
+    f : function, optional
+        The function to be registered.
+
+    level : int
+        The priority level
+
+    Returns
+    -------
+    fregister : function
+        Register op lowering function if f is not specified.
+    """
+
+    def _register(f):
+        """internal register function"""
+        _ffi_api.RegisterOpLowerIntrinsic(op_name, f, target, level)
+        return f
+
+    return _register(f) if f is not None else _register
 
 
 def _canonical_device_intrin_name(func_name: str) -> str:

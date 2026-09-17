@@ -2318,7 +2318,7 @@ def test_global_call_realizes_buffer_elements():
             C: T.Buffer((16,), "float32"),
         ):
             for i in range(16):
-                C[i] = Module.add(A[i], B[i])
+                C[i] = tvm.tirx.call_tir(Module.add, A[i], B[i])
 
     assert isinstance(Module["main"], tvm.tirx.PrimFunc)
 

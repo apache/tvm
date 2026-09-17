@@ -380,7 +380,7 @@ def test_preserve_indirectly_used_prim_func():
             for i, j in T.grid(16, 16):
                 with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
-                    z[vi, vj] = InputModule.tir_add_float32(x[vi, vj], y[vi, vj])
+                    z[vi, vj] = tvm.tirx.call_tir(InputModule.tir_add_float32, x[vi, vj], y[vi, vj])
 
         @T.prim_func(private=True, s_tir=True)
         def tir_add_float32(x: T.float32, y: T.float32) -> T.float32:

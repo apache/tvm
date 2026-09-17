@@ -2936,7 +2936,7 @@ def subroutine_call_returning_int():
     class mod:
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer(2, "float32")):
-            mod.subroutine(A[0]) + mod.subroutine(A[1])
+            tvm.tirx.call_tir(mod.subroutine, A[0]) + tvm.tirx.call_tir(mod.subroutine, A[1])
 
         @T.prim_func(s_tir=True)
         def subroutine(x: T.float32) -> T.float32:
