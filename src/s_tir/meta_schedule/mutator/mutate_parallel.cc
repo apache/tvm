@@ -100,7 +100,8 @@ std::vector<std::vector<int64_t>> AnalyzeParallel(const ScheduleState& self,
          (loop = loop_sref->StmtAs<ForNode>()) != nullptr;  //
          loop_sref = loop_sref->parent) {
       int64_t loop_extent = -1;
-      if (const auto* ext = GetLoopIntExtent(loop)) {
+      const auto* ext_imm = loop->extent.as<IntImmNode>();
+      if (auto ext = ext_imm ? ext_imm->value.as<int64_t>() : std::nullopt; ext.has_value()) {
         if (!info.non_spatial_vars.count(loop->loop_var.get())) {
           loop_extent = *ext;
         }
@@ -248,7 +249,7 @@ bool FindParallelDecision(const Trace& trace, TRandState* rand_state,
       get_sblock_insts.at(ann_inst->inputs[0].as_or_throw<s_tir::SBlockRV>().get());
   TVM_FFI_ICHECK_EQ(get_sblock_inst->attrs.size(), 2);
   candidate->inst = ffi::GetRef<Instruction>(ann_inst);
-  candidate->parallel_extent = ann_inst->inputs[1].cast<IntImm>()->value;
+  candidate->parallel_extent = static_cast<int64_t>(ann_inst->inputs[1].cast<IntImm>()->value);
   candidate->block_name = get_sblock_inst->attrs[0].as_or_throw<ffi::String>();
   candidate->func_name = get_sblock_inst->attrs[1].as_or_throw<ffi::String>();
   return true;

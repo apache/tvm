@@ -54,7 +54,9 @@ class ThreadExtentChecker : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) {
     runtime::ThreadScope thread_scope = GetThreadScope(loop);
     if (IsThreadIdx(thread_scope)) {
-      if (const int64_t* p_ext = GetLoopIntExtent(loop)) {
+      const auto* p_ext_imm = loop->extent.as<IntImmNode>();
+      if (auto p_ext = p_ext_imm ? p_ext_imm->value.as<int64_t>() : std::nullopt;
+          p_ext.has_value()) {
         int64_t ext = *p_ext;
         if (thread_scope.dim_index == 0) {
           std::swap(thread_idx_x, ext);
@@ -140,7 +142,7 @@ class VerifyGPUCodeNode : public PostprocNode {
         {"max_vthread", IntImm::Int32(8)},
         {"max_vector_bytes", IntImm::Int32(16)},
     };
-    thread_warp_size_ = static_cast<int>(Extract(this->target_, "thread_warp_size")->value);
+    thread_warp_size_ = Extract(this->target_, "thread_warp_size")->value.as<int>().value();
   }
 
   bool Verify(const IRModule& mod) const {

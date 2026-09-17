@@ -295,7 +295,9 @@ class AllocBuffer : public Stmt {
     int64_t result = 1;
     for (const PrimExpr& extent : (*this)->buffer->shape) {
       if (const auto* int_size = extent.as<IntImmNode>()) {
-        result *= int_size->value;
+        auto product = (result * int_size->value).as<int64_t>();
+        if (!product.has_value()) return std::nullopt;
+        result = *product;
       } else {
         return std::nullopt;
       }

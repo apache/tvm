@@ -306,8 +306,9 @@ void ClassifyByPolarity(const PrimVar& var, const std::vector<PrimExpr>& current
   for (const PrimExpr& ineq : current_ineq_set) {
     if (const prim::LENode* le = ineq.as<prim::LENode>()) {
       ffi::Array<PrimExpr> coef = arith::DetectLinearEquation(le->a, {var});
-      if (!coef.empty() && is_const_int(coef[0])) {
-        int64_t coef0 = *as_const_int(coef[0]);
+      const auto* imm = !coef.empty() ? coef[0].as<IntImmNode>() : nullptr;
+      if (auto value = imm ? imm->value.as<int64_t>() : std::nullopt; value.has_value()) {
+        int64_t coef0 = *value;
         if (coef0 == 0) {
           // zero polarity, straight to next_ineq_set
           AddInequality(next_ineq_set, ineq, analyzer);
@@ -320,8 +321,9 @@ void ClassifyByPolarity(const PrimVar& var, const std::vector<PrimExpr>& current
       }
     } else if (const prim::EQNode* eq = ineq.as<prim::EQNode>()) {
       ffi::Array<PrimExpr> coef = arith::DetectLinearEquation(eq->a, {var});
-      if (!coef.empty() && is_const_int(coef[0])) {
-        int64_t coef0 = *as_const_int(coef[0]);
+      const auto* imm = !coef.empty() ? coef[0].as<IntImmNode>() : nullptr;
+      if (auto value = imm ? imm->value.as<int64_t>() : std::nullopt; value.has_value()) {
+        int64_t coef0 = *value;
         if (coef0 == 0) {
           // zero polarity, straight to next_ineq_set
           AddInequality(next_ineq_set, ineq, analyzer);

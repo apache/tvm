@@ -32,13 +32,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "", [](IntImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
         DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
         if (dtype == d->cfg->int_dtype) {
-          return LiteralDoc::Int(imm->value, imm_p->Attr("value"));
+          return LiteralDoc::Int(imm, imm_p->Attr("value"));
         } else if (dtype == DLDataType{kDLBool, 8, 1}) {
           return TIR(d, DType2Str(dtype))
-              ->Call({LiteralDoc::Boolean(imm->value, imm_p->Attr("value"))});
+              ->Call({LiteralDoc::Boolean(static_cast<bool>(imm->value), imm_p->Attr("value"))});
         } else {
-          return TIR(d, DType2Str(dtype))
-              ->Call({LiteralDoc::Int(imm->value, imm_p->Attr("value"))});
+          return TIR(d, DType2Str(dtype))->Call({LiteralDoc::Int(imm, imm_p->Attr("value"))});
         }
       });
 }

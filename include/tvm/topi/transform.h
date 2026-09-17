@@ -418,7 +418,7 @@ inline Tensor squeeze(const Tensor& x, ffi::Optional<ffi::Array<int64_t>> opt_ax
   std::vector<int> axis_val;
   if (!opt_axes.has_value()) {
     for (size_t i = 0; i < ndim; ++i) {
-      if (IsConstInt(x->shape[i]) && GetConstInt(x->shape[i]) == 1) {
+      if (IsConstInt(x->shape[i]) && x->shape[i].as_or_throw<IntImm>()->value == 1) {
         axis_val.push_back(static_cast<int>(i));
       }
     }
@@ -431,7 +431,7 @@ inline Tensor squeeze(const Tensor& x, ffi::Optional<ffi::Array<int64_t>> opt_ax
       }
       // If a dimension is not 1, silently skip it (no-op).
       bool is_const = IsConstInt(x->shape[val]);
-      if ((is_const && GetConstInt(x->shape[val]) == 1) || !is_const) {
+      if ((is_const && x->shape[val].as_or_throw<IntImm>()->value == 1) || !is_const) {
         axis_val.push_back(val);
       }
     }
@@ -656,7 +656,7 @@ inline PrimExpr DynamicCanonicalizeIndex(PrimExpr index, PrimExpr extent, PrimEx
   PrimExpr begin_range = tvm::if_then_else(stride < 0, -1, 0);
   PrimExpr end_range = tvm::if_then_else(stride < 0, extent - 1, extent);
 
-  if (!(index->IsInstance<tvm::IntImmNode>() && GetConstInt(index) >= 0)) {
+  if (!(index->IsInstance<tvm::IntImmNode>() && index.as_or_throw<IntImm>()->value >= 0)) {
     index = tvm::if_then_else(index < 0, index + extent, index);
   }
 
@@ -840,7 +840,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
                                         std::string name = "T_strided_slice_dynamic",
                                         std::string tag = topi::kInjective) {
   PrimType index_ty = begin->shape[0].ty();
-  const int64_t num_dynamic_axes = begin->shape[0].as<IntImmNode>()->value;
+  const int64_t num_dynamic_axes = static_cast<int64_t>(begin->shape[0].as<IntImmNode>()->value);
   TVM_FFI_ICHECK_EQ(end->shape[0].as<IntImmNode>()->value, num_dynamic_axes);
   TVM_FFI_ICHECK_EQ(strides->shape[0].as<IntImmNode>()->value, num_dynamic_axes);
 

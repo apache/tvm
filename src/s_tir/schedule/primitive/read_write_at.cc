@@ -403,7 +403,7 @@ struct ReadAtTraits : public UnpackedInstTraits<ReadAtTraits> {
                   int buffer_index, const ffi::String& storage_scope);
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
                                           IntImm read_buffer_index, ffi::String storage_scope) {
-    return sch->ReadAt(loop, block, read_buffer_index->value, storage_scope);
+    return sch->ReadAt(loop, block, read_buffer_index->value.as<int>().value(), storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
@@ -412,7 +412,7 @@ struct ReadAtTraits : public UnpackedInstTraits<ReadAtTraits> {
     PythonAPICall py("read_at");
     py.Input("loop", loop);
     py.Input("block", block);
-    py.Input("read_buffer_index", read_buffer_index->value);
+    py.Input("read_buffer_index", read_buffer_index->value.as<int>().value());
     py.Input("storage_scope", storage_scope);
     py.SingleOutput(outputs);
     return py.Str();
@@ -433,7 +433,7 @@ struct WriteAtTraits : public UnpackedInstTraits<WriteAtTraits> {
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
                                           IntImm write_buffer_index, ffi::String storage_scope) {
-    return sch->WriteAt(loop, block, write_buffer_index->value, storage_scope);
+    return sch->WriteAt(loop, block, write_buffer_index->value.as<int>().value(), storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
@@ -442,7 +442,7 @@ struct WriteAtTraits : public UnpackedInstTraits<WriteAtTraits> {
     PythonAPICall py("write_at");
     py.Input("loop", loop);
     py.Input("block", block);
-    py.Input("write_buffer_index", write_buffer_index->value);
+    py.Input("write_buffer_index", write_buffer_index->value.as<int>().value());
     py.Input("storage_scope", storage_scope);
     py.SingleOutput(outputs);
     return py.Str();

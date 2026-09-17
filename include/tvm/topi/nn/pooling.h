@@ -100,12 +100,13 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);
 
-  const int64_t* padding_h0 = as_const_int(pad_top);
-  const int64_t* padding_w0 = as_const_int(pad_left);
-  const int64_t* padding_h1 = as_const_int(pad_bottom);
-  const int64_t* padding_w1 = as_const_int(pad_right);
-  const bool do_pad = ((padding_h0 && *padding_h0) || (padding_w0 && *padding_w0)) ||
-                      ((padding_h1 && *padding_h1) || (padding_w1 && *padding_w1));
+  const auto* padding_h0 = pad_top.as<IntImmNode>();
+  const auto* padding_w0 = pad_left.as<IntImmNode>();
+  const auto* padding_h1 = pad_bottom.as<IntImmNode>();
+  const auto* padding_w1 = pad_right.as<IntImmNode>();
+  const bool do_pad =
+      ((padding_h0 && padding_h0->value != 0) || (padding_w0 && padding_w0->value != 0)) ||
+      ((padding_h1 && padding_h1->value != 0) || (padding_w1 && padding_w1->value != 0));
 
   if (pool_type == kMaxPool) {
     ffi::Array<PrimExpr> ravel_shape{data_shape.begin(), data_shape.end()};
@@ -562,9 +563,9 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
       pad_tail[i] += offset[i];
     }
 
-    const int64_t* padding0 = as_const_int(pad_head[i]);
-    const int64_t* padding1 = as_const_int(pad_tail[i]);
-    do_pad = do_pad || (padding0 && *padding0) || (padding1 && *padding1);
+    const auto* padding0 = pad_head[i].as<IntImmNode>();
+    const auto* padding1 = pad_tail[i].as<IntImmNode>();
+    do_pad = do_pad || (padding0 && padding0->value != 0) || (padding1 && padding1->value != 0);
 
     daxis.push_back(tvm::te::reduce_axis(Range(0, kernel[i]), "rv" + std::to_string(i)));
 

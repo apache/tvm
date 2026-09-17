@@ -118,8 +118,9 @@ class StorageTokenNode : public ffi::Object {
   /*! \brief Get the constant number of bytes that this token requires, or -1 if the number of bytes
    * is symbolic */
   int64_t const_bytes() const {
-    const int64_t* const_val = tvm::prim::as_const_int(bytes);
-    if (const_val) {
+    const auto* imm = bytes.as<IntImmNode>();
+    auto const_val = imm ? imm->value.as<int64_t>() : std::nullopt;
+    if (const_val.has_value()) {
       return *const_val;
     } else {
       return -1;
@@ -142,7 +143,7 @@ class StorageToken : public ffi::ObjectRef {
     PrimType dtype_ty(dtype);
     TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
         << "Cannot statically plan storage size for scalable vector dtype " << dtype_ty;
-    int64_t const_coeff = static_cast<int64_t>(dtype_ty.StorageBytes());
+    ffi::BigInt const_coeff = dtype_ty.StorageBytes();
     PrimExpr size = IntImm::Int64(1);
     bool size_computed = false;
 
@@ -460,8 +461,8 @@ void SetTIRVarRangeConstraints(Function func, arith::AnalyzerObj* ana,
     // Without an upper bound, memory planning cannot determine the required storage size,
     // so we skip binding and let the variable remain unbounded.
     if (it_upper != var_upper_bound_attr.end()) {
-      int64_t lower = (it_lower != var_lower_bound_attr.end()) ? it_lower->second->value : 0;
-      int64_t upper = it_upper->second->value;
+      ffi::BigInt lower = (it_lower != var_lower_bound_attr.end()) ? it_lower->second->value : 0;
+      const ffi::BigInt& upper = it_upper->second->value;
       tvm::Range range = tvm::Range::FromMinExtent(tvm::IntImm::Int64(lower),
                                                    tvm::IntImm::Int64(upper - lower + 1));
       ana->Bind(tir_var, range);
@@ -665,7 +666,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
 
     int64_t vdevice_index = -1;
     if (const auto* int_imm = call->args[2].as<IntImmNode>()) {
-      vdevice_index = int_imm->value;
+      vdevice_index = int_imm->value.as<int>().value();
     }
     ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
@@ -1071,9 +1072,10 @@ PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DLDataType
   struct Shape {
     const ffi::Array<PrimExpr>& shape;
     int64_t operator[](size_t i) const {
-      TVM_FFI_ICHECK(tvm::prim::as_const_int(shape[i]))
-          << "Dymamic shapes not suported over texture now";
-      return *tvm::prim::as_const_int(shape[i]);
+      const auto* imm = shape[i].as<IntImmNode>();
+      auto value = imm ? imm->value.as<int64_t>() : std::nullopt;
+      TVM_FFI_ICHECK(value.has_value()) << "Dymamic shapes not suported over texture now";
+      return *value;
     }
     int size() { return this->shape.size(); }
   };

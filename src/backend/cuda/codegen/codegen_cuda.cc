@@ -1144,8 +1144,8 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
       os << "]" << ((i < 3) ? ", " : ")");
     }
   } else if (op->op.same_as(mma_store_op)) {
-    int m = op->args[0].as_or_throw<IntImm>()->value;
-    int n = op->args[1].as_or_throw<IntImm>()->value;
+    int m = op->args[0].as_or_throw<IntImm>()->value.as<int>().value();
+    int n = op->args[1].as_or_throw<IntImm>()->value.as<int>().value();
     std::string dst = this->PrintExpr(op->args[2]);
     std::string src = this->PrintExpr(op->args[3]);
     std::string src_offset = this->PrintExpr(op->args[4]);
@@ -1223,7 +1223,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     std::string b_bias = this->PrintExpr(op->args[9]);
     std::string c_ref = this->PrintExpr(op->args[10]);
     std::string c_bias = this->PrintExpr(op->args[11]);
-    bool saturate = op->args[12].as_or_throw<IntImm>()->value;
+    bool saturate = op->args[12].as_or_throw<IntImm>()->value != 0;
     std::string bit_op =
         op->args.size() > 13 ? op->args[13].as_or_throw<prim::StringImm>()->value : "";
     this->stream << PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref,
@@ -1235,7 +1235,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     // `trans` and `num` may arrive as Bool/IntImm; both Downcastable
     // to PrimExpr whose IntImmNode value tells us the literal.
     bool trans = op->args[0].as_or_throw<IntImm>()->value != 0;
-    int num = op->args[1].as_or_throw<IntImm>()->value;
+    int num = op->args[1].as_or_throw<IntImm>()->value.as<int>().value();
     std::string type_str = op->args[2].as_or_throw<prim::StringImm>()->value;
     std::string local_ptr = this->PrintExpr(op->args[3]);
     std::string local_offset = this->PrintExpr(op->args[4]);
@@ -1261,8 +1261,8 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     // args: m, n, dst_ptr, src_ptr_var, src_offset, dst_stride
     // (dst_ptr is typically an access_ptr Call that already encodes
     // dst.elem_offset and the global pointer cast.)
-    int m = op->args[0].as_or_throw<IntImm>()->value;
-    int n = op->args[1].as_or_throw<IntImm>()->value;
+    int m = op->args[0].as_or_throw<IntImm>()->value.as<int>().value();
+    int n = op->args[1].as_or_throw<IntImm>()->value.as<int>().value();
     std::string dst = this->PrintExpr(op->args[2]);
     std::string src = this->PrintExpr(op->args[3]);
     std::string src_offset = this->PrintExpr(op->args[4]);
@@ -1467,9 +1467,9 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
           << "print_buffer expects buffer_data to project a BufferVar";
     }
     PrimType dtype_ty = op->ty.as_or_throw<PrimType>();
-    bool is_string = op->args[2].as<IntImmNode>()->value;
-    bool is_scalar = op->args[3].as<IntImmNode>()->value;
-    int num_dims = op->args[4].as<IntImmNode>()->value;
+    bool is_string = op->args[2].as<IntImmNode>()->value != 0;
+    bool is_scalar = op->args[3].as<IntImmNode>()->value != 0;
+    int num_dims = op->args[4].as<IntImmNode>()->value.as<int>().value();
 
     TVM_FFI_ICHECK(!(is_string && is_scalar)) << "Cannot have both is_string and is_scalar true";
     if (is_string) {
@@ -1708,7 +1708,7 @@ void CodeGenCUDA::Dispatch_(const AllocBufferNode* op) {
     auto it = op->annotations.find(tirx::attr::buffer_data_alignment);
     if (it != op->annotations.end()) {
       if (const auto* n = (*it).second.as<IntImmNode>()) {
-        align = n->value;
+        align = n->value.as<int>().value();
       }
     }
     if (align > 0 && scope == "shared.dyn") {
@@ -1727,7 +1727,7 @@ void CodeGenCUDA::Dispatch_(const AllocBufferNode* op) {
     for (const auto& dim : op->buffer->shape) {
       const IntImmNode* dim_imm = dim.as<IntImmNode>();
       TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
-      constant_size *= dim_imm->value;
+      constant_size *= dim_imm->value.as<size_t>().value();
     }
     TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
@@ -1806,8 +1806,9 @@ void CodeGenCUDA::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {  
   if ((op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && op_ty.bits() == 8 &&
       lanes == 4) {
     // make_int8x4
-    const int64_t* p = as_const_int(op->value);
-    TVM_FFI_ICHECK(p);
+    const auto* imm = op->value.as<IntImmNode>();
+    auto p = imm ? imm->value.as<int64_t>() : std::nullopt;
+    TVM_FFI_ICHECK(p.has_value());
     int64_t v = *p & 0xFF;
     v = (v << 24) | (v << 16) | (v << 8) | v;
     if (op_ty.MatchesCode(DLDataTypeCode::kDLUInt)) {
@@ -1872,8 +1873,9 @@ void CodeGenCUDA::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {  
 
   if ((op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && op_ty.bits() == 4) {
     bool fail = false;
-    const int64_t* p = as_const_int(op->value);
-    TVM_FFI_ICHECK(p);
+    const auto* imm = op->value.as<IntImmNode>();
+    auto p = imm ? imm->value.as<int64_t>() : std::nullopt;
+    TVM_FFI_ICHECK(p.has_value());
     int64_t v = *p & 0xF;
 
     if (lanes == 4) {

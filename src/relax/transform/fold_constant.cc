@@ -66,7 +66,9 @@ class ConstantFolder : public ExprMutator {
     for (const auto v : shape->values) {
       auto* ptr = v.as<IntImmNode>();
       if (!ptr) return std::nullopt;
-      shape_values.push_back(ptr->value);
+      auto value = ptr->value.as<int64_t>();
+      if (!value.has_value()) return std::nullopt;
+      shape_values.push_back(*value);
     }
     return ffi::Shape(shape_values.begin(), shape_values.end());
   }
@@ -172,13 +174,13 @@ class ConstantFolder : public ExprMutator {
     for (const auto& dim : opt_shape.value()) {
       const auto* int_dim = dim.as<IntImmNode>();
       if (!int_dim) return true;
-      int64_t d = int_dim->value;
-      if (d <= 0) return true;
-      if (num_elements > kMaxFoldElements / d) {
+      auto d = int_dim->value.as<int64_t>();
+      if (int_dim->value <= 0) return true;
+      if (!d.has_value() || num_elements > kMaxFoldElements / *d) {
         num_elements = kMaxFoldElements + 1;
         break;
       }
-      num_elements *= d;
+      num_elements *= *d;
     }
 
     if (num_elements <= kMaxFoldElements) return true;
@@ -398,8 +400,11 @@ class ConstantFolder : public ExprMutator {
         bool is_known = true;
         for (size_t i = 0; i < values.size(); i++) {
           PrimExpr val = values[i];
-          arr.push_back(val.as<IntImmNode>()->value);
-          is_known &= val.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64);
+          if (!val.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64)) {
+            is_known = false;
+            break;
+          }
+          arr.push_back(static_cast<int64_t>(val.as<IntImmNode>()->value));
         }
         if (is_known) {
           const auto func = tvm::ffi::Function::GetGlobalRequired("relax.run.shape_to_tensor");

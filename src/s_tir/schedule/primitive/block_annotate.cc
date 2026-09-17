@@ -398,8 +398,9 @@ struct StorageAlignTraits : public UnpackedInstTraits<StorageAlignTraits> {
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm buffer_index,
                                       IntImm axis, IntImm factor, IntImm offset) {
-    return sch->StorageAlign(block_rv, buffer_index->value, axis->value, factor->value,
-                             offset->value);
+    return sch->StorageAlign(block_rv, buffer_index->value.as<int>().value(),
+                             axis->value.as<int>().value(), factor->value.as<int>().value(),
+                             offset->value.as<int>().value());
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
@@ -429,7 +430,7 @@ struct SetScopeTraits : public UnpackedInstTraits<SetScopeTraits> {
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm buffer_index,
                                       ffi::String storage_scope) {
-    return sch->SetScope(block_rv, buffer_index->value, storage_scope);
+    return sch->SetScope(block_rv, buffer_index->value.as<int>().value(), storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
@@ -456,7 +457,7 @@ struct UnsafeSetDTypeTraits : public UnpackedInstTraits<UnsafeSetDTypeTraits> {
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm buffer_index,
                                       ffi::String dtype) {
-    return sch->UnsafeSetDType(block_rv, buffer_index->value, dtype);
+    return sch->UnsafeSetDType(block_rv, buffer_index->value.as<int>().value(), dtype);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,

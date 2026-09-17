@@ -340,7 +340,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.printer.LiteralDocNone", LiteralDoc::None)
-      .def("script.printer.LiteralDocInt", LiteralDoc::Int)
+      .def("script.printer.LiteralDocInt",
+           static_cast<LiteralDoc (*)(int64_t, const ffi::Optional<AccessPath>&)>(LiteralDoc::Int))
       .def("script.printer.LiteralDocBoolean", LiteralDoc::Boolean)
       .def("script.printer.LiteralDocFloat", LiteralDoc::Float)
       .def("script.printer.LiteralDocStr", LiteralDoc::Str);

@@ -72,7 +72,7 @@ class AllocBufferCalculator : public StmtExprVisitor {
     int64_t size = 1;
     for (const PrimExpr& e : op->buffer->shape) {
       if (auto* imm = e.as<IntImmNode>()) {
-        size *= imm->value;
+        size = static_cast<int64_t>(size * imm->value);
       } else {
         size = 0;
         break;

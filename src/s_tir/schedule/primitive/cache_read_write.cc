@@ -2631,7 +2631,8 @@ struct CacheReadTraits : public UnpackedInstTraits<CacheReadTraits> {
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block,
                                           ffi::Array<SBlockRV> consumer_blocks,
                                           IntImm read_buffer_index, ffi::String storage_scope) {
-    return sch->CacheRead(block, read_buffer_index->value, storage_scope, consumer_blocks);
+    return sch->CacheRead(block, read_buffer_index->value.as<int>().value(), storage_scope,
+                          consumer_blocks);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
@@ -2639,7 +2640,7 @@ struct CacheReadTraits : public UnpackedInstTraits<CacheReadTraits> {
                                       IntImm read_buffer_index, ffi::String storage_scope) {
     PythonAPICall py("cache_read");
     py.Input("block", block);
-    py.Input("read_buffer_index", read_buffer_index->value);
+    py.Input("read_buffer_index", read_buffer_index->value.as<int>().value());
     py.Input("storage_scope", storage_scope);
     // Only write out consumer blocks if provided.
     if (!consumer_blocks.empty()) {
@@ -2665,7 +2666,8 @@ struct CacheWriteTraits : public UnpackedInstTraits<CacheWriteTraits> {
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block,
                                           ffi::Array<SBlockRV> consumer_blocks,
                                           IntImm write_buffer_index, ffi::String storage_scope) {
-    return sch->CacheWrite(block, write_buffer_index->value, storage_scope, consumer_blocks);
+    return sch->CacheWrite(block, write_buffer_index->value.as<int>().value(), storage_scope,
+                           consumer_blocks);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
@@ -2673,7 +2675,7 @@ struct CacheWriteTraits : public UnpackedInstTraits<CacheWriteTraits> {
                                       IntImm write_buffer_index, ffi::String storage_scope) {
     PythonAPICall py("cache_write");
     py.Input("block", block);
-    py.Input("write_buffer_index", write_buffer_index->value);
+    py.Input("write_buffer_index", write_buffer_index->value.as<int>().value());
     py.Input("storage_scope", storage_scope);
     // Only write out consumer blocks if provided.
     if (!consumer_blocks.empty()) {
@@ -2699,14 +2701,14 @@ struct CacheInplaceTraits : public UnpackedInstTraits<CacheInplaceTraits> {
   static ffi::Array<SBlockRV> UnpackedApplyToSchedule(Schedule sch, SBlockRV block,
                                                       IntImm read_buffer_index,
                                                       ffi::String storage_scope) {
-    return sch->CacheInplace(block, read_buffer_index->value, storage_scope);
+    return sch->CacheInplace(block, read_buffer_index->value.as<int>().value(), storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
                                       IntImm read_buffer_index, ffi::String storage_scope) {
     PythonAPICall py("cache_inplace");
     py.Input("block", block);
-    py.Input("read_buffer_index", read_buffer_index->value);
+    py.Input("read_buffer_index", read_buffer_index->value.as<int>().value());
     py.Input("storage_scope", storage_scope);
     py.OutputList(outputs);
     return py.Str();
@@ -2727,8 +2729,8 @@ struct ReIndexTraits : public UnpackedInstTraits<ReIndexTraits> {
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm buffer_index,
                                           IntImm buffer_index_type) {
-    return sch->ReIndex(block, buffer_index->value,
-                        static_cast<BufferIndexType>(buffer_index_type->value));
+    return sch->ReIndex(block, buffer_index->value.as<int>().value(),
+                        static_cast<BufferIndexType>(buffer_index_type->value.as<int>().value()));
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
@@ -2736,7 +2738,9 @@ struct ReIndexTraits : public UnpackedInstTraits<ReIndexTraits> {
     PythonAPICall py("reindex");
     py.Input("block", block);
     std::ostringstream os;
-    os << "(\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
+    os << "(\""
+       << BufferIndexType2Str(
+              static_cast<BufferIndexType>(buffer_index_type->value.as<int>().value()))
        << "\", " << buffer_index << ")";
     py.Input("buffer", ffi::String(os.str()));
     py.SingleOutput(outputs);
@@ -2758,7 +2762,8 @@ struct ReindexCacheReadTraits : public UnpackedInstTraits<ReindexCacheReadTraits
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IndexMap index_map,
                                           IntImm read_buffer_index, ffi::String storage_scope) {
-    return sch->ReindexCacheRead(block, read_buffer_index->value, storage_scope, index_map);
+    return sch->ReindexCacheRead(block, read_buffer_index->value.as<int>().value(), storage_scope,
+                                 index_map);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
@@ -2766,7 +2771,7 @@ struct ReindexCacheReadTraits : public UnpackedInstTraits<ReindexCacheReadTraits
                                       ffi::String storage_scope) {
     PythonAPICall py("reindex_cache_read");
     py.Input("block", block);
-    py.Input("read_buffer_index", read_buffer_index->value);
+    py.Input("read_buffer_index", read_buffer_index->value.as<int>().value());
     py.Input("storage_scope", storage_scope);
     py.Input("index_map", index_map->ToPythonString());
     py.SingleOutput(outputs);
@@ -2788,7 +2793,8 @@ struct ReindexCacheWriteTraits : public UnpackedInstTraits<ReindexCacheWriteTrai
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IndexMap index_map,
                                           IntImm write_buffer_index, ffi::String storage_scope) {
-    return sch->ReindexCacheWrite(block, write_buffer_index->value, storage_scope, index_map);
+    return sch->ReindexCacheWrite(block, write_buffer_index->value.as<int>().value(), storage_scope,
+                                  index_map);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
@@ -2796,7 +2802,7 @@ struct ReindexCacheWriteTraits : public UnpackedInstTraits<ReindexCacheWriteTrai
                                       ffi::String storage_scope) {
     PythonAPICall py("reindex_cache_write");
     py.Input("block", block);
-    py.Input("write_buffer_index", write_buffer_index->value);
+    py.Input("write_buffer_index", write_buffer_index->value.as<int>().value());
     py.Input("storage_scope", storage_scope);
     py.Input("index_map", index_map->ToPythonString());
     py.SingleOutput(outputs);

@@ -112,7 +112,7 @@ class AsyncDMALowerer : public tirx::IRMutatorWithAnalyzer {
       // get queue ID
       auto queue_id_node = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(queue_id_node);
-      int queue_id = queue_id_node->value;
+      int queue_id = queue_id_node->value.as<int>().value();
 
       // abort if we have not seen this queue ID in `copy` transform
       if (queue_ids_.find(queue_id) == queue_ids_.end()) {
@@ -160,7 +160,7 @@ class AsyncDMALowerer : public tirx::IRMutatorWithAnalyzer {
       // get queue ID
       auto queue_id_node = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(queue_id_node);
-      async_queue_id_ = queue_id_node->value;
+      async_queue_id_ = queue_id_node->value.as<int>().value();
       auto result = tirx::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                         .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       if (dmas_in_group_ > 1) {

@@ -78,10 +78,10 @@ class cuDNNJSONSerializer : public JSONSerializer {
     NodeEntries inputs(inputs_tmp.size());
 
     auto arg_idx = backend::ExtractArgIdx(composite_name, fn);
-    inputs[0] = inputs_tmp[arg_idx["input"]->value];
-    inputs[1] = inputs_tmp[arg_idx["weight"]->value];
+    inputs[0] = inputs_tmp[static_cast<int64_t>(arg_idx["input"]->value)];
+    inputs[1] = inputs_tmp[static_cast<int64_t>(arg_idx["weight"]->value)];
     if (inputs_tmp.size() == 3) {
-      inputs[2] = inputs_tmp[arg_idx["bias"]->value];
+      inputs[2] = inputs_tmp[static_cast<int64_t>(arg_idx["bias"]->value)];
     }
 
     auto node = std::make_shared<JSONGraphNode>(composite_name, /* name_ */
@@ -112,10 +112,10 @@ class cuDNNJSONSerializer : public JSONSerializer {
         root_call->args[1]->ty.as_or_throw<TensorType>()->shape.value().as_or_throw<ShapeExpr>();
     auto v_shape =
         root_call->args[2]->ty.as_or_throw<TensorType>()->shape.value().as_or_throw<ShapeExpr>();
-    int num_heads = q_shape->values[2].as<IntImmNode>()->value;
-    int num_kv_heads = k_shape->values[2].as<IntImmNode>()->value;
-    int head_size = q_shape->values[3].as<IntImmNode>()->value;
-    int head_size_v = v_shape->values[3].as<IntImmNode>()->value;
+    int num_heads = q_shape->values[2].as<IntImmNode>()->value.as<int>().value();
+    int num_kv_heads = k_shape->values[2].as<IntImmNode>()->value.as<int>().value();
+    int head_size = q_shape->values[3].as<IntImmNode>()->value.as<int>().value();
+    int head_size_v = v_shape->values[3].as<IntImmNode>()->value.as<int>().value();
     SetCallNodeAttribute(node, root_call);
 
     node->SetAttr("num_heads", static_cast<int64_t>(num_heads));

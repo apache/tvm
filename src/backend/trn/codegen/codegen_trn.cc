@@ -248,15 +248,15 @@ void CodeGenTrainium::Dispatch_(const AllocBufferNode* op) {
           << "allocated_addr[0] must be a constant integer, got: " << addr[0];
       TVM_FFI_ICHECK(addr[1]->IsInstance<IntImmNode>())
           << "allocated_addr[1] must be a constant integer, got: " << addr[1];
-      int64_t base_bank = addr[0].as_or_throw<IntImm>()->value;
-      int64_t base_addr = addr[1].as_or_throw<IntImm>()->value;
+      int64_t base_bank = static_cast<int64_t>(addr[0].as_or_throw<IntImm>()->value);
+      int64_t base_addr = static_cast<int64_t>(addr[1].as_or_throw<IntImm>()->value);
       stream << "ncc.psum.mod_alloc(base_bank=" << base_bank << ", base_addr=" << base_addr;
       stream << ", num_bank_tiles=(" << op->buffer->shape[0] << ",)))\n";
     } else {
       TVM_FFI_ICHECK(addr.size() == 1);
       TVM_FFI_ICHECK(addr[0]->IsInstance<IntImmNode>())
           << "allocated_addr[0] must be a constant integer, got: " << addr[0];
-      int64_t base_addr = addr[0].as_or_throw<IntImm>()->value;
+      int64_t base_addr = static_cast<int64_t>(addr[0].as_or_throw<IntImm>()->value);
       stream << "ncc.sbuf.mod_alloc(base_addr=" << base_addr << "))\n";
     }
   }

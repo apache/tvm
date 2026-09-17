@@ -62,6 +62,13 @@ using namespace ffi;
 
 namespace {
 
+z3::expr IntegerValue(z3::context& ctx, const ffi::BigInt& value) {
+  if (auto small = value.as<int64_t>(); small.has_value()) return ctx.int_val(*small);
+  std::ostringstream os;
+  os << value;
+  return ctx.int_val(os.str().c_str());
+}
+
 struct Namespace {
   std::unordered_set<std::string> used_names;
   /// @brief Get a new name that is not used before
@@ -254,7 +261,7 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
       } else {
         auto min_val = min_value(dtype).as_or_throw<IntImm>()->value;
         auto max_val = max_value(dtype).as_or_throw<IntImm>()->value;
-        solver->add(ctx->int_val(min_val) <= e && e <= ctx->int_val(max_val));
+        solver->add(IntegerValue(*ctx, min_val) <= e && e <= IntegerValue(*ctx, max_val));
       }
       return e;
     }
@@ -432,13 +439,13 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
     //    test is_const_int on min and extent individually and add the two constants
     //    in C++. Otherwise this fast path is never taken and we always emit the more expensive
     //    symbolic constraint below.
-    if (prim::is_const_int(min) && prim::is_const_int(extent)) {
-      int64_t min_value = *prim::as_const_int(min);
-      int64_t extent_value = *prim::as_const_int(extent);
-      int64_t max_value = min_value + extent_value;
+    if (auto min_imm = min.as<IntImm>(), extent_imm = extent.as<IntImm>();
+        min_imm.has_value() && extent_imm.has_value()) {
+      const ffi::BigInt& min_value = (*min_imm)->value;
+      ffi::BigInt max_value = min_value + (*extent_imm)->value;
       if (min_value < max_value) {
-        solver->add(ctx->int_val(min_value) <= var_expr);
-        solver->add(var_expr < ctx->int_val(max_value));
+        solver->add(IntegerValue(*ctx, min_value) <= var_expr);
+        solver->add(var_expr < IntegerValue(*ctx, max_value));
       }
     } else {
       PrimExpr prim_var = var.as_or_throw<PrimExpr>();
@@ -875,7 +882,7 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
   z3::expr Dispatch_(const prim::SelectNode* op) override {
     return z3::ite(VisitBool(op->condition), VisitInt(op->true_value), VisitInt(op->false_value));
   }
-  z3::expr Dispatch_(const IntImmNode* op) override { return ctx->int_val(op->value); }
+  z3::expr Dispatch_(const IntImmNode* op) override { return IntegerValue(*ctx, op->value); }
 
   // Bitwise operations
   z3::expr Dispatch_(const CallNode* op) override {

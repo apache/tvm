@@ -62,11 +62,11 @@ class StrideExtractor : public StmtExprVisitor {
 
     if (const auto* a = node->a.as<IntImmNode>()) {
       if (strides_.count(node->b.get())) {
-        strides_[node] = strides_[node->b.get()] * a->value;
+        strides_[node] = static_cast<int64_t>(strides_[node->b.get()] * a->value);
       }
     } else if (const auto* b = node->b.as<IntImmNode>()) {
       if (strides_.count(node->a.get())) {
-        strides_[node] = strides_[node->a.get()] * b->value;
+        strides_[node] = static_cast<int64_t>(strides_[node->a.get()] * b->value);
       }
     }
     return std::nullopt;
@@ -118,22 +118,22 @@ bool ParseAnnotation(const SBlock& block, ParsedAnnotation* parsed) {
     if (ann.first == s_tir::attr::meta_schedule_parallel) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
-        parsed->max_parallel_extent = (*opt_int_imm)->value;
+        parsed->max_parallel_extent = (*opt_int_imm)->value.as<int>().value();
       }
     } else if (ann.first == s_tir::attr::meta_schedule_vectorize) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
-        parsed->max_vectorize_extent = (*opt_int_imm)->value;
+        parsed->max_vectorize_extent = (*opt_int_imm)->value.as<int>().value();
       }
     } else if (ann.first == s_tir::attr::meta_schedule_unroll_explicit) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
-        parsed->unroll_explicit = (*opt_int_imm)->value;
+        parsed->unroll_explicit = (*opt_int_imm)->value.as<int>().value();
       }
     } else if (ann.first == s_tir::attr::meta_schedule_unroll_implicit) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
-        parsed->unroll_implicit = (*opt_int_imm)->value;
+        parsed->unroll_implicit = (*opt_int_imm)->value.as<int>().value();
       }
     }
   }
@@ -175,7 +175,8 @@ int CalculateNumRewritableLoops(const ffi::Array<StmtSRef>& loop_srefs,
       continue;
     }
     // Check if the loop extent is valid
-    if (GetLoopIntExtent(loop_sref) == nullptr) {
+    if (const auto* extent = loop->extent.as<IntImmNode>();
+        !extent || !extent->value.as<int64_t>().has_value()) {
       continue;
     }
     ++rw_loops_num;
@@ -248,7 +249,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
           can_analyze_contiguous_access = false;
           break;
         }
-        buffer_stride *= shape->value;
+        buffer_stride = static_cast<int64_t>(buffer_stride * shape->value);
       }
       if (!can_analyze_contiguous_access) {
         break;
@@ -275,8 +276,12 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         prev_used_iter = i;
       } else {
         // contiguous memory access
-        const int64_t* prev_used_iter_extent = GetLoopIntExtent(loop_srefs[prev_used_iter]);
-        if (prev_used_iter_extent == nullptr) {
+        const auto* prev_used_iter_extent_imm =
+            TVM_SREF_TO_FOR(loop_srefs[prev_used_iter])->extent.as<IntImmNode>();
+        auto prev_used_iter_extent = prev_used_iter_extent_imm
+                                         ? prev_used_iter_extent_imm->value.as<int64_t>()
+                                         : std::nullopt;
+        if (!prev_used_iter_extent.has_value()) {
           break;
         }
         if (strides[i] == strides[prev_used_iter] * (*prev_used_iter_extent)) {
@@ -305,8 +310,9 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         break;
       }
       // Check if the loop extent is valid
-      const int64_t* extent = GetLoopIntExtent(loop_sref);
-      if (extent == nullptr) {
+      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+      if (!extent.has_value()) {
         break;
       }
       // Then we can fuse it in
@@ -342,8 +348,9 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         break;
       }
       // Check if the loop extent is valid
-      const int64_t* extent = GetLoopIntExtent(loop_sref);
-      if (extent == nullptr) {
+      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+      if (!extent.has_value()) {
         break;
       }
       // Check if the extent is still in a good range

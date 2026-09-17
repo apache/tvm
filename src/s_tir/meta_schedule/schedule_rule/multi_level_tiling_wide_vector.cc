@@ -100,8 +100,9 @@ MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv
     return MultiLevelTilingNode::SplitLoop(sch, block_rv, loop_rv, n_tiles);
   } else {
     // We split the innermost spatial loop in a way that always uses the maximum vector length.
-    const int64_t* extent_int = s_tir::GetLoopIntExtent(loop);
-    if (extent_int && *extent_int > vec_len) {
+    const auto* extent_int_imm = loop->extent.as<IntImmNode>();
+    auto extent_int = extent_int_imm ? extent_int_imm->value.as<int64_t>() : std::nullopt;
+    if (extent_int.has_value() && *extent_int > vec_len) {
       ffi::Array<s_tir::LoopRV> inner_splits =
           sch->Split(/*loop=*/loop_rv,
                      /*factors=*/{std::nullopt, PrimExpr(vec_len)});

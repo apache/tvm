@@ -74,7 +74,7 @@ std::tuple<TensorType, ffi::Optional<int64_t>> GetTensorArgInfoWithIndex(const C
   ffi::Optional<int64_t> int_imm_axis = std::nullopt;
   if (auto prim_value = axis.as<PrimExpr>()) {
     if (const auto* int_imm = prim_value->as<IntImmNode>()) {
-      int_imm_axis = int_imm->value;
+      int_imm_axis = static_cast<int64_t>(int_imm->value);
     }
   }
 

@@ -144,12 +144,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           [](Schedule sch, SBlockRV inverse) -> ffi::Array<Schedule> {
             GetWinogradProducerAndInlineConst(sch, inverse);
             // loops on top of the inverse block: [CO, P, tile_size, tile_size, alpha, alpha]
-            int64_t tile_size = sch->Get(inverse)
-                                    ->writes[0]
-                                    ->source.as_or_throw<tvm::tirx::BufferVar>()
-                                    ->shape[2]
-                                    .as_or_throw<IntImm>()
-                                    ->value;
+            ffi::BigInt tile_size = sch->Get(inverse)
+                                        ->writes[0]
+                                        ->source.as_or_throw<tvm::tirx::BufferVar>()
+                                        ->shape[2]
+                                        .as_or_throw<IntImm>()
+                                        ->value;
             LoopRV outer{ffi::UnsafeInit()};
             {
               SBlockRV output = sch->GetConsumers(inverse)[0];

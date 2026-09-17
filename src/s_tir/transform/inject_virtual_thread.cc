@@ -699,7 +699,7 @@ class VirtualThreadInjector : public tirx::IRMutatorWithAnalyzer {
     if (op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       bool allow_share = std::string(iv->thread_tag).substr(0, 7) == "vthread";
-      int nthread = static_cast<int>(op->value.as<IntImmNode>()->value);
+      int nthread = op->value.as<IntImmNode>()->value.as<int>().value();
       auto vs = ffi::make_object<VarTouchedAnalysis>();
       auto touched = vs->TouchedVar(op->body, iv->var.get());
       auto injector =

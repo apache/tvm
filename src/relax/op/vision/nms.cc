@@ -293,7 +293,7 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
   if (data_shape != nullptr) {
     const auto* elem_length_imm = data_shape->values[2].as<IntImmNode>();
     if (elem_length_imm != nullptr) {
-      int64_t elem_length = elem_length_imm->value;
+      const ffi::BigInt& elem_length = elem_length_imm->value;
       if (attrs->score_index < 0 || attrs->score_index >= elem_length) {
         TVM_FFI_VISIT_THROW(ValueError, call)
             << "non_max_suppression expects score_index to be in range [0, " << elem_length

@@ -138,7 +138,7 @@ PrimExpr NormalizeBooleanOperators(PrimExpr expr) {
   }
 }
 
-std::tuple<PrimExpr, int64_t> ExtractConstantOffset(const PrimExpr& expr) {
+std::tuple<PrimExpr, ffi::BigInt> ExtractConstantOffset(const PrimExpr& expr) {
   PVar<PrimExpr> x;
   PVar<IntImm> c1;
 
@@ -797,9 +797,10 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::DivNode* op,
     // NOTE: use div as the pattern also works for float.
     TVM_TRY_REWRITE(div(broadcast(x, lanes), broadcast(y, lanes)), broadcast(div(x, y), lanes));
     // ramp / bcast
-    if ((div(ramp(b1, c1, lanes), broadcast(c2, lanes))).Match(ret)) {
-      int64_t c1val = c1.Eval()->value;
-      int64_t c2val = c2.Eval()->value;
+    if ((div(ramp(b1, c1, lanes), broadcast(c2, lanes))).Match(ret) &&
+        !op->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLUInt)) {
+      ffi::BigInt c1val = c1.Eval()->value;
+      ffi::BigInt c2val = c2.Eval()->value;
       TVM_FFI_ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return ramp(div(b1, c2), div(c1, c2), lanes).Eval();
@@ -808,8 +809,8 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::DivNode* op,
       if (const auto* lanes_int = lanes.Eval().as<IntImmNode>();
           lanes_int && CanProveGreaterEqual(b1.Eval(), 0)) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
-        int64_t ramp_min = bmod->base / c2val;
-        int64_t ramp_max = (bmod->base + (lanes_int->value - 1) * c1val) / c2val;
+        ffi::BigInt ramp_min = bmod->base / c2val;
+        ffi::BigInt ramp_max = (bmod->base + (lanes_int->value - 1) * c1val) / c2val;
         if (bmod->coeff % c2val == 0 && ramp_min == ramp_max) {
           return broadcast(div(b1, c2), lanes).Eval();
         }
@@ -827,9 +828,9 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::DivNode* op,
     // is truncated, so perform const folding again.
     // NOTE: trunc div required
     if (truncdiv(c1, c2).Match(ret)) {
-      int64_t c1val = c1.Eval()->value;
-      int64_t c2val = c2.Eval()->value;
-      return IntImm(op->ty.as_or_throw<PrimType>(), truncdiv(c1val, c2val));
+      ffi::BigInt c1val = c1.Eval()->value;
+      ffi::BigInt c2val = c2.Eval()->value;
+      return IntImm(op->ty.as_or_throw<PrimType>(), (c1val / c2val));
     }
 
     // while it is always true for trunc div
@@ -842,8 +843,8 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::DivNode* op,
                            CanProveGreaterEqual(x.Eval(), 0));
 
     if (truncdiv(x * c1, c2).Match(ret)) {
-      int64_t c1val = c1.Eval()->value;
-      int64_t c2val = c2.Eval()->value;
+      ffi::BigInt c1val = c1.Eval()->value;
+      ffi::BigInt c2val = c2.Eval()->value;
       if (c1val > 0 && c2val > 0) {
         if (c1val % c2val == 0) return (x * truncdiv(c1, c2)).Eval();
         if (c2val % c1val == 0) return truncdiv(x, truncdiv(c2, c1)).Eval();
@@ -954,9 +955,10 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::ModNode* op,
                     broadcast(truncmod(x, y), lanes));
 
     // ramp % bcast
-    if (truncmod(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret)) {
-      int64_t c1val = c1.Eval()->value;
-      int64_t c2val = c2.Eval()->value;
+    if (truncmod(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret) &&
+        !op->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLUInt)) {
+      ffi::BigInt c1val = c1.Eval()->value;
+      ffi::BigInt c2val = c2.Eval()->value;
       TVM_FFI_ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return broadcast(truncmod(b1, c2), lanes).Eval();
@@ -965,8 +967,8 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::ModNode* op,
       if (CanProveGreaterEqual(b1.Eval(), 0)) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
         if (const auto* lanes_int = lanes.Eval().as<IntImmNode>()) {
-          int64_t ramp_min = bmod->base / c2val;
-          int64_t ramp_max = (bmod->base + (lanes_int->value - 1) * c1val) / c2val;
+          ffi::BigInt ramp_min = bmod->base / c2val;
+          ffi::BigInt ramp_max = (bmod->base + (lanes_int->value - 1) * c1val) / c2val;
           if (bmod->coeff % c2val == 0 && ramp_min == ramp_max) {
             return ramp(truncmod(bmod->base, c2), c1, lanes).Eval();
           }
@@ -1005,14 +1007,17 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::ModNode* op,
     TVM_TRY_RECURSIVE_REWRITE_IF(
         truncmod(x, c1),
         truncmod(x, PConst<PrimExpr>(IntImm(op->ty.as_or_throw<PrimType>(), -c1.Eval()->value))),
-        c1.Eval()->value < 0);
+        c1.Eval()->value < 0 &&
+            c1.Eval()->value != (c1.Eval().ty().bits() == 64
+                                     ? std::numeric_limits<int64_t>::min()
+                                     : -(int64_t{1} << (c1.Eval().ty().bits() - 1))));
 
     // try modular analysis
     if (truncmod(x, c1).Match(ret)) {
       ModularSet mod = analyzer_->modular_set(x.Eval());
-      int64_t c1val = c1.Eval()->value;
+      ffi::BigInt c1val = c1.Eval()->value;
       if (mod->coeff % c1val == 0 && c1val > 0 && CanProveGreaterEqual(x.Eval(), 0)) {
-        return truncmod(mod->base, c1).Eval();
+        return IntImm(c1.Eval().ty(), (mod->base % c1.Eval()->value));
       }
     }
   }
@@ -1037,9 +1042,10 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode*
     TVM_TRY_REWRITE(floordiv(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(floordiv(x, y), lanes));
     // ramp // bcast
-    if (floordiv(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret)) {
-      int64_t c1val = c1.Eval()->value;
-      int64_t c2val = c2.Eval()->value;
+    if (floordiv(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret) &&
+        !op->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLUInt)) {
+      ffi::BigInt c1val = c1.Eval()->value;
+      ffi::BigInt c2val = c2.Eval()->value;
       TVM_FFI_ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return ramp(floordiv(b1, c2), floordiv(c1, c2), lanes).Eval();
@@ -1047,8 +1053,8 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode*
       // If all possible indices in ramp are the same.
       if (const auto* lanes_int = lanes.Eval().as<IntImmNode>()) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
-        int64_t ramp_min = floordiv(bmod->base, c2val);
-        int64_t ramp_max = floordiv(bmod->base + (lanes_int->value - 1) * c1val, c2val);
+        ffi::BigInt ramp_min = floordiv(bmod->base, c2val);
+        ffi::BigInt ramp_max = floordiv(bmod->base + (lanes_int->value - 1) * c1val, c2val);
         if (ramp_min == ramp_max) {
           // If b1 can divide c2
           if (bmod->coeff % c2val == 0) {
@@ -1074,30 +1080,31 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode*
 
     if (floordiv(x * c1 + y, c2).Match(ret) || floordiv(x * c1, c2).Match(ret) ||
         floordiv(y + x * c1, c2).Match(ret)) {
-      int64_t c1val = c1.Eval()->value;
-      int64_t c2val = c2.Eval()->value;
-      PrimExpr yval = y.EvalOr(IntImm::Int32(0));
+      ffi::BigInt c1val = c1.Eval()->value;
+      ffi::BigInt c2val = c2.Eval()->value;
+      PrimExpr yval = y.EvalOr(IntImm(c1.Eval().ty(), 0));
       if (c2val == 0) return ret;
 
       // try eliminate residue part
-      PrimExpr residue =
-          floordiv(x.Eval() * floormod(c1.Eval(), c2val) + floormod(yval, c2val), c2val);
-      PrimExpr y_div = CanProveEqual(floordiv(yval, c2val), 0) ? 0 : floordiv(yval, c2val);
+      PrimExpr residue = floordiv(
+          x.Eval() * floormod(c1.Eval(), c2.Eval()) + floormod(yval, c2.Eval()), c2.Eval());
+      PrimExpr y_div = CanProveEqual(floordiv(yval, c2.Eval()), 0) ? 0 : floordiv(yval, c2.Eval());
       auto bound = analyzer_->const_int_bound(residue);
       if (bound.defined() && bound->max_value == bound->min_value) {
-        return x.Eval() * floordiv(c1val, c2.Eval()) + (y_div + IntImm::Int32(bound->max_value));
+        return x.Eval() * floordiv(c1.Eval(), c2.Eval()) +
+               (y_div + IntImm::Int32(bound->max_value));
       }
 
       // try simplify divisor
       if (c1val > 0 && c2val > 0 && c2val % c1val == 0 &&
-          CanProveLess(floormod(yval, c2val), c1val)) {
+          CanProveLess(floormod(yval, c2.Eval()), c1val)) {
         // assume c2 == a * c1, x == a * x' + b, y = d * c2 + e then
         // (x * c1 + y) // c2
         // ==> ((a * x' + b) * c1 + d * a * c1 + e) // (a * c1)
         // ==> x' + d + (b * c1 + e) // c2
         // ==> x' + d since 0 <= b * c1 <= (a-1) * c1, 0 <= e < c1
         // ==> x // (c2 // c1) + (y // c2)
-        return floordiv(x.Eval(), floordiv(c2val, c1val)) + y_div;
+        return floordiv(x.Eval(), floordiv(c2.Eval(), c1.Eval())) + y_div;
       }
     }
 
@@ -1177,7 +1184,8 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode*
     // comparison machinery is signed-centric and can't be used here).
     if (floordiv(x, c2).Match(ret) && c2.Eval()->value > 0) {
       ConstIntBound x_bound = analyzer_->const_int_bound(x.Eval());
-      if (x_bound->min_value >= 0 && x_bound->max_value < c2.Eval()->value) {
+      if (x_bound->min_value >= 0 && x_bound->max_value != ConstIntBound::kPosInf &&
+          x_bound->max_value < c2.Eval()->value) {
         return ZeroWithTypeLike(x).Eval();
       }
     }
@@ -1238,9 +1246,10 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
                     broadcast(floormod(x, y), lanes));
 
     // floormod(ramp, bcast)
-    if (floormod(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret)) {
-      int64_t c1val = c1.Eval()->value;
-      int64_t c2val = c2.Eval()->value;
+    if (floormod(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret) &&
+        !op->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLUInt)) {
+      ffi::BigInt c1val = c1.Eval()->value;
+      ffi::BigInt c2val = c2.Eval()->value;
       TVM_FFI_ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return broadcast(floormod(b1, c2), lanes).Eval();
@@ -1248,12 +1257,14 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
       // If all possible indices in ramp are the same.
       ModularSet bmod = analyzer_->modular_set(b1.Eval());
       if (const auto* lanes_int = lanes.Eval().as<IntImmNode>()) {
-        int64_t ramp_min = floordiv(bmod->base, c2val);
-        int64_t ramp_max = floordiv(bmod->base + (lanes_int->value - 1) * c1val, c2val);
+        ffi::BigInt ramp_min = floordiv(bmod->base, c2val);
+        ffi::BigInt ramp_max = floordiv(bmod->base + (lanes_int->value - 1) * c1val, c2val);
         if (ramp_min == ramp_max) {
           // If b1 can divide c2
           if (bmod->coeff % c2val == 0) {
-            return ramp(floormod(bmod->base, c2), c1, lanes).Eval();
+            return ramp(PConst<PrimExpr>(IntImm(c2.Eval().ty(), ffi::floormod(bmod->base, c2val))),
+                        c1, lanes)
+                .Eval();
           }
           // If all indices can be guaranteed to settle inside a coeff range
           if (c2val % bmod->coeff == 0 &&
@@ -1308,18 +1319,19 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
                        CanProveGreaterEqual(z.Eval() * c1.Eval(), 0));
 
     if (floormod(x, c1).Match(ret)) {
-      int64_t c1val = c1.Eval()->value;
+      ffi::BigInt c1val = c1.Eval()->value;
       if (c1val > 0) {
         // try modular analysis
         ModularSet mod = analyzer_->modular_set(x.Eval());
         if (mod->coeff % c1val == 0) {
-          return floormod(mod->base, c1).Eval();
+          return IntImm(c1.Eval().ty(), floormod(mod->base, c1.Eval()->value));
         }
 
         // floormod(x,c1) is a no-op when x is already in the
         // appropriate range.
         ConstIntBound bound = analyzer_->const_int_bound(x.Eval());
-        if (bound->min_value >= 0 && bound->max_value < c1val) {
+        if (bound->min_value >= 0 && bound->max_value != ConstIntBound::kPosInf &&
+            bound->max_value < c1val) {
           return x.Eval();
         }
       }
@@ -1334,9 +1346,8 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if (op_ty.MatchesCode(DLDataTypeCode::kDLUInt) && (op_ty.bits() == 32 || op_ty.bits() == 64)) {
     const int64_t op_bits = op_ty.bits();
-    const auto is_pow2_le_bits = [op_bits](int64_t v) {
-      return v > 0 && (v & (v - 1)) == 0 &&
-             (op_bits < 64 ? v <= (int64_t{1} << op_bits) : v <= (int64_t{1} << 63));
+    const auto is_pow2_le_bits = [op_bits](const ffi::BigInt& v) {
+      return v > 0 && (v & (v - 1)) == 0 && v <= (ffi::BigInt(1) << op_bits);
     };
     TVM_TRY_REWRITE(floormod(x, x), ZeroWithTypeLike(x));  // x % x -> 0  (x != 0)
     TVM_TRY_REWRITE_IF(floormod(x, c1), ZeroWithTypeLike(x),
@@ -1352,12 +1363,12 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
     // When c2 divides 2^bits, reducing mod 2^bits does not change residues
     // mod c2, so modular analysis is sound for unsigned operands too.
     if (floormod(x, c2).Match(ret) && is_pow2_le_bits(c2.Eval()->value)) {
-      const int64_t c2val = c2.Eval()->value;
+      const ffi::BigInt c2val = c2.Eval()->value;
       // x = coeff * q + base stays congruent mod c2 when c2 | 2^bits, so
       // the signed block's modular-analysis branch is valid here as well.
       ModularSet mod = analyzer_->modular_set(x.Eval());
       if (mod->coeff % c2val == 0) {
-        return floormod(mod->base, c2).Eval();
+        return IntImm(c2.Eval().ty(), floormod(mod->base, c2.Eval()->value));
       }
     }
 
@@ -1375,7 +1386,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
         ModularSet mod = analyzer_->modular_set(x.Eval());
         if (mod->coeff % c2.Eval()->value == 0) {
           LOG(WARNING) << "arith: no-overflow floormod rule on unsigned expr: " << ret;
-          return floormod(mod->base, c2).Eval();
+          return IntImm(c2.Eval().ty(), floormod(mod->base, c2.Eval()->value));
         }
       }
     }
@@ -1535,16 +1546,19 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::MinNode* op,
       }
     }
     if (min(x * c1, c2).Match(ret)) {
-      int64_t c1val = c1.Eval()->value;
-      int64_t c2val = c2.Eval()->value;
+      ffi::BigInt c1val = c1.Eval()->value;
+      ffi::BigInt c2val = c2.Eval()->value;
       if (c1val == 0) {
         return c2val < 0 ? c2.Eval() : c1.Eval();
       }
-      if (c2val % c1val == 0) {
+      int64_t minimum = c1.Eval().ty().bits() == 64 ? std::numeric_limits<int64_t>::min()
+                                                    : -(int64_t{1} << (c1.Eval().ty().bits() - 1));
+      if (c2val % c1val == 0 && !(c1val == -1 && c2val == minimum)) {
+        PConst<PrimExpr> quotient(IntImm(c1.Eval().ty(), c2val / c1val));
         if (c1val > 0) {
-          return (min(x, c2val / c1val) * c1val).Eval();
+          return (min(x, quotient) * c1).Eval();
         } else {
-          return (max(x, c2val / c1val) * c1val).Eval();
+          return (max(x, quotient) * c1).Eval();
         }
       }
     }
@@ -1720,16 +1734,19 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::MaxNode* op,
       }
     }
     if (max(x * c1, c2).Match(ret)) {
-      int64_t c1val = c1.Eval()->value;
-      int64_t c2val = c2.Eval()->value;
+      ffi::BigInt c1val = c1.Eval()->value;
+      ffi::BigInt c2val = c2.Eval()->value;
       if (c1val == 0) {
         return c2val > 0 ? c2.Eval() : c1.Eval();
       }
-      if (c2val % c1val == 0) {
+      int64_t minimum = c1.Eval().ty().bits() == 64 ? std::numeric_limits<int64_t>::min()
+                                                    : -(int64_t{1} << (c1.Eval().ty().bits() - 1));
+      if (c2val % c1val == 0 && !(c1val == -1 && c2val == minimum)) {
+        PConst<PrimExpr> quotient(IntImm(c1.Eval().ty(), c2val / c1val));
         if (c1val > 0) {
-          return (max(x, c2val / c1val) * c1val).Eval();
+          return (max(x, quotient) * c1).Eval();
         } else {
-          return (min(x, c2val / c1val) * c1val).Eval();
+          return (min(x, quotient) * c1).Eval();
         }
       }
     }
@@ -2065,14 +2082,15 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(prim::LT ret, InplaceMode in
         return std::nullopt;
       }
 
-      int64_t diff = rhs_offset - lhs_offset;
+      ffi::BigInt diff = rhs_offset - lhs_offset;
+      int64_t maximum = static_cast<int64_t>((uint64_t{1} << (lhs.ty().bits() - 1)) - 1);
       if (diff == 0) {
         return lhs < rhs;
       } else if (diff == 1) {
         return lhs <= rhs;
-      } else if (diff < 0 && rhs_offset != 0) {
+      } else if (diff < 0 && rhs_offset != 0 && -diff <= maximum) {
         return lhs + IntImm(lhs.ty(), -diff) < rhs;
-      } else if (diff > 0 && lhs_offset != 0) {
+      } else if (diff > 0 && lhs_offset != 0 && diff <= maximum) {
         return lhs < rhs + IntImm(rhs.ty(), diff);
       }
 
@@ -2447,7 +2465,7 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
       int bits = arg_int->ty.as_or_throw<PrimType>().bits();
       if (arg_int->value == 0) return IntImm(ret_ty, bits);
       for (int i = bits - 1; i >= 0; --i) {
-        if ((int64_t(1) << i) & arg_int->value) {
+        if ((ffi::BigInt(1) << i) & arg_int->value) {
           return IntImm(ret_ty, bits - i - 1);
         }
       }

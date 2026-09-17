@@ -392,7 +392,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     }
     if (name == "call_llvm_pure_intrin" || name == "call_llvm_intrin") {
       int n_args = call->args.size();
-      int64_t id = call->args[0].as<IntImmNode>()->value;
+      int64_t id = static_cast<int64_t>(call->args[0].as<IntImmNode>()->value);
       auto f_llvm_lookup_intrinsic_name =
           tvm::ffi::Function::GetGlobal("target.llvm_get_intrinsic_name");
 

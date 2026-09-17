@@ -541,7 +541,7 @@ struct CacheIndexTraits : public UnpackedInstTraits<CacheIndexTraits> {
   static ffi::Array<SBlockRV> UnpackedApplyToSchedule(Schedule sch, SBlockRV block,
                                                       ffi::String storage_scope,
                                                       IntImm cse_thresh) {
-    return sch->CacheIndex(block, storage_scope, cse_thresh->value);
+    return sch->CacheIndex(block, storage_scope, cse_thresh->value.as<int>().value());
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
@@ -549,7 +549,7 @@ struct CacheIndexTraits : public UnpackedInstTraits<CacheIndexTraits> {
     PythonAPICall py("cache_index");
     py.Input("block", block);
     py.Input("storage_scope", storage_scope);
-    py.Input("cse_thresh", cse_thresh->value);
+    py.Input("cse_thresh", cse_thresh->value.as<int>().value());
     py.OutputList(outputs);
     return py.Str();
   }

@@ -138,7 +138,7 @@ class LaunchBoundsAttrExtractor : public StmtExprMutator {
         TVM_FFI_ICHECK_EQ(min_blocks_per_sm_.value(), min_blocks_per_sm->value)
             << "Conflicting " << tirx::attr::kLaunchBoundsMinBlocksPerSM << " values";
       }
-      min_blocks_per_sm_ = min_blocks_per_sm->value;
+      min_blocks_per_sm_ = static_cast<int64_t>(min_blocks_per_sm->value);
       return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else if (op->attr_key == tirx::attr::kLaunchBoundsMaxBlocksPerCluster) {
       const auto* max_blocks_per_cluster = op->value.as<IntImmNode>();
@@ -150,7 +150,7 @@ class LaunchBoundsAttrExtractor : public StmtExprMutator {
         TVM_FFI_ICHECK_EQ(max_blocks_per_cluster_.value(), max_blocks_per_cluster->value)
             << "Conflicting " << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " values";
       }
-      max_blocks_per_cluster_ = max_blocks_per_cluster->value;
+      max_blocks_per_cluster_ = static_cast<int64_t>(max_blocks_per_cluster->value);
       return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else if (op->attr_key == tirx::attr::kMaxRegisters) {
       const auto* max_registers = op->value.as<IntImmNode>();
@@ -161,7 +161,7 @@ class LaunchBoundsAttrExtractor : public StmtExprMutator {
         TVM_FFI_ICHECK_EQ(max_registers_.value(), max_registers->value)
             << "Conflicting " << tirx::attr::kMaxRegisters << " values";
       }
-      max_registers_ = max_registers->value;
+      max_registers_ = static_cast<int64_t>(max_registers->value);
       return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else if (op->attr_key == tirx::attr::kRequiredBlockSize) {
       const auto* required_block_size = op->value.as<IntImmNode>();
@@ -173,7 +173,7 @@ class LaunchBoundsAttrExtractor : public StmtExprMutator {
         TVM_FFI_ICHECK_EQ(required_block_size_.value(), required_block_size->value)
             << "Conflicting " << tirx::attr::kRequiredBlockSize << " values";
       }
-      required_block_size_ = required_block_size->value;
+      required_block_size_ = static_cast<int64_t>(required_block_size->value);
       return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);

@@ -181,7 +181,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     for (const PrimExpr& expr : exprs) {
       const auto* imm = expr.as<IntImmNode>();
       if (imm == nullptr) return;
-      values.push_back(imm->value);
+      values.push_back(static_cast<int64_t>(imm->value));
     }
     node_->SetAttr(key, std::move(values));
   }

@@ -34,7 +34,6 @@ namespace tvm {
 namespace arith {
 
 using prim::detail::GetFoldResultDoubleRepr;
-using prim::detail::GetFoldResultInt64Repr;
 using prim::detail::is_neg_inf;
 using prim::detail::is_pos_inf;
 using prim::detail::IsIndexType;

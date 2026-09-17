@@ -125,6 +125,29 @@ def test_split_index_simplify():
     ck.verify(tmod(-x, 2), tmod(x, -2) * -1)
 
 
+def test_bigint_coefficients_and_factors():
+    """BigInt preserves wide canonical intermediates and finite split factors."""
+    ck = CanonicalChecker()
+    x = tirx.Var("x", "int64")
+    offset = 2**61
+    ck.analyzer.update(x, tvm.arith.ConstIntBound(offset, offset + 1))
+    # The canonical base 16 - 48 * offset is wider than int64.
+    ck.verify(
+        tirx.truncdiv(16 + 48 * (x - offset), 16),
+        x * 3 - tirx.const(3 * offset - 1, "int64"),
+    )
+
+    y = tirx.Var("y", "int64")
+    factor = tirx.const(2**32, "int64")
+    quotient = tirx.floordiv(y, factor)
+    ck.verify(
+        tirx.floordiv(quotient, factor) * factor + tirx.floormod(quotient, factor),
+        quotient,
+    )
+    finite_modulus = tirx.floormod(y, tirx.const(2**63 - 1, "int64"))
+    ck.verify(finite_modulus, finite_modulus)
+
+
 def test_div_simplify():
     ck = CanonicalChecker()
     x = tvm.tirx.Var("x", "int32")

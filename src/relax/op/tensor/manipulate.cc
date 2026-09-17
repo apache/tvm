@@ -1141,7 +1141,7 @@ Type InferTypeSplit(const Call& call, const BlockBuilder& ctx) {
     return TupleType(output_ty);
   } else if (const auto* p_n_section = attrs->indices_or_sections.as<IntImmNode>()) {
     TVM_FFI_ICHECK_GT(p_n_section->value, 0);
-    int n_section = p_n_section->value;
+    int n_section = p_n_section->value.as<int>().value();
     // When the number of section is one, return the input tensor's type.
     if (n_section == 1) {
       return data_ty;
@@ -2328,7 +2328,7 @@ Type InferTypeGatherND(const Call& call, const BlockBuilder& ctx) {
   if (!indices_shape || !indices_shape->values.back()->IsInstance<IntImmNode>()) {
     return TensorType(data_ty->dtype, kUnknownNDim, data_ty->vdevice);
   }
-  int l = indices_shape->values.back().as<IntImmNode>()->value;
+  int l = indices_shape->values.back().as<IntImmNode>()->value.as<int>().value();
   int output_ndim = indices_ty->ndim + input_dims - l - 1 - batch_dims;
   if (!data_shape) {
     return TensorType(data_ty->dtype, output_ndim, data_ty->vdevice);
@@ -2861,7 +2861,7 @@ Type InferTypeScatterND(const Call& call, const BlockBuilder& ctx) {
     for (size_t i = 0; i < indices_ndim - 1; i++) {
       expected_updates_shape.push_back(indices_shape->values[i]);
     }
-    for (size_t i = k_dim->value; i < data_ndim; i++) {
+    for (size_t i = k_dim->value.as<size_t>().value(); i < data_ndim; i++) {
       expected_updates_shape.push_back(data_shape->values[i]);
     }
     auto check_shape = [&](const ffi::Array<PrimExpr>& expected,

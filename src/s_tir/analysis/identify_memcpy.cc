@@ -217,7 +217,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
                                                    dst_iter_sum->args.end());
 
   auto make_comparison_tuple = [](const arith::IterSplitExpr& expr) {
-    auto as_int_or_zero = [](auto& val) -> int64_t {
+    auto as_int_or_zero = [](auto& val) -> ffi::BigInt {
       if (auto* as_int = val.template as<IntImmNode>()) {
         return as_int->value;
       } else {

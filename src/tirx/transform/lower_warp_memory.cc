@@ -138,7 +138,7 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
     if (op->op.same_as(mma_fill_op) && GetBufferVar(op->args[1]) == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
-      warp_coeff_ = local_size->value;
+      warp_coeff_ = local_size->value.as<int>().value();
     } else if (op->op.same_as(ptx_ldmatrix_legacy_op) && GetBufferVar(op->args[3]) == buffer_) {
       // ldmatrix writes the warp buffer; its local_offset carries
       // ``... + lift(local_size) * tx`` from which the warp coefficient
@@ -147,7 +147,7 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
     } else if (op->op.same_as(mma_fill_legacy_op) && GetBufferVar(op->args[1]) == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill_legacy";
-      warp_coeff_ = local_size->value;
+      warp_coeff_ = local_size->value.as<int>().value();
     }
     // mma_store_legacy/ptx_mma_legacy only *use* the warp buffer
     // (read+rewrite); WarpStoreCoeffFinder relies on ldmatrix/mma_fill
@@ -199,7 +199,7 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
       TVM_FFI_ICHECK_EQ(warp_coeff_, mcoeff_as_int->value)
           << "LowerWarpMemory failed due to two different store coefficient to warp index";
     } else {
-      warp_coeff_ = mcoeff_as_int->value;
+      warp_coeff_ = mcoeff_as_int->value.as<int>().value();
     }
   }
 
@@ -248,7 +248,7 @@ class WarpIndexFinder : public StmtExprVisitor {
               << "Please create it using thread_axis once and reuse the axis "
               << "across multiple binds in the same kernel";
         } else {
-          width_ = value_as_int->value;
+          width_ = value_as_int->value.as<int>().value();
           warp_index_ = iv;
         }
       }
@@ -278,7 +278,7 @@ class WarpAccessRewriter : public StmtExprMutator {
     int64_t alloc_size = 1;
     for (const auto& dim : op->buffer->shape) {
       if (const IntImmNode* int_size = dim.as<IntImmNode>()) {
-        alloc_size *= int_size->value;
+        alloc_size = static_cast<int64_t>(alloc_size * int_size->value);
       } else {
         alloc_size = 0;
       }

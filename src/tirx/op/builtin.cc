@@ -95,10 +95,6 @@ TIR_DEFINE_BUILTIN_FUNC(filter).set_num_inputs(2).set_attr<TCallEffectKind>(
 TIR_DEFINE_BUILTIN_FUNC(selector).set_num_inputs(2).set_attr<TCallEffectKind>(
     "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(large_uint_imm)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
-
 TIR_DEFINE_BUILTIN_FUNC(address_of)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
     .set_num_inputs(1);

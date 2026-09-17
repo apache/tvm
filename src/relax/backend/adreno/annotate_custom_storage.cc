@@ -439,10 +439,10 @@ class CollectConsumerScopeInfo : public ExprVisitor {
           static_cast<int>(target_->GetAttr<int64_t>("texture_spatial_limit").value_or(16384));
       int depth_limit =
           static_cast<int>(target_->GetAttr<int64_t>("texture_depth_limit").value_or(2048));
-      int a0 = shape[0].as<IntImmNode>()->value;
-      int a1 = shape[1].as<IntImmNode>()->value;
-      int a2 = shape[2].as<IntImmNode>()->value;
-      int a3 = shape[3].as<IntImmNode>()->value;
+      int a0 = shape[0].as<IntImmNode>()->value.as<int>().value();
+      int a1 = shape[1].as<IntImmNode>()->value.as<int>().value();
+      int a2 = shape[2].as<IntImmNode>()->value.as<int>().value();
+      int a3 = shape[3].as<IntImmNode>()->value.as<int>().value();
 
       int d1r = a0 * a1;
       int d2r = a2 * a3;
