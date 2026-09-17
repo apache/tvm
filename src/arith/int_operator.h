@@ -156,13 +156,16 @@ inline int64_t ZeroAwareGCD(int64_t a, int64_t b) {
 }
 
 inline ffi::BigInt ZeroAwareGCD(ffi::BigInt a, ffi::BigInt b) {
-  if (a < 0) a = -a;
-  if (b < 0) b = -b;
   auto a_int64 = a.as<int64_t>();
   auto b_int64 = b.as<int64_t>();
-  if (a_int64.has_value() && b_int64.has_value()) {
+  // The native overload cannot negate INT64_MIN.
+  if (a_int64.has_value() && b_int64.has_value() &&
+      *a_int64 != std::numeric_limits<int64_t>::min() &&
+      *b_int64 != std::numeric_limits<int64_t>::min()) {
     return ZeroAwareGCD(*a_int64, *b_int64);
   }
+  if (a < 0) a = -a;
+  if (b < 0) b = -b;
   if (a < b) std::swap(a, b);
   if (b == 0) return a;
   // perform GCD (greatest common divisor)
