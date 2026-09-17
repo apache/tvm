@@ -30,8 +30,7 @@
 #include "../ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
-namespace arith {
-using namespace tirx;
+namespace tirx {
 
 struct StmtSimplifyConfigNode : public ffi::Object {
   bool transitively_prove_inequalities;
@@ -42,7 +41,7 @@ struct StmtSimplifyConfigNode : public ffi::Object {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.StmtSimplifyConfig", StmtSimplifyConfigNode,
                                     ffi::Object);
 
-  RewriteSimplifier::Extension GetEnabledExtensions() const;
+  arith::RewriteSimplifier::Extension GetEnabledExtensions() const;
 };
 
 class StmtSimplifyConfig : public ffi::ObjectRef {
@@ -55,15 +54,15 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::Mutate;
   using IRMutatorWithAnalyzer::Mutate_;
-  static PrimFunc Apply(PrimFunc func, const Analyzer& analyzer,
+  static PrimFunc Apply(PrimFunc func, const arith::Analyzer& analyzer,
                         ffi::Optional<StmtSimplifyConfig> config_opt = std::nullopt);
 
-  explicit StmtSimplifier(const Analyzer& analyzer, StmtSimplifyConfig config)
+  explicit StmtSimplifier(const arith::Analyzer& analyzer, StmtSimplifyConfig config)
       : IRMutatorWithAnalyzer(analyzer), config_(config) {}
 
  protected:
   using Parent = IRMutatorWithAnalyzer;
-  StmtSimplifier(const VTable* vtable, const Analyzer& analyzer, StmtSimplifyConfig config)
+  StmtSimplifier(const VTable* vtable, const arith::Analyzer& analyzer, StmtSimplifyConfig config)
       : Parent(analyzer.get(), vtable), config_(config) {}
   PrimFunc Run(PrimFunc func);
 
@@ -93,10 +92,6 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   // Grows monotonically under SSA — no scope-based cleanup required.
   ffi::Map<Var, PrimExpr> non_inlined_bindings_;
 };
-
-}  // namespace arith
-
-namespace tirx {
 
 /* \brief Simplify statements in the prim func
  *

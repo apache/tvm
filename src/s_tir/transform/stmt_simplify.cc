@@ -30,10 +30,10 @@ namespace s_tir {
 using namespace tirx;
 
 // Reuse ordinary TIRX simplification, adding scoped constraints for S-TIR blocks.
-class StmtSimplifier : public arith::StmtSimplifier {
+class StmtSimplifier : public tirx::StmtSimplifier {
  public:
-  using Parent = arith::StmtSimplifier;
-  StmtSimplifier(const arith::Analyzer& analyzer, arith::StmtSimplifyConfig config)
+  using Parent = tirx::StmtSimplifier;
+  StmtSimplifier(const arith::Analyzer& analyzer, tirx::StmtSimplifyConfig config)
       : Parent(GlobalVTable(), analyzer, config) {}
   using Parent::Mutate_;
   using Parent::Run;
@@ -70,7 +70,7 @@ class StmtSimplifier : public arith::StmtSimplifier {
 };
 
 PrimFunc StmtSimplify(PrimFunc func, const arith::Analyzer& analyzer) {
-  auto config = tvm::transform::PassConfigWithDefaults<arith::StmtSimplifyConfig>();
+  auto config = tvm::transform::PassConfigWithDefaults<tirx::StmtSimplifyConfig>();
   return ffi::make_object<StmtSimplifier>(analyzer, config)->Run(std::move(func));
 }
 
@@ -78,9 +78,8 @@ namespace transform {
 Pass StmtSimplify() {
   auto pass_func = [](PrimFunc func, IRModule, tvm::transform::PassContext ctx) {
     arith::Analyzer analyzer;
-    auto config =
-        ctx->GetConfig<arith::StmtSimplifyConfig>("tirx.StmtSimplify")
-            .value_or(tvm::transform::PassConfigWithDefaults<arith::StmtSimplifyConfig>());
+    auto config = ctx->GetConfig<tirx::StmtSimplifyConfig>("tirx.StmtSimplify")
+                      .value_or(tvm::transform::PassConfigWithDefaults<tirx::StmtSimplifyConfig>());
     return ffi::make_object<s_tir::StmtSimplifier>(analyzer, config)->Run(std::move(func));
   };
   return tirx::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.StmtSimplify", {});
