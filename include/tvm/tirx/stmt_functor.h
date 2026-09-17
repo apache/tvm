@@ -119,8 +119,8 @@ class StmtFunctor<R(const Stmt&, Args...)> {
   // Register inherited hooks in a fresh table before adding dialect nodes.
   static void InitVTable(VTable* vtable) {
     vtable->template SetDispatch<StmtNode>(
-        [](const ffi::ObjectRef& node, TSelf* self, Args... args) {
-          return self->VisitStmtDefault_(node.get(), std::forward<Args>(args)...);
+        [](const ffi::ObjectRef& node, TSelf* self, Args... args) -> R {
+          return self->DispatchDefault_(node.get(), std::forward<Args>(args)...);
         });
     IR_STMT_FUNCTOR_DISPATCH(BindNode);
     IR_STMT_FUNCTOR_DISPATCH(AttrStmtNode);
