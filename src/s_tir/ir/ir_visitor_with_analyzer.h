@@ -46,4 +46,4 @@ class IRVisitorWithAnalyzer : public tirx::IRVisitorWithAnalyzer {
 };
 }  // namespace s_tir
 }  // namespace tvm
-#endif
+#endif  // TVM_S_TIR_IR_VISITOR_WITH_ANALYZER_H_

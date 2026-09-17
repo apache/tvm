@@ -289,7 +289,11 @@ class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
  * \param stmt The source statement to be substituted
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
  *
- * Substitution may change the data type of the expression.
+ * This statement overload legalizes only core TIRX nodes.  Dtype-changing
+ * substitutions must be applied after lowering dialect blocks: structural
+ * traversal of extension statements does not legalize their iterator domains or
+ * bindings.  Type-preserving mappings continue to traverse schedulable blocks
+ * structurally before lowering.
  *
  * \return The result.
  */

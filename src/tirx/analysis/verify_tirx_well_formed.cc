@@ -50,11 +50,6 @@ class ExecScopeVerifier : public Verifier<ExecScopeVerifier> {
  private:
   using Verifier::Visit;
 
-  void DispatchDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
-                  << path;
-  }
-
   void Dispatch_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override {
     static const auto& category_map = Op::GetAttrMap<tirx::TIRxOpCategory>("TIRxOpCategory");
     Verify(category_map.get(op->op, ffi::String("")) == "tile_primitive")
@@ -128,11 +123,6 @@ class LayoutVerifier : public Verifier<LayoutVerifier> {
 
  private:
   using Verifier::Visit;
-
-  void DispatchDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
-                  << path;
-  }
 };
 
 class AsyncStructsVerifier : public Verifier<AsyncStructsVerifier> {
@@ -141,11 +131,6 @@ class AsyncStructsVerifier : public Verifier<AsyncStructsVerifier> {
 
  private:
   using Verifier::Visit;
-
-  void DispatchDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
-                  << path;
-  }
 };
 
 class DeviceFuncVerifier : public Verifier<DeviceFuncVerifier> {
@@ -154,11 +139,6 @@ class DeviceFuncVerifier : public Verifier<DeviceFuncVerifier> {
 
  private:
   using Verifier::Visit;
-
-  void DispatchDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
-                  << path;
-  }
 };
 
 bool VerifyTIRxWellFormed(const PrimFunc& func, bool assert_mode, bool device_func) {

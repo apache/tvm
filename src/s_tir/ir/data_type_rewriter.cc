@@ -29,6 +29,8 @@ using namespace tvm::tirx;
 using namespace tvm::prim;
 
 PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
+  // Keep this short setup local so its collector uses S-TIR block semantics
+  // without adding a dialect-specific collector hook to the TIRX normalizer.
   // Collect scalar dtype requirements without changing types.  Buffer definitions
   // are rewritten only after every scalar replacement has been seeded.
   class IndexVarCollector : public IndexDataTypeNormalizer {

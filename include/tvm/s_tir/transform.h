@@ -48,6 +48,7 @@ namespace transform {
 
 using tirx::transform::CreatePrimFuncPass;
 using tvm::transform::Pass;
+using tvm::transform::PassContext;
 
 /*! \brief De-duplicate definitions, including schedulable block iterators, across PrimFuncs. */
 TVM_DLL Pass ConvertSSA();
@@ -55,7 +56,6 @@ TVM_DLL Pass ConvertSSA();
 /*! \brief Simplify schedulable TIR using block iteration constraints and shared simplifier options.
  */
 TVM_DLL Pass StmtSimplify();
-using tvm::transform::PassContext;
 
 /*!
  * \brief Canonicalize loop to start from zero .

@@ -161,6 +161,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         }
         TVM_FFI_THROW(TypeError) << "Expected a PrimFunc or IRModule, but received "
                                  << obj->GetTypeKey();
+        TVM_FFI_UNREACHABLE();
       });
 }
 }  // namespace s_tir

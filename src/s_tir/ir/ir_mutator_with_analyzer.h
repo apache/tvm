@@ -57,4 +57,4 @@ class IRMutatorWithAnalyzer : public tirx::IRMutatorWithAnalyzer {
 };
 }  // namespace s_tir
 }  // namespace tvm
-#endif
+#endif  // TVM_S_TIR_IR_MUTATOR_WITH_ANALYZER_H_

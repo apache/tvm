@@ -35,6 +35,8 @@ class TIRVisitorWithPath : public tirx::TIRVisitorWithPath {
   virtual void Dispatch_(const SBlockRealizeNode* op, AccessPath path);
   static void InitVTable(VTable* vtable) {
     Parent::InitVTable(vtable);
+    // StmtVisitor is a protected base of the path visitor, so create the
+    // downcast thunks here instead of in StmtVisitor::SetDispatch.
     vtable->SetDispatch<SBlockNode>(
         [](const ffi::ObjectRef& node, StmtVisitor* self, AccessPath path) {
           static_cast<TIRVisitorWithPath*>(self)->Dispatch_(

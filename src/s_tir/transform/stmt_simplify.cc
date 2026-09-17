@@ -30,7 +30,7 @@ namespace s_tir {
 using namespace tirx;
 
 // Reuse ordinary TIRX simplification, adding scoped constraints for S-TIR blocks.
-class StmtSimplifier : public tirx::StmtSimplifier {
+class StmtSimplifier final : public tirx::StmtSimplifier {
  public:
   using Parent = tirx::StmtSimplifier;
   StmtSimplifier(const arith::Analyzer& analyzer, tirx::StmtSimplifyConfig config)
@@ -40,6 +40,8 @@ class StmtSimplifier : public tirx::StmtSimplifier {
 
  public:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
+    // This small binding step stays local: the shared simplifier is TIRX-only,
+    // while the analyzer state is protected by its owning base class.
     return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
       for (const auto& iter_var : op->iter_vars) {
         analyzer_->Bind(iter_var->var, iter_var->dom);

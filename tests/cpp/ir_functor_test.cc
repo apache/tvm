@@ -742,3 +742,27 @@ TEST(IRF, SubstituteWithDataTypeLegalizationPreservesShiftAmounts) {
   EXPECT_TRUE(structural_equal(actual_left, widened_y << shift_amount));
   EXPECT_TRUE(structural_equal(actual_right, widened_y >> shift_amount));
 }
+
+TEST(IRF, SubstituteWithDataTypeLegalizationCastsCoreLoopBounds) {
+  using namespace tvm::prim;
+  using namespace tvm;
+  using namespace tvm::tirx;
+
+  PrimVar index("i", PrimType::Int(32));
+  PrimVar extent("n", PrimType::Int(32));
+  PrimVar wide_extent("n64", PrimType::Int(64));
+  Stmt original = For(index, 0, extent, ForKind::kSerial, Evaluate(index));
+  Stmt actual = SubstituteWithDataTypeLegalization(
+      original, [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
+        if (var.same_as(extent)) return PrimExpr(wide_extent);
+        return std::nullopt;
+      });
+
+  auto* loop = actual.as<ForNode>();
+  ASSERT_NE(loop, nullptr);
+  EXPECT_TRUE(loop->loop_var.same_as(index));
+  EXPECT_EQ(loop->min.ty(), index.ty());
+  EXPECT_EQ(loop->extent.ty(), index.ty());
+  EXPECT_TRUE(ffi::StructuralEqual()(loop->extent, cast(index.ty(), wide_extent)));
+  EXPECT_TRUE(original.as<ForNode>()->extent.same_as(extent));
+}
