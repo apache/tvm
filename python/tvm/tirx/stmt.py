@@ -33,7 +33,7 @@ from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import Expr, Range, Span, Type
+from tvm.ir import Expr, Range, Span, TensorRegion, Type
 from tvm.runtime import Object, Scriptable, const
 
 from . import _ffi_api
@@ -608,30 +608,24 @@ class Evaluate(Stmt):
 
 @tvm_ffi.register_object("tirx.BufferRegionType")
 class BufferRegionType(Type):
-    """The structural type of a :class:`BufferRegion` expression."""
+    """The TIRX subscript type of a buffer-backed :class:`tvm.ir.TensorRegion`."""
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(_ffi_api.BufferRegionType)  # type: ignore
 
 
-@tvm_ffi.register_object("tirx.BufferRegion")
-class BufferRegion(Expr, Scriptable):
-    """BufferRegion node.
+def BufferRegion(buffer: Buffer, region: list[Range]) -> TensorRegion:
+    """Construct a buffer-backed tensor region with TIRX subscript semantics.
 
     Parameters
     ----------
     buffer : Buffer
-        The buffer of the buffer region
+        The source buffer.
 
     region : List[Range]
-        The region array of the buffer region
+        The ranges, with one entry for each buffer dimension.
     """
-
-    buffer: Buffer
-    region: list[Range]
-
-    def __init__(self, buffer: Buffer, region: list[Range]) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.BufferRegion, buffer, region)  # type: ignore
+    return _ffi_api.BufferRegion(buffer, region)
 
 
 @tvm_ffi.register_object("tirx.MatchBufferRegion")
@@ -643,14 +637,14 @@ class MatchBufferRegion(Object, Scriptable):
     buffer : Buffer
         The target buffer
 
-    source : BufferRegion
+    source : TensorRegion
         The region of source buffer
     """
 
     buffer: Buffer
-    source: BufferRegion
+    source: TensorRegion
 
-    def __init__(self, buffer: Buffer, source: BufferRegion) -> None:
+    def __init__(self, buffer: Buffer, source: TensorRegion) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.MatchBufferRegion,
             buffer,
@@ -667,10 +661,10 @@ class SBlock(Stmt):
     iter_vars : List[IterVar]
         The block Variable.
 
-    reads : List[BufferRegion]
+    reads : List[TensorRegion]
         The read buffer regions of the block.
 
-    writes: List[BufferRegion]
+    writes: List[TensorRegion]
         The write buffer regions of the block.
 
     name_hint: str
@@ -696,8 +690,8 @@ class SBlock(Stmt):
     """
 
     iter_vars: list[IterVar]
-    reads: list[BufferRegion]
-    writes: list[BufferRegion]
+    reads: list[TensorRegion]
+    writes: list[TensorRegion]
     name_hint: str
     body: Stmt
     init: Stmt | None
@@ -709,8 +703,8 @@ class SBlock(Stmt):
     def __init__(
         self,
         iter_vars: list[IterVar],
-        reads: list[BufferRegion],
-        writes: list[BufferRegion],
+        reads: list[TensorRegion],
+        writes: list[TensorRegion],
         name_hint: str,
         body: Stmt,
         init: Stmt | None = None,

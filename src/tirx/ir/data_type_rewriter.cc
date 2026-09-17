@@ -435,14 +435,14 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const SBlockNode* op, InplaceMo
           .as_or_throw<UnchangedOr<BufferVar>>()
           .ValueOrUnchanged(match->buffer);
     });
-    BufferRegion source = VisitBufferRegion(match->source);
+    TensorRegion source = VisitBufferRegion(match->source);
     if (buffer.same_as(match->buffer) && source.same_as(match->source)) return match;
     return MatchBufferRegion(buffer, source);
   });
-  ffi::Array<BufferRegion> new_reads = op->reads.Map(
-      [this](const BufferRegion& buffer_region) { return this->VisitBufferRegion(buffer_region); });
-  ffi::Array<BufferRegion> new_writes = op->writes.Map(
-      [this](const BufferRegion& buffer_region) { return this->VisitBufferRegion(buffer_region); });
+  ffi::Array<TensorRegion> new_reads = op->reads.Map(
+      [this](const TensorRegion& buffer_region) { return this->VisitBufferRegion(buffer_region); });
+  ffi::Array<TensorRegion> new_writes = op->writes.Map(
+      [this](const TensorRegion& buffer_region) { return this->VisitBufferRegion(buffer_region); });
   ffi::Array<IterVar> new_iter_vars =
       op->iter_vars.Map([this](const IterVar& iter_var) { return this->VisitIterVar(iter_var); });
   ffi::Optional<Stmt> new_init = std::nullopt;
@@ -528,10 +528,11 @@ IterVar IndexDataTypeRewriter::VisitIterVar(const IterVar& iter_var) {
   return iter_var;
 }
 
-BufferRegion IndexDataTypeRewriter::VisitBufferRegion(const BufferRegion& buffer_region) {
-  BufferVar remapped_buffer = Mutate(buffer_region->buffer, InplaceMode::kDisallow)
-                                  .as_or_throw<UnchangedOr<BufferVar>>()
-                                  .ValueOrUnchanged(buffer_region->buffer);
+TensorRegion IndexDataTypeRewriter::VisitBufferRegion(const TensorRegion& buffer_region) {
+  BufferVar remapped_buffer =
+      Mutate(buffer_region->source.as_or_throw<BufferVar>(), InplaceMode::kDisallow)
+          .as_or_throw<UnchangedOr<BufferVar>>()
+          .ValueOrUnchanged(buffer_region->source.as_or_throw<BufferVar>());
 
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
@@ -542,7 +543,7 @@ BufferRegion IndexDataTypeRewriter::VisitBufferRegion(const BufferRegion& buffer
   });
   is_enabled_ = is_enabled;
 
-  if (!remapped_buffer.same_as(buffer_region->buffer) ||
+  if (!remapped_buffer.same_as(buffer_region->source.as_or_throw<BufferVar>()) ||
       !new_region.same_as(buffer_region->region)) {
     return BufferRegion(remapped_buffer, new_region);
   } else {

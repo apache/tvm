@@ -270,9 +270,9 @@ class IRConvertSSA final : public StmtExprMutator {
         }
         return iter_var;
       });
-      ffi::Array<BufferRegion> reads =
+      ffi::Array<TensorRegion> reads =
           block->reads.Map([&](const auto& region) { return VisitBufferAccess(region); });
-      ffi::Array<BufferRegion> writes =
+      ffi::Array<TensorRegion> writes =
           block->writes.Map([&](const auto& region) { return VisitBufferAccess(region); });
 
       if (!reads.same_as(block->reads) || !writes.same_as(block->writes) ||
@@ -298,6 +298,15 @@ class IRConvertSSA final : public StmtExprMutator {
       writer->buffer = new_buf;
     }
 
+    return node;
+  }
+
+  TensorRegion VisitBufferAccess(TensorRegion node) {
+    BufferVar buffer = node->source.as_or_throw<BufferVar>();
+    BufferVar new_buf = GetRemappedBuffer(buffer);
+    if (!new_buf.same_as(buffer)) {
+      node.CopyOnWrite()->source = new_buf;
+    }
     return node;
   }
 
@@ -778,7 +787,7 @@ ffi::Array<PrimExpr> GetBufferAllocationShape(const BufferVar& buffer) {
 ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
                                     const ffi::Array<PrimExpr>& indices) {
   const BufferVar& target = match_buffer->buffer;
-  const BufferRegion& source = match_buffer->source;
+  const TensorRegion& source = match_buffer->source;
   TVM_FFI_ICHECK_EQ(indices.size(), target->shape.size());
 
   arith::Analyzer analyzer;
@@ -800,7 +809,7 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
 
 Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region) {
   const BufferVar& target = match_buffer->buffer;
-  const BufferRegion& source = match_buffer->source;
+  const TensorRegion& source = match_buffer->source;
   TVM_FFI_ICHECK_EQ(region.size(), target->shape.size());
 
   arith::Analyzer analyzer;
@@ -847,7 +856,8 @@ class StorageAlignCollector : public StmtExprVisitor {
       auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& storage_align_tuple : storage_align_annotation) {
         int buffer_index = storage_align_tuple.get<0>();
-        const BufferVar& buffer = op->writes[buffer_index]->buffer;
+        const BufferVar& buffer =
+            op->writes[buffer_index]->source.as_or_throw<tvm::tirx::BufferVar>();
         storage_align_[buffer.var()].push_back(storage_align_tuple);
       }
     }

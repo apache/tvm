@@ -21,7 +21,8 @@ from enum import Enum
 
 from tvm.arith.analyzer import Analyzer
 from tvm.backend.trn.layout import is_trainium_layout
-from tvm.tirx import BufferRegion, FloatImm
+from tvm.ir import TensorRegion
+from tvm.tirx import FloatImm
 from tvm.tirx.operator.tile_primitive.common import MapOpType
 
 from ..dim_utils import get_ewise_dim_map
@@ -42,8 +43,8 @@ class InstType(Enum):
 
 
 def try_find_inst_nary(
-    _dst: BufferRegion,
-    _srcs: list[BufferRegion | FloatImm],
+    _dst: TensorRegion,
+    _srcs: list[TensorRegion | FloatImm],
     analyzer: Analyzer,
     inst_gen: InstructionGenerator,
     allowed_f_dim_dst: tuple[int] | None = None,
@@ -65,8 +66,8 @@ def try_find_inst_nary(
 
     # Extract buffers and validate properties
     dst, srcs = (
-        _dst.buffer,
-        [_src.buffer if isinstance(_src, BufferRegion) else None for _src in _srcs],
+        _dst.source,
+        [_src.source if isinstance(_src, TensorRegion) else None for _src in _srcs],
     )
     dst_region = _dst.region
 

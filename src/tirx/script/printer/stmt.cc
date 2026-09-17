@@ -123,10 +123,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           // and args[0]/args[1] refer to the same buffer region, collapse to 1 arg
           bool inplace_unary = false;
           if (n_args == 2) {
-            auto dst_opt = op_call->args[0].as<tirx::BufferRegion>();
-            auto src_opt = op_call->args[1].as<tirx::BufferRegion>();
+            auto dst_opt = op_call->args[0].as<tvm::TensorRegion>();
+            auto src_opt = op_call->args[1].as<tvm::TensorRegion>();
             if (dst_opt.has_value() && src_opt.has_value() &&
-                dst_opt.value()->buffer.same_as(src_opt.value()->buffer) &&
+                dst_opt.value()->source.same_as(src_opt.value()->source) &&
                 StructuralEqual()(dst_opt.value()->region, src_opt.value()->region)) {
               inplace_unary = true;
             }
@@ -346,7 +346,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
 
   // NOTE: an earlier sugar printed rank-preserving aliases with a different
   // elem_offset as ``parent[slices]``. That print is not roundtrippable: it
-  // reparses as a BufferRegion, not a Buffer, so any later Buffer use of the
+  // reparses as a TensorRegion, not a Buffer, so any later Buffer use of the
   // alias (stores, views) breaks. Such aliases now print as plain
   // T.decl_buffer, which reparses exactly.
 

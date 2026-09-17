@@ -43,6 +43,7 @@ from .expr import (
     OpaqueExpr,
     Range,
     TensorLoad,
+    TensorRegion,
     Tuple,
     TupleGetItem,
     Var,

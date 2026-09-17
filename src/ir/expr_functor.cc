@@ -26,6 +26,7 @@ void ExprVisitor::InitVTable(VTable* vtable) {
   SetDispatch<ExprVisitor, TupleNode>(vtable);
   SetDispatch<ExprVisitor, TupleGetItemNode>(vtable);
   SetDispatch<ExprVisitor, TensorLoadNode>(vtable);
+  SetDispatch<ExprVisitor, TensorRegionNode>(vtable);
   SetDispatch<ExprVisitor, VarNode>(vtable);
   SetDispatch<ExprVisitor, GlobalVarNode>(vtable);
   SetDispatch<ExprVisitor, CallNode>(vtable);
@@ -81,6 +82,13 @@ ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const TensorLoadNode* node) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(node->ty));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(node->source));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(node->indices));
+  return std::nullopt;
+}
+
+ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const TensorRegionNode* node) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(node->ty));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(node->source));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(node->region));
   return std::nullopt;
 }
 
@@ -281,6 +289,7 @@ void ExprMutator::InitVTable(VTable* vtable) {
   SetDispatch<ExprMutator, TupleNode>(vtable);
   SetDispatch<ExprMutator, TupleGetItemNode>(vtable);
   SetDispatch<ExprMutator, TensorLoadNode>(vtable);
+  SetDispatch<ExprMutator, TensorRegionNode>(vtable);
   SetDispatch<ExprMutator, VarNode>(vtable);
   SetDispatch<ExprMutator, GlobalVarNode>(vtable);
   SetDispatch<ExprMutator, CallNode>(vtable);
@@ -381,6 +390,27 @@ UnchangedOr<PrimExpr> ExprMutator::Mutate_(const TensorLoadNode* node, InplaceMo
   if (!source_u.IsUnchanged()) copy->source = std::move(source_u).ValueUnchecked();
   if (!indices_u.IsUnchanged()) copy->indices = std::move(indices_u).ValueUnchecked();
   return PrimExpr(std::move(copy));
+}
+
+UnchangedOr<Expr> ExprMutator::Mutate_(const TensorRegionNode* node, InplaceMode inplace_mode) {
+  auto ty_u = Mutate(node->ty, inplace_mode).as_or_throw<UnchangedOr<Type>>();
+  auto source_u = Mutate(node->source, inplace_mode);
+  auto region_u = Mutate(node->region, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Range>>>();
+  if (ty_u.UnchangedOrSameAs(node->ty) && source_u.UnchangedOrSameAs(node->source) &&
+      region_u.UnchangedOrSameAs(node->region))
+    return ffi::Unchanged();
+  if (inplace_mode == InplaceMode::kAllow) {
+    auto* writable = const_cast<TensorRegionNode*>(node);
+    if (!ty_u.IsUnchanged()) writable->ty = std::move(ty_u).ValueUnchecked();
+    if (!source_u.IsUnchanged()) writable->source = std::move(source_u).ValueUnchecked();
+    if (!region_u.IsUnchanged()) writable->region = std::move(region_u).ValueUnchecked();
+    return ffi::Unchanged();
+  }
+  auto copy = ffi::make_object<TensorRegionNode>(*node);
+  if (!ty_u.IsUnchanged()) copy->ty = std::move(ty_u).ValueUnchecked();
+  if (!source_u.IsUnchanged()) copy->source = std::move(source_u).ValueUnchecked();
+  if (!region_u.IsUnchanged()) copy->region = std::move(region_u).ValueUnchecked();
+  return Expr(std::move(copy));
 }
 
 UnchangedOr<Expr> ExprMutator::Mutate_(const GlobalVarNode* node, InplaceMode inplace_mode) {

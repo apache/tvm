@@ -17,7 +17,8 @@
 
 """Implementation of unary with bias and scale operator dispatches."""
 
-from tvm.tirx import BufferRegion, PrimFunc
+from tvm.ir import TensorRegion
+from tvm.tirx import PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import MapOpType
 from tvm.tirx.tile_primitive import TilePrimitiveCall
@@ -47,7 +48,7 @@ def unary_with_bias_scale_trn(
 
     # Find instruction parameters
     inst_gen = InstructionGenerator([dst_buffer_region, src_buffer_region, _bias], analyzer)
-    if isinstance(_bias, BufferRegion):
+    if isinstance(_bias, TensorRegion):
         inst_repr, _, _ = try_find_inst_nary(
             dst_buffer_region,
             [src_buffer_region, _bias],

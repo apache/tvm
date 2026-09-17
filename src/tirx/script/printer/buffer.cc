@@ -393,9 +393,9 @@ ffi::Array<Doc> BufferSlices(const ffi::Array<Range>& region, const AccessPath& 
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::BufferRegion>(
-      "", [](tirx::BufferRegion buffer_region, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc prefix = d->AsDoc<ExprDoc>(buffer_region->buffer, p->Attr("buffer"));
+  IRDocsifier::vtable().set_dispatch<tvm::TensorRegion>(
+      "", [](tvm::TensorRegion buffer_region, AccessPath p, IRDocsifier d) -> Doc {
+        ExprDoc prefix = d->AsDoc<ExprDoc>(buffer_region->source, p->Attr("source"));
         return prefix[BufferSlices(buffer_region->region, p->Attr("region"), d)];
       });
 }
@@ -586,7 +586,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_SCRIPT_REPR(tirx::BufferRegionNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tvm::TensorRegionNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(TensorLoadNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::BufferStoreNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::BufferTypeNode, ReprPrintTIR);
