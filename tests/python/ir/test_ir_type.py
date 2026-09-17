@@ -56,28 +56,6 @@ def test_func_type():
     check_json_roundtrip(tf)
 
 
-@pytest.mark.parametrize(
-    "ret_type",
-    [
-        tvm.ir.PrimType("int32"),
-        tvm.ir.PointerType(tvm.ir.PrimType("float32")),
-        tvm.ir.TupleType([]),
-        tvm.ir.TupleType([tvm.ir.PrimType("float32")]),
-        tvm.ir.Type.missing(),
-    ],
-)
-def test_call_declared_return_type(ret_type):
-    callee = tvm.ir.Var("callee", tvm.ir.FuncType([], ret_type))
-    for args in [[], [1], [1.5], [True], [tvm.ir.Var("x", "int32")]]:
-        call = callee(*args)
-        tvm.ir.assert_structural_equal(call.ty, ret_type)
-        assert call.ty.is_missing() == ret_type.is_missing()
-        assert all(isinstance(arg, tvm.ir.Expr) for arg in call.args)
-        assert tvm.ir.Call(callee, args, ret_ty="float64").ty == tvm.ir.PrimType("float64")
-        assert tvm.ir.Call(callee, args, ret_ty=tvm.ir.Type.missing()).ty.is_missing()
-    assert tvm.ir.GlobalVar("unknown")().ty.is_missing()
-
-
 def test_tuple_type():
     tf = tvm.ir.FuncType([], tvm.ir.TupleType([]))
     tt = tvm.ir.PrimType("float32")

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
@@ -460,44 +459,6 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
   }
   if (dtype_print_location == tirx::ScriptDtypePrintLocation::kLast) {
     args.push_back(get_call_type_doc(call_p->Attr("dtype")));
-  }
-  if (call->op.as<GlobalVarNode>()) {
-    // Match shared Call construction across the existing function signatures.
-    Type declared_ret_type = Type::Missing();
-    const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(call->op->ty->type_index());
-    for (const char* name : {"ret_type", "ret"}) {
-      bool found = ffi::reflection::ForEachFieldInfoWithEarlyStop(
-          type_info, [&](const TVMFFIFieldInfo* field) {
-            if (std::string_view(field->name.data, field->name.size) == name) {
-              auto value = ffi::reflection::FieldGetter(field)(call->op->ty).as<Type>();
-              if (value.has_value()) {
-                if (std::string_view(name) == "ret") {
-                  const auto* tuple = value.value().as<TupleTypeNode>();
-                  if (!value.value().as<PrimTypeNode>() && !value.value().as<PointerTypeNode>() &&
-                      !(tuple && tuple->fields.empty())) {
-                    return false;
-                  }
-                  bool derives_result = ffi::reflection::ForEachFieldInfoWithEarlyStop(
-                      type_info, [&](const TVMFFIFieldInfo* signature_field) {
-                        return std::string_view(signature_field->name.data,
-                                                signature_field->name.size) == "derive_func" &&
-                               !ffi::reflection::FieldGetter(signature_field)(call->op->ty)
-                                    .as<std::nullptr_t>();
-                      });
-                  if (derives_result) return false;
-                }
-                declared_ret_type = value.value();
-                return true;
-              }
-            }
-            return false;
-          });
-      if (found) break;
-    }
-    if (!ffi::StructuralEqual()(call->ty, declared_ret_type)) {
-      ExprDoc ret_type_doc = get_call_return_type_doc();
-      return TIR(d, "Call")->Call({prefix.value(), ListDoc(args)}, {"ret_ty"}, {ret_type_doc});
-    }
   }
   return prefix.value()->Call(args);
 }

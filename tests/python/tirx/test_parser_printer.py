@@ -3098,42 +3098,5 @@ def test_scope_id_dtype_rejects_unsupported(dtype):
     # fmt: on
 
 
-@pytest.mark.parametrize("with_attrs", [False, True])
-@pytest.mark.parametrize(
-    "ret_type",
-    [
-        tvm.ir.PrimType("float32"),
-        tvm.ir.PointerType(tvm.ir.PrimType("float32")),
-        tvm.ir.Type.missing(),
-        tvm.ir.TupleType([]),
-        tvm.ir.TupleType([tvm.ir.PrimType("float32")]),
-    ],
-)
-def test_global_call_explicit_return_roundtrip(ret_type, with_attrs):
-    mod = tvm.script.from_source(
-        """
-@I.ir_module(s_tir=True)
-class Module:
-    @T.prim_func(s_tir=True)
-    def f() -> T.int32:
-        return 1
-    @T.prim_func(s_tir=True)
-    def main():
-        Module.f()
-"""
-    )
-    ordinary = mod.script(show_meta=True)
-    assert "Module.f()" in ordinary and "T.Call(" not in ordinary
-    tvm.ir.assert_structural_equal(mod, tvm.script.from_source(ordinary))
-    gv = mod.get_global_var("f")
-    call = tvm.ir.Call(gv, [], ret_ty=ret_type, attrs={"probe": 1} if with_attrs else None)
-    mod["main"] = tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(call))
-    script = mod.script(show_meta=True)
-    assert "T.Call(" in script
-    actual = tvm.script.from_source(script)["main"].body.value.ty
-    tvm.ir.assert_structural_equal(ret_type, actual)
-    assert ret_type.is_missing() == actual.is_missing()
-
-
 if __name__ == "__main__":
     tvm.testing.main()
