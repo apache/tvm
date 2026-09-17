@@ -117,13 +117,6 @@ class ExprDeepEqualChecker : private tvm::ExprFunctor<bool(const Expr&, const Pr
     return true;
   }
 
-  bool OptionalDeepEqual(const ffi::Optional<PrimExpr>& lhs, const ffi::Optional<PrimExpr>& rhs) {
-    if (lhs.same_as(rhs)) return true;
-    if (!lhs.has_value() && rhs.has_value()) return false;
-    if (lhs.has_value() && !rhs.has_value()) return false;
-    return Dispatch(*lhs, *rhs);
-  }
-
   bool Dispatch_(const VarNode* plhs, const PrimExpr& rhs) final {
     // for var, we require pointer equality
     return plhs == rhs.get();
