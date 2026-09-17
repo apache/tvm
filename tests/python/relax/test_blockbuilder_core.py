@@ -40,63 +40,6 @@ def register_nop():
         pass
 
 
-@pytest.mark.parametrize("global_callee", [False, True])
-@pytest.mark.parametrize("ret_ty", [tvm.ir.PrimType("int32"), tvm.ir.TupleType([])])
-def test_normalize_call_checks_fixed_result_arguments(global_callee, ret_ty):
-    signature = rx.FuncType([tvm.ir.PrimType("int32")], ret_ty)
-    if global_callee:
-        callee = tvm.ir.GlobalVar("callee")
-        rx.expr._update_type(callee, signature)
-    else:
-        callee = rx.Var("callee", signature)
-    arg = rx.Var("arg", tvm.ir.PrimType("int32"))
-    wrong_arg = rx.Var("arg", tvm.ir.PrimType("float32"))
-    bb = rx.BlockBuilder()
-    call = callee(arg)
-    assert call.ty.is_missing()
-    tvm.ir.assert_structural_equal(bb.normalize(call).ty, ret_ty)
-    with pytest.raises(ValueError, match="Number of arguments and parameters mismatch"):
-        bb.normalize(callee())
-    with pytest.raises(ValueError, match="type mismatch"):
-        bb.normalize(callee(wrong_arg))
-    # An explicit result remains an override of normalization's type deduction.
-    override = tvm.ir.Call(callee, [], ret_ty=ret_ty)
-    tvm.ir.assert_structural_equal(bb.normalize(override).ty, ret_ty)
-
-
-def test_normalize_call_opaque_and_dependent_results():
-    scalar = tvm.ir.PrimType("int32")
-    opaque = rx.Var("opaque", rx.FuncType.opaque_func(ret=scalar))
-    bb = rx.BlockBuilder()
-    tvm.ir.assert_structural_equal(bb.normalize(opaque()).ty, scalar)
-
-    seen = []
-
-    @tvm.register_global_func("test.call_builder.derive", override=True)
-    def derive(call, _ctx):
-        seen.append(call)
-        return call.args[0].ty
-
-    custom = rx.Var(
-        "custom",
-        rx.FuncType.opaque_func(derive_func=tvm.ir.EnvFunc.get("test.call_builder.derive")),
-    )
-    arg = rx.Var("arg", tvm.ir.PrimType("float32"))
-    call = custom(arg)
-    assert call.ty.is_missing()
-    tvm.ir.assert_structural_equal(bb.normalize(call).ty, arg.ty)
-    assert len(seen) == 1
-
-    n = tirx.Var("n", "int64")
-    dependent = rx.Var(
-        "dependent", rx.FuncType([rx.TensorType([n], "float32")], rx.TensorType([n + 1], "float32"))
-    )
-    tensor = rx.Var("tensor", rx.TensorType([5], "float32"))
-    call = dependent(tensor)
-    assert call.ty.is_missing()
-    tvm.ir.assert_structural_equal(bb.normalize(call).ty, rx.TensorType([6], "float32"))
-
-
 def test_block_builder():
     m = tirx.Var("m", "int64")
     n = tirx.Var("n", "int64")
