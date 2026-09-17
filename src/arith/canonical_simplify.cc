@@ -36,8 +36,6 @@
 namespace tvm {
 namespace arith {
 
-using namespace tirx;
-
 class SumExpr;
 class SplitExpr;
 

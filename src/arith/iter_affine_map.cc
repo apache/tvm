@@ -28,9 +28,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
 
+#include <unordered_set>
 #include <utility>
 
 #include "../support/utils.h"
@@ -41,8 +40,6 @@
 namespace tvm {
 namespace arith {
 using namespace tvm::prim;
-
-using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IterMarkNode::RegisterReflection();
@@ -1295,6 +1292,68 @@ class IterMapRewriter : public tvm::ExprMutator {
   }
 };
 
+// Count expression occurrences for constraint ordering, without traversing type metadata,
+// let bindings, or vector lane descriptors. Shared subexpressions count at each occurrence.
+class IterConstraintSizeCounter : public tvm::ExprVisitor {
+ public:
+  static size_t Count(const PrimExpr& expr) {
+    auto counter = ffi::make_object<IterConstraintSizeCounter>();
+    counter->Visit(expr);
+    return counter->count_;
+  }
+
+ private:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
+    if (value.as<ExprNode>()) ++count_;
+    return tvm::ExprVisitor::Visit(value);
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode*) final { return std::nullopt; }
+
+  ffi::Optional<VisitInterrupt> Visit_(const OpaqueExprNode*) final { return std::nullopt; }
+
+  ffi::Optional<VisitInterrupt> Visit_(const TupleNode* op) final {
+    return this->Visit(op->fields);
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const TupleGetItemNode* op) final {
+    return this->Visit(op->tuple);
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->source));
+    return this->Visit(op->indices);
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
+    if (op->op.as<OpaqueExprNode>()) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->op));
+    }
+    return this->Visit(op->args);
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const LetNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
+    return this->Visit(op->body);
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const RampNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->base));
+    return this->Visit(op->stride);
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const BroadcastNode* op) final {
+    return this->Visit(op->value);
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const ShuffleNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->indices));
+    return this->Visit(op->vectors);
+  }
+
+  size_t count_{0};
+};
+
 /*! \brief An internal struct to represent range extent on iterators(iter < upper_bound). */
 struct IterConstraint {
   // The expr of the iter
@@ -1498,7 +1557,7 @@ IterMapResult DetectIterMap(const ffi::Array<PrimExpr>& indices,
   // in the iter var graph has been visited, where the expression of this iterator will contain the
   // expression of its successor, so we sort them by their sizes.
   for (IterConstraint& constraint : constraints) {
-    constraint.expr_size = CalculateExprComplexity(constraint.iter);
+    constraint.expr_size = IterConstraintSizeCounter::Count(constraint.iter);
   }
 
   std::sort(

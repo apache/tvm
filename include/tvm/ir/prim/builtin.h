@@ -37,6 +37,9 @@ TVM_DLL const Op& ceil();
 /*! \brief Base-two logarithm. */
 TVM_DLL const Op& log2();
 
+/*! \brief Count leading zero bits. */
+TVM_DLL const Op& clz();
+
 /*! \brief Left shift. */
 TVM_DLL const Op& shift_left();
 

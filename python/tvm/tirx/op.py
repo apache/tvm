@@ -27,6 +27,7 @@ import tvm.ir.prim._ffi_api as _prim_ffi_api
 from tvm import tirx
 from tvm.ir import Call, Expr, ExprWithOp, Op, PointerType, PrimType, TensorLoad
 from tvm.ir.base import Span
+from tvm.ir.prim import clz as clz
 from tvm.ir.prim import max_value, min_value
 from tvm.ir.type import TensorMapType
 from tvm.runtime import const
@@ -1803,23 +1804,6 @@ def rsqrt(x):
     """
     x = tir.convert(x)
     return call_intrin(_primexpr_ty(x), "tirx.rsqrt", x)
-
-
-def clz(x):
-    """Count leading zero bits of an integer x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input 32 or 64 bit integer.
-        The result is undefined if the input is 0.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    return call_intrin("int32", "tirx.clz", x)
 
 
 def floor(x: ExprWithOp, span=None):

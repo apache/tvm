@@ -46,7 +46,6 @@ using namespace tvm::prim;
 #if defined(TVM_MLIR_VERSION) && TVM_MLIR_VERSION >= 150
 
 TVM_FFI_STATIC_INIT_BLOCK() { PresburgerSetNode::RegisterReflection(); }
-using namespace tirx;
 
 static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
   auto& space = intset->space;

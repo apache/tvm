@@ -30,9 +30,6 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
-#include <tvm/tirx/op.h>
 
 #include <algorithm>
 #include <tuple>
@@ -52,8 +49,6 @@ TVM_FFI_INLINE bool IsVectorExpr(const ExprNode* expr) {
   return ty.IsScalableVector() || ty.IsFixedLengthVector();
 }
 }  // namespace
-
-using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() { RewriteSimplifierStatsNode::RegisterReflection(); }
 
@@ -2425,7 +2420,7 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
   }
   static const Op& ceil_op = prim::builtin::ceil();
   static const Op& log2_op = prim::builtin::log2();
-  static const Op& clz_op = Op::Get("tirx.clz");
+  static const Op& clz_op = prim::builtin::clz();
   PrimType ret_ty = op->ty.as_or_throw<PrimType>();
   if (op->op.same_as(ceil_op)) {
     PrimExpr ceil_arg = op->args[0].as_or_throw<PrimExpr>();
