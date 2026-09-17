@@ -37,7 +37,6 @@
 #include <tuple>
 #include <variant>
 
-#include "../ir/functor_common.h"
 #include "../ir/tir_visitor_with_path.h"
 #include "tvm/ir/module.h"
 

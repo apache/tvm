@@ -34,7 +34,6 @@
 #include <utility>
 
 #include "data_type_rewriter.h"
-#include "functor_common.h"
 #include "seq_stmt_mutate.h"
 
 namespace tvm {

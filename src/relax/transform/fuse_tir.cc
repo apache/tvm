@@ -31,8 +31,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../tirx/ir/functor_common.h"
-
 namespace tvm {
 namespace tirx {
 using namespace tvm::prim;

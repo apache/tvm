@@ -27,7 +27,6 @@
 #include <unordered_map>
 #include <utility>
 
-#include "../../tirx/ir/functor_common.h"
 #include "../../tirx/ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {

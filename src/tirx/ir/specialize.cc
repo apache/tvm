@@ -37,7 +37,6 @@
 #include <unordered_set>
 
 #include "../transform/ir_utils.h"
-#include "functor_common.h"
 
 namespace tvm {
 namespace tirx {

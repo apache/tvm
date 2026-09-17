@@ -552,7 +552,7 @@ ffi::Array<TensorRegion> MutateBufferRegion(
     ffi::Map<ffi::String, Range> index_range_map, ffi::Array<TensorRegion> region_arr) {
   // Update the region with new Ranges and return new TensorRegion
   ffi::Array<TensorRegion> new_region_arr =
-      MutateArray(region_arr, [&buffer_indices_map, &index_range_map](const TensorRegion& region) {
+      region_arr.Map([&buffer_indices_map, &index_range_map](const TensorRegion& region) {
         TensorRegion new_region = region;
         auto it =
             buffer_indices_map.find(new_region->source.as_or_throw<tvm::tirx::BufferVar>().name());
@@ -595,7 +595,7 @@ class BlockMutator : public StmtExprMutator {
     inner_iter_var_index = -1;
     // As we are working on cloned block, we need to create new instances of iter_var
     ffi::Array<IterVar> new_iter_vars =
-        MutateArray(new_block->iter_vars, [this, &iter_var_](const IterVar& iter) {
+        new_block->iter_vars.Map([this, &iter_var_](const IterVar& iter) {
           auto dtype = iter->var.ty();
           // Create new Var instance for each IterVar
           Var new_var = Var(iter->var->name, iter->var.ty());
