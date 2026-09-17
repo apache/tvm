@@ -752,15 +752,6 @@ PrimExpr log2(PrimExpr x, Span span) {
 
 PrimExpr prim::clz(PrimExpr x, Span span) {
   PrimType x_ty = x.ty();
-  if (x_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
-    PrimType f32_ty = x_ty.IsScalableVector() ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat,
-                                                                         32, x_ty.VScaleFactor())
-                                              : PrimType::Float(32, x_ty.lanes());
-    PrimExpr x_fp32 = prim::Cast(f32_ty, x, span);
-    PrimExpr result_fp32 =
-        Call(f32_ty, prim::builtin::clz(), {x_fp32}, {}, {}, span).as_or_throw<PrimExpr>();
-    return prim::Cast(x_ty, result_fp32, span);
-  }
   return Call(x_ty, prim::builtin::clz(), {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 

@@ -179,7 +179,7 @@ UnchangedOr<Stmt> ReplaceBufferMutator::Mutate_(const SBlockNode* block, Inplace
     return this->VisitMatchBufferRegion(match_buffer);
   };
   auto f_mutate_read_write_region = [this](const TensorRegion& buffer_region) {
-    auto region = MutateArray(buffer_region->region, [this](const Range& range) {
+    auto region = buffer_region->region.Map([this](const Range& range) {
       auto min_result = Mutate(range->min, InplaceMode::kDisallow);
       bool min_unchanged = min_result.UnchangedOrSameAs(range->min);
       PrimExpr min = std::move(min_result).ValueOrUnchanged(range->min);

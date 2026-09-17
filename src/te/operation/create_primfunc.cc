@@ -41,7 +41,6 @@
 #include <vector>
 
 #include "../../tirx/ir/data_type_rewriter.h"
-#include "../../tirx/ir/functor_common.h"
 #include "graph.h"
 
 namespace tvm {

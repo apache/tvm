@@ -45,7 +45,6 @@
 #include <vector>
 
 #include "../analysis/filter_canonical.h"
-#include "../ir/functor_common.h"
 #include "../ir/tir_visitor_with_path.h"
 
 namespace tvm {

@@ -32,7 +32,6 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
-#include "../../tirx/ir/functor_common.h"
 #include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {

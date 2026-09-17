@@ -26,9 +26,6 @@
 #define TVM_TIR_EXPR_FUNCTOR_H_
 
 #include <tvm/ir/expr_functor.h>
-#include <tvm/tirx/buffer_region.h>
-
-#include <utility>
 
 namespace tvm {
 namespace tirx {
@@ -55,7 +52,7 @@ class ExprFunctor<R(const Expr&, Args...)> : public tvm::ExprFunctor<R(const Exp
   using Parent::Dispatch_;
 
   /*! \brief Construct a functor with the inherited expression hooks. */
-  ExprFunctor() : Parent(GlobalVTable()) {}
+  ExprFunctor() = default;
   /*! \brief Destroy through the dialect functor base. */
   virtual ~ExprFunctor() = default;
 
@@ -68,17 +65,6 @@ class ExprFunctor<R(const Expr&, Args...)> : public tvm::ExprFunctor<R(const Exp
 
   /*! \brief Initialize the inherited expression dispatch. */
   static void InitVTable(VTable* vtable) { Parent::InitVTable(vtable); }
-
- private:
-  static const VTable* GlobalVTable() {
-    static const VTable table = [] {
-      VTable table;
-      InitVTable(&table);
-      table.Finalize();
-      return table;
-    }();
-    return &table;
-  }
 };
 
 }  // namespace tirx
