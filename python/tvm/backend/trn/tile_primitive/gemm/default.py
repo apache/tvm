@@ -241,7 +241,8 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
                                 T.evaluate(T.nki.matmul(acc[b_idx % max_psum_slots, lhs_f_loop, rhs_f_loop], A[lhs_indices], B[rhs_indices]))  # noqa: E501
 
     if C.scope() == "trn.psum":
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.prim_func(check_well_formed=False)
         def impl_C_psum():
             for lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(lhs_b_extent, rhs_b_extent, reduction_b_extent):  # noqa: E501
                 matmul_inst_macro(lhs_b_loop, rhs_b_loop, reduction_b_loop, C, True, None)
@@ -270,7 +271,8 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
         check_workspace_buffer(acc_psum, (p_size, largest_psum_per_bank), "trn.psum")
         max_psum_slots = acc_psum.ty.shape[0]
 
-    @T.prim_func
+    # This fragment captures buffers and indices from its insertion scope.
+    @T.prim_func(check_well_formed=False)
     def impl_C_sbuf():
         for lhs_b_loop, rhs_b_loop in T.grid(lhs_b_extent, rhs_b_extent):
             for reduction_b_loop in T.serial(0, reduction_b_extent):

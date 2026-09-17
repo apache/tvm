@@ -80,8 +80,9 @@ def undefined_vars(node: Stmt | Expr, defs: list[Var] | None = None) -> list[Var
 
 
 def verify_well_formed(obj: PrimFunc | IRModule, assert_mode: bool = True) -> bool:
-    """Verify if the given TIR is well-formed. The verification includes:
-        - Check if expressions not contain vars that is defined outside the block.
+    """Verify definitions and buffer-load types in ordinary TIRX.
+
+    Use ``tvm.s_tir.analysis.verify_well_formed`` for schedulable blocks.
 
     Parameters
     ----------

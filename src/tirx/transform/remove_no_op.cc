@@ -94,7 +94,7 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == "pragma_debug_skip_region") {
       return MakeEvaluate(0);
-    } else if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
+    } else if (op->attr_key == tvm::tirx::attr::async_wait_queue_scope) {
       auto wait_attrs = GetAsyncWaitAttributes(op);
       auto wait_cnt = wait_attrs.second;
       arith::Analyzer ana;

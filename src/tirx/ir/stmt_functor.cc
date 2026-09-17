@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <functional>
 #include <utility>
+#include <vector>
 
 #include "data_type_rewriter.h"
 #include "seq_stmt_mutate.h"
@@ -55,8 +56,6 @@ void StmtExprVisitor::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprVisitor, AssertStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, SeqStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, EvaluateNode>(vtable);
-  SetDispatch<StmtExprVisitor, SBlockNode>(vtable);
-  SetDispatch<StmtExprVisitor, SBlockRealizeNode>(vtable);
   SetDispatch<StmtExprVisitor, ScopeIdDefStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, TilePrimitiveCallNode>(vtable);
 }
@@ -228,42 +227,6 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const EvaluateNode* op) {
   return this->Visit(op->value);
 }
 
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const SBlockNode* op) {
-  for (const IterVar& iter_var : op->iter_vars) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(iter_var->dom->min));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(iter_var->dom->extent));
-  }
-  for (const BufferVar& buf : op->alloc_buffers) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(
-        this->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(buf); }));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(buf));
-  }
-  for (const TensorRegion& region : op->reads) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(region));
-  }
-  for (const TensorRegion& region : op->writes) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(region));
-  }
-  for (const MatchBufferRegion& match_buffer_region : op->match_buffers) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
-        kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(match_buffer_region->buffer); }));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(match_buffer_region->buffer));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(match_buffer_region->source));
-  }
-  if (op->init.has_value()) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->init.value()));
-  }
-  return this->Visit(op->body);
-}
-
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const SBlockRealizeNode* op) {
-  for (const auto& child : op->iter_values) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
-  }
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->predicate));
-  return this->Visit(op->block);
-}
-
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ScopeIdDefStmtNode* op) {
   // Flat stmt -- no body. Visit extents (skip deferred defs whose extents
   // are NullOpt) and any preferred_extents.
@@ -324,8 +287,6 @@ void StmtExprMutator::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprMutator, AssertStmtNode>(vtable);
   SetDispatch<StmtExprMutator, SeqStmtNode>(vtable);
   SetDispatch<StmtExprMutator, EvaluateNode>(vtable);
-  SetDispatch<StmtExprMutator, SBlockNode>(vtable);
-  SetDispatch<StmtExprMutator, SBlockRealizeNode>(vtable);
   SetDispatch<StmtExprMutator, ScopeIdDefStmtNode>(vtable);
   SetDispatch<StmtExprMutator, TilePrimitiveCallNode>(vtable);
 }
@@ -467,28 +428,6 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const EvaluateNode* op, InplaceMode i
   return Stmt(std::move(copy));
 }
 
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) {
-  auto iter_values =
-      Mutate(op->iter_values, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-  auto predicate = Mutate(op->predicate, inplace_mode);
-  auto block = Mutate(op->block, inplace_mode).as_or_throw<UnchangedOr<SBlock>>();
-  if (iter_values.UnchangedOrSameAs(op->iter_values) &&
-      predicate.UnchangedOrSameAs(op->predicate) && block.UnchangedOrSameAs(op->block))
-    return ffi::Unchanged();
-  if (inplace_mode == InplaceMode::kAllow) {
-    auto* writable = const_cast<SBlockRealizeNode*>(op);
-    if (!iter_values.IsUnchanged()) writable->iter_values = std::move(iter_values).ValueUnchecked();
-    if (!predicate.IsUnchanged()) writable->predicate = std::move(predicate).ValueUnchecked();
-    if (!block.IsUnchanged()) writable->block = std::move(block).ValueUnchecked();
-    return ffi::Unchanged();
-  }
-  auto copy = ffi::make_object<SBlockRealizeNode>(*op);
-  if (!iter_values.IsUnchanged()) copy->iter_values = std::move(iter_values).ValueUnchecked();
-  if (!predicate.IsUnchanged()) copy->predicate = std::move(predicate).ValueUnchecked();
-  if (!block.IsUnchanged()) copy->block = std::move(block).ValueUnchecked();
-  return Stmt(std::move(copy));
-}
-
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BreakNode* op, InplaceMode inplace_mode) {
   return ffi::Unchanged();
 }
@@ -549,75 +488,6 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BufferStoreNode* op, InplaceMod
   if (!buffer.IsUnchanged()) copy->buffer = std::move(buffer).ValueUnchecked();
   if (!value.IsUnchanged()) copy->value = std::move(value).ValueUnchecked();
   if (!indices.IsUnchanged()) copy->indices = std::move(indices).ValueUnchecked();
-  return Stmt(std::move(copy));
-}
-
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
-  // SBlock iteration variables keep their binders; only their domains are expressions here.
-  const auto* iters = op->iter_vars.GetArrayObj();
-  InplaceMode iter_mode = iters->unique() ? inplace_mode : InplaceMode::kDisallow;
-  std::vector<std::pair<size_t, IterVar>> replacements;
-  for (size_t i = 0; i < iters->size(); ++i) {
-    const auto* iter = (*iters)[i].as<IterVarNode>();
-    InplaceMode domain_mode = iter->unique() ? iter_mode : InplaceMode::kDisallow;
-    auto domain = Mutate(iter->dom, domain_mode).as_or_throw<UnchangedOr<Range>>();
-    if (domain.UnchangedOrSameAs(iter->dom)) continue;
-    if (domain_mode == InplaceMode::kAllow) {
-      const_cast<IterVarNode*>(iter)->dom = std::move(domain).ValueUnchecked();
-    } else {
-      auto updated = ffi::make_object<IterVarNode>(*iter);
-      updated->dom = std::move(domain).ValueUnchecked();
-      replacements.emplace_back(i, IterVar(std::move(updated)));
-    }
-  }
-  UnchangedOr<ffi::Array<IterVar>> iter_vars = ffi::Unchanged();
-  if (!replacements.empty()) {
-    if (iter_mode == InplaceMode::kAllow) {
-      for (auto& [i, iter] : replacements) {
-        const_cast<ffi::ArrayObj*>(iters)->SetItem(i, std::move(iter));
-      }
-    } else {
-      ffi::Array<IterVar> updated = op->iter_vars;
-      for (auto& [i, iter] : replacements) updated.Set(i, std::move(iter));
-      iter_vars = std::move(updated);
-    }
-  }
-  auto alloc_buffers = WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
-                         return Mutate(op->alloc_buffers, inplace_mode);
-                       }).as_or_throw<UnchangedOr<ffi::Array<BufferVar>>>();
-  auto reads = Mutate(op->reads, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<TensorRegion>>>();
-  auto writes =
-      Mutate(op->writes, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<TensorRegion>>>();
-  auto match_buffers = Mutate(op->match_buffers, inplace_mode)
-                           .as_or_throw<UnchangedOr<ffi::Array<MatchBufferRegion>>>();
-  auto init = Mutate(op->init, inplace_mode).as_or_throw<UnchangedOr<ffi::Optional<Stmt>>>();
-  auto body = Mutate(op->body, inplace_mode);
-  if (iter_vars.UnchangedOrSameAs(op->iter_vars) &&
-      alloc_buffers.UnchangedOrSameAs(op->alloc_buffers) && reads.UnchangedOrSameAs(op->reads) &&
-      writes.UnchangedOrSameAs(op->writes) && match_buffers.UnchangedOrSameAs(op->match_buffers) &&
-      init.UnchangedOrSameAs(op->init) && body.UnchangedOrSameAs(op->body))
-    return ffi::Unchanged();
-  if (inplace_mode == InplaceMode::kAllow) {
-    auto* writable = const_cast<SBlockNode*>(op);
-    if (!iter_vars.IsUnchanged()) writable->iter_vars = std::move(iter_vars).ValueUnchecked();
-    if (!alloc_buffers.IsUnchanged())
-      writable->alloc_buffers = std::move(alloc_buffers).ValueUnchecked();
-    if (!reads.IsUnchanged()) writable->reads = std::move(reads).ValueUnchecked();
-    if (!writes.IsUnchanged()) writable->writes = std::move(writes).ValueUnchecked();
-    if (!match_buffers.IsUnchanged())
-      writable->match_buffers = std::move(match_buffers).ValueUnchecked();
-    if (!init.IsUnchanged()) writable->init = std::move(init).ValueUnchecked();
-    if (!body.IsUnchanged()) writable->body = std::move(body).ValueUnchecked();
-    return ffi::Unchanged();
-  }
-  auto copy = ffi::make_object<SBlockNode>(*op);
-  if (!iter_vars.IsUnchanged()) copy->iter_vars = std::move(iter_vars).ValueUnchecked();
-  if (!alloc_buffers.IsUnchanged()) copy->alloc_buffers = std::move(alloc_buffers).ValueUnchecked();
-  if (!reads.IsUnchanged()) copy->reads = std::move(reads).ValueUnchecked();
-  if (!writes.IsUnchanged()) copy->writes = std::move(writes).ValueUnchecked();
-  if (!match_buffers.IsUnchanged()) copy->match_buffers = std::move(match_buffers).ValueUnchecked();
-  if (!init.IsUnchanged()) copy->init = std::move(init).ValueUnchecked();
-  if (!body.IsUnchanged()) copy->body = std::move(body).ValueUnchecked();
   return Stmt(std::move(copy));
 }
 

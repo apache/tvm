@@ -135,9 +135,8 @@ def test_printer_cuda_more():
 
 
 def test_printer_cuda_low_level_warp_intrinsics_roundtrip():
-    @T.prim_func(check_well_formed=False)
-    def kernel():
-        x = T.int32()
+    @T.prim_func
+    def kernel(x: T.int32):
         mask = T.cuda.__activemask()
         T.evaluate(T.cuda.__shfl_sync(mask, x, 0, 32))
         T.evaluate(T.cuda.__shfl_up_sync(mask, x, 1, 32))
@@ -155,9 +154,8 @@ def test_printer_cuda_low_level_warp_intrinsics_roundtrip():
 
 
 def test_printer_webgpu_namespace_roundtrip():
-    @T.prim_func(check_well_formed=False)
-    def kernel():
-        x = T.int32()
+    @T.prim_func
+    def kernel(x: T.int32):
         T.evaluate(T.webgpu.subgroup_shuffle(x, 0))
         T.evaluate(T.webgpu.subgroup_shuffle_up(x, 1))
         T.evaluate(T.webgpu.subgroup_shuffle_down(x, 1))

@@ -52,11 +52,11 @@ from .stmt import BufferStore, AllocBuffer, AttrStmt, DeclBuffer
 
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
-from .stmt import BufferRegion, BufferRegionType, MatchBufferRegion, SBlock, SBlockRealize
+from .stmt import BufferRegion, BufferRegionType
 from .stmt import ScopeIdDefStmt
 from .tile_primitive import DispatchContext, LambdaExpr, TilePrimitiveCall
 
-from .function import PrimFunc, TensorIntrin, IndexMap
+from .function import PrimFunc, IndexMap
 
 from .op import call_packed_lowered, call_cpacked_lowered, register_intrin_lowering
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern

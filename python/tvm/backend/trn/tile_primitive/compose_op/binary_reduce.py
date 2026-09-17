@@ -101,7 +101,8 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
     if reduction_b_extent == 1:
         # Direct implementation without intermediate buffer
         # fmt: off
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.prim_func(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
                 with T.attr(0, "tensorized_nki_instruction", 1):
@@ -121,7 +122,8 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
     else:
         # Implementation with intermediate buffer
         # fmt: off
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.prim_func(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
                 for reduction_b_loop in T.serial(0, reduction_b_extent):

@@ -27,7 +27,6 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
-#include <tvm/s_tir/analysis.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op_attr_types.h>
@@ -131,12 +130,7 @@ TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func, int64_t workspace_b
  *
  * - Each variable has a single point of definition.
  *
- * - Expressions within a tirx::SBlock may not reference variables
- *   defined outside the block.  For example, for a block with iter
- *   vars `vi, vj = T.axis.remap('SS', [i,j])`, the statement
- *   `B[i,j] = A[i,j]` would be ill-formed, because it uses the loop
- *   variables `i` and `j` instead of the block variables `vi` and
- *   `vj`.
+ * Dialect statements require their dialect-specific verifier.
  *
  * \param func The PrimFunc to be verified.
  * \param assert_mode The indicator if it raises an error when the function is not well-formed.

@@ -49,7 +49,7 @@ namespace ir_builder {
  *
  * \endcode
  *
- * The `T::MatchBuffer` below instead generates `MatchBufferRegion` in a TIR block:
+ * The `T::MatchBuffer` below instead generates `s_tir::MatchBufferRegion` in a TIR block:
  *
  * \code {.cpp}
  *
