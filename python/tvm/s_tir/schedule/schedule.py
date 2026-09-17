@@ -3043,7 +3043,7 @@ class Schedule(Object):
                         )
                     )
 
-            tirx.TensorIntrin.register("test_mma_intrin", mma_desc, mma_intrin)
+            tvm.s_tir.TensorIntrin.register("test_mma_intrin", mma_desc, mma_intrin)
 
         Create the schedule and do tensorize:
 

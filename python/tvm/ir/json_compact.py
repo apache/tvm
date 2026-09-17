@@ -19,6 +19,7 @@
 import json
 
 _PRIM_TYPE_KEY_RENAMES = {
+    "tirx.TensorIntrin": "s_tir.TensorIntrin",
     "tirx.StringImm": "ir.prim.StringImm",
     "tirx.Cast": "ir.prim.Cast",
     "tirx.Add": "ir.prim.Add",

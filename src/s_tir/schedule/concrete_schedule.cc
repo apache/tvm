@@ -20,6 +20,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/function.h>
 
 #include <random>
 
@@ -927,7 +928,7 @@ SBlockRV ConcreteScheduleNode::Blockize(const ffi::Array<SBlockRV>& blocks,
 void ConcreteScheduleNode::Tensorize(const LoopRV& loop_rv, const ffi::String& intrin,
                                      bool preserve_unit_iters) {
   TVM_TIR_SCHEDULE_BEGIN();
-  s_tir::Tensorize(state_, this->GetSRef(loop_rv), tirx::TensorIntrin::Get(intrin).value(),
+  s_tir::Tensorize(state_, this->GetSRef(loop_rv), TensorIntrin::Get(intrin).value(),
                    preserve_unit_iters);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("tensorize", this->error_render_level_);
@@ -936,7 +937,7 @@ void ConcreteScheduleNode::Tensorize(const LoopRV& loop_rv, const ffi::String& i
 void ConcreteScheduleNode::Tensorize(const SBlockRV& block_rv, const ffi::String& intrin,
                                      bool preserve_unit_iters) {
   TVM_TIR_SCHEDULE_BEGIN();
-  s_tir::Tensorize(state_, this->GetSRef(block_rv), tirx::TensorIntrin::Get(intrin).value(),
+  s_tir::Tensorize(state_, this->GetSRef(block_rv), TensorIntrin::Get(intrin).value(),
                    preserve_unit_iters);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("tensorize", this->error_render_level_);

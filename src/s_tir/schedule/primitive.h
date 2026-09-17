@@ -20,6 +20,7 @@
 #define TVM_S_TIR_SCHEDULE_PRIMITIVE_H_
 
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/function.h>
 #include <tvm/s_tir/random_engine.h>
 #include <tvm/s_tir/schedule/state.h>
 

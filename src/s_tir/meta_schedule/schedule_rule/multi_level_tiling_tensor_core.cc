@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/function.h>
 #include <tvm/s_tir/meta_schedule/schedule_rule.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op.h>
@@ -65,7 +66,7 @@ TensorCoreIntrinGroup TensorCoreIntrinGroup::FromConfig(
     TVM_FFI_CHECK(config.count(key_name), ValueError) << key_name << " is not set.";
     *intrin_name = config.at(key_name);
     // Check the existence of the intrin
-    tirx::TensorIntrin::Get(*intrin_name);
+    TensorIntrin::Get(*intrin_name);
   };
   TensorCoreIntrinGroup intrin_group;
   f_initialize_intrin("init", &intrin_group.init_intrin);
@@ -226,7 +227,7 @@ ffi::Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
     ffi::Optional<s_tir::AutoTensorizeMappingInfo> mapping_info =
         s_tir::GetAutoTensorizeMappingInfo(
             sch->state(), sch->GetSRef(block_rv),
-            tirx::TensorIntrin::Get(intrin_groups[i].compute_intrin).value()->desc);
+            TensorIntrin::Get(intrin_groups[i].compute_intrin).value()->desc);
     if (mapping_info.has_value()) {
       intrin_group_to_mapping_info.emplace(i, mapping_info.value());
     }
@@ -447,7 +448,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
 
   // Get the shape of the wmma accumulator
   auto [frag_shape_m, frag_shape_n] = [&]() {
-    tirx::SBlock intrin_block = tirx::TensorIntrin::Get(state->intrin_group.init_intrin)
+    tirx::SBlock intrin_block = TensorIntrin::Get(state->intrin_group.init_intrin)
                                     .value()
                                     ->desc->body.as_or_throw<tirx::SBlockRealize>()
                                     ->block;

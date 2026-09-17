@@ -20,6 +20,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/function.h>
 #include <tvm/tirx/builtin.h>
 
 #include "../../tirx/transform/ir_utils.h"
@@ -316,7 +317,7 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
                                            const ffi::String& intrin_name, bool allow_padding) {
   ffi::Optional<TensorizeInfo> opt_tensorize_info =
       GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block_rv),
-                              tirx::TensorIntrin::Get(intrin_name).value()->desc, allow_padding);
+                              TensorIntrin::Get(intrin_name).value()->desc, allow_padding);
   if (!opt_tensorize_info) return std::nullopt;
   const TensorizeInfoNode* info = opt_tensorize_info.value().get();
   if (info->block_iter_paddings.has_value()) {

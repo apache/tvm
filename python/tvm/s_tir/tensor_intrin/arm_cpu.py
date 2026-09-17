@@ -487,7 +487,7 @@ def get_transpose_interleave_intrin_name(in_dtype, out_dtype, extent_cols, exten
         sme_transpose_interleave_intrin_name = (
             ARM_SME_2SVLx2SVL_FP32_TRANSPOSE_INTERLEAVE + f"_{extent_cols}_{extent_rows}"
         )
-        tirx.TensorIntrin.register(
+        TensorIntrin.register(
             sme_transpose_interleave_intrin_name,
             *get_sme_transpose_interleave_2svlx2svl_fp32_intrin(extent_cols, extent_rows),
             override=True,

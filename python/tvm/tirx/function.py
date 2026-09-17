@@ -164,60 +164,6 @@ class PrimFunc(BaseFunc, Scriptable):
         return _ffi_api.Specialize(self, param_map)  # type: ignore
 
 
-@tvm_ffi.register_object("tirx.TensorIntrin")
-class TensorIntrin(Object):
-    """A tensor intrinsic.
-
-    Parameters
-    ----------
-    desc : PrimFunc
-        The function to describe the computation.
-
-    impl : PrimFunc
-        The function of the implementation for the execution.
-    """
-
-    def __init__(self, desc, impl):
-        self.__init_handle_by_constructor__(_ffi_api.TensorIntrin, desc, impl)
-
-    @staticmethod
-    def register(name: str, desc: PrimFunc, impl: PrimFunc, override: bool = False):
-        """Register a tensor intrinsic with its name.
-
-        Parameters
-        ----------
-        name : str
-            The name of the TensorIntrin to register.
-        desc : PrimFunc
-            The function to describe the computation.
-        impl : PrimFunc
-            The function of the implementation for the execution.
-        override: bool
-            Whether override existing intrinsic.
-        """
-        return _ffi_api.TensorIntrinRegister(name, TensorIntrin(desc, impl), override)  # type: ignore
-
-    @staticmethod
-    def get(name: str, allow_missing: bool = False) -> Optional["TensorIntrin"]:
-        """Look up a tensor intrinsic by its name.
-
-        Parameters
-        ----------
-        name : str
-            The name of the TensorIntrin to look up.
-
-        allow_missing : bool
-            Whether to allow missing tensor intrin. If False, raise an error if the tensor intrin
-        doesn't exist.
-
-        Returns
-        -------
-        result : Optional[TensorIntrin]
-            The TensorIntrin with the specified name, or None if not found.
-        """
-        return _ffi_api.TensorIntrinGet(name, allow_missing)  # pylint: type: ignore
-
-
 @tvm_ffi.register_object("tirx.IndexMap")
 class IndexMap(Object):
     """A mapping from multi-dimensional indices to another set of multi-dimensional indices

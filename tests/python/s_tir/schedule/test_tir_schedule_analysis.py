@@ -23,7 +23,7 @@ from tvm_ffi import structural_walk
 import tvm
 import tvm.testing
 from tvm.ir.prim import expr_deep_equal
-from tvm.s_tir import Schedule
+from tvm.s_tir import Schedule, TensorIntrin
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.s_tir.schedule.analysis import (
     TensorizeInfo,
@@ -49,7 +49,6 @@ from tvm.tirx import (
     floordiv,
     floormod,
 )
-from tvm.tirx.function import TensorIntrin
 
 
 def _make_vars(*args: str) -> list[Var]:

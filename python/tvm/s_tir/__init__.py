@@ -18,7 +18,7 @@
 # pylint: disable=invalid-name
 """S-TIR namespace for scheduable TensorIR"""
 
-from tvm.tirx.function import TensorIntrin
+from .function import TensorIntrin
 
 # dlight depends on compiler-only C++ functions (e.g. s_tir.schedule.GetSBlockRealize),
 # so skip it in runtime-only builds.

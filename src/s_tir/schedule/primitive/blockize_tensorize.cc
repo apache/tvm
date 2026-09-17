@@ -21,6 +21,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/function.h>
 
 #include <functional>
 
