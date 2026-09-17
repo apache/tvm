@@ -686,7 +686,8 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
   }
   n->iter_var = iter_var;
   n->extent = extent;
-  n->attr_key = iter_var->thread_tag == "vthread" ? "virtual_thread" : "thread_extent";
+  n->attr_key =
+      iter_var->thread_tag == "vthread" ? tvm::tirx::attr::virtual_thread : "thread_extent";
   return LaunchThreadFrame(n);
 }
 

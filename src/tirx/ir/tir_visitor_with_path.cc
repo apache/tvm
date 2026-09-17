@@ -181,7 +181,8 @@ void TIRVisitorWithPath::Dispatch_(const AttrStmtNode* op, AccessPath path) {
 
   std::vector<std::variant<DefContext<IterVar>, DefContext<Var>, DefContext<BufferVar>>> context;
   if (auto iter_var = op->node.as<IterVar>();
-      iter_var && (op->attr_key == attr::thread_extent || op->attr_key == "virtual_thread")) {
+      iter_var &&
+      (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread)) {
     // Some attributes serve as a source of definition for the
     // tirx::Var they annotate.
     context.push_back(WithDef(iter_var.value(), path->Attr("node")));

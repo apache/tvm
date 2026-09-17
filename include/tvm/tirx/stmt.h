@@ -829,6 +829,11 @@ constexpr const char* pragma_unroll_explicit = "pragma_unroll_explicit";
 constexpr const char* storage_alignment = "storage_alignment";
 /*! \brief Mark launching extent of thread, used by device API. */
 constexpr const char* thread_extent = "thread_extent";
+
+/*! \brief Shared execution attributes consumed before and after block lowering. */
+constexpr const char* virtual_thread = "virtual_thread";
+constexpr const char* async_wait_queue_scope = "async_wait_queue_scope";
+constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
 /*! \brief Annotation key on AllocBuffer marking the allocation as volatile. */
 constexpr const char* kVolatile = "tirx.volatile";
 /*! \brief Mark buffer initial addr alignment in bytes */

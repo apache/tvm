@@ -72,7 +72,7 @@ UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const ForNode* op, InplaceMode inpl
 }
 
 UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
-  if (op->attr_key == attr::thread_extent || op->attr_key == "virtual_thread") {
+  if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread) {
     Stmt s = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = s.as<AttrStmtNode>();
     TVM_FFI_ICHECK(op != nullptr) << "Expected type to be AttrStmtNode"
@@ -328,7 +328,7 @@ UnchangedOr<Expr> DataTypeLegalizer::Mutate_(const CallNode* op, InplaceMode inp
 }
 
 UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
-  if (op->attr_key == attr::thread_extent || op->attr_key == "virtual_thread") {
+  if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread) {
     bool is_enabled = is_enabled_;
     is_enabled_ = true;
     auto stmt = DataTypeLegalizer::Mutate_(op, inplace_mode);

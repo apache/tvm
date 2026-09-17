@@ -389,7 +389,7 @@ struct FragmentInfo {
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt);
 
 // Return the queue id and the in-flight count associated with the given
-// s_tir::attr::async_wait_queue_scope annotation.
+// tvm::tirx::attr::async_wait_queue_scope annotation.
 std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op);
 
 /*!

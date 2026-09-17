@@ -204,8 +204,8 @@ namespace attr {
  * \brief Annotations for invoking and synchronizing asynchronous operations.
  */
 constexpr const char* async_commit_queue_scope = "async_commit_queue_scope";
-constexpr const char* async_wait_queue_scope = "async_wait_queue_scope";
-constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
+constexpr const char* async_wait_queue_scope = tirx::attr::async_wait_queue_scope;
+constexpr const char* async_wait_inflight_count = tirx::attr::async_wait_inflight_count;
 
 /*!
  * \brief Mark that the attached statement runs asynchronously.
@@ -244,7 +244,7 @@ constexpr const char* pragma_loop_partition_hint = "pragma_loop_partition_hint";
 constexpr const char* reduce_scope = "reduce_scope";
 
 /*! \brief Mark launching of a virtual thread. */
-constexpr const char* virtual_thread = "virtual_thread";
+constexpr const char* virtual_thread = tirx::attr::virtual_thread;
 
 // -----------------------------------------------------------------------
 // meta_schedule annotations

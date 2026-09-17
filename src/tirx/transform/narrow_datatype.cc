@@ -124,7 +124,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) {
-    if (op->attr_key == attr::thread_extent || op->attr_key == "virtual_thread") {
+    if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));

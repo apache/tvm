@@ -202,7 +202,8 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const IfThenElseNode* op,
 
 UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
   return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
-    if (op->attr_key == tirx::attr::thread_extent || op->attr_key == "virtual_thread") {
+    if (op->attr_key == tirx::attr::thread_extent ||
+        op->attr_key == tvm::tirx::attr::virtual_thread) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       Range dom = Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value);
