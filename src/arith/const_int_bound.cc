@@ -232,7 +232,12 @@ class ConstIntBoundAnalyzer::Impl
     return divisor;
   }
 
-  Entry Dispatch_(const IntImmNode* op) final { return MakeBound(op->value, op->value); }
+  Entry Dispatch_(const IntImmNode* op) final {
+    if (op->value >= kPosInf) return MakeBound(kPosInf - 1, kPosInf);
+    if (op->value <= kNegInf) return MakeBound(kNegInf, kNegInf + 1);
+    int64_t value = static_cast<int64_t>(op->value);
+    return MakeBound(value, value);
+  }
 
   Entry Dispatch_(const prim::AddNode* op) final {
     Entry a = Dispatch(op->a);
@@ -809,11 +814,13 @@ class ConstIntBoundAnalyzer::Impl
     PVar<IntImm> c;
 
     std::vector<BoundInfo> info;
-    auto add_info = [&](const PrimExpr& expr, int64_t min_value, int64_t max_value) {
+    auto add_info = [&](const PrimExpr& expr, const ffi::BigInt& min_value,
+                        const ffi::BigInt& max_value) {
       // If the conditional is comparing two integers, do not assign a
       // value to them.
-      if (!expr->IsInstance<IntImmNode>()) {
-        info.push_back(BoundInfo(expr, MakeBound(min_value, max_value)));
+      if (auto min = min_value.as<int64_t>(), max = max_value.as<int64_t>();
+          min.has_value() && max.has_value() && !expr->IsInstance<IntImmNode>()) {
+        info.push_back(BoundInfo(expr, MakeBound(*min, *max)));
       }
     };
 

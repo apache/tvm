@@ -619,8 +619,8 @@ class Vectorizer : public StmtExprMutator {
       TVM_FFI_ICHECK(op->lanes->IsInstance<IntImmNode>())
           << "Vectorizing over existing scalable vectors is not supported.";
       const prim::RampNode* base_ramp = base.as<prim::RampNode>();
-      int op_lanes = static_cast<int>(op->lanes.as_or_throw<IntImm>()->value);
-      int base_ramp_lanes = static_cast<int>(base_ramp->lanes.as_or_throw<IntImm>()->value);
+      int op_lanes = op->lanes.as_or_throw<IntImm>()->value.as<int>().value();
+      int base_ramp_lanes = base_ramp->lanes.as_or_throw<IntImm>()->value.as<int>().value();
       if (analyzer_->CanProve(base_ramp->stride ==
                               stride * MakeConst(stride.ty(), base_ramp_lanes))) {
         return prim::Ramp(base_ramp->base, stride, op_lanes * base_ramp_lanes);
@@ -912,7 +912,8 @@ class Vectorizer : public StmtExprMutator {
       return ffi::Unchanged();
     }
 
-    int new_vec_length = var_lanes_.as_or_throw<IntImm>()->value / op->vectors[0].ty().lanes();
+    int new_vec_length =
+        var_lanes_.as_or_throw<IntImm>()->value.as<int>().value() / op->vectors[0].ty().lanes();
     PrimExpr updated_index = indices[0];
     // Check that the indices satisfy the specific patterns.
     auto f_check_index = [this, op](const PrimExpr& index) {
@@ -1292,7 +1293,7 @@ class LoopVectorizer : public StmtExprMutator {
       // lane count, so keep them on the existing fixed-width path for now.
       if (extent_as_int && extent_as_int->value > 1 && TargetHasRVV(target_) &&
           !ContainsCallNode(op->body)) {
-        return VectorizeFixedLoopForRVV(op, extent_as_int->value);
+        return VectorizeFixedLoopForRVV(op, extent_as_int->value.as<int>().value());
       }
 
       if (!extent_as_int || extent_as_int->value < 1) {

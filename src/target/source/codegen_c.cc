@@ -29,6 +29,7 @@
 
 #include <cctype>
 #include <iomanip>
+#include <limits>
 
 #include "../../arith/pattern_match.h"
 #include "../../tirx/ir/buffer_common.h"
@@ -476,30 +477,44 @@ void CodeGenC::PrintStorageScope(const std::string& scope, std::ostream& os) {  
 }
 
 inline void PrintConst(const IntImmNode* op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
-  if (op->ty.as_or_throw<PrimType>() == PrimType::Int(32)) {
-    std::ostringstream temp;
-    temp << op->value;
-    p->MarkConst(temp.str());
-    os << temp.str();
+  PrimType dtype = op->ty.as_or_throw<PrimType>();
+  TVM_FFI_ICHECK_GT(dtype.bits(), 0);
+  TVM_FFI_ICHECK_LE(dtype.bits(), 64) << "Unsupported C integer immediate type " << dtype;
+  std::ostringstream temp;
+  if (dtype.MatchesCode(DLDataTypeCode::kDLUInt)) {
+    auto value = op->value.as<uint64_t>();
+    TVM_FFI_ICHECK(value.has_value()) << "C integer immediate exceeds uint64: " << op->value;
+    if (dtype.bits() < 64) {
+      TVM_FFI_ICHECK_LT(value.value(), uint64_t{1} << dtype.bits())
+          << "Integer immediate does not fit " << dtype;
+    }
+    temp << value.value();
+    if (dtype.bits() == 64) temp << "ULL";
   } else {
-    os << "(";
-    p->PrintType(op->ty.as_or_throw<PrimType>(), os);
-    os << ")" << op->value;
+    auto value = op->value.as<int64_t>();
+    TVM_FFI_ICHECK(value.has_value()) << "C integer immediate exceeds int64: " << op->value;
+    if (dtype.bits() == 1 || dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
+      TVM_FFI_ICHECK(value.value() == 0 || value.value() == 1)
+          << "Integer immediate does not fit " << dtype;
+    } else if (dtype.bits() < 64) {
+      int64_t bound = int64_t{1} << (dtype.bits() - 1);
+      TVM_FFI_ICHECK_GE(value.value(), -bound) << "Integer immediate does not fit " << dtype;
+      TVM_FFI_ICHECK_LT(value.value(), bound) << "Integer immediate does not fit " << dtype;
+    }
+    if (value.value() == std::numeric_limits<int64_t>::min()) {
+      temp << "(-9223372036854775807LL - 1LL)";
+    } else {
+      temp << value.value();
+    }
   }
-}
-
-inline void PrintUIntConst(const PrimType& dtype, uint64_t val, std::ostream& os,
-                           CodeGenC* p) {  // NOLINT(*)
-  if (dtype == PrimType::UInt(32)) {
-    std::ostringstream temp;
-    temp << val << "U";
+  if (dtype == PrimType::Int(32)) {
     p->MarkConst(temp.str());
-    os << temp.str();
   } else {
     os << "(";
     p->PrintType(dtype, os);
-    os << ")" << val;
+    os << ")";
   }
+  os << temp.str();
 }
 
 inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
@@ -718,12 +733,6 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       this->PrintCallExtern(op->ty, op_attr_global_symbol_[call_op], args, false, os);
     } else if (op->op.same_as(prim::builtin::bitwise_and())) {
       PrintBinaryIntrinsic(op, " & ", os, this);
-    } else if (op->op.same_as(tirx::builtin::large_uint_imm())) {
-      TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
-      uint64_t low = static_cast<uint64_t>(op->args[0].as_or_throw<IntImm>()->value);
-      uint64_t high = static_cast<uint64_t>(op->args[1].as_or_throw<IntImm>()->value);
-      uint64_t val = (high << 32U) | low;
-      PrintUIntConst(op->ty.as_or_throw<PrimType>(), val, os, this);
     } else if (op->op.same_as(prim::builtin::bitwise_xor())) {
       PrintBinaryIntrinsic(op, " ^ ", os, this);
     } else if (op->op.same_as(prim::builtin::bitwise_or())) {
@@ -818,7 +827,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     } else if (op->op.same_as(tirx::builtin::tvm_struct_get())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
       os << GetStructRef(op->ty, op->args[0], op->args[1].as_or_throw<PrimExpr>(),
-                         op->args[2].as<IntImmNode>()->value);
+                         op->args[2].as<IntImmNode>()->value.as<int>().value());
     } else if (op->op.same_as(tirx::builtin::isnullptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
       os << "(";
@@ -1193,7 +1202,7 @@ void CodeGenC::Dispatch_(const prim::ShuffleNode* op, std::ostream& os) {  // NO
         << "a non-constant index is " << op->indices[0]
         << ". Please avoid using ShuffleNode or eliminate the ShuffleNode with loop unroll or "
         << "vectorize.";
-    int64_t idx = op->indices[0].as_or_throw<IntImm>()->value;
+    int64_t idx = static_cast<int64_t>(op->indices[0].as_or_throw<IntImm>()->value);
     TVM_FFI_ICHECK_LT(idx, concat_vec.size());
     os << concat_vec[idx];
   } else {
@@ -1208,7 +1217,7 @@ void CodeGenC::Dispatch_(const prim::ShuffleNode* op, std::ostream& os) {  // NO
           << "a non-constant index is " << op->indices[i]
           << ". Please avoid using ShuffleNode or eliminate the ShuffleNode with loop unroll or "
           << "vectorize.";
-      os << concat_vec[op->indices[i].as_or_throw<IntImm>()->value];
+      os << concat_vec[op->indices[i].as_or_throw<IntImm>()->value.as<size_t>().value()];
     }
     os << ')';
   }
@@ -1259,7 +1268,7 @@ void CodeGenC::Dispatch_(const AllocBufferNode* op) {
   for (const auto& dim : shape) {
     const IntImmNode* dim_imm = dim.as<IntImmNode>();
     TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
-    constant_size *= dim_imm->value;
+    constant_size *= dim_imm->value.as<size_t>().value();
   }
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
@@ -1461,7 +1470,7 @@ void CodeGenC::Dispatch_(const EvaluateNode* op) {
       return;
     } else if (call->op.same_as(tirx::builtin::tvm_struct_set())) {
       TVM_FFI_ICHECK_EQ(call->args.size(), 4);
-      int kind = call->args[2].as<IntImmNode>()->value;
+      int kind = call->args[2].as<IntImmNode>()->value.as<int>().value();
       Type store_ty = call->args[3]->ty;
       std::string ref =
           GetStructRef(store_ty, call->args[0], call->args[1].as_or_throw<PrimExpr>(), kind);

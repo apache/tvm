@@ -32,6 +32,7 @@
 #include <tvm/tirx/stmt.h>
 
 #include <iterator>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -53,13 +54,23 @@ using SubscriptSlice = ffi::Array<ffi::Variant<
  * \brief Whether an integer literal can be represented exactly by `ty`.
  * \note Mirrors the range checks performed by the IntImm constructor.
  */
-bool IntImmValueFits(int64_t value, const PrimType& ty) {
+bool IntImmValueFits(const ffi::BigInt& value, const PrimType& ty) {
   int bits = ty.bits();
   if (ty.MatchesCode(DLDataTypeCode::kDLUInt)) {
-    return value >= 0 && (bits >= 64 || value < (int64_t{1} << bits));
+    if (bits <= 64) {
+      uint64_t maximum =
+          bits == 64 ? std::numeric_limits<uint64_t>::max() : (uint64_t{1} << bits) - 1;
+      return value >= 0 && value <= maximum;
+    }
+    return value >= 0 && value < (ffi::BigInt(1) << bits);
   }
-  if (bits >= 64) return true;
-  return value >= -(int64_t{1} << (bits - 1)) && value < (int64_t{1} << (bits - 1));
+  if (bits <= 64) {
+    int64_t maximum =
+        bits == 64 ? std::numeric_limits<int64_t>::max() : (int64_t{1} << (bits - 1)) - 1;
+    return value >= -maximum - 1 && value <= maximum;
+  }
+  ffi::BigInt limit = ffi::BigInt(1) << (bits - 1);
+  return value >= -limit && value < limit;
 }
 
 // Structural traversal hooks

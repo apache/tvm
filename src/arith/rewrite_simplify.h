@@ -236,6 +236,14 @@ class RewriteSimplifier::Impl : public SimplifierBase {
   }
   // Whether x < val
   bool CanProveLess(const PrimExpr& x, int64_t val) { return analyzer_->CanProveLess(x, val); }
+  bool CanProveGreaterEqual(const PrimExpr& x, const ffi::BigInt& val) {
+    auto bound = val.as<int64_t>();
+    return bound.has_value() && analyzer_->CanProveGreaterEqual(x, *bound);
+  }
+  bool CanProveLess(const PrimExpr& x, const ffi::BigInt& val) {
+    auto bound = val.as<int64_t>();
+    return bound.has_value() && analyzer_->CanProveLess(x, *bound);
+  }
   // Whether x == val
   bool CanProveEqual(const PrimExpr& x, int64_t val) {
     // TODO(tqchen) refer back to super-analyzer.

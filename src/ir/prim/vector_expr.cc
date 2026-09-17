@@ -44,10 +44,10 @@ std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes) {
   };
   if (const auto* mul = lanes.as<MulNode>()) {
     if (const auto* imm = mul->a.as<IntImmNode>(); imm && is_vscale(mul->b)) {
-      return static_cast<int>(imm->value);
+      return imm->value.as<int>();
     }
     if (const auto* imm = mul->b.as<IntImmNode>(); imm && is_vscale(mul->a)) {
-      return static_cast<int>(imm->value);
+      return imm->value.as<int>();
     }
   }
   return std::nullopt;
@@ -215,7 +215,7 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
   ffi::ObjectPtr<RampNode> node = ffi::make_object<RampNode>();
   auto* lanes_as_int = lanes.as<IntImmNode>();
   if (lanes_as_int) {
-    int lanes = static_cast<int>(lanes_as_int->value);
+    int lanes = lanes_as_int->value.as<int>().value();
     TVM_FFI_ICHECK_GT(lanes, 1);
     node->ExprNode::ty = base_ty.WithLanes(lanes);
     // Stick to int32 lanes for fixed length vectors
@@ -259,7 +259,7 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
   ffi::ObjectPtr<BroadcastNode> node = ffi::make_object<BroadcastNode>();
   auto* lanes_int = lanes.as<IntImmNode>();
   if (lanes_int) {
-    int lanes = static_cast<int>(lanes_int->value);
+    int lanes = lanes_int->value.as<int>().value();
     TVM_FFI_ICHECK_GT(lanes, 1);
     node->ExprNode::ty = value_ty.WithLanes(lanes);
     // Stick to int32 lanes for fixed length vectors

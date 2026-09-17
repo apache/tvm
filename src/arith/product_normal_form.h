@@ -78,7 +78,7 @@ inline void UnpackSum(const PrimExpr& value, FLeaf fleaf, int sign = 1) {
  * \return the result.
  */
 inline PrimExpr MulAndNormalize(const PrimExpr& lhs, const PrimExpr& rhs) {
-  int64_t cscale = 1;
+  ffi::BigInt cscale = 1;
   PrimType lhs_ty = lhs.ty();
   PrimExpr res = IntImm(lhs_ty, 1);
   auto fcollect = [&](PrimExpr val) {

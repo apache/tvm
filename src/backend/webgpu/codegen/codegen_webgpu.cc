@@ -143,7 +143,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
           auto* sizeptr = op->value.as<IntImmNode>();
           TVM_FFI_ICHECK(sizeptr) << "CodeGenWebGPU: only allows constant thread group size "
                                   << " get " << op->value;
-          info_.workgroup_size[ts.dim_index] = static_cast<uint32_t>(sizeptr->value);
+          info_.workgroup_size[ts.dim_index] = sizeptr->value.as<uint32_t>().value();
         } else if (ts.rank == 0) {
           if (ts.dim_index == 2) {
             info_.has_block_index_z = true;
@@ -552,6 +552,8 @@ void CodeGenWebGPU::Dispatch_(const prim::LetNode* op, std::ostream& os) {  // N
 }
 
 void CodeGenWebGPU::Dispatch_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
+  TVM_FFI_ICHECK_LE(op->ty.as_or_throw<PrimType>().bits(), 32)
+      << "WebGPU does not support integer immediate type " << op->ty;
   if (op->ty.as_or_throw<PrimType>().bits() == 32) {
     std::ostringstream temp;
     if (op->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLInt)) {
@@ -727,7 +729,8 @@ void CodeGenWebGPU::Dispatch_(const AllocBufferNode* op) {
   arith::Analyzer analyzer;
   for (const auto& dim : op->buffer->shape) {
     const auto* dim_imm = dim.as<IntImmNode>();
-    int64_t dim_size = dim_imm ? dim_imm->value : analyzer->const_int_bound(dim)->max_value;
+    int64_t dim_size =
+        dim_imm ? static_cast<int64_t>(dim_imm->value) : analyzer->const_int_bound(dim)->max_value;
     if (dim_imm == nullptr) {
       const auto* dtype_max = max_value(dim.ty()).as<IntImmNode>();
       // An integer dtype's intrinsic maximum is not a program-derived allocation bound.

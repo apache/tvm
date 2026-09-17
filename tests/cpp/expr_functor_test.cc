@@ -53,7 +53,7 @@ class Collect : public ExprVisitor {
   using ExprVisitor::Visit_;
   std::vector<int64_t> values;
   ffi::Optional<VisitInterrupt> Visit_(const IntImmNode* node) override {
-    values.push_back(node->value);
+    values.push_back(node->value.as<int64_t>().value());
     return std::nullopt;
   }
 };

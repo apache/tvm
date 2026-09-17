@@ -350,7 +350,7 @@ CompareResult Negate(CompareResult res) {
 // (lhs_inner, rhs_inner, offset), such that (lhs OP rhs) and
 // (lhs_inner OP rhs_inner + offset) are equivalent.
 std::tuple<PrimExpr, PrimExpr, int64_t> ExtractOffsets(const PrimExpr& lhs, const PrimExpr& rhs) {
-  auto extract_offset = [](const PrimExpr& expr) -> std::pair<PrimExpr, int64_t> {
+  auto extract_offset = [](const PrimExpr& expr) -> std::pair<PrimExpr, ffi::BigInt> {
     PVar<PrimExpr> x;
     PVar<IntImm> c;
     if ((x + c).Match(expr)) {
@@ -366,7 +366,10 @@ std::tuple<PrimExpr, PrimExpr, int64_t> ExtractOffsets(const PrimExpr& lhs, cons
 
   auto lhs_split = extract_offset(lhs);
   auto rhs_split = extract_offset(rhs);
-  return {lhs_split.first, rhs_split.first, rhs_split.second - lhs_split.second};
+  if (auto offset = (rhs_split.second - lhs_split.second).as<int64_t>(); offset.has_value()) {
+    return {lhs_split.first, rhs_split.first, *offset};
+  }
+  return {lhs, rhs, 0};
 }
 
 }  // namespace
@@ -399,6 +402,10 @@ TransitiveComparisonAnalyzer::Impl::FromExpr(const PrimExpr& expr) {
   }
 
   auto [lhs, rhs, offset] = ExtractOffsets(lhs_expr, rhs_expr);
+  ffi::BigInt normalized_offset = offset;
+  if (res == CompareResult::kLT) --normalized_offset;
+  if (res == CompareResult::kGT) ++normalized_offset;
+  if (!normalized_offset.as<int64_t>().has_value()) return std::nullopt;
   Key lhs_key = ExprToKey(lhs);
   Key rhs_key = ExprToKey(rhs);
 
@@ -473,7 +480,9 @@ TransitiveComparisonAnalyzer::Impl::Comparison::WithLHS(Key new_lhs) const {
   if (new_lhs == lhs_) {
     return *this;
   } else if (new_lhs == rhs_) {
-    return Comparison(rhs_, lhs_, -offset_, Reverse(result_));
+    auto reversed = (-ffi::BigInt(offset_)).as<int64_t>();
+    if (!reversed.has_value()) return std::nullopt;
+    return Comparison(rhs_, lhs_, *reversed, Reverse(result_));
   } else {
     return std::nullopt;
   }
@@ -761,7 +770,8 @@ TransitiveComparisonAnalyzer::Impl::DFSFromLHS(Key lhs_key, Key rhs_key) const {
 
       for (const auto& prev : prev_knowns_using_middle) {
         CompareResult new_result = CompareResult::kUnknown;
-        int64_t new_offset = prev.offset_ + cmp.offset_;
+        auto new_offset = (ffi::BigInt(prev.offset_) + cmp.offset_).as<int64_t>();
+        if (!new_offset.has_value()) continue;
 
         if (prev.result_ == CompareResult::kEQ) {
           // x == y + c1 && y OP z + c2, x OP z + (c1 + c2)
@@ -783,7 +793,7 @@ TransitiveComparisonAnalyzer::Impl::DFSFromLHS(Key lhs_key, Key rhs_key) const {
         }
 
         if (new_result != CompareResult::kUnknown) {
-          Comparison new_known(lhs_key, right_key, new_offset, new_result);
+          Comparison new_known(lhs_key, right_key, *new_offset, new_result);
           new_knowns_using_lhs.push_back(new_known);
         }
       }

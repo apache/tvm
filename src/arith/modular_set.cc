@@ -119,12 +119,15 @@ class ModularSetAnalyzer::Impl : public tvm::ExprFunctor<ModularSetAnalyzer::Ent
     // pattern match interesting constraints
     if ((truncmod(var, coeff) == base).Match(constraint) ||
         (floormod(var, coeff) == base).Match(constraint)) {
-      Entry entry(coeff.Eval()->value, base.Eval()->value);
-      return UpdateByIntersect(var.Eval(), entry);
+      if (auto c = coeff.Eval()->value.as<int64_t>(), b = base.Eval()->value.as<int64_t>();
+          c.has_value() && b.has_value()) {
+        return UpdateByIntersect(var.Eval(), Entry(*c, *b));
+      }
     }
     if ((var == base).Match(constraint) || (base == var).Match(constraint)) {
-      Entry entry(1, base.Eval()->value);
-      return UpdateByIntersect(var.Eval(), entry);
+      if (auto b = base.Eval()->value.as<int64_t>(); b.has_value()) {
+        return UpdateByIntersect(var.Eval(), Entry(1, *b));
+      }
     }
     return nullptr;
   }
@@ -147,7 +150,10 @@ class ModularSetAnalyzer::Impl : public tvm::ExprFunctor<ModularSetAnalyzer::Ent
 
   Entry Dispatch_(const prim::CastNode* op) final { return Dispatch(op->value); }
 
-  Entry Dispatch_(const IntImmNode* op) final { return Entry(0, op->value); }
+  Entry Dispatch_(const IntImmNode* op) final {
+    if (auto value = op->value.as<int64_t>(); value.has_value()) return Entry(0, *value);
+    return Everything();
+  }
 
   Entry Dispatch_(const prim::AddNode* op) final {
     Entry a = Dispatch(op->a);

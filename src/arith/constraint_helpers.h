@@ -38,24 +38,21 @@ namespace detail {
 
 enum class CompareKind { kEQ, kLT, kLE, kGT, kGE };
 
-inline bool TryGetIntImm(const PrimExpr& expr, int64_t* value) {
-  if (const auto* imm = expr.as<IntImmNode>()) {
-    *value = imm->value;
-    return true;
-  }
-  return false;
-}
-
-inline void AppendFloorDivConstraints(const prim::FloorDivNode* div, int64_t value,
+inline void AppendFloorDivConstraints(const prim::FloorDivNode* div, const IntImm& k,
                                       CompareKind kind, std::vector<PrimExpr>* out) {
-  int64_t divisor_value = 0;
-  if (!TryGetIntImm(div->b, &divisor_value) || divisor_value <= 0) return;
+  auto divisor = div->b.as<IntImm>();
+  if (!divisor.has_value() || (*divisor)->value <= 0) return;
 
   PrimType dtype = div->a.ty();
-  PrimExpr divisor = IntImm(dtype, divisor_value);
-  PrimExpr k = IntImm(dtype, value);
-  PrimExpr lo = k * divisor;
-  PrimExpr hi = (k + IntImm(dtype, 1)) * divisor;
+  ffi::BigInt lo_value = k->value * (*divisor)->value;
+  ffi::BigInt hi_value = (k->value + 1) * (*divisor)->value;
+  // Derived proof boundaries must not wrap in the expression's integer type.
+  bool is_signed = dtype.MatchesCode(DLDataTypeCode::kDLInt);
+  ffi::BigInt limit = ffi::BigInt(1) << (dtype.bits() - is_signed);
+  ffi::BigInt minimum = is_signed ? -limit : ffi::BigInt(0);
+  if (lo_value < minimum || lo_value >= limit || hi_value < minimum || hi_value >= limit) return;
+  PrimExpr lo = IntImm(dtype, lo_value);
+  PrimExpr hi = IntImm(dtype, hi_value);
 
   switch (kind) {
     case CompareKind::kEQ:
@@ -95,13 +92,13 @@ inline CompareKind InvertCompare(CompareKind kind) {
 
 inline void CollectFloorDivConstraintsFromCompare(const PrimExpr& lhs, const PrimExpr& rhs,
                                                   CompareKind kind, std::vector<PrimExpr>* out) {
-  int64_t value = 0;
   if (const auto* div = lhs.as<prim::FloorDivNode>()) {
-    if (TryGetIntImm(rhs, &value)) AppendFloorDivConstraints(div, value, kind, out);
+    if (auto value = rhs.as<IntImm>(); value.has_value())
+      AppendFloorDivConstraints(div, *value, kind, out);
   }
   if (const auto* div = rhs.as<prim::FloorDivNode>()) {
-    if (TryGetIntImm(lhs, &value)) {
-      AppendFloorDivConstraints(div, value, InvertCompare(kind), out);
+    if (auto value = lhs.as<IntImm>(); value.has_value()) {
+      AppendFloorDivConstraints(div, *value, InvertCompare(kind), out);
     }
   }
 }
