@@ -24,11 +24,11 @@
 #ifndef TVM_TIRX_IR_IR_MUTATOR_WITH_ANALYZER_H_
 #define TVM_TIRX_IR_IR_MUTATOR_WITH_ANALYZER_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/ir/with_context.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -51,9 +51,9 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
-  explicit IRMutatorWithAnalyzer(const arith::Analyzer& analyzer)
+  explicit IRMutatorWithAnalyzer(const sym::Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer.get()) {}
-  explicit IRMutatorWithAnalyzer(arith::AnalyzerObj* analyzer)
+  explicit IRMutatorWithAnalyzer(sym::AnalyzerObj* analyzer)
       : IRMutatorWithAnalyzer(analyzer, GlobalVTable()) {}
 
   // override functions that need to populate the context information.
@@ -68,7 +68,7 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
 
  protected:
   static void InitVTable(VTable* vtable);
-  IRMutatorWithAnalyzer(arith::AnalyzerObj* analyzer, const VTable* vtable)
+  IRMutatorWithAnalyzer(sym::AnalyzerObj* analyzer, const VTable* vtable)
       : StmtExprMutator(vtable), analyzer_(analyzer) {}
   static const VTable* GlobalVTable();
   /*!
@@ -87,9 +87,9 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
                                                   bool non_trivial_only);
 
   /*! \brief internal analyzer field. */
-  arith::AnalyzerObj* analyzer_;
+  sym::AnalyzerObj* analyzer_;
   /*! \brief Scope stack for accumulated assert constraints. */
-  ScopeStack<WithGroup<arith::ConstraintContext>> constraint_scope_;
+  ScopeStack<WithGroup<sym::ConstraintContext>> constraint_scope_;
   // the following two fields are useful in case we want
   // note however that iter map analysis are usually more
   // expensive and we only encourage doing them during

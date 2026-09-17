@@ -19,9 +19,9 @@
 
 #include "ir_utils.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 
 namespace tvm {
@@ -106,7 +106,7 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
   const TensorRegion& source = match_buffer->source;
   TVM_FFI_ICHECK_EQ(indices.size(), target->shape.size());
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   ffi::Array<PrimExpr> result;
   result.reserve(source->region.size());
   size_t offset = source->region.size() - indices.size();
@@ -128,7 +128,7 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
   const TensorRegion& source = match_buffer->source;
   TVM_FFI_ICHECK_EQ(region.size(), target->shape.size());
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   Region result;
   result.reserve(source->region.size());
   size_t offset = source->region.size() - region.size();

@@ -21,9 +21,9 @@ import functools
 import math
 import operator
 
-from tvm.arith.analyzer import Analyzer
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
 from tvm.tirx.tile_primitive import TilePrimitiveCall

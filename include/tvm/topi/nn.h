@@ -24,8 +24,8 @@
 #ifndef TVM_TOPI_NN_H_
 #define TVM_TOPI_NN_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/op.h>
 #include <tvm/topi/detail/constant_utils.h>
@@ -164,7 +164,7 @@ inline tvm::te::Tensor pad(
     }
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   TVM_FFI_ICHECK_GE(pad_before.size(), 1);
   TVM_FFI_ICHECK_EQ(pad_before.size(), pad_after.size());
   tvm::ffi::Array<tvm::PrimExpr> pad_before_int32;

@@ -37,7 +37,7 @@ PrimExpr ApplyFullSwizzle(const ComposeLayoutNode* layout, const PrimExpr& m) {
     return x ^ ((x & layout->inner_mask) << layout->atom_len);
   };
   int base = 1 << layout->per_element;
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   PrimVar m_once("compose_m", m.ty());
   PrimExpr quotient = floordiv(m_once, base);
   PrimVar quotient_once("compose_q", quotient.ty());
@@ -46,7 +46,7 @@ PrimExpr ApplyFullSwizzle(const ComposeLayoutNode* layout, const PrimExpr& m) {
   return prim::Let(m_once, m, prim::Let(quotient_once, quotient, body));
 }
 
-void AddExpr(std::optional<PrimExpr>* sum, const PrimExpr& term, const arith::Analyzer& analyzer) {
+void AddExpr(std::optional<PrimExpr>* sum, const PrimExpr& term, const sym::Analyzer& analyzer) {
   if (is_zero(term)) return;
   if (sum->has_value()) {
     *sum = analyzer->Simplify(sum->value() + term);
@@ -74,7 +74,7 @@ bool MulWithoutOverflow(int64_t lhs, int64_t rhs, int64_t* result) {
 }
 
 void CollectOffsetTerms(const PrimExpr& expr, int sign, std::vector<PrimExpr>* dynamic_terms,
-                        int64_t* constant, bool* valid, const arith::Analyzer& analyzer) {
+                        int64_t* constant, bool* valid, const sym::Analyzer& analyzer) {
   if (!*valid) return;
   PrimExpr simplified = analyzer->Simplify(expr);
   if (const auto* imm = simplified.as<IntImmNode>()) {
@@ -104,7 +104,7 @@ void CollectOffsetTerms(const PrimExpr& expr, int sign, std::vector<PrimExpr>* d
 }
 
 std::optional<PrimExpr> DivideExactTerm(const PrimExpr& term, int64_t divisor,
-                                        const arith::Analyzer& analyzer) {
+                                        const sym::Analyzer& analyzer) {
   PrimExpr simplified = analyzer->Simplify(term);
   if (const auto* imm = simplified.as<IntImmNode>()) {
     if (imm->value % divisor != 0) return std::nullopt;
@@ -146,7 +146,7 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
   TVM_FFI_ICHECK_EQ(coord.size(), tile->shard.size())
       << "Coordinate size must match the number of shard axes";
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   for (size_t i = 0; i < tile->shard.size(); ++i) {
     if (analyzer->CanProveEqual(tile->shard[i]->extent, 1)) {
       coord.Set(i, IntImm(coord[i].ty(), 0));
@@ -256,8 +256,8 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
         add_high(term, quotient.value());
         continue;
       }
-      arith::ConstIntBound bound = analyzer->const_int_bound(term);
-      if (bound->min_value < 0 || bound->max_value == arith::ConstIntBound::kPosInf ||
+      sym::ConstIntBound bound = analyzer->const_int_bound(term);
+      if (bound->min_value < 0 || bound->max_value == sym::ConstIntBound::kPosInf ||
           !add_low(term, bound->max_value)) {
         return fallback();
       }
@@ -362,7 +362,7 @@ ffi::Map<ffi::String, PrimExpr> ComposeLayoutNode::Apply(PrimExpr coord) const {
     }
   };
   auto base = 1 << per_element;
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return {{"m", analyzer->Simplify((f(floordiv(m, base)) << per_element) + floormod(m, base))}};
 }
 

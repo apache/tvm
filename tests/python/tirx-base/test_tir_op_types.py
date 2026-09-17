@@ -232,7 +232,7 @@ def test_op_ptx_cp_async():
         assert access_ptr.op.name == "tirx.tvm_access_ptr"
         assert access_ptr.args[1].op.name == "tirx.buffer_data"
         assert isinstance(access_ptr.args[1].args[0], tirx.Var)
-        simplified_offset = tvm.arith.Analyzer().simplify(access_ptr.args[2])
+        simplified_offset = tvm.sym.Analyzer().simplify(access_ptr.args[2])
         assert int(simplified_offset) == expected_offset
 
 

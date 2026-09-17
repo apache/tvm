@@ -25,10 +25,10 @@
 #ifndef TVM_TIRX_IR_IR_VISITOR_WITH_ANALYZER_H_
 #define TVM_TIRX_IR_IR_VISITOR_WITH_ANALYZER_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/ir/with_context.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -58,10 +58,10 @@ class IRVisitorWithAnalyzer : public StmtExprVisitor {
   static void InitVTable(VTable* vtable);
   explicit IRVisitorWithAnalyzer(const VTable* vtable) : StmtExprVisitor(vtable) {}
   /*! \brief internal analyzer field. */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 
   /*! \brief Scope stack for accumulated assert constraints. */
-  ScopeStack<WithGroup<arith::ConstraintContext>> constraint_scope_;
+  ScopeStack<WithGroup<sym::ConstraintContext>> constraint_scope_;
 
   /*! \brief Extract a constraint from a conditional statement
    *

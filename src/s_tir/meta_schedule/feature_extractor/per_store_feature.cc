@@ -67,7 +67,7 @@ namespace utils {
  * \param analyzer The analyzer
  * \return The shape of the buffer
  */
-std::vector<int64_t> GetBufferShape(const BufferVar& buffer, arith::AnalyzerObj* analyzer) {
+std::vector<int64_t> GetBufferShape(const BufferVar& buffer, sym::AnalyzerObj* analyzer) {
   int ndim = buffer->shape.size();
   std::vector<int64_t> result;
   result.reserve(ndim);
@@ -76,8 +76,8 @@ std::vector<int64_t> GetBufferShape(const BufferVar& buffer, arith::AnalyzerObj*
       result.push_back(static_cast<int64_t>(int_imm->value));
       continue;
     }
-    arith::ConstIntBound bound = analyzer->const_int_bound(i);
-    if (0 <= bound->max_value && bound->max_value < arith::ConstIntBound::kPosInf) {
+    sym::ConstIntBound bound = analyzer->const_int_bound(i);
+    if (0 <= bound->max_value && bound->max_value < sym::ConstIntBound::kPosInf) {
       result.push_back(bound->max_value);
     } else {
       result.push_back(1);
@@ -128,7 +128,7 @@ int64_t FirstLoopExtent(const ForVec& loops, int64_t default_value) {
  * \return The relaxed and unioned region
  */
 IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_t* numel,
-                     arith::AnalyzerObj* analyzer) {
+                     sym::AnalyzerObj* analyzer) {
   *numel = 1;
   if (multi_indices.empty()) {
     return {};
@@ -137,10 +137,10 @@ IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_t* nume
   int ndim = multi_indices[0].size();
   IntVec access_shape(ndim, 0);
   for (int i = 0; i < ndim; ++i) {
-    int64_t minimum = arith::ConstIntBound::kPosInf;
-    int64_t maximum = arith::ConstIntBound::kNegInf;
+    int64_t minimum = sym::ConstIntBound::kPosInf;
+    int64_t maximum = sym::ConstIntBound::kNegInf;
     for (int j = 0; j < n_indices; ++j) {
-      arith::ConstIntBound bound = analyzer->const_int_bound(multi_indices[j][i]);
+      sym::ConstIntBound bound = analyzer->const_int_bound(multi_indices[j][i]);
       minimum = std::min(minimum, bound->min_value);
       maximum = std::max(maximum, bound->max_value);
     }
@@ -760,7 +760,7 @@ struct Feature {
 
     static void Pad(std::vector<double>* v) { v->insert(v->end(), 18, 0.0); }
 
-    void SetStride(const LoopNest& loop_nest, arith::AnalyzerObj* analyzer);
+    void SetStride(const LoopNest& loop_nest, sym::AnalyzerObj* analyzer);
 
     void SetReuse(const LoopNest& loop_nest,     //
                   int64_t top_loop_touch_bytes,  //
@@ -789,14 +789,14 @@ struct Feature {
 
   explicit Feature(const BufferStoreNode* store, const LoopNest& loop_nest,
                    int64_t cache_line_bytes, IntVec* for_touched_bytes,
-                   ForBufferMap<IntVec>* buffer_touched_under_loop, arith::AnalyzerObj* analyzer);
+                   ForBufferMap<IntVec>* buffer_touched_under_loop, sym::AnalyzerObj* analyzer);
 
   void Init(const BufferStoreNode* store, int n_loops);
 
   void SetRegion(const LoopNest& loop_nest,                        //
                  IntVec* for_touched_bytes,                        //
                  ForBufferMap<IntVec>* buffer_touched_under_loop,  //
-                 arith::AnalyzerObj* analyzer);
+                 sym::AnalyzerObj* analyzer);
 
   std::vector<SubFeature> sub_features;
 };
@@ -843,7 +843,7 @@ void Feature::Init(const BufferStoreNode* store, int n_loops) {
 
 void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
                         ForBufferMap<IntVec>* buffer_touched_under_loop,
-                        arith::AnalyzerObj* analyzer) {
+                        sym::AnalyzerObj* analyzer) {
   int n_loops = loop_nest.loops.size();
   const std::vector<const ForNode*>& loops = loop_nest.loops;
   // Step 1. Initialize and bind all the loop variables to a constant
@@ -881,7 +881,7 @@ void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
   }
 }
 
-void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::AnalyzerObj* analyzer) {
+void Feature::SubFeature::SetStride(const LoopNest& loop_nest, sym::AnalyzerObj* analyzer) {
   int n_loops = loop_nest.loops.size();
   const std::vector<const ForNode*>& loops = loop_nest.loops;
   // For each buffer, we find the loop stride on it
@@ -1041,7 +1041,7 @@ void Feature::SubFeature::SetFeature(const LoopNest& loop_nest, int64_t cache_li
 
 Feature::Feature(const BufferStoreNode* store, const LoopNest& loop_nest, int64_t cache_line_bytes,
                  IntVec* for_touched_bytes, ForBufferMap<IntVec>* buffer_touched_under_loop,
-                 arith::AnalyzerObj* analyzer) {
+                 sym::AnalyzerObj* analyzer) {
   int n_loops = loop_nest.loops.size();
   // Step 0. Initialize data structures
   this->Init(store, n_loops);
@@ -1189,8 +1189,7 @@ struct Feature {
 
   Feature() = default;
 
-  explicit Feature(const LoopNest& loop_nest, const BufferVar& buffer,
-                   arith::AnalyzerObj* analyzer) {
+  explicit Feature(const LoopNest& loop_nest, const BufferVar& buffer, sym::AnalyzerObj* analyzer) {
     std::vector<int64_t> shape = utils::GetBufferShape(buffer, analyzer);
     int64_t numel = 1;
     for (int64_t x : shape) {
@@ -1410,7 +1409,7 @@ class PerStoreFeatureCollector : public StmtExprVisitor {
   bool is_gpu_;
   int64_t cache_line_bytes_;
   int64_t arith_intensity_curve_num_samples_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   LoopNest loop_nest_ = {};
   IntVec for_touched_bytes_ = {};
   ForBufferMap<IntVec> buffer_touched_under_loop_ = {};

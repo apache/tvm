@@ -17,7 +17,6 @@
  * under the License.
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
@@ -25,6 +24,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
+#include <tvm/sym/analyzer.h>
 
 #include <optional>
 #include <unordered_map>
@@ -120,7 +120,7 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
     const Patterns& patterns, const BranchInfo& branch_info, FCheck check) {
   auto batch_dims_compatible = [](size_t rhs_dim, const std::vector<size_t>& indices,
                                   const std::vector<ffi::Array<PrimExpr>>& rhs_shapes) {
-    arith::Analyzer ana;
+    sym::Analyzer ana;
     for (auto ind : indices) {
       TVM_FFI_ICHECK_EQ(static_cast<int>(rhs_shapes[ind].size()), rhs_dim);
       // -2 for reduction and concat axes

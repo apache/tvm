@@ -1029,7 +1029,7 @@ def _as_range(dom: ir.Range | list[Expr]) -> ir.Range:
     if isinstance(dom, ir.Range):
         return dom
     if isinstance(dom, list | tuple):
-        from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
+        from tvm.sym import Analyzer  # pylint: disable=import-outside-toplevel
 
         extent = Analyzer().simplify(dom[1] - dom[0])
         if isinstance(extent, tir.IntImm):
@@ -2357,7 +2357,7 @@ def buffer_store(
         The indices location to be stored.
 
     """
-    from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
+    from tvm.sym import Analyzer  # pylint: disable=import-outside-toplevel
 
     if not isinstance(indices, list | tuple | ir.Array):
         indices = [indices]

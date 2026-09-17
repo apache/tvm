@@ -26,10 +26,10 @@ import functools
 import operator
 
 import tvm
-from tvm.arith.analyzer import Analyzer
 from tvm.ir import TensorRegion
 from tvm.runtime import DataType
 from tvm.script import tirx as T
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx import PrimFunc
 from tvm.tirx import op as tirx_op
 from tvm.tirx.layout import (

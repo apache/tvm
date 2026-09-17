@@ -32,10 +32,10 @@ Example::
             cache="nc", l1_evict="L1::no_allocate", prefetch_size="L2::256B")
 """
 
-from tvm.arith.analyzer import Analyzer
 from tvm.ir import TensorRegion
 from tvm.runtime import DataType
 from tvm.script import tirx as T
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext

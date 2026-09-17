@@ -21,8 +21,6 @@
  * \file lower_async_dma.cc
  */
 
-#include <tvm/arith/analyzer.h>
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
@@ -30,6 +28,8 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/stmt.h>
 
@@ -48,7 +48,7 @@ class AsyncDMALowerer : public s_tir::IRMutatorWithAnalyzer {
   using s_tir::IRMutatorWithAnalyzer::Mutate;
   using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
-  explicit AsyncDMALowerer(bool dma_bypass_cache, const arith::Analyzer& analyzer)
+  explicit AsyncDMALowerer(bool dma_bypass_cache, const sym::Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer), dma_bypass_cache_(dma_bypass_cache) {}
 
   // TODO(leiwang1999): split lower async DMA support for CUDA and Hexagon Backend
@@ -60,7 +60,7 @@ class AsyncDMALowerer : public s_tir::IRMutatorWithAnalyzer {
 
     // if for loop is not a memcpy of a contiguous region, it might be a cuda cp.async behavior
     std::optional<s_tir::MemCpyDetails> mem_copy =
-        s_tir::IdentifyMemCpy(ffi::GetRef<For>(loop), ffi::GetRef<arith::Analyzer>(analyzer_));
+        s_tir::IdentifyMemCpy(ffi::GetRef<For>(loop), ffi::GetRef<sym::Analyzer>(analyzer_));
     if (!mem_copy.has_value() || mem_copy->dest->region.size() != 1 ||
         mem_copy->source->region.size() != 1) {
       return s_tir::IRMutatorWithAnalyzer::Mutate_(loop, inplace_mode);
@@ -194,7 +194,7 @@ namespace transform {
 Pass LowerAsyncDMA() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto fptr = f.CopyOnWrite();
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     bool dma_bypass_cache =
         ctx->GetConfig<bool>("tirx.experimental_dma_bypass_cache", false).value();
     fptr->body = ffi::make_object<AsyncDMALowerer>(dma_bypass_cache, analyzer)

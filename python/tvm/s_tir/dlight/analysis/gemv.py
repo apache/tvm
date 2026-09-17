@@ -18,7 +18,7 @@
 
 import tvm_ffi
 
-from tvm import arith, s_tir, tirx
+from tvm import s_tir, sym, tirx
 
 from .common_analysis import (
     SBlockInfo,
@@ -107,7 +107,7 @@ def normalize(
 ) -> bool | None:
     """Normalize the main block."""
     block_stmt: s_tir.SBlock = sch.get(block_info.block_rv)
-    access = arith.normalize_to_iter_sum(
+    access = sym.normalize_to_iter_sum(
         detect_dominant_read(block_stmt),
         input_iters={i.var: i.dom for i in block_stmt.iter_vars},
     )

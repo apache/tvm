@@ -23,9 +23,9 @@ Callers that want sync semantics should issue the matching wait after the copy.
 """
 
 import tvm
-from tvm.arith import Analyzer
 from tvm.runtime import DataType
 from tvm.script import tirx as T
+from tvm.sym import Analyzer
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx.layout import (
     S,

@@ -21,13 +21,13 @@
  * \file domain_touched.cc
  * \brief Analyze buffer domains touched by a statement
  */
-#include <tvm/arith/int_set.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/int_set.h>
 #include <tvm/te/tensor.h>
 
 #include <tuple>
@@ -40,7 +40,7 @@ namespace tvm {
 namespace s_tir {
 
 using namespace tirx;
-using arith::IntSet;
+using sym::IntSet;
 
 namespace {
 
@@ -93,7 +93,7 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
           << "Must consider at least on of either loads and stores, but both are false";
     }
     for (size_t i = 0; i < bounds.size(); ++i) {
-      ret.push_back(arith::Union(bounds[i]).CoverRange(none));
+      ret.push_back(sym::Union(bounds[i]).CoverRange(none));
     }
     return ret;
   }

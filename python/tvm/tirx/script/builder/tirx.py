@@ -521,7 +521,7 @@ def _check_copy_regions_match(dst, src, config, name, dispatch=None):
             for axis in region.region:
                 value = value * axis.extent
             if analyzer is None:
-                from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
+                from tvm.sym import Analyzer  # pylint: disable=import-outside-toplevel
 
                 analyzer = Analyzer()
             return analyzer.simplify(value)
@@ -575,7 +575,7 @@ def _check_copy_regions_match(dst, src, config, name, dispatch=None):
                 _fail()
             continue
         if analyzer is None:
-            from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
+            from tvm.sym import Analyzer  # pylint: disable=import-outside-toplevel
 
             analyzer = Analyzer()
         if not analyzer.can_prove_equal(d, s):

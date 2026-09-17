@@ -90,10 +90,10 @@ const s_tir::SBlockNode* FindAnchorBlock(const IRModule& mod);
 
 }  // namespace tirx
 
-namespace arith {
+namespace sym {
 class AnalyzerObj;
 class Analyzer;
-}  // namespace arith
+}  // namespace sym
 
 namespace s_tir {
 using namespace tvm::tirx;
@@ -144,8 +144,7 @@ struct MemCpyDetails {
  * \param analyzer The analyzer with which to check any algebraic expressions
  * \returns The source and destination regions being copied, if the loop is equivalent to memcpy.
  */
-TVM_DLL std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop,
-                                                    const arith::Analyzer& analyzer);
+TVM_DLL std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, const sym::Analyzer& analyzer);
 
 /*!
  * \brief Infer the domain touched by buffer accesses within a statement.

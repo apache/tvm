@@ -17,7 +17,6 @@
  * under the License.
  */
 
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
@@ -26,6 +25,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
@@ -462,11 +462,11 @@ bool HasReshapePattern(const PrimFunc& func) {
           idx = idx * buffer->shape[i] + indices[i];
         }
         idx = ana_->Simplify(idx);
-        return arith::IterMapSimplify(
+        return sym::IterMapSimplify(
             /*indices=*/{idx},
             /*input_iters=*/var_range,
             /*input_pred=*/IntImm::Bool(true),
-            /*check_level=*/arith::IterMapLevel::Surjective,
+            /*check_level=*/sym::IterMapLevel::Surjective,
             /*analyzer=*/ana_,
             /*simplify_trivial_iterators=*/true)[0];
       };
@@ -524,12 +524,12 @@ bool HasReshapePattern(const PrimFunc& func) {
             ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(flattened_idx), f_substitute)
                 .as_or_throw<PrimExpr>();
 
-        ffi::Array<PrimExpr> simplify_res = arith::IterMapSimplify(
+        ffi::Array<PrimExpr> simplify_res = sym::IterMapSimplify(
             /*indices=*/{flattened_idx},
             /*input_iters=*/
             ffi::Map<PrimVar, Range>{{fused_var, Range(IntImm(dtype, /*value=*/0), stride)}},
             /*input_pred=*/IntImm::Bool(true),
-            /*check_level=*/arith::IterMapLevel::Surjective,
+            /*check_level=*/sym::IterMapLevel::Surjective,
             /*analyzer=*/this->ana_,
             /*simplify_trivial_iterators=*/true);
         TVM_FFI_ICHECK_EQ(simplify_res.size(), 1);
@@ -556,7 +556,7 @@ bool HasReshapePattern(const PrimFunc& func) {
     bool is_reshape_;
     const BufferVar& src_buffer_;
     const BufferVar& dst_buffer_;
-    arith::Analyzer ana_;
+    sym::Analyzer ana_;
   };
 
   ffi::Array<BufferVar> buffer_args;

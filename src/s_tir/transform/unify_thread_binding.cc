@@ -21,13 +21,13 @@
  * \file unify_thread_binding.cc
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 
 #include "../../support/utils.h"
@@ -186,7 +186,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
   /*! \brief A integer counter storing the depth of thread bindings of "blockIdx.x/y/z" */
   int thread_block_depth_ = 0;
   /*! \brief An analyzer used for equality proof */
-  arith::Analyzer ana;
+  sym::Analyzer ana;
 };
 
 namespace transform {

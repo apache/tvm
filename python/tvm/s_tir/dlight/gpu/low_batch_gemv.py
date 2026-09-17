@@ -22,7 +22,7 @@ from typing import Literal
 
 import tvm_ffi
 
-from tvm import arith, s_tir, tirx
+from tvm import s_tir, sym, tirx
 from tvm.target import Target
 
 from ..analysis import (
@@ -157,7 +157,7 @@ def normalize(
     dynamic_iter_vars = set(
         iter_var.var for iter_var in block_stmt.iter_vars if iter_var.var not in const_iter_vars
     )
-    access = arith.normalize_to_iter_sum(
+    access = sym.normalize_to_iter_sum(
         detect_dominant_read(block_stmt, const_iter_vars),
         input_iters={i.var: i.dom for i in block_stmt.iter_vars},
     )

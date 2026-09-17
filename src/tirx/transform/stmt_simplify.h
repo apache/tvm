@@ -24,7 +24,7 @@
 #ifndef TVM_TIR_TRANSFORM_STMT_SIMPLIFY_H_
 #define TVM_TIR_TRANSFORM_STMT_SIMPLIFY_H_
 
-#include <tvm/arith/analyzer.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
 
 #include "../ir/ir_mutator_with_analyzer.h"
@@ -41,7 +41,7 @@ struct StmtSimplifyConfigNode : public ffi::Object {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.StmtSimplifyConfig", StmtSimplifyConfigNode,
                                     ffi::Object);
 
-  arith::RewriteSimplifier::Extension GetEnabledExtensions() const;
+  sym::RewriteSimplifier::Extension GetEnabledExtensions() const;
 };
 
 class StmtSimplifyConfig : public ffi::ObjectRef {
@@ -54,15 +54,15 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::Mutate;
   using IRMutatorWithAnalyzer::Mutate_;
-  static PrimFunc Apply(PrimFunc func, const arith::Analyzer& analyzer,
+  static PrimFunc Apply(PrimFunc func, const sym::Analyzer& analyzer,
                         ffi::Optional<StmtSimplifyConfig> config_opt = std::nullopt);
 
-  explicit StmtSimplifier(const arith::Analyzer& analyzer, StmtSimplifyConfig config)
+  explicit StmtSimplifier(const sym::Analyzer& analyzer, StmtSimplifyConfig config)
       : IRMutatorWithAnalyzer(analyzer), config_(config) {}
 
  protected:
   using Parent = IRMutatorWithAnalyzer;
-  StmtSimplifier(const VTable* vtable, const arith::Analyzer& analyzer, StmtSimplifyConfig config)
+  StmtSimplifier(const VTable* vtable, const sym::Analyzer& analyzer, StmtSimplifyConfig config)
       : Parent(analyzer.get(), vtable), config_(config) {}
   PrimFunc Run(PrimFunc func);
 
@@ -97,7 +97,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
  *
  * Applies the same behavior as the tirx.transform.StmtSimplify pass.
  */
-PrimFunc StmtSimplify(PrimFunc func, const arith::Analyzer& analyzer);
+PrimFunc StmtSimplify(PrimFunc func, const sym::Analyzer& analyzer);
 
 }  // namespace tirx
 }  // namespace tvm

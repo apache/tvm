@@ -21,9 +21,9 @@
  * \brief Compile-time active-thread state backed by TileLayout.
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/exec_context.h>
 
 #include <algorithm>
@@ -56,7 +56,7 @@ bool TryAsInt64(const PrimExpr& expr, int64_t* value) {
 }
 
 bool IsZero(const PrimExpr& expr) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return analyzer->CanProveEqual(expr, 0);
 }
 

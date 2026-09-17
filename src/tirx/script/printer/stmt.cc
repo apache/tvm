@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/arith/analyzer.h>
+#include <tvm/sym/analyzer.h>
 
 #include <algorithm>
 
@@ -398,7 +398,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
         for (const PrimExpr& dim : child->shape) {
           child_total = child_total * dim;
         }
-        arith::Analyzer analyzer;
+        sym::Analyzer analyzer;
         bool default_physical =
             child_is_default && analyzer->CanProveEqual(child_total, storage_span);
         bool child_has_thread_axis = false;

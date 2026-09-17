@@ -22,7 +22,7 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
 
-#include "tvm/arith/analyzer.h"
+#include "tvm/sym/analyzer.h"
 
 namespace tvm {
 namespace s_tir {
@@ -88,7 +88,7 @@ struct TResult {
 
 class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
                       private StmtFunctor<TResult(const Stmt& n)> {
-  arith::Analyzer ana;
+  sym::Analyzer ana;
 
  public:
   using tirx::ExprFunctor<TResult(const Expr&)>::Dispatch;
@@ -118,9 +118,9 @@ class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
   TResult Dispatch_(const prim::GTNode* op) override { return TResult(); }
   TResult Dispatch_(const prim::GENode* op) override { return TResult(); }
 
-  int64_t GetLoopExtent(const ForNode* node, const arith::Analyzer& ana) {
+  int64_t GetLoopExtent(const ForNode* node, const sym::Analyzer& ana) {
     int64_t bound = ana->const_int_bound(node->extent)->max_value;
-    if (bound == arith::ConstIntBound::kPosInf) {
+    if (bound == sym::ConstIntBound::kPosInf) {
       return 1;  // Analyzer could not determine a valid bound, use 1 instead.
     } else {
       return bound;

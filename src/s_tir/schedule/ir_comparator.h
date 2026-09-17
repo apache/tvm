@@ -111,12 +111,12 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   /*! \brief Whether it is visiting the scope block (the outermost block). */
   bool is_scope_block = true;
   /*! \brief The arithmetic analyzer for comparing LHS and RHS */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   /*!
    * \brief The arithmetic analyzer for simplifying expressions on LHS.
    *  This analyzer only contains the domains of the iterators on LHS.
    */
-  arith::Analyzer lhs_analyzer_;
+  sym::Analyzer lhs_analyzer_;
   /*! \brief Additional error messages. Only used when assert_mode is true. */
   std::vector<std::string> error_messages_;
   // variable remap if any
@@ -169,7 +169,7 @@ class AutoTensorizeComparator : public TensorizeComparator {
 
  private:
   /*! \brief The domain of the inner block iters. */
-  ffi::Map<Var, arith::IntSet> inner_iter_dom_map_;
+  ffi::Map<Var, sym::IntSet> inner_iter_dom_map_;
 };
 
 }  // namespace s_tir

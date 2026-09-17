@@ -2083,7 +2083,7 @@ def test_split_infer_ty():
 
     # All relax shape variables are non-negative.  When a scope
     # begins, any TIR variables that are used as shape variables are
-    # declared to be non-negative `tvm.arith.Analyzer`.  Because
+    # declared to be non-negative `tvm.sym.Analyzer`.  Because
     # `relax.op.split` clamps the indices to be within the bounds of
     # the axis being split, simplifying with non-negative shape
     # variables can result in much simpler shapes.

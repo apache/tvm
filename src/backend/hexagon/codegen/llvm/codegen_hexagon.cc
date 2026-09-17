@@ -338,7 +338,7 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(BufferVar buffer, PrimType buffer_
   if (buffer_type.bits() != 8) return nullptr;
 
   int table_elem_count =
-      arith::Analyzer()->Simplify(buffer->shape[0]).as<IntImmNode>()->value.as<int>().value();
+      sym::Analyzer()->Simplify(buffer->shape[0]).as<IntImmNode>()->value.as<int>().value();
   if (table_elem_count <= 0 || table_elem_count > 256) return nullptr;
 
   auto int32 = PrimType::Int(32);

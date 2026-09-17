@@ -198,7 +198,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
     for (const auto& iter_var : block->iter_vars) {
       iter_var_range.Set(iter_var->var, iter_var->dom);
     }
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     for (const auto& buffer : buffers) {
       if (buffer_access_indices.count(buffer) == 0 || buffer_shards_.count(buffer) == 0) {
         continue;
@@ -224,7 +224,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
         if (shard > 1) {
           Range dom = iter_var->dom;
           TVM_FFI_ICHECK(is_zero(dom->min));
-          arith::Analyzer analyzer;
+          sym::Analyzer analyzer;
           TVM_FFI_ICHECK(analyzer->CanProve(floormod(dom->extent, shard) == 0));
           new_iter_vars.push_back(
               IterVar(Range::FromMinExtent(dom->min, floordiv(dom->extent, shard)), iter_var->var,
@@ -321,7 +321,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
     if (loop_var_shards_.count(op->loop_var)) {
       int shard = loop_var_shards_[op->loop_var];
       if (shard > 1) {
-        arith::Analyzer analyzer;
+        sym::Analyzer analyzer;
         TVM_FFI_ICHECK(analyzer->CanProve(floormod(new_loop->extent, shard) == 0));
         new_loop.CopyOnWrite()->extent = floordiv(new_loop->extent, shard);
         return new_loop;

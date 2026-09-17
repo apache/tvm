@@ -30,10 +30,10 @@ from __future__ import annotations
 import functools
 import operator
 
-from tvm.arith.analyzer import Analyzer
 from tvm.ir import TensorRegion
 from tvm.runtime import DataType
 from tvm.script import tirx as T
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx.layout import Axis, Iter, TileLayout
 
 from ..common import get_indices, get_st_extent

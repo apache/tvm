@@ -18,7 +18,6 @@
  */
 #include "nms.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -28,6 +27,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/relax/attrs/vision.h>
 #include <tvm/relax/type.h>
+#include <tvm/sym/analyzer.h>
 
 #include <utility>
 #include <vector>
@@ -266,7 +266,7 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
   const auto* valid_count_shape = valid_count_ty->shape.as<ShapeExprNode>();
   const auto* indices_shape = indices_ty->shape.as<ShapeExprNode>();
   if (data_shape != nullptr) {
-    arith::Analyzer analyzer = ctx->GetAnalyzer();
+    sym::Analyzer analyzer = ctx->GetAnalyzer();
     PrimExpr batch = data_shape->values[0];
     PrimExpr num_anchors = data_shape->values[1];
     if (valid_count_shape != nullptr &&

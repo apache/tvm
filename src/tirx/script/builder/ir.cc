@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/variant.h>
@@ -28,6 +27,7 @@
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
@@ -536,7 +536,7 @@ PrimExpr ConvertLoopBound(const PrimExpr& e, const PrimType& var_ty) {
                   ffi::Optional<PrimExpr> step, ffi::Optional<PrimType> dtype) {                \
     PrimType var_ty = InferLoopVarDtype(start, stop, dtype);                                    \
     PrimExpr min = ConvertLoopBound(start, var_ty);                                             \
-    PrimExpr extent = arith::Analyzer()->Simplify(ConvertLoopBound(stop, var_ty) - min);        \
+    PrimExpr extent = sym::Analyzer()->Simplify(ConvertLoopBound(stop, var_ty) - min);          \
     if (step.has_value()) {                                                                     \
       step = ConvertLoopBound(step.value(), var_ty);                                            \
     }                                                                                           \
@@ -568,7 +568,7 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
                        ffi::Optional<ffi::Map<ffi::String, Any>> annotations) {
   using namespace tvm::tirx;
   PrimExpr min = start;
-  PrimExpr extent = arith::Analyzer()->Simplify(stop - start);
+  PrimExpr extent = sym::Analyzer()->Simplify(stop - start);
   ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();
   PrimType min_ty = min.ty();
   PrimType extent_ty = extent.ty();
@@ -680,7 +680,7 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
   if (!iter_var->dom.defined()) {
     const_cast<tvm::tirx::IterVarNode*>(iter_var.get())->dom =
         Range(tvm::IntImm(extent.ty(), 0), extent);
-  } else if (!arith::Analyzer()->CanProveEqual(iter_var->dom->extent, extent)) {
+  } else if (!sym::Analyzer()->CanProveEqual(iter_var->dom->extent, extent)) {
     TVM_FFI_THROW(InternalError) << "ValueError: Inconsistent extents of environment thread. "
                                  << iter_var->dom->extent << " vs " << extent;
   }

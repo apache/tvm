@@ -571,7 +571,7 @@ bool IsWriteCache(const StmtSRef& block_sref) {
 /******** Binding ********/
 
 bool IsAffineBinding(const SBlockRealize& realize, const ffi::Map<Var, Range>& loop_var_ranges,
-                     arith::AnalyzerObj* analyzer) {
+                     sym::AnalyzerObj* analyzer) {
   if (loop_var_ranges.empty()) {
     return true;
   }
@@ -579,18 +579,18 @@ bool IsAffineBinding(const SBlockRealize& realize, const ffi::Map<Var, Range>& l
   for (const auto& [var, range] : loop_var_ranges) {
     primitive_loop_var_ranges.Set(var.as_or_throw<PrimVar>(), range);
   }
-  auto res = arith::DetectIterMap(
+  auto res = sym::DetectIterMap(
       /*indices=*/realize->iter_values,
       /*input_iters=*/primitive_loop_var_ranges,
       /*predicate=*/realize->predicate,
-      /*check_level=*/arith::IterMapLevel::Surjective,
-      /*analyzer=*/ffi::GetRef<arith::Analyzer>(analyzer),
+      /*check_level=*/sym::IterMapLevel::Surjective,
+      /*analyzer=*/ffi::GetRef<sym::Analyzer>(analyzer),
       /*simplify_trivial_iterators=*/false);
   if (res->indices.empty()) {
     return false;
   }
-  for (const arith::IterSumExpr& sum_expr : res->indices) {
-    const ffi::Array<arith::IterSplitExpr>& args = sum_expr->args;
+  for (const sym::IterSumExpr& sum_expr : res->indices) {
+    const ffi::Array<sym::IterSplitExpr>& args = sum_expr->args;
     if (!args.empty() && !is_one(args[0]->scale)) {
       return false;
     }
@@ -643,7 +643,7 @@ void CheckPartialAffineBinding(const ScheduleState& self, SBlock block,
   }
   if (block_sref->parent && high_exclusive.has_value()) {
     // if it is not of global affine binding, check affineness under high_exclusive,
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     ffi::Map<Var, Range> dom_map =
         LoopDomainOfSRefTreePath(ffi::GetRef<StmtSRef>(block_sref->parent), high_exclusive);
     if (IsAffineBinding(GetSBlockRealize(self, block_sref), dom_map, analyzer.get())) {
@@ -767,7 +767,7 @@ bool GetVarsTouchedByBlockIters(const SBlockRealize& block_realize,
 /******** Loop properties ********/
 
 void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
-                             arith::AnalyzerObj* analyzer) {
+                             sym::AnalyzerObj* analyzer) {
   class LoopNotStartWithZeroError : public ScheduleErrorContextObj {
    public:
     explicit LoopNotStartWithZeroError(IRModule mod, For loop)
@@ -1353,7 +1353,7 @@ StmtSRef GetSRefTreeRoot(const StmtSRef& sref) {
 }
 
 void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
-                       arith::AnalyzerObj* analyzer) {
+                       sym::AnalyzerObj* analyzer) {
   while (sref->parent != nullptr) {
     sref = sref->parent;
   }
@@ -1733,7 +1733,7 @@ bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
   }
 }
 
-PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, arith::AnalyzerObj* analyzer) {
+PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, sym::AnalyzerObj* analyzer) {
   auto simplified = analyzer->Simplify(expr);
   if (simplified->IsInstance<IntImmNode>()) {
     return expr;
@@ -1760,7 +1760,7 @@ struct TensorIntrinDescInfo {
  * \param desc_func The description PrimFunc
  * \return The auxilary information
  */
-TensorIntrinDescInfo ExtractTensorIntrinDescInfo(arith::AnalyzerObj* analyzer,
+TensorIntrinDescInfo ExtractTensorIntrinDescInfo(sym::AnalyzerObj* analyzer,
                                                  const PrimFunc& desc_func) {
   TensorIntrinDescInfo info;
   const auto* desc_scope_realize = desc_func->body.as<SBlockRealizeNode>();
@@ -1790,7 +1790,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
                                                      const tirx::StmtSRef& block_sref,
                                                      const tirx::PrimFunc& desc_func,
                                                      bool allow_padding) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   const s_tir::SBlockRealize& block = GetSBlockRealize(self, block_sref);
   // Step 1. Analyze desc_func, extract its block, loops and loop vars
   TensorIntrinDescInfo desc_info = ExtractTensorIntrinDescInfo(analyzer.get(), desc_func);
@@ -1968,7 +1968,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 class AutoTensorizeMappingProposer {
  public:
   static ffi::Array<IndexMap> ProposeMappings(const AutoTensorizeComparator* extractor,
-                                              arith::AnalyzerObj* analyzer) {
+                                              sym::AnalyzerObj* analyzer) {
     AutoTensorizeMappingProposer proposer(extractor, analyzer);
     proposer.CollectFeasibleSet();
     return proposer.ProposeAllFuseMapping();
@@ -1976,7 +1976,7 @@ class AutoTensorizeMappingProposer {
 
  private:
   explicit AutoTensorizeMappingProposer(const AutoTensorizeComparator* extractor,
-                                        arith::AnalyzerObj* analyzer)
+                                        sym::AnalyzerObj* analyzer)
       : extractor_(extractor), analyzer_(analyzer) {}
 
   using VarSet = std::unordered_set<Var>;
@@ -2142,7 +2142,7 @@ class AutoTensorizeMappingProposer {
   // tensor intrin.
   const AutoTensorizeComparator* extractor_;
   // The arithmetic analyzer.
-  arith::AnalyzerObj* analyzer_;
+  sym::AnalyzerObj* analyzer_;
   /*! \brief Potential mappings on RHS for each variable on LHS */
   std::unordered_map<Var, VarSet> lhs_feasible_vars_;
 };
@@ -2154,7 +2154,7 @@ bool CheckAutoTensorizeApplicable(const ScheduleState& state, const tirx::StmtSR
   // Step 2. Check if `desc_block` matches `block`
   // Ignore the scope of buffers when comparing, since we can do cache_read/write
   const SBlockRealize& block = GetSBlockRealize(state, block_sref);
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   auto desc_info = ExtractTensorIntrinDescInfo(analyzer.get(), desc_func);
 
   return extractor->Dispatch(block->block, desc_info.desc_block->block);
@@ -2173,7 +2173,7 @@ ffi::Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(
   if (!CheckAutoTensorizeApplicable(self, block_sref, desc_func, &extractor)) {
     return std::nullopt;
   }
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   ffi::Array<IndexMap> mappings =
       AutoTensorizeMappingProposer::ProposeMappings(&extractor, analyzer.get());
   if (mappings.empty()) {

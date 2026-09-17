@@ -96,7 +96,7 @@ class IndexPatternFinder : public StmtExprVisitor {
   static ffi::Array<PrimExpr> getRankPromotedShape(ffi::Array<PrimExpr> indices,
                                                    const ffi::Map<Var, Range>& var_range,
                                                    ffi::Array<PrimExpr>* rewrite_indices) {
-    ffi::Map<Var, arith::IntSet> var_dom = arith::AsIntSet(var_range);
+    ffi::Map<Var, sym::IntSet> var_dom = sym::AsIntSet(var_range);
     ffi::Array<PrimExpr> new_shape;
     for (const PrimExpr& expr : indices) {
       ffi::Array<PrimExpr> indices_dim;
@@ -288,7 +288,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
     }
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   const TensorLoadNode* target_buffer_load = nullptr;
   if (is_write_cache) {
     auto walk_fn = [&](const TensorLoad& buffer_load) -> ffi::Expected<ffi::WalkResult> {

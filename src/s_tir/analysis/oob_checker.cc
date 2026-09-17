@@ -35,8 +35,8 @@ struct OOBLocation {
   BufferVar buf;
   size_t dimension;
   ffi::ObjectRef index;
-  arith::IntSet index_bounds;
-  arith::IntSet shape_bounds;
+  sym::IntSet index_bounds;
+  sym::IntSet shape_bounds;
 };
 
 class OOBError : public s_tir::ScheduleErrorContextObj {

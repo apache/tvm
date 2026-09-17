@@ -25,11 +25,11 @@
 
 #include "cache_index_helpers.h"
 
-#include <tvm/arith/analyzer.h>  // For the arith::Analyzer::Simplify() method simplifying terms
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/analyzer.h>  // For the sym::Analyzer::Simplify() method simplifying terms
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt.h>
@@ -409,7 +409,7 @@ bool EqualTerms(const PrimExpr& a, const PrimExpr& b) {
  */
 PrimExpr NormalizeTerm(const PrimExpr& expr, bool do_normalization) {
   if (do_normalization) {
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     return analyzer->Simplify(expr);
   } else {
     return expr;

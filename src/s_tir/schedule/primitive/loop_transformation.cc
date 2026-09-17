@@ -143,12 +143,12 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
       return realize;
     }
     ffi::Array<PrimExpr> v =
-        arith::IterMapSimplify(/*indices=*/op->iter_values,
-                               /*input_iters=*/loop_var2extent_,
-                               /*input_pred=*/op->predicate,
-                               /*check_level=*/arith::IterMapLevel::Surjective,
-                               /*analyzer=*/analzyer_,
-                               /*simplify_trivial_iterators=*/!preserve_unit_iters_);
+        sym::IterMapSimplify(/*indices=*/op->iter_values,
+                             /*input_iters=*/loop_var2extent_,
+                             /*input_pred=*/op->predicate,
+                             /*check_level=*/sym::IterMapLevel::Surjective,
+                             /*analyzer=*/analzyer_,
+                             /*simplify_trivial_iterators=*/!preserve_unit_iters_);
     if (v.same_as(op->iter_values)) {
       return ffi::Unchanged();
     } else {
@@ -168,7 +168,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   /*! \brief The range of loops */
   ffi::Map<PrimVar, Range> loop_var2extent_;
   /*! \brief Internal analyzer */
-  arith::Analyzer analzyer_;
+  sym::Analyzer analzyer_;
   /*! \brief Whether or not to simplify unit iterators */
   bool preserve_unit_iters_;
 };
@@ -441,7 +441,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
     throw MakeScheduleError<HasAnnotationOrThreadBindingError>(self->mod, ffi::GetRef<For>(loop));
   }
   // Currently, loops not starting with 0 are not supported
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   CheckLoopStartsWithZero(self, loop_sref, analyzer.get());
 
   // Find the most common dtype
@@ -472,8 +472,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
                  .ValueOrUnchanged(std::move(new_stmt));
   // Step 3. Update predicate to guard the loop
   PrimExpr predicate = substitute_value < loop->extent;
-  if (!disable_predication &&
-      !analyzer->CanProve(predicate, arith::ProofStrength::kSymbolicBound)) {
+  if (!disable_predication && !analyzer->CanProve(predicate, sym::ProofStrength::kSymbolicBound)) {
     new_stmt = ffi::make_object<BlockPredicateAppender>(/*predicate=*/predicate)
                    ->Mutate(new_stmt, InplaceMode::kAllow)
                    .ValueOrUnchanged(std::move(new_stmt));
@@ -717,7 +716,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
     throw MakeScheduleError<HasAnnotationOrThreadBindingError>(self->mod, ffi::GetRef<For>(loop));
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   // Find the most common dtype
   PrimType dtype = PrimType::Int(32);
   {
@@ -882,7 +881,7 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
   // - The total repeat number has not changed for each direct child block.
   // - The execution order has not changed. (The block executes with the same
   //   args and the same order with before.)
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   StmtSRef scope_root_sref;
   StmtSRef lca = GetSRefLowestCommonAncestor(loop_srefs);
   std::vector<std::vector<For>> lca_nest_loops;
@@ -958,7 +957,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   loops.reserve(loop_srefs.size());
   StmtSRef outer_loop_sref{nullptr};
   const ForNode* outer_loop = nullptr;
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   std::unordered_set<const VarNode*> outer_loop_vars;
   // Step 1. check correctness
   for (const StmtSRef& sref : loop_srefs) {

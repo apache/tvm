@@ -21,12 +21,12 @@
  * \file s_tir/transform/canonicalize_loop.cc
  * \brief Canonicalize all loops to start from zero and step one.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 
@@ -82,7 +82,7 @@ class LoopCanonicalizer : public StmtExprMutator {
     }
   }
 
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 namespace transform {

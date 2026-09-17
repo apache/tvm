@@ -44,7 +44,7 @@ struct RollingBufferInfo {
 };
 
 TensorRegion GetRelaxedBufferRegion(const SBlockRealize& realize, const TensorRegion& buffer_region,
-                                    const ffi::Map<Var, arith::IntSet>& dom_map) {
+                                    const ffi::Map<Var, sym::IntSet>& dom_map) {
   ffi::Map<Var, PrimExpr> bindings = GetBindings(realize);
   auto f_substitute = [&bindings](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto repl = bindings.Get(var)) return ffi::Any(*std::move(repl));
@@ -57,7 +57,7 @@ TensorRegion GetRelaxedBufferRegion(const SBlockRealize& realize, const TensorRe
                           .as_or_throw<PrimExpr>();
     return Range::FromMinExtent(min, extent);
   });
-  ffi::Array<arith::IntSet> relaxed_intsets = arith::EvalSet(mapped_region, dom_map);
+  ffi::Array<sym::IntSet> relaxed_intsets = sym::EvalSet(mapped_region, dom_map);
   Region relaxed_region;
   relaxed_region.reserve(relaxed_intsets.size());
   for (size_t i = 0; i < relaxed_intsets.size(); ++i) {
@@ -187,8 +187,8 @@ class RollingBufferInfoCollector {
     std::vector<ffi::Optional<Var>> bound_iter_vars;
     std::vector<int> bound_overlaps;
 
-    arith::PVar<Var> p_var;
-    arith::PVar<IntImm> p_stride, p_divisor;
+    sym::PVar<Var> p_var;
+    sym::PVar<IntImm> p_stride, p_divisor;
     for (auto bound : region) {
       auto stride = 0;
       auto divisor = 1;
@@ -379,10 +379,10 @@ class RollingBufferRewriter : public StmtExprMutator {
         auto iter_var = info_->axis_iter_vars[i];
         if (iter_var && info_->axis_overlaps[i] > 0) {
           Var var = iter_var.value();
-          const ffi::Map<Var, arith::IntSet> dmap = {
-              std::make_pair(var, arith::IntSet::Interval(0, 0))};
+          const ffi::Map<Var, sym::IntSet> dmap = {
+              std::make_pair(var, sym::IntSet::Interval(0, 0))};
           auto iter_value = realize->iter_values[i];
-          arith::Analyzer analyzer;
+          sym::Analyzer analyzer;
           auto term_2 = analyzer->int_set(iter_value, dmap).min();
           condition = analyzer->Simplify(And(condition, Or(LT(var.as_or_throw<PrimExpr>(), 1),
                                                            GE(term_2, info_->axis_overlaps[i]))));
@@ -440,7 +440,7 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buf
    *      indices to circularize the buffer along the rolling dimension.
    *    - Append block predicate to avoid recomputing overlapping elements.
    */
-  ffi::Map<Var, arith::IntSet> dom_map;
+  ffi::Map<Var, sym::IntSet> dom_map;
   const SBlockRealize& realize = GetSBlockRealize(self, block_sref);
   const SBlock& block = realize->block;
 
@@ -470,7 +470,7 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buf
     }
     For cur_loop = ffi::GetRef<For>(stmt->StmtAs<ForNode>());
     Range range = Range::FromMinExtent(cur_loop->min, cur_loop->extent);
-    dom_map.Set(cur_loop->loop_var, arith::IntSet::FromRange(range));
+    dom_map.Set(cur_loop->loop_var, sym::IntSet::FromRange(range));
   }
   TensorRegion relaxed_region = GetRelaxedBufferRegion(realize, buffer_region, dom_map);
 

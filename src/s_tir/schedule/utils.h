@@ -19,9 +19,6 @@
 #ifndef TVM_S_TIR_SCHEDULE_UTILS_H_
 #define TVM_S_TIR_SCHEDULE_UTILS_H_
 
-#include <tvm/arith/analyzer.h>
-#include <tvm/arith/int_set.h>
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
@@ -34,6 +31,9 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/utils.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/sym/int_set.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
@@ -43,9 +43,9 @@
 #include <unordered_set>
 #include <utility>
 
-#include "../../arith/pattern_match.h"
 #include "../../ir/attr_registry.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "../../sym/pattern_match.h"
 #include "../support/array_utils.h"
 #include "../support/nd_int_set.h"
 #include "./analysis.h"
@@ -216,8 +216,8 @@ inline ffi::Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr,
     *constant = std::nullopt;
     return static_cast<Var>(var.value());
   }
-  arith::PVar<Var> var;
-  arith::PVar<IntImm> shift;
+  sym::PVar<Var> var;
+  sym::PVar<IntImm> shift;
   // match: "var + shift"
   if ((var + shift).Match(expr) || (shift + var).Match(expr)) {
     *constant = shift.Eval();

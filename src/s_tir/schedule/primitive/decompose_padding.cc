@@ -74,7 +74,7 @@ class PaddingInfoAnalyzer {
  public:
   static PaddingSBlockInfo CheckAndGetPaddingInfo(IRModule mod, const SBlockRealizeNode* realize,
                                                   const ffi::Map<PrimVar, Range>& dom_map,
-                                                  arith::AnalyzerObj* analyzer) {
+                                                  sym::AnalyzerObj* analyzer) {
     PaddingInfoAnalyzer padding_analyzer(analyzer);
     if (!padding_analyzer.MatchPadding(realize, dom_map)) {
       throw MakeScheduleError<PaddingPatternMatchError>(mod, realize->block,
@@ -84,7 +84,7 @@ class PaddingInfoAnalyzer {
   }
 
  private:
-  explicit PaddingInfoAnalyzer(arith::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
+  explicit PaddingInfoAnalyzer(sym::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
   /*! \brief Detect padding pattern and update result. */
   bool MatchPadding(const SBlockRealizeNode* realize, const ffi::Map<PrimVar, Range>& dom_map) {
@@ -154,7 +154,7 @@ class PaddingInfoAnalyzer {
   PrimExpr RewritePredicate(const PrimExpr& predicate) {
     PrimExpr res = IntImm::Bool(true);
     std::function<void(PrimExpr)> update = [&res, &update](PrimExpr e) {
-      arith::PVar<PrimExpr> a, b;
+      sym::PVar<PrimExpr> a, b;
       if ((a && b).Match(e)) {
         update(a.Eval());
         update(b.Eval());
@@ -177,14 +177,14 @@ class PaddingInfoAnalyzer {
                                           const PrimExpr& in_bound_predicate) {
     ffi::Array<Range> region;
 
-    arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer_);
-    auto res = arith::DetectIterMap(iter_values, dom_map, in_bound_predicate,
-                                    arith::IterMapLevel::Surjective, analyzer_ref);
+    sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer_);
+    auto res = sym::DetectIterMap(iter_values, dom_map, in_bound_predicate,
+                                  sym::IterMapLevel::Surjective, analyzer_ref);
     if (res->indices.empty()) {
       SetError("Block iters are not independent wrt padding condition");
       return {};
     }
-    for (const arith::IterSumExpr& sum : res->indices) {
+    for (const sym::IterSumExpr& sum : res->indices) {
       if (sum->args.empty()) {
         region.push_back(Range::FromMinExtent(sum->base, IntImm(sum->base.ty(), /* value */ 1)));
       } else {
@@ -206,7 +206,7 @@ class PaddingInfoAnalyzer {
   /*! \brief current error message. */
   std::string error_msg_;
   /*! \brief arithmetic analyzer. */
-  arith::AnalyzerObj* analyzer_;
+  sym::AnalyzerObj* analyzer_;
 };
 
 /*! \brief Create block to fill constant pad values into full region */
@@ -214,7 +214,7 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
                                                        const PaddingSBlockInfo& info,
                                                        const ffi::Array<For>& loops,
                                                        const Stmt& highest_pos_inclusive,
-                                                       arith::AnalyzerObj* analyzer) {
+                                                       sym::AnalyzerObj* analyzer) {
   const SBlock& block = realize->block;
   ffi::Array<IterVar> new_iter_vars;
   ffi::Map<Var, PrimExpr> repl_dict;
@@ -290,7 +290,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
 
                                                          const ffi::Array<For>& loops,
                                                          const Stmt& highest_pos_inclusive,
-                                                         arith::AnalyzerObj* analyzer) {
+                                                         sym::AnalyzerObj* analyzer) {
   const SBlock& block = realize->block;
   ffi::Array<IterVar> new_iter_vars;
   ffi::Map<Var, PrimExpr> repl_dict;
@@ -453,7 +453,7 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   const SBlockRealizeNode* realize = GetSBlockRealize(self, block_sref).get();
   ffi::Map<PrimVar, Range> dom_map;
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
 
   // Check 1. check the block is complete.
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);

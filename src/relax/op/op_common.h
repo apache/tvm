@@ -25,11 +25,11 @@
 #ifndef TVM_RELAX_OP_OP_COMMON_H_
 #define TVM_RELAX_OP_OP_COMMON_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/s_tir/data_layout.h>
+#include <tvm/sym/analyzer.h>
 
 #include <optional>
 #include <tuple>
@@ -413,7 +413,7 @@ struct BinaryBroadcastShapeInferResult {
  * \param x2_shape The shape of the second operand.
  * \return Inference status and broadcasted shape, or a conflict message.
  */
-BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(arith::AnalyzerObj* analyzer,
+BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(sym::AnalyzerObj* analyzer,
                                                           const ffi::Array<PrimExpr>& x1_shape,
                                                           const ffi::Array<PrimExpr>& x2_shape);
 

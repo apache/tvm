@@ -26,10 +26,10 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm.arith import Analyzer
 from tvm.ir import PointerType, PrimType, Range
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.sym import Analyzer
 from tvm.testing import env
 from tvm.tirx import IntImm, StringImm, Var
 from tvm.tirx.cuda.tile_primitive.copy_async.tma import (

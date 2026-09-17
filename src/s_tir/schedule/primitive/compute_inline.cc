@@ -558,11 +558,11 @@ class ComputeInliner : public BaseInliner {
     for (const auto& iter : producer_block->iter_vars) {
       producer_iter_doms.Set(iter->var, iter->dom);
     }
-    arith::IterMapResult res = arith::DetectIterMap(
+    sym::IterMapResult res = sym::DetectIterMap(
         /*indices=*/inlined_store_->indices,
         /*input_iters=*/producer_iter_doms,
         /*predicate=*/true,
-        /*check_level=*/arith::IterMapLevel::Bijective,
+        /*check_level=*/sym::IterMapLevel::Bijective,
         /*analyzer=*/analyzer_,
         /*simplify_trivial_iterators=*/false);
     if (!res->errors.empty()) {
@@ -576,7 +576,7 @@ class ComputeInliner : public BaseInliner {
     ffi::Array<PrimExpr> prim_idx_vars;
     prim_idx_vars.reserve(idx_vars_.size());
     for (const Var& var : idx_vars_) prim_idx_vars.push_back(var.as_or_throw<PrimExpr>());
-    auto inverse_iter_map = arith::InverseAffineIterMap(res->indices, prim_idx_vars);
+    auto inverse_iter_map = sym::InverseAffineIterMap(res->indices, prim_idx_vars);
     for (const auto& iter : producer_block->iter_vars) {
       if (is_const_int(iter->dom->min) && analyzer_->CanProveEqual(iter->dom->extent, 1)) {
         // fallback mapping for constant iters
@@ -614,7 +614,7 @@ class ComputeInliner : public BaseInliner {
   }
 
   /*! \brief The arithmetic analyzer */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   /*! \brief The store value for inlinement. If the producer
    store indices are trivial, it is wrt the producer block iter var,
    otherwise it is wrt to the placeholder vars of store indices. */
@@ -734,11 +734,11 @@ class ReverseComputeInliner : public BaseInliner {
       }
     }
 
-    arith::IterMapResult res = arith::DetectIterMap(
+    sym::IterMapResult res = sym::DetectIterMap(
         /*indices=*/buffer_load_indices_,
         /*input_iters=*/consumer_iter_doms,
         /*predicate=*/true,
-        /*check_level=*/arith::IterMapLevel::NoCheck,
+        /*check_level=*/sym::IterMapLevel::NoCheck,
         /*analyzer=*/analyzer_,
         /*simplify_trivial_iterators=*/false);
     buffer_load_iter_map_ = res->indices;
@@ -858,15 +858,14 @@ class ReverseComputeInliner : public BaseInliner {
    * \return Whether the consumer block iter domains are covered
    */
   bool CheckConsumerCovered() {
-    ffi::Map<Var, arith::IntSet> producer_iter_doms;
+    ffi::Map<Var, sym::IntSet> producer_iter_doms;
     for (const IterVar& iter_var : producer_block_->iter_vars) {
-      producer_iter_doms.Set(iter_var->var, arith::IntSet::FromRange(iter_var->dom));
+      producer_iter_doms.Set(iter_var->var, sym::IntSet::FromRange(iter_var->dom));
     }
     // For each block iter in the consumer block, find the corresponding expression in the producer
     for (const IterVar& iter : consumer_block_->iter_vars) {
       if (auto producer_iter = VarRemapGet(iter->var).as<PrimExpr>()) {
-        arith::IntSet producer_iter_range =
-            arith::EvalSet(producer_iter.value(), producer_iter_doms);
+        sym::IntSet producer_iter_range = sym::EvalSet(producer_iter.value(), producer_iter_doms);
         if (analyzer_->CanProve(producer_iter_range.min() > iter->dom->min) ||
             analyzer_->CanProve(producer_iter_range.max() <
                                 iter->dom->min + iter->dom->extent - 1)) {
@@ -886,7 +885,7 @@ class ReverseComputeInliner : public BaseInliner {
    * \param producer_indices The BufferStore indices of the producer.
    */
   void CreateInverseMapping(const ffi::Array<PrimExpr> producer_indices) {
-    auto inverse_iter_map = arith::InverseAffineIterMap(buffer_load_iter_map_, producer_indices);
+    auto inverse_iter_map = sym::InverseAffineIterMap(buffer_load_iter_map_, producer_indices);
     for (const auto& pair : inverse_iter_map) {
       VarRemapSet(pair.first, pair.second);
     }
@@ -955,7 +954,7 @@ class ReverseComputeInliner : public BaseInliner {
   /*! \brief The indices of the consumer's BufferLoad */
   ffi::Array<PrimExpr> buffer_load_indices_;
   /*! \brief The IterMap representing the indices of the consumer's BufferLoad */
-  ffi::Array<arith::IterSumExpr> buffer_load_iter_map_{nullptr};
+  ffi::Array<sym::IterSumExpr> buffer_load_iter_map_{nullptr};
   /*! \brief The producer block */
   const SBlockNode* producer_block_{nullptr};
   /* \brief The consumer block */
@@ -965,7 +964,7 @@ class ReverseComputeInliner : public BaseInliner {
    */
   PrimExpr consumer_iter_in_bound_{nullptr};
   /*! \brief The arithmetic analyzer */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
@@ -1054,7 +1053,7 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
   }
   self->Replace(scope_root_sref, tgt_stmt, inliner->block_reuse);
   // Step 8. Update the cached flags
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   SBlockInfo& block_info = self->block_info[producer_block_sref];
   block_info.affine_binding = IsAffineBinding(
       /*realize=*/GetSBlockRealize(self, producer_block_sref),
@@ -1411,7 +1410,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
                       .as_or_throw<PrimExpr>();
 
   // Simplify the expression (e.g., 0 + C[vi, vj] -> C[vi, vj])
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   init_epilogue = analyzer->Simplify(init_epilogue);
 
   ffi::Array<PrimExpr> init_indices =

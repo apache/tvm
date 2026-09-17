@@ -17,7 +17,7 @@
 
 """GEMM-related utilities for CUDA op dispatches."""
 
-from tvm.arith.analyzer import Analyzer
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Buffer
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.tile_primitive import TilePrimitiveCall

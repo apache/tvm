@@ -22,8 +22,8 @@
  * \brief Deduplicate identical cuTensorMap objects created by TIRx schedules.
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>

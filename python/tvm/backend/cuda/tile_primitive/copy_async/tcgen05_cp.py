@@ -109,9 +109,9 @@ import functools
 import operator
 
 import tvm
-from tvm.arith import Analyzer
 from tvm.runtime import DataType
 from tvm.script import tirx as T
+from tvm.sym import Analyzer
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx.layout import ComposeLayout, TCol, TileLayout, TLane
 from tvm.tirx.layout import m as m_axis

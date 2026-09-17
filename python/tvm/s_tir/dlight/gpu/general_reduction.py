@@ -19,7 +19,7 @@
 
 import tvm_ffi
 
-from tvm import arith, s_tir, tirx
+from tvm import s_tir, sym, tirx
 from tvm.target import Target
 
 from ..analysis import get_root_block, normalize_prim_func
@@ -73,7 +73,7 @@ class GeneralReduction(GPUScheduleRule):
                 # preserving global scope for buffers accessed by another block.
                 blocks = [sch.get(info.block_rv) for info in block_infos]
                 alloc_buffers = list(sch.get(get_root_block(sch)).alloc_buffers)
-                analyzer = arith.Analyzer()
+                analyzer = sym.Analyzer()
                 for block_index, (info, block) in enumerate(zip(block_infos[:-1], blocks[:-1])):
                     loops = sch.get_loops(info.block_rv)
                     if not all(analyzer.can_prove_equal(sch.get(loop).extent, 1) for loop in loops):
@@ -106,7 +106,7 @@ class GeneralReduction(GPUScheduleRule):
                 return sch
 
             def f_layout_mapping(*iters):
-                analyzer = arith.Analyzer()
+                analyzer = sym.Analyzer()
                 # Try to match the iters of last block to the iters of the first block.
                 # For matched positions, use the iter from the input `iters`.
                 # For unmatched positions, use a new iter which is constant 0.

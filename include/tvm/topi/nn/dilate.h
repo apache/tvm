@@ -24,7 +24,7 @@
 #ifndef TVM_TOPI_NN_DILATE_H_
 #define TVM_TOPI_NN_DILATE_H_
 
-#include <tvm/arith/analyzer.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/topi/tags.h>
 
@@ -75,7 +75,7 @@ inline Tensor dilate(const Tensor& x, ffi::Array<PrimExpr> strides, double dilat
       << "strides size (" << strides.size() << ") must match dimension of x (" << n << ")";
 
   ffi::Array<PrimExpr> out_shape;
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   for (size_t i = 0; i < n; ++i) {
     out_shape.push_back(analyzer->Simplify((x->shape[i] - 1) * (strides[i] + 1)));
   }

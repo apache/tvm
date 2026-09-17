@@ -33,7 +33,7 @@ using namespace tvm::tirx;
 /*!
  * \brief PrimExpr pattern matcher.
  *
- * It is different from the pattern matcher in arith/pattern_match.h, which is dedicated
+ * It is different from the pattern matcher in sym/pattern_match.h, which is dedicated
  * for compile-time constant patterns. This pattern matcher can work on dynamic user-specific
  * patterns.
  *
@@ -506,7 +506,7 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
   const ffi::Array<PrimExpr>& expected_indices = updates[0]->indices;
   TVM_FFI_ICHECK_EQ(expected_shape.size(), expected_indices.size());
   int n_dim = expected_indices.size();
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   for (int i = 0; i < n_buffers; ++i) {
     if (static_cast<int>(updates[i]->buffer->shape.size()) != n_dim) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/11);

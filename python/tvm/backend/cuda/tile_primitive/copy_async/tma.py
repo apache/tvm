@@ -33,8 +33,8 @@ from enum import Enum
 from itertools import pairwise
 
 import tvm
-from tvm.arith import Analyzer
 from tvm.script import tirx as T
+from tvm.sym import Analyzer
 from tvm.tirx import Buffer, IntImm, PrimFunc, is_buffer_var
 from tvm.tirx.layout import Layout, TileLayout
 from tvm.tirx.operator.tile_primitive import (

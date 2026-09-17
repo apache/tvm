@@ -24,7 +24,7 @@
 #ifndef TVM_TOPI_NN_BNN_H_
 #define TVM_TOPI_NN_BNN_H_
 
-#include <tvm/arith/analyzer.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/topi/detail/constant_utils.h>
 #include <tvm/topi/tags.h>
@@ -55,7 +55,7 @@ inline tvm::te::Tensor binarize_pack(const tvm::te::Tensor& data, int axis,
   TVM_FFI_ICHECK_EQ(GetConstInt(ishape[axis]) % 32, 0)
       << "binarize_pack: axis size must be a multiple of 32";
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   auto n = ishape.size();
   ffi::Array<PrimExpr> oshape;
   for (size_t i = 0; i < n; ++i) {

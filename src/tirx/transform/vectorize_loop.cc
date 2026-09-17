@@ -21,7 +21,6 @@
  * \file vectorize_loop.cc
  */
 // Loop vectorizer as in Halide pipeline.
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_mutate.h>
@@ -30,6 +29,7 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
@@ -447,7 +447,7 @@ class VecAllocAccess : public StmtExprMutator {
   // the lanes.
   PrimExpr var_lanes_;
   // Analyzer for simplifications
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 // Vectorization supplies its own dtype-aware expression traversal.
@@ -1144,7 +1144,7 @@ class Vectorizer : public StmtExprMutator {
 
  private:
   // analyzer
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   // deep equal
   prim::ExprDeepEqual deep_equal_;
   // variable to be replaced

@@ -107,7 +107,7 @@ Type InferTypeBroadcastTo(const Call& call, const BlockBuilder& ctx) {
     return TensorType(/*shape=*/call->args[1], data_ty->dtype, data_ty->vdevice);
   }
 
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   ffi::Array<PrimExpr> old_shape_value = shape_ty->values.value();
   ffi::Array<PrimExpr> tgt_shape_value = tgt_shape_ty->values.value();
   int old_ndim = old_shape_value.size();
@@ -158,7 +158,7 @@ ffi::Optional<ffi::Array<PrimExpr>> CheckConcatOutputShape(
     const Call& call, const BlockBuilder& ctx,
     const std::vector<ffi::Array<PrimExpr>>& shape_values, int axis) {
   bool shape_unknown = false;
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   PrimExpr concat_sum = [&]() {
     // For the specified axis, we compute the sum of shape value over each tensor.
 
@@ -595,7 +595,7 @@ Type InferTypeIndexTensor(const Call& call, const BlockBuilder& ctx) {
         << data_ty->ndim << " dimensions";
   }
 
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   bool all_index_have_shape_value = true;
   std::vector<ffi::Array<PrimExpr>> index_shapes;
   int max_index_ndim = 0;
@@ -752,7 +752,7 @@ Type InferTypeLayoutTransform(const Call& call, const BlockBuilder& ctx) {
     return TensorType(data_ty->dtype, /*ndim=*/index_map->final_indices.size(), data_ty->vdevice);
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   ffi::Array<PrimExpr> output_shape = index_map->MapShape(shape_ty->values.value(), analyzer);
   return TensorType(ShapeExpr(output_shape), data_ty->dtype, data_ty->vdevice);
 }
@@ -981,7 +981,7 @@ Expr ConvertNewShapeToExpr(const Expr& data,
 
   // Assign appropriate value to -1 dimension.
   if (dim_to_infer != -1) {
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     PrimExpr old_shape_prod = ComputeShapeProduct(shape_ty->values.value());
     array_ref.Set(dim_to_infer, analyzer->Simplify(floordiv(old_shape_prod, new_shape_prod)));
   }
@@ -1386,7 +1386,7 @@ TVM_REGISTER_OP("relax.squeeze")
 void CheckCollapseShape(const Call& call, const BlockBuilder& ctx,
                         const ffi::Array<PrimExpr>& data_shape,
                         const ffi::Array<PrimExpr>& target_shape) {
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
 
   int data_ndim = data_shape.size();
   int target_ndim = target_shape.size();
@@ -1441,7 +1441,7 @@ ffi::Optional<ffi::Array<PrimExpr>> CheckStackOutputShape(
     const Call& call, const BlockBuilder& ctx,
     const std::vector<ffi::Array<PrimExpr>>& shape_values, int axis) {
   bool shape_unknown = false;
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
 
   // Stack requires all input tensors to have identical shapes
   for (int d = 0; d < static_cast<int>(shape_values[0].size()); ++d) {
@@ -1749,7 +1749,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Type InferTypeRepeat(const Call& call, const BlockBuilder& ctx) {
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<RepeatAttrs>();
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
@@ -1873,7 +1873,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Type InferTypeTile(const Call& call, const BlockBuilder& ctx) {
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<TileAttrs>();
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
@@ -2633,7 +2633,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Type InferTypeScatterElements(const Call& call, const BlockBuilder& ctx) {
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   const auto* indices_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
   const auto* updates_ty = GetTypeAs<TensorTypeNode>(call->args[2]);
@@ -2778,7 +2778,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeScatterND(const Call& call, const BlockBuilder& ctx) {
   // `call->args` contains: [data, indices, updates]
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   TVM_FFI_ICHECK_EQ(call->args.size(), 3);
   const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   const auto* indices_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
@@ -2955,7 +2955,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Type InferTypeSliceScatter(const Call& call, const BlockBuilder& ctx) {
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   const auto* src_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
   auto* attrs = call->attrs.as<SliceScatterAttrs>();

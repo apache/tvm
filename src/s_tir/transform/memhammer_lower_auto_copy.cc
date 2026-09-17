@@ -17,7 +17,6 @@
  * under the License.
  */
 
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
@@ -27,6 +26,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/op.h>
 
@@ -509,7 +509,7 @@ class AutoPadder {
                         .as_or_throw<PrimExpr>();
       PrimExpr e2 = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute_one)
                         .as_or_throw<PrimExpr>();
-      arith::Analyzer analyzer;
+      sym::Analyzer analyzer;
       PrimExpr delta = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e2 - e1, f_substitute)
                            .as_or_throw<PrimExpr>();
       return !analyzer->CanProve(delta != 1);
@@ -547,7 +547,7 @@ class AutoPadder {
       runtime::StorageScope scope = runtime::StorageScope::Create(op->buffer.scope());
       if (scope.rank == runtime::StorageRank::kShared) {
         ffi::Array<PrimExpr> substitued_indices;
-        arith::Analyzer analyzer;
+        sym::Analyzer analyzer;
         auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
           if (auto repl = substitute_map_.Get(var)) return ffi::Any(*std::move(repl));
           return ffi::Unchanged();
@@ -582,7 +582,7 @@ class AutoPadder {
       runtime::StorageScope scope = runtime::StorageScope::Create(buffer.scope());
       if (scope.rank == runtime::StorageRank::kShared) {
         ffi::Array<PrimExpr> substitued_indices;
-        arith::Analyzer analyzer;
+        sym::Analyzer analyzer;
         auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
           if (auto repl = substitute_map_.Get(var)) return ffi::Any(*std::move(repl));
           return ffi::Unchanged();
@@ -632,7 +632,7 @@ class AutoPadder {
                   var_range_.Set(var, Range::FromMinExtent(0, region[i]->extent));
                 }
                 ffi::Array<PrimExpr> substitued_indices;
-                arith::Analyzer analyzer;
+                sym::Analyzer analyzer;
                 auto f_substitute =
                     [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
                   if (auto repl = substitute_map_.Get(var)) return ffi::Any(*std::move(repl));

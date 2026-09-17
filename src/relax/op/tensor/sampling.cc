@@ -123,7 +123,7 @@ Type InferTypeMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) 
 
   PrimExpr batch = prob_shape->values[0];
   PrimExpr n = uniform_sample_shape->values[0];
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   if (!ana->CanProveEqual(n, sample_indices_shape->values[0])) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Multinomial_from_uniform op requires the input uniform_sample and "

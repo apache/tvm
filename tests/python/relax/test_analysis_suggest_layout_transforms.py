@@ -777,7 +777,7 @@ def test_op_split():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-@pytest.mark.skip("temp disable, due to minor arith regression")
+@pytest.mark.skip("temp disable, due to minor sym regression")
 def test_op_split_tiling_split_dim():
     @T.prim_func(private=True, s_tir=True)
     def before(

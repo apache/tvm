@@ -101,7 +101,7 @@ class ExprBinder : public ExprMutator {
   }
 
   const tvm::ffi::Map<Var, Expr>& bindings_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 /*!
@@ -119,7 +119,7 @@ Type Bind(const Type& ty, const tvm::ffi::Map<Var, Expr>& binds) {
 }
 
 tvm::ffi::Map<Var, Expr> InferSymbolicVarMap(
-    const tvm::ffi::Map<tvm::Var, relax::Expr>& relax_var_remap, const arith::Analyzer& analyzer) {
+    const tvm::ffi::Map<tvm::Var, relax::Expr>& relax_var_remap, const sym::Analyzer& analyzer) {
   tvm::ffi::Map<Var, Expr> var_remap = relax_var_remap;
 
   for (const auto& [var, value] : relax_var_remap) {

@@ -20,7 +20,6 @@
 /*!
  * \file lower_cross_thread_reduction.cc
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
@@ -29,6 +28,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 
@@ -113,7 +113,7 @@ bool IsDominantBlock(const SBlock& scope_block, const SBlock& block) {
  * check again.
  */
 bool IsReductionBlock(const SBlockRealize& realize, const ffi::Map<Var, Range>& loop_range_map,
-                      const SBlock& scope_block, arith::AnalyzerObj* analyzer) {
+                      const SBlock& scope_block, sym::AnalyzerObj* analyzer) {
   const auto* block = realize->block.as<SBlockNode>();
   // Cond 1. The block has the `init` statement.
   if (!block->init.has_value()) {
@@ -973,7 +973,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
   std::unordered_map<const SBlockNode*, ffi::Array<BufferVar>> block2new_buffers_;
   std::unordered_map<const ForNode*, Stmt> loop2new_stmt_;
   ffi::Map<Var, Range> loop_range_map_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 
   int block_idx_depth = 0;
   int thread_idx_depth = 0;

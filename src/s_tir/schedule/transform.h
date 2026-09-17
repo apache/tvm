@@ -222,12 +222,12 @@ class BlockBufferAccessSimplifier : public s_tir::IRMutatorWithAnalyzer {
    * \param analyzer The arithmetic analyzer
    * \return The simplified statement
    */
-  static Stmt Simplify(const Stmt& stmt, const arith::Analyzer& analyzer) {
+  static Stmt Simplify(const Stmt& stmt, const sym::Analyzer& analyzer) {
     auto simplifier = ffi::make_object<BlockBufferAccessSimplifier>(analyzer);
     return simplifier->Mutate(stmt).ValueOrUnchanged(stmt);
   }
 
-  explicit BlockBufferAccessSimplifier(const arith::Analyzer& analyzer)
+  explicit BlockBufferAccessSimplifier(const sym::Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer) {}
 
  private:

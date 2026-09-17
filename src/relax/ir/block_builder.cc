@@ -20,7 +20,6 @@
 /*!
  * \file src/relax/block_builder.cc
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/function.h>
@@ -34,6 +33,7 @@
 #include <tvm/relax/type_functor.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
 
 #include <memory>
@@ -296,7 +296,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     }
   }
 
-  arith::Analyzer GetAnalyzer() final { return analyzer_; }
+  sym::Analyzer GetAnalyzer() final { return analyzer_; }
 
  protected:
   /*!
@@ -353,7 +353,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   IRModule context_mod_;
 
   /*! \brief Internal analzyer */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 
   /*!
    * \return The current frame.

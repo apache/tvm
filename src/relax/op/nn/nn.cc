@@ -425,7 +425,7 @@ bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
     }
   }
 
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   for (int i = 1; i < static_cast<int>(axis_lengths.size()); ++i) {
     for (int d = 0; d < n_axis; ++d) {
       if (analyzer->CanProve(axis_lengths[0][d] != axis_lengths[i][d])) {
@@ -636,7 +636,7 @@ Type InferTypeGroupNorm(const Call& call, const BlockBuilder& ctx) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << op << " expects that data must be float, but got " << data_ty->dtype;
   }
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape != nullptr && channel_axis != -1 &&
       analyzer->CanProve(floormod(data_shape->values[channel_axis], attrs->num_groups) != 0)) {
@@ -746,7 +746,7 @@ Type InferTypeInstanceNorm(const Call& call, const BlockBuilder& ctx) {
     }
   }
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   for (int i = 1; i < static_cast<int>(op->arguments.size()); ++i) {
     if (input_ty[i]->dtype != data_ty->dtype) {
       TVM_FFI_VISIT_THROW(TypeError, call)
@@ -927,7 +927,7 @@ Type InferTypeCrossEntropy(const Call& call, const BlockBuilder& ctx) {
   }
 
   if (pred_shape_value.has_value() && label_shape_value.has_value()) {
-    arith::Analyzer analyzer = ctx->GetAnalyzer();
+    sym::Analyzer analyzer = ctx->GetAnalyzer();
     for (size_t i = 0; i < pred_shape_value.value().size(); ++i) {
       if (analyzer->CanProve(pred_shape_value.value()[i] != label_shape_value.value()[i])) {
         TVM_FFI_VISIT_THROW(ValueError, call)
@@ -1062,7 +1062,7 @@ Type InferTypeNLLLoss(const Call& call, const BlockBuilder& ctx) {
         << wgt_ty->ndim;
   }
 
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   ffi::Optional<PrimExpr> N;
   ffi::Optional<PrimExpr> C;
   ffi::Array<PrimExpr> output_shape;  // N, d1, d2, ..., dk

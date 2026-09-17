@@ -20,7 +20,6 @@
 /*!
  * \file hoist_expression.cc
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
@@ -29,6 +28,7 @@
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 
 #include <queue>
@@ -36,9 +36,9 @@
 #include <unordered_set>
 #include <utility>
 
-#include "../../arith/interval_set.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../s_tir/ir/ir_mutator_with_analyzer.h"
+#include "../../sym/interval_set.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -464,7 +464,7 @@ class ExpressionHoister : public s_tir::IRMutatorWithAnalyzer {
   static Stmt Hoist(Stmt stmt, HoistExpressionConfig config) {
     auto loop_info = HoistInfoCollector::Collect(stmt, config);
 
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     auto hoister = ffi::make_object<ExpressionHoister>(std::move(loop_info), config, analyzer);
     stmt = hoister->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt));
     stmt = s_tir::ConvertSSA(std::move(stmt));
@@ -476,7 +476,7 @@ class ExpressionHoister : public s_tir::IRMutatorWithAnalyzer {
 
  public:
   explicit ExpressionHoister(std::vector<HoistInfoCollector::HoistInfo> loop_info,
-                             HoistExpressionConfig config, const arith::Analyzer& analyzer)
+                             HoistExpressionConfig config, const sym::Analyzer& analyzer)
       : Parent(analyzer), config_(config) {
     for (auto& info : loop_info) {
       // Mark let bindings to use if they are enabled on their own.

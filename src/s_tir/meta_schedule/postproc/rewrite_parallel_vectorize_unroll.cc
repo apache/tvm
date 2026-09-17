@@ -233,7 +233,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
     for (const StmtSRef& loop_sref : loop_srefs) {
       int64_t stride = 0, buffer_stride = 1;
       const auto* var = loop_sref->StmtAs<ForNode>();
-      arith::Analyzer analyzer;
+      sym::Analyzer analyzer;
       for (int i = access->region.size() - 1; i >= 0; i--) {
         PrimExpr idx = analyzer->Simplify(
             ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(access->region[i]->min, f_substitute)

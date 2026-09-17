@@ -480,7 +480,7 @@ def test_layout_permute_copy_preserves_smem_strides():
     # S is K-tiled : s_off(tid) = (tid // 8) * 8 + (tid % 8) * 1024.
     # For tid=1 the two MUST differ — they're identical iff S was
     # collapsed to row-major (the regression).
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
     value_map = {tid_var: _IntImm("int32", 1)}
     s_off_at_1 = analyzer.simplify(
         tvm_ffi.structural_map(

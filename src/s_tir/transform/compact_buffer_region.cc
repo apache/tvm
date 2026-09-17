@@ -22,13 +22,13 @@
  * \brief Compact the buffer size into its exact need.
  */
 
-#include <tvm/arith/int_set.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/int_set.h>
 #include <tvm/tirx/op.h>
 
 #include <numeric>
@@ -49,15 +49,15 @@ using support::NDIntSet;
 
 /*! \brief a more constrained bound estimate for n-dimentional int set */
 NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
-                      const std::unordered_map<const VarNode*, arith::IntSet>& dom_map,
-                      arith::AnalyzerObj* analyzer) {
+                      const std::unordered_map<const VarNode*, sym::IntSet>& dom_map,
+                      sym::AnalyzerObj* analyzer) {
   std::unordered_map<Var, Range, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_dom;
   for (const auto& it : dom_map) {
     var_dom[ffi::GetRef<Var>(it.first)] = it.second.CoverRange(Range::FromMinExtent(0, 0));
   }
-  arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
-  ffi::Optional<ffi::Array<arith::IntSet>> eval_res =
-      arith::EstimateRegionUpperBound(region, var_dom, predicate, analyzer_ref);
+  sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
+  ffi::Optional<ffi::Array<sym::IntSet>> eval_res =
+      sym::EstimateRegionUpperBound(region, var_dom, predicate, analyzer_ref);
 
   if (eval_res.has_value()) {
     return NDIntSet(eval_res.value().begin(), eval_res.value().end());
@@ -192,7 +192,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
                        : IterVar(Range(), op->loop_var, IterVarType::kDataPar);
     ancestor_iters_.push_back(iter);
     dom_analyzer_->Bind(op->loop_var, loop_range);
-    dom_map_.emplace(op->loop_var.get(), arith::IntSet::FromRange(loop_range));
+    dom_map_.emplace(op->loop_var.get(), sym::IntSet::FromRange(loop_range));
     size_t n_pending_before = pending_flat_alloc_buffers_.size();
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     // Compact flat AllocBuffers defined inside this For scope
@@ -204,21 +204,21 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->value));
-    if (auto value = op->value.as<PrimExpr>(); value && arith::IsIndexTypedExpr(value.value())) {
+    if (auto value = op->value.as<PrimExpr>(); value && sym::IsIndexTypedExpr(value.value())) {
       dom_analyzer_->Bind(op->var, value.value());
-      dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(value.value()));
+      dom_map_.emplace(op->var.get(), sym::IntSet::SinglePoint(value.value()));
     }
     return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const LetNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->value));
-    if (arith::IsIndexTypedExpr(op->value)) {
+    if (sym::IsIndexTypedExpr(op->value)) {
       dom_analyzer_->Bind(op->var, op->value);
-      dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(op->value));
+      dom_map_.emplace(op->var.get(), sym::IntSet::SinglePoint(op->value));
     }
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->body));
-    if (arith::IsIndexTypedExpr(op->value)) {
+    if (sym::IsIndexTypedExpr(op->value)) {
       dom_map_.erase(op->var.get());
     }
     return std::nullopt;
@@ -356,7 +356,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         dom = Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value);
       }
       dom_analyzer_->Bind(iter->var, dom);
-      dom_map_.emplace(iter->var.get(), arith::IntSet::FromRange(dom));
+      dom_map_.emplace(iter->var.get(), sym::IntSet::FromRange(dom));
       size_t n_pending_before = pending_flat_alloc_buffers_.size();
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       CompactPendingFlatAllocBuffers(n_pending_before);
@@ -383,7 +383,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       size_t n_ancestor_loops = it->second;
       // Step 1. Stop ancestor loop vars out of the allocation block from
       // being relaxed unless NeedRelaxThread() is true.
-      std::vector<arith::IntSet> non_relaxed(n_ancestor_loops);
+      std::vector<sym::IntSet> non_relaxed(n_ancestor_loops);
       for (size_t i = 0; i < n_ancestor_loops; ++i) {
         const IterVar& iter = ancestor_iters_[i];
         const VarNode* v = iter->var.get();
@@ -469,7 +469,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     result_region.resize(nd_int_set.size());
 
     for (size_t i = 0; i < nd_int_set.size(); ++i) {
-      const arith::IntSet& int_set = nd_int_set[i];
+      const sym::IntSet& int_set = nd_int_set[i];
       Range original =
           Range(/*begin=*/IntImm(original_shape[i].ty(), 0), /*end=*/original_shape[i]);
       Range range = int_set.CoverRange(original);
@@ -505,7 +505,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(extent, walkfn).has_value()) {
         // try estimate a constant upperbound on region's extent
         int64_t upperbound = dom_analyzer_->const_int_bound(extent)->max_value;
-        if (upperbound != arith::ConstIntBound::kPosInf) {
+        if (upperbound != sym::ConstIntBound::kPosInf) {
           extent = IntImm(extent.ty(), upperbound);
         } else {
           result_region.Set(i, original);
@@ -552,13 +552,13 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       var2buffer_;
 
   /*! \brief The map from loop vars to their iter range. */
-  std::unordered_map<const VarNode*, arith::IntSet> dom_map_;
+  std::unordered_map<const VarNode*, sym::IntSet> dom_map_;
   /*! \brief Extra map from free vars to their iter range hints. */
-  std::unordered_map<const VarNode*, arith::IntSet> hint_map_;
+  std::unordered_map<const VarNode*, sym::IntSet> hint_map_;
   /*! \brief Unresolved conditions within current scope. */
   std::vector<PrimExpr> pending_conditions_;
   /*! \brief The analyzer aware of loop domains. */
-  arith::Analyzer dom_analyzer_;
+  sym::Analyzer dom_analyzer_;
   /*! \brief The map from BufferVar to it's relaxed access set. */
   std::unordered_map<BufferVar, NDIntSet, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       relaxed_accesses_;

@@ -21,12 +21,12 @@
  * \file tvm/s_tir/stmt.cc
  * \brief Schedulable block definitions and structural traversal.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/sym/analyzer.h>
 
 namespace tvm {
 namespace s_tir {
@@ -273,7 +273,7 @@ MatchBufferRegion::MatchBufferRegion(BufferVar buffer, TensorRegion source) {
   const BufferVar& source_buffer = source->source.as_or_throw<BufferVar>();
   TVM_FFI_ICHECK_EQ(source_buffer->shape.size(), source->region.size())
       << "MatchBufferRegion source must match its buffer rank";
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   // Check scope and dtype
   TVM_FFI_ICHECK_EQ(buffer.scope(), source_buffer.scope())
       << "MatchBuffer " << buffer << " scope mismatch:" << buffer.scope() << " vs. "

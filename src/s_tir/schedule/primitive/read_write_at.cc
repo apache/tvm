@@ -42,9 +42,9 @@ bool HasBuffer(const ffi::Array<TensorRegion>& buffer_regions, const BufferVar& 
 }
 
 void RelaxBufferRegions(const ffi::Array<TensorRegion>& buffer_regions,
-                        const BufferVar& buffer,                      //
-                        const ffi::Map<Var, arith::IntSet>& var_dom,  //
-                        const ffi::Map<Var, PrimExpr>& bindings,      //
+                        const BufferVar& buffer,                    //
+                        const ffi::Map<Var, sym::IntSet>& var_dom,  //
+                        const ffi::Map<Var, PrimExpr>& bindings,    //
                         std::vector<NDIntSet>* relaxed_regions) {
   auto f_substitute = [&bindings](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto repl = bindings.Get(var)) return ffi::Any(*std::move(repl));
@@ -61,7 +61,7 @@ void RelaxBufferRegions(const ffi::Array<TensorRegion>& buffer_regions,
                     .as_or_throw<PrimExpr>();
             return Range::FromMinExtent(min, extent);
           });
-      ffi::Array<arith::IntSet> relaxed_region = arith::EvalSet(mapped_region, var_dom);
+      ffi::Array<sym::IntSet> relaxed_region = sym::EvalSet(mapped_region, var_dom);
       relaxed_regions->push_back({relaxed_region.begin(), relaxed_region.end()});
     }
   }
@@ -227,7 +227,7 @@ struct ReadWriteAtImpl {
               /*buffer_regions=*/is_read ? block->reads : block->writes,
               /*buffer=*/src_,
               /*var_dom=*/
-              arith::AsIntSet(LoopDomainOfSRefTreePath(
+              sym::AsIntSet(LoopDomainOfSRefTreePath(
                   /*low_inclusive=*/ffi::GetRef<StmtSRef>(self_->stmt2ref.at(block)->parent),
                   /*high_exclusive=*/loop_sref_,
                   /*extra_relax_scope=*/scope)),
@@ -270,7 +270,7 @@ struct ReadWriteAtImpl {
     ffi::Array<Range> domain;
     domain.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      const arith::IntSet& int_set = relaxed[i];
+      const sym::IntSet& int_set = relaxed[i];
       PrimExpr min = analyzer_->Simplify(int_set.min());
       PrimExpr extent = analyzer_->Simplify(int_set.max() + 1 - min);
       domain.push_back(Range::FromMinExtent(min, extent));
@@ -362,7 +362,7 @@ struct ReadWriteAtImpl {
         dst_(dst),
         annotations_(annotations),
         block_sref_reuse_(),
-        analyzer_(arith::Analyzer()) {
+        analyzer_(sym::Analyzer()) {
     loop_ = TVM_SREF_TO_FOR(loop_sref);
   }
 
@@ -373,7 +373,7 @@ struct ReadWriteAtImpl {
   const BufferVar& dst_;
   ffi::Map<ffi::String, Any> annotations_;
   ffi::Map<SBlock, SBlock> block_sref_reuse_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,

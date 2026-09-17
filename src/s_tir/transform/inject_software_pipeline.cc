@@ -490,9 +490,9 @@ class PipelineRewriter : public StmtExprMutator {
     for (size_t i = 0; i < region1.size(); i++) {
       Range dim1 = region1[i];
       Range dim2 = region2[i];
-      auto int_set1 = arith::IntSet::FromRange(dim1);
-      auto int_set2 = arith::IntSet::FromRange(dim2);
-      if (arith::Intersect({int_set1, int_set2}).IsNothing()) {
+      auto int_set1 = sym::IntSet::FromRange(dim1);
+      auto int_set2 = sym::IntSet::FromRange(dim2);
+      if (sym::Intersect({int_set1, int_set2}).IsNothing()) {
         return false;
       }
     }
@@ -652,7 +652,7 @@ class PipelineRewriter : public StmtExprMutator {
 
   // Determine where to insert async_wait and the corresponding wait count.
   void PopulateWaitCounts(const std::vector<RewrittenSBlockInfo>& new_blocks,
-                          arith::AnalyzerObj* ana_normalized,
+                          sym::AnalyzerObj* ana_normalized,
                           const std::unordered_map<const VarNode*, int>& buffer_to_commit_group,
                           std::map<int, AsyncStateLocal>* async_states_local) {
     for (size_t i = 0; i < new_blocks.size(); ++i) {
@@ -789,7 +789,7 @@ class PipelineRewriter : public StmtExprMutator {
   ffi::Array<Stmt> CompletePipelineLoopStatements(
       const std::vector<RewrittenSBlockInfo>& blocks,
       const std::map<int, AsyncStateLocal>& async_states_local,
-      arith::AnalyzerObj* ana_normalized) const {
+      sym::AnalyzerObj* ana_normalized) const {
     std::vector<RewrittenSBlockInfo> new_blocks = blocks;
     std::vector<int> commit_group_indices(new_blocks.size(), -1);
     for (const auto& [stage_id, state] : async_states_local) {
@@ -892,7 +892,7 @@ class PipelineRewriter : public StmtExprMutator {
 
     // In contrast to analyzer_ which is bound to [start, end), this one is bound to
     // the "normalized" range, [pipeline_loop_->min, extent).
-    arith::Analyzer ana_normalized;
+    sym::Analyzer ana_normalized;
     if (!is_unit_loop) {
       ana_normalized->Bind(new_loop_var.as_or_throw<Var>(), Range(pipeline_loop_->min, extent));
     }
@@ -1051,7 +1051,7 @@ class PipelineRewriter : public StmtExprMutator {
                          MakeSBlock(std::move(new_loop), buffer_data_to_buffer_));
   }
 
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   ffi::Map<Var, BufferVar> buffer_data_to_buffer_;
   const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& double_buffers_;
   ffi::Array<BufferVar> pipeline_allocs_;

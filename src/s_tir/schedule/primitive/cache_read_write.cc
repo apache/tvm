@@ -473,7 +473,7 @@ bool CalculateAffineFlag(const ScheduleState& self, const StmtSRef& block_sref) 
   if (block_sref->parent == nullptr) {
     return true;
   }
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
   return IsAffineBinding(/*realize=*/GetSBlockRealize(self, block_sref),
                          /*loop_var_ranges=*/LoopDomainOfSRefTreePath(parent_sref),
@@ -666,7 +666,7 @@ TensorRegion RelaxBufferRegion(ScheduleState self, const TensorRegion& buffer_re
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
   ffi::Map<Var, PrimExpr> binding = GetBindings(realize);
   const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   auto f_substitute = [&binding](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto repl = binding.Get(var)) return ffi::Any(*std::move(repl));
     return ffi::Unchanged();
@@ -679,7 +679,7 @@ TensorRegion RelaxBufferRegion(ScheduleState self, const TensorRegion& buffer_re
     return Range::FromMinExtent(min, extent);
   });
   TensorRegion subst_region = BufferRegion(buffer, mapped_region);
-  ffi::Array<arith::IntSet> int_sets = AnalyzeRegionUpperBound(
+  ffi::Array<sym::IntSet> int_sets = AnalyzeRegionUpperBound(
       /*region=*/subst_region,
       /*predicate=*/
       ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(realize->predicate && extra_predicate,
@@ -1179,7 +1179,7 @@ class CacheReadRewriter : public StmtExprMutator {
    */
   bool cache_full_region_;
   /*! \brief Arithmetic analyzer. */
-  arith::Analyzer ana_;
+  sym::Analyzer ana_;
 
   friend ReindexCacheReadRewriter;
 };
@@ -1524,7 +1524,7 @@ class CacheWriteRewriter : public StmtExprMutator {
    */
   bool cache_full_region_;
   /*! \brief Arithmetic analyzer. */
-  arith::Analyzer ana_;
+  sym::Analyzer ana_;
 
   friend ReindexCacheWriteRewriter;
 };
@@ -2219,7 +2219,7 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
     ReindexCacheStageInfo* info, const IRModule& mod, const StmtSRef& block_sref,
     const ffi::String& storage_scope, const IndexMap& index_map, const SBlock& block,
     const SBlockRealize& realize, const BufferVar& old_buffer, const TensorRegion& cache_region) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   ffi::Array<PrimExpr> block_iter_vars, block_shape;
   for (const IterVar& iter_var : block->iter_vars) {
     block_iter_vars.push_back(iter_var);
@@ -2552,7 +2552,7 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
   SBlock block = ffi::GetRef<SBlock>(block_ptr);
   BufferVar buffer = GetNthAccessBuffer(self, block, buffer_index, buffer_index_type);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
 
   // Step 1. Collect the original indices and check there's only single pattern of related
   // Load/Store and the buffer is not accessed opaquely

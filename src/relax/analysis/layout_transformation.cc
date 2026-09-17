@@ -22,14 +22,14 @@
  * \brief Analyze the PrimFunc and suggest layout transformation on it's blocks and buffers based on
  * the user provided layout transformations on it's outputs.
  */
-#include <tvm/arith/analyzer.h>
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/index_map.h>
 
@@ -47,9 +47,9 @@ static bool IsBijectiveAffine(const IndexMap& m, const ffi::Array<Range>& ranges
   for (size_t i = 0; i < ranges.size(); i++) {
     input_iters.Set(m->initial_indices[i], ranges[i]);
   }
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   auto iter_map_result = DetectIterMap(m->final_indices, input_iters, /* predicate = */ 1,
-                                       /*check_level=*/arith::IterMapLevel::Bijective, analyzer,
+                                       /*check_level=*/sym::IterMapLevel::Bijective, analyzer,
                                        /*simplify_trivial_iterators=*/true);
   return !iter_map_result->indices.empty();
 }
@@ -62,7 +62,7 @@ static bool IsBijectiveAffine(const IndexMap& m, const ffi::Array<Range>& ranges
  */
 class IndexAnalyzer : public s_tir::StmtExprVisitor {
  public:
-  ffi::Array<tirx::Var> Analyze(const arith::IterSumExpr& expr) {
+  ffi::Array<tirx::Var> Analyze(const sym::IterSumExpr& expr) {
     Visit(expr);
     return iterators_;
   }
@@ -70,11 +70,11 @@ class IndexAnalyzer : public s_tir::StmtExprVisitor {
  private:
   /*! \brief Override Visit for iter expr type processing */
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
-    if (const auto* op = value.as<arith::IterSumExprNode>()) {
+    if (const auto* op = value.as<sym::IterSumExprNode>()) {
       for (const auto& arg : op->args) TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(arg));
       return Visit(op->base);
     }
-    if (const auto* op = value.as<arith::IterSplitExprNode>()) {
+    if (const auto* op = value.as<sym::IterSplitExprNode>()) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitIterMark(op->source));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->lower_factor));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->extent));
@@ -83,7 +83,7 @@ class IndexAnalyzer : public s_tir::StmtExprVisitor {
     return s_tir::StmtExprVisitor::Visit(value);
   }
 
-  ffi::Optional<VisitInterrupt> VisitIterMark(const arith::IterMark& op) {
+  ffi::Optional<VisitInterrupt> VisitIterMark(const sym::IterMark& op) {
     if (auto var = op->source.as<PrimVar>())
       iterators_.push_back(var.value());
     else
@@ -111,15 +111,15 @@ class IndexAnalyzer : public s_tir::StmtExprVisitor {
  * SpatialLayout(A[s0 * c + s1]) = undefined
  */
 using SpatialLayout = ffi::Array<ffi::Optional<tirx::Var>>;
-static SpatialLayout GetSpatialLayout(const arith::IterMapResult& iter_map_result) {
+static SpatialLayout GetSpatialLayout(const sym::IterMapResult& iter_map_result) {
   TVM_FFI_ICHECK(!iter_map_result->indices.empty());
   SpatialLayout result;
-  for (const arith::IterSumExpr& index : iter_map_result->indices) {
+  for (const sym::IterSumExpr& index : iter_map_result->indices) {
     auto index_analyzer = ffi::make_object<IndexAnalyzer>();
     ffi::Array<tirx::Var> iter_vars = index_analyzer->Analyze(index);
     if (iter_vars.size() >= 2) {
       LOG(WARNING) << "[LayoutInference] Unable to get spatial layout of access: "
-                   << arith::NormalizeIterMapToExpr(index);
+                   << sym::NormalizeIterMapToExpr(index);
       return {};
     }
     if (iter_vars.empty()) {
@@ -174,7 +174,7 @@ static bool AreIdenticalTransforms(const IndexMap& t0, const IndexMap& t1) {
   // Create a new shape expression.
   ffi::Array<PrimExpr> t1_initial_indices =
       t1->initial_indices.Map([](tirx::Var i) { return i.as_or_throw<PrimExpr>(); });
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   auto t0_output = t0->MapIndices(t1_initial_indices, analyzer);
   for (size_t i = 0; i < t0_output.size(); ++i) {
     if (!analyzer->CanProveEqual(t0_output[i], t1->final_indices[i])) return false;
@@ -456,9 +456,9 @@ class BlockAnalyzer : public s_tir::StmtExprVisitor {
 
   // Helper to break down the indices of buffer access.
   SpatialLayout DetectBufferAccessIterMap(ffi::Array<PrimExpr> indices) {
-    auto result = arith::DetectIterMap(
+    auto result = sym::DetectIterMap(
         /*indices=*/indices, /*input_iters*/ spatial_dom_,
-        /*predicate*/ 1, /*check_level*/ arith::IterMapLevel::NoCheck, arith_analyzer_);
+        /*predicate*/ 1, /*check_level*/ sym::IterMapLevel::NoCheck, sym_analyzer_);
     if (result->indices.empty()) {
       DLOG(INFO) << "[LayoutInference] Failed to analyze indices " << indices
                  << ", error: " << result->errors;
@@ -550,7 +550,7 @@ class BlockAnalyzer : public s_tir::StmtExprVisitor {
   bool can_transform_block_;
   IndexMap write_transformation_;
   ffi::Map<PrimVar, Range> spatial_dom_;
-  arith::Analyzer arith_analyzer_;
+  sym::Analyzer sym_analyzer_;
 
   s_tir::SBlock block_;
   IndexMap block_transformation_;

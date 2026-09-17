@@ -33,7 +33,7 @@ using namespace tirx;
 class StmtSimplifier final : public tirx::StmtSimplifier {
  public:
   using Parent = tirx::StmtSimplifier;
-  StmtSimplifier(const arith::Analyzer& analyzer, tirx::StmtSimplifyConfig config)
+  StmtSimplifier(const sym::Analyzer& analyzer, tirx::StmtSimplifyConfig config)
       : Parent(GlobalVTable(), analyzer, config) {}
   using Parent::Mutate_;
   using Parent::Run;
@@ -71,7 +71,7 @@ class StmtSimplifier final : public tirx::StmtSimplifier {
   }
 };
 
-PrimFunc StmtSimplify(PrimFunc func, const arith::Analyzer& analyzer) {
+PrimFunc StmtSimplify(PrimFunc func, const sym::Analyzer& analyzer) {
   auto config = tvm::transform::PassConfigWithDefaults<tirx::StmtSimplifyConfig>();
   return ffi::make_object<StmtSimplifier>(analyzer, config)->Run(std::move(func));
 }
@@ -79,7 +79,7 @@ PrimFunc StmtSimplify(PrimFunc func, const arith::Analyzer& analyzer) {
 namespace transform {
 Pass StmtSimplify() {
   auto pass_func = [](PrimFunc func, IRModule, tvm::transform::PassContext ctx) {
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     auto config = ctx->GetConfig<tirx::StmtSimplifyConfig>("tirx.StmtSimplify")
                       .value_or(tvm::transform::PassConfigWithDefaults<tirx::StmtSimplifyConfig>());
     return ffi::make_object<s_tir::StmtSimplifier>(analyzer, config)->Run(std::move(func));
