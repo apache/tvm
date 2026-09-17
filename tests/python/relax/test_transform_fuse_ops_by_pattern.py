@@ -1460,6 +1460,58 @@ def test_unique_boundary_output_precedes_last_group_binding():
     assert after["main"].body.body.same_as(grouped_result)
 
 
+def test_match_cast_checks_scalar_parameter():
+    """Checking a scalar parameter must not create a cyclic shape dependency."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((8,), "float32"), n: T.int64):
+            with R.dataflow():
+                positive = R.nn.relu(x)
+                positive2 = R.nn.relu(positive)
+                bound = R.match_cast(positive, R.Tensor((n,), "float32"))
+                value = R.call_pure_packed(
+                    "test.symbolic_arg", n, ty_args=R.Tensor((8,), "float32")
+                )
+                out = R.add(positive2, value)
+                R.output(out)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def fused_relax_nn_relu_relax_nn_relu_relax_add(
+            x: R.Tensor((8,), "float32"), value: R.Tensor((8,), "float32")
+        ):
+            R.func_attr({"Composite": "test.relu_relu_add", "Primitive": True})
+            with R.dataflow():
+                positive = R.nn.relu(x)
+                positive2 = R.nn.relu(positive)
+                out = R.add(positive2, value)
+                R.output(positive, out)
+            return (out, positive)
+
+        @R.function
+        def main(x: R.Tensor((8,), "float32"), n: T.int64):
+            cls = Expected
+            with R.dataflow():
+                value = R.call_pure_packed(
+                    "test.symbolic_arg", n, ty_args=R.Tensor((8,), "float32")
+                )
+                fused = cls.fused_relax_nn_relu_relax_nn_relu_relax_add(x, value)
+                positive = fused[1]
+                out = fused[0]
+                bound = R.match_cast(positive, R.Tensor((n,), "float32"))
+                R.output(out)
+            return out
+
+    pattern = is_op("relax.add")(
+        is_op("relax.nn.relu")(is_op("relax.nn.relu")(wildcard())), wildcard()
+    )
+    check(Before, [("test.relu_relu_add", pattern)], Expected)
+
+
 def test_inline_bound_static_shape_argument():
     """A static leaf binding should not become a grouped-function parameter."""
 

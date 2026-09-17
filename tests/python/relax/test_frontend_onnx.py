@@ -7666,6 +7666,80 @@ def test_slice():
     # )
 
 
+@pytest.mark.parametrize("input_shape", [(1, 4, 5, 5), (2, 3, 4, 4)])
+def test_size_slice_reshape_with_fusion(input_shape):
+    """Regression for #20177: preserve the runtime Slice shape before allocation."""
+    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape)
+    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, input_shape)
+    initializers = [
+        helper.make_tensor("flat_shape", TensorProto.INT64, [1], [-1]),
+        helper.make_tensor("size_shape", TensorProto.INT64, [1], [1]),
+        helper.make_tensor("slice_starts", TensorProto.INT64, [1], [0]),
+        helper.make_tensor("slice_axes", TensorProto.INT64, [1], [0]),
+        helper.make_tensor("slice_steps", TensorProto.INT64, [1], [1]),
+    ]
+    nodes = [
+        helper.make_node("Relu", ["x"], ["h0"]),
+        helper.make_node("Relu", ["h0"], ["positive"]),
+        helper.make_node("Reshape", ["x", "flat_shape"], ["flat"]),
+        helper.make_node("Size", ["flat"], ["size"]),
+        helper.make_node("Reshape", ["size", "size_shape"], ["size_1d"]),
+        helper.make_node(
+            "Slice",
+            ["flat", "slice_starts", "size_1d", "slice_axes", "slice_steps"],
+            ["projected"],
+        ),
+        helper.make_node("Shape", ["x"], ["x_shape"]),
+        helper.make_node("Reshape", ["projected", "x_shape"], ["splice"]),
+        helper.make_node("Add", ["positive", "splice"], ["y"]),
+    ]
+    graph = helper.make_graph(
+        nodes,
+        "vm_shape_lower_size_slice",
+        [x],
+        [y],
+        initializers,
+    )
+    # Keep the model compatible with the ONNX Runtime versions used in CI.
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)], ir_version=8)
+
+    onnx.checker.check_model(model)
+    session = onnxruntime.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
+    mod = from_onnx(model, opset=18, keep_params_in_input=True)
+    pipeline = tvm.transform.Sequential(
+        [
+            relax.backend.DispatchSampling(),
+            relax.backend.DispatchSortScan(),
+            relax.transform.LegalizeOps(),
+            relax.transform.AnnotateTIROpPattern(),
+            relax.transform.FoldConstant(),
+            relax.transform.FuseOps(fuse_opt_level=2),
+            relax.transform.FuseTIR(),
+            relax.transform.RewriteDataflowReshape(),
+            relax.transform.ToNonDataflow(),
+            relax.transform.RemovePurityChecking(),
+            relax.transform.CallTIRRewrite(),
+            relax.transform.StaticPlanBlockMemory(),
+            relax.transform.LowerAllocTensor(),
+            relax.transform.KillAfterLastUse(),
+            relax.transform.LowerRuntimeBuiltin(),
+            relax.transform.ComputePrimValue(),
+            relax.transform.VMShapeLower(emit_err_ctx=True),
+            relax.transform.AttachGlobalSymbol(),
+        ]
+    )
+    mod, params = relax.frontend.detach_params(mod)
+    executable = tvm.compile(mod, target="llvm", relax_pipeline=pipeline)
+    vm = relax.VirtualMachine(executable, tvm.cpu())
+    data = (np.arange(np.prod(input_shape), dtype="float32") % 7 - 3).reshape(input_shape)
+    actual = vm["main"](tvm.runtime.tensor(data), *params.get("main", [])).numpy()
+    expected = session.run(None, {"x": data})[0]
+    tvm.testing.assert_allclose(actual, expected)
+    tvm.testing.assert_allclose(actual, np.maximum(data, 0) + data)
+
+
 def test_slice_dynamic_inputs_ir():
     slice_node = helper.make_node("Slice", ["x", "starts", "ends", "axes", "steps"], ["y"])
 
