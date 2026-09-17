@@ -43,6 +43,7 @@ from tvm.ir.prim import _ffi_api as _prim_ffi_api
 from tvm.runtime import convert
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.ir import meta_var
+from tvm.script.ir_builder.ir.frame import IRModuleFrame
 from tvm.target import Target
 
 # pylint: disable=unused-import
@@ -99,6 +100,21 @@ from . import _ffi_api, frame, utils
 from .external_kernel import call_kernel
 
 # pylint: enable=unused-import
+
+
+def _call_global(func: ir.GlobalVar, *args: Expr) -> Call:
+    """Build a TIRX call using the declared function's exact result type."""
+    if IRBuilder.is_in_scope():
+        for module_frame in reversed(list(IRBuilder.current().frames)):
+            if isinstance(module_frame, IRModuleFrame) and func in module_frame.functions:
+                declaration = module_frame.functions[func]
+                if isinstance(declaration, tir.PrimFunc):
+                    # The Relax-facing signature may erase pointer results to Any.
+                    return Call(func, args, ret_ty=declaration.ret_type)
+                break
+    if isinstance(func.ty, ir.FuncType):
+        return Call(func, args, ret_ty=func.ty.ret_type)
+    return Call(func, args)
 
 
 def cast(value, dtype, span=None):

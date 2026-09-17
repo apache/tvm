@@ -31,10 +31,22 @@ from tvm.script.parser._core import Parser, collect_signature_type_vars, dispatc
 from tvm.script.parser.core.doc import from_doc
 from tvm.tirx import Buffer, IterVar, Layout, buffer_data, is_buffer_var
 from tvm.tirx.script import builder as T
-from tvm.tirx.script.builder.ir import name_meta_class_value
+from tvm.tirx.script.builder.ir import _call_global, name_meta_class_value
 
 from .entry import _OptionalAnnotation, inline
 from .entry import constexpr as _constexpr_sentinel
+
+
+@dispatch.register(token="tirx", type_name="enter_token")
+def enter_token(self: Parser) -> dict[str, Any]:
+    context = {"GlobalVar.__call__": GlobalVar.__call__}
+    GlobalVar.__call__ = _call_global
+    return context
+
+
+@dispatch.register(token="tirx", type_name="exit_token")
+def exit_token(self: Parser, context: dict[str, Any]) -> None:
+    GlobalVar.__call__ = context["GlobalVar.__call__"]
 
 
 def slice_buffer_from_region(br: TensorRegion) -> Buffer:
