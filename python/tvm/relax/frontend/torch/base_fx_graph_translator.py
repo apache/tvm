@@ -656,6 +656,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             result = relax.op.astype(result, input_dtype)
         return self.block_builder.emit(result)
 
+    def _reciprocal(self, node: fx.Node) -> relax.Var:
+        # torch.reciprocal is 1 / x under true-division rules: an integer or bool input
+        # comes back as the default float dtype, not as an integer quotient.
+        x = self.env[node.args[0]]
+        one, x = self._true_division_operands(1, x)
+        return self.block_builder.emit(relax.op.divide(one, x))
+
     def _softmax(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
@@ -719,47 +726,63 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     ########## Binary Ops ##########
 
+    def _promote_scalar_operand(self, tensor, scalar):
+        """Widen ``tensor`` if a Python ``scalar`` outranks it, and build the constant.
+
+        torch.result_type decides who wins: the tensor is only widened when the scalar's
+        category is higher (float scalar vs int tensor, int scalar vs bool tensor). The
+        constant is then built in that dtype rather than truncated to the tensor's.
+        """
+        target = self._scalar_result_dtype(tensor.ty.dtype, scalar) or tensor.ty.dtype
+        if str(tensor.ty.dtype) != str(target):
+            tensor = self.block_builder.emit(relax.op.astype(tensor, target))
+        return tensor, relax.const(scalar, target)
+
+    def _promote_binary_operands(self, lhs, rhs):
+        """Bring the two operands of a binary op to torch's promoted dtype."""
+        if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
+            lhs_si = getattr(lhs, "ty", None)
+            rhs_si = getattr(rhs, "ty", None)
+            if isinstance(lhs_si, relax.TensorType) and isinstance(rhs_si, relax.TensorType):
+                target_dtype = self._promote_common_dtype(lhs_si.dtype, rhs_si.dtype)
+                if target_dtype is not None:
+                    if lhs_si.dtype != target_dtype:
+                        lhs = self.block_builder.emit(relax.op.astype(lhs, target_dtype))
+                    if rhs_si.dtype != target_dtype:
+                        rhs = self.block_builder.emit(relax.op.astype(rhs, target_dtype))
+            return lhs, rhs
+        elif isinstance(lhs, relax.Expr):
+            assert isinstance(lhs.ty, relax.TensorType)
+            return self._promote_scalar_operand(lhs, rhs)
+        elif isinstance(rhs, relax.Expr):
+            assert isinstance(rhs.ty, relax.TensorType)
+            rhs, lhs = self._promote_scalar_operand(rhs, lhs)
+            return lhs, rhs
+        else:
+            assert False
+
+    def _true_division_operands(self, lhs, rhs):
+        """Promote for ``a / b``: integer and bool operands divide as the default float.
+
+        torch's true division always produces a floating result -- ``int64 / int64`` and
+        ``int64 / 2`` are float32, not a truncating integer quotient -- so after the usual
+        promotion an integral or bool pair is cast to the default float dtype.
+        """
+        lhs, rhs = self._promote_binary_operands(lhs, rhs)
+        dtype = getattr(getattr(lhs, "ty", None), "dtype", None)
+        if dtype is not None and (
+            dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) or str(dtype) == "bool"
+        ):
+            lhs = self.block_builder.emit(relax.op.astype(lhs, "float32"))
+            rhs = self.block_builder.emit(relax.op.astype(rhs, "float32"))
+        return lhs, rhs
+
     def _binary_op(self, relax_op: Callable, intrinsic_op: Callable) -> Callable:
         from torch import fx
 
         def convert(node: fx.Node) -> relax.Var:
-            def promote_binary_op_args(lhs, rhs):
-                if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
-                    lhs_si = getattr(lhs, "ty", None)
-                    rhs_si = getattr(rhs, "ty", None)
-                    if isinstance(lhs_si, relax.TensorType) and isinstance(
-                        rhs_si, relax.TensorType
-                    ):
-                        target_dtype = self._promote_common_dtype(lhs_si.dtype, rhs_si.dtype)
-                        if target_dtype is not None:
-                            if lhs_si.dtype != target_dtype:
-                                lhs = self.block_builder.emit(relax.op.astype(lhs, target_dtype))
-                            if rhs_si.dtype != target_dtype:
-                                rhs = self.block_builder.emit(relax.op.astype(rhs, target_dtype))
-                    return lhs, rhs
-                elif isinstance(lhs, relax.Expr):
-                    assert isinstance(lhs.ty, relax.TensorType)
-                    lhs, rhs = promote_scalar_operand(lhs, rhs)
-                    return lhs, rhs
-                elif isinstance(rhs, relax.Expr):
-                    assert isinstance(rhs.ty, relax.TensorType)
-                    rhs, lhs = promote_scalar_operand(rhs, lhs)
-                    return lhs, rhs
-                else:
-                    assert False
-
-            def promote_scalar_operand(tensor, scalar):
-                # torch.result_type decides who wins; the tensor is only widened when the
-                # scalar's category is higher (float scalar vs int tensor, int scalar vs
-                # bool tensor). The constant is then built in that dtype rather than
-                # truncated to the tensor's.
-                target = self._scalar_result_dtype(tensor.ty.dtype, scalar) or tensor.ty.dtype
-                if str(tensor.ty.dtype) != str(target):
-                    tensor = self.block_builder.emit(relax.op.astype(tensor, target))
-                return tensor, relax.const(scalar, target)
-
             def call_binary_op(op, lhs, rhs):
-                lhs, rhs = promote_binary_op_args(lhs, rhs)
+                lhs, rhs = self._promote_binary_operands(lhs, rhs)
                 return self.block_builder.emit(op(lhs, rhs))
 
             lhs, rhs = self.retrieve_args(node)
@@ -797,31 +820,37 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return result
         return self._binary_op(relax.op.power, operator.pow)(node)
 
+    def _true_divide(self, node: fx.Node) -> relax.Var:
+        lhs, rhs = self.retrieve_args(node)
+        if not isinstance(lhs, relax.Expr) and not isinstance(rhs, relax.Expr):
+            return operator.truediv(lhs, rhs)
+        lhs, rhs = self._true_division_operands(lhs, rhs)
+        return self.block_builder.emit(relax.op.divide(lhs, rhs))
+
     def _div(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
-        inp_1 = args[0]
-        inp_2 = args[1]
-
-        # Handle scalar cases
-        if isinstance(inp_2, int | float):
-            inp_2 = relax.const(inp_2)
-
-        # Get rounding_mode from node kwargs
+        lhs, rhs = args[0], args[1]
         rounding_mode = args[2] if len(node.args) > 2 else node.kwargs.get("rounding_mode", None)
 
-        # Perform division based on rounding mode
         if rounding_mode is None:
-            # True division (normal float division)
-            return self.block_builder.emit(relax.op.divide(inp_1, inp_2))
-        elif rounding_mode == "floor":
-            # Floor division
-            return self.block_builder.emit(relax.op.floor_divide(inp_1, inp_2))
-        elif rounding_mode == "trunc":
-            # Trunc division: perform true division then truncate
-            true_div = self.block_builder.emit(relax.op.divide(inp_1, inp_2))
+            lhs, rhs = self._true_division_operands(lhs, rhs)
+            return self.block_builder.emit(relax.op.divide(lhs, rhs))
+
+        # With a rounding mode the result keeps the promoted dtype: an integer pair
+        # stays integer. Both operands are promoted first so a Python scalar lands in
+        # the tensor's dtype (or widens it) instead of arriving as a dtype-less
+        # constant that fails the same-dtype check on every float tensor.
+        lhs, rhs = self._promote_binary_operands(lhs, rhs)
+        if rounding_mode == "floor":
+            return self.block_builder.emit(relax.op.floor_divide(lhs, rhs))
+        if rounding_mode == "trunc":
+            dtype = getattr(getattr(lhs, "ty", None), "dtype", None)
+            if dtype is not None and dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT):
+                # Integer division in relax truncates toward zero already.
+                return self.block_builder.emit(relax.op.divide(lhs, rhs))
+            true_div = self.block_builder.emit(relax.op.divide(lhs, rhs))
             return self.block_builder.emit(relax.op.trunc(true_div))
-        else:
-            raise ValueError(f"Unsupported rounding_mode: {rounding_mode}")
+        raise ValueError(f"Unsupported rounding_mode: {rounding_mode}")
 
     def _fmod(self, node: fx.Node):
         args = self.retrieve_args(node)

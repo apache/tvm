@@ -1532,6 +1532,80 @@ def test_binary_python_scalar_promotion_sub_pow_remainder(dtype, scalar):
         _verify_scalar_promotion(model, x)
 
 
+def test_true_division_of_integers_gives_float():
+    # torch's `/` always produces a floating result: int64 / 2 is float32, not a
+    # truncating integer quotient. That rule sits on top of scalar promotion (an int
+    # scalar alone would not widen an int tensor), so it has its own converter.
+    class Div(Module):
+        def forward(self, x):
+            return x / 2
+
+    @tvm.script.ir_module
+    class expected_div:
+        @R.function
+        def main(x: R.Tensor((3,), dtype="int64")) -> R.Tuple(R.Tensor((3,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="float32") = R.astype(x, dtype="float32")
+                lv1: R.Tensor((), dtype="float32") = R.astype(R.const(2, "int64"), dtype="float32")
+                lv2: R.Tensor((3,), dtype="float32") = R.divide(lv, lv1)
+                gv: R.Tuple(R.Tensor((3,), dtype="float32")) = (lv2,)
+                R.output(gv)
+            return gv
+
+    verify_model(Div(), (torch.tensor([3, 4, 5]),), {}, expected_div)
+
+
+@pytest.mark.parametrize(
+    "dtype, scalar",
+    [(torch.int64, 2), (torch.int32, 3), (torch.uint8, 2), (torch.bool, 2), (torch.int64, 2.5)],
+)
+def test_true_division_values(dtype, scalar):
+    class Div(Module):
+        def forward(self, x):
+            return x / scalar
+
+    class RDiv(Module):
+        def forward(self, x):
+            return scalar / x
+
+    class DivTensor(Module):
+        def forward(self, x):
+            return x / (x + 1)
+
+    x = (
+        torch.tensor([3, 4, 5], dtype=dtype)
+        if dtype is not torch.bool
+        else torch.tensor([True, True, False])
+    )
+    for model in (Div(), DivTensor()) + ((RDiv(),) if dtype is not torch.bool else ()):
+        _verify_scalar_promotion(model, x)
+
+
+@pytest.mark.parametrize("dtype", [torch.int64, torch.int32, torch.float32])
+def test_division_with_rounding_mode(dtype):
+    # `//` and torch.div(..., rounding_mode=...) keep the promoted dtype -- an integer
+    # pair stays integer -- and the negative inputs tell floor and trunc apart.
+    class FloorDiv(Module):
+        def forward(self, x):
+            return x // 2
+
+    class DivFloor(Module):
+        def forward(self, x):
+            return torch.div(x, 2, rounding_mode="floor")
+
+    class DivTrunc(Module):
+        def forward(self, x):
+            return torch.div(x, 2, rounding_mode="trunc")
+
+    class DivFloorTensor(Module):
+        def forward(self, x):
+            return torch.div(x, x - 4, rounding_mode="floor")
+
+    x = torch.tensor([-7, -3, 3, 7], dtype=dtype)
+    for model in (FloorDiv(), DivFloor(), DivTrunc(), DivFloorTensor()):
+        _verify_scalar_promotion(model, x)
+
+
 operator_binary_2 = [
     (operator.eq, R.equal),
     (operator.ne, R.not_equal),
