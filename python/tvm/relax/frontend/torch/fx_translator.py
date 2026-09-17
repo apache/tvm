@@ -64,10 +64,6 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     ########## Unary Ops ##########
 
-    def _reciprocal(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        return self.block_builder.emit(relax.op.divide(relax.const(1.0, x.ty.dtype), x))
-
     def _leakyrelu_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -942,7 +938,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "rshift": self._binary_op(relax.op.right_shift, operator.rshift),
             "rsub": self._rsub,
             "sub": self._binary_op(relax.op.subtract, operator.sub),
-            "truediv": self._binary_op(relax.op.divide, operator.truediv),
+            "truediv": self._true_divide,
             "xor": self._binary_op(relax.op.bitwise_xor, operator.xor),
             # neural network
             "adaptive_avg_pool1d": self._adaptive_avg_pool1d,

@@ -98,10 +98,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         one = relax.const(1, x.ty.dtype.dtype)
         return self.block_builder.emit(relax.op.log(relax.op.add(x, one)))
 
-    def _reciprocal(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        return self.block_builder.emit(relax.op.divide(relax.const(1.0, x.ty.dtype.dtype), x))
-
     def _sqrt(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         dtype = x.ty.dtype.dtype
@@ -1850,8 +1846,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "bitwise_xor.Scalar": self._binary_op(relax.op.bitwise_xor, operator.xor),
             "bitwise_or_.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
             "bitwise_or.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
-            "div.Scalar": self._binary_op(relax.op.divide, operator.truediv),
-            "div.Tensor": self._binary_op(relax.op.divide, operator.truediv),
+            "div.Scalar": self._true_divide,
+            "div.Tensor": self._true_divide,
             "div.Tensor_mode": self._div,
             "eq.Scalar": self._binary_op(relax.op.equal, operator.eq),
             "eq.Tensor": self._binary_op(relax.op.equal, operator.eq),

@@ -1435,6 +1435,177 @@ def test_binary_dtype_promotion(op, relax_op):
     verify_model(BinaryPromoteRHS(), example_args, {}, expected_promote_rhs)
 
 
+def test_binary_python_scalar_promotes_the_tensor():
+    # A Python scalar only widens the tensor when its category is higher, and then the
+    # constant has to be built in the promoted dtype. Truncating the scalar to the
+    # tensor's dtype instead turns ``x + 0.5`` on an int64 tensor into ``x + 0``.
+    class AddHalf(Module):
+        def forward(self, x):
+            return x + 0.5
+
+    @tvm.script.ir_module
+    class expected_add_half:
+        @R.function
+        def main(x: R.Tensor((3,), dtype="int64")) -> R.Tuple(R.Tensor((3,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="float32") = R.astype(x, dtype="float32")
+                lv1: R.Tensor((3,), dtype="float32") = R.add(lv, R.const(0.5, "float32"))
+                gv: R.Tuple(R.Tensor((3,), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    verify_model(AddHalf(), (torch.tensor([1, 2, 3]),), {}, expected_add_half)
+
+
+def _scalar_promotion_cases():
+    """(tensor dtype, scalar): torch.result_type decides the outcome in every case."""
+    return [
+        (torch.int64, 0.5),
+        (torch.int32, 1.5),
+        (torch.uint8, -0.5),
+        (torch.int64, 2),
+        (torch.float16, 2),
+        (torch.float32, True),
+        (torch.bool, 2),
+        (torch.bool, 0.5),
+    ]
+
+
+def _scalar_input(dtype):
+    if dtype is torch.bool:
+        return torch.tensor([True, False, True])
+    return torch.tensor([1, 2, 3], dtype=dtype)
+
+
+def _verify_scalar_promotion(model, x):
+    # Compare both the result dtype and the values: the failure mode this guards is
+    # ``int * 0.5`` coming back as an int64 tensor of zeros, which a shape check passes.
+    with torch.no_grad():
+        want = model(x)
+    mod = from_exported_program(export(model, (x,)))
+    got_dtype = str(mod["main"].ret_ty.fields[0].dtype)
+    assert got_dtype == str(want.dtype).replace("torch.", ""), (
+        f"result dtype {got_dtype}, torch gives {want.dtype}"
+    )
+    verify_model_numerically(model, (x,), rtol=1e-3, atol=1e-3)
+
+
+@pytest.mark.parametrize("op", [operator.add, operator.mul, operator.lt, operator.ge, operator.eq])
+@pytest.mark.parametrize("dtype, scalar", _scalar_promotion_cases())
+def test_binary_python_scalar_promotion_values(op, dtype, scalar):
+    class Scalar(Module):
+        def forward(self, x):
+            return op(x, scalar)
+
+    class ScalarOnTheLeft(Module):
+        def forward(self, x):
+            return op(scalar, x)
+
+    x = _scalar_input(dtype)
+    _verify_scalar_promotion(Scalar(), x)
+    _verify_scalar_promotion(ScalarOnTheLeft(), x)
+
+
+@pytest.mark.parametrize(
+    "dtype, scalar", [(torch.int64, 0.5), (torch.int32, 1.5), (torch.int64, 2)]
+)
+def test_binary_python_scalar_promotion_sub_pow_remainder(dtype, scalar):
+    # These three reject a bool tensor in torch, so they get their own case list.
+    class Sub(Module):
+        def forward(self, x):
+            return x - scalar
+
+    class RSub(Module):
+        def forward(self, x):
+            return scalar - x
+
+    class Pow(Module):
+        def forward(self, x):
+            return x**scalar
+
+    class Remainder(Module):
+        def forward(self, x):
+            return x % scalar
+
+    x = _scalar_input(dtype)
+    for model in (Sub(), RSub(), Pow(), Remainder()):
+        _verify_scalar_promotion(model, x)
+
+
+def test_true_division_of_integers_gives_float():
+    # torch's `/` always produces a floating result: int64 / 2 is float32, not a
+    # truncating integer quotient. That rule sits on top of scalar promotion (an int
+    # scalar alone would not widen an int tensor), so it has its own converter.
+    class Div(Module):
+        def forward(self, x):
+            return x / 2
+
+    @tvm.script.ir_module
+    class expected_div:
+        @R.function
+        def main(x: R.Tensor((3,), dtype="int64")) -> R.Tuple(R.Tensor((3,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="float32") = R.astype(x, dtype="float32")
+                lv1: R.Tensor((), dtype="float32") = R.astype(R.const(2, "int64"), dtype="float32")
+                lv2: R.Tensor((3,), dtype="float32") = R.divide(lv, lv1)
+                gv: R.Tuple(R.Tensor((3,), dtype="float32")) = (lv2,)
+                R.output(gv)
+            return gv
+
+    verify_model(Div(), (torch.tensor([3, 4, 5]),), {}, expected_div)
+
+
+@pytest.mark.parametrize(
+    "dtype, scalar",
+    [(torch.int64, 2), (torch.int32, 3), (torch.uint8, 2), (torch.bool, 2), (torch.int64, 2.5)],
+)
+def test_true_division_values(dtype, scalar):
+    class Div(Module):
+        def forward(self, x):
+            return x / scalar
+
+    class RDiv(Module):
+        def forward(self, x):
+            return scalar / x
+
+    class DivTensor(Module):
+        def forward(self, x):
+            return x / (x + 1)
+
+    x = (
+        torch.tensor([3, 4, 5], dtype=dtype)
+        if dtype is not torch.bool
+        else torch.tensor([True, True, False])
+    )
+    for model in (Div(), DivTensor()) + ((RDiv(),) if dtype is not torch.bool else ()):
+        _verify_scalar_promotion(model, x)
+
+
+@pytest.mark.parametrize("dtype", [torch.int64, torch.int32, torch.float32])
+def test_division_with_rounding_mode(dtype):
+    # `//` and torch.div(..., rounding_mode=...) keep the promoted dtype -- an integer
+    # pair stays integer -- and the negative inputs tell floor and trunc apart.
+    class FloorDiv(Module):
+        def forward(self, x):
+            return x // 2
+
+    class DivFloor(Module):
+        def forward(self, x):
+            return torch.div(x, 2, rounding_mode="floor")
+
+    class DivTrunc(Module):
+        def forward(self, x):
+            return torch.div(x, 2, rounding_mode="trunc")
+
+    class DivFloorTensor(Module):
+        def forward(self, x):
+            return torch.div(x, x - 4, rounding_mode="floor")
+
+    x = torch.tensor([-7, -3, 3, 7], dtype=dtype)
+    for model in (FloorDiv(), DivFloor(), DivTrunc(), DivFloorTensor()):
+        _verify_scalar_promotion(model, x)
+
+
 operator_binary_2 = [
     (operator.eq, R.equal),
     (operator.ne, R.not_equal),
@@ -8120,16 +8291,20 @@ def test_linspace():
                 lv: R.Tensor((9,), dtype="int64") = R.arange(
                     R.prim_value(0), R.prim_value(9), R.prim_value(1), dtype="int64"
                 )
-                lv1: R.Tensor((9,), dtype="bool") = R.less(lv, R.const(4, "int64"))
-                lv2: R.Tensor((9,), dtype="float32") = R.astype(lv, dtype="float32")
-                lv3: R.Tensor((9,), dtype="float32") = R.multiply(lv2, R.const(0.125, "float32"))
-                lv4: R.Tensor((9,), dtype="float32") = R.add(lv3, R.const(0.0, "float32"))
-                lv5: R.Tensor((9,), dtype="int64") = R.subtract(R.const(8, "int64"), lv)
-                lv6: R.Tensor((9,), dtype="float32") = R.astype(lv5, dtype="float32")
-                lv7: R.Tensor((9,), dtype="float32") = R.multiply(lv6, R.const(0.125, "float32"))
-                lv8: R.Tensor((9,), dtype="float32") = R.subtract(R.const(1.0, "float32"), lv7)
-                lv9: R.Tensor((9,), dtype="float32") = R.where(lv1, lv4, lv8)
-                gv: R.Tuple(R.Tensor((9,), dtype="float32")) = (lv9,)
+                # torch's decomposition splits the range at ``i < 4.5``: the float
+                # scalar promotes the int64 index to float32 rather than being
+                # truncated to ``i < 4``.
+                lv1: R.Tensor((9,), dtype="float32") = R.astype(lv, dtype="float32")
+                lv2: R.Tensor((9,), dtype="bool") = R.less(lv1, R.const(4.5, "float32"))
+                lv3: R.Tensor((9,), dtype="float32") = R.astype(lv, dtype="float32")
+                lv4: R.Tensor((9,), dtype="float32") = R.multiply(lv3, R.const(0.125, "float32"))
+                lv5: R.Tensor((9,), dtype="float32") = R.add(lv4, R.const(0.0, "float32"))
+                lv6: R.Tensor((9,), dtype="int64") = R.subtract(R.const(8, "int64"), lv)
+                lv7: R.Tensor((9,), dtype="float32") = R.astype(lv6, dtype="float32")
+                lv8: R.Tensor((9,), dtype="float32") = R.multiply(lv7, R.const(0.125, "float32"))
+                lv9: R.Tensor((9,), dtype="float32") = R.subtract(R.const(1.0, "float32"), lv8)
+                lv10: R.Tensor((9,), dtype="float32") = R.where(lv2, lv5, lv9)
+                gv: R.Tuple(R.Tensor((9,), dtype="float32")) = (lv10,)
                 R.output(gv)
             return gv
 
