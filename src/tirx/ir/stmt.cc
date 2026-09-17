@@ -37,7 +37,6 @@
 #include <vector>
 
 #include "buffer_common.h"
-#include "functor_common.h"
 #include "seq_stmt_mutate.h"
 
 namespace tvm {
