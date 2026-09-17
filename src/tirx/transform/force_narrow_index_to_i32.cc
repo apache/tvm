@@ -69,19 +69,22 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
     return ffi::Unchanged();
   }
 
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
-    SBlock block_ = IndexDataTypeNormalizer::Mutate_(block, inplace_mode)
-                        .ValueOrUnchanged(ffi::GetRef<Stmt>(block))
-                        .as_or_throw<SBlock>();
-    // Check if the allocated integer buffers have dtype other than int32.
-    for (const BufferVar& buf : block_->alloc_buffers) {
-      if (buf->dtype.MatchesCode(DLDataTypeCode::kDLInt) && buf->dtype.bits() > 32) {
-        TVM_FFI_THROW(InternalError)
-            << "The buffer " << buf << " allocated in the function has dtype " << buf->dtype
-            << ". The function is " << func_;
-      }
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    auto result = IndexDataTypeNormalizer::Mutate_(op, inplace_mode);
+    auto alloc =
+        std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<AllocBuffer>();
+    const BufferVar& buf = alloc->buffer;
+    // Scalar assignments in TVMScript use local scalar storage.  Keep its explicit
+    // dtype (e.g. an int64 opaque call result) and cast at narrowed index uses.
+    // IsScalar checks the scalar layout contract, not merely the allocation size.
+    bool is_local_scalar = buf.scope() == "local" && buf.IsScalar();
+    if (!is_local_scalar && buf->dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
+        buf->dtype.bits() > 32) {
+      TVM_FFI_THROW(InternalError)
+          << "The buffer " << buf << " allocated in the function has dtype " << buf->dtype
+          << ". The function is " << func_;
     }
-    return block_;
+    return alloc;
   }
 
   PrimFunc func_;

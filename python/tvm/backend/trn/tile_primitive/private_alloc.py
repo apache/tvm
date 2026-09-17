@@ -67,7 +67,8 @@ def alloc_const_bias_trn(
         new_shape, dtype=_scalar_dtype(bias), scope="trn.sbuf", buffer_name="const_bias"
     )
 
-    @T.prim_func
+    # This fragment captures buffers and indices from its insertion scope.
+    @T.prim_func(check_well_formed=False)
     def const_bias_init():
         with T.attr(0, "tensorized_nki_instruction", 1):
             for p_loop in T.serial(0, par_size, annotations={"nki_dim": "P"}):
@@ -117,7 +118,8 @@ def alloc_identity_trn(
         new_shape, dtype=op.srcs[0].source.ty.dtype, scope="trn.sbuf", buffer_name="identity"
     )
 
-    @T.prim_func
+    # This fragment captures buffers and indices from its insertion scope.
+    @T.prim_func(check_well_formed=False)
     def identity_init():
         with T.attr(0, "tensorized_nki_instruction", 1):
             for p_loop in T.serial(0, par_size, annotations={nki_dim: "P"}):

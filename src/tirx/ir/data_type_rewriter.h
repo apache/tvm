@@ -40,8 +40,6 @@ namespace tirx {
  *  bounds.
  * - The data type of the binary and ternary expressions must be consistent with the data types of
  * each of their operands.
- * - The data type of the bounds and binding values of block iter vars must be consistent with the
- * data type of the block iter vars.
  *
  * Usually we enforce the consistency of data types when constructing the IR nodes. However, such
  * inconsistency may happen as a result of IR mutation in some passes. This class can be used as
@@ -49,14 +47,14 @@ namespace tirx {
  */
 class DataTypeLegalizer : public StmtExprMutator {
  public:
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(DataTypeLegalizer, StmtExprMutator)
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
  protected:
+  explicit DataTypeLegalizer(const VTable* vtable) : StmtExprMutator(vtable) {}
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::RampNode* op, InplaceMode inplace_mode) override;
@@ -99,14 +97,14 @@ class DataTypeLegalizer : public StmtExprMutator {
  */
 class IndexDataTypeRewriter : public DataTypeLegalizer {
  public:
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IndexDataTypeRewriter, DataTypeLegalizer)
   using DataTypeLegalizer::Mutate;
   using DataTypeLegalizer::Mutate_;
 
  protected:
+  explicit IndexDataTypeRewriter(const VTable* vtable) : DataTypeLegalizer(vtable) {}
   using Parent = DataTypeLegalizer;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override;
-  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) override;
@@ -124,10 +122,6 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
 
-  ffi::Map<ffi::String, ffi::Any> VisitBlockAnnotations(
-      const ffi::Map<ffi::String, ffi::Any>& annotations);
-  TensorRegion VisitBufferRegion(const TensorRegion& region);
-  IterVar VisitIterVar(const IterVar& iter_var);
   // indicator of index expr to rewrite
   bool is_enabled_{false};
   // indicator of condition
@@ -149,6 +143,7 @@ class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
   PrimFunc Rewrite(PrimFunc func);
 
  protected:
+  IndexDataTypeNormalizer(PrimType target_data_type, const VTable* vtable);
   using Parent = IndexDataTypeRewriter;
 
   UnchangedOr<PrimExpr> Mutate_(const IntImmNode* op, InplaceMode inplace_mode) override;

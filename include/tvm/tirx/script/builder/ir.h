@@ -125,7 +125,7 @@ BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
 /*!
  * \brief The block declaration statement.
  * \param name The name of the block.
- * \param no_realize The flag whether to construct SBlockRealize or SBlock.
+ * \param no_realize The flag whether to construct s_tir::SBlockRealize or s_tir::SBlock.
  * \return The SBlockFrame.
  */
 SBlockFrame Block(ffi::String name, bool no_realize = false, ffi::String exec_scope = "");

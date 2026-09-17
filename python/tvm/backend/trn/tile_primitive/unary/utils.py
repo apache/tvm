@@ -105,7 +105,8 @@ def get_const_bias_tensor(bias, shape, dtype, workspace, sctx):
         bias_buffer = T.buffer(shape, dtype, scope="trn.sbuf", buffer_name="const_bias")
         sctx.add_alloc_buffer(bias_buffer)
 
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.prim_func(check_well_formed=False)
         def const_bias_init():
             with T.attr(0, "tensorized_nki_instruction", 1):
                 for p_loop in T.serial(0, shape[0], annotations={nki_dim: "P"}):
@@ -166,7 +167,8 @@ def generate_unary_func(
         bias_buffer = bias.source
 
     # fmt: off
-    @T.prim_func
+    # This fragment captures buffers and indices from its insertion scope.
+    @T.prim_func(check_well_formed=False)
     def impl():
         for b_loop in T.serial(0, b_extent):
             with T.attr(0, "tensorized_nki_instruction", 1):

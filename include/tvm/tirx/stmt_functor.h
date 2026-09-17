@@ -116,12 +116,6 @@ class StmtFunctor<R(const Stmt&, Args...)> {
   virtual R Dispatch_(const EvaluateNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  virtual R Dispatch_(const SBlockNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const SBlockRealizeNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
   virtual R Dispatch_(const ScopeIdDefStmtNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
@@ -141,6 +135,10 @@ class StmtFunctor<R(const Stmt&, Args...)> {
   explicit StmtFunctor(const VTable* vtable) : vtable_(vtable) {}
   /*! \brief Register statement hooks in a fresh mutable table. */
   static void InitVTable(VTable* vtable) {
+    vtable->template SetDispatch<StmtNode>(
+        [](const ffi::ObjectRef& node, TSelf* self, Args... args) -> R {
+          return self->DispatchDefault_(node.get(), std::forward<Args>(args)...);
+        });
     SetDispatch<TSelf, BindNode>(vtable);
     SetDispatch<TSelf, AttrStmtNode>(vtable);
     SetDispatch<TSelf, IfThenElseNode>(vtable);
@@ -155,8 +153,6 @@ class StmtFunctor<R(const Stmt&, Args...)> {
     SetDispatch<TSelf, AssertStmtNode>(vtable);
     SetDispatch<TSelf, SeqStmtNode>(vtable);
     SetDispatch<TSelf, EvaluateNode>(vtable);
-    SetDispatch<TSelf, SBlockNode>(vtable);
-    SetDispatch<TSelf, SBlockRealizeNode>(vtable);
     SetDispatch<TSelf, ScopeIdDefStmtNode>(vtable);
     SetDispatch<TSelf, tirx::TilePrimitiveCallNode>(vtable);
   }
@@ -216,8 +212,6 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
   virtual ffi::Optional<VisitInterrupt> Visit_(const AssertStmtNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op);
-  virtual ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op);
-  virtual ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const ScopeIdDefStmtNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const TilePrimitiveCallNode* op);
 
@@ -233,10 +227,10 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const prim::BroadcastNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const prim::ShuffleNode* op) override;
 
- protected:
-  // Visit definition metadata as uses, separately from the buffer Var definition.
+  /*! \brief Visit definition metadata as uses, separately from the buffer Var definition. */
   ffi::Optional<VisitInterrupt> VisitBufferMetadata(const BufferVar& buffer);
 
+ protected:
   explicit StmtExprVisitor(const VTable* vtable) : tvm::ExprVisitor(vtable) {}
   static void InitVTable(VTable* vtable);
 };
@@ -282,8 +276,6 @@ class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
   virtual UnchangedOr<Stmt> Mutate_(const AssertStmtNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode);
-  virtual UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode);
-  virtual UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const ScopeIdDefStmtNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const TilePrimitiveCallNode* op, InplaceMode inplace_mode);
 
@@ -297,7 +289,11 @@ class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
  * \param stmt The source statement to be substituted
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
  *
- * Substitution may change the data type of the expression.
+ * This statement overload legalizes only core TIRX nodes.  Dtype-changing
+ * substitutions must be applied after lowering dialect blocks: structural
+ * traversal of extension statements does not legalize their iterator domains or
+ * bindings.  Type-preserving mappings continue to traverse schedulable blocks
+ * structurally before lowering.
  *
  * \return The result.
  */
@@ -334,12 +330,11 @@ bool ContainsNode(const Stmt& stmt) {
       if (contains_node || value.as<ExprNode>()) {
         return std::nullopt;
       }
+      if (value.as<Node>()) {
+        contains_node = true;
+        return std::nullopt;
+      }
       return StmtExprVisitor::Visit(value);
-    }
-
-    ffi::Optional<VisitInterrupt> Visit_(const Node* block) override {
-      contains_node = true;
-      return std::nullopt;
     }
 
     bool contains_node{false};

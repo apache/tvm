@@ -242,7 +242,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       in_thread_env_ = false;
     } else if (op->attr_key == attr::extern_scope) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
-    } else if (op->attr_key == s_tir::attr::virtual_thread) {
+    } else if (op->attr_key == tvm::tirx::attr::virtual_thread) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
     } else {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
@@ -668,7 +668,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread ||
+    if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread ||
         attr::IsPragmaKey(op->attr_key)) {
       // remake all the allocation at the attach scope.
       if (attach_map_.count(op)) {
@@ -1088,8 +1088,8 @@ class StoragePlanRewriter : public StmtExprMutator {
       // enter/exit new scope
       if (s.stmt->IsInstance<AttrStmtNode>()) {
         const auto* op = static_cast<const AttrStmtNode*>(s.stmt);
-        if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread ||
-            attr::IsPragmaKey(op->attr_key)) {
+        if (op->attr_key == attr::thread_extent ||
+            op->attr_key == tvm::tirx::attr::virtual_thread || attr::IsPragmaKey(op->attr_key)) {
           PlanNewScope(op);
         } else {
           TVM_FFI_ICHECK(op->attr_key == attr::extern_scope);
