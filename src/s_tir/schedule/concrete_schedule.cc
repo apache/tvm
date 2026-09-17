@@ -20,8 +20,8 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/s_tir/function.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/tensor_intrin.h>
 
 #include <random>
 

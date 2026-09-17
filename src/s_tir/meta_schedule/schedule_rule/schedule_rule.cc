@@ -18,7 +18,7 @@
  */
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/s_tir/function.h>
+#include <tvm/s_tir/tensor_intrin.h>
 
 #include "../utils.h"
 

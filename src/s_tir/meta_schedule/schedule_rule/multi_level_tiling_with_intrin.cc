@@ -18,8 +18,8 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/s_tir/function.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/tensor_intrin.h>
 
 #include "../../schedule/analysis.h"
 #include "../../schedule/transform.h"

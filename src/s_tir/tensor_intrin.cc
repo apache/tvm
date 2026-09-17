@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file src/s_tir/function.cc
+ * \file src/s_tir/tensor_intrin.cc
  * \brief Tensor intrinsic registry and construction.
  */
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/s_tir/function.h>
+#include <tvm/s_tir/tensor_intrin.h>
 
 namespace tvm {
 namespace s_tir {

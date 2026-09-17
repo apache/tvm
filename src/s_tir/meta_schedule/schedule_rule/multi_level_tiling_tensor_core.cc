@@ -18,9 +18,9 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/s_tir/function.h>
 #include <tvm/s_tir/meta_schedule/schedule_rule.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/tensor_intrin.h>
 #include <tvm/tirx/op.h>
 
 #include <algorithm>

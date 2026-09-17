@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/s_tir/function.h
+ * \file tvm/s_tir/tensor_intrin.h
  * \brief Tensor intrinsics for schedulable TIR.
  */
-#ifndef TVM_S_TIR_FUNCTION_H_
-#define TVM_S_TIR_FUNCTION_H_
+#ifndef TVM_S_TIR_TENSOR_INTRIN_H_
+#define TVM_S_TIR_TENSOR_INTRIN_H_
 
 #include <tvm/tirx/function.h>
 
@@ -87,4 +87,4 @@ class TensorIntrin : public ffi::ObjectRef {
 
 }  // namespace s_tir
 }  // namespace tvm
-#endif  // TVM_S_TIR_FUNCTION_H_
+#endif  // TVM_S_TIR_TENSOR_INTRIN_H_
