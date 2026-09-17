@@ -685,11 +685,17 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_va
   // Use a group of binary tree ranges of memory banks.
   int64_t xwith = 0;
   if (arith::ramp(pbase, pstride, planes).Match(index)) {
-    base = pbase.Eval()->value;
-    xwith = planes.Eval()->value * pstride.Eval()->value;
-  } else if (auto* ptr = index.as<IntImmNode>()) {
-    base = ptr->value;
-    xwith = 1;
+    if (auto b = pbase.Eval()->value.as<int64_t>(),
+        w = (planes.Eval()->value * pstride.Eval()->value).as<int64_t>();
+        b.has_value() && w.has_value()) {
+      base = *b;
+      xwith = *w;
+    }
+  } else if (const auto* imm = index.as<IntImmNode>()) {
+    if (auto ptr = imm->value.as<int64_t>(); ptr.has_value()) {
+      base = *ptr;
+      xwith = 1;
+    }
   }
   if (access_dtype.IsScalableVector()) {
     llvm::MDNode* meta = md_tbaa_root_;
@@ -1367,7 +1373,8 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   Type ret_type = op->ty;
   if (op->op.same_as(builtin_call_llvm_intrin_) || op->op.same_as(builtin_call_llvm_pure_intrin_)) {
     TVM_FFI_ICHECK_GE(args.size(), 1U);
-    llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(args[0].as_or_throw<IntImm>()->value);
+    llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(
+        args[0].as_or_throw<IntImm>()->value.as<unsigned>().value());
     std::vector<llvm::Value*> arg_value;
     std::vector<llvm::Type*> arg_type;
     for (size_t i = 1; i < args.size(); ++i) {
@@ -1445,12 +1452,6 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       result = builder_->CreatePointerCast(result, target);
     }
     return result;
-  } else if (op->op.same_as(tirx::builtin::large_uint_imm())) {
-    TVM_FFI_ICHECK_EQ(args.size(), 2U);
-    uint64_t low = static_cast<uint64_t>(args[0].as_or_throw<IntImm>()->value);
-    uint64_t high = static_cast<uint64_t>(args[1].as_or_throw<IntImm>()->value);
-    uint64_t val = (high << 32U) | low;
-    return llvm::ConstantInt::get(DTypeToLLVMType(ret_type.as_or_throw<PrimType>()), val);
   } else if (op->op.same_as(prim::builtin::if_then_else())) {
     TVM_FFI_ICHECK_EQ(args[0].as_or_throw<PrimExpr>().ty().lanes(), 1)
         << "if_then_else can only take scalar condition";
@@ -1570,8 +1571,29 @@ llvm::Value* CodeGenLLVM::Dispatch_(const prim::CastNode* op) {
                     PrimType(op->ty.as_or_throw<PrimType>()->dtype), MakeValue(op->value));
 }
 llvm::Value* CodeGenLLVM::Dispatch_(const IntImmNode* op) {
-  return llvm::ConstantInt::getSigned(
-      DTypeToLLVMType(PrimType(op->ty.as_or_throw<PrimType>()->dtype)), op->value);
+  PrimType dtype = op->ty.as_or_throw<PrimType>();
+  TVM_FFI_ICHECK_GT(dtype.bits(), 0);
+  llvm::Type* llvm_type = DTypeToLLVMType(dtype);
+  if (dtype.MatchesCode(DLDataTypeCode::kDLUInt)) {
+    auto value = op->value.as<uint64_t>();
+    TVM_FFI_ICHECK(value.has_value()) << "LLVM integer immediate exceeds uint64: " << op->value;
+    if (dtype.bits() < 64) {
+      TVM_FFI_ICHECK_LT(value.value(), uint64_t{1} << dtype.bits())
+          << "Integer immediate does not fit " << dtype;
+    }
+    return llvm::ConstantInt::get(llvm_type, value.value());
+  }
+  auto value = op->value.as<int64_t>();
+  TVM_FFI_ICHECK(value.has_value()) << "LLVM integer immediate exceeds int64: " << op->value;
+  if (dtype.bits() == 1 || dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
+    TVM_FFI_ICHECK(value.value() == 0 || value.value() == 1)
+        << "Integer immediate does not fit " << dtype;
+  } else if (dtype.bits() < 64) {
+    int64_t bound = int64_t{1} << (dtype.bits() - 1);
+    TVM_FFI_ICHECK_GE(value.value(), -bound) << "Integer immediate does not fit " << dtype;
+    TVM_FFI_ICHECK_LT(value.value(), bound) << "Integer immediate does not fit " << dtype;
+  }
+  return llvm::ConstantInt::getSigned(llvm_type, value.value());
 }
 
 llvm::Value* CodeGenLLVM::Dispatch_(const FloatImmNode* op) {
@@ -2043,8 +2065,9 @@ llvm::Value* CodeGenLLVM::Dispatch_(const prim::ShuffleNode* op) {
   llvm::Value* v0 = CreateVecConcat(vecs);
   std::vector<uint32_t> idx(op->indices.size());
   for (int i = 0, e = op->indices.size(); i < e; ++i) {
-    const int64_t* val = as_const_int(op->indices[i]);
-    TVM_FFI_ICHECK(val && *val >= 0 && *val < total_lanes)
+    const auto* imm = op->indices[i].as<IntImmNode>();
+    auto val = imm ? imm->value.as<int64_t>() : std::nullopt;
+    TVM_FFI_ICHECK(val.has_value() && *val >= 0 && *val < total_lanes)
         << "Shuffled indeces are suppose to be int, "
         << "but get " << op->indices[i] << "\n";
     idx[i] = *val;
@@ -2193,7 +2216,7 @@ void CodeGenLLVM::Dispatch_(const AllocBufferNode* op) {
 
   const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
   TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation";
-  int64_t constant_size = dim_imm->value;
+  int64_t constant_size = static_cast<int64_t>(dim_imm->value);
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation";
 
   StorageInfo& info = alloc_storage_info_[op->buffer.get()];
@@ -2243,7 +2266,7 @@ void CodeGenLLVM::Dispatch_(const AttrStmtNode* op) {
   } else if (op->attr_key == tirx::attr::storage_alignment) {
     const VarNode* v = op->node.as<VarNode>();
     TVM_FFI_ICHECK(v);
-    alloc_storage_info_[v].alignment = static_cast<int>(op->value.as<IntImmNode>()->value);
+    alloc_storage_info_[v].alignment = op->value.as<IntImmNode>()->value.as<int>().value();
     if (var_map_.count(v) && alloc_storage_info_[v].alignment > 1) {
       builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(v),
                                           alloc_storage_info_[v].alignment);

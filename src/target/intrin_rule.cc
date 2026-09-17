@@ -285,13 +285,13 @@ TVM_REGISTER_OP("tirx.q_multiply_shift")
       // Lambda function to extract the int value from PrimExpr
       auto get_int_value = [](const PrimExpr node) {
         if (auto int_node = node.as<IntImmNode>()) {
-          return int_node->value;
+          return static_cast<int64_t>(int_node->value);
         }
         auto broadcast_node = node.as<prim::BroadcastNode>();
         TVM_FFI_ICHECK(broadcast_node != nullptr);
         auto int_node = broadcast_node->value.as<IntImmNode>();
         TVM_FFI_ICHECK(int_node != nullptr);
-        return int_node->value;
+        return static_cast<int64_t>(int_node->value);
       };
       // Power of 2 is determined by the fixed_point_multiplier == 1 << 30. In case of power of
       // 2, fixed point multiplier will represent a float value of 0.5. In fixed point, this is

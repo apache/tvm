@@ -55,8 +55,8 @@ class CodeGenARM final : public CodeGenCPU {
 
 llvm::Value* CodeGenARM::CreateIntrinsic(const CallNode* op) {
   if (op->op.same_as(builtin_call_llvm_intrin_) || op->op.same_as(builtin_call_llvm_pure_intrin_)) {
-    llvm::Intrinsic::ID id =
-        static_cast<llvm::Intrinsic::ID>(op->args[0].as_or_throw<IntImm>()->value);
+    llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(
+        op->args[0].as_or_throw<IntImm>()->value.as<unsigned>().value());
     if (id == llvm::Intrinsic::ctpop) {
       PrimExpr e = ARMPopcount(op);
       return CodeGenCPU::CreateIntrinsic(e.as<CallNode>());

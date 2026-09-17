@@ -823,7 +823,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         if (it == launch_params_.end()) continue;
         const auto* imm = it->second->dom->extent.as<IntImmNode>();
         if (imm == nullptr) return 0;  // symbolic
-        n *= imm->value;
+        auto product = (n * imm->value).as<int64_t>();
+        if (!product.has_value()) return 0;
+        n = *product;
       }
       return n;
     };
@@ -834,7 +836,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         if (it == launch_params_.end()) continue;
         const auto* imm = it->second->dom->extent.as<IntImmNode>();
         if (imm == nullptr) return std::vector<std::pair<std::string, int64_t>>();
-        out.push_back({axis_name, imm->value});
+        auto value = imm->value.as<int64_t>();
+        if (!value.has_value()) return std::vector<std::pair<std::string, int64_t>>();
+        out.push_back({axis_name, *value});
       }
       return out;
     };
@@ -1033,8 +1037,10 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
   static bool TryExtractIntImm(const PrimExpr& expr, int64_t* value) {
     if (const auto* imm = expr.as<IntImmNode>()) {
-      *value = imm->value;
-      return true;
+      if (auto value_i64 = imm->value.as<int64_t>(); value_i64.has_value()) {
+        *value = *value_i64;
+        return true;
+      }
     }
     return false;
   }

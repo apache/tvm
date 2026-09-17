@@ -799,7 +799,7 @@ class IterMapRewriter : public tvm::ExprMutator {
       if (expr->args.size() < 1) return expr;
     }
     struct Item {
-      int64_t cscale;
+      ffi::BigInt cscale;
       int64_t symbol_prod_count;
       IterSplitExpr split;
     };
@@ -808,7 +808,7 @@ class IterMapRewriter : public tvm::ExprMutator {
 
     for (IterSplitExpr split : expr->args) {
       int64_t symbol_prod_count = 0;
-      int64_t cscale = 1;
+      ffi::BigInt cscale = 1;
       PrimExpr res = IntImm(split.ty(), 1);
       auto fcollect = [&](PrimExpr val) {
         if (const auto* intimm = val.as<IntImmNode>()) {
@@ -876,7 +876,7 @@ class IterMapRewriter : public tvm::ExprMutator {
     // First, find the scale with minimum size of constant scale.
     // use reverse search as usually smallest is ordered on the right
     int base_index = -1;
-    int64_t min_const_scale = 0;
+    ffi::BigInt min_const_scale = 0;
 
     for (int i = rbegin; i >= 0; --i) {
       if (skip_flag[i]) continue;
@@ -1811,9 +1811,9 @@ IterSumExpr IterMapRewriter::PreprocessDividend(IterMapExpr dividend, PrimExpr o
 
 /*! \brief Find approximate least common multiplier. */
 PrimExpr ApproxLeastCommonMultiple(const PrimExpr& a, const PrimExpr& b, AnalyzerObj* analyzer) {
-  auto fsplit = [](const PrimExpr& e) -> std::pair<PrimExpr, int64_t> {
-    if (const IntImmNode* imm = e.as<IntImmNode>()) {
-      return {1, imm->value};
+  auto fsplit = [](const PrimExpr& e) -> std::pair<PrimExpr, ffi::BigInt> {
+    if (auto imm = e.as<IntImm>(); imm.has_value()) {
+      return {IntImm(e.ty(), 1), (*imm)->value};
     }
     PVar<PrimExpr> pv;
     PVar<IntImm> pc;
@@ -1825,7 +1825,7 @@ PrimExpr ApproxLeastCommonMultiple(const PrimExpr& a, const PrimExpr& b, Analyze
   };
   auto p1 = fsplit(a);
   auto p2 = fsplit(b);
-  auto const_lcm = IntImm::Int32(LeastCommonMultiple(p1.second, p2.second));
+  auto const_lcm = IntImm(a.ty(), (p1.second * p2.second) / ZeroAwareGCD(p1.second, p2.second));
   if (analyzer->CanProveEqual(p1.first, p2.first)) {
     return p1.first * const_lcm;
   } else if (analyzer->CanProveEqual(floormod(p1.first, p2.first), 0)) {

@@ -447,7 +447,7 @@ class BuiltinLower : public StmtExprMutator {
                            << "but was instead the expression " << device_type_ << " with type "
                            << device_type_.value()->GetTypeKey();
 
-    ffi::String device_name = runtime::DLDeviceType2Str(as_int->value);
+    ffi::String device_name = runtime::DLDeviceType2Str(as_int->value.as<int>().value());
     return prim::StringImm("device_api." + device_name + "." + method_name);
   }
 

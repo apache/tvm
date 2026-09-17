@@ -78,16 +78,11 @@ def test_tir_invalid_intimm(dtype, literals):
     ],
 )
 def test_tir_large_py_int_literals(dtype, literals):
-    """
-    For large uint value, use LargeUIntImm intrin,
-    """
+    """Large unsigned values are ordinary integer immediates."""
     for l in literals:
         x = tirx.const(l, dtype)
-        if isinstance(x, tirx.IntImm | tirx.FloatImm):
-            assert x.value == literals[l]
-        else:
-            # LargeUIntImm(low32, hi32)
-            assert (int(x.args[1]) << 32) + int(x.args[0]) == literals[l]
+        assert isinstance(x, tirx.IntImm)
+        assert x.value == literals[l]
 
 
 def test_tir_intimm_overflow():

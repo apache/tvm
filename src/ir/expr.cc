@@ -710,7 +710,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // IntImm
-IntImm::IntImm(PrimType value_ty, int64_t value, Span span) {
+IntImm::IntImm(PrimType value_ty, ffi::BigInt value, Span span) {
   DLDataType runtime_dtype = value_ty->dtype;
   DLDataTypeCode code = value_ty.code();
   int32_t bits = value_ty.bits();
@@ -720,26 +720,36 @@ IntImm::IntImm(PrimType value_ty, int64_t value, Span span) {
                                      DLDataTypeCode::kDLBool),
                 ValueError)
       << "IntImm supports only int or uint or bool type, but " << runtime_dtype << " was supplied.";
+  TVM_FFI_CHECK_GT(bits, 0, ValueError) << "IntImm requires a positive integer width";
   if (code == DLDataTypeCode::kDLUInt) {
-    TVM_FFI_CHECK_GE(value, 0U, ValueError)
+    TVM_FFI_CHECK_GE(value, 0, ValueError)
         << "Literal value " << value << " is negative for unsigned integer type " << runtime_dtype;
-    if (bits < 64) {
-      TVM_FFI_CHECK_LT(value, 1LL << bits, ValueError)
+    if (bits <= 64) {
+      auto small = value.as<uint64_t>();
+      TVM_FFI_CHECK(small.has_value() && (bits == 64 || *small < (uint64_t{1} << bits)), ValueError)
+          << "Literal value " << value << " exceeds maximum of " << runtime_dtype;
+    } else {
+      TVM_FFI_CHECK_LT(value, ffi::BigInt(1) << bits, ValueError)
           << "Literal value " << value << " exceeds maximum of " << runtime_dtype;
     }
   } else if (bits == 1 || code == DLDataTypeCode::kDLBool) {
-    // int(1)
+    // Preserve the historical int1 and bool literal range.
     TVM_FFI_CHECK(value == 0 || value == 1, ValueError)
         << value << " exceeds range of " << runtime_dtype;
-  } else if (bits < 64) {
-    TVM_FFI_CHECK_GE(value, -(1LL << (bits - 1)), ValueError)
-        << "Literal value " << value << " exceeds minimum of " << runtime_dtype;
-    TVM_FFI_CHECK_LT(value, 1LL << (bits - 1), ValueError)
-        << "Literal value " << value << " exceeds maximum of " << runtime_dtype;
+  } else if (bits <= 64) {
+    auto small = value.as<int64_t>();
+    TVM_FFI_CHECK(small.has_value() && (bits == 64 || (*small >= -(int64_t{1} << (bits - 1)) &&
+                                                       *small < (int64_t{1} << (bits - 1)))),
+                  ValueError)
+        << "Literal value " << value << " exceeds range of " << runtime_dtype;
+  } else {
+    ffi::BigInt limit = ffi::BigInt(1) << (bits - 1);
+    TVM_FFI_CHECK(value >= -limit && value < limit, ValueError)
+        << "Literal value " << value << " exceeds range of " << runtime_dtype;
   }
   ffi::ObjectPtr<IntImmNode> node = ffi::make_object<IntImmNode>();
   node->ExprNode::ty = std::move(value_ty);
-  node->value = value;
+  node->value = std::move(value);
   node->span = span;
   data_ = std::move(node);
 }
@@ -753,7 +763,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&IntImmMaybeInplaceMutate));
 
-  refl::GlobalDef().def("ir.IntImm", [](DLDataType dtype, int64_t value, Span span) {
+  refl::GlobalDef().def("ir.IntImm", [](DLDataType dtype, ffi::BigInt value, Span span) {
     return IntImm(PrimType(dtype), value, span);
   });
 }

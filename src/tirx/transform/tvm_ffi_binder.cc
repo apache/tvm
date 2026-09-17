@@ -286,7 +286,11 @@ class ExprPathRenderer : public ExprFunctor<std::string(const Expr&)> {
 
  protected:
   std::string Dispatch_(const VarNode* op) final { return f_var_name_(op); }
-  std::string Dispatch_(const IntImmNode* op) final { return std::to_string(op->value); }
+  std::string Dispatch_(const IntImmNode* op) final {
+    std::ostringstream os;
+    os << op->value;
+    return os.str();
+  }
   std::string Dispatch_(const FloatImmNode* op) final {
     std::ostringstream os;
     os << op->value;
@@ -800,7 +804,7 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const BufferVar& buffer, const PrimEx
     if (const auto* const_dt = device_type_.as<IntImmNode>()) {
       PrimExpr cond = analyzer_->Simplify(IntImm::Int32(const_dt->value) == actual_device_type);
       if (!is_one(cond)) {
-        std::string device_name = runtime::DLDeviceType2Str(static_cast<int>(const_dt->value));
+        std::string device_name = runtime::DLDeviceType2Str(const_dt->value.as<int>().value());
         EmitAssert(cond, "ValueError",  //
                    "Mismatched ", buf_name, ".device_type on argument #",
                    std::to_string(param_index), when_calling_imm_, sig_imm_, "`,\n  expected ",

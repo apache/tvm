@@ -472,7 +472,7 @@ TVM_DLL PrimExpr IntegerAbs(PrimExpr x, Span span = Span());
  * scalar integer or floating point. This makes the compiled code more compact
  * and efficient. Keep MakeConst for generic overload cases where dtype can be
  * integer, floating point, or vector-valued and the caller needs its
- * scalar/vector dispatch.
+ * scalar/vector dispatch. Integer payloads use the exact BigInt representation.
  *
  * \param dtype The target type.
  * \param value The input value
@@ -481,24 +481,10 @@ TVM_DLL PrimExpr IntegerAbs(PrimExpr x, Span span = Span());
  * \param span The location of this operation in the source.
  */
 template <typename ValueType,
-          typename = typename std::enable_if<std::is_standard_layout<ValueType>::value &&
-                                             std::is_trivial<ValueType>::value>::type>
+          typename = typename std::enable_if<(std::is_standard_layout<ValueType>::value &&
+                                              std::is_trivial<ValueType>::value) ||
+                                             std::is_same<ValueType, ffi::BigInt>::value>::type>
 inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span = Span());
-
-/*!
- * \brief Get x as constant int expression.
- * \param x The expression
- * \return the address to the int expression,
- *         return nullptr, if x is not IntImm.
- */
-inline const int64_t* as_const_int(const PrimExpr& x) {
-  if (!x.defined()) return nullptr;
-  if (const IntImmNode* op = x.as<IntImmNode>()) {
-    return &(op->value);
-  }
-
-  return nullptr;
-}
 
 /*!
  * \brief Check whether x is a constant integer expression.
@@ -525,8 +511,7 @@ inline bool is_one(const PrimExpr& x) { return is_const_int(x, 1); }
 inline bool is_zero(const PrimExpr& x) { return is_const_int(x, 0); }
 
 /*!
- * \brief Check whether x is an integer constant.
- * \note This only return true for integer types.
+ * \brief Check whether x is an integer constant, including wide IntImm values.
  * \return whether x is constant
  */
 inline bool is_const_int(const PrimExpr& x);
@@ -549,7 +534,7 @@ inline bool is_const_number(const PrimExpr& x);
 TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
 
 // Implementation details after this
-inline bool is_const_int(const PrimExpr& x) { return as_const_int(x); }
+inline bool is_const_int(const PrimExpr& x) { return x.as<IntImmNode>() != nullptr; }
 
 inline bool is_const_number(const PrimExpr& x) {
   if (x.as<IntImmNode>()) {
@@ -563,59 +548,45 @@ inline bool is_const_number(const PrimExpr& x) {
 }
 
 inline bool is_positive_const(const PrimExpr& a) {
-  const int64_t* as_int = as_const_int(a);
-  return as_int && (*as_int > 0);
+  const auto* as_int = a.as<IntImmNode>();
+  return as_int && as_int->value > 0;
 }
 
 inline bool is_negative_const(const PrimExpr& a) {
-  const int64_t* as_int = as_const_int(a);
-  return as_int && (*as_int < 0);
+  const auto* as_int = a.as<IntImmNode>();
+  return as_int && as_int->value < 0;
 }
 
 inline bool is_const_int(const PrimExpr& x, int64_t value) {
-  const int64_t* as_int = as_const_int(x);
-  return as_int && (*as_int == value);
+  const auto* as_int = x.as<IntImmNode>();
+  return as_int && as_int->value == value;
 }
-
-/*!
- * \brief Construct a large uint constant by its low 32 bits and high 32bits.
- * \param value_ty The final primitive type.
- * \param low The lower 32 bits.
- * \param high The higher 32 bits.
- * \param span The location of this operation in the source.
- * \return The constructed expression.
- */
-TVM_DLL PrimExpr LargeUIntImm(PrimType value_ty, int64_t low, int64_t high, Span span = Span());
 
 template <typename ValueType>
 inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value, Span span = Span()) {
-  DLDataTypeCode code = dtype.code();
-  if (code == DLDataTypeCode::kDLInt || code == DLDataTypeCode::kDLBool) {
-    return IntImm(dtype, static_cast<int64_t>(value), span);
-  }
-  if (code == DLDataTypeCode::kDLUInt) {
-    // Use IntImm if it is a small integer
-    uint64_t uval = static_cast<uint64_t>(value);
-    if (value < static_cast<ValueType>(0)) {
-      TVM_FFI_THROW(InternalError) << "cannot make uint from negative value " << value;
-    } else if (uval <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
-      return IntImm(dtype, static_cast<int64_t>(value), span);
-    } else {
-      return LargeUIntImm(dtype, static_cast<int64_t>(uval & 0xffffffffULL),
-                          static_cast<int64_t>(uval >> 32U), span);
+  if constexpr (std::is_enum_v<ValueType>) {
+    return MakeConstScalar(dtype, static_cast<std::underlying_type_t<ValueType>>(value), span);
+  } else {
+    DLDataTypeCode code = dtype.code();
+    if (code == DLDataTypeCode::kDLInt || code == DLDataTypeCode::kDLBool) {
+      return IntImm(dtype, ffi::BigInt(value), span);
     }
+    if (code == DLDataTypeCode::kDLUInt) {
+      TVM_FFI_ICHECK(value >= 0) << "cannot make uint from negative value " << value;
+      return IntImm(dtype, ffi::BigInt(value), span);
+    }
+    if (dtype.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLFloat8_e3m4,
+                          DLDataTypeCode::kDLFloat8_e4m3, DLDataTypeCode::kDLFloat8_e4m3b11fnuz,
+                          DLDataTypeCode::kDLFloat8_e4m3fn, DLDataTypeCode::kDLFloat8_e4m3fnuz,
+                          DLDataTypeCode::kDLFloat8_e5m2, DLDataTypeCode::kDLFloat8_e5m2fnuz,
+                          DLDataTypeCode::kDLFloat8_e8m0fnu, DLDataTypeCode::kDLFloat6_e2m3fn,
+                          DLDataTypeCode::kDLFloat6_e3m2fn, DLDataTypeCode::kDLFloat4_e2m1fn) ||
+        dtype.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
+      return FloatImm(dtype, static_cast<double>(value), span);
+    }
+    TVM_FFI_THROW(InternalError) << "cannot make const for type " << dtype;
+    throw;
   }
-  if (dtype.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLFloat8_e3m4,
-                        DLDataTypeCode::kDLFloat8_e4m3, DLDataTypeCode::kDLFloat8_e4m3b11fnuz,
-                        DLDataTypeCode::kDLFloat8_e4m3fn, DLDataTypeCode::kDLFloat8_e4m3fnuz,
-                        DLDataTypeCode::kDLFloat8_e5m2, DLDataTypeCode::kDLFloat8_e5m2fnuz,
-                        DLDataTypeCode::kDLFloat8_e8m0fnu, DLDataTypeCode::kDLFloat6_e2m3fn,
-                        DLDataTypeCode::kDLFloat6_e3m2fn, DLDataTypeCode::kDLFloat4_e2m1fn) ||
-      dtype.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
-    return FloatImm(dtype, static_cast<double>(value), span);
-  }
-  TVM_FFI_THROW(InternalError) << "cannot make const for type " << dtype;
-  throw;
 }
 
 template <>
