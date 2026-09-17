@@ -372,7 +372,7 @@ class ScopeReconstructor : public StmtExprMutator {
  */
 template <bool relax_storage_scope>
 void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
-                        const ffi::Array<BufferRegion>& buffer_regions,
+                        const ffi::Array<TensorRegion>& buffer_regions,
                         const StmtSRef& relax_path_low_inclusive,
                         const StmtSRef& relax_path_high_exclusive,
                         std::unordered_map<const VarNode*, std::vector<NDIntSet>>* relaxed) {
@@ -385,8 +385,8 @@ void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
     return ffi::Unchanged();
   };
   // Enumerate every buffer region
-  for (const BufferRegion& buffer_region : buffer_regions) {
-    const BufferVar& buffer = buffer_region->buffer;
+  for (const TensorRegion& buffer_region : buffer_regions) {
+    const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
     const ffi::Array<Range>& region = buffer_region->region;
     // Skip the buffer regions we are not interested in
     auto it = relaxed->find(buffer.get());
@@ -490,7 +490,7 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
     }
   }
   TVM_FFI_CHECK(var.has_value(), ValueError)
-      << "BufferRegion pattern match failed: " << provided_min;
+      << "TensorRegion pattern match failed: " << provided_min;
   return {var.value(), BlockVarDomainInfo{var_dom, var_bound}};
 }
 
@@ -691,11 +691,12 @@ void CalculateProvidedRequiredRegions(
     std::unordered_map<const VarNode*, std::vector<NDIntSet>>* provided_regions,
     std::unordered_map<const VarNode*, std::vector<NDIntSet>>* required_regions) {
   // Step 1. Calculate the region provided by a single execution instance of `block`
-  const ffi::Array<BufferRegion>& provided_buffers = is_compute_at ? block->writes : block->reads;
+  const ffi::Array<TensorRegion>& provided_buffers = is_compute_at ? block->writes : block->reads;
   provided_regions->reserve(provided_buffers.size());
   required_regions->reserve(provided_buffers.size());
-  for (const BufferRegion& provided_buffer_region : provided_buffers) {
-    const VarNode* buffer = provided_buffer_region->buffer.get();
+  for (const TensorRegion& provided_buffer_region : provided_buffers) {
+    const VarNode* buffer =
+        provided_buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().get();
     const ffi::Array<Range>& region = provided_buffer_region->region;
     (*provided_regions)[buffer].push_back(support::NDIntSetFromRegion(region));
     (*required_regions)[buffer].clear();

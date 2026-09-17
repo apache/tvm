@@ -42,7 +42,7 @@ struct RollingBufferInfo {
   ffi::Map<SBlock, SBlock> block_reuse;
 };
 
-BufferRegion GetRelaxedBufferRegion(const SBlockRealize& realize, const BufferRegion& buffer_region,
+TensorRegion GetRelaxedBufferRegion(const SBlockRealize& realize, const TensorRegion& buffer_region,
                                     const ffi::Map<Var, arith::IntSet>& dom_map) {
   ffi::Map<Var, PrimExpr> bindings = GetBindings(realize);
   auto f_substitute = [&bindings](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -60,10 +60,10 @@ BufferRegion GetRelaxedBufferRegion(const SBlockRealize& realize, const BufferRe
   Region relaxed_region;
   relaxed_region.reserve(relaxed_intsets.size());
   for (size_t i = 0; i < relaxed_intsets.size(); ++i) {
-    relaxed_region.push_back(
-        relaxed_intsets[i].CoverRange(Range::FromMinExtent(0, buffer_region->buffer->shape[i])));
+    relaxed_region.push_back(relaxed_intsets[i].CoverRange(Range::FromMinExtent(
+        0, buffer_region->source.as_or_throw<tvm::tirx::BufferVar>()->shape[i])));
   }
-  return BufferRegion(buffer_region->buffer, relaxed_region);
+  return BufferRegion(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>(), relaxed_region);
 }
 
 class RollingBufferDependencyError : public ScheduleErrorContextObj {
@@ -115,7 +115,7 @@ class RollingBufferDependencyError : public ScheduleErrorContextObj {
 
 class RollingBufferMatchError : public ScheduleErrorContextObj {
  public:
-  RollingBufferMatchError(IRModule mod, SBlock block, BufferRegion buffer_region)
+  RollingBufferMatchError(IRModule mod, SBlock block, TensorRegion buffer_region)
       : mod_(mod), block_(block), buffer_region_(buffer_region) {}
   ffi::String FastErrorString() const final {
     return "ScheduleError: rolling_buffer expect the buffer region to have at least one dimention"
@@ -123,8 +123,8 @@ class RollingBufferMatchError : public ScheduleErrorContextObj {
   }
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "The target buffer " << buffer_region_->buffer.name() << " with region "
-       << buffer_region_->region
+    os << "The target buffer " << buffer_region_->source.as_or_throw<tvm::tirx::BufferVar>().name()
+       << " with region " << buffer_region_->region
        << " should have at least one dimension range that matches a rolling pattern "
           "such as hh.outer * stride + hh.inner. ";
     return os.str();
@@ -136,7 +136,7 @@ class RollingBufferMatchError : public ScheduleErrorContextObj {
  private:
   IRModule mod_;
   SBlock block_;
-  BufferRegion buffer_region_;
+  TensorRegion buffer_region_;
 };
 
 class RollingBufferInsertionError : public ScheduleErrorContextObj {
@@ -168,7 +168,7 @@ class RollingBufferInfoCollector {
  public:
   static RollingBufferInfo CheckAndGetRollingBufferInfo(const IRModule& mod,
                                                         const StmtSRef& block_sref,
-                                                        const BufferRegion& buffer_region) {
+                                                        const TensorRegion& buffer_region) {
     RollingBufferInfoCollector collector;
     if (!collector.MatchRollingBuffer(block_sref, buffer_region)) {
       const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
@@ -179,8 +179,8 @@ class RollingBufferInfoCollector {
   }
 
  private:
-  bool MatchRollingBuffer(const StmtSRef& block_sref, const BufferRegion& buffer_region) {
-    const BufferVar& buffer = buffer_region->buffer;
+  bool MatchRollingBuffer(const StmtSRef& block_sref, const TensorRegion& buffer_region) {
+    const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
     const Region& region = buffer_region->region;
 
     std::vector<ffi::Optional<Var>> bound_iter_vars;
@@ -286,10 +286,10 @@ class RollingBufferRewriter : public StmtExprMutator {
       : scope_sref_(scope_sref), info_(info) {}
 
  private:
-  void RewriteAccessRegion(ffi::Array<BufferRegion>* old_access_regions,
-                           const ffi::Array<BufferRegion>& infered_access_regions) {
-    auto fmutate = [this, &infered_access_regions](const BufferRegion& buffer_region) {
-      if (buffer_region->buffer.same_as(info_->old_buffer)) {
+  void RewriteAccessRegion(ffi::Array<TensorRegion>* old_access_regions,
+                           const ffi::Array<TensorRegion>& infered_access_regions) {
+    auto fmutate = [this, &infered_access_regions](const TensorRegion& buffer_region) {
+      if (buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->old_buffer)) {
         TVM_FFI_ICHECK(infered_access_regions.size() == 1);
         return infered_access_regions[0];
       }
@@ -439,7 +439,7 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buf
   const SBlock& block = realize->block;
 
   // Step 1. Checking index, getting the target buffer region and the parent scope.
-  const BufferRegion& buffer_region =
+  const TensorRegion& buffer_region =
       GetNthAccessBufferRegion(self, block, write_buffer_index, BufferIndexType::kWrite);
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
   // Step 2. Check if the target block is not an output block and has only RAW dependencies.
@@ -452,7 +452,8 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buf
   consumers_sref.push_back(block_sref);
   StmtSRef lca = GetSRefLowestCommonAncestor(consumers_sref);
   if (!lca->StmtAs<ForNode>()) {
-    throw MakeScheduleError<RollingBufferInsertionError>(self->mod, buffer_region->buffer, block);
+    throw MakeScheduleError<RollingBufferInsertionError>(
+        self->mod, buffer_region->source.as_or_throw<tvm::tirx::BufferVar>(), block);
   }
 
   for (auto it = loop_srefs.rbegin(); it != loop_srefs.rend(); ++it) {
@@ -465,7 +466,7 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buf
     Range range = Range::FromMinExtent(cur_loop->min, cur_loop->extent);
     dom_map.Set(cur_loop->loop_var, arith::IntSet::FromRange(range));
   }
-  BufferRegion relaxed_region = GetRelaxedBufferRegion(realize, buffer_region, dom_map);
+  TensorRegion relaxed_region = GetRelaxedBufferRegion(realize, buffer_region, dom_map);
 
   // Step 4. Find a valid rolling axis and collect bound overlaps on the target buffer.
   RollingBufferInfo info = RollingBufferInfoCollector::CheckAndGetRollingBufferInfo(

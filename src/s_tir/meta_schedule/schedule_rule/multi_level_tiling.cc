@@ -35,11 +35,11 @@ using namespace tvm::tirx;
 
 std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  const VarNode* write_buffer = block->writes[0]->buffer.get();
+  const VarNode* write_buffer = block->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>().get();
   int n = block->reads.size();
   std::vector<int> results(n, -1);
   for (int i = 0; i < n; ++i) {
-    const VarNode* read_buffer = block->reads[i]->buffer.get();
+    const VarNode* read_buffer = block->reads[i]->source.as_or_throw<tvm::tirx::BufferVar>().get();
     if (read_buffer != write_buffer) {
       results[i] = GetBufferVar(read_buffer)->shape.size();
     }
@@ -369,7 +369,8 @@ void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
   // Filter out invalid vector lanes according to the data type.
   const tirx::SBlockNode* block_node = (*sch)->GetSRef(block)->StmtAs<tirx::SBlockNode>();
   TVM_FFI_ICHECK_EQ(block_node->writes.size(), 1);
-  const DLDataType dtype = block_node->writes[0]->buffer->dtype->dtype;
+  const DLDataType dtype =
+      block_node->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>()->dtype->dtype;
   std::function<bool(int)> f_filter = nullptr;
   if (dtype == DLDataType{kDLFloat, 32, 1}) {
     f_filter = [&](int vector_len) { return vector_len <= 4; };

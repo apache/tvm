@@ -215,7 +215,9 @@ class StorageScopeMutator : public ReplaceBufferMutator {
 
  private:
   MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer) final {
-    if (auto replacement = VarRemapGet(match_buffer->source->buffer).as<BufferVar>()) {
+    if (auto replacement =
+            VarRemapGet(match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>())
+                .as<BufferVar>()) {
       BufferVar new_target_buffer = WithScope(match_buffer->buffer, replacement.value().scope());
       VarRemapSet(match_buffer->buffer, new_target_buffer);
       return MatchBufferRegion(new_target_buffer,
@@ -320,7 +322,9 @@ class DTypeMutator : public ReplaceBufferMutator {
 
  private:
   MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer) final {
-    if (auto replacement = VarRemapGet(match_buffer->source->buffer).as<BufferVar>()) {
+    if (auto replacement =
+            VarRemapGet(match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>())
+                .as<BufferVar>()) {
       BufferVar new_target_buffer = WithDType(match_buffer->buffer, replacement.value()->dtype);
       VarRemapSet(match_buffer->buffer, new_target_buffer);
       return MatchBufferRegion(new_target_buffer,

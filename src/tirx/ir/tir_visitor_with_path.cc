@@ -150,8 +150,12 @@ void TIRVisitorWithPath::VisitBufferDef(const BufferVar& buffer, AccessPath path
 // are allocated in a different scope than where they are used.
 void TIRVisitorWithPath::VisitBufferUse(const BufferVar& buffer, AccessPath path) {}
 
-void TIRVisitorWithPath::Visit(const BufferRegion& region, AccessPath path) {
-  VisitBufferUse(region->buffer, path->Attr("buffer"));
+void TIRVisitorWithPath::Visit(const TensorRegion& region, AccessPath path) {
+  if (auto buffer = region->source.as<BufferVar>()) {
+    VisitBufferUse(buffer.value(), path->Attr("source"));
+  } else {
+    Visit(region->source, path->Attr("source"));
+  }
   Visit(region->region, path->Attr("region"));
 }
 
@@ -320,7 +324,7 @@ void TIRVisitorWithPath::VisitStmt_(const tirx::TilePrimitiveCallNode* op, Acces
     if (op->args[i] == nullptr) {
       continue;
     }
-    if (auto buf_region = op->args[i].as<BufferRegion>()) {
+    if (auto buf_region = op->args[i].as<TensorRegion>()) {
       Visit(buf_region.value(), path->Attr("args")->ArrayItem(i));
     } else if (auto expr = op->args[i].as<PrimExpr>()) {
       Visit(expr.value(), path->Attr("args")->ArrayItem(i));
@@ -357,8 +361,8 @@ void TIRVisitorWithPath::Dispatch_(const TensorLoadNode* op, AccessPath path) {
   Visit(op->indices, path->Attr("indices"));
 }
 
-void TIRVisitorWithPath::Dispatch_(const BufferRegionNode* op, AccessPath path) {
-  Visit(ffi::GetRef<BufferRegion>(op), path);
+void TIRVisitorWithPath::Dispatch_(const TensorRegionNode* op, AccessPath path) {
+  Visit(ffi::GetRef<TensorRegion>(op), path);
 }
 
 void TIRVisitorWithPath::Dispatch_(const OpaqueExprNode* op, AccessPath path) {}

@@ -95,7 +95,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
 
   static int GetReadBufferIndex(const SBlock& block, const BufferVar& buffer) {
     for (size_t i = 0; i < block->reads.size(); i++) {
-      if (block->reads[i]->buffer.same_as(buffer)) {
+      if (block->reads[i]->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
         return i;
       }
     }
@@ -192,9 +192,9 @@ std::vector<std::string> GetCacheReadChain(const BufferVar& buf, const PrimFuncN
     ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
       // Check if this block is doing cache_read or a similar operation that consumes cur_buffer_.
       if (!op->init && op->reads.size() == 1 && op->writes.size() == 1 &&
-          op->reads[0]->buffer.get() == cur_buffer_) {
+          op->reads[0]->source.as_or_throw<tvm::tirx::BufferVar>().get() == cur_buffer_) {
         cache_read_chain.push_back(op->name_hint);
-        cur_buffer_ = op->writes[0]->buffer.get();
+        cur_buffer_ = op->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>().get();
       }
       return StmtExprVisitor::Visit_(op);
     }
@@ -244,7 +244,8 @@ bool RewriteLayout(const Schedule& sch) {
         // in cache_read_chain corresponds to that buffer.
         SBlock cache_read_block = sch->Get(sch->GetSBlock(cache_read_chain.back(), func_name));
         TVM_FFI_ICHECK_EQ(cache_read_block->writes.size(), 1);
-        auto tup_opt = GetSuggestedIndexMap(cache_read_block->writes[0]->buffer, prim_func);
+        auto tup_opt = GetSuggestedIndexMap(
+            cache_read_block->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>(), prim_func);
         if (tup_opt == std::nullopt) continue;
 
         auto [anchor_block, buffer_index, index_map] = *tup_opt;

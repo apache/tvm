@@ -208,7 +208,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
   }
   // check the maximal number of axes that are vectorizable (contiguous memory access)
   SBlockRealize realize = GetSBlockRealize(sch->state(), block_sref);
-  ffi::Array<BufferRegion> buffer_access(realize->block->reads);
+  ffi::Array<TensorRegion> buffer_access(realize->block->reads);
   buffer_access.insert(buffer_access.end(), realize->block->writes.begin(),
                        realize->block->writes.end());
   std::unordered_map<const VarNode*, PrimExpr> binding_map;
@@ -224,7 +224,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
   int max_fusible = INT32_MAX;
   // for each block read/write, get the strides of the loop vars and find the fusible
   // (vectorizable) axes
-  for (const BufferRegion& access : buffer_access) {
+  for (const TensorRegion& access : buffer_access) {
     int fusible = 0;
     bool can_analyze_contiguous_access = true;
     std::vector<int64_t> strides;
@@ -242,7 +242,8 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
           stride = coef * buffer_stride;
           break;
         }
-        const auto* shape = access->buffer->shape[i].as<IntImmNode>();
+        const auto* shape =
+            access->source.as_or_throw<tvm::tirx::BufferVar>()->shape[i].as<IntImmNode>();
         if (shape == nullptr) {
           can_analyze_contiguous_access = false;
           break;

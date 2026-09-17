@@ -42,12 +42,12 @@ namespace tirx {
  * \param buffer_var_map The outside buffers which may be accessed the block.
  *                       It is a map from buffer var to the buffer.
  * \return Array of access regions.
- *         There are three arrays of BufferRegion:
+ *         There are three arrays of TensorRegion:
  *           - first: read regions
  *           - second: write regions
  *           - third: opaque regions
  */
-TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
+TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockAccessRegion(
     const SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
 
 /*!
@@ -58,7 +58,7 @@ TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
  *                       It is a map from buffer var to the buffer
  * \return An array only consisting of the read regions and write regions of the input block
  */
-TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockReadWriteRegion(
+TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockReadWriteRegion(
     const SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
 
 /*!
@@ -129,8 +129,8 @@ TVM_DLL bool VerifyGPUCode(const PrimFunc& func, ffi::Map<ffi::String, PrimExpr>
 
 /*! \brief Helper struct for return value of IdentifyMemCpy */
 struct MemCpyDetails {
-  BufferRegion source;
-  BufferRegion dest;
+  TensorRegion source;
+  TensorRegion dest;
 };
 
 /*! \brief Identify whether a For loop is semantically equivalent to MemCpy

@@ -18,7 +18,7 @@
 
 from ..runtime import DataTypeCode, ObjectConvertible, const
 from .base import Span
-from .expr import Expr, is_prim_expr
+from .expr import Expr, TensorRegion, is_prim_expr
 from .prim import _ffi_api as _prim_ffi_api
 from .type import PrimType
 
@@ -52,10 +52,9 @@ def _dtype_is_float(value):
 
 
 def _is_scalar_operand(value):
-    type_info = getattr(type(value), "__tvm_ffi_type_info__", None)
-    if type_info is not None and type_info.type_key == "tirx.BufferRegion":
+    if isinstance(value, TensorRegion):
         raise TypeError(
-            "BufferRegion is not a primitive operand; construct a BufferLoad explicitly"
+            "TensorRegion is not a primitive operand; construct a TensorLoad explicitly"
         )
     return isinstance(value, ExprOp | int | float) or is_prim_expr(value)
 

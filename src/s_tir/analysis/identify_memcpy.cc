@@ -273,10 +273,11 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
     }
   }
 
-  BufferRegion src_region(
+  TensorRegion src_region = BufferRegion(
       load->source.as_or_throw<tvm::tirx::BufferVar>(),
       DomainTouched(loop, load->source.as_or_throw<tvm::tirx::BufferVar>(), true, true));
-  BufferRegion dst_region(store->buffer, DomainTouched(loop, store->buffer, true, true));
+  TensorRegion dst_region =
+      BufferRegion(store->buffer, DomainTouched(loop, store->buffer, true, true));
 
   return MemCpyDetails{src_region, dst_region};
 }

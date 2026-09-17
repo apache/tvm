@@ -363,7 +363,7 @@ def test_access_of_padding_pattern():
     buffer_var_map = {buf: buf for buf in alloc_buffers}
 
     def do_compare_buffer_region(region, expect):
-        assert region.buffer == expect.buffer
+        assert region.source == expect.source
         analyzer = tvm.arith.Analyzer()
         for observed_range, expected_range in zip(region.region, expect.region):
             analyzer.can_prove_equal(observed_range.min, expected_range.min)

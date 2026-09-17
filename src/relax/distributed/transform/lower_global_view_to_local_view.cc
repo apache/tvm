@@ -68,7 +68,7 @@ class DistSBlockInfoCollector : public StmtExprVisitor {
     for (const auto& iter_var : op->iter_vars) {
       if (iter_var->iter_type == kCommReduce) {
         TVM_FFI_ICHECK(op->writes.size() == 1);
-        reduce_buffer_ = op->writes[0]->buffer;
+        reduce_buffer_ = op->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>();
       }
     }
     return StmtExprVisitor::Visit_(op);
@@ -188,10 +188,10 @@ class DistributedBufferCompactor : public StmtExprMutator {
                                ffi::ObjectPtrEqual>& buffer_access_indices) {
     std::vector<BufferVar> buffers;
     for (const auto& read : block->reads) {
-      buffers.push_back(read->buffer);
+      buffers.push_back(read->source.as_or_throw<tvm::tirx::BufferVar>());
     }
     for (const auto& write : block->writes) {
-      buffers.push_back(write->buffer);
+      buffers.push_back(write->source.as_or_throw<tvm::tirx::BufferVar>());
     }
     ffi::Map<Var, Range> iter_var_range;
     for (const auto& iter_var : block->iter_vars) {

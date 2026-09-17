@@ -80,13 +80,13 @@ class GeneralReduction(GPUScheduleRule):
                         continue
 
                     other_block_buffers = [
-                        region.buffer
+                        region.source
                         for other_index, other_block in enumerate(blocks)
                         if other_index != block_index
                         for region in (*other_block.reads, *other_block.writes)
                     ]
                     for buffer_index, write in enumerate(block.writes):
-                        buffer = write.buffer
+                        buffer = write.source
                         is_allocated = any(buffer.same_as(other) for other in alloc_buffers)
                         is_cross_block = any(buffer.same_as(other) for other in other_block_buffers)
                         if buffer.scope() == "global" and is_allocated and not is_cross_block:
@@ -152,7 +152,7 @@ class GeneralReduction(GPUScheduleRule):
             reduced_buffers = []
             for block_info in block_infos[:-1]:
                 for buffer_write in sch.get(block_info.block_rv).writes:
-                    reduced_buffers.append(buffer_write.buffer)
+                    reduced_buffers.append(buffer_write.source)
 
             spatial_block = sch.get(block_infos[-1].block_rv)
             spatial_loops = set()
@@ -166,7 +166,7 @@ class GeneralReduction(GPUScheduleRule):
                     spatial_loops.add(block_var_to_loop_var[e])
 
             for buffer_read in spatial_block.reads:
-                buffer = buffer_read.buffer
+                buffer = buffer_read.source
                 if buffer in reduced_buffers:
                     for read_range in buffer_read.region:
                         tvm_ffi.structural_walk(

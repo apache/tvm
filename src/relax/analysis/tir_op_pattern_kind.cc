@@ -51,8 +51,8 @@ class PatternKindAnalyzer : public StmtExprVisitor {
 
  private:
   bool IsOutputBlock(const SBlockNode* block) {
-    for (const BufferRegion& write_region : block->writes) {
-      if (param_buffers_.count(write_region->buffer)) {
+    for (const TensorRegion& write_region : block->writes) {
+      if (param_buffers_.count(write_region->source.as_or_throw<tvm::tirx::BufferVar>())) {
         return true;
       }
     }

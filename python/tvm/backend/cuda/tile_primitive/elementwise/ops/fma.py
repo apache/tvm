@@ -23,18 +23,19 @@ Attaches ``fma_f32x2`` VecImpl for sm_100+ f32; falls back to scalar
 
 from __future__ import annotations
 
-from tvm.tirx import BufferRegion, TilePrimitiveCall
+from tvm.ir import TensorRegion
+from tvm.tirx import TilePrimitiveCall
 
 from ..vec_emit.fma_f32x2 import FMA_F32X2_IMPL
 from . import OpSpec, Plan, SrcSpec
 
 
 def _parse_fma(op: TilePrimitiveCall) -> tuple[Plan | None, str | None]:
-    _dst: BufferRegion = op.args[0]
+    _dst: TensorRegion = op.args[0]
     args = op.args[1:4]
     srcs: list[SrcSpec] = []
     for a in args:
-        if isinstance(a, BufferRegion):
+        if isinstance(a, TensorRegion):
             srcs.append(SrcSpec(buf_region=a))
         else:
             srcs.append(SrcSpec(scalar=a))

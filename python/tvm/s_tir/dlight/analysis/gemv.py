@@ -93,7 +93,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
 
     iter_num = len(block_stmt.iter_vars)
     ret = [
-        read.buffer
+        read.source
         for read in block_stmt.reads
         if len(collect_block_iter_vars_used_in_access_region(block_stmt, read.region)) < iter_num
         and len(collect_block_iter_vars_used_in_access_region(block_stmt, read.region)) > 0

@@ -346,8 +346,9 @@ class ForMatcher : public TensorizeComparator {
     return equal;
   }
 
-  bool CompareBufferRegion(const BufferRegion& lhs, const BufferRegion& rhs) {
-    if (!CompareBuffer(lhs->buffer, rhs->buffer)) {
+  bool CompareBufferRegion(const TensorRegion& lhs, const TensorRegion& rhs) {
+    if (!CompareBuffer(lhs->source.as_or_throw<tvm::tirx::BufferVar>(),
+                       rhs->source.as_or_throw<tvm::tirx::BufferVar>())) {
       return false;
     }
     return CompareArray(lhs->region, rhs->region, &ForMatcher::CompareRange);
@@ -487,24 +488,24 @@ class FunctionPartitioner : public StmtExprVisitor {
     }
     for (const auto& read : op->reads) {
       if (is_matching_) {
-        input1.insert(read->buffer);
+        input1.insert(read->source.as_or_throw<tvm::tirx::BufferVar>());
       } else {
-        input2.insert(read->buffer);
+        input2.insert(read->source.as_or_throw<tvm::tirx::BufferVar>());
       }
     }
     for (const auto& write : op->writes) {
       if (is_matching_) {
-        allocs1.insert(write->buffer);
-      } else if (allocs1.count(write->buffer)) {
+        allocs1.insert(write->source.as_or_throw<tvm::tirx::BufferVar>());
+      } else if (allocs1.count(write->source.as_or_throw<tvm::tirx::BufferVar>())) {
         fail = true;
         return std::nullopt;
       } else {
-        allocs2.insert(write->buffer);
+        allocs2.insert(write->source.as_or_throw<tvm::tirx::BufferVar>());
       }
       if (is_matching_) {
-        intermediate_buffer = write->buffer;
+        intermediate_buffer = write->source.as_or_throw<tvm::tirx::BufferVar>();
       } else {
-        input2.insert(write->buffer);
+        input2.insert(write->source.as_or_throw<tvm::tirx::BufferVar>());
       }
     }
     block_partition.Set(ffi::GetRef<SBlock>(op), is_matching_);

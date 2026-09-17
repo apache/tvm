@@ -144,9 +144,9 @@ class SBlockFrameNode : public TIRFrameNode {
   /*! \brief The variables of the block. */
   ffi::Array<tvm::tirx::IterVar> iter_vars;
   /*! \brief The read buffer regions of the block. */
-  ffi::Optional<ffi::Array<tvm::tirx::BufferRegion>> reads;
+  ffi::Optional<ffi::Array<tvm::TensorRegion>> reads;
   /*! \brief The write buffer regions of the block. */
-  ffi::Optional<ffi::Array<tvm::tirx::BufferRegion>> writes;
+  ffi::Optional<ffi::Array<tvm::TensorRegion>> writes;
   /*! \brief The init statement of the bolck. */
   ffi::Optional<tvm::tirx::Stmt> init;
   /*! \brief The buffer allocated in the block. */

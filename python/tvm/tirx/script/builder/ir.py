@@ -25,6 +25,8 @@ from functools import partial
 from numbers import Integral
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, Union
 
+from tvm.ir import TensorRegion
+
 # isort: off
 from typing import Literal
 
@@ -45,7 +47,7 @@ from tvm.target import Target
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-from tvm.tirx import Buffer, BufferRegion, Expr, IndexMap, is_buffer_var, type_annotation
+from tvm.tirx import Buffer, Expr, IndexMap, is_buffer_var, type_annotation
 from tvm.tirx import op as _tir_op
 from tvm.tirx.exec_scope import ExecScope, ScopeIdDef, Var
 
@@ -462,7 +464,7 @@ def Tuple(*fields: Type) -> Type:  # pylint: disable=invalid-name
 
 
 def match_buffer(
-    param: Var | TensorLoad | BufferRegion,
+    param: Var | TensorLoad | TensorRegion,
     shape: list[Expr] | tuple[Expr] | Expr | Integral = None,
     dtype: str = "float32",
     data: Var = None,
@@ -493,7 +495,7 @@ def match_buffer(
 
     Parameters
     ----------
-    param : Union[Var, TensorLoad, BufferRegion]
+    param : Union[Var, TensorLoad, TensorRegion]
         The parameter of the PrimFunc to match.
 
     shape : Union[List[Expr], Tuple[Expr], Expr, Integral]
@@ -528,9 +530,11 @@ def match_buffer(
     res : Buffer
         The matched buffer.
     """
+    if isinstance(param, TensorRegion) and not is_buffer_var(param.source):
+        raise TypeError("match_buffer requires a TensorRegion with a BufferVar source")
     if shape is None:
-        if isinstance(param, BufferRegion):
-            dtype = param.buffer.ty.dtype
+        if isinstance(param, TensorRegion):
+            dtype = param.source.ty.dtype
             shape = [region.extent for region in param.region]
         else:
             raise ValueError("Shape must be specified when binding input param")
@@ -769,12 +773,12 @@ def where(predicate: Expr | int) -> None:
     _ffi_api.Where(predicate)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def reads(*buffer_slices: list[BufferRegion | TensorLoad]) -> None:
+def reads(*buffer_slices: list[TensorRegion | TensorLoad]) -> None:
     """The block buffer region reading statement.
 
     Parameters
     ----------
-    buffer_slices : List[Union[BufferRegion, TensorLoad]]
+    buffer_slices : List[Union[TensorRegion, TensorLoad]]
         The array of buffer regions to read.
     """
     if len(buffer_slices) == 1:
@@ -789,12 +793,12 @@ def reads(*buffer_slices: list[BufferRegion | TensorLoad]) -> None:
     _ffi_api.Reads(buffer_slices)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def writes(*buffer_slices: list[BufferRegion | TensorLoad]) -> None:
+def writes(*buffer_slices: list[TensorRegion | TensorLoad]) -> None:
     """The block buffer region writing statement.
 
     Parameters
     ----------
-    buffer_slices : List[Union[BufferRegion, TensorLoad]]
+    buffer_slices : List[Union[TensorRegion, TensorLoad]]
         The array of buffer regions to write.
     """
     if len(buffer_slices) == 1:
@@ -2390,9 +2394,9 @@ def evaluate(value: Expr) -> None:
         value = StringImm(value)
     if isinstance(value, bool):
         value = IntImm("bool", value)
-    if isinstance(value, tir.BufferRegion):
+    if isinstance(value, TensorRegion):
         raise TypeError(
-            "T.evaluate does not accept BufferRegion values; "
+            "T.evaluate does not accept TensorRegion values; "
             "construct a BufferLoad with explicit indices"
         )
     return _ffi_api.Evaluate(value)  # type: ignore[attr-defined] # pylint: disable=no-member

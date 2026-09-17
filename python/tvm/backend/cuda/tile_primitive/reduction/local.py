@@ -62,8 +62,9 @@ import operator
 from typing import Any
 
 from tvm.arith.analyzer import Analyzer
+from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion, PrimFunc
+from tvm.tirx import PrimFunc
 from tvm.tirx.layout import TileLayout, laneid
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
@@ -154,7 +155,7 @@ def validate_reduction_local(
     """Validate reduction in local memory."""
     op = TilePrimitiveCall.downcast(op)
     dst_br, src_br = op.output, op.input
-    dst, src = dst_br.buffer, src_br.buffer
+    dst, src = dst_br.source, src_br.source
 
     if not (src.scope() == "local" and dst.scope() == "local" and sctx.is_target("cuda")):
         return False, "expected local scope and CUDA target"
@@ -224,14 +225,14 @@ def validate_reduction_local(
 
 
 def _emit_reduction_local_thread_wise(
-    dst_br: BufferRegion,
-    src_br: BufferRegion,
+    dst_br: TensorRegion,
+    src_br: TensorRegion,
     accum: bool,
     reduce_op: ReduceOpType,
     reduce_dims: list[int],
     spatial_dims: list[int],
 ) -> PrimFunc:
-    dst, src = dst_br.buffer, src_br.buffer
+    dst, src = dst_br.source, src_br.source
     dtype = src.dtype
     src_st, src_extent = get_st_extent(src_br)
     dst_st, dst_extent = get_st_extent(dst_br)
@@ -283,8 +284,8 @@ def _emit_reduction_local_thread_wise(
 
 
 def _emit_reduction_local_view(
-    dst_br: BufferRegion,
-    src_br: BufferRegion,
+    dst_br: TensorRegion,
+    src_br: TensorRegion,
     accum: bool,
     reduce_op: ReduceOpType,
     config: dict[str, Any],
@@ -294,7 +295,7 @@ def _emit_reduction_local_view(
     dst_local_info,
     shuffle_masks: list[int],
 ) -> PrimFunc:
-    dst, src = dst_br.buffer, src_br.buffer
+    dst, src = dst_br.source, src_br.source
     dtype = src.dtype
 
     op_func = reduce_op_table.get(reduce_op)
@@ -411,8 +412,8 @@ def reduction_local_impl(
             dst_br, src_br, accum, op_type, reduce_dims, spatial_dims
         )
     elif sctx.scope_kind in ["warp", "warpgroup"]:
-        src = src_br.buffer
-        dst = dst_br.buffer
+        src = src_br.source
+        dst = dst_br.source
 
         if sctx.is_warp:
             # --- Try laneid shard->replica shuffle reduce ---

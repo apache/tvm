@@ -128,7 +128,7 @@ class IntermediateStageRewriter {
     Stmt local_stage = BufferStore(new_buffer, store->value, local_stage_indices);
 
     // Step 1: Make block and block realize
-    BufferRegion write_buffer_region = BufferRegion::FromPoint(new_buffer, local_stage_indices);
+    TensorRegion write_buffer_region = BufferRegionFromPoint(new_buffer, local_stage_indices);
     local_stage =
         SBlock(/*iter_vars=*/{}, /*reads=*/block->reads, /*writes=*/{write_buffer_region}, "",
                /*body=*/std::move(local_stage));

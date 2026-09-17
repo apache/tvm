@@ -42,7 +42,7 @@ using SMap = std::unordered_map<K, V, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
  * \param dom_high_exclusive The highest node in the sref tree path
  * \return An n-dimensional integer set
  */
-ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,          //
+ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const TensorRegion& region,          //
                                                   const PrimExpr& predicate,           //
                                                   const StmtSRef& dom_low_inclusive,   //
                                                   const StmtSRef& dom_high_exclusive,  //
@@ -50,7 +50,8 @@ ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,   
   ffi::Map<Var, Range> var_dom = LoopDomainOfSRefTreePath(
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
-      /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer.scope()));
+      /*extra_relax_scope=*/
+      runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::BufferVar>().scope()));
   arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
   return EstimateRegionUpperBound(
       /*region=*/region->region,
@@ -68,7 +69,7 @@ ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,   
  * \param analyzer The analyzer
  * \return An n-dimensional integer set
  */
-ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,          //
+ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const TensorRegion& region,          //
                                                   const PrimExpr& predicate,           //
                                                   const StmtSRef& dom_low_inclusive,   //
                                                   const StmtSRef& dom_high_exclusive,  //
@@ -76,7 +77,8 @@ ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,   
   ffi::Map<Var, Range> var_dom = LoopDomainOfSRefTreePath(
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
-      /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer.scope()));
+      /*extra_relax_scope=*/
+      runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::BufferVar>().scope()));
   arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
   if (ffi::Optional<ffi::Array<arith::IntSet>> result = EstimateRegionLowerBound(
           /*region=*/region->region,
@@ -84,7 +86,8 @@ ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,   
           /*predicate=*/predicate, /*analyzer=*/analyzer_ref)) {
     return result.value();
   }
-  return ffi::Array<arith::IntSet>(region->buffer->shape.size(), arith::IntSet::Nothing());
+  return ffi::Array<arith::IntSet>(region->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size(),
+                                   arith::IntSet::Nothing());
 }
 
 /*!
@@ -214,8 +217,8 @@ class SBlockInfoCollector : public StmtExprVisitor {
     const StmtSRefNode* limit = scope_root->parent;
     bool stage_pipeline = true;
     // Step 1. Unbind the read/write regions of each child block
-    std::unordered_map<const StmtSRefNode*, ffi::Array<BufferRegion>> block_reads_unbound;
-    std::unordered_map<const StmtSRefNode*, ffi::Array<BufferRegion>> block_writes_unbound;
+    std::unordered_map<const StmtSRefNode*, ffi::Array<TensorRegion>> block_reads_unbound;
+    std::unordered_map<const StmtSRefNode*, ffi::Array<TensorRegion>> block_writes_unbound;
     block_reads_unbound.reserve(child_block_srefs.size());
     block_writes_unbound.reserve(child_block_srefs.size());
     for (const StmtSRef& block_sref : child_block_srefs) {
@@ -226,9 +229,9 @@ class SBlockInfoCollector : public StmtExprVisitor {
         return ffi::Unchanged();
       };
       // Step 1.1. Unbind read regions
-      ffi::Array<BufferRegion> reads;
+      ffi::Array<TensorRegion> reads;
       reads.reserve(block->reads.size());
-      for (const BufferRegion& region : block->reads) {
+      for (const TensorRegion& region : block->reads) {
         ffi::Array<Range> mapped_region = region->region.Map([&f_substitute](const Range& range) {
           PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
                              .as_or_throw<PrimExpr>();
@@ -237,13 +240,14 @@ class SBlockInfoCollector : public StmtExprVisitor {
                   .as_or_throw<PrimExpr>();
           return Range::FromMinExtent(min, extent);
         });
-        reads.push_back(BufferRegion(region->buffer, mapped_region));
+        reads.push_back(
+            BufferRegion(region->source.as_or_throw<tvm::tirx::BufferVar>(), mapped_region));
       }
       block_reads_unbound.emplace(block_sref.get(), std::move(reads));
       // Step 1.2. Unbind write regions
-      ffi::Array<BufferRegion> writes;
+      ffi::Array<TensorRegion> writes;
       writes.reserve(block->writes.size());
-      for (const BufferRegion& region : block->writes) {
+      for (const TensorRegion& region : block->writes) {
         ffi::Array<Range> mapped_region = region->region.Map([&f_substitute](const Range& range) {
           PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
                              .as_or_throw<PrimExpr>();
@@ -252,7 +256,8 @@ class SBlockInfoCollector : public StmtExprVisitor {
                   .as_or_throw<PrimExpr>();
           return Range::FromMinExtent(min, extent);
         });
-        writes.push_back(BufferRegion(region->buffer, mapped_region));
+        writes.push_back(
+            BufferRegion(region->source.as_or_throw<tvm::tirx::BufferVar>(), mapped_region));
       }
       block_writes_unbound.emplace(block_sref.get(), std::move(writes));
     }
@@ -304,16 +309,16 @@ class SBlockInfoCollector : public StmtExprVisitor {
                            ffi::ObjectPtrEqual>
             touched_regions;
         // Step 2.3.1. Find all the regions read by the consumer that we care about
-        for (const BufferRegion& region : block_reads_unbound.at(consumer_block_sref.get())) {
-          BufferVar buffer = region->buffer;
+        for (const TensorRegion& region : block_reads_unbound.at(consumer_block_sref.get())) {
+          BufferVar buffer = region->source.as_or_throw<tvm::tirx::BufferVar>();
           touched_regions[buffer] = {};
         }
         // Step 2.3.2. Find all the regions written by each producer
         for (const StmtSRefNode* producer_block_sref : producer_block_srefs) {
           const SBlockRealize& producer_realize = block2realize_.at(producer_block_sref->stmt);
           StmtSRef parent_sref = ffi::GetRef<StmtSRef>(producer_block_sref->parent);
-          for (const BufferRegion& region : block_writes_unbound.at(producer_block_sref)) {
-            BufferVar buffer = region->buffer;
+          for (const TensorRegion& region : block_writes_unbound.at(producer_block_sref)) {
+            BufferVar buffer = region->source.as_or_throw<tvm::tirx::BufferVar>();
             auto it = touched_regions.find(buffer);
             // Skip the regions that is not read by the consumer
             if (it != touched_regions.end()) {
@@ -334,8 +339,8 @@ class SBlockInfoCollector : public StmtExprVisitor {
         // Step 2.3.3. For each buffer, check the region cover property
         {
           StmtSRef parent_sref = ffi::GetRef<StmtSRef>(consumer_block_sref->parent);
-          for (const BufferRegion& region : block_reads_unbound.at(consumer_block_sref.get())) {
-            BufferVar buffer = region->buffer;
+          for (const TensorRegion& region : block_reads_unbound.at(consumer_block_sref.get())) {
+            BufferVar buffer = region->source.as_or_throw<tvm::tirx::BufferVar>();
             const std::vector<ffi::Array<arith::IntSet>>& touched_region =
                 touched_regions.at(buffer);
             if (!touched_region.empty()) {

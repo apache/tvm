@@ -93,7 +93,8 @@ class Var2BufferCollector : public StmtExprVisitor {
     }
     for (const MatchBufferRegion& region : op->match_buffers) {
       var2buffer_[region->buffer.var()].insert(region->buffer);
-      var2buffer_[region->source->buffer.var()].insert(region->source->buffer);
+      var2buffer_[region->source->source.as_or_throw<tvm::tirx::BufferVar>().var()].insert(
+          region->source->source.as_or_throw<tvm::tirx::BufferVar>());
     }
     return StmtExprVisitor::Visit_(op);
   }
@@ -149,7 +150,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   /**************** Visitor overload ****************/
 
   // Declared regions carry bounds, not opaque runtime accesses.
-  ffi::Optional<VisitInterrupt> Visit_(const BufferRegionNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorRegionNode* op) final {
+    if (!op->source.as<BufferVar>()) return StmtExprVisitor::Visit_(op);
     for (const Range& range : op->region) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
@@ -158,7 +160,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
-    VisitBufferAccess(BufferRegion::FromPoint(op->buffer, op->indices));
+    VisitBufferAccess(BufferRegionFromPoint(op->buffer, op->indices));
     return Visit(op->value);
   }
 
@@ -168,7 +170,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     if (explicit_it != explicit_access_annotations_.end()) {
       VisitBufferAccess(explicit_it->second);
     } else {
-      VisitBufferAccess(BufferRegion::FromPoint(buffer, op->indices));
+      VisitBufferAccess(BufferRegionFromPoint(buffer, op->indices));
     }
     for (const auto& index : op->indices) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
@@ -267,14 +269,14 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     TVM_FFI_ICHECK(!op->init.has_value());
     TVM_FFI_ICHECK_EQ(op->iter_vars.size(), 0) << "CompactBufferRegion only works on opaque blocks";
     // Step 1. Record and update current read/write region annotations
-    std::unordered_map<BufferVar, std::vector<BufferRegion>, ffi::ObjectPtrHash,
+    std::unordered_map<BufferVar, std::vector<TensorRegion>, ffi::ObjectPtrHash,
                        ffi::ObjectPtrEqual>
         cur_access_annotations;
-    for (const BufferRegion& region : op->reads) {
-      cur_access_annotations[region->buffer].push_back(region);
+    for (const TensorRegion& region : op->reads) {
+      cur_access_annotations[region->source.as_or_throw<tvm::tirx::BufferVar>()].push_back(region);
     }
-    for (const BufferRegion& region : op->writes) {
-      cur_access_annotations[region->buffer].push_back(region);
+    for (const TensorRegion& region : op->writes) {
+      cur_access_annotations[region->source.as_or_throw<tvm::tirx::BufferVar>()].push_back(region);
     }
     for (auto& p : cur_access_annotations) {
       auto& regions = access_annotations_[p.first];
@@ -289,10 +291,12 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         for (int64_t index : buffer_indices) {
           int buffer_index = static_cast<int>(index);
           if (buffer_index >= 0 && buffer_index < static_cast<int>(op->reads.size())) {
-            const BufferRegion& explicit_region = index_type == BufferIndexType::kRead
+            const TensorRegion& explicit_region = index_type == BufferIndexType::kRead
                                                       ? op->reads[buffer_index]
                                                       : op->writes[buffer_index];
-            explicit_access_annotations_[explicit_region->buffer] = explicit_region;
+            explicit_access_annotations_[explicit_region->source
+                                             .as_or_throw<tvm::tirx::BufferVar>()] =
+                explicit_region;
           }
         }
       }
@@ -372,8 +376,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     buffer_scope_depth_.insert(it, {buffer_data, ancestor_iters_.size()});
   }
 
-  void VisitBufferAccess(const BufferRegion& buffer_region) {
-    const BufferVar& buffer = buffer_region->buffer;
+  void VisitBufferAccess(const TensorRegion& buffer_region) {
+    const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
     auto it = buffer_scope_depth_.find(buffer.var());
     if (it != buffer_scope_depth_.end()) {
       size_t n_ancestor_loops = it->second;
@@ -430,11 +434,11 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       auto annotation_it = access_annotations_.find(buffer);
       if (annotation_it != access_annotations_.end()) {
         // opaque buffer has explicit accessed region annotations
-        for (const BufferRegion& region : annotation_it->second) {
+        for (const TensorRegion& region : annotation_it->second) {
           VisitBufferAccess(region);
         }
       } else {
-        VisitBufferAccess(BufferRegion::FullRegion(buffer));
+        VisitBufferAccess(FullBufferRegion(buffer));
       }
     }
   }
@@ -568,10 +572,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       buffer_access_region_;
 
   /*! \brief The map from BufferVar to it's access regions annotated by current block. */
-  std::unordered_map<BufferVar, std::vector<BufferRegion>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<BufferVar, std::vector<TensorRegion>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       access_annotations_;
   /*! \brief The map from BufferVar to its explicit access region annotated by the block. */
-  std::unordered_map<BufferVar, BufferRegion, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<BufferVar, TensorRegion, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       explicit_access_annotations_;
 };
 
@@ -712,13 +716,15 @@ class BufferCompactor : public StmtExprMutator {
     *region = std::move(new_region);
   }
 
-  void RewriteBufferRegions(ffi::Array<BufferRegion>* regions) const {
-    ffi::Array<BufferRegion> new_regions;
+  void RewriteBufferRegions(ffi::Array<TensorRegion>* regions) const {
+    ffi::Array<TensorRegion> new_regions;
     new_regions.reserve(regions->size());
     for (const auto& region : *regions) {
-      BufferRegion buffer_region = region;
-      BufferRegionNode* p = buffer_region.CopyOnWrite();
-      RewriteBufferRegion(&p->buffer, &p->region);
+      TensorRegion buffer_region = region;
+      TensorRegionNode* p = buffer_region.CopyOnWrite();
+      BufferVar source = p->source.as_or_throw<tvm::tirx::BufferVar>();
+      RewriteBufferRegion(&source, &p->region);
+      p->source = source;
       new_regions.push_back(buffer_region);
     }
     *regions = std::move(new_regions);
@@ -728,10 +734,12 @@ class BufferCompactor : public StmtExprMutator {
     ffi::Array<MatchBufferRegion> result;
     result.reserve(match_buffers->size());
     for (const auto& match_buffer : *match_buffers) {
-      const BufferRegion& buffer_region = match_buffer->source;
-      auto p = ffi::make_object<BufferRegionNode>(*buffer_region.get());
-      RewriteBufferRegion(&p->buffer, &p->region);
-      result.push_back(MatchBufferRegion(match_buffer->buffer, BufferRegion(p)));
+      const TensorRegion& buffer_region = match_buffer->source;
+      auto p = ffi::make_object<TensorRegionNode>(*buffer_region.get());
+      BufferVar source = p->source.as_or_throw<tvm::tirx::BufferVar>();
+      RewriteBufferRegion(&source, &p->region);
+      p->source = source;
+      result.push_back(MatchBufferRegion(match_buffer->buffer, TensorRegion(p)));
     }
     *match_buffers = std::move(result);
   }

@@ -547,17 +547,19 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
   ffi::Map<ffi::String, ffi::Array<ffi::String>> buffer_indices_map;
 };
 
-ffi::Array<BufferRegion> MutateBufferRegion(
+ffi::Array<TensorRegion> MutateBufferRegion(
     ffi::Map<ffi::String, ffi::Array<ffi::String>> buffer_indices_map,
-    ffi::Map<ffi::String, Range> index_range_map, ffi::Array<BufferRegion> region_arr) {
-  // Update the region with new Ranges and return new BufferRegion
-  ffi::Array<BufferRegion> new_region_arr =
-      MutateArray(region_arr, [&buffer_indices_map, &index_range_map](const BufferRegion& region) {
-        BufferRegion new_region = region;
-        auto it = buffer_indices_map.find(new_region->buffer.name());
+    ffi::Map<ffi::String, Range> index_range_map, ffi::Array<TensorRegion> region_arr) {
+  // Update the region with new Ranges and return new TensorRegion
+  ffi::Array<TensorRegion> new_region_arr =
+      MutateArray(region_arr, [&buffer_indices_map, &index_range_map](const TensorRegion& region) {
+        TensorRegion new_region = region;
+        auto it =
+            buffer_indices_map.find(new_region->source.as_or_throw<tvm::tirx::BufferVar>().name());
         if (it == buffer_indices_map.end()) return new_region;
 
-        ffi::Array<ffi::String> old_indices = buffer_indices_map[new_region->buffer.name()];
+        ffi::Array<ffi::String> old_indices =
+            buffer_indices_map[new_region->source.as_or_throw<tvm::tirx::BufferVar>().name()];
         ffi::Array<Range> new_ranges;
         for (size_t i = 0; i < old_indices.size(); i++) {
           new_ranges.push_back(index_range_map[old_indices[i]]);
@@ -624,13 +626,13 @@ class BlockMutator : public StmtExprMutator {
     // Get the (BufferVar, indices) map
     ffi::Map<ffi::String, ffi::Array<ffi::String>> buffer_indices_map =
         BufferIndicesMapExtractor::Extract(new_loop_var_, new_block);
-    ffi::Array<BufferRegion> new_writes =
+    ffi::Array<TensorRegion> new_writes =
         MutateBufferRegion(buffer_indices_map, index_range_map, new_block->writes);
     if (!new_block->writes.same_as(new_writes)) {
       // Update the writes with new_writes
       new_block.CopyOnWrite()->writes = std::move(new_writes);
     }
-    ffi::Array<BufferRegion> new_reads =
+    ffi::Array<TensorRegion> new_reads =
         MutateBufferRegion(buffer_indices_map, index_range_map, new_block->reads);
     if (!new_block->reads.same_as(new_reads)) {
       // Update the reads with new_reads

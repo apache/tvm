@@ -30,7 +30,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  AnnotateRegionRewriter(BufferVar buffer, int buffer_index, BufferRegion new_region,
+  AnnotateRegionRewriter(BufferVar buffer, int buffer_index, TensorRegion new_region,
                          BufferIndexType buffer_index_type)
       : buffer_(buffer),
         buffer_index_(buffer_index),
@@ -42,7 +42,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
 
-    ffi::Array<BufferRegion> regions =
+    ffi::Array<TensorRegion> regions =
         buffer_index_type_ == BufferIndexType::kWrite ? block->writes : block->reads;
     TVM_FFI_ICHECK_GE(buffer_index_, 0) << "Buffer index must be non-negative";
     TVM_FFI_ICHECK_LT(buffer_index_, static_cast<int>(regions.size()))
@@ -86,7 +86,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
  private:
   BufferVar buffer_;
   int buffer_index_;
-  BufferRegion new_region_;
+  TensorRegion new_region_;
   BufferIndexType buffer_index_type_;
 };
 
@@ -110,7 +110,7 @@ void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int bu
         new_indices[i], analyzer->Simplify(new_indices[i + 1] - new_indices[i])));
   }
 
-  BufferRegion new_region(buffer, new_ranges);
+  TensorRegion new_region = BufferRegion(buffer, new_ranges);
 
   auto mutator =
       ffi::make_object<AnnotateRegionRewriter>(buffer, buffer_index, new_region, buffer_index_type);

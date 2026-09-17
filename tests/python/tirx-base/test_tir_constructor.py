@@ -20,6 +20,7 @@ import tvm_ffi
 
 import tvm
 from tvm import te, topi
+from tvm.ir import TensorRegion
 from tvm.ir.prim import expr_deep_equal
 from tvm.script import tirx as T
 
@@ -230,14 +231,14 @@ def test_buffer_region_call_wrappers_reject():
 def test_buffer_region_type_is_singleton():
     lhs = tvm.tirx.decl_buffer([1], "int32")[0:1]
     rhs = tvm.tirx.decl_buffer([2], "float32")[0:2]
-    assert isinstance(lhs, tvm.tirx.BufferRegion)
-    assert isinstance(rhs, tvm.tirx.BufferRegion)
+    assert isinstance(lhs, TensorRegion)
+    assert isinstance(rhs, TensorRegion)
     assert lhs.ty.same_as(rhs.ty)
 
 
 def test_buffer_region_is_not_arithmetic_operand():
     int_region = tvm.tirx.decl_buffer([4], "int32")[0:4]
-    with pytest.raises(TypeError, match="construct a BufferLoad explicitly"):
+    with pytest.raises(TypeError, match="construct a TensorLoad explicitly"):
         tvm.tirx.IterVar((0, 4), "i", tvm.tirx.IterVar.DataPar) + int_region
 
 

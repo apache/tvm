@@ -517,12 +517,14 @@ bool TensorizeComparator::CompareBuffer(const BufferVar& lhs, const BufferVar& r
   return equal;
 }
 
-bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const BufferRegion& rhs) {
-  if (!CompareBuffer(lhs->buffer, rhs->buffer)) {
+bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const TensorRegion& rhs) {
+  if (!CompareBuffer(lhs->source.as_or_throw<tvm::tirx::BufferVar>(),
+                     rhs->source.as_or_throw<tvm::tirx::BufferVar>())) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "CompareBufferRegion returning false due to buffer mismatch: lhs->buffer="
-         << lhs->buffer << " vs rhs->buffer=" << rhs->buffer;
+      os << "CompareBufferRegion returning false due to buffer mismatch: lhs->source="
+         << lhs->source.as_or_throw<tvm::tirx::BufferVar>()
+         << " vs rhs->source=" << rhs->source.as_or_throw<tvm::tirx::BufferVar>();
       EmitError(os.str());
     }
     return false;
@@ -540,7 +542,7 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
     return false;
   }
 
-  auto it = buffer_indices_.find(lhs->buffer);
+  auto it = buffer_indices_.find(lhs->source.as_or_throw<tvm::tirx::BufferVar>());
   if (it == buffer_indices_.end()) {
     // Update base indices for the buffer, this can only happen if it is visiting the scope block.
     TVM_FFI_ICHECK(is_scope_block);
@@ -574,7 +576,8 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
         return false;
       }
     }
-    buffer_indices_.emplace(lhs->buffer, std::move(indices_base));
+    buffer_indices_.emplace(lhs->source.as_or_throw<tvm::tirx::BufferVar>(),
+                            std::move(indices_base));
   } else {
     // Check the base indices are consistent.
     const std::vector<PrimExpr>& indices_base = it->second;

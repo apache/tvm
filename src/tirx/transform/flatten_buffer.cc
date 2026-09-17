@@ -191,14 +191,14 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
       block.CopyOnWrite()->alloc_buffers = alloc_buffers;
     }
 
-    ffi::Array<BufferRegion> reads = op->reads;
-    reads.MutateByApply([this](BufferRegion region) { return MutateBufferRegion(region); });
+    ffi::Array<TensorRegion> reads = op->reads;
+    reads.MutateByApply([this](TensorRegion region) { return MutateBufferRegion(region); });
     if (!reads.same_as(op->reads)) {
       block.CopyOnWrite()->reads = reads;
     }
 
-    ffi::Array<BufferRegion> writes = op->writes;
-    writes.MutateByApply([this](BufferRegion region) { return MutateBufferRegion(region); });
+    ffi::Array<TensorRegion> writes = op->writes;
+    writes.MutateByApply([this](TensorRegion region) { return MutateBufferRegion(region); });
     if (!writes.same_as(op->writes)) {
       block.CopyOnWrite()->writes = writes;
     }
@@ -323,9 +323,9 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     return BufferLoad(info.flattened, FoldIndices(info, node->indices), node->span);
   }
 
-  BufferRegion MutateBufferRegion(BufferRegion region) {
-    const FlatInfo& info = Lookup(region->buffer);
-    if (info.flattened.same_as(region->buffer)) {
+  TensorRegion MutateBufferRegion(TensorRegion region) {
+    const FlatInfo& info = Lookup(region->source.as_or_throw<tvm::tirx::BufferVar>());
+    if (info.flattened.same_as(region->source.as_or_throw<tvm::tirx::BufferVar>())) {
       return region;
     }
 

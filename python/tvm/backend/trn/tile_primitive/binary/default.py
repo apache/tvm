@@ -50,8 +50,8 @@ def binary_trn(
 
     # Extract buffers and constants
     CONST = _src2 if isinstance(_src2, FloatImm) else None
-    dst, src1 = _dst.buffer, _src1.buffer
-    src2 = None if CONST is not None else _src2.buffer
+    dst, src1 = _dst.source, _src1.source
+    src2 = None if CONST is not None else _src2.source
 
     p_var = T.Var("P", "int32")
     b_var = T.Var("B", "int32")

@@ -159,10 +159,10 @@ BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
     SBlockFrame frame = FindSBlockFrame("T.match_buffer");
     frame->match_buffers.push_back(tvm::tirx::MatchBufferRegion(
         buffer, BufferRegionFromLoad(ffi::GetRef<tvm::TensorLoad>(buffer_load))));
-  } else if (const auto* buffer_region = param.as<tvm::tirx::BufferRegionNode>()) {
+  } else if (const auto* buffer_region = param.as<tvm::TensorRegionNode>()) {
     SBlockFrame frame = FindSBlockFrame("T.match_buffer");
     frame->match_buffers.push_back(
-        tvm::tirx::MatchBufferRegion(buffer, ffi::GetRef<tvm::tirx::BufferRegion>(buffer_region)));
+        tvm::tirx::MatchBufferRegion(buffer, ffi::GetRef<tvm::TensorRegion>(buffer_region)));
   } else {
     TVM_FFI_THROW(InternalError) << "ValueError: Unexpected type for TIR MatchBuffer.";
   }
@@ -292,9 +292,9 @@ void Reads(ffi::Array<ffi::ObjectRef> buffer_slices) {
     TVM_FFI_THROW(InternalError)
         << "ValueError: Duplicate read region declaration, previous one is " << frame->reads;
   }
-  ffi::Array<BufferRegion> reads;
+  ffi::Array<TensorRegion> reads;
   for (const ffi::ObjectRef& obj : buffer_slices) {
-    if (auto buffer_region = obj.as<BufferRegion>()) {
+    if (auto buffer_region = obj.as<TensorRegion>()) {
       reads.push_back(buffer_region.value());
     } else if (auto buffer_load = obj.as<TensorLoad>()) {
       reads.push_back(BufferRegionFromLoad(buffer_load.value()));
@@ -312,9 +312,9 @@ void Writes(ffi::Array<ffi::ObjectRef> buffer_slices) {
     TVM_FFI_THROW(InternalError)
         << "ValueError: Duplicate write region declaration, previous one is " << frame->writes;
   }
-  ffi::Array<BufferRegion> writes;
+  ffi::Array<TensorRegion> writes;
   for (const ffi::ObjectRef& obj : buffer_slices) {
-    if (auto buffer_region = obj.as<BufferRegion>()) {
+    if (auto buffer_region = obj.as<TensorRegion>()) {
       writes.push_back(buffer_region.value());
     } else if (auto buffer_load = obj.as<TensorLoad>()) {
       writes.push_back(BufferRegionFromLoad(buffer_load.value()));

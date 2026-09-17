@@ -83,17 +83,18 @@ class DecomposeReductionBlockReplacer : public StmtExprMutator {
       p_new_block->name_hint = p_new_block->name_hint + "_update";
       p_new_block->init = std::nullopt;
       // Add write regions back to read regions in update block.
-      ffi::Array<BufferRegion> new_reads;
+      ffi::Array<TensorRegion> new_reads;
       std::unordered_set<const VarNode*> read_bufs;
-      for (const BufferRegion& read_access : block->reads) {
-        read_bufs.insert(read_access->buffer.get());
+      for (const TensorRegion& read_access : block->reads) {
+        read_bufs.insert(read_access->source.as_or_throw<tvm::tirx::BufferVar>().get());
       }
-      for (const BufferRegion& write_access : block->writes) {
-        if (read_bufs.find(write_access->buffer.get()) == read_bufs.end()) {
+      for (const TensorRegion& write_access : block->writes) {
+        if (read_bufs.find(write_access->source.as_or_throw<tvm::tirx::BufferVar>().get()) ==
+            read_bufs.end()) {
           new_reads.push_back(write_access);
         }
       }
-      for (const BufferRegion& read_access : block->reads) {
+      for (const TensorRegion& read_access : block->reads) {
         new_reads.push_back(read_access);
       }
       p_new_block->reads = new_reads;
@@ -256,7 +257,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   init_block->body =
       ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(block->init.value(), map_block_var)
           .as_or_throw<Stmt>();
-  for (const BufferRegion& write : block->writes) {
+  for (const TensorRegion& write : block->writes) {
     ffi::Array<Range> mapped_region = write->region.Map([&map_block_var](const Range& range) {
       PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, map_block_var)
                          .as_or_throw<PrimExpr>();
@@ -264,7 +265,8 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
                             .as_or_throw<PrimExpr>();
       return Range::FromMinExtent(min, extent);
     });
-    init_block->writes.push_back(BufferRegion(write->buffer, mapped_region));
+    init_block->writes.push_back(
+        BufferRegion(write->source.as_or_throw<tvm::tirx::BufferVar>(), mapped_region));
   }
   // Step 3. Scan loops not higher than the specified loop above the reduction block.
   //         If the loop is used in the init block binding, then it is chosen.
@@ -932,9 +934,9 @@ class BaseBlockCreator {
   /*! \brief THe RHS values of the reduction in this block */
   ffi::Array<PrimExpr> update_rhs_;
   /*! \brief The read regions of the new created block */
-  ffi::Array<BufferRegion> read_regions_;
+  ffi::Array<TensorRegion> read_regions_;
   /*! \brief The write regions of the new created block */
-  ffi::Array<BufferRegion> write_regions_;
+  ffi::Array<TensorRegion> write_regions_;
 };
 
 /*!
@@ -1057,7 +1059,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
       return ffi::Unchanged();
     };
     read_regions_.reserve(old_block->reads.size());
-    for (const BufferRegion& read_region : old_block->reads) {
+    for (const TensorRegion& read_region : old_block->reads) {
       ffi::Array<Range> region = read_region->region.Map([&map_block_var](const Range& range) {
         PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, map_block_var)
                            .as_or_throw<PrimExpr>();
@@ -1066,15 +1068,17 @@ class RFactorBlockCreator : public BaseBlockCreator {
                 .as_or_throw<PrimExpr>();
         return Range::FromMinExtent(min, extent);
       });
-      read_regions_.push_back(BufferRegion(read_region->buffer, region));
+      read_regions_.push_back(
+          BufferRegion(read_region->source.as_or_throw<tvm::tirx::BufferVar>(), region));
     }
     write_regions_.reserve(old_block->writes.size());
-    for (const BufferRegion& write_region : old_block->writes) {
+    for (const TensorRegion& write_region : old_block->writes) {
       ffi::Array<Range> region = write_region->region;
       region.insert(
           region.begin() + factor_axis_,
           Range::FromMinExtent(additional_iter_->var, IntImm(additional_iter_->var.ty(), 1)));
-      ffi::Optional<BufferVar> rf_buffer = buffer_map.Get(write_region->buffer);
+      ffi::Optional<BufferVar> rf_buffer =
+          buffer_map.Get(write_region->source.as_or_throw<tvm::tirx::BufferVar>());
       TVM_FFI_ICHECK(rf_buffer.has_value());
       region.MutateByApply([&map_block_var](const Range& range) {
         PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, map_block_var)
@@ -1175,7 +1179,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
   }
 
   void CreateRegion(const ffi::Array<PrimExpr>& buf_loads, bool is_read) {
-    ffi::Array<BufferRegion>& buf_regions = is_read ? read_regions_ : write_regions_;
+    ffi::Array<TensorRegion>& buf_regions = is_read ? read_regions_ : write_regions_;
     for (const PrimExpr& expr : buf_loads) {
       const auto* buf_load = expr.as<TensorLoadNode>();
       TVM_FFI_ICHECK(buf_load != nullptr);

@@ -32,16 +32,16 @@ using namespace tvm::tirx;
 
 using support::NDIntSet;
 
-bool HasBuffer(const ffi::Array<BufferRegion>& buffer_regions, const BufferVar& buffer) {
-  for (const BufferRegion& buffer_region : buffer_regions) {
-    if (buffer_region->buffer.same_as(buffer)) {
+bool HasBuffer(const ffi::Array<TensorRegion>& buffer_regions, const BufferVar& buffer) {
+  for (const TensorRegion& buffer_region : buffer_regions) {
+    if (buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
       return true;
     }
   }
   return false;
 }
 
-void RelaxBufferRegions(const ffi::Array<BufferRegion>& buffer_regions,
+void RelaxBufferRegions(const ffi::Array<TensorRegion>& buffer_regions,
                         const BufferVar& buffer,                      //
                         const ffi::Map<Var, arith::IntSet>& var_dom,  //
                         const ffi::Map<Var, PrimExpr>& bindings,      //
@@ -50,8 +50,8 @@ void RelaxBufferRegions(const ffi::Array<BufferRegion>& buffer_regions,
     if (auto repl = bindings.Get(var)) return ffi::Any(*std::move(repl));
     return ffi::Unchanged();
   };
-  for (const BufferRegion& buffer_region : buffer_regions) {
-    if (buffer_region->buffer.same_as(buffer)) {
+  for (const TensorRegion& buffer_region : buffer_regions) {
+    if (buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
       ffi::Array<Range> mapped_region =
           buffer_region->region.Map([&f_substitute](const Range& range) {
             PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)

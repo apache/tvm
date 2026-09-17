@@ -300,7 +300,7 @@ SBlockRealize GenerateInner(bool is_write_reduction,
   n->iter_vars = iter_vars;
   n->init = std::nullopt;
   if (is_write_reduction) {
-    ffi::Array<BufferRegion> reads;
+    ffi::Array<TensorRegion> reads;
     reads.reserve(block->writes.size() + block->reads.size());
     reads.insert(reads.end(), block->writes.begin(), block->writes.end());
     reads.insert(reads.end(), block->reads.begin(), block->reads.end());
@@ -448,12 +448,12 @@ Stmt ReplaceAndSimplify(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
  * \param dom_map The variables to be relaxed
  * \return The relaxed regions
  */
-ffi::Array<BufferRegion> EvalSetRegions(const ffi::Array<BufferRegion>& regions,
+ffi::Array<TensorRegion> EvalSetRegions(const ffi::Array<TensorRegion>& regions,
                                         const ffi::Map<Var, arith::IntSet>& dom_map) {
-  ffi::Array<BufferRegion> results;
+  ffi::Array<TensorRegion> results;
   results.reserve(regions.size());
-  for (const BufferRegion& buffer_region : regions) {
-    const BufferVar& buffer = buffer_region->buffer;
+  for (const TensorRegion& buffer_region : regions) {
+    const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
     ffi::Array<arith::IntSet> relaxed = arith::EvalSet(buffer_region->region, dom_map);
     TVM_FFI_ICHECK_EQ(relaxed.size(), buffer->shape.size());
     int ndim = buffer->shape.size();
@@ -472,11 +472,11 @@ ffi::Array<BufferRegion> EvalSetRegions(const ffi::Array<BufferRegion>& regions,
  * \param regions The input regions for the union.
  * \return The union regions
  */
-ffi::Array<BufferRegion> UnionRegions(const ffi::Array<BufferRegion>& regions) {
+ffi::Array<TensorRegion> UnionRegions(const ffi::Array<TensorRegion>& regions) {
   typedef std::vector<ffi::Array<arith::IntSet>> ranges_t;
   std::unordered_map<BufferVar, ranges_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> intset_map;
-  for (const BufferRegion& buffer_region : regions) {
-    const BufferVar& buffer = buffer_region->buffer;
+  for (const TensorRegion& buffer_region : regions) {
+    const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
     if (intset_map.find(buffer) == intset_map.end()) {
       intset_map[buffer] = {buffer->shape.size(), ffi::Array<arith::IntSet>()};
     }
@@ -486,7 +486,7 @@ ffi::Array<BufferRegion> UnionRegions(const ffi::Array<BufferRegion>& regions) {
       intset_map[buffer][dim].push_back(arith::IntSet::FromRange(buffer_region->region[dim]));
     }
   }
-  ffi::Array<BufferRegion> results;
+  ffi::Array<TensorRegion> results;
   for (const auto& it : intset_map) {
     const BufferVar& buffer = it.first;
     ffi::Array<Range> regions;
@@ -606,8 +606,8 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
   PrimExpr outer_predicate{nullptr};
   ffi::Array<IterVar> outer_iter_vars{nullptr};
   ffi::Array<PrimExpr> outer_bindings{nullptr};
-  ffi::Array<BufferRegion> read_regions;
-  ffi::Array<BufferRegion> write_regions;
+  ffi::Array<TensorRegion> read_regions;
+  ffi::Array<TensorRegion> write_regions;
   std::string outer_block_name = "outer_";
   ffi::Map<Var, Var> loop_var_subst;
   arith::Analyzer analyzer;
@@ -821,8 +821,8 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   PrimFunc intrin_impl = DeepCopy(intrin->impl);
 
   int index_dtype_bits = -1;
-  auto f_update_max_dtype_bits_from_region = [&](const ffi::Array<BufferRegion>& buffer_regions) {
-    for (const BufferRegion& buffer_region : buffer_regions) {
+  auto f_update_max_dtype_bits_from_region = [&](const ffi::Array<TensorRegion>& buffer_regions) {
+    for (const TensorRegion& buffer_region : buffer_regions) {
       for (const auto& range : buffer_region->region) {
         index_dtype_bits = std::max(index_dtype_bits, range->min.ty().bits());
       }
@@ -857,11 +857,11 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   std::unordered_map<BufferVar, ffi::Array<Range>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       impl2region;
   SBlock impl_block = intrin_impl->body.as_or_throw<SBlockRealize>()->block;
-  for (const BufferRegion& read : impl_block->reads) {
-    impl2region.emplace(read->buffer, read->region);
+  for (const TensorRegion& read : impl_block->reads) {
+    impl2region.emplace(read->source.as_or_throw<tvm::tirx::BufferVar>(), read->region);
   }
-  for (const BufferRegion& write : impl_block->writes) {
-    impl2region.emplace(write->buffer, write->region);
+  for (const TensorRegion& write : impl_block->writes) {
+    impl2region.emplace(write->source.as_or_throw<tvm::tirx::BufferVar>(), write->region);
   }
   // Step 4: Create MatchBufferRegion for the params of the impl function of the tensor
   // intrin to make them subregions of the buffer in the original IR.

@@ -126,9 +126,9 @@ class RenewDefMutator : public StmtExprMutator {
     Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
 
     // Step 4. Revisit access region
-    ffi::Array<BufferRegion> reads =
+    ffi::Array<TensorRegion> reads =
         op->reads.Map(std::bind(&RenewDefMutator::VisitBufferRegion, this, std::placeholders::_1));
-    ffi::Array<BufferRegion> writes =
+    ffi::Array<TensorRegion> writes =
         op->writes.Map(std::bind(&RenewDefMutator::VisitBufferRegion, this, std::placeholders::_1));
 
     // Step 5. Regenerate block. Since the defs are changed, we need to create a new block
@@ -231,7 +231,7 @@ class RenewDefMutator : public StmtExprMutator {
 
   MatchBufferRegion VisitMatchBuffer(const MatchBufferRegion& match_buffer) {
     BufferVar buffer = DefineBuffer(match_buffer->buffer);
-    BufferRegion region = VisitBufferRegion(match_buffer->source);
+    TensorRegion region = VisitBufferRegion(match_buffer->source);
     return MatchBufferRegion(std::move(buffer), std::move(region));
   }
 
@@ -249,11 +249,12 @@ class RenewDefMutator : public StmtExprMutator {
     }
   }
 
-  BufferRegion VisitBufferRegion(const BufferRegion& buffer_region) {
-    BufferVar buffer = UseOrRemapBuffer(buffer_region->buffer);
+  TensorRegion VisitBufferRegion(const TensorRegion& buffer_region) {
+    BufferVar buffer = UseOrRemapBuffer(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>());
     ffi::Array<Range> region = buffer_region->region.Map(
         std::bind(&RenewDefMutator::VisitRange, this, std::placeholders::_1));
-    if (buffer.same_as(buffer_region->buffer) && region.same_as(buffer_region->region)) {
+    if (buffer.same_as(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>()) &&
+        region.same_as(buffer_region->region)) {
       return buffer_region;
     } else {
       return BufferRegion(std::move(buffer), std::move(region));

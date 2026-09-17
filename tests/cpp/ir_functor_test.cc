@@ -231,7 +231,7 @@ TEST(IRF, StmtVisitor) {
     tirx::Var buf_var("b", PointerType(dtype));
     BufferVar buffer = decl_buffer({16});
     body = SeqStmt({DeclBuffer(buffer, buf_var), std::move(body)});
-    BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
+    TensorRegion buffer_region = BufferRegion(buffer, {Range::FromMinExtent(x + 1, 1)});
     MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
 
     // construct block and block_realize
@@ -359,7 +359,7 @@ TEST(IRF, StmtExprMutator) {
     Stmt alloc = fmakealloc();
     // body is: DeclBuffer, AllocBuffer, Evaluate
     Stmt body = SeqStmt({decl, alloc, eval_body});
-    BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
+    TensorRegion buffer_region = BufferRegion(buffer, {Range::FromMinExtent(x + 1, 1)});
     MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
     // construct block and block_realize
     SBlock block = SBlock({}, {buffer_region}, {buffer_region}, "block", body, body, {},

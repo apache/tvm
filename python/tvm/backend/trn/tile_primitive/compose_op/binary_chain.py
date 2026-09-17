@@ -17,8 +17,9 @@
 
 """Implementation of BinaryChain dispatch."""
 
+from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion, PrimFunc, TilePrimitiveCall
+from tvm.tirx import PrimFunc, TilePrimitiveCall
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.ops import BinaryChain
 
@@ -59,7 +60,7 @@ def binary_chain_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     p_var = T.Var("P", "int32")
     b_var = T.Var("B", "int32")
     f_var = T.Var("F", "int32")
-    p_size = output.buffer.ty.layout.size("P")
+    p_size = output.source.ty.layout.size("P")
     inst_size_limit = op.config.get("max_inst_size", 512)
     inst_repr.bound_inst_size(inst_size_limit, analyzer)
     inst_gen.bind_inst_iter(output, p_var, p_size, 1, False)
@@ -67,7 +68,7 @@ def binary_chain_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     b_extent = inst_gen.fill_in_block_dim(output, b_var)
 
     # Extract buffers and opcodes
-    _src, dst = srcs[0].buffer, output.buffer
+    _src, dst = srcs[0].source, output.source
     opcode0, opcode1 = opcode_table[op.op0], opcode_table[op.op1]
 
     # Determine operation function based on instruction type
@@ -81,8 +82,8 @@ def binary_chain_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     def get_srcs(inst_gen):
         return [
             (
-                srcs[i].buffer[inst_gen.generate_indices(srcs[i])]
-                if isinstance(srcs[i], BufferRegion)
+                srcs[i].source[inst_gen.generate_indices(srcs[i])]
+                if isinstance(srcs[i], TensorRegion)
                 else srcs[i]
             )
             for i in range(len(srcs))

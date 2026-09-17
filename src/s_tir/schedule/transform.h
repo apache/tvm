@@ -71,7 +71,7 @@ BufferVar WithDType(const BufferVar& buffer, PrimType dtype);
  * \param target The buffer to be replaced to
  * \return The new sequence of regions after replacement
  */
-ffi::Array<BufferRegion> ReplaceBuffer(ffi::Array<BufferRegion> regions, const BufferVar& source,
+ffi::Array<TensorRegion> ReplaceBuffer(ffi::Array<TensorRegion> regions, const BufferVar& source,
                                        const BufferVar& target);
 
 /*!
@@ -80,7 +80,7 @@ ffi::Array<BufferRegion> ReplaceBuffer(ffi::Array<BufferRegion> regions, const B
  * \param buffer_map The mapping from old buffers to new buffers
  * \return The new sequence of regions after replacement
  */
-ffi::Array<BufferRegion> ReplaceBuffer(ffi::Array<BufferRegion> regions,
+ffi::Array<TensorRegion> ReplaceBuffer(ffi::Array<TensorRegion> regions,
                                        const ffi::Map<BufferVar, BufferVar>& buffer_map);
 
 /*!
@@ -100,9 +100,9 @@ ffi::Array<MatchBufferRegion> ReplaceBuffer(ffi::Array<MatchBufferRegion> match_
  * \param target The buffer region to be replaced to
  * \return The new sequence of regions after replacement
  */
-ffi::Array<BufferRegion> ReplaceBufferRegion(ffi::Array<BufferRegion> regions,
+ffi::Array<TensorRegion> ReplaceBufferRegion(ffi::Array<TensorRegion> regions,
                                              const BufferVar& source_buffer,
-                                             const BufferRegion& target);
+                                             const TensorRegion& target);
 
 /*!
  * \brief Replaces the buffer region within the specific sequence of match_buffers
@@ -113,7 +113,7 @@ ffi::Array<BufferRegion> ReplaceBufferRegion(ffi::Array<BufferRegion> regions,
  */
 ffi::Array<MatchBufferRegion> ReplaceBufferRegion(ffi::Array<MatchBufferRegion> match_buffers,
                                                   const BufferVar& source_buffer,
-                                                  const BufferRegion& target);
+                                                  const TensorRegion& target);
 
 /*!
  * \brief A helper mutator which recursively replaces the old buffer with the new buffer and
@@ -231,7 +231,7 @@ class BlockBufferAccessSimplifier : public tirx::IRMutatorWithAnalyzer {
       : IRMutatorWithAnalyzer(analyzer) {}
 
  private:
-  void SimplifyAccessRegion(ffi::Array<BufferRegion>* old_access_regions);
+  void SimplifyAccessRegion(ffi::Array<TensorRegion>* old_access_regions);
   void SimplifyBufferIndices(ffi::Array<PrimExpr>* indices);
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final;

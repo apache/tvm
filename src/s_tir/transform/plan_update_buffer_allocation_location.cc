@@ -80,8 +80,9 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
     // Also visit match_buffers to collect buffers that only appear in read and match_buffer
     // regions.
     for (const auto& region : op->match_buffers) {
-      if (!find(region->source->buffer)) {
-        buffer_alloc_recorder_.push_back(region->source->buffer);
+      if (!find(region->source->source.as_or_throw<tvm::tirx::BufferVar>())) {
+        buffer_alloc_recorder_.push_back(
+            region->source->source.as_or_throw<tvm::tirx::BufferVar>());
       }
     }
 
@@ -183,7 +184,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     }
     for (const MatchBufferRegion match_buffer : op->match_buffers) {
       const Var target_var = match_buffer->buffer.var();
-      const Var source_var = match_buffer->source->buffer.var();
+      const Var source_var = match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>().var();
       TVM_FFI_ICHECK(buffer_data_to_buffer_.count(source_var));
       buffer_data_to_buffer_.Set(target_var, match_buffer->buffer);
     }
@@ -224,7 +225,7 @@ class BufferAllocationLocator : public StmtExprMutator {
                         /*init=*/std::nullopt,
                         /*alloc_buffers=*/alloc_buffers);
     SBlockNode* n = opaque_block.CopyOnWrite();
-    ffi::Array<ffi::Array<BufferRegion>> access =
+    ffi::Array<ffi::Array<TensorRegion>> access =
         GetSBlockReadWriteRegion(opaque_block, buffer_data_to_buffer_);
     n->reads = access[0];
     n->writes = access[1];
@@ -232,11 +233,12 @@ class BufferAllocationLocator : public StmtExprMutator {
     return realize;
   }
 
-  ffi::Array<BufferRegion> RemoveRedundantBufferRegion(
-      const ffi::Array<BufferRegion>& region) const {
-    ffi::Array<BufferRegion> result;
-    for (const BufferRegion& buffer_region : region) {
-      if (buffer_data_to_buffer_.count(buffer_region->buffer.var())) {
+  ffi::Array<TensorRegion> RemoveRedundantBufferRegion(
+      const ffi::Array<TensorRegion>& region) const {
+    ffi::Array<TensorRegion> result;
+    for (const TensorRegion& buffer_region : region) {
+      if (buffer_data_to_buffer_.count(
+              buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().var())) {
         result.push_back(buffer_region);
       }
     }
