@@ -1138,14 +1138,9 @@ def verify_single_allocation(stmt, alloc_size=None):
     alloc_extents = []
 
     def verify(n):
-        if (
-            isinstance(n, tvm.s_tir.SBlock)
-            and n.alloc_buffers is not None
-            and (True in ((buf.scope() == "shared.dyn") for buf in n.alloc_buffers))
-        ):
-            num_alloc[0] += len(n.alloc_buffers)
-            for buf in n.alloc_buffers:
-                alloc_extents.append(buf.shape)
+        if isinstance(n, tvm.tirx.AllocBuffer) and n.buffer.scope() == "shared.dyn":
+            num_alloc[0] += 1
+            alloc_extents.append(n.buffer.shape)
 
     tvm_ffi.structural_walk(stmt, verify)
     assert num_alloc[0] == 1
@@ -1163,6 +1158,7 @@ def verify_single_allocation(stmt, alloc_size=None):
 
 def test_auto_padding():
     mod = tvm.s_tir.transform.LowerAutoCopy()(Transpose)
+    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
     mod = tvm.tirx.transform.FlattenBuffer()(mod)
     verify_single_allocation(mod["main"].body, 16 * 130)
 
