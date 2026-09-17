@@ -137,7 +137,7 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::s
       }
     }
   }
-  this->VisitStmt(f->body);
+  this->Dispatch(f->body);
   builder_->SetLocalSize(func_ptr, workgroup_size_);
   builder_->MakeInst(spv::OpReturn);
   builder_->MakeInst(spv::OpFunctionEnd);
@@ -684,7 +684,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const prim::ShuffleNode* op) {
   return element;
 }
 
-void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
+void CodeGenSPIRV::Dispatch_(const BufferStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
   Var buffer_var = op->buffer.var();
   PrimExpr prim_index = op->indices[0];
@@ -733,7 +733,7 @@ void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
   }
 }
 
-void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
+void CodeGenSPIRV::Dispatch_(const ForNode* op) {
   analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
   spirv::Value init_value = MakeValue(op->min);
   PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
@@ -775,7 +775,7 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   // loop body
   builder_->StartLabel(body_label);
   var_map_[op->loop_var.get()] = spirv::Value(loop_var);
-  this->VisitStmt(op->body);
+  this->Dispatch(op->body);
   builder_->MakeInst(spv::OpBranch, continue_label);
 
   // loop continue
@@ -788,7 +788,7 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   builder_->StartLabel(merge_label);
 }
 
-void CodeGenSPIRV::VisitStmt_(const WhileNode* op) {
+void CodeGenSPIRV::Dispatch_(const WhileNode* op) {
   spirv::Label head_label = builder_->NewLabel();
   spirv::Label condition_label = builder_->NewLabel();
   spirv::Label body_label = builder_->NewLabel();
@@ -812,7 +812,7 @@ void CodeGenSPIRV::VisitStmt_(const WhileNode* op) {
 
   // loop body
   builder_->StartLabel(body_label);
-  this->VisitStmt(op->body);
+  this->Dispatch(op->body);
   builder_->MakeInst(spv::OpBranch, continue_label);
 
   // loop continue
@@ -823,7 +823,7 @@ void CodeGenSPIRV::VisitStmt_(const WhileNode* op) {
   builder_->StartLabel(merge_label);
 }
 
-void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
+void CodeGenSPIRV::Dispatch_(const IfThenElseNode* op) {
   spirv::Value cond = MakeValue(op->condition);
   spirv::Label then_label = builder_->NewLabel();
   spirv::Label merge_label = builder_->NewLabel();
@@ -833,11 +833,11 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
     builder_->MakeInst(spv::OpBranchConditional, cond, then_label, else_label);
     // then block
     builder_->StartLabel(then_label);
-    this->VisitStmt(op->then_case);
+    this->Dispatch(op->then_case);
     builder_->MakeInst(spv::OpBranch, merge_label);
     // else block
     builder_->StartLabel(else_label);
-    this->VisitStmt(op->else_case.value());
+    this->Dispatch(op->else_case.value());
     builder_->MakeInst(spv::OpBranch, merge_label);
   } else {
     builder_->MakeInst(spv::OpSelectionMerge, merge_label, spv::SelectionControlMaskNone);
@@ -845,14 +845,14 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
                        weight_likely_branch_, 1);
     // then block
     builder_->StartLabel(then_label);
-    this->VisitStmt(op->then_case);
+    this->Dispatch(op->then_case);
     builder_->MakeInst(spv::OpBranch, merge_label);
   }
   // start merge label;
   builder_->StartLabel(merge_label);
 }
 
-void CodeGenSPIRV::VisitStmt_(const AllocBufferNode* op) {
+void CodeGenSPIRV::Dispatch_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(!op->buffer->dtype.IsVoid());
   const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
   TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
@@ -915,7 +915,7 @@ void CodeGenSPIRV::VisitStmt_(const AllocBufferNode* op) {
   }
 }
 
-void CodeGenSPIRV::VisitStmt_(const DeclBufferNode* op) {
+void CodeGenSPIRV::Dispatch_(const DeclBufferNode* op) {
   const VarNode* buffer_var = op->buffer.get();
   TVM_FFI_ICHECK(!var_map_.count(buffer_var))
       << "Buffer variable " << op->buffer.name() << " is already defined";
@@ -947,7 +947,7 @@ void CodeGenSPIRV::VisitStmt_(const DeclBufferNode* op) {
   storage_info_[buffer_var] = std::move(info);
 }
 
-void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
+void CodeGenSPIRV::Dispatch_(const AttrStmtNode* op) {
   if (op->attr_key == tirx::attr::thread_extent) {
     auto iv_opt = op->node.as<IterVar>();
     TVM_FFI_ICHECK(iv_opt);
@@ -964,14 +964,14 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
     const prim::StringImmNode* shape_str = op->value.as<prim::StringImmNode>();
     fragment_info_[buffer] = {shape_str->value};
   }
-  this->VisitStmt(op->body);
+  this->Dispatch(op->body);
 }
 
-void CodeGenSPIRV::VisitStmt_(const AssertStmtNode* op) {
+void CodeGenSPIRV::Dispatch_(const AssertStmtNode* op) {
   // AssertStmt is a leaf — no body to visit.
 }
 
-void CodeGenSPIRV::VisitStmt_(const BindNode* op) {
+void CodeGenSPIRV::Dispatch_(const BindNode* op) {
   TVM_FFI_ICHECK(!var_map_.count(op->var.get()));
   if (auto prim_type = op->var->ty.as<PrimType>()) {
     TVM_FFI_ICHECK(!prim_type.value().IsVoid());
@@ -984,13 +984,13 @@ void CodeGenSPIRV::VisitStmt_(const BindNode* op) {
   }
 }
 
-void CodeGenSPIRV::VisitStmt_(const SeqStmtNode* op) {
+void CodeGenSPIRV::Dispatch_(const SeqStmtNode* op) {
   for (Stmt stmt : op->seq) {
-    this->VisitStmt(stmt);
+    this->Dispatch(stmt);
   }
 }
 
-void CodeGenSPIRV::VisitStmt_(const EvaluateNode* op) { MakeValue(op->value); }
+void CodeGenSPIRV::Dispatch_(const EvaluateNode* op) { MakeValue(op->value); }
 
 spirv::SType CodeGenSPIRV::GetFragmentSType(const VarNode* buffer, const PrimType& dtype) {
   TVM_FFI_ICHECK(fragment_info_.count(buffer));

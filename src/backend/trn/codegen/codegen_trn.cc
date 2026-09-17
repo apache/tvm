@@ -214,7 +214,7 @@ std::string CodeGenTrainium::GetStorageScopeStr(const std::string& scope) {  // 
   }
 }
 
-void CodeGenTrainium::VisitStmt_(const AllocBufferNode* op) {
+void CodeGenTrainium::Dispatch_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
   std::string vid = AllocVarID(op->buffer.get(), op->buffer.name() + "_ptr");
 
@@ -262,7 +262,7 @@ void CodeGenTrainium::VisitStmt_(const AllocBufferNode* op) {
   }
 }
 
-void CodeGenTrainium::VisitStmt_(const AttrStmtNode* op) {
+void CodeGenTrainium::Dispatch_(const AttrStmtNode* op) {
   if (op->attr_key == tirx::attr::tensorized_nki_instruction) {
     ctx_.tensorizing = true;
     ctx_.mask = PrimExpr(nullptr);
@@ -275,7 +275,7 @@ void CodeGenTrainium::VisitStmt_(const AttrStmtNode* op) {
   }
 }
 
-void CodeGenTrainium::VisitStmt_(const ForNode* op) {
+void CodeGenTrainium::Dispatch_(const ForNode* op) {
   bool is_outermost_loop = is_outermost_loop_;
   is_outermost_loop_ = false;
   std::string extent = PrintExpr(op->extent);
@@ -335,11 +335,11 @@ std::string CodeGenTrainium::PrintIndices(const Array<PrimExpr>& indices) {
   return os.str();
 }
 
-void CodeGenTrainium::VisitStmt_(const BufferStoreNode* op) {
+void CodeGenTrainium::Dispatch_(const BufferStoreNode* op) {
   LOG(FATAL) << "Trainium codegen does not support buffer store";
 }
 
-void CodeGenTrainium::VisitStmt_(const EvaluateNode* op) {
+void CodeGenTrainium::Dispatch_(const EvaluateNode* op) {
   if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
   std::string vid = this->PrintExpr(op->value);
   if (vid != "") {
@@ -614,7 +614,7 @@ void CodeGenTrainium::Dispatch_(const prim::FloorModNode* op, std::ostream& os) 
   os << PrintExpr(op->a) << " % " << PrintExpr(op->b);
 }
 
-void CodeGenTrainium::VisitStmt_(const DeclBufferNode* op) {
+void CodeGenTrainium::Dispatch_(const DeclBufferNode* op) {
   if (op->buffer.scope() == "trn.psum" || op->buffer.scope() == "trn.sbuf") {
     return;
   }
@@ -684,12 +684,12 @@ ffi::Module BuildTrainium(IRModule mod, Target target) {
   return codegen::DeviceSourceModuleCreate(source_maker.str(), fmt, ExtractFuncInfo(mod), "nki");
 }
 
-void CodeGenTrainium::VisitStmt_(const IfThenElseNode* op) {
+void CodeGenTrainium::Dispatch_(const IfThenElseNode* op) {
   if (ctx_.tensorizing) {
     TVM_FFI_ICHECK(!op->else_case.has_value()) << "Else not allowed in tensorized instruction";
     TVM_FFI_ICHECK(!ctx_.mask.defined()) << "Only one if stmt allowed in tensorized instruction";
     ctx_.mask = op->condition;
-    VisitStmt(op->then_case);
+    Dispatch(op->then_case);
     return;
   }
   std::string cond = PrintExpr(op->condition);

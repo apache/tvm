@@ -96,7 +96,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     function_->addFnAttr("amdgpu-flat-work-group-size", attr.str());
   }
 
-  void VisitStmt_(const AllocBufferNode* op) final {
+  void Dispatch_(const AllocBufferNode* op) final {
     llvm::Value* buf = nullptr;
     StorageInfo& info = alloc_storage_info_[op->buffer.get()];
     auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer.var()));

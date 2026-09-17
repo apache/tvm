@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tirx/ir_visitor_with_analyzer.cc
+ * \file tirx/ir/ir_visitor_with_analyzer.cc
  */
 #include "ir_visitor_with_analyzer.h"
 

@@ -330,10 +330,10 @@ void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os)
   }
 }
 
-void CodeGenMetal::VisitStmt_(const BindNode* op) {
+void CodeGenMetal::Dispatch_(const BindNode* op) {
   const auto* pointer_type = op->var->ty.as<PointerTypeNode>();
   if (pointer_type == nullptr || pointer_type->storage_scope.empty()) {
-    return CodeGenC::VisitStmt_(op);
+    return CodeGenC::Dispatch_(op);
   }
 
   const std::string& storage_scope = pointer_type->storage_scope;
@@ -355,7 +355,7 @@ void CodeGenMetal::VisitStmt_(const BindNode* op) {
   stream << "*)" << value << ";\n";
 }
 
-void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
+void CodeGenMetal::Dispatch_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
   std::string vid = AllocVarID(op->buffer.get());
 

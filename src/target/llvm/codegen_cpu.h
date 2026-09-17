@@ -61,6 +61,7 @@ class LLVMTarget;
 // CPU host code generation
 class CodeGenCPU : public CodeGenLLVM {
  public:
+  using CodeGenLLVM::Dispatch_;
   CodeGenCPU();
   virtual ~CodeGenCPU();
 
@@ -70,9 +71,9 @@ class CodeGenCPU : public CodeGenLLVM {
   void AddFunction(const GlobalVar& gvar, const PrimFunc& f) override;
   void AddMainFunction(const std::string& entry_func_name) override;
   std::unique_ptr<llvm::Module> Finish() override;
-  void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const AttrStmtNode* op) override;
-  void VisitStmt_(const ForNode* op) override;
+  void Dispatch_(const AssertStmtNode* op) override;
+  void Dispatch_(const AttrStmtNode* op) override;
+  void Dispatch_(const ForNode* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
   llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
                                 const ffi::Array<Expr>& args, bool skip_first_arg) override;

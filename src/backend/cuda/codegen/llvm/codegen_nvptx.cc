@@ -78,7 +78,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
                    llvm::ValueAsMetadata::get(ConstInt32(1))}));
   }
 
-  void VisitStmt_(const AllocBufferNode* op) final {
+  void Dispatch_(const AllocBufferNode* op) final {
     llvm::Value* buf = nullptr;
     StorageInfo& info = alloc_storage_info_[op->buffer.get()];
     // maximum necessary alignment in the NV devices
