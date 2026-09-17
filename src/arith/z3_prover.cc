@@ -34,10 +34,8 @@
 #include <tvm/ir/op_attr_types.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
-#include <tvm/tirx/op.h>
 
 #include <algorithm>
 #include <climits>
@@ -60,7 +58,6 @@
 namespace tvm::arith {
 using namespace tvm::prim;
 
-using namespace tirx;
 using namespace ffi;
 
 namespace {
@@ -1024,14 +1021,13 @@ TVM_DLL Z3Prover::~Z3Prover() = default;
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
 
 #include "tvm/ffi/string.h"
 #include "tvm/ir/expr.h"
 
 namespace tvm::arith {
 
-using namespace tirx;
 using namespace ffi;
 
 void EnterZ3ContextScope() {}

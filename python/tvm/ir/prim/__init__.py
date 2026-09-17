@@ -53,7 +53,7 @@ from .expr import (
     StringImm,
     Sub,
 )
-from .op import convert, max_value, min_value
+from .op import clz, convert, max_value, min_value
 
 
 def expr_deep_equal(lhs: Expr, rhs: Expr) -> bool:

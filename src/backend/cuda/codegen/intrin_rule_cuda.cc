@@ -165,7 +165,7 @@ static PrimExpr DispatchCUDAShuffle(const PrimExpr& e) {
 
 void RegisterCudaIntrinRules() {
   // clang-format off
-TVM_REGISTER_OP("tirx.clz")
+TVM_REGISTER_OP("prim.clz")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic",
                                DispatchPureExtern<CUDAMath, /*dtype_from_arg=*/true>);
 

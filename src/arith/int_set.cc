@@ -395,8 +395,6 @@ IntervalSet ToIntervalSet(IntSet set) {
   return IntervalSet::Everything();
 }
 
-using namespace tirx;
-
 // Simplified version of int set evaluator that operates on IntervalSet
 // We might use better set analysis in the future to replace the intervalset.
 class IntervalSetEvaluator : public tvm::ExprFunctor<IntervalSet(const Expr&)> {
