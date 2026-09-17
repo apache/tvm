@@ -82,6 +82,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/type.h>
 
 #include <algorithm>
 #include <functional>
@@ -643,14 +644,14 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
       if (PrimType(primtype->dtype).IsVoid()) {
         return t_void_p_;
       }
-    } else if (ptr->element_type->IsInstance<TensorMapTypeNode>()) {
+    } else if (ptr->element_type->IsInstance<tirx::TensorMapTypeNode>()) {
       return llvmGetPointerTo(t_tvm_tensormap_, 0);
     }
     // TODO(tvm-team) consider put storage scope into the pointer type.
     return llvmGetPointerTo(GetLLVMType(ptr->element_type), GetGlobalAddressSpace());
   } else if (IsVoidType(type)) {
     return t_void_;
-  } else if (type->IsInstance<TensorMapTypeNode>()) {
+  } else if (type->IsInstance<tirx::TensorMapTypeNode>()) {
     return t_tvm_tensormap_;
   } else {
     TVM_FFI_THROW(InternalError) << "Type " << type << " does not have a corresponding LLVM Type";

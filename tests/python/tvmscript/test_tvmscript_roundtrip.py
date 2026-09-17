@@ -3003,10 +3003,7 @@ def subroutine_call_without_arguments():
     class mod:
         @T.prim_func(s_tir=True)
         def main():
-            # Should be equivalent to the bare "mod.subroutine()", but
-            # that relies on `GlobalVar.__call__` returning the
-            # correct IR type.
-            tirx.call_tir(mod.subroutine)
+            mod.subroutine()
 
         @T.prim_func(s_tir=True)
         def subroutine():
