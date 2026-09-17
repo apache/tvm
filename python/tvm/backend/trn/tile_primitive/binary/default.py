@@ -72,7 +72,8 @@ def binary_trn(
         return _func(*args, reverse[0]) if inst_types[0] == InstType.TENSOR_SCALAR else _func(*args)
 
     # Define the implementation function
-    @T.prim_func
+    # This fragment captures buffers and indices from its insertion scope.
+    @T.prim_func(check_well_formed=False)
     def impl():
         for b_loop in T.serial(0, b_extent):
             with T.attr(0, "tensorized_nki_instruction", 1):

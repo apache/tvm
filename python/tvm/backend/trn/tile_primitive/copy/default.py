@@ -97,7 +97,8 @@ def transpose_schedule(
         )
         sctx.add_alloc_buffer(identity_tensor)
 
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.prim_func(check_well_formed=False)
         def identity_init():
             with T.attr(0, "tensorized_nki_instruction", 1):
                 for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
@@ -113,8 +114,8 @@ def transpose_schedule(
     dst_buffer = dst_region.source
     src_buffer = src_region.source
     if dst_buffer.scope() == "trn.psum":
-
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.prim_func(check_well_formed=False)
         def transpose_psum_output():
             for b_loop in T.serial(0, b_extent):
                 with T.attr(0, "tensorized_nki_instruction", 1):
@@ -164,7 +165,8 @@ def transpose_schedule(
         max_psum_slots = acc_psum.ty.shape[0]
 
     # fmt: off
-    @T.prim_func
+    # This fragment captures buffers and indices from its insertion scope.
+    @T.prim_func(check_well_formed=False)
     def transpose_sbuf_output():
         for b_loop in T.serial(0, b_extent):
             for extend_b_loop in T.serial(0, extend_len):
@@ -271,7 +273,8 @@ def copy_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     b_extent = inst_gen.fill_in_block_dim(from_region, b_var)
 
     # fmt: off
-    @T.prim_func
+    # This fragment captures buffers and indices from its insertion scope.
+    @T.prim_func(check_well_formed=False)
     def impl():
         # the additional b loop is to satisfy hardware instuction size limit
         for b_loop in T.serial(0, b_extent):

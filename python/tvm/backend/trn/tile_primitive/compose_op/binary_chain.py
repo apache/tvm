@@ -91,7 +91,8 @@ def binary_chain_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
 
     # Create implementation
     # fmt: off
-    @T.prim_func
+    # This fragment captures buffers and indices from its insertion scope.
+    @T.prim_func(check_well_formed=False)
     def impl():
         for b_loop in T.serial(0, b_extent):
             with T.attr(0, "tensorized_nki_instruction", 1):

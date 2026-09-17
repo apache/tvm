@@ -130,7 +130,8 @@ def reduction_trn(
     # fmt: off
     # Single-stage reduction implementation
     if reduction_b_extent == 1:
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.prim_func(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
                 with T.attr(0, "tensorized_nki_instruction", 1):
@@ -144,7 +145,8 @@ def reduction_trn(
         return impl
     # Two-stage reduction implementation
     else:
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.prim_func(check_well_formed=False)
         def two_stage_reduction():
             for b_loop in T.serial(0, spatial_b_extent):
                 for reduction_b_loop in T.serial(0, reduction_b_extent):
