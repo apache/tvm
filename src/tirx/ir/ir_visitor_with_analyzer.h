@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file tirx/ir_visitor_with_analyzer.h
+ * \file tirx/ir/ir_visitor_with_analyzer.h
  * \brief IR visitor class with an analyzer context.
  */
 
-#ifndef TVM_TIRX_IR_VISITOR_WITH_ANALYZER_H_
-#define TVM_TIRX_IR_VISITOR_WITH_ANALYZER_H_
+#ifndef TVM_TIRX_IR_IR_VISITOR_WITH_ANALYZER_H_
+#define TVM_TIRX_IR_IR_VISITOR_WITH_ANALYZER_H_
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
@@ -70,4 +70,4 @@ class IRVisitorWithAnalyzer : public StmtExprVisitor {
 
 }  // namespace tirx
 }  // namespace tvm
-#endif  // TVM_TIRX_IR_VISITOR_WITH_ANALYZER_H_
+#endif  // TVM_TIRX_IR_IR_VISITOR_WITH_ANALYZER_H_

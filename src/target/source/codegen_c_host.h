@@ -69,7 +69,7 @@ class CodeGenCHost : public CodeGenC {
   void Dispatch_(const prim::MinNode* op, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const prim::MaxNode* op, std::ostream& os) final;  // NOLINT(*)
 
-  void VisitStmt_(const AssertStmtNode* op) final;  // NOLINT(*)
+  void Dispatch_(const AssertStmtNode* op) final;  // NOLINT(*)
 
   void GenerateForwardFunctionDeclarations(ffi::String global_symbol,
                                            const ffi::Array<Type>& arg_types,

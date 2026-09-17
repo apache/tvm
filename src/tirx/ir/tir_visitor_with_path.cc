@@ -175,14 +175,14 @@ void TIRVisitorWithPath::Visit(const Range& range, AccessPath path) {
   Visit(range->extent, path->Attr("extent"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const BindNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const BindNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
   // Push the Bind's var definition into the current scope.
   // The def lives until the enclosing scope (body-carrying stmt) exits.
   bind_scope_.Current().push_back(WithDef(op->var, path->Attr("var")));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const AttrStmtNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 
   std::vector<std::variant<DefContext<IterVar>, DefContext<Var>, DefContext<BufferVar>>> context;
@@ -203,68 +203,68 @@ void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
   }
 }
 
-void TIRVisitorWithPath::VisitStmt_(const ForNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const ForNode* op, AccessPath path) {
   Visit(op->min, path->Attr("min"));
   Visit(op->extent, path->Attr("extent"));
   auto context = WithDef(op->loop_var, path->Attr("loop_var"));
   bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 }
 
-void TIRVisitorWithPath::VisitStmt_(const WhileNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const WhileNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
   bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 }
 
-void TIRVisitorWithPath::VisitStmt_(const ReturnNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const ReturnNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const BreakNode* op, AccessPath path) {}
+void TIRVisitorWithPath::Dispatch_(const BreakNode* op, AccessPath path) {}
 
-void TIRVisitorWithPath::VisitStmt_(const ContinueNode* op, AccessPath path) {}
+void TIRVisitorWithPath::Dispatch_(const ContinueNode* op, AccessPath path) {}
 
-void TIRVisitorWithPath::VisitStmt_(const AllocBufferNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const AllocBufferNode* op, AccessPath path) {
   // Push definitions into the current scope so they are visible to subsequent siblings.
   auto buf_path = path->Attr("buffer");
   bind_scope_.Current().push_back(WithDef(op->buffer, buf_path));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const DeclBufferNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const DeclBufferNode* op, AccessPath path) {
   Visit(op->data, path->Attr("data"));
   // Push buffer definition into the current scope so it is visible to subsequent siblings.
   bind_scope_.Current().push_back(WithDef(op->buffer, path->Attr("buffer")));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const BufferStoreNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const BufferStoreNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
   VisitBufferUse(op->buffer, path->Attr("buffer"));
   Visit(op->indices, path->Attr("indices"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const IfThenElseNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const IfThenElseNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
   bind_scope_.WithNewScope([&]() { Visit(op->then_case, path->Attr("then_case")); });
   bind_scope_.WithNewScope([&]() { Visit(op->else_case, path->Attr("else_case")); });
 }
 
-void TIRVisitorWithPath::VisitStmt_(const AssertStmtNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const AssertStmtNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
   Visit(op->error_kind, path->Attr("error_kind"));
   Visit(op->message_parts, path->Attr("message_parts"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const SeqStmtNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const SeqStmtNode* op, AccessPath path) {
   auto seq_path = path->Attr("seq");
   for (size_t i = 0; i < op->seq.size(); i++) {
     Visit(op->seq[i], seq_path->ArrayItem(i));
   }
 }
 
-void TIRVisitorWithPath::VisitStmt_(const EvaluateNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const EvaluateNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const SBlockNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const SBlockNode* op, AccessPath path) {
   std::vector<std::variant<DefContext<Var>, DefContext<IterVar>, DefContext<BufferVar>>> context;
 
   {
@@ -309,13 +309,13 @@ void TIRVisitorWithPath::VisitStmt_(const SBlockNode* op, AccessPath path) {
   while (context.size()) context.pop_back();
 }
 
-void TIRVisitorWithPath::VisitStmt_(const SBlockRealizeNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const SBlockRealizeNode* op, AccessPath path) {
   Visit(op->iter_values, path->Attr("iter_values"));
   Visit(op->predicate, path->Attr("predicate"));
   Visit(op->block, path->Attr("block"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const tirx::TilePrimitiveCallNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const tirx::TilePrimitiveCallNode* op, AccessPath path) {
   for (size_t i = 0; i < op->args.size(); i++) {
     if (op->args[i] == nullptr) {
       continue;
@@ -332,7 +332,7 @@ void TIRVisitorWithPath::VisitStmt_(const tirx::TilePrimitiveCallNode* op, Acces
   }
 }
 
-void TIRVisitorWithPath::VisitStmt_(const ScopeIdDefStmtNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const ScopeIdDefStmtNode* op, AccessPath path) {
   // Flat stmt -- no body. Visit extents and preferred_extents (if present),
   // then push the bound Var(s) into the current scope so subsequent siblings
   // see them as defined.

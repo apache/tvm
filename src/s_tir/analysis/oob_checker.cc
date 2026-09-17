@@ -24,7 +24,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/transform.h>
 
-#include "../../tirx/ir_visitor_with_analyzer.h"
+#include "../../tirx/ir/ir_visitor_with_analyzer.h"
 #include "../schedule/error.h"
 
 namespace tvm {

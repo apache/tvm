@@ -36,7 +36,7 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/transform.h>
 
-#include "../ir_mutator_with_analyzer.h"
+#include "../ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace arith {

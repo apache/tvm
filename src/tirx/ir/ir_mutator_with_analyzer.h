@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tirx/ir_mutator_with_analyzer.h
+ * \file tirx/ir/ir_mutator_with_analyzer.h
  * \brief IR mutator base-class with an analyzer context.
  */
-#ifndef TVM_TIRX_IR_MUTATOR_WITH_ANALYZER_H_
-#define TVM_TIRX_IR_MUTATOR_WITH_ANALYZER_H_
+#ifndef TVM_TIRX_IR_IR_MUTATOR_WITH_ANALYZER_H_
+#define TVM_TIRX_IR_IR_MUTATOR_WITH_ANALYZER_H_
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
@@ -45,7 +45,7 @@ namespace tirx {
  * It will populates scope-related info such as bounds of loop-variables and constraints
  * for the analyzer, so that the child class can do accurate context-dependent analysis.
  *
- * \sa src/tirx/ir_mutator_with_analyzer.cc
+ * \sa src/tirx/ir/ir_mutator_with_analyzer.cc
  */
 class IRMutatorWithAnalyzer : public StmtExprMutator {
  public:
@@ -123,4 +123,4 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
 };
 }  // namespace tirx
 }  // namespace tvm
-#endif  // TVM_TIRX_IR_MUTATOR_WITH_ANALYZER_H_
+#endif  // TVM_TIRX_IR_IR_MUTATOR_WITH_ANALYZER_H_

@@ -94,6 +94,9 @@ using namespace tirx;
 class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
                     public StmtFunctor<void(const Stmt&)> {
  public:
+  using tirx::ExprFunctor<llvm::Value*(const Expr&)>::Dispatch;
+  using StmtFunctor::Dispatch;
+
   CodeGenLLVM();           // Do not make it default here.
   virtual ~CodeGenLLVM();  // Do not make it default here.
 
@@ -227,18 +230,18 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   llvm::Value* Dispatch_(const prim::ShuffleNode* op) override;
   llvm::Value* Dispatch_(const prim::BroadcastNode* op) override;
   // stmt
-  void VisitStmt_(const BufferStoreNode* op) override;
-  void VisitStmt_(const ForNode* op) override;
-  void VisitStmt_(const WhileNode* op) override;
-  void VisitStmt_(const ReturnNode* op) override;
-  void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const AllocBufferNode* op) override;
-  void VisitStmt_(const AttrStmtNode* op) override;
-  void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const BindNode* op) override;
-  void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const EvaluateNode* op) override;
-  void VisitStmt_(const DeclBufferNode* op) override;
+  void Dispatch_(const BufferStoreNode* op) override;
+  void Dispatch_(const ForNode* op) override;
+  void Dispatch_(const WhileNode* op) override;
+  void Dispatch_(const ReturnNode* op) override;
+  void Dispatch_(const IfThenElseNode* op) override;
+  void Dispatch_(const AllocBufferNode* op) override;
+  void Dispatch_(const AttrStmtNode* op) override;
+  void Dispatch_(const AssertStmtNode* op) override;
+  void Dispatch_(const BindNode* op) override;
+  void Dispatch_(const SeqStmtNode* op) override;
+  void Dispatch_(const EvaluateNode* op) override;
+  void Dispatch_(const DeclBufferNode* op) override;
 
   // Get constant string
   llvm::Constant* GetConstString(const std::string& str);

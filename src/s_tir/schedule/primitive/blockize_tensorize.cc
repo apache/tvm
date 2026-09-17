@@ -835,7 +835,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
                     ->Rewrite(intrin_impl);
   // Step 2: Structural pattern matching
   TensorizeComparator comparator(self->mod, /*assert_mode=*/true);
-  comparator.VisitStmt(block_realize, intrin_desc->body);
+  comparator.Dispatch(block_realize, intrin_desc->body);
   // Step 3: Prepare necessary mapping
   // 1) BufferVar mapping from intrin impl buffers to intrin desc buffers.
   // 2) BufferVar mapping from intrin impl buffers to buffers in the current AST.

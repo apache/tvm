@@ -181,6 +181,8 @@ TEST(IRF, ExprVisit) {
   class MyVisitor : public tirx::ExprFunctor<void(const Expr&)>,
                     public tirx::StmtFunctor<void(const Stmt&)> {
    public:
+    using tirx::ExprFunctor<void(const Expr&)>::Dispatch;
+    using tirx::StmtFunctor<void(const Stmt&)>::Dispatch;
     int count = 0;
     // implementation
     void Dispatch_(const VarNode* op) final { ++count; }
@@ -189,10 +191,10 @@ TEST(IRF, ExprVisit) {
       Dispatch(op->a);
       Dispatch(op->b);
     }
-    void VisitStmt_(const EvaluateNode* op) final { Dispatch(op->value); }
+    void Dispatch_(const EvaluateNode* op) final { Dispatch(op->value); }
   };
   MyVisitor v;
-  v.VisitStmt(Evaluate(z));
+  v.Dispatch(Evaluate(z));
   TVM_FFI_ICHECK_EQ(v.count, 1);
 }
 

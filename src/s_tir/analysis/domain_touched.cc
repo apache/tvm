@@ -34,7 +34,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../tirx/ir_visitor_with_analyzer.h"
+#include "../../tirx/ir/ir_visitor_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tirx/ir_mutator_with_analyzer.cc
+ * \file tirx/ir/ir_mutator_with_analyzer.cc
  */
 #include "ir_mutator_with_analyzer.h"
 
@@ -30,7 +30,7 @@
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
-#include "../arith/constraint_helpers.h"
+#include "../../arith/constraint_helpers.h"
 
 namespace tvm {
 namespace tirx {

@@ -246,7 +246,7 @@ class NoOpCallVerifier : public Verifier<NoOpCallVerifier> {
  private:
   using Verifier::Visit;
 
-  void VisitStmt_(const tirx::TilePrimitiveCallNode* obj, ffi::reflection::AccessPath path) final {
+  void Dispatch_(const tirx::TilePrimitiveCallNode* obj, ffi::reflection::AccessPath path) final {
     Verify(false) << "TIRxError: TilePrimitiveCall at " << path
                   << " is not allowed in TIRx before lowering";
   }
@@ -322,7 +322,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
     launch_params_.clear();
     // Pre-dispatch: only populate ``launch_params_`` + synthesize
-    // ``warp_id_in_cta``. The dispatch impls (run via ``VisitStmt`` below)
+    // ``warp_id_in_cta``. The dispatch impls (run via ``Dispatch`` below)
     // read ``launch_params_`` through ``sctx``, so this much must happen
     // first. The per-def Bind resolution is deferred to AFTER dispatch so
     // it can pick up any ``ScopeIdDef`` declared inside dispatched impls.

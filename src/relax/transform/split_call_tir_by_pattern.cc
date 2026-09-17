@@ -55,6 +55,7 @@ using s_tir::TensorizeComparator;
 /*! \brief helper to match a for stmt to a pattern*/
 class ForMatcher : public TensorizeComparator {
  public:
+  using TensorizeComparator::Dispatch;
   using SymbolMap = std::unordered_map<Var, PrimExpr>;
   explicit ForMatcher(const tirx::PrimFunc& pattern, const ffi::Array<Var>& pattern_vars)
       : TensorizeComparator(IRModule({{GlobalVar(""), pattern}}), false), pattern_(pattern) {
@@ -67,7 +68,7 @@ class ForMatcher : public TensorizeComparator {
   bool Match(const For& top) {
     const ForNode* pattern_top = pattern_->body.as<SBlockRealizeNode>()->block->body.as<ForNode>();
     TVM_FFI_ICHECK(pattern_top) << "Invalid pattern function";
-    if (!VisitStmt(top, ffi::GetRef<Stmt>(pattern_top))) {
+    if (!Dispatch(top, ffi::GetRef<Stmt>(pattern_top))) {
       return false;
     }
     // Get evaluated symbols, buffers from the pattern.
@@ -249,7 +250,7 @@ class ForMatcher : public TensorizeComparator {
     return true;
   }
 
-  bool VisitStmt_(const tirx::ForNode* op, const Stmt& other) final {
+  bool Dispatch_(const tirx::ForNode* op, const Stmt& other) final {
     const auto* rhs = other.as<ForNode>();
     loop_stack_lhs_.push_back(ffi::GetRef<For>(op));
     loop_stack_rhs_.push_back(ffi::GetRef<For>(rhs));
@@ -269,10 +270,10 @@ class ForMatcher : public TensorizeComparator {
     if (!op->annotations.empty() || !rhs->annotations.empty()) return false;
     // Match the extents of loops
     if (!Dispatch(op->extent, rhs->extent)) return false;
-    return VisitStmt(op->body, rhs->body);
+    return Dispatch(op->body, rhs->body);
   }
 
-  bool VisitStmt_(const tirx::SBlockNode* op, const Stmt& other) final {
+  bool Dispatch_(const tirx::SBlockNode* op, const Stmt& other) final {
     const auto* rhs = other.as<SBlockNode>();
     // Check block equality.
     // All iter vars and buffer regions including the order should match.
@@ -296,12 +297,12 @@ class ForMatcher : public TensorizeComparator {
     if (op->init.has_value() && !rhs->init.has_value()) return false;
     if (!op->init.has_value() && rhs->init.has_value()) return false;
     if (op->init.has_value() && rhs->init.has_value()) {
-      if (!VisitStmt(op->init.value(), rhs->init.value())) return false;
+      if (!Dispatch(op->init.value(), rhs->init.value())) return false;
     }
-    return VisitStmt(op->body, rhs->body);
+    return Dispatch(op->body, rhs->body);
   }
 
-  bool VisitStmt_(const SBlockRealizeNode* op, const Stmt& other) final {
+  bool Dispatch_(const SBlockRealizeNode* op, const Stmt& other) final {
     const auto* rhs = other.as<SBlockRealizeNode>();
     // Only allow trivial bindings
     for (size_t i = 0; i < op->iter_values.size(); ++i) {
@@ -312,10 +313,10 @@ class ForMatcher : public TensorizeComparator {
     }
     // Disallow predicates now
     if (!is_one(op->predicate) || !is_one(rhs->predicate)) return false;
-    return VisitStmt(op->block, rhs->block);
+    return Dispatch(op->block, rhs->block);
   }
 
-  bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) {
+  bool Dispatch_(const BufferStoreNode* op, const Stmt& other) {
     const auto* rhs = other.as<BufferStoreNode>();
     return CompareBufferAccess(op, rhs) && Dispatch(op->value, rhs->value);
   }
@@ -356,7 +357,9 @@ class ForMatcher : public TensorizeComparator {
   template <typename T>
   bool CompareBufferAccess(const T* lhs, const T* rhs) {
     if (!CompareBuffer(lhs->buffer, rhs->buffer)) return false;
-    return CompareArray(lhs->indices, rhs->indices, &ForMatcher::Dispatch);
+    return CompareArray(
+        lhs->indices, rhs->indices,
+        static_cast<bool (ForMatcher::*)(const Expr&, const PrimExpr&)>(&ForMatcher::Dispatch));
   }
 
   bool CompareBufferAccess(const TensorLoadNode* lhs, const TensorLoadNode* rhs) {
@@ -365,7 +368,9 @@ class ForMatcher : public TensorizeComparator {
                        rhs->source.as_or_throw<BufferVar>())) {
       return false;
     }
-    return CompareArray(lhs->indices, rhs->indices, &ForMatcher::Dispatch);
+    return CompareArray(
+        lhs->indices, rhs->indices,
+        static_cast<bool (ForMatcher::*)(const Expr&, const PrimExpr&)>(&ForMatcher::Dispatch));
   }
 
   template <typename T, typename Self, typename F>

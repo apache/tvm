@@ -925,7 +925,7 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimEx
   }
 }
 
-void CodeGenC::VisitStmt_(const DeclBufferNode* op) {
+void CodeGenC::Dispatch_(const DeclBufferNode* op) {
   const VarNode* source = op->data.as<VarNode>();
   if (const auto* call = op->data.as<CallNode>();
       call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
@@ -1038,7 +1038,7 @@ void CodeGenC::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // NOLIN
   }
 }
 
-void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
+void CodeGenC::Dispatch_(const BufferStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
 
   PrimType value_ty = op->value.ty();
@@ -1227,7 +1227,7 @@ void CodeGenC::Dispatch_(const prim::SelectNode* op, std::ostream& os) {  // NOL
   os << ")";
 }
 
-void CodeGenC::VisitStmt_(const BindNode* op) {
+void CodeGenC::Dispatch_(const BindNode* op) {
   RegisterHandleTypeFromPointer(op->var, &op->value);
   std::string value = PrintExpr(op->value);
   if (print_ssa_form_) {
@@ -1248,7 +1248,7 @@ void CodeGenC::VisitStmt_(const BindNode* op) {
   }
 }
 
-void CodeGenC::VisitStmt_(const AllocBufferNode* op) {
+void CodeGenC::Dispatch_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
   std::string vid = AllocVarID(op->buffer.get(), op->buffer.name() + "_ptr");
 
@@ -1275,7 +1275,7 @@ void CodeGenC::VisitStmt_(const AllocBufferNode* op) {
   }
 }
 
-void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
+void CodeGenC::Dispatch_(const AttrStmtNode* op) {
   if (op->attr_key == tirx::attr::thread_extent) {
     IterVar iv = op->node.as_or_throw<IterVar>();
     if (iv->thread_tag.length() != 0) {
@@ -1339,7 +1339,7 @@ void CodeGenC::PrintEscapedCString(const std::string& str, std::ostream& os) {
   os << "\"";
 }
 
-void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
+void CodeGenC::Dispatch_(const AssertStmtNode* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
   int num_parts = static_cast<int>(op->message_parts.size());
@@ -1367,7 +1367,7 @@ void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
   }
 }
 
-void CodeGenC::VisitStmt_(const ForNode* op) {
+void CodeGenC::Dispatch_(const ForNode* op) {
   std::string begin_str = PrintExpr(op->min);
   PrimExpr end = is_zero(op->min) ? op->extent : arith::Analyzer()->Simplify(op->min + op->extent);
   std::string end_str = PrintExpr(end);
@@ -1390,7 +1390,7 @@ void CodeGenC::VisitStmt_(const ForNode* op) {
   stream << "}\n";
 }
 
-void CodeGenC::VisitStmt_(const WhileNode* op) {
+void CodeGenC::Dispatch_(const WhileNode* op) {
   PrintIndent();
   stream << "#pragma unroll 1\n";
   PrintIndent();
@@ -1405,24 +1405,24 @@ void CodeGenC::VisitStmt_(const WhileNode* op) {
   stream << "}\n";
 }
 
-void CodeGenC::VisitStmt_(const ReturnNode* op) {
+void CodeGenC::Dispatch_(const ReturnNode* op) {
   PrintIndent();
   stream << "return ";
   PrintExpr(op->value, stream);
   stream << ";\n";
 }
 
-void CodeGenC::VisitStmt_(const BreakNode* op) {
+void CodeGenC::Dispatch_(const BreakNode* op) {
   PrintIndent();
   stream << "break;\n";
 }
 
-void CodeGenC::VisitStmt_(const ContinueNode* op) {
+void CodeGenC::Dispatch_(const ContinueNode* op) {
   PrintIndent();
   stream << "continue;\n";
 }
 
-void CodeGenC::VisitStmt_(const IfThenElseNode* op) {
+void CodeGenC::Dispatch_(const IfThenElseNode* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
   if (cond[0] == '(' && cond[cond.length() - 1] == ')') {
@@ -1445,13 +1445,13 @@ void CodeGenC::VisitStmt_(const IfThenElseNode* op) {
   stream << "}\n";
 }
 
-void CodeGenC::VisitStmt_(const SeqStmtNode* op) {
+void CodeGenC::Dispatch_(const SeqStmtNode* op) {
   for (Stmt stmt : op->seq) {
     PrintStmt(stmt);
   }
 }
 
-void CodeGenC::VisitStmt_(const EvaluateNode* op) {
+void CodeGenC::Dispatch_(const EvaluateNode* op) {
   if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call) {

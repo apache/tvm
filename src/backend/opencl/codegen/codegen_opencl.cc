@@ -445,7 +445,7 @@ std::string CodeGenOpenCL::CastTo(std::string value, const PrimType& target) {
   }
 }
 
-void CodeGenOpenCL::VisitStmt_(const AllocBufferNode* op) {
+void CodeGenOpenCL::Dispatch_(const AllocBufferNode* op) {
   // Compute constant_size from buffer shape
   size_t constant_size = 1;
   for (const auto& dim : op->buffer->shape) {
@@ -454,7 +454,7 @@ void CodeGenOpenCL::VisitStmt_(const AllocBufferNode* op) {
     constant_size *= dim_imm->value;
   }
   allocation_size_.insert({op->buffer.get(), constant_size * op->buffer->dtype.lanes()});
-  CodeGenC::VisitStmt_(op);
+  CodeGenC::Dispatch_(op);
 }
 
 void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
