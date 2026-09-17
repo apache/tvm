@@ -1426,23 +1426,28 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         x = self.env[node.args[0]]
         return self.block_builder.emit(relax.op.zeros_like(x))
 
-    def _max_dim(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        dim = node.args[1]
-        keepdim = node.args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+    def _max_min_dim(self, largest: bool) -> Callable:
+        """torch.max(x, dim) / torch.min(x, dim): the (values, indices) pair along one axis."""
 
-        topk_res = self.block_builder.emit(
-            relax.op.topk(x, k=1, axis=dim, largest=True, ret_type="both", dtype="int64")
-        )
+        def convert(node: fx.Node) -> relax.Var:
+            x = self.env[node.args[0]]
+            dim = node.args[1]
+            keepdim = node.args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
 
-        values = topk_res[0]
-        indices = topk_res[1]
+            topk_res = self.block_builder.emit(
+                relax.op.topk(x, k=1, axis=dim, largest=largest, ret_type="both", dtype="int64")
+            )
 
-        if not keepdim:
-            values = self.block_builder.emit(relax.op.squeeze(values, axis=[dim]))
-            indices = self.block_builder.emit(relax.op.squeeze(indices, axis=[dim]))
+            values = topk_res[0]
+            indices = topk_res[1]
 
-        return self.block_builder.emit(relax.Tuple([values, indices]))
+            if not keepdim:
+                values = self.block_builder.emit(relax.op.squeeze(values, axis=[dim]))
+                indices = self.block_builder.emit(relax.op.squeeze(indices, axis=[dim]))
+
+            return self.block_builder.emit(relax.Tuple([values, indices]))
+
+        return convert
 
     def _alias(self, node: fx.Node) -> relax.Var:
         return self.env[node.args[0]]
@@ -1878,6 +1883,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "min.other": self._binary_op(relax.op.minimum, min),
             "max.default": self._unary_op(relax.op.max),
             "min.default": self._unary_op(relax.op.min),
+            "amax.default": self._amax_amin(relax.op.max),
+            "amin.default": self._amax_amin(relax.op.min),
             "maximum.default": self._binary_op(relax.op.maximum, torch.maximum),
             "minimum.default": self._binary_op(relax.op.minimum, torch.minimum),
             "remainder.Tensor": self._binary_op(relax.op.floor_mod, operator.mod),
@@ -1969,7 +1976,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "sum.default": self._sum,
             "sum.dim_IntList": self._sum,
             "var.correction": self._var,
-            "max.dim": self._max_dim,
+            "max.dim": self._max_min_dim(largest=True),
+            "min.dim": self._max_min_dim(largest=False),
             "median.dim": self._median,
             "median.default": self._median,
             # search
