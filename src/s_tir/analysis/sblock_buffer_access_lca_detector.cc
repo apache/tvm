@@ -135,7 +135,8 @@ class LCADetector : public StmtExprVisitor {
 
     // Update match_buffers
     for (const MatchBufferRegion& match_buffer : block->match_buffers) {
-      UpdateBufferLCA(match_buffer->source->buffer.get(), ancestor_scopes_.back());
+      UpdateBufferLCA(match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>().get(),
+                      ancestor_scopes_.back());
       match_buffers_.insert(match_buffer->buffer.get());
     }
 
@@ -193,7 +194,7 @@ class LCADetector : public StmtExprVisitor {
         } else {
           opaque_var_scope[iter_var->var.get()] = scope;
           for (const auto& write : block->writes) {
-            UpdateBufferLCA(write->buffer.get(), scope);
+            UpdateBufferLCA(write->source.as_or_throw<tvm::tirx::BufferVar>().get(), scope);
           }
         }
       }
@@ -202,9 +203,9 @@ class LCADetector : public StmtExprVisitor {
     // function to update lca scope of the buffer with loop carried dependent buffer accesses.
     // the result scope should be above all loop scopes the accessed opaque block iter vars
     // relate to, which is record in `itervar_to_dom_scope`.
-    auto do_update = [this, &opaque_var_scope, highest_reduce_scope](const BufferRegion& region,
+    auto do_update = [this, &opaque_var_scope, highest_reduce_scope](const TensorRegion& region,
                                                                      bool is_reduce_write = false) {
-      const BufferVar& buffer = region->buffer;
+      const BufferVar& buffer = region->source.as_or_throw<tvm::tirx::BufferVar>();
       const ScopeInfo* scope = ancestor_scopes_.back();
 
       auto handle_itervar = [&opaque_var_scope,
@@ -266,7 +267,8 @@ class LCADetector : public StmtExprVisitor {
   }
 
   // Declared regions carry bounds, not opaque runtime accesses.
-  ffi::Optional<VisitInterrupt> Visit_(const BufferRegionNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorRegionNode* op) final {
+    if (!op->source.as<BufferVar>()) return StmtExprVisitor::Visit_(op);
     for (const Range& range : op->region) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));

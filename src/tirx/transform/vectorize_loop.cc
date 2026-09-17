@@ -493,7 +493,7 @@ class Vectorizer : public StmtExprMutator {
     TVM_FFI_UNREACHABLE();
   }
 
-  UnchangedOr<Expr> Mutate_(const BufferRegionNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
     TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     TVM_FFI_UNREACHABLE();
   }

@@ -3252,9 +3252,9 @@ class Schedule(Object):
 
         def iter_buffers():
             for i, read in enumerate(block_obj.reads):
-                yield "read", i, read.buffer
+                yield "read", i, read.source
             for i, write in enumerate(block_obj.writes):
-                yield "write", i, write.buffer
+                yield "write", i, write.source
 
         if isinstance(buffer, int):
             buffer = (required_buffer_type, buffer)
@@ -3295,7 +3295,7 @@ class Schedule(Object):
                 f"Block {block_name} has only "
                 f"{len(buffer_list)} {buffer_index_type} buffers."
             )
-            buffer_obj = buffer_list[buffer_index].buffer
+            buffer_obj = buffer_list[buffer_index].source
 
         else:
             raise TypeError(f"Invalid type for argument 'buffer': {type(buffer)}")

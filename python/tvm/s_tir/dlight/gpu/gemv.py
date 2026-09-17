@@ -172,7 +172,7 @@ class GEMV(GPUScheduleRule):
                 fused_load = cache_loops[0]
             else:
                 fused_load = sch.fuse(*cache_loops[-2:])
-            aq_vec_len = max(1, VEC_LOAD // get_bytes(sch.get(Aq_local).reads[0].buffer.dtype))
+            aq_vec_len = max(1, VEC_LOAD // get_bytes(sch.get(Aq_local).reads[0].source.dtype))
             fused_load, vec_load = sch.split(
                 fused_load, factors=[None, aq_vec_len], preserve_unit_iters=True
             )

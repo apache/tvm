@@ -76,17 +76,17 @@ class AsyncDMALowerer : public tirx::IRMutatorWithAnalyzer {
     tvm::PrimExpr dst_min = mem_copy->dest->region[0]->min;
     tvm::PrimExpr dst_extent = mem_copy->dest->region[0]->extent;
 
-    auto src = BufferLoad(mem_copy->source->buffer, {src_min});
-    auto dst = BufferLoad(mem_copy->dest->buffer, {dst_min});
+    auto src = BufferLoad(mem_copy->source->source.as_or_throw<BufferVar>(), {src_min});
+    auto dst = BufferLoad(mem_copy->dest->source.as_or_throw<BufferVar>(), {dst_min});
     PrimExpr dst_nbytes = dst_extent * static_cast<int>(src.ty().StorageBytes());
     return Evaluate(
         Call(PrimType::Int(32), tirx::builtin::dma_copy(),
              ffi::Array<Expr>{
                  PrimExpr(async_queue_id_.value()),
-                 Call(mem_copy->dest->buffer.DataPointerType(), tirx::builtin::address_of(),
-                      ffi::Array<Expr>{dst}, Attrs(), {}, Span()),
-                 Call(mem_copy->source->buffer.DataPointerType(), tirx::builtin::address_of(),
-                      ffi::Array<Expr>{src}, Attrs(), {}, Span()),
+                 Call(mem_copy->dest->source.as_or_throw<BufferVar>().DataPointerType(),
+                      tirx::builtin::address_of(), ffi::Array<Expr>{dst}, Attrs(), {}, Span()),
+                 Call(mem_copy->source->source.as_or_throw<BufferVar>().DataPointerType(),
+                      tirx::builtin::address_of(), ffi::Array<Expr>{src}, Attrs(), {}, Span()),
                  dst_nbytes, PrimExpr(dma_bypass_cache_)},
              Attrs(), {}, Span())
             .as_or_throw<PrimExpr>());

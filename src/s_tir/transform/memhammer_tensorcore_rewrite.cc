@@ -310,14 +310,14 @@ Stmt RewriteWmmaStore(Stmt stmt) {
 Stmt SharedToWmma::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                            OutputSet* output) const {
   Stmt after_tiling = TileWmmaBlock(stmt).first;
-  output->padding_min.Set(constraints.read_region->buffer, 8);
+  output->padding_min.Set(constraints.read_region->source.as_or_throw<tvm::tirx::BufferVar>(), 8);
   return RewriteWmmaLoad(after_tiling);
 }
 
 Stmt WmmaToShared::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                            OutputSet* output) const {
   Stmt after_tiling = TileWmmaBlock(stmt).first;
-  output->padding_min.Set(constraints.write_region->buffer, 8);
+  output->padding_min.Set(constraints.write_region->source.as_or_throw<tvm::tirx::BufferVar>(), 8);
   return RewriteWmmaStore(after_tiling);
 }
 

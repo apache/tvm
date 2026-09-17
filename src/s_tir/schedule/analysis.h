@@ -464,7 +464,7 @@ BufferVar GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int
  * \return The n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
-BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& block, int n,
+TensorRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& block, int n,
                                       BufferIndexType index_type);
 
 /*!
@@ -649,7 +649,7 @@ std::tuple</*exists=*/bool,
            /*ordered=*/bool,
            /*no_const_read=*/bool,
            /*no_shift_read=*/bool>
-AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& write_region);
+AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& write_region);
 
 /*!
  * \brief Check if the block is a data parallel block, i.e. all the block vars are data parallel
@@ -705,7 +705,7 @@ bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
  * \param dom_high_exclusive The highest node in the sref tree path
  * \return An n-dimensional integer set
  */
-ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,
+ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const TensorRegion& region,
                                                   const PrimExpr& predicate,
                                                   const StmtSRef& dom_low_inclusive,
                                                   const StmtSRef& dom_high_exclusive,
@@ -721,7 +721,7 @@ ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,
  * \param analyzer The analyzer
  * \return An n-dimensional integer set
  */
-ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,
+ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const TensorRegion& region,
                                                   const PrimExpr& predicate,
                                                   const StmtSRef& dom_low_inclusive,
                                                   const StmtSRef& dom_high_exclusive,

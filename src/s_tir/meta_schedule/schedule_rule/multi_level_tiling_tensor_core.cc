@@ -489,7 +489,10 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
   auto warp_num_frag_n = f_get_inner_tile_product(-1);
 
   Schedule& sch = state->sch;
-  int buffer_ndim = static_cast<int>(sch->Get(state->block_rv)->writes[0]->buffer->shape.size());
+  int buffer_ndim = static_cast<int>(sch->Get(state->block_rv)
+                                         ->writes[0]
+                                         ->source.as_or_throw<tvm::tirx::BufferVar>()
+                                         ->shape.size());
   // The dimension of the buffer should be larger or same as that of the tensor intrin.
   TVM_FFI_ICHECK_GE(buffer_ndim, 2);
   int num_higher_dims = buffer_ndim - 2;
@@ -861,7 +864,7 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     visited_buffers.insert(lhs_buffer);
     // Refresh block pointer (block sref is not invalidated)
     block = TVM_SREF_TO_SBLOCK(block_sref);
-    const tirx::BufferRegion& reindexed_buffer_region = s_tir::GetNthAccessBufferRegion(
+    const tvm::TensorRegion& reindexed_buffer_region = s_tir::GetNthAccessBufferRegion(
         state->sch->state(), ffi::GetRef<tirx::SBlock>(block), buffer_index, index_type);
     auto sub_index_map = f_get_sub_index_map(lhs_buffer, reindexed_buffer_region->region);
     buffer_sub_index_map.Set(lhs_buffer, sub_index_map);

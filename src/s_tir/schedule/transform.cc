@@ -56,26 +56,26 @@ BufferVar WithDType(const BufferVar& buffer, PrimType dtype) {
   return BufferVar(buffer.name(), new_type, buffer.span());
 }
 
-ffi::Array<BufferRegion> ReplaceBuffer(ffi::Array<BufferRegion> regions, const BufferVar& source,
+ffi::Array<TensorRegion> ReplaceBuffer(ffi::Array<TensorRegion> regions, const BufferVar& source,
                                        const BufferVar& target) {
-  regions.MutateByApply([&source, &target](BufferRegion region) -> BufferRegion {
-    if (region->buffer.same_as(source)) {
-      ffi::ObjectPtr<BufferRegionNode> n = ffi::make_object<BufferRegionNode>(*region.get());
-      n->buffer = target;
-      return BufferRegion(n);
+  regions.MutateByApply([&source, &target](TensorRegion region) -> TensorRegion {
+    if (region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(source)) {
+      ffi::ObjectPtr<TensorRegionNode> n = ffi::make_object<TensorRegionNode>(*region.get());
+      n->source = target;
+      return TensorRegion(n);
     }
     return region;
   });
   return regions;
 }
 
-ffi::Array<BufferRegion> ReplaceBuffer(ffi::Array<BufferRegion> regions,
+ffi::Array<TensorRegion> ReplaceBuffer(ffi::Array<TensorRegion> regions,
                                        const ffi::Map<BufferVar, BufferVar>& buffer_map) {
-  regions.MutateByApply([&buffer_map](BufferRegion region) -> BufferRegion {
-    if (buffer_map.count(region->buffer)) {
-      ffi::ObjectPtr<BufferRegionNode> n = ffi::make_object<BufferRegionNode>(*region.get());
-      n->buffer = buffer_map[region->buffer];
-      return BufferRegion(n);
+  regions.MutateByApply([&buffer_map](TensorRegion region) -> TensorRegion {
+    if (buffer_map.count(region->source.as_or_throw<tvm::tirx::BufferVar>())) {
+      ffi::ObjectPtr<TensorRegionNode> n = ffi::make_object<TensorRegionNode>(*region.get());
+      n->source = buffer_map[region->source.as_or_throw<tvm::tirx::BufferVar>()];
+      return TensorRegion(n);
     }
     return region;
   });
@@ -86,7 +86,7 @@ ffi::Array<MatchBufferRegion> ReplaceBuffer(ffi::Array<MatchBufferRegion> match_
                                             const BufferVar& source, const BufferVar& target) {
   match_buffers.MutateByApply(
       [&source, &target](MatchBufferRegion match_buffer) -> MatchBufferRegion {
-        if (match_buffer->source->buffer.same_as(source)) {
+        if (match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>().same_as(source)) {
           ffi::ObjectPtr<MatchBufferRegionNode> n =
               ffi::make_object<MatchBufferRegionNode>(*match_buffer.get());
           n->source = BufferRegion(target, n->source->region);
@@ -97,11 +97,11 @@ ffi::Array<MatchBufferRegion> ReplaceBuffer(ffi::Array<MatchBufferRegion> match_
   return match_buffers;
 }
 
-ffi::Array<BufferRegion> ReplaceBufferRegion(ffi::Array<BufferRegion> regions,
+ffi::Array<TensorRegion> ReplaceBufferRegion(ffi::Array<TensorRegion> regions,
                                              const BufferVar& source_buffer,
-                                             const BufferRegion& target) {
-  regions.MutateByApply([&source_buffer, &target](const BufferRegion& region) -> BufferRegion {
-    if (region->buffer.same_as(source_buffer)) {
+                                             const TensorRegion& target) {
+  regions.MutateByApply([&source_buffer, &target](const TensorRegion& region) -> TensorRegion {
+    if (region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(source_buffer)) {
       return target;
     }
     return region;
@@ -111,17 +111,17 @@ ffi::Array<BufferRegion> ReplaceBufferRegion(ffi::Array<BufferRegion> regions,
 
 ffi::Array<MatchBufferRegion> ReplaceBufferRegion(ffi::Array<MatchBufferRegion> match_buffers,
                                                   const BufferVar& source_buffer,
-                                                  const BufferRegion& target) {
-  match_buffers.MutateByApply(
-      [&source_buffer, &target](const MatchBufferRegion& match_buffer) -> MatchBufferRegion {
-        if (match_buffer->source->buffer.same_as(source_buffer)) {
-          ffi::ObjectPtr<MatchBufferRegionNode> n =
-              ffi::make_object<MatchBufferRegionNode>(*match_buffer.get());
-          n->source = target;
-          return MatchBufferRegion(n);
-        }
-        return match_buffer;
-      });
+                                                  const TensorRegion& target) {
+  match_buffers.MutateByApply([&source_buffer, &target](
+                                  const MatchBufferRegion& match_buffer) -> MatchBufferRegion {
+    if (match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>().same_as(source_buffer)) {
+      ffi::ObjectPtr<MatchBufferRegionNode> n =
+          ffi::make_object<MatchBufferRegionNode>(*match_buffer.get());
+      n->source = target;
+      return MatchBufferRegion(n);
+    }
+    return match_buffer;
+  });
   return match_buffers;
 }
 
@@ -160,7 +160,9 @@ UnchangedOr<Expr> ReplaceBufferMutator::Mutate_(const CallNode* op, InplaceMode 
 
 MatchBufferRegion ReplaceBufferMutator::VisitMatchBufferRegion(
     const MatchBufferRegion& match_buffer) {
-  if (auto replacement = VarRemapGet(match_buffer->source->buffer).as<BufferVar>()) {
+  if (auto replacement =
+          VarRemapGet(match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>())
+              .as<BufferVar>()) {
     return MatchBufferRegion(match_buffer->buffer,
                              BufferRegion(replacement.value(), match_buffer->source->region));
   } else {
@@ -176,7 +178,7 @@ UnchangedOr<Stmt> ReplaceBufferMutator::Mutate_(const SBlockNode* block, Inplace
   auto f_mutate_match_buffer = [this](const MatchBufferRegion& match_buffer) {
     return this->VisitMatchBufferRegion(match_buffer);
   };
-  auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
+  auto f_mutate_read_write_region = [this](const TensorRegion& buffer_region) {
     auto region = MutateArray(buffer_region->region, [this](const Range& range) {
       auto min_result = Mutate(range->min, InplaceMode::kDisallow);
       bool min_unchanged = min_result.UnchangedOrSameAs(range->min);
@@ -191,10 +193,12 @@ UnchangedOr<Stmt> ReplaceBufferMutator::Mutate_(const SBlockNode* block, Inplace
       }
     });
 
-    BufferVar buf =
-        VarRemapGet(buffer_region->buffer).as<BufferVar>().value_or(buffer_region->buffer);
+    BufferVar buf = VarRemapGet(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>())
+                        .as<BufferVar>()
+                        .value_or(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>());
 
-    if (buf.same_as(buffer_region->buffer) && region.same_as(buffer_region->region)) {
+    if (buf.same_as(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>()) &&
+        region.same_as(buffer_region->region)) {
       return buffer_region;
     } else {
       return BufferRegion(buf, region);
@@ -207,8 +211,8 @@ UnchangedOr<Stmt> ReplaceBufferMutator::Mutate_(const SBlockNode* block, Inplace
   // Step 1. Mutate `match_buffers`. If an old buffer appears as a source of MatchBufferRegion,
   ffi::Array<MatchBufferRegion> match_buffers = block->match_buffers.Map(f_mutate_match_buffer);
   // Step 2. Mutate the read/write region.
-  ffi::Array<BufferRegion> reads = block->reads.Map(f_mutate_read_write_region);
-  ffi::Array<BufferRegion> writes = block->writes.Map(f_mutate_read_write_region);
+  ffi::Array<TensorRegion> reads = block->reads.Map(f_mutate_read_write_region);
+  ffi::Array<TensorRegion> writes = block->writes.Map(f_mutate_read_write_region);
   // Step 3. Mutate `alloc_buffers` for the old buffer allocated in this block.
   ffi::Array<BufferVar> alloc_buffers = block->alloc_buffers.Map(f_mutate_alloc_buffers);
   // Step 4. Recursively mutate the block.
@@ -438,8 +442,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /******** BlockBufferAccessSimplifier ********/
 void BlockBufferAccessSimplifier::SimplifyAccessRegion(
-    ffi::Array<BufferRegion>* old_access_regions) {
-  auto fmutate = [this](const BufferRegion& buffer_region) {
+    ffi::Array<TensorRegion>* old_access_regions) {
+  auto fmutate = [this](const TensorRegion& buffer_region) {
     ffi::Array<Range> new_buffer_region;
     ffi::Array<PrimExpr> simplified_min;
     for (const auto& range : buffer_region->region) {
@@ -452,7 +456,8 @@ void BlockBufferAccessSimplifier::SimplifyAccessRegion(
       PrimExpr extent = analyzer_->Simplify(buffer_region->region[i]->extent);
       new_buffer_region.push_back(Range::FromMinExtent(min, extent));
     }
-    return BufferRegion(buffer_region->buffer, new_buffer_region);
+    return BufferRegion(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>(),
+                        new_buffer_region);
   };
   (*old_access_regions).MutateByApply(fmutate);
 }

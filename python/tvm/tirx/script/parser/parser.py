@@ -23,7 +23,7 @@ from functools import partial
 from typing import Any, TypeVar
 
 import tvm
-from tvm.ir import Expr, GlobalVar, PointerType, PrimType, TensorLoad
+from tvm.ir import Expr, GlobalVar, PointerType, PrimType, TensorLoad, TensorRegion
 from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.base import IRBuilderFrame as Frame
@@ -32,21 +32,22 @@ from tvm.script.parser.core.doc import from_doc
 from tvm.tirx import Buffer, IterVar, Layout, buffer_data, is_buffer_var
 from tvm.tirx.script import builder as T
 from tvm.tirx.script.builder.ir import name_meta_class_value
-from tvm.tirx.stmt import BufferRegion
 
 from .entry import _OptionalAnnotation, inline
 from .entry import constexpr as _constexpr_sentinel
 
 
-def slice_buffer_from_region(br: BufferRegion) -> Buffer:
-    """Create a matched DeclBuffer from a BufferRegion.
+def slice_buffer_from_region(br: TensorRegion) -> Buffer:
+    """Create a matched DeclBuffer from a TensorRegion.
 
     Slices the layout (if present) or computes elem_offset for the sub-region,
     producing a DeclBuffer that views the same underlying data.
     """
     import functools  # pylint: disable=import-outside-toplevel
 
-    buf = br.buffer
+    if not is_buffer_var(br.source):
+        raise TypeError("A matched buffer region requires a BufferVar source")
+    buf = br.source
     region = br.region
     new_shape = [r.extent for r in region]
     sliced_layout = None
@@ -244,7 +245,7 @@ def bind_assign_value(
         for i, v in enumerate(value):
             bind_assign_value(self, node, f"{var_name}_{i}", v)
         return value
-    elif isinstance(value, BufferRegion):
+    elif isinstance(value, TensorRegion):
         return value
     elif isinstance(value, Frame):
         value.add_callback(partial(value.__exit__, None, None, None))

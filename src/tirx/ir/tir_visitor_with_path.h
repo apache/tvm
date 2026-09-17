@@ -67,7 +67,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
       Dispatch_(tuple, path);
     } else if (auto* tuple_get_item = obj.as<TupleGetItemNode>()) {
       Dispatch_(tuple_get_item, path);
-    } else if (auto* buffer_region = obj.as<BufferRegionNode>()) {
+    } else if (auto* buffer_region = obj.as<TensorRegionNode>()) {
       Dispatch_(buffer_region, path);
     } else if (obj.as<OpaqueExprNode>()) {
       Dispatch(obj, path);
@@ -92,7 +92,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   virtual void Visit(const PrimFunc& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const GlobalVar& obj, ffi::reflection::AccessPath path) {}
   virtual void Visit(const Range& obj, ffi::reflection::AccessPath path);
-  virtual void Visit(const BufferRegion& obj, ffi::reflection::AccessPath path);
+  virtual void Visit(const TensorRegion& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const MatchBufferRegion& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const IterVar& obj, ffi::reflection::AccessPath path);
 
@@ -155,7 +155,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   using ExprFunctor::Dispatch;
   void Dispatch_(const VarNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const TensorLoadNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const BufferRegionNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const TensorRegionNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const OpaqueExprNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const TupleNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const TupleGetItemNode* op, ffi::reflection::AccessPath path) override;

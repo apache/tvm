@@ -112,7 +112,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
     if symbolic_iter_var.iter_type != tirx.stmt.IterVar.DataPar:
         return None
     ret = [
-        read.buffer
+        read.source
         for read in block_stmt.reads
         if len(
             collect_block_iter_vars_used_in_access_region(block_stmt, read.region) & const_iter_vars
@@ -139,7 +139,7 @@ def detect_dominant_read(block: tirx.SBlock, const_iter_vars: set[tirx.Var]) -> 
             num_read_iters = len(tir_vars)
             dominant_read = buffer_region
     assert dominant_read is not None
-    (result,) = dominant_read.buffer.offset_of([e.min for e in dominant_read.region])
+    (result,) = dominant_read.source.offset_of([e.min for e in dominant_read.region])
     return result
 
 

@@ -145,8 +145,8 @@ tirx::PrimFunc WrapBareSBlockBody(const tirx::PrimFunc& func) {
   tirx::Stmt for_stmt =
       tirx::For(loop_var.as_or_throw<PrimVar>(), zero, one, tirx::ForKind::kSerial, inner_realize);
   tirx::SBlock root_block(/*iter_vars=*/ffi::Array<tirx::IterVar>{},
-                          /*reads=*/ffi::Array<tirx::BufferRegion>{},
-                          /*writes=*/ffi::Array<tirx::BufferRegion>{},
+                          /*reads=*/ffi::Array<tvm::TensorRegion>{},
+                          /*writes=*/ffi::Array<tvm::TensorRegion>{},
                           /*name_hint=*/"root", /*body=*/for_stmt);
   tirx::SBlockRealize root_realize(/*iter_values=*/ffi::Array<tvm::PrimExpr>{},
                                    /*predicate=*/IntImm::Bool(true), root_block);

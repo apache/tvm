@@ -532,7 +532,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
 
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer.name() << "_assumptions";
-    auto read_region = BufferRegion::FromPoint(new_buffer, indices);
+    auto read_region = BufferRegionFromPoint(new_buffer, indices);
     stmt = SBlockRealize(iter_values, IntImm::Bool(true),
                          SBlock(iter_vars, {read_region}, {}, block_name.str(), stmt));
 
@@ -625,7 +625,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
 
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer.name() << "_padding";
-    auto write_region = BufferRegion::FromPoint(new_buffer, indices);
+    auto write_region = BufferRegionFromPoint(new_buffer, indices);
     stmt = SBlockRealize(iter_values, padding_predicate,
                          SBlock(iter_vars, {}, {write_region}, block_name.str(), stmt));
 
@@ -915,17 +915,17 @@ class TransformLayoutRewriter : public tirx::IRMutatorWithAnalyzer {
     return buffer_store;
   }
 
-  void RewriteAccessRegion(ffi::Array<BufferRegion>* old_access_regions,
-                           const ffi::Array<BufferRegion>& infered_access_regions) {
-    auto fmutate = [this, &infered_access_regions](const BufferRegion& buffer_region) {
-      if (buffer_region->buffer.same_as(old_buffer_)) {
+  void RewriteAccessRegion(ffi::Array<TensorRegion>* old_access_regions,
+                           const ffi::Array<TensorRegion>& infered_access_regions) {
+    auto fmutate = [this, &infered_access_regions](const TensorRegion& buffer_region) {
+      if (buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)) {
         TVM_FFI_ICHECK(infered_access_regions.size() == 1);
-        BufferRegion result = infered_access_regions[0];
+        TensorRegion result = infered_access_regions[0];
         // The inferred region may reference old_buffer_ (e.g. when resolved
         // through match_buffer source).  Ensure we use new_buffer_ instead.
-        if (result->buffer.same_as(old_buffer_)) {
+        if (result->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)) {
           auto* n = result.CopyOnWrite();
-          n->buffer = new_buffer_;
+          n->source = new_buffer_;
         }
         return result;
       }
@@ -957,10 +957,10 @@ class TransformLayoutRewriter : public tirx::IRMutatorWithAnalyzer {
     RewriteAccessRegion(&n->writes, infered_access_regions[1]);
     // Update match_buffers whose source references old_buffer_
     n->match_buffers.MutateByApply([this](const MatchBufferRegion& match_buf) {
-      if (match_buf->source->buffer.same_as(old_buffer_)) {
+      if (match_buf->source->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)) {
         auto new_source = match_buf->source;
         auto* source_n = new_source.CopyOnWrite();
-        source_n->buffer = new_buffer_;
+        source_n->source = new_buffer_;
         auto new_match = match_buf;
         new_match.CopyOnWrite()->source = new_source;
         return new_match;

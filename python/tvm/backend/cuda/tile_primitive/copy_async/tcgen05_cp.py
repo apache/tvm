@@ -349,8 +349,8 @@ def _build_plan(op_call: TilePrimitiveCall):
 def _plan_for_shape(op_call: TilePrimitiveCall, shape: str, multicast: str):
     """Run A..I for one (shape, multicast); raises ValueError on any mismatch."""
     dst_region, src_region = op_call.args[:2]
-    s_buf: Buffer = src_region.buffer
-    t_buf: Buffer = dst_region.buffer
+    s_buf: Buffer = src_region.source
+    t_buf: Buffer = dst_region.source
     dtype = s_buf.dtype
     dtype_bits = DataType(dtype).bits
     elem_per_128b = 128 // dtype_bits  # elements per 16B descriptor unit
@@ -702,8 +702,8 @@ def _validate_smem_tmem_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
     """Memory-scope envelope only; shape resolution/inference and the detailed
     layout validation raise readable ValueErrors in ``_build_plan``."""
     dst_region, src_region = op_call.args[:2]
-    src: Buffer = src_region.buffer
-    dst: Buffer = dst_region.buffer
+    src: Buffer = src_region.source
+    dst: Buffer = dst_region.source
     return (
         src.scope().startswith("shared")
         and dst.scope() == "tmem"

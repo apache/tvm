@@ -126,7 +126,7 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
 
   ffi::Map<ffi::String, ffi::Any> VisitBlockAnnotations(
       const ffi::Map<ffi::String, ffi::Any>& annotations);
-  BufferRegion VisitBufferRegion(const BufferRegion& region);
+  TensorRegion VisitBufferRegion(const TensorRegion& region);
   IterVar VisitIterVar(const IterVar& iter_var);
   // indicator of index expr to rewrite
   bool is_enabled_{false};

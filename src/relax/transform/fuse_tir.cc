@@ -196,8 +196,8 @@ class FuseTIRBufferSubstitutor : public StmtExprMutator {
     SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
-    ffi::Array<BufferRegion> reads = UnionAccessRegion(block->reads);
-    ffi::Array<BufferRegion> writes = UnionAccessRegion(block->writes);
+    ffi::Array<TensorRegion> reads = UnionAccessRegion(block->reads);
+    ffi::Array<TensorRegion> writes = UnionAccessRegion(block->writes);
     if (!reads.same_as(block->reads) || !writes.same_as(block->writes)) {
       auto* n = block.CopyOnWrite();
       n->reads = std::move(reads);
@@ -206,19 +206,20 @@ class FuseTIRBufferSubstitutor : public StmtExprMutator {
     return block;
   }
 
-  ffi::Array<tirx::BufferRegion> UnionAccessRegion(const ffi::Array<BufferRegion>& regions) const {
+  ffi::Array<tvm::TensorRegion> UnionAccessRegion(const ffi::Array<TensorRegion>& regions) const {
     // For now we only allow buffers to access the same elements.
     // e.g. `[A[vi, vj], A[vi, vj]]` is a legal pattern but need to union to `A[vi, vj]`
     // However, `A[vi, vj], A[vi, vj + 1]` is not allow for now.
     // Note: the order of return region should remain the same as the first occurrence of the region
-    ffi::Array<BufferRegion> ret;
+    ffi::Array<TensorRegion> ret;
     std::unordered_map<const VarNode*, ffi::Array<Range>> buffer_region_set;
 
-    for (const BufferRegion& region : regions) {
-      auto it = buffer_region_set.find(region->buffer.get());
+    for (const TensorRegion& region : regions) {
+      auto it = buffer_region_set.find(region->source.as_or_throw<tvm::tirx::BufferVar>().get());
       if (it == buffer_region_set.end()) {
         ret.push_back(region);
-        buffer_region_set[region->buffer.get()] = region->region;
+        buffer_region_set[region->source.as_or_throw<tvm::tirx::BufferVar>().get()] =
+            region->region;
       }
     }
 

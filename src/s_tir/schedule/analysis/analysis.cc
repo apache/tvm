@@ -213,9 +213,9 @@ bool IsDominantBlock(const ScheduleState& self, const StmtSRef& scope_root_sref,
   }
   // Check whether the input block is the only writer of its outputs
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  for (const BufferRegion& write_region : block->writes) {
-    if (buffer_writers.count(write_region->buffer)) {
-      if (buffer_writers.at(write_region->buffer).size() != 1) {
+  for (const TensorRegion& write_region : block->writes) {
+    if (buffer_writers.count(write_region->source.as_or_throw<tvm::tirx::BufferVar>())) {
+      if (buffer_writers.at(write_region->source.as_or_throw<tvm::tirx::BufferVar>()).size() != 1) {
         return false;
       }
     }
@@ -249,11 +249,11 @@ int CheckCompleteBlockErrorCode(const ScheduleState& self, const StmtSRef& block
   // Cond 3. No overlap between the buffers the block reads and writes
   std::unordered_set<const VarNode*> written_buffers;
   written_buffers.reserve(block->writes.size());
-  for (const BufferRegion& write : block->writes) {
-    written_buffers.insert(write->buffer.get());
+  for (const TensorRegion& write : block->writes) {
+    written_buffers.insert(write->source.as_or_throw<tvm::tirx::BufferVar>().get());
   }
-  for (const BufferRegion& read : block->reads) {
-    if (written_buffers.count(read->buffer.get())) {
+  for (const TensorRegion& read : block->reads) {
+    if (written_buffers.count(read->source.as_or_throw<tvm::tirx::BufferVar>().get())) {
       return 3;
     }
   }
@@ -504,8 +504,8 @@ bool IsOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
   for (const BufferVar& buffer : scope_root->alloc_buffers) {
     scope_allocated.insert(buffer.get());
   }
-  for (const BufferRegion& buffer_region : block->writes) {
-    if (!scope_allocated.count(buffer_region->buffer.get())) {
+  for (const TensorRegion& buffer_region : block->writes) {
+    if (!scope_allocated.count(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().get())) {
       return true;
     }
   }
@@ -552,8 +552,8 @@ bool IsWriteCache(const StmtSRef& block_sref) {
   if (block->writes.size() != 1) {
     return false;
   }
-  const BufferRegion& write_region = block->writes[0];
-  for (const BufferRegion& read_region : block->reads) {
+  const TensorRegion& write_region = block->writes[0];
+  for (const TensorRegion& read_region : block->reads) {
     auto [exists, surjective, injective, ordered, no_const_read, no_shift_read] =
         AnalyzeReadWritePattern(read_region, write_region);
     // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
@@ -1252,7 +1252,7 @@ ProducerConsumerSplit ProducerConsumerSplit::Find(
 
 /******** Block-buffer relation ********/
 
-BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& block, int n,
+TensorRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& block, int n,
                                       BufferIndexType index_type) {
   class BufferIndexOutOfRangeError : public ScheduleErrorContextObj {
    public:
@@ -1298,7 +1298,7 @@ BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& b
     BufferIndexType index_type_;
   };
 
-  const ffi::Array<BufferRegion>& access_region =
+  const ffi::Array<TensorRegion>& access_region =
       index_type == BufferIndexType::kWrite ? block->writes : block->reads;
 
   if (n < 0 || static_cast<int>(access_region.size()) <= n) {
@@ -1309,7 +1309,8 @@ BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& b
 
 BufferVar GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
                              BufferIndexType index_type) {
-  return GetNthAccessBufferRegion(self, block, n, index_type)->buffer;
+  return GetNthAccessBufferRegion(self, block, n, index_type)
+      ->source.as_or_throw<tvm::tirx::BufferVar>();
 }
 
 std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
@@ -1416,11 +1417,11 @@ std::tuple</*exists=*/bool,
            /*ordered=*/bool,
            /*no_const_read=*/bool,
            /*no_shift_read=*/bool>
-AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& write_region) {
+AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& write_region) {
   static constexpr const std::tuple<bool, bool, bool, bool, bool, bool> kNotExist =
       std::make_tuple(false, false, false, false, false, false);
   // Step 1. Extract the write indices
-  int w_dim = write_region->buffer->shape.size();
+  int w_dim = write_region->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size();
   std::unordered_map<const VarNode*, int> var2idx;
   var2idx.reserve(w_dim);
   for (int i = 0; i < w_dim; ++i) {
@@ -1437,7 +1438,7 @@ AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& wri
   // Step 2. Map each read index to a write index
   bool no_const_read = true;
   bool no_shift_read = true;
-  int r_dim = read_region->buffer->shape.size();
+  int r_dim = read_region->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size();
   std::vector<int> mapped(r_dim, -1);
   for (int i = 0; i < r_dim; ++i) {
     const Range& dom = read_region->region[i];
@@ -1565,7 +1566,7 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
       !IsTrivialBinding(self, block_sref)) {
     return false;
   }
-  const VarNode* write_buffer = block->writes[0]->buffer.get();
+  const VarNode* write_buffer = block->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>().get();
   // Step 1. Sort out spatial block variables. Skip the block iters of domain [0, 1), since such
   // block iters distracts the following check of the unused block iters.
   std::vector<const VarNode*> spatial_block_vars;
@@ -1584,8 +1585,8 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
   int total_unused_block_vars = 0;
   std::unordered_set<const VarNode*> read_buffers;
   read_buffers.reserve(block->reads.size());
-  for (const BufferRegion& buffer_region : block->reads) {
-    const VarNode* buffer = buffer_region->buffer.get();
+  for (const TensorRegion& buffer_region : block->reads) {
+    const VarNode* buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().get();
     const ffi::Array<Range>& regions = buffer_region->region;
     // Step 2.1. Duplication of read buffers are not allowed
     if (read_buffers.insert(buffer).second == false) {

@@ -196,7 +196,7 @@ class SplitPrimFuncLayoutRewrite : public StmtExprMutator {
           << "There should be no alloc buffer in the layout rewrite";
       TVM_FFI_ICHECK(op->match_buffers.empty())
           << "There should be no match buffer in the layout rewrite";
-      const BufferVar& preproc_buffer = op->reads[0]->buffer;
+      const BufferVar& preproc_buffer = op->reads[0]->source.as_or_throw<tvm::tirx::BufferVar>();
       int buffer_index = -1;
       for (size_t i = 0; i < original_func_->params.size(); ++i) {
         BufferVar buffer = original_func_->params[i].as_or_throw<tvm::tirx::BufferVar>();
@@ -208,7 +208,8 @@ class SplitPrimFuncLayoutRewrite : public StmtExprMutator {
       TVM_FFI_ICHECK(buffer_index != -1)
           << "The preproc buffer is not found in the original primfunc.";
       rewrite_infos_.push_back(
-          RewriteInfo{buffer_index, op->reads[0]->buffer, op->writes[0]->buffer});
+          RewriteInfo{buffer_index, op->reads[0]->source.as_or_throw<tvm::tirx::BufferVar>(),
+                      op->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>()});
 
       auto new_annotations = op->annotations;
       new_annotations.erase(s_tir::attr::meta_schedule_layout_rewrite_preproc);

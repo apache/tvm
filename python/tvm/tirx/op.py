@@ -25,7 +25,7 @@ from tvm_ffi import Array
 import tvm
 import tvm.ir.prim._ffi_api as _prim_ffi_api
 from tvm import tirx
-from tvm.ir import Call, Expr, ExprWithOp, Op, PointerType, PrimType, TensorLoad
+from tvm.ir import Call, Expr, ExprWithOp, Op, PointerType, PrimType, TensorLoad, TensorRegion
 from tvm.ir.base import Span
 from tvm.ir.prim import max_value, min_value
 from tvm.ir.type import TensorMapType
@@ -65,9 +65,9 @@ def _canonical_device_intrin_name(func_name: str) -> str:
 
 def _reject_buffer_region(value, api_name):
     """Reject region metadata where a call argument must denote a runtime value."""
-    if isinstance(value, tirx.BufferRegion):
+    if isinstance(value, TensorRegion):
         raise TypeError(
-            f"tirx.{api_name} does not accept BufferRegion arguments; "
+            f"tirx.{api_name} does not accept TensorRegion arguments; "
             "construct a BufferLoad with explicit indices"
         )
     return value

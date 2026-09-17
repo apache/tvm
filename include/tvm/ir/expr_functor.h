@@ -82,6 +82,9 @@ class ExprFunctor<R(const Expr&, Args...)> {
   virtual R Dispatch_(const TupleGetItemNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
+  virtual R Dispatch_(const TensorRegionNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
   virtual R Dispatch_(const TensorLoadNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
@@ -207,6 +210,7 @@ class ExprFunctor<R(const Expr&, Args...)> {
     SetDispatch<TSelf, TupleNode>(vtable);
     SetDispatch<TSelf, TupleGetItemNode>(vtable);
     SetDispatch<TSelf, TensorLoadNode>(vtable);
+    SetDispatch<TSelf, TensorRegionNode>(vtable);
     SetDispatch<TSelf, VarNode>(vtable);
     SetDispatch<TSelf, GlobalVarNode>(vtable);
     SetDispatch<TSelf, CallNode>(vtable);
@@ -306,6 +310,7 @@ class TVM_DLL ExprVisitor : public ObjectVisitor {
   virtual ffi::Optional<VisitInterrupt> Visit_(const TupleNode* node);
   virtual ffi::Optional<VisitInterrupt> Visit_(const TupleGetItemNode* node);
   virtual ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const TensorRegionNode* node);
   virtual ffi::Optional<VisitInterrupt> Visit_(const VarNode* node);
   virtual ffi::Optional<VisitInterrupt> Visit_(const GlobalVarNode* node);
   virtual ffi::Optional<VisitInterrupt> Visit_(const CallNode* node);
@@ -423,6 +428,7 @@ class TVM_DLL ExprMutator : public ObjectMutator {
   virtual UnchangedOr<Expr> Mutate_(const TupleNode* node, InplaceMode inplace_mode);
   virtual UnchangedOr<Expr> Mutate_(const TupleGetItemNode* node, InplaceMode inplace_mode);
   virtual UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<Expr> Mutate_(const TensorRegionNode* node, InplaceMode inplace_mode);
   virtual UnchangedOr<Expr> Mutate_(const VarNode* node, InplaceMode inplace_mode);
   virtual UnchangedOr<Expr> Mutate_(const GlobalVarNode* node, InplaceMode inplace_mode);
   virtual UnchangedOr<Expr> Mutate_(const CallNode* node, InplaceMode inplace_mode);

@@ -113,7 +113,7 @@ void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
 
   /* Step 0: Collect new buffer access regions. */
 
-  ffi::Array<BufferRegion> reads, writes;
+  ffi::Array<TensorRegion> reads, writes;
 
   if (buf_type == "read") {
     for (size_t i = 0; i < block->reads.size(); ++i) {

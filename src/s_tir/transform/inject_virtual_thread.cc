@@ -260,10 +260,13 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
     return result;
   }
   // Variable
-  UnchangedOr<Expr> Mutate_(const BufferRegionNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
+    if (!op->source.as<BufferVar>()) {
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
     auto region = Mutate(op->region).as_or_throw<UnchangedOr<ffi::Array<Range>>>();
     if (region.UnchangedOrSameAs(op->region)) return ffi::Unchanged();
-    BufferRegion node = ffi::GetRef<BufferRegion>(op);
+    TensorRegion node = ffi::GetRef<TensorRegion>(op);
     node.CopyOnWrite()->region = std::move(region).ValueUnchecked();
     return node;
   }

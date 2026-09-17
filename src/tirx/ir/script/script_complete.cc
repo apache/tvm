@@ -93,9 +93,9 @@ class ScriptCompleter : public StmtExprMutator {
     // ignore root block or blocks which already has reads/writes regions
     if (mask != 0 && s_tir_) {
       auto access_region = GetSBlockAccessRegion(block, *buffer_var_map_);
-      const ffi::Array<BufferRegion>& reads = access_region[0];
-      const ffi::Array<BufferRegion>& writes = access_region[1];
-      const ffi::Array<BufferRegion>& opaque = access_region[2];
+      const ffi::Array<TensorRegion>& reads = access_region[0];
+      const ffi::Array<TensorRegion>& writes = access_region[1];
+      const ffi::Array<TensorRegion>& opaque = access_region[2];
       TVM_FFI_CHECK(opaque.empty(), ValueError)
           << "Can not auto detect buffer access region from tirx.Load, tirx.Store or "
              "direct access by buffer data. Please annotation the access region manually";

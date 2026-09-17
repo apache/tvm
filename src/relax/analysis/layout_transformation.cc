@@ -336,7 +336,7 @@ class BlockAnalyzer : public StmtExprVisitor {
   void Analyze() {
     const auto& block = block_;
     TVM_FFI_ICHECK(block_->writes.size() == 1);
-    auto write_buffer = block_->writes[0]->buffer;
+    auto write_buffer = block_->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>();
 
     ComputeBlockSpatialDomain();
 
@@ -402,7 +402,8 @@ class BlockAnalyzer : public StmtExprVisitor {
 
     // Infer read buffer transformations from write buffer transformation.
     for (const auto& r : block->reads) {
-      SpatialLayout read_spatial_layout = get_spatial_layout(r->buffer);
+      SpatialLayout read_spatial_layout =
+          get_spatial_layout(r->source.as_or_throw<tvm::tirx::BufferVar>());
       if (read_spatial_layout.empty()) continue;
       if (!IsSequentialAccess(read_spatial_layout, iter_var_to_block_index)) continue;
 
@@ -410,14 +411,19 @@ class BlockAnalyzer : public StmtExprVisitor {
           write_spatial_layout, write_transformation_, read_spatial_layout);
       if (!maybe_read_transformation.has_value()) continue;
       IndexMap read_transformation = maybe_read_transformation.value();
-      if (buffer_transformation_cache_.count(r->buffer) != 0) {
-        if (!AreIdenticalTransforms(read_transformation, buffer_transformation_cache_[r->buffer]))
-          LOG(WARNING) << "[LayoutInference] Buffer: " << r->buffer
-                       << " has conflicting transform proposals -- (preferred) "
-                       << buffer_transformation_cache_[r->buffer] << " vs. " << read_transformation;
+      if (buffer_transformation_cache_.count(r->source.as_or_throw<tvm::tirx::BufferVar>()) != 0) {
+        if (!AreIdenticalTransforms(
+                read_transformation,
+                buffer_transformation_cache_[r->source.as_or_throw<tvm::tirx::BufferVar>()]))
+          LOG(WARNING)
+              << "[LayoutInference] Buffer: " << r->source.as_or_throw<tvm::tirx::BufferVar>()
+              << " has conflicting transform proposals -- (preferred) "
+              << buffer_transformation_cache_[r->source.as_or_throw<tvm::tirx::BufferVar>()]
+              << " vs. " << read_transformation;
         continue;
       }
-      read_buffer_transformations_.Set(r->buffer, read_transformation);
+      read_buffer_transformations_.Set(r->source.as_or_throw<tvm::tirx::BufferVar>(),
+                                       read_transformation);
     }
   }
 
@@ -492,11 +498,12 @@ class BlockAnalyzer : public StmtExprVisitor {
     if (!access_info.IsValid()) return std::nullopt;
 
     // Only single write buffer is supported for each block.
-    if (!op->buffer.same_as(block_->writes[0]->buffer)) {
+    if (!op->buffer.same_as(block_->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>())) {
       access_info.Invalidate();
       LOG(WARNING) << "[LayoutInference] Exactly one write buffer is supported for layout "
                       "inference, found two: "
-                   << op->buffer << " and " << block_->writes[0]->buffer;
+                   << op->buffer << " and "
+                   << block_->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>();
       can_transform_block_ = false;
       return std::nullopt;
     }
@@ -601,7 +608,7 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
     SBlock block = ffi::GetRef<SBlock>(op);
     // Get block write buffer transformation.
     if (block->writes.size() != 1) return std::nullopt;
-    auto write_buffer = block->writes[0]->buffer;
+    auto write_buffer = block->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>();
     block_to_buffer_[block].push_back(write_buffer);
     auto block_analyzer = ffi::make_object<BlockAnalyzer>(
         block, buffer_transformation_cache_, buffer_transformation_cache_[write_buffer]);

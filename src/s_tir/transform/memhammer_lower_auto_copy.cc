@@ -231,9 +231,10 @@ class AutoPadder {
         // after mutation. Otherwise we just return the original block.
         bool changed = false;
         // Step 1. Mutate the read region.
-        ffi::Array<BufferRegion> reads;
-        for (const BufferRegion& read : op->reads) {
-          if (auto replacement = VarRemapGet(read->buffer).as<BufferVar>()) {
+        ffi::Array<TensorRegion> reads;
+        for (const TensorRegion& read : op->reads) {
+          if (auto replacement =
+                  VarRemapGet(read->source.as_or_throw<tvm::tirx::BufferVar>()).as<BufferVar>()) {
             changed = true;
             reads.push_back(BufferRegion(replacement.value(), read->region));
           } else {
@@ -241,9 +242,10 @@ class AutoPadder {
           }
         }
         // Step 2. Mutate the write region.
-        ffi::Array<BufferRegion> writes;
-        for (const BufferRegion& write : op->writes) {
-          if (auto replacement = VarRemapGet(write->buffer).as<BufferVar>()) {
+        ffi::Array<TensorRegion> writes;
+        for (const TensorRegion& write : op->writes) {
+          if (auto replacement =
+                  VarRemapGet(write->source.as_or_throw<tvm::tirx::BufferVar>()).as<BufferVar>()) {
             changed = true;
             writes.push_back(BufferRegion(replacement.value(), write->region));
           } else {
@@ -254,7 +256,9 @@ class AutoPadder {
         // MatchBufferRegion, the storage scope of the target buffer also needs to be set.
         ffi::Array<MatchBufferRegion> match_buffers;
         for (const MatchBufferRegion& match_buffer : op->match_buffers) {
-          if (auto replacement = VarRemapGet(match_buffer->source->buffer).as<BufferVar>()) {
+          if (auto replacement =
+                  VarRemapGet(match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>())
+                      .as<BufferVar>()) {
             changed = true;
             BufferVar new_buffer = replacement.value();
             match_buffers.push_back(MatchBufferRegion(
@@ -612,7 +616,7 @@ class AutoPadder {
           if (call->op.same_as(tvm_load_matrix_sync_op) ||
               call->op.same_as(tvm_store_matrix_sync_op)) {
             for (const MatchBufferRegion& r : op->match_buffers) {
-              BufferVar src_buffer = r->source->buffer;
+              BufferVar src_buffer = r->source->source.as_or_throw<tvm::tirx::BufferVar>();
               runtime::StorageScope scope = runtime::StorageScope::Create(src_buffer.scope());
               if (scope.rank == runtime::StorageRank::kShared) {
                 Region region = r->source->region;
@@ -731,11 +735,12 @@ class AutoCopyMutator : public StmtExprMutator {
     TVM_FFI_ICHECK_EQ(block->writes.size(), 1);
     TVM_FFI_ICHECK_GE(block->reads.size(), 1);
 
-    BufferRegion target_read = block->reads[0];
+    TensorRegion target_read = block->reads[0];
     if (block->reads.size() > 1) {
       bool found = false;
       for (size_t i = 0; i < block->reads.size(); i++) {
-        if (block->reads[i]->buffer.scope() == "wmma.accumulator") {
+        if (block->reads[i]->source.as_or_throw<tvm::tirx::BufferVar>().scope() ==
+            "wmma.accumulator") {
           found = true;
           target_read = block->reads[i];
         }
@@ -743,7 +748,7 @@ class AutoCopyMutator : public StmtExprMutator {
       TVM_FFI_ICHECK(found) << "Multiple buffer read";
     }
 
-    int data_bits = target_read->buffer->dtype.bits();
+    int data_bits = target_read->source.as_or_throw<tvm::tirx::BufferVar>()->dtype.bits();
     ConstraintSet constraints(this->thread_extent_,  //
                               this->outer_loops_,    //
                               target_read,           //

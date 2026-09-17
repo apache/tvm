@@ -17,8 +17,9 @@
 
 """Implementation of BinaryReduce dispatch."""
 
+from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion, PrimFunc, TilePrimitiveCall
+from tvm.tirx import PrimFunc, TilePrimitiveCall
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.ops import BinaryReduce
 
@@ -42,7 +43,7 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
     analyzer = init_analyzer(sctx)
 
     # Normalize negative axes
-    reduce_axes = [i if i >= 0 else len(binary_output.buffer.ty.shape) + i for i in reduce_axes]
+    reduce_axes = [i if i >= 0 else len(binary_output.source.ty.shape) + i for i in reduce_axes]
 
     # Find instruction patterns
     inst_gen = InstructionGenerator(
@@ -77,7 +78,7 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
     f_var = T.Var("F", "int32")
     reduction_b_var = T.Var("rB", "int32")
     spatial_b_var = T.Var("sB", "int32")
-    p_size = binary_output.buffer.ty.layout.size("P")
+    p_size = binary_output.source.ty.layout.size("P")
     inst_gen.bind_inst_iter(binary_output, p_var, p_size, 1, False)
     inst_gen.bind_inst_iter(binary_output, f_var, inst_repr.size, inst_repr.stride, True)
     reduction_b_extent = inst_gen.fill_in_block_dim(binary_output, reduction_b_var, reduce_axes)
@@ -88,13 +89,13 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
         )
 
     # Handle source 2 (either buffer region or constant)
-    CONST = binary_input2 if not isinstance(binary_input2, BufferRegion) else None
+    CONST = binary_input2 if not isinstance(binary_input2, TensorRegion) else None
     # Extract buffers and opcodes
     src1, src2 = (
-        binary_input1.buffer,
-        (binary_input2.buffer if isinstance(binary_input2, BufferRegion) else None),
+        binary_input1.source,
+        (binary_input2.source if isinstance(binary_input2, TensorRegion) else None),
     )
-    dst1, dst2 = binary_output.buffer, reduce_output.buffer
+    dst1, dst2 = binary_output.source, reduce_output.source
     binary_opcode, reduce_opcode = opcode_table[op.binary_op], opcode_table[op.reduce_op]
     # Create appropriate implementation based on intermediate buffer requirement
     if reduction_b_extent == 1:

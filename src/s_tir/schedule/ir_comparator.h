@@ -90,7 +90,7 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool DefEqual(const Var& lhs, const Var& rhs);
   bool CompareExpr(const Expr& lhs, const Expr& rhs);
   virtual bool CompareBuffer(const BufferVar& lhs, const BufferVar& rhs);
-  bool CompareBufferRegion(const BufferRegion& lhs, const BufferRegion& rhs);
+  bool CompareBufferRegion(const TensorRegion& lhs, const TensorRegion& rhs);
   bool CompareAnnotation(const std::pair<ffi::String, ffi::Any>& lhs,
                          const std::pair<ffi::String, ffi::Any>& rhs);
   bool CompareAnnotationMap(const ffi::Map<ffi::String, ffi::Any>& lhs,

@@ -169,10 +169,11 @@ ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constrain
     body = loop->body;
   }
   const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
-  BufferRegion write_region = constraints.write_region;
+  TensorRegion write_region = constraints.write_region;
   const ffi::Array<PrimExpr>& write_index = buf_store->indices;
-  TVM_FFI_ICHECK(write_region->region.size() == write_index.size() &&
-                 write_region->buffer.same_as(buf_store->buffer));
+  TVM_FFI_ICHECK(
+      write_region->region.size() == write_index.size() &&
+      write_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buf_store->buffer));
   ffi::Array<PrimExpr> result;
   arith::Analyzer analyzer;
   for (int i = 0; i < static_cast<int>(write_region->region.size()); i++) {
@@ -204,8 +205,8 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   ffi::Map<Var, PrimExpr> inverse_mapping =
       arith::InverseAffineIterMap(iter_map->indices, loop_vars);
   // Step 3. Generate new body
-  BufferRegion read_region = constraints.read_region;
-  BufferRegion write_region = constraints.write_region;
+  TensorRegion read_region = constraints.read_region;
+  TensorRegion write_region = constraints.write_region;
   ffi::Array<PrimExpr> write_index;
   ffi::Array<PrimExpr> read_index;
   ffi::Array<PrimVar> new_loop_vars;
@@ -237,8 +238,10 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
       read_index.push_back(read_region->region[i]->min + inverse);
     }
   }
-  TensorLoad new_buf_load = BufferLoad(read_region->buffer, read_index);
-  BufferStore new_buf_store = BufferStore(write_region->buffer, new_buf_load, write_index);
+  TensorLoad new_buf_load =
+      BufferLoad(read_region->source.as_or_throw<tvm::tirx::BufferVar>(), read_index);
+  BufferStore new_buf_store = BufferStore(write_region->source.as_or_throw<tvm::tirx::BufferVar>(),
+                                          new_buf_load, write_index);
   Stmt ret = new_buf_store;
   // Step 3.3 construct loop body
   for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; i--) {

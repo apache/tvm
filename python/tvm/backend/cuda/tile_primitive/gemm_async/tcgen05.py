@@ -27,6 +27,7 @@ import operator
 
 import tvm
 from tvm.arith.analyzer import Analyzer
+from tvm.ir import TensorRegion
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
@@ -391,13 +392,13 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     op_call = TilePrimitiveCall.downcast(op_call)
     is_block_scaled = op_call.is_block_scaled
 
-    C_buffer_region: tvm.tirx.BufferRegion = op_call.output
-    A_buffer_region: tvm.tirx.BufferRegion = op_call.lhs
-    B_buffer_region: tvm.tirx.BufferRegion = op_call.rhs
+    C_buffer_region: TensorRegion = op_call.output
+    A_buffer_region: TensorRegion = op_call.lhs
+    B_buffer_region: TensorRegion = op_call.rhs
     C_buffer, A_buffer, B_buffer = (
-        C_buffer_region.buffer,
-        A_buffer_region.buffer,
-        B_buffer_region.buffer,
+        C_buffer_region.source,
+        A_buffer_region.source,
+        B_buffer_region.source,
     )
 
     C_scope, A_scope, B_scope = C_buffer.scope(), A_buffer.scope(), B_buffer.scope()
@@ -465,8 +466,8 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     if is_block_scaled:
         SFA_buffer_region, SFB_buffer_region = op_call.sfa, op_call.sfb
         transA, transB, accum = op_call.transA, op_call.transB, op_call.accum
-        SFA_buffer: tvm.tirx.Buffer = SFA_buffer_region.buffer
-        SFB_buffer: tvm.tirx.Buffer = SFB_buffer_region.buffer
+        SFA_buffer: tvm.tirx.Buffer = SFA_buffer_region.source
+        SFB_buffer: tvm.tirx.Buffer = SFB_buffer_region.source
         SFA_scope, SFB_scope = SFA_buffer.scope(), SFB_buffer.scope()
         if not (SFA_scope == "tmem" and SFB_scope == "tmem"):
             raise ValueError(

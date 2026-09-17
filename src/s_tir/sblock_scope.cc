@@ -87,15 +87,17 @@ SBlockScope::SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
   for (const StmtSRef& child_block_sref : child_block_srefs) {
     const SBlockNode* child_block = TVM_SREF_TO_SBLOCK(child_block_sref);
     // Step 1. Update `buffer_readers` and `buffer_writers` for each buffer
-    for (const BufferRegion& region : child_block->reads) {
-      buffer_readers[region->buffer].push_back(child_block_sref);
+    for (const TensorRegion& region : child_block->reads) {
+      buffer_readers[region->source.as_or_throw<tvm::tirx::BufferVar>()].push_back(
+          child_block_sref);
     }
-    for (const BufferRegion& region : child_block->writes) {
-      buffer_writers[region->buffer].push_back(child_block_sref);
+    for (const TensorRegion& region : child_block->writes) {
+      buffer_writers[region->source.as_or_throw<tvm::tirx::BufferVar>()].push_back(
+          child_block_sref);
     }
     // Step 2. Update RAW dependency
-    for (const BufferRegion& region : child_block->reads) {
-      auto it = buffer_writers.find(region->buffer);
+    for (const TensorRegion& region : child_block->reads) {
+      auto it = buffer_writers.find(region->source.as_or_throw<tvm::tirx::BufferVar>());
       if (it != buffer_writers.end()) {
         for (const StmtSRef& from : it->second) {
           AddDependency(n.get(), from, child_block_sref, DepKind::kRAW);
@@ -103,8 +105,8 @@ SBlockScope::SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
       }
     }
     // Step 3. Update WAW dependency
-    for (const BufferRegion& region : child_block->writes) {
-      auto it = buffer_writers.find(region->buffer);
+    for (const TensorRegion& region : child_block->writes) {
+      auto it = buffer_writers.find(region->source.as_or_throw<tvm::tirx::BufferVar>());
       if (it != buffer_writers.end()) {
         for (const StmtSRef& from : it->second) {
           AddDependency(n.get(), from, child_block_sref, DepKind::kWAW);
@@ -112,8 +114,8 @@ SBlockScope::SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
       }
     }
     // Step 4. Update WAR dependency
-    for (const BufferRegion& region : child_block->writes) {
-      auto it = buffer_readers.find(region->buffer);
+    for (const TensorRegion& region : child_block->writes) {
+      auto it = buffer_readers.find(region->source.as_or_throw<tvm::tirx::BufferVar>());
       if (it != buffer_readers.end()) {
         for (const StmtSRef& from : it->second) {
           AddDependency(n.get(), from, child_block_sref, DepKind::kWAR);

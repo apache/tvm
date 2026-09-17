@@ -94,8 +94,8 @@ def _r_side_layout_valid(
     op_call: TilePrimitiveCall, sctx: DispatchContext
 ) -> tuple[bool, str | None]:
     op_call = TilePrimitiveCall.downcast(op_call)
-    src: Buffer = op_call.src.buffer
-    dst: Buffer = op_call.dst.buffer
+    src: Buffer = op_call.src.source
+    dst: Buffer = op_call.dst.source
     r_buf = src if src.scope() == "local" else dst
     layout = r_buf.layout
     if layout is None:
@@ -138,8 +138,8 @@ def _s_side_slice_ok(op_call: TilePrimitiveCall) -> tuple[bool, str | None]:
     op_call = TilePrimitiveCall.downcast(op_call)
     src_br = op_call.src
     dst_br = op_call.dst
-    s_br = dst_br if src_br.buffer.scope() == "local" else src_br
-    s_buf: Buffer = s_br.buffer
+    s_br = dst_br if src_br.source.scope() == "local" else src_br
+    s_buf: Buffer = s_br.source
     layout = s_buf.layout
     if layout is None:
         return False, "S has no layout"
@@ -270,12 +270,12 @@ def _align_layouts(op_call: TilePrimitiveCall, sctx: DispatchContext):
     op_call = TilePrimitiveCall.downcast(op_call)
     src_br = op_call.src
     dst_br = op_call.dst
-    if src_br.buffer.scope() == "local":
+    if src_br.source.scope() == "local":
         r_br, s_br = src_br, dst_br
     else:
         r_br, s_br = dst_br, src_br
-    r_buf = r_br.buffer
-    s_buf = s_br.buffer
+    r_buf = r_br.source
+    s_buf = s_br.source
     r_region = [(r.min, r.min + r.extent) for r in r_br.region]
     s_region = [(r.min, r.min + r.extent) for r in s_br.region]
     with sctx.target:
@@ -525,8 +525,8 @@ def _outer_const_offsets(outer_atoms, flat_idx: int) -> tuple[int, int]:
 
 def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     op_call = TilePrimitiveCall.downcast(op_call)
-    src: Buffer = op_call.src.buffer
-    dst: Buffer = op_call.dst.buffer
+    src: Buffer = op_call.src.source
+    dst: Buffer = op_call.dst.source
     if src.scope() == "local":
         r_buf, s_buf, r_is_src = src, dst, True
     else:

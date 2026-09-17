@@ -22,9 +22,9 @@ import operator
 
 from tvm.arith.analyzer import Analyzer
 from tvm.backend.trn.layout import is_trainium_layout
-from tvm.ir import assert_structural_equal
+from tvm.ir import TensorRegion, assert_structural_equal
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion, PrimFunc
+from tvm.tirx import PrimFunc
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
     fail,
@@ -46,7 +46,7 @@ class OperatorKind:
 
 
 def get_pf_dim_from_buffer_region(
-    buffer_region: BufferRegion,
+    buffer_region: TensorRegion,
     analyzer: Analyzer,
     operator_kind: OperatorKind,
     transposed: bool = False,
@@ -55,13 +55,13 @@ def get_pf_dim_from_buffer_region(
     # Find non-unit dimensions
     non_unit_dims = [
         i
-        for i in range(len(buffer_region.buffer.ty.shape))
+        for i in range(len(buffer_region.source.ty.shape))
         if not analyzer.can_prove_equal(buffer_region.region[i].extent, 1)
     ]
     assert len(non_unit_dims) == 2, "Only 2D matrix is supported for gemm"
 
     layout, seps = normalize_and_group(
-        buffer_region.buffer.ty.layout, buffer_region.buffer.ty.shape
+        buffer_region.source.ty.layout, buffer_region.source.ty.shape
     )
     # Determine partition and free dimensions based on operator kind
     if operator_kind == OperatorKind.A:
@@ -129,10 +129,10 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     ) = op.args
     analyzer = init_analyzer(sctx)
     A, B, C, _D = (
-        A_buffer_region.buffer,
-        B_buffer_region.buffer,
-        C_buffer_region.buffer,
-        D_buffer_region.buffer,
+        A_buffer_region.source,
+        B_buffer_region.source,
+        C_buffer_region.source,
+        D_buffer_region.source,
     )
 
     # Validate alpha, beta

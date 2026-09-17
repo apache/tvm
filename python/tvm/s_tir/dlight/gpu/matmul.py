@@ -331,8 +331,8 @@ def get_in_out_dtypes(block: tirx.SBlock) -> tuple[str]:
     Detect In/Out data types for the given block based on the analysis if read/write buffers.
     """
     assert len(block.reads) > 0 and len(block.writes) > 0
-    in_dtype = block.reads[0].buffer.dtype
-    out_dtype = block.writes[0].buffer.dtype
+    in_dtype = block.reads[0].source.dtype
+    out_dtype = block.writes[0].source.dtype
     return (in_dtype, out_dtype)
 
 
