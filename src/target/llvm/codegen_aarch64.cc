@@ -40,7 +40,7 @@ class CodeGenAArch64 final : public CodeGenCPU {
   CodeGenAArch64() = default;
   virtual ~CodeGenAArch64() = default;
 
-  void VisitStmt_(const AttrStmtNode* op);
+  void Dispatch_(const AttrStmtNode* op);
   void AddFunction(const GlobalVar& gvar, const PrimFunc& f);
   void SetTargetAttributes(llvm::Function* func);
 
@@ -84,16 +84,16 @@ void CodeGenAArch64::SetTargetAttributes(llvm::Function* func) {
  * \brief Visit and handle AArch64 specific pragmas. To be AArch64 specific,
  * the expectation is that they are prepended with "pragma_aarch64".
  */
-void CodeGenAArch64::VisitStmt_(const AttrStmtNode* op) {
+void CodeGenAArch64::Dispatch_(const AttrStmtNode* op) {
   std::string attr_key = op->attr_key;
 
   if (!tirx::attr::IsPragmaKey(attr_key)) {
-    CodeGenCPU::VisitStmt_(op);
+    CodeGenCPU::Dispatch_(op);
     return;
   }
   bool is_aarch64_specific_pragma = attr_key.substr(7, 7) == "aarch64";
   if (!is_aarch64_specific_pragma) {
-    CodeGenCPU::VisitStmt_(op);
+    CodeGenCPU::Dispatch_(op);
     return;
   }
 
@@ -117,7 +117,7 @@ void CodeGenAArch64::VisitStmt_(const AttrStmtNode* op) {
   } else {
     LOG(WARNING) << "Unknown pragma " << op->attr_key;
   }
-  this->VisitStmt(op->body);
+  this->Dispatch(op->body);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

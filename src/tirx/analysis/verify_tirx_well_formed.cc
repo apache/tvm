@@ -51,16 +51,15 @@ class ExecScopeVerifier : public Verifier<ExecScopeVerifier> {
  private:
   using Verifier::Visit;
 
-  void VisitStmt_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
+  void Dispatch_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: SBlock is not allowed in tirx=True mode at " << path;
   }
 
-  void VisitStmt_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
+  void Dispatch_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
   }
 
-  void VisitStmt_(const tirx::TilePrimitiveCallNode* op,
-                  ffi::reflection::AccessPath path) override {
+  void Dispatch_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override {
     static const auto& category_map = Op::GetAttrMap<tirx::TIRxOpCategory>("TIRxOpCategory");
     Verify(category_map.get(op->op, ffi::String("")) == "tile_primitive")
         << "TIRxError: TilePrimitiveCall at " << path << " has non-tile op " << op->op;
@@ -74,12 +73,12 @@ class ScopeIdVerifier : public Verifier<ScopeIdVerifier> {
  private:
   using Verifier::Visit;
 
-  void VisitStmt_(const AttrStmtNode* op, ffi::reflection::AccessPath path) override {
+  void Dispatch_(const AttrStmtNode* op, ffi::reflection::AccessPath path) override {
     if (op->attr_key == tvm::tirx::attr::kDeviceEntry) {
       // Device-region marker: defs gathered from the body are verified when
       // the AttrStmt exits, with launch-param sanity enforced as ``is_root``.
       size_t baseline = scope_id_def_.size();
-      Verifier::VisitStmt_(op, path);
+      Verifier::Dispatch_(op, path);
       size_t total = scope_id_def_.size();
       if (total > baseline) {
         RunScopeIdVerify(path, baseline, /*is_root=*/true);
@@ -89,7 +88,7 @@ class ScopeIdVerifier : public Verifier<ScopeIdVerifier> {
       }
       return;
     }
-    Verifier::VisitStmt_(op, path);
+    Verifier::Dispatch_(op, path);
   }
 
   void RunScopeIdVerify(ffi::reflection::AccessPath path, size_t baseline, bool is_root) {
@@ -118,9 +117,9 @@ class ScopeIdVerifier : public Verifier<ScopeIdVerifier> {
     }
   }
 
-  void VisitStmt_(const ScopeIdDefStmtNode* op, ffi::reflection::AccessPath path) override {
+  void Dispatch_(const ScopeIdDefStmtNode* op, ffi::reflection::AccessPath path) override {
     scope_id_def_.push_back(op->def);
-    Verifier::VisitStmt_(op, path);
+    Verifier::Dispatch_(op, path);
   }
 
   Array<ScopeIdDef> scope_id_def_;
@@ -134,11 +133,11 @@ class LayoutVerifier : public Verifier<LayoutVerifier> {
  private:
   using Verifier::Visit;
 
-  void VisitStmt_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
+  void Dispatch_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: SBlock is not allowed in tirx=True mode at " << path;
   }
 
-  void VisitStmt_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
+  void Dispatch_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
   }
 };
@@ -150,11 +149,11 @@ class AsyncStructsVerifier : public Verifier<AsyncStructsVerifier> {
  private:
   using Verifier::Visit;
 
-  void VisitStmt_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
+  void Dispatch_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: SBlock is not allowed in tirx=True mode at " << path;
   }
 
-  void VisitStmt_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
+  void Dispatch_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
   }
 };
@@ -166,11 +165,11 @@ class DeviceFuncVerifier : public Verifier<DeviceFuncVerifier> {
  private:
   using Verifier::Visit;
 
-  void VisitStmt_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
+  void Dispatch_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: SBlock is not allowed in tirx=True mode at " << path;
   }
 
-  void VisitStmt_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
+  void Dispatch_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
   }
 };

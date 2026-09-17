@@ -645,7 +645,7 @@ void CodeGenWebGPU::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // 
   }
 }
 
-void CodeGenWebGPU::VisitStmt_(const BindNode* op) {
+void CodeGenWebGPU::Dispatch_(const BindNode* op) {
   // use ssa form.
   if (print_ssa_form_) {
     std::string value = PrintExpr(op->value);
@@ -660,7 +660,7 @@ void CodeGenWebGPU::VisitStmt_(const BindNode* op) {
   }
 }
 
-void CodeGenWebGPU::VisitStmt_(const BufferStoreNode* op) {
+void CodeGenWebGPU::Dispatch_(const BufferStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
 
   PrimType value_ty = op->value.ty();
@@ -720,7 +720,7 @@ void CodeGenWebGPU::VisitStmt_(const BufferStoreNode* op) {
   }
 }
 
-void CodeGenWebGPU::VisitStmt_(const AllocBufferNode* op) {
+void CodeGenWebGPU::Dispatch_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
   std::string vid = AllocVarID(op->buffer.get());
   size_t constant_size = 1;
@@ -782,7 +782,7 @@ void CodeGenWebGPU::VisitStmt_(const AllocBufferNode* op) {
   }
 }
 
-void CodeGenWebGPU::VisitStmt_(const ForNode* op) {
+void CodeGenWebGPU::Dispatch_(const ForNode* op) {
   std::string begin_str = PrintExpr(op->min);
   PrimExpr end = is_zero(op->min) ? op->extent : arith::Analyzer()->Simplify(op->min + op->extent);
   std::string end_str = PrintExpr(end);
@@ -805,11 +805,11 @@ void CodeGenWebGPU::VisitStmt_(const ForNode* op) {
   stream << "}\n";
 }
 
-void CodeGenWebGPU::VisitStmt_(const AssertStmtNode* op) {
+void CodeGenWebGPU::Dispatch_(const AssertStmtNode* op) {
   // skip assert — AssertStmt is a leaf, nothing to emit.
 }
 
-void CodeGenWebGPU::VisitStmt_(const WhileNode* op) {
+void CodeGenWebGPU::Dispatch_(const WhileNode* op) {
   PrintIndent();
   stream << "while (true) {\n";
   int while_scope = BeginScope();
@@ -822,12 +822,12 @@ void CodeGenWebGPU::VisitStmt_(const WhileNode* op) {
   stream << "}\n";
 }
 
-void CodeGenWebGPU::VisitStmt_(const BreakNode* op) {
+void CodeGenWebGPU::Dispatch_(const BreakNode* op) {
   PrintIndent();
   stream << "break;\n";
 }
 
-void CodeGenWebGPU::VisitStmt_(const ContinueNode* op) {
+void CodeGenWebGPU::Dispatch_(const ContinueNode* op) {
   PrintIndent();
   stream << "continue;\n";
 }

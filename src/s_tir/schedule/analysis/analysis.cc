@@ -2159,7 +2159,7 @@ bool CheckAutoTensorizeApplicable(const ScheduleState& state, const tirx::StmtSR
   arith::Analyzer analyzer;
   auto desc_info = ExtractTensorIntrinDescInfo(analyzer.get(), desc_func);
 
-  return extractor->VisitStmt(block->block, desc_info.desc_block->block);
+  return extractor->Dispatch(block->block, desc_info.desc_block->block);
 }
 
 bool CheckAutoTensorizeApplicable(const s_tir::Schedule& sch, const s_tir::SBlockRV& block_rv,

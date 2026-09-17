@@ -45,13 +45,13 @@ class PurityChecker : TIRVisitorWithPath {
  private:
   explicit PurityChecker(bool assert_on_error) : assert_on_error_(assert_on_error) {}
 
-  void VisitStmt_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override {
+  void Dispatch_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override {
     internal_allocations_.insert(op->buffer.var());
-    TIRVisitorWithPath::VisitStmt_(op, path);
+    TIRVisitorWithPath::Dispatch_(op, path);
   }
 
-  void VisitStmt_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override {
-    TIRVisitorWithPath::VisitStmt_(op, path);
+  void Dispatch_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override {
+    TIRVisitorWithPath::Dispatch_(op, path);
 
     if (!internal_allocations_.count(op->buffer.var())) {
       is_pure_ = false;

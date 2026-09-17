@@ -28,7 +28,7 @@
 #include <utility>
 
 #include "../../tirx/ir/functor_common.h"
-#include "../../tirx/ir_mutator_with_analyzer.h"
+#include "../../tirx/ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {

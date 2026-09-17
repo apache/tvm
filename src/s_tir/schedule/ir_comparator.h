@@ -47,14 +47,14 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
       : lhs_mod_(std::move(lhs_mod)), assert_mode_(assert_mode) {}
 
   bool Dispatch(const Expr& n, const PrimExpr& other) override;
-  bool VisitStmt(const Stmt& n, const Stmt& other) override;
+  bool Dispatch(const Stmt& n, const Stmt& other) override;
 
   bool Dispatch_(const CallNode* op, const PrimExpr& other) override;
-  bool VisitStmt_(const ForNode* op, const Stmt& other) override;
-  bool VisitStmt_(const SeqStmtNode* op, const Stmt& other) override;
-  bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) override;
-  bool VisitStmt_(const SBlockRealizeNode* op, const Stmt& other) override;
-  bool VisitStmt_(const SBlockNode* op, const Stmt& other) override;
+  bool Dispatch_(const ForNode* op, const Stmt& other) override;
+  bool Dispatch_(const SeqStmtNode* op, const Stmt& other) override;
+  bool Dispatch_(const BufferStoreNode* op, const Stmt& other) override;
+  bool Dispatch_(const SBlockRealizeNode* op, const Stmt& other) override;
+  bool Dispatch_(const SBlockNode* op, const Stmt& other) override;
 
   bool Dispatch_(const AddNode* op, const PrimExpr& other) override;
   bool Dispatch_(const SubNode* op, const PrimExpr& other) override;
@@ -139,10 +139,10 @@ class AutoTensorizeComparator : public TensorizeComparator {
 
  private:
   bool DispatchDefault_(const ffi::Object* op, const PrimExpr& other) override;
-  bool VisitStmtDefault_(const ffi::Object* op, const Stmt& other) override;
+  bool DispatchDefault_(const ffi::Object* op, const Stmt& other) override;
 
-  bool VisitStmt_(const SBlockNode* op, const Stmt& other) override;
-  bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) override;
+  bool Dispatch_(const SBlockNode* op, const Stmt& other) override;
+  bool Dispatch_(const BufferStoreNode* op, const Stmt& other) override;
 
   bool Dispatch_(const TensorLoadNode* op, const PrimExpr& other) override;
 

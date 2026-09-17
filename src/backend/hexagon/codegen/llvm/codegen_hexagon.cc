@@ -79,7 +79,7 @@ class CodeGenHexagon final : public CodeGenCPU {
             bool target_c_runtime) override;
   void InitTarget() final;
 
-  using CodeGenCPU::VisitStmt_;
+  using CodeGenCPU::Dispatch_;
   llvm::Value* Dispatch_(const TensorLoadNode* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
 

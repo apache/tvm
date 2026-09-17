@@ -604,7 +604,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
       CreateDebugFunction(MakeStringRef(value->value), debug_param_types, PrimType::Int(32));
   auto* compute_entry = llvm::BasicBlock::Create(*ctx, "entry", function_);
   builder_->SetInsertPoint(compute_entry);
-  this->VisitStmt(op->body);
+  this->Dispatch(op->body);
   builder_->CreateRet(ConstInt32(0));
   builder_->SetInsertPoint(compute_call_end);
 
@@ -690,7 +690,7 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
   std::swap(parallel_env_, par_env);
   std::swap(analyzer_, new_analyzer);
   std::swap(var_map_, new_vmap);
-  this->VisitStmt(body);
+  this->Dispatch(body);
   builder_->CreateRet(ConstInt32(0));
   // swap the var map back, now we are back on track.
   std::swap(var_map_, new_vmap);
@@ -1113,7 +1113,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
   }
 }
 
-void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
+void CodeGenCPU::Dispatch_(const AssertStmtNode* op) {
   EmitDebugLocation(op);
   llvm::Value* cond = MakeValue(op->condition);
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
@@ -1146,10 +1146,10 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
   builder_->CreateRet(ConstInt32(-1));
   // otherwise set it to be new end.
   builder_->SetInsertPoint(end_block);
-  CodeGenLLVM::VisitStmt_(op);
+  CodeGenLLVM::Dispatch_(op);
 }
 
-void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
+void CodeGenCPU::Dispatch_(const AttrStmtNode* op) {
   EmitDebugLocation(op);
   if (op->attr_key == tirx::attr::compute_scope) {
     this->CreateComputeScope(op);
@@ -1158,7 +1158,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
       TVM_FFI_ICHECK(parallel_env_.penv != nullptr)
           << "Pragma parallel_stride_pattern only valid in parallel launch";
       parallel_env_.stride_pattern = true;
-      this->VisitStmt(op->body);
+      this->Dispatch(op->body);
     } else if (op->attr_key == "pragma_parallel_launch_point") {
       CreateParallelLaunch(op->body, 0, "pragma_parallel");
     } else if (op->attr_key == "pragma_parallel_barrier_when_finish") {
@@ -1167,7 +1167,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
       TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
           << "Cannot not place within parallel loop as the workload may differ, "
           << " place it between parallel and parallel_launch_point";
-      this->VisitStmt(op->body);
+      this->Dispatch(op->body);
       auto bar_callee =
           llvm::FunctionCallee(ftype_tvm_parallel_barrier_, RuntimeTVMParallelBarrier());
       builder_->CreateCall(bar_callee, {MakeValue(parallel_env_.task_id), parallel_env_.penv});
@@ -1175,20 +1175,20 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
       const prim::StringImmNode* value = op->value.as<prim::StringImmNode>();
       TVM_FFI_ICHECK(value != nullptr);
       this->HandleImport(value->value);
-      this->VisitStmt(op->body);
+      this->Dispatch(op->body);
     } else {
       LOG(WARNING) << "Unknown pragma " << op->attr_key;
-      this->VisitStmt(op->body);
+      this->Dispatch(op->body);
     }
   } else {
-    CodeGenLLVM::VisitStmt_(op);
+    CodeGenLLVM::Dispatch_(op);
   }
 }
 
-void CodeGenCPU::VisitStmt_(const ForNode* op) {
+void CodeGenCPU::Dispatch_(const ForNode* op) {
   EmitDebugLocation(op);
   if (op->kind == ForKind::kSerial || op->kind == ForKind::kUnrolled) {
-    CodeGenLLVM::VisitStmt_(op);
+    CodeGenLLVM::Dispatch_(op);
   } else if (op->kind == ForKind::kParallel) {
     TVM_FFI_ICHECK(is_zero(op->min))
         << "Parallel launch require canonical loop with zero start index";

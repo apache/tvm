@@ -31,7 +31,7 @@
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/utils.h"
-#include "../../tirx/ir_mutator_with_analyzer.h"
+#include "../../tirx/ir/ir_mutator_with_analyzer.h"
 #include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {

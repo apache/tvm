@@ -76,14 +76,14 @@ class CodeGenWebGPU final : public CodeGenC {
   void Dispatch_(const IntImmNode* op, std::ostream& os) final;           // NOLINT(*)
 
   // stmt printing
-  void VisitStmt_(const BindNode* op) final;
-  void VisitStmt_(const BufferStoreNode* op) final;
-  void VisitStmt_(const ForNode* op) final;
-  void VisitStmt_(const AllocBufferNode* op) final;
-  void VisitStmt_(const AssertStmtNode* op) final;
-  void VisitStmt_(const WhileNode* op) final;
-  void VisitStmt_(const BreakNode* op) final;
-  void VisitStmt_(const ContinueNode* op) final;
+  void Dispatch_(const BindNode* op) final;
+  void Dispatch_(const BufferStoreNode* op) final;
+  void Dispatch_(const ForNode* op) final;
+  void Dispatch_(const AllocBufferNode* op) final;
+  void Dispatch_(const AssertStmtNode* op) final;
+  void Dispatch_(const WhileNode* op) final;
+  void Dispatch_(const BreakNode* op) final;
+  void Dispatch_(const ContinueNode* op) final;
 
  private:
   /*!

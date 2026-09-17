@@ -85,9 +85,9 @@ class TensorIntrinMismatchError : public ScheduleErrorContextObj {
 };
 
 /* Override the dispatcher to make sure RHS is always valid */
-bool TensorizeComparator::VisitStmt(const Stmt& n, const Stmt& other) {
+bool TensorizeComparator::Dispatch(const Stmt& n, const Stmt& other) {
   bool equal = n.same_as(other) ||
-               ((n->type_index() == other->type_index()) && StmtComparator::VisitStmt(n, other));
+               ((n->type_index() == other->type_index()) && StmtComparator::Dispatch(n, other));
   if (!equal && assert_mode_ && (n->IsInstance<ForNode>() || n->IsInstance<SBlockNode>())) {
     throw MakeScheduleError<TensorIntrinMismatchError>(lhs_mod_, n, other,
                                                        std::move(error_messages_));
@@ -171,7 +171,7 @@ bool TensorizeComparator::Dispatch_(const CallNode* op, const PrimExpr& other) {
   return true;
 }
 
-bool TensorizeComparator::VisitStmt_(const ForNode* op, const Stmt& other) {
+bool TensorizeComparator::Dispatch_(const ForNode* op, const Stmt& other) {
   const auto* rhs = other.as<ForNode>();
   if (!DefEqual(op->loop_var, rhs->loop_var)) {
     if (assert_mode_) {
@@ -230,23 +230,27 @@ bool TensorizeComparator::VisitStmt_(const ForNode* op, const Stmt& other) {
     }
     return false;
   }
-  return VisitStmt(op->body, rhs->body);
+  return Dispatch(op->body, rhs->body);
 }
 
-bool TensorizeComparator::VisitStmt_(const SeqStmtNode* op, const Stmt& other) {
+bool TensorizeComparator::Dispatch_(const SeqStmtNode* op, const Stmt& other) {
   const auto* rhs = other.as<SeqStmtNode>();
-  return CompareArray(op->seq, rhs->seq, &TensorizeComparator::VisitStmt);
+  return CompareArray(op->seq, rhs->seq,
+                      static_cast<bool (TensorizeComparator::*)(const Stmt&, const Stmt&)>(
+                          &TensorizeComparator::Dispatch));
 }
 
-bool TensorizeComparator::VisitStmt_(const BufferStoreNode* op, const Stmt& other) {
+bool TensorizeComparator::Dispatch_(const BufferStoreNode* op, const Stmt& other) {
   const auto* rhs = other.as<BufferStoreNode>();
   return CompareBufferAccess(op, rhs) && Dispatch(op->value, rhs->value);
 }
 
-bool TensorizeComparator::VisitStmt_(const SBlockRealizeNode* op, const Stmt& other) {
+bool TensorizeComparator::Dispatch_(const SBlockRealizeNode* op, const Stmt& other) {
   const auto* rhs = other.as<SBlockRealizeNode>();
   if (!is_scope_block) {
-    if (!CompareArray(op->iter_values, rhs->iter_values, &TensorizeComparator::Dispatch)) {
+    if (!CompareArray(op->iter_values, rhs->iter_values,
+                      static_cast<bool (TensorizeComparator::*)(const Expr&, const PrimExpr&)>(
+                          &TensorizeComparator::Dispatch))) {
       if (assert_mode_) {
         std::ostringstream os;
         os << "BlockRealizeNode iter_values do not match: op->iter_values=" << op->iter_values
@@ -256,10 +260,10 @@ bool TensorizeComparator::VisitStmt_(const SBlockRealizeNode* op, const Stmt& ot
       return false;
     }
   }
-  return Dispatch(op->predicate, rhs->predicate) && VisitStmt(op->block, rhs->block);
+  return Dispatch(op->predicate, rhs->predicate) && Dispatch(op->block, rhs->block);
 }
 
-bool TensorizeComparator::VisitStmt_(const SBlockNode* op, const Stmt& other) {
+bool TensorizeComparator::Dispatch_(const SBlockNode* op, const Stmt& other) {
   const auto* rhs = other.as<SBlockNode>();
   for (const IterVar& iter : op->iter_vars) {
     lhs_analyzer_->Bind(iter->var, iter->dom);
@@ -306,7 +310,7 @@ bool TensorizeComparator::VisitStmt_(const SBlockNode* op, const Stmt& other) {
     return false;
   }
   is_scope_block = false;
-  return VisitStmt(op->body, rhs->body);
+  return Dispatch(op->body, rhs->body);
 }
 
 // Exprs
@@ -709,11 +713,11 @@ bool AutoTensorizeComparator::DispatchDefault_(const ffi::Object* op, const Prim
   return false;
 }
 
-bool AutoTensorizeComparator::VisitStmtDefault_(const ffi::Object* op, const Stmt& other) {
+bool AutoTensorizeComparator::DispatchDefault_(const ffi::Object* op, const Stmt& other) {
   return false;
 }
 
-bool AutoTensorizeComparator::VisitStmt_(const SBlockNode* op, const Stmt& other) {
+bool AutoTensorizeComparator::Dispatch_(const SBlockNode* op, const Stmt& other) {
   const auto* rhs = other.as<SBlockNode>();
   // Check block equality.
   // All iter vars and buffer regions including the order should match.
@@ -753,7 +757,7 @@ bool AutoTensorizeComparator::VisitStmt_(const SBlockNode* op, const Stmt& other
     }
   }
   is_scope_block = false;
-  return VisitStmt(op->body, rhs->body);
+  return Dispatch(op->body, rhs->body);
 }
 
 bool AutoTensorizeComparator::CompareBuffer(const BufferVar& lhs, const BufferVar& rhs) {
@@ -783,7 +787,7 @@ bool AutoTensorizeComparator::CompareBuffer(const BufferVar& lhs, const BufferVa
   return equal;
 }
 
-bool AutoTensorizeComparator::VisitStmt_(const BufferStoreNode* op, const Stmt& other) {
+bool AutoTensorizeComparator::Dispatch_(const BufferStoreNode* op, const Stmt& other) {
   const auto* rhs = other.as<BufferStoreNode>();
   return CompareBufferAccess(op, rhs) && Dispatch(op->value, rhs->value);
 }

@@ -90,7 +90,7 @@ class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
 
  public:
   using tirx::ExprFunctor<TResult(const Expr&)>::Dispatch;
-  TResult VisitStmt(const Stmt& stmt) override { return StmtFunctor::VisitStmt(stmt); }
+  TResult Dispatch(const Stmt& stmt) override { return StmtFunctor::Dispatch(stmt); }
 
 #define TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(Node)       \
   TResult Dispatch_(const Node* op) final {            \
@@ -138,49 +138,49 @@ class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
   }
 
   TResult Dispatch_(const TensorLoadNode* op) override { return TResult(); }
-  TResult VisitStmt_(const AttrStmtNode* op) override {
-    TResult result = VisitStmt(op->body);
+  TResult Dispatch_(const AttrStmtNode* op) override {
+    TResult result = Dispatch(op->body);
     result += Dispatch(op->value);
     return result;
   }
-  TResult VisitStmt_(const BufferStoreNode* store) override { return Dispatch(store->value); }
-  TResult VisitStmt_(const SBlockRealizeNode* block) override {
-    return VisitStmt(block->block->body);
+  TResult Dispatch_(const BufferStoreNode* store) override { return Dispatch(store->value); }
+  TResult Dispatch_(const SBlockRealizeNode* block) override {
+    return Dispatch(block->block->body);
   }
-  TResult VisitStmt_(const SBlockNode* block) override {
+  TResult Dispatch_(const SBlockNode* block) override {
     TResult result;
     if (block->init.has_value()) {
-      result += VisitStmt(block->init.value());
+      result += Dispatch(block->init.value());
     }
-    result += VisitStmt(block->body);
+    result += Dispatch(block->body);
     return result;
   }
-  TResult VisitStmt_(const ForNode* loop) override {
+  TResult Dispatch_(const ForNode* loop) override {
     ana->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     const auto int_imm = GetLoopExtent(loop, ana);
-    TResult result = VisitStmt(loop->body);
+    TResult result = Dispatch(loop->body);
     result *= int_imm;
     return result;
   }
 
-  TResult VisitStmt_(const IfThenElseNode* branch) override {
+  TResult Dispatch_(const IfThenElseNode* branch) override {
     TResult cond = Dispatch(branch->condition);
     if (branch->else_case) {
-      cond += VisitStmt(branch->then_case).MaxWith(VisitStmt(branch->else_case.value()));
+      cond += Dispatch(branch->then_case).MaxWith(Dispatch(branch->else_case.value()));
     } else {
-      cond += VisitStmt(branch->then_case);
+      cond += Dispatch(branch->then_case);
     }
     return cond;
   }
 
-  TResult VisitStmt_(const WhileNode* op) override {
+  TResult Dispatch_(const WhileNode* op) override {
     // TODO(jikechao): Improve while loop FLOP estimation with loop bound analysis
     TResult result = Dispatch(op->condition);
-    result += VisitStmt(op->body);
+    result += Dispatch(op->body);
     return result;
   }
 
-  TResult VisitStmt_(const BindNode* let) override {
+  TResult Dispatch_(const BindNode* let) override {
     if (auto value = let->value.as<PrimExpr>()) return Dispatch(value.value());
     return TResult();
   }
@@ -191,7 +191,7 @@ class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
     return cond;
   }
 
-  TResult VisitStmt_(const AssertStmtNode* op) override {
+  TResult Dispatch_(const AssertStmtNode* op) override {
     TResult result = Dispatch(op->condition);
     return result;
   }
@@ -201,14 +201,14 @@ class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
   TResult Dispatch_(const FloatImmNode* op) override { return TResult(); }
   TResult Dispatch_(const prim::StringImmNode* op) override { return TResult(); }
   TResult Dispatch_(const prim::CastNode* op) override { return Dispatch(op->value); }
-  TResult VisitStmt_(const AllocBufferNode* op) override { return TResult(); }
-  TResult VisitStmt_(const DeclBufferNode* op) override { return TResult(); }
-  TResult VisitStmt_(const EvaluateNode* op) override { return TResult(); }
+  TResult Dispatch_(const AllocBufferNode* op) override { return TResult(); }
+  TResult Dispatch_(const DeclBufferNode* op) override { return TResult(); }
+  TResult Dispatch_(const EvaluateNode* op) override { return TResult(); }
 
-  TResult VisitStmt_(const SeqStmtNode* seq) override {
+  TResult Dispatch_(const SeqStmtNode* seq) override {
     TResult result;
     for (const Stmt& stmt : seq->seq) {
-      result += VisitStmt(stmt);
+      result += Dispatch(stmt);
     }
     return result;
   }
@@ -232,7 +232,7 @@ double PostprocessResults(const TResult& result) {
 
 double EstimateTIRFlops(const Stmt& stmt) {
   FlopEstimator counter;
-  return PostprocessResults(counter.VisitStmt(stmt));
+  return PostprocessResults(counter.Dispatch(stmt));
 }
 
 double EstimateTIRFlops(const IRModule& mod) {
@@ -243,7 +243,7 @@ double EstimateTIRFlops(const IRModule& mod) {
     if (auto cached = f->attrs.GetAttr<int64_t>("estimated_flops")) {
       cached_result += cached.value();
     } else {
-      result += counter.VisitStmt(f->body);  //
+      result += counter.Dispatch(f->body);  //
     }
   });
   return PostprocessResults(result) + cached_result;

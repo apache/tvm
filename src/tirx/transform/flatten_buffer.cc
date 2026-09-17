@@ -32,7 +32,7 @@
 
 #include <unordered_set>
 
-#include "../ir_mutator_with_analyzer.h"
+#include "../ir/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {

@@ -38,7 +38,7 @@
 #include <utility>
 #include <vector>
 
-#include "../ir_mutator_with_analyzer.h"
+#include "../ir/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {

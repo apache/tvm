@@ -49,7 +49,7 @@
 #include <unordered_map>
 
 #include "../../arith/constraint_extract.h"
-#include "../../tirx/ir_mutator_with_analyzer.h"
+#include "../../tirx/ir/ir_mutator_with_analyzer.h"
 #include "tvm/ir/expr.h"
 namespace tvm {
 namespace s_tir {
