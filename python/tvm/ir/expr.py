@@ -451,9 +451,8 @@ class TensorLoad(_CallableExprWithOp):
 class Call(_CallableExprWithOp):
     """Core function call node.
 
-    When ``ret_ty`` is omitted, use the callee signature's declared return type
-    if available, or a missing type otherwise. Argument-dependent signatures
-    retain a missing type for subsequent normalization.
+    When ``ret_ty`` is omitted, use a missing type for subsequent normalization.
+    Builders may supply a known result type explicitly.
     """
 
     op: Expr
@@ -474,25 +473,14 @@ class Call(_CallableExprWithOp):
         # pylint: disable=import-outside-toplevel
         from .attrs import DictAttrs
         from .op import Op
-        from .type import PointerType, PrimType, TupleType, Type
+        from .type import PointerType, PrimType, Type
 
         if isinstance(op, str):
             op = Op.get(op)
         if attrs is not None and isinstance(attrs, dict):
             attrs = DictAttrs(attrs)
         if ret_ty is None:
-            # Reuse a declared signature without invoking dialect-specific inference.
-            signature = getattr(op, "ty", None)
-            ret_ty = getattr(signature, "ret_type", None)
-            if not isinstance(ret_ty, Type):
-                ret_ty = getattr(signature, "ret", None)
-                # Rich signatures may specialize their result using arguments.
-                # Reuse only fixed shared scalar, pointer, or void results here.
-                is_fixed_result = isinstance(ret_ty, PrimType | PointerType) or (
-                    isinstance(ret_ty, TupleType) and not ret_ty.fields
-                )
-                if not is_fixed_result or getattr(signature, "derive_func", None) is not None:
-                    ret_ty = Type.missing()
+            ret_ty = Type.missing()
         if isinstance(ret_ty, str) and ret_ty == "handle":
             ret_ty = PointerType(PrimType("void"))
         elif ret_ty is not None and not isinstance(ret_ty, Type):
