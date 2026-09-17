@@ -1946,7 +1946,23 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         args = self.retrieve_args(node)
         x = args[0]
         dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+        if isinstance(dim, list | tuple) and len(dim) == 0:
+            dim = None
         keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+        dtype = node.kwargs.get("dtype", None)
+        if dtype is not None:
+            target = self._convert_data_type(dtype, self.env)
+            if str(x.ty.dtype) != str(target):
+                x = self.block_builder.emit(relax.op.astype(x, target))
+        else:
+            # As for sum: torch accumulates a bool or integer product in int64 unless an
+            # explicit dtype is given.
+            input_dtype = x.ty.dtype.dtype
+            if input_dtype == "bool" or (
+                (input_dtype.startswith("int") or input_dtype.startswith("uint"))
+                and input_dtype != "int64"
+            ):
+                x = self.block_builder.emit(relax.op.astype(x, "int64"))
         return self.block_builder.emit(relax.op.prod(x, dim, keepdims=keepdim))
 
     def _std(self, node: fx.Node) -> relax.Var:
@@ -2048,16 +2064,19 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         args = self.retrieve_args(node)
         x = args[0]
         dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+        if isinstance(dim, list | tuple) and len(dim) == 0:
+            dim = None
         keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
 
-        # max doesn't support boolean tensors directly, so we compute it in int8 and cast back
-        if x.ty.dtype == "bool":
-            x = relax.op.astype(x, "int8")
-            ret = relax.op.max(x, dim, keepdims=keepdim)
-            return self.block_builder.emit(relax.op.astype(ret, "bool"))
-
-        # For boolean tensors, any is equivalent to max (checking if any element is True)
-        return self.block_builder.emit(relax.op.max(x, dim, keepdims=keepdim))
+        # torch.any asks whether any element is non-zero and always returns bool. Reduce
+        # the non-zero mask with max in int8, since relax's max does not take bool, and
+        # cast back. Returning max(x) itself, as before, gave the input dtype and the
+        # largest value rather than a truth value for anything but a bool input.
+        if x.ty.dtype != "bool":
+            x = self.block_builder.emit(relax.op.not_equal(x, relax.const(0, x.ty.dtype)))
+        mask = self.block_builder.emit(relax.op.astype(x, "int8"))
+        ret = self.block_builder.emit(relax.op.max(mask, dim, keepdims=keepdim))
+        return self.block_builder.emit(relax.op.astype(ret, "bool"))
 
     ########## Search ##########
 
