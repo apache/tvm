@@ -360,6 +360,24 @@ def test_call():
     assert call.args[0].same_as(arg)
 
 
+@pytest.mark.parametrize("signature_type", [tvm.ir.FuncType, rx.FuncType])
+@pytest.mark.parametrize(
+    "ret_ty",
+    [
+        tvm.ir.PrimType("int32"),
+        tvm.ir.PointerType(tvm.ir.PrimType("float32")),
+        tvm.ir.TupleType([]),
+    ],
+)
+def test_call_result_is_explicit(signature_type, ret_ty):
+    gv = tvm.ir.GlobalVar("callee")
+    rx.expr._update_type(gv, signature_type([], ret_ty))
+    assert tvm.ir.Call(gv, []).ty.is_missing()
+    assert gv().ty.is_missing()
+    tvm.ir.assert_structural_equal(tvm.ir.Call(gv, [], ret_ty=ret_ty).ty, ret_ty)
+    assert tvm.ir.Call(gv, [], ret_ty=tvm.ir.Type.missing()).ty.is_missing()
+
+
 def test_call_accepts_core_expr_operator():
     """relax.Call aliases the core ir.Call constructor."""
     dtype = tvm.ir.PrimType("int32")

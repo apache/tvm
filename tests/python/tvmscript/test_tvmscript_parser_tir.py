@@ -24,6 +24,127 @@ from tvm import ir, tirx
 from tvm.script.parser import tirx as T
 
 
+def test_declared_global_call_results():
+    original_call = ir.GlobalVar.__call__
+    mod = tvm.script.from_source(
+        """
+@I.ir_module
+class Module:
+    @T.prim_func
+    def main(p: T.handle("float32")):
+        Module.noop()
+        value = Module.scalar() + T.int32(1)
+        data = Module.pointer(p)
+        buffer = T.decl_buffer((1,), "float32", data=data)
+        buffer[0] = T.Cast("float32", value)
+
+    @T.prim_func
+    def noop():
+        T.evaluate(0)
+
+    @T.prim_func
+    def scalar() -> T.int32:
+        return 1
+
+    @T.prim_func
+    def pointer(p: T.handle("float32")) -> T.handle("float32"):
+        return p
+"""
+    )
+    assert ir.GlobalVar.__call__ is original_call
+    calls = {}
+
+    def collect(node, visitor):
+        if isinstance(node.op, ir.GlobalVar):
+            calls[node.op.name_hint] = node
+        visitor.default_visit(node)
+
+    tvm_ffi.structural_visit(mod["main"].body, [(ir.Call, collect)])
+    for name in ["noop", "scalar", "pointer"]:
+        tvm.ir.assert_structural_equal(calls[name].ty, mod[name].ret_type)
+    tvm.ir.assert_structural_equal(mod, tvm.script.from_source(mod.script()))
+    assert mod.get_global_var("scalar")().ty.is_missing()
+
+
+def test_global_call_static_signature():
+    callee = ir.GlobalVar("callee")
+    tvm.relax.expr._update_type(callee, ir.FuncType([], ir.PrimType("int32")))
+    func = tvm.script.from_source(
+        """
+@T.prim_func
+def main() -> T.int32:
+    return callee()
+""",
+        extra_vars={"callee": callee, "T": T},
+    )
+    tvm.ir.assert_structural_equal(func.body.value.ty, ir.PrimType("int32"))
+    assert callee().ty.is_missing()
+
+
+def test_mixed_module_global_call_adapters():
+    original_call = ir.GlobalVar.__call__
+    mod = tvm.script.from_source(
+        """
+@I.ir_module
+class Module:
+    @T.prim_func
+    def scalar() -> T.int32:
+        return 1
+
+    @R.function
+    def pair(x: R.Tuple(R.Tensor((1,), "float32"), R.Tensor((1,), "float32"))):
+        return x
+
+    @R.function
+    def main(x: R.Tensor((1,), "float32")):
+        result = Module.pair((x, x))
+        return result
+"""
+    )
+    assert ir.GlobalVar.__call__ is original_call
+    call = mod["main"].body.blocks[0].bindings[-1].value
+    assert isinstance(call, ir.Call)
+    assert isinstance(call.args[0], ir.Tuple)
+    tvm.ir.assert_structural_equal(mod, tvm.script.from_source(mod.script()))
+
+
+@pytest.mark.parametrize("fail_inner", [False, True])
+def test_nested_global_call_adapters(fail_inner):
+    from tvm.script.parser.core.diagnostics import Source
+    from tvm.script.parser.core.parser import Parser
+
+    parser = Parser(Source(""), {})
+    original_call = ir.GlobalVar.__call__
+    callee = ir.GlobalVar("callee")
+    arg = tvm.relax.Var("arg", tvm.relax.TensorType([1], "float32"))
+    with parser.with_dispatch_token("relax"):
+        relax_call = ir.GlobalVar.__call__
+        try:
+            with parser.with_dispatch_token("tirx"):
+                if fail_inner:
+                    raise ValueError("unwind inner token")
+        except ValueError:
+            assert fail_inner
+        assert ir.GlobalVar.__call__ is relax_call
+        call = callee((arg, arg))
+        assert isinstance(call.args[0], ir.Tuple)
+        assert call.ty.is_missing()
+    assert ir.GlobalVar.__call__ is original_call
+
+
+def test_global_call_adapter_restored_after_parser_error():
+    original_call = ir.GlobalVar.__call__
+    with pytest.raises(tvm.error.DiagnosticError):
+        tvm.script.from_source(
+            """
+@T.prim_func
+def main():
+    undefined_function()
+"""
+        )
+    assert ir.GlobalVar.__call__ is original_call
+
+
 def test_tir_buffer_proxy():
     buffer_0 = T.Buffer((128, 128), "float32")
     assert (
