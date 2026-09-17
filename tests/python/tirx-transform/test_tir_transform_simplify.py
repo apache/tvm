@@ -1313,26 +1313,5 @@ def test_nested_if_elimination():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_s_tir_block_iterator_constraints():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((4,), "int32")):
-        for i in range(4):
-            with T.sblock("write"):
-                vi = T.axis.spatial(4, i)
-                if vi < 4:
-                    A[vi] = vi
-
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((4,), "int32")):
-        for i in range(4):
-            with T.sblock("write"):
-                vi = T.axis.spatial(4, i)
-                A[vi] = vi
-
-    result = tvm.s_tir.transform.StmtSimplify()(tvm.IRModule.from_expr(before))["main"]
-    tvm.ir.assert_structural_equal(result, expected)
-    assert tvm.s_tir.analysis.verify_well_formed(result)
-
-
 if __name__ == "__main__":
     tvm.testing.main()

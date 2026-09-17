@@ -94,6 +94,11 @@ def parse(
     check_well_formed : bool
         Whether to check well-formedness after parsing.
 
+    s_tir : bool
+        Compatibility argument accepted by parse/from_source.  It no longer
+        selects verification: each PrimFunc's s_tir attribute determines its
+        dialect checks, and common well-formedness checks cover the full module.
+
     absent_params : Optional[Dict[str, None]]
         Function parameters removed by a compile-time specialization.  The
         dialect-specific function parser decides how to bind these names.
