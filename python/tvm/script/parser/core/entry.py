@@ -142,10 +142,12 @@ def parse(
             parser.report_error(source_ast, err=WELL_FORMED_ERROR_MESSAGE)
 
         try:
-            if s_tir:
-                tvm.tirx.analysis.verify_well_formed(check_ret)
-            else:
-                tvm.tirx.analysis.verify_tirx_well_formed(check_ret)
+            # Keep shared-definition checks across both dialects, then apply
+            # ordinary TIRX execution restrictions only to its own functions.
+            tvm.s_tir.analysis.verify_well_formed(check_ret)
+            for func in check_ret.functions.values():
+                if isinstance(func, tvm.tirx.PrimFunc) and not func.attrs.get("s_tir", False):
+                    tvm.tirx.analysis.verify_tirx_well_formed(func)
         except Exception as err:  # pylint: disable=broad-exception-caught
             parser.report_error(
                 source_ast,

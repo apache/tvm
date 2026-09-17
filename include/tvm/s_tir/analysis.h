@@ -98,6 +98,11 @@ class Analyzer;
 namespace s_tir {
 using namespace tvm::tirx;
 
+/*! \brief Verify variable/buffer definitions, load types and schedulable block boundaries. */
+TVM_DLL bool VerifyWellFormed(const tirx::PrimFunc& func, bool assert_mode = true);
+/*! \brief Verify S-TIR or mixed modules, including definitions shared across functions. */
+TVM_DLL bool VerifyWellFormed(const IRModule& mod, bool assert_mode = true);
+
 /*!
  * \brief Estimate the FLOPs of a TIR fragment.
  * \param stmt The TIR fragment to be estimated.

@@ -118,6 +118,10 @@ class StmtFunctor<R(const Stmt&, Args...)> {
 
   // Register inherited hooks in a fresh table before adding dialect nodes.
   static void InitVTable(VTable* vtable) {
+    vtable->template SetDispatch<StmtNode>(
+        [](const ffi::ObjectRef& node, TSelf* self, Args... args) {
+          return self->VisitStmtDefault_(node.get(), std::forward<Args>(args)...);
+        });
     IR_STMT_FUNCTOR_DISPATCH(BindNode);
     IR_STMT_FUNCTOR_DISPATCH(AttrStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(IfThenElseNode);
@@ -185,9 +189,6 @@ class StmtFunctor<R(const Stmt&, Args...)> {
  */
 class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
  public:
-  using tvm::ExprVisitor::VTable;
-  // Register dialect hooks during library initialization, before first table use.
-  static void RegisterExtension(void (*init)(VTable*));
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprVisitor, tvm::ExprVisitor)
 
   using tvm::ExprVisitor::Visit;
@@ -240,9 +241,6 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
  */
 class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
  public:
-  using tvm::ExprMutator::VTable;
-  // Register dialect hooks during library initialization, before first table use.
-  static void RegisterExtension(void (*init)(VTable*));
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprMutator, tvm::ExprMutator)
   using tvm::ExprMutator::Mutate;
   using tvm::ExprMutator::Mutate_;

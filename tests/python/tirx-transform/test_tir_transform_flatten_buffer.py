@@ -20,9 +20,20 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
+def _lower_blocks(value):
+    """Use the same block-to-statement boundary as the S-TIR pipeline."""
+    is_func = isinstance(value, tvm.tirx.PrimFunc)
+    mod = tvm.IRModule.from_expr(value) if is_func else value
+    mod = tvm.s_tir.transform.ConvertBlocksToOpaque()(mod)
+    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
+    return mod["main"] if is_func else mod
+
+
 def _transform():
     return tvm.transform.Sequential(
         [
+            tvm.s_tir.transform.ConvertBlocksToOpaque(),
+            tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.tirx.transform.FlattenBuffer(),
             tvm.tirx.transform.StmtSimplify(),
         ]
@@ -57,7 +68,7 @@ def test_elementwise():
                     C_1[((i * 16) + j)] = B_new[j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_elementwise_without_decl_buffer():
@@ -97,7 +108,7 @@ def test_elementwise_without_decl_buffer():
                     C[((i * 16) + j)] = B_new[j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_gpu():
@@ -141,7 +152,7 @@ def test_gpu():
                 C_1[i0 * 64 + i1 * 32 + i2 * 16 + j] = B[j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_symbolic():
@@ -178,7 +189,7 @@ def test_symbolic():
                     C_1[i * m + j] = B[j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_fused_symbolic():
@@ -209,7 +220,7 @@ def test_fused_symbolic():
                 B[i] = A[i]
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_fused_symbolic_with_predicate():
@@ -247,7 +258,7 @@ def test_fused_symbolic_with_predicate():
                     B[bx * 64 + tx] = A[bx * 64 + tx]
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_multi_alloc():
@@ -279,7 +290,7 @@ def test_multi_alloc():
                 D_1[i * 32 + j] = C[i * 32 + j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_strided():
@@ -314,7 +325,7 @@ def test_strided():
                         C_1[i0 * 64 + i1 * 16 + j] = B_1[i1 * 17 + j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_boolean():
@@ -338,11 +349,11 @@ def test_boolean():
                 B[i0] = A[i0]
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
-def test_flatten_inside_block():
-    """Flattening access inside a block flattens the accessed region."""
+def test_flatten_lowered_block():
+    """Flatten allocations and accesses after lowering a schedulable block."""
 
     @I.ir_module(s_tir=True)
     class Before:
@@ -365,7 +376,7 @@ def test_flatten_inside_block():
                     T.evaluate(A[i * 32 + j])
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_build_with_optional_pragma_unroll_explicit():

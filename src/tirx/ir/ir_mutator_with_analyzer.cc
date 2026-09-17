@@ -33,21 +33,7 @@
 
 namespace tvm {
 namespace tirx {
-namespace {
-std::vector<void (*)(IRMutatorWithAnalyzer::VTable*)>& IRMutatorWithAnalyzerExtensions() {
-  static std::vector<void (*)(IRMutatorWithAnalyzer::VTable*)> extensions;
-  return extensions;
-}
-}  // namespace
-
-void IRMutatorWithAnalyzer::RegisterExtension(void (*init)(VTable*)) {
-  IRMutatorWithAnalyzerExtensions().push_back(init);
-}
-
-void IRMutatorWithAnalyzer::InitVTable(VTable* vtable) {
-  StmtExprMutator::InitVTable(vtable);
-  for (auto init : IRMutatorWithAnalyzerExtensions()) init(vtable);
-}
+void IRMutatorWithAnalyzer::InitVTable(VTable* vtable) { StmtExprMutator::InitVTable(vtable); }
 
 const IRMutatorWithAnalyzer::VTable* IRMutatorWithAnalyzer::GlobalVTable() {
   static const VTable table = [] {

@@ -121,13 +121,18 @@ bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
     if (param->ty.as<BufferTypeNode>()) return false;
   }
 
-  // We do not currently support inlining of schedulable TIR
-  // functions.  To support this use case, repeated names in
-  // schedulable block nodes resulting from multiple calls to the same
-  // inlined function will need to be de-duplicated.
-  static ffi::reflection::TypeAttrColumn prevent_inline("tirx.prevent_inline");
-  ffi::AnyView value = prevent_inline[prim_func->body->type_index()];
-  if (value != nullptr && value.cast<bool>()) return false;
+  // Extension statement roots may introduce binder or naming rules that this
+  // pass cannot preserve. Only inline roots supported by native TIRX traversal.
+  struct NativeStmtTable : StmtExprVisitor {
+    static VTable Make() {
+      VTable table;
+      InitVTable(&table);
+      table.Finalize();
+      return table;
+    }
+  };
+  static const auto native_stmts = NativeStmtTable::Make();
+  if (!native_stmts.CanDispatch(prim_func->body.get())) return false;
 
   return true;
 }
@@ -304,7 +309,6 @@ Pass InlinePrivateFunctions() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::EnsureTypeAttrColumn("tirx.prevent_inline");
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.transform.InlinePrivateFunctions", InlinePrivateFunctions);
 }

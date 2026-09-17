@@ -27,7 +27,75 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/tirx/function.h>
 
+#include "../ir_mutator_with_analyzer.h"
+
 namespace tvm {
+namespace arith {
+using namespace tirx;
+
+struct StmtSimplifyConfigNode : public ffi::Object {
+  bool transitively_prove_inequalities;
+  bool convert_boolean_to_and_of_ors;
+  bool apply_constraints_to_boolean_branches;
+
+  static void RegisterReflection();
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.StmtSimplifyConfig", StmtSimplifyConfigNode,
+                                    ffi::Object);
+
+  RewriteSimplifier::Extension GetEnabledExtensions() const;
+};
+
+class StmtSimplifyConfig : public ffi::ObjectRef {
+ public:
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StmtSimplifyConfig, ffi::ObjectRef,
+                                                StmtSimplifyConfigNode);
+};
+
+class StmtSimplifier : public IRMutatorWithAnalyzer {
+ public:
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
+  static PrimFunc Apply(PrimFunc func, const Analyzer& analyzer,
+                        ffi::Optional<StmtSimplifyConfig> config_opt = std::nullopt);
+
+  explicit StmtSimplifier(const Analyzer& analyzer, StmtSimplifyConfig config)
+      : IRMutatorWithAnalyzer(analyzer), config_(config) {}
+
+ protected:
+  using Parent = IRMutatorWithAnalyzer;
+  StmtSimplifier(const VTable* vtable, const Analyzer& analyzer, StmtSimplifyConfig config)
+      : Parent(analyzer.get(), vtable), config_(config) {}
+  PrimFunc Run(PrimFunc func);
+
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) final;
+
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final;
+
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
+
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) override;
+
+  // eliminate useless stores
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override;
+
+ private:
+  bool ArrayDeepEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimExpr>& rhs);
+
+  /* \brief Internal utility for checking conditionals
+   *
+   * Substitutes any known Bind values and then simplifies with the analyzer.
+   */
+  ffi::Optional<bool> ProveCondition(PrimExpr condition) const;
+
+  StmtSimplifyConfig config_;
+
+  // Pure Bind values kept for substitution into assert conditions.
+  // Grows monotonically under SSA — no scope-based cleanup required.
+  ffi::Map<Var, PrimExpr> non_inlined_bindings_;
+};
+
+}  // namespace arith
+
 namespace tirx {
 
 /* \brief Simplify statements in the prim func

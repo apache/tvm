@@ -36,8 +36,8 @@
 #include <unordered_set>
 
 #include "../../support/utils.h"
-#include "../../tirx/transform/ir_utils.h"
 #include "../schedule/utils.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -1354,7 +1354,7 @@ Pass InjectSoftwarePipeline() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* fptr = f.CopyOnWrite();
     fptr->body = software_pipeline::PipelineInjector::Inject(f);
-    fptr->body = ConvertSSA(std::move(fptr->body));
+    fptr->body = s_tir::ConvertSSA(std::move(fptr->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectSoftwarePipeline", {});

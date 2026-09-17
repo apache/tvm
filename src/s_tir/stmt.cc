@@ -88,15 +88,17 @@ TVMFFIAny MatchBufferRegionMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator
 }
 
 TVMFFIAny SBlockVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  // Establish allocation and match-buffer definitions before their region uses.
+  // Whole iterators and annotations remain part of structural traversal.
   // skips: name_hint
   const SBlockNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const SBlockNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->iter_vars));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->reads));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->writes));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
       kTVMFFIDefRegionKindSimple, [&]() { return visitor->VisitExpected(self->alloc_buffers); }));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->match_buffers));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->reads));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->writes));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->annotations));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->init));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->body));
@@ -104,15 +106,13 @@ TVMFFIAny SBlockVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) no
 }
 
 TVMFFIAny SBlockMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // Establish allocation and match-buffer definitions before their region uses.
+  // Whole iterators and annotations remain part of structural traversal.
   // skips: name_hint
   const SBlockNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const SBlockNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<IterVar>>, mapped_iter_vars,
                                     mutator->MutateExpected(self->iter_vars));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<BufferRegion>>, mapped_reads,
-                                    mutator->MutateExpected(self->reads));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<BufferRegion>>, mapped_writes,
-                                    mutator->MutateExpected(self->writes));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<BufferVar>>, mapped_alloc_buffers,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
                                       return mutator->MutateExpected(self->alloc_buffers);
@@ -120,6 +120,10 @@ TVMFFIAny SBlockMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) n
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<MatchBufferRegion>>,
                                     mapped_match_buffers,
                                     mutator->MutateExpected(self->match_buffers));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<BufferRegion>>, mapped_reads,
+                                    mutator->MutateExpected(self->reads));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<BufferRegion>>, mapped_writes,
+                                    mutator->MutateExpected(self->writes));
   using AnnotationMap = ffi::Map<ffi::String, ffi::Any>;
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<AnnotationMap>, mapped_annotations,
                                     mutator->MutateExpected(self->annotations));
@@ -152,17 +156,14 @@ TVMFFIAny SBlockMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) n
 
 TVMFFIAny SBlockMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
                                    ffi::AnyView value) noexcept {
+  // Establish allocation and match-buffer definitions before their region uses.
+  // Whole iterators and annotations remain part of structural traversal.
   // skips: name_hint
   SBlockNode* self = const_cast<SBlockNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const SBlockNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<ffi::Array<IterVar>>, mapped_iter_vars,
       mutator->MutateExpected(self->iter_vars, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<BufferRegion>>, mapped_reads,
-                                    mutator->MutateExpected(self->reads, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<ffi::Array<BufferRegion>>, mapped_writes,
-      mutator->MutateExpected(self->writes, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<BufferVar>>, mapped_alloc_buffers,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
                                       return mutator->MutateExpected(self->alloc_buffers,
@@ -171,6 +172,11 @@ TVMFFIAny SBlockMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<ffi::Array<MatchBufferRegion>>, mapped_match_buffers,
       mutator->MutateExpected(self->match_buffers, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<BufferRegion>>, mapped_reads,
+                                    mutator->MutateExpected(self->reads, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Array<BufferRegion>>, mapped_writes,
+      mutator->MutateExpected(self->writes, ffi::InplaceMode::kAllow));
   using AnnotationMap = ffi::Map<ffi::String, ffi::Any>;
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<AnnotationMap>, mapped_annotations,
@@ -396,7 +402,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   SBlockRealizeNode::RegisterReflection();
   refl::TypeAttrDef<SBlockRealizeNode>()
-      .def("tirx.prevent_inline", true)
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&SBlockRealizeVisit))
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&SBlockRealizeMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,

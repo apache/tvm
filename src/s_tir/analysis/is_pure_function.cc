@@ -28,7 +28,7 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
 
-#include "../../tirx/ir/tir_visitor_with_path.h"
+#include "../ir/tir_visitor_with_path.h"
 
 namespace tvm {
 namespace s_tir {

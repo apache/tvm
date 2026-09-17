@@ -43,7 +43,7 @@
 
 #include "../../arith/interval_set.h"
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tirx/transform/ir_utils.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -844,7 +844,7 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
             ->Mutate(stmt)
             .ValueOrUnchanged(stmt);
   }
-  s = ConvertSSA(s);
+  s = s_tir::ConvertSSA(s);
   return s;
 }
 

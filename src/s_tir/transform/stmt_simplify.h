@@ -17,23 +17,13 @@
  * under the License.
  */
 
-#ifndef TVM_TIRX_IR_SPECIALIZE_H_
-#define TVM_TIRX_IR_SPECIALIZE_H_
-
-#include <tvm/ir/object_functor.h>
-
+#ifndef TVM_S_TIR_TRANSFORM_STMT_SIMPLIFY_H_
+#define TVM_S_TIR_TRANSFORM_STMT_SIMPLIFY_H_
+#include <tvm/arith/analyzer.h>
+#include <tvm/tirx/function.h>
 namespace tvm {
-namespace tirx {
-
-using SpecializeVisitorVTable =
-    ObjectFunctor<ffi::Optional<VisitInterrupt>(const ffi::Object*, ObjectVisitor*)>;
-
-// Register dialect-specific buffer planning before any specialization is run.
-// Initializers extend the inherited native traversal table without exposing the
-// specializer's private buffer remapping and declaration state.
-void RegisterSpecializeBufferPlannerExtension(void (*init)(SpecializeVisitorVTable*));
-
-}  // namespace tirx
+namespace s_tir {
+tirx::PrimFunc StmtSimplify(tirx::PrimFunc func, const arith::Analyzer& analyzer);
+}  // namespace s_tir
 }  // namespace tvm
-
-#endif  // TVM_TIRX_IR_SPECIALIZE_H_
+#endif  // TVM_S_TIR_TRANSFORM_STMT_SIMPLIFY_H_

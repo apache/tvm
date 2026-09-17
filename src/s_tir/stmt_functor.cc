@@ -20,7 +20,6 @@
  * \file stmt_functor.cc
  * \brief Native traversal of schedulable TIR nodes.
  */
-#include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt_functor.h>
 
 #include <utility>
@@ -31,49 +30,14 @@ namespace s_tir {
 
 using namespace tirx;
 
-// Generic TIRX passes keep native dialect traversal without owning dialect nodes.
-// StructuralVisitor/ObjectVisitor and structural mutation retain the full field walk.
-TVM_FFI_STATIC_INIT_BLOCK() {
-  tirx::StmtExprVisitor::RegisterExtension([](tirx::StmtExprVisitor::VTable* vtable) {
-    vtable->SetDispatch<SBlockNode>([](const ffi::Object* node, ObjectVisitor* visitor) {
-      return StmtExprVisitor::VisitBlock(static_cast<tirx::StmtExprVisitor*>(visitor),
-                                         static_cast<const SBlockNode*>(node));
-    });
-    vtable->SetDispatch<SBlockRealizeNode>([](const ffi::Object* node, ObjectVisitor* visitor) {
-      return StmtExprVisitor::VisitBlockRealize(static_cast<tirx::StmtExprVisitor*>(visitor),
-                                                static_cast<const SBlockRealizeNode*>(node));
-    });
-  });
-  tirx::StmtExprMutator::RegisterExtension([](tirx::StmtExprMutator::VTable* vtable) {
-    vtable->SetDispatch<SBlockNode>(
-        [](const ffi::Object* node, ObjectMutator* mutator, InplaceMode mode) {
-          return ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<ffi::Any>(
-              ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(
-                  StmtExprMutator::MutateBlock(static_cast<tirx::StmtExprMutator*>(mutator),
-                                               static_cast<const SBlockNode*>(node), mode)));
-        });
-    vtable->SetDispatch<SBlockRealizeNode>(
-        [](const ffi::Object* node, ObjectMutator* mutator, InplaceMode mode) {
-          return ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<ffi::Any>(
-              ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(StmtExprMutator::MutateBlockRealize(
-                  static_cast<tirx::StmtExprMutator*>(mutator),
-                  static_cast<const SBlockRealizeNode*>(node), mode)));
-        });
-  });
-}
-
 void StmtExprVisitor::InitVTable(VTable* vtable) {
   tirx::StmtExprVisitor::InitVTable(vtable);
-  vtable->ClearDispatch<SBlockNode>();
-  vtable->ClearDispatch<SBlockRealizeNode>();
   SetDispatch<StmtExprVisitor, SBlockNode>(vtable);
   SetDispatch<StmtExprVisitor, SBlockRealizeNode>(vtable);
 }
 
 void StmtExprMutator::InitVTable(VTable* vtable) {
   tirx::StmtExprMutator::InitVTable(vtable);
-  vtable->ClearDispatch<SBlockNode>();
-  vtable->ClearDispatch<SBlockRealizeNode>();
   SetDispatch<StmtExprMutator, SBlockNode>(vtable);
   SetDispatch<StmtExprMutator, SBlockRealizeNode>(vtable);
 }
@@ -93,17 +57,17 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlock(tirx::StmtExprVisitor*
         kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(buf); }));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitBufferMetadata(buf));
   }
-  for (const BufferRegion& region : op->reads) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(region));
-  }
-  for (const BufferRegion& region : op->writes) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(region));
-  }
   for (const MatchBufferRegion& match_buffer_region : op->match_buffers) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
         kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(match_buffer_region->buffer); }));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitBufferMetadata(match_buffer_region->buffer));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(match_buffer_region->source));
+  }
+  for (const BufferRegion& region : op->reads) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(region));
+  }
+  for (const BufferRegion& region : op->writes) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(region));
   }
   if (op->init.has_value()) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(op->init.value()));
@@ -164,12 +128,12 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
           ->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
                               [&] { return mutator->Mutate(op->alloc_buffers, inplace_mode); })
           .as_or_throw<UnchangedOr<ffi::Array<BufferVar>>>();
+  auto match_buffers = mutator->Mutate(op->match_buffers, inplace_mode)
+                           .as_or_throw<UnchangedOr<ffi::Array<MatchBufferRegion>>>();
   auto reads =
       mutator->Mutate(op->reads, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<BufferRegion>>>();
   auto writes = mutator->Mutate(op->writes, inplace_mode)
                     .as_or_throw<UnchangedOr<ffi::Array<BufferRegion>>>();
-  auto match_buffers = mutator->Mutate(op->match_buffers, inplace_mode)
-                           .as_or_throw<UnchangedOr<ffi::Array<MatchBufferRegion>>>();
   auto init =
       mutator->Mutate(op->init, inplace_mode).as_or_throw<UnchangedOr<ffi::Optional<Stmt>>>();
   auto body = mutator->Mutate(op->body, inplace_mode);

@@ -68,9 +68,10 @@ class StmtFunctor<R(const tirx::Stmt&, Args...)>
  * Block iterator binders and annotations are not expression uses. Buffer
  * definitions precede their regions; ordinary statements reuse TIRX hooks.
  * Structural traversal remains available independently with its full field walk.
- * S-TIR registers this same native policy into generic TIRX visitors. This
- * subclass additionally exposes virtual block hooks for block-aware passes.
- * Other foreign nodes without a native policy still use structural fallback.
+ * Generic TIRX visitors traverse these nodes structurally, including whole
+ * iterators and annotations. Both paths visit allocation and match-buffer
+ * definitions before region uses. Only this S-TIR subclass supplies native
+ * block hooks; the core TIRX table does not register dialect nodes.
  */
 class TVM_DLL StmtExprVisitor : public tirx::StmtExprVisitor {
  public:
@@ -97,9 +98,9 @@ class TVM_DLL StmtExprVisitor : public tirx::StmtExprVisitor {
  *
  * Reuses inherited remapping and ownership checks. Block annotations are left
  * intact; structural mutation separately provides the full field rewrite.
- * S-TIR registers the same policy into generic TIRX mutators so allocation
- * remaps precede region uses and block binders retain their existing identity.
- * Foreign nodes without a registered policy still use structural fallback.
+ * Generic TIRX mutators instead use the full structural rewrite, including
+ * iterator definitions and annotations. Both paths establish allocation and
+ * match-buffer remaps before visiting region uses and preserve copy-on-write.
  */
 class TVM_DLL StmtExprMutator : public tirx::StmtExprMutator {
  public:

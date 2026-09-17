@@ -43,8 +43,8 @@ def test_pass_simple():
                 # It's a opaque block , so it can use outside variables
                 C[i, j] = B[i, j] * 2.0
 
-    assert tvm.tirx.analysis.verify_well_formed(element_wise)
-    assert tvm.tirx.analysis.verify_well_formed(tvm.IRModule.from_expr(element_wise))
+    assert tvm.s_tir.analysis.verify_well_formed(element_wise)
+    assert tvm.s_tir.analysis.verify_well_formed(tvm.IRModule.from_expr(element_wise))
 
 
 def test_buffer_region_bounds_are_visited():
@@ -56,7 +56,7 @@ def test_buffer_region_bounds_are_visited():
     region = tvm.tirx.BufferRegion(buffer, [tvm.ir.Range.from_min_extent(undefined, 4)])
     block = tvm.s_tir.SBlock([], [region], [], "region", tvm.tirx.Evaluate(0))
     func = tvm.tirx.PrimFunc([buffer], block)
-    assert not tvm.tirx.analysis.verify_well_formed(func, assert_mode=False)
+    assert not tvm.s_tir.analysis.verify_well_formed(func, assert_mode=False)
 
 
 def test_fail_use_out_loop_var():
@@ -71,7 +71,7 @@ def test_fail_use_out_loop_var():
                 # we cannot use `i` since it's defined outside the block
                 B[vi, vj] = A[i, vj] * 2.0
 
-    assert not tvm.tirx.analysis.verify_well_formed(element_wise, assert_mode=False)
+    assert not tvm.s_tir.analysis.verify_well_formed(element_wise, assert_mode=False)
 
 
 def test_error_for_out_of_scope_usage():
@@ -99,7 +99,7 @@ def test_error_for_out_of_scope_usage():
         (ValueError, tvm.error.InternalError),
         match="Invalid use of undefined variable i at .* no longer in-scope.",
     ):
-        tvm.tirx.analysis.verify_well_formed(func)
+        tvm.s_tir.analysis.verify_well_formed(func)
 
 
 def test_error_for_nested_rebind_usage():
@@ -116,7 +116,7 @@ def test_error_for_nested_rebind_usage():
         (ValueError, tvm.error.InternalError),
         match="ill-formed, due to multiple nested definitions of variable i",
     ):
-        tvm.tirx.analysis.verify_well_formed(func)
+        tvm.s_tir.analysis.verify_well_formed(func)
 
 
 def test_error_for_repeated_binding():
@@ -138,7 +138,7 @@ def test_error_for_repeated_binding():
     with pytest.raises(
         (ValueError, tvm.error.InternalError), match="multiple nested definitions of variable i"
     ):
-        tvm.tirx.analysis.verify_well_formed(func)
+        tvm.s_tir.analysis.verify_well_formed(func)
 
 
 def test_error_for_cross_function_reuse():
@@ -161,7 +161,7 @@ def test_error_for_cross_function_reuse():
     with pytest.raises(
         (ValueError, tvm.error.InternalError), match="multiple definitions of variable i"
     ):
-        tvm.tirx.analysis.verify_well_formed(mod)
+        tvm.s_tir.analysis.verify_well_formed(mod)
 
 
 def test_reuse_of_env_thread_in_function_is_well_formed():
@@ -180,7 +180,7 @@ def test_reuse_of_env_thread_in_function_is_well_formed():
         with T.launch_thread(threadIdx_x, 256):
             A[threadIdx_x] = A[threadIdx_x] + 2.0
 
-    tvm.tirx.analysis.verify_well_formed(func)
+    tvm.s_tir.analysis.verify_well_formed(func)
 
 
 def test_reuse_of_env_thread_in_function_is_mandatory():
@@ -201,7 +201,7 @@ def test_reuse_of_env_thread_in_function_is_mandatory():
         with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
             A[threadIdx_x] = A[threadIdx_x] + 2.0
 
-    tvm.tirx.analysis.verify_well_formed(func)
+    tvm.s_tir.analysis.verify_well_formed(func)
 
 
 def test_reuse_of_env_thread_across_functions_is_ill_formed():
@@ -237,7 +237,7 @@ def test_reuse_of_env_thread_across_functions_is_ill_formed():
     with pytest.raises(
         (ValueError, tvm.error.InternalError), match="multiple definitions of variable threadIdx_x"
     ):
-        tvm.tirx.analysis.verify_well_formed(mod)
+        tvm.s_tir.analysis.verify_well_formed(mod)
 
 
 def test_multiple_buffer_arguments_may_share_allocation():
@@ -257,7 +257,7 @@ def test_multiple_buffer_arguments_may_share_allocation():
 
             pass
 
-    tvm.tirx.analysis.verify_well_formed(mod)
+    tvm.s_tir.analysis.verify_well_formed(mod)
 
 
 def test_block_match_buffer_defines_buffer_obj():
@@ -276,7 +276,7 @@ def test_block_match_buffer_defines_buffer_obj():
                     )
                     B[i, j] = 0.0
 
-    tvm.tirx.analysis.verify_well_formed(mod)
+    tvm.s_tir.analysis.verify_well_formed(mod)
 
 
 def test_block_match_buffer_defines_symbolic_variables():
@@ -299,7 +299,7 @@ def test_block_match_buffer_defines_symbolic_variables():
 
                     B[i, j] = elem_offset
 
-    tvm.tirx.analysis.verify_well_formed(mod)
+    tvm.s_tir.analysis.verify_well_formed(mod)
 
 
 def test_error_message_without_previous_definition_location():
@@ -325,7 +325,7 @@ def test_error_message_without_previous_definition_location():
         T.evaluate(x)
 
     with pytest.raises((ValueError, tvm.error.InternalError)) as exc_info:
-        tvm.tirx.analysis.verify_well_formed(func, assert_mode=True)
+        tvm.s_tir.analysis.verify_well_formed(func, assert_mode=True)
 
     error_msg = str(exc_info.value)
 
@@ -350,7 +350,7 @@ def test_error_message_with_previous_definition_location():
         T.evaluate(x)
 
     with pytest.raises((ValueError, tvm.error.InternalError)) as exc_info:
-        tvm.tirx.analysis.verify_well_formed(func, assert_mode=True)
+        tvm.s_tir.analysis.verify_well_formed(func, assert_mode=True)
 
     error_msg = str(exc_info.value)
 
@@ -381,7 +381,7 @@ def test_sequential_redefinition_with_location():
         T.evaluate(x)
 
     with pytest.raises((ValueError, tvm.error.InternalError)) as exc_info:
-        tvm.tirx.analysis.verify_well_formed(func, assert_mode=True)
+        tvm.s_tir.analysis.verify_well_formed(func, assert_mode=True)
 
     error_msg = str(exc_info.value)
 
@@ -399,7 +399,7 @@ def test_buffer_param_is_well_formed():
         for i in T.grid(128):
             B[i] = A[i] * 2.0
 
-    tvm.tirx.analysis.verify_well_formed(func)
+    tvm.s_tir.analysis.verify_well_formed(func)
 
 
 def test_decl_buffer_is_well_formed():
@@ -411,7 +411,7 @@ def test_decl_buffer_is_well_formed():
         for i in T.grid(128):
             B[i] = A[i] * 2.0
 
-    tvm.tirx.analysis.verify_well_formed(func)
+    tvm.s_tir.analysis.verify_well_formed(func)
 
 
 def test_alloc_buffer_in_block_is_well_formed():
@@ -428,7 +428,7 @@ def test_alloc_buffer_in_block_is_well_formed():
                         vi = T.axis.remap("S", [i])
                         B[vi] = A[vi] * 2.0
 
-    tvm.tirx.analysis.verify_well_formed(mod)
+    tvm.s_tir.analysis.verify_well_formed(mod)
 
 
 def test_match_buffer_in_block_is_well_formed():
@@ -447,7 +447,7 @@ def test_match_buffer_in_block_is_well_formed():
                     )
                     A_tile[i, j] = A_tile[i, j] * 2.0
 
-    tvm.tirx.analysis.verify_well_formed(mod)
+    tvm.s_tir.analysis.verify_well_formed(mod)
 
 
 def test_error_undeclared_buffer_in_schedulable_tir():
@@ -489,7 +489,7 @@ def test_error_undeclared_buffer_in_schedulable_tir():
     with pytest.raises(
         (ValueError, tvm.error.InternalError), match="buffer B.*without a prior DeclBuffer"
     ):
-        tvm.tirx.analysis.verify_well_formed(prim_func)
+        tvm.s_tir.analysis.verify_well_formed(prim_func)
 
 
 def test_tensor_load_asserted_type_matches_source_and_indices():
@@ -542,6 +542,71 @@ def test_tensor_load_malformed_indices_return_false_without_asserting():
     assert not tvm.tirx.analysis.verify_well_formed(non_final_vector, assert_mode=False)
     with pytest.raises(tvm.error.InternalError, match="only the final index"):
         tvm.tirx.analysis.verify_well_formed(non_final_vector)
+
+
+@pytest.mark.parametrize("as_module", [False, True])
+def test_core_verifiers_reject_blocks(as_module):
+    block = tvm.s_tir.SBlock([], [], [], "block", tvm.tirx.Evaluate(0))
+    func = tvm.tirx.PrimFunc([], block).with_attr("s_tir", True)
+    obj = tvm.IRModule.from_expr(func) if as_module else func
+    assert tvm.s_tir.analysis.verify_well_formed(obj)
+    for verify in [
+        tvm.tirx.analysis.verify_well_formed,
+        tvm.tirx.analysis.verify_tirx_well_formed,
+    ]:
+        assert not verify(obj, assert_mode=False)
+        with pytest.raises(tvm.error.InternalError, match="(does not support|not allowed)"):
+            verify(obj)
+
+
+def test_mixed_module_parser_checks_both_dialects():
+    @I.ir_module
+    class Mixed:
+        @T.prim_func(s_tir=True)
+        def scheduled(A: T.Buffer((4,), "int32")):
+            for i in range(4):
+                with T.sblock("write"):
+                    vi = T.axis.spatial(4, i)
+                    A[vi] = vi
+
+        @T.prim_func
+        def lowered():
+            T.evaluate(0)
+
+    assert tvm.s_tir.analysis.verify_well_formed(Mixed)
+    assert tvm.tirx.analysis.verify_tirx_well_formed(Mixed["lowered"])
+    assert not tvm.tirx.analysis.verify_tirx_well_formed(Mixed, assert_mode=False)
+
+
+def test_s_tir_verifier_preserves_shared_definition_check():
+    shared = tvm.tirx.Var("shared", "int32")
+    core = tvm.tirx.PrimFunc([shared], tvm.tirx.Evaluate(shared))
+    block = tvm.s_tir.SBlock([], [], [], "block", tvm.tirx.Evaluate(shared))
+    scheduled = tvm.tirx.PrimFunc([shared], block).with_attr("s_tir", True)
+    mod = tvm.IRModule({"core": core, "scheduled": scheduled})
+    assert not tvm.s_tir.analysis.verify_well_formed(mod, assert_mode=False)
+    with pytest.raises(tvm.error.InternalError, match="multiple definitions"):
+        tvm.s_tir.analysis.verify_well_formed(mod)
+
+
+def test_matched_buffer_is_defined_before_block_regions():
+    allocated = tvm.tirx.decl_buffer((4,), "float32", name="allocated")
+    matched = tvm.tirx.decl_buffer((4,), "float32", name="matched")
+    source = tvm.tirx.BufferRegion(allocated, [tvm.ir.Range(4)])
+    region = tvm.tirx.BufferRegion(matched, [tvm.ir.Range(4)])
+    block = tvm.s_tir.SBlock(
+        [],
+        [region],
+        [],
+        "use",
+        tvm.tirx.Evaluate(matched[0]),
+        alloc_buffers=[allocated],
+        match_buffers=[tvm.s_tir.MatchBufferRegion(matched, source)],
+    )
+    func = tvm.tirx.PrimFunc([], block)
+    assert tvm.s_tir.analysis.verify_well_formed(func)
+    out_of_scope = tvm.tirx.PrimFunc([], tvm.tirx.SeqStmt([block, tvm.tirx.Evaluate(matched[0])]))
+    assert not tvm.s_tir.analysis.verify_well_formed(out_of_scope, assert_mode=False)
 
 
 if __name__ == "__main__":

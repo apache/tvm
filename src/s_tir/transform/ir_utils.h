@@ -30,6 +30,10 @@
 namespace tvm {
 namespace s_tir {
 
+/*! \brief Convert a schedulable statement or module to SSA form. */
+tirx::Stmt ConvertSSA(tirx::Stmt stmt);
+IRModule ConvertSSA(IRModule mod);
+
 /*!
  * \brief Convert match buffer target buffer access indices to original one.
  * \param indices The indices of the target buffer

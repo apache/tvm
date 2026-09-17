@@ -33,7 +33,6 @@
 #include <algorithm>
 #include <functional>
 #include <utility>
-#include <vector>
 
 #include "tvm/ir/expr.h"
 #include "tvm/ir/prim/expr.h"
@@ -43,34 +42,6 @@
 namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
-namespace {
-std::vector<void (*)(IndexDataTypeRewriter::VTable*)>& IndexDataTypeRewriterExtensions() {
-  static std::vector<void (*)(IndexDataTypeRewriter::VTable*)> extensions;
-  return extensions;
-}
-}  // namespace
-void IndexDataTypeRewriter::RegisterExtension(void (*init)(VTable*)) {
-  IndexDataTypeRewriterExtensions().push_back(init);
-}
-void IndexDataTypeRewriter::InitVTable(VTable* vtable) {
-  DataTypeLegalizer::InitVTable(vtable);
-  for (auto init : IndexDataTypeRewriterExtensions()) init(vtable);
-}
-
-namespace {
-std::vector<void (*)(DataTypeLegalizer::VTable*)>& DataTypeLegalizerExtensions() {
-  static std::vector<void (*)(DataTypeLegalizer::VTable*)> extensions;
-  return extensions;
-}
-}  // namespace
-void DataTypeLegalizer::RegisterExtension(void (*init)(VTable*)) {
-  DataTypeLegalizerExtensions().push_back(init);
-}
-void DataTypeLegalizer::InitVTable(VTable* vtable) {
-  StmtExprMutator::InitVTable(vtable);
-  for (auto init : DataTypeLegalizerExtensions()) init(vtable);
-}
-
 UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
   auto result = StmtExprMutator::Mutate_(op, inplace_mode);
   if (!result.IsUnchanged()) {
@@ -578,6 +549,9 @@ UnchangedOr<PrimExpr> IndexDataTypeRewriter::Mutate_(const prim::SelectNode* op,
 
 IndexDataTypeNormalizer::IndexDataTypeNormalizer(PrimType target_data_type)
     : target_data_type_(std::move(target_data_type)) {}
+
+IndexDataTypeNormalizer::IndexDataTypeNormalizer(PrimType target_data_type, const VTable* vtable)
+    : IndexDataTypeRewriter(vtable), target_data_type_(std::move(target_data_type)) {}
 
 PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   // Collect scalar dtype requirements without changing types.  Buffer definitions

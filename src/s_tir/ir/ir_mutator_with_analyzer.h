@@ -25,14 +25,6 @@
 #include "../../tirx/ir_mutator_with_analyzer.h"
 
 namespace tvm {
-namespace tirx {
-class IRMutatorWithAnalyzer::Extension {
- public:
-  static UnchangedOr<Stmt> MutateBlock(IRMutatorWithAnalyzer* self, const s_tir::SBlockNode* op,
-                                       InplaceMode inplace_mode);
-  static void InitVTable(VTable* vtable);
-};
-}  // namespace tirx
 namespace s_tir {
 class IRMutatorWithAnalyzer : public tirx::IRMutatorWithAnalyzer {
  public:
@@ -42,15 +34,16 @@ class IRMutatorWithAnalyzer : public tirx::IRMutatorWithAnalyzer {
   explicit IRMutatorWithAnalyzer(const arith::Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer.get()) {}
   explicit IRMutatorWithAnalyzer(arith::AnalyzerObj* analyzer) : Parent(analyzer, GlobalVTable()) {}
-  virtual UnchangedOr<tirx::Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
-    return Parent::Extension::MutateBlock(this, op, inplace_mode);
+  virtual UnchangedOr<tirx::Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<tirx::Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) {
+    return s_tir::StmtExprMutator::MutateBlockRealize(this, op, inplace_mode);
   }
 
  protected:
   static void InitVTable(VTable* vtable) {
     Parent::InitVTable(vtable);
-    vtable->ClearDispatch<SBlockNode>();
     SetDispatch<IRMutatorWithAnalyzer, SBlockNode>(vtable);
+    SetDispatch<IRMutatorWithAnalyzer, SBlockRealizeNode>(vtable);
   }
   static const VTable* GlobalVTable() {
     static const VTable table = [] {

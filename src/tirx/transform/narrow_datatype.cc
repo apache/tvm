@@ -33,7 +33,6 @@
 #include <tvm/tirx/transform.h>
 
 #include "../ir/data_type_rewriter.h"
-#include "stmt_extension.h"
 
 namespace tvm {
 namespace tirx {
@@ -75,7 +74,7 @@ using arith::ConstIntBound;
 // then we narrow `var` into `target_bits_`. That is,
 // `vmap[var] = min(target_bits_, var.dtype.bits())`
 // Otherwise, `var` is not narrowed, that is, `vmap[var] = var.dtype.bits()`
-class DataTypeVisitor final : public IndexDomainVisitor {
+class DataTypeVisitor final : public StmtExprVisitor {
  public:
   explicit DataTypeVisitor(int target_bits) : bits_(target_bits), target_bits_(target_bits) {}
 
@@ -122,11 +121,6 @@ class DataTypeVisitor final : public IndexDomainVisitor {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     vextent_.insert_or_assign(op->loop_var.as<VarNode>(), op->extent.ty());
     return StmtExprVisitor::Visit_(op);
-  }
-
-  void BindDomain(const Var& var, const Range& domain) final {
-    analyzer_->Bind(var, domain);
-    vextent_.insert_or_assign(var.as<VarNode>(), domain->extent.ty());
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) {

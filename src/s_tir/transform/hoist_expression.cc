@@ -39,7 +39,7 @@
 #include "../../arith/interval_set.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../s_tir/ir/ir_mutator_with_analyzer.h"
-#include "../../tirx/transform/ir_utils.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -467,7 +467,7 @@ class ExpressionHoister : public s_tir::IRMutatorWithAnalyzer {
     arith::Analyzer analyzer;
     auto hoister = ffi::make_object<ExpressionHoister>(std::move(loop_info), config, analyzer);
     stmt = hoister->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt));
-    stmt = ConvertSSA(std::move(stmt));
+    stmt = s_tir::ConvertSSA(std::move(stmt));
     return stmt;
   }
 
@@ -593,7 +593,7 @@ Pass HoistExpression() {
   return tvm::transform::Sequential(
       {
           insertion_pass,
-          tirx::transform::StmtSimplify(),
+          s_tir::transform::StmtSimplify(),
           tirx::transform::RemoveNoOp(),
       },
       "s_tir.HoistExpression");
@@ -631,7 +631,7 @@ static Pass HoistIfThenElseImpl() {
   return tvm::transform::Sequential(
       {
           insertion_pass,
-          tirx::transform::StmtSimplify(),
+          s_tir::transform::StmtSimplify(),
           tirx::transform::RemoveNoOp(),
       },
       "s_tir.HoistIfThenElse");
@@ -649,7 +649,7 @@ static Pass HoistIfThenElseBasicImpl() {
   return tvm::transform::Sequential(
       {
           insertion_pass,
-          tirx::transform::StmtSimplify(),
+          s_tir::transform::StmtSimplify(),
           tirx::transform::RemoveNoOp(),
       },
       "s_tir.HoistIfThenElseBasic");

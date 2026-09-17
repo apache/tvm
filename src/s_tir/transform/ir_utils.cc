@@ -21,12 +21,82 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op.h>
 
 namespace tvm {
 namespace s_tir {
 using namespace tirx;
 using namespace tvm::prim;
+
+namespace {
+class SIRConvertSSA final : public tirx::IRConvertSSA {
+ public:
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(SIRConvertSSA, tirx::IRConvertSSA)
+  using tirx::IRConvertSSA::Mutate_;
+
+ protected:
+  static void InitVTable(VTable* table) {
+    tirx::IRConvertSSA::InitVTable(table);
+    SetDispatch<SIRConvertSSA, SBlockNode>(table);
+    SetDispatch<SIRConvertSSA, SBlockRealizeNode>(table);
+  }
+
+ public:
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode mode) {
+    SBlock block = ffi::GetRef<SBlock>(op);
+    return WithScope([&]() -> Stmt {
+      auto iter_vars = op->iter_vars.Map([&](IterVar iter) {
+        Var var = DefineVar(iter->var);
+        if (!var.same_as(iter->var)) iter.CopyOnWrite()->var = var.as_or_throw<PrimVar>();
+        return iter;
+      });
+      auto remap_region = [&](BufferRegion region) {
+        BufferVar buffer = GetRemappedBuffer(region->buffer);
+        if (!buffer.same_as(region->buffer)) region.CopyOnWrite()->buffer = buffer;
+        return region;
+      };
+      auto reads = block->reads.Map(remap_region);
+      auto writes = block->writes.Map(remap_region);
+      if (!reads.same_as(block->reads) || !writes.same_as(block->writes) ||
+          !iter_vars.same_as(op->iter_vars)) {
+        auto* writer = block.CopyOnWrite();
+        writer->reads = reads;
+        writer->writes = writes;
+        writer->iter_vars = iter_vars;
+      }
+      return s_tir::StmtExprMutator::MutateBlock(this, block.get(),
+                                                 block.unique() ? mode : InplaceMode::kDisallow)
+          .ValueOrUnchanged(block);
+    });
+  }
+
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode mode) {
+    return s_tir::StmtExprMutator::MutateBlockRealize(this, op, mode);
+  }
+};
+}  // namespace
+
+Stmt ConvertSSA(Stmt stmt) {
+  return ffi::make_object<SIRConvertSSA>()
+      ->Mutate(stmt, InplaceMode::kAllow)
+      .ValueOrUnchanged(stmt);
+}
+
+IRModule ConvertSSA(IRModule mod) {
+  return ffi::make_object<SIRConvertSSA>()->VisitIRModule(std::move(mod));
+}
+
+namespace transform {
+Pass ConvertSSA() {
+  auto pass_func = [](IRModule mod, PassContext ctx) { return s_tir::ConvertSSA(std::move(mod)); };
+  return tvm::transform::CreateModulePass(pass_func, 0, "s_tir.ConvertSSA", {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::GlobalDef().def("s_tir.transform.ConvertSSA", ConvertSSA);
+}
+}  // namespace transform
 
 ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
                                     const ffi::Array<PrimExpr>& indices) {

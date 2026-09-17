@@ -27,17 +27,21 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/scope_stack.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
+#include <functional>
 #include <limits>
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -222,6 +226,120 @@ inline Call StackAlloca(Type ret_type, std::string type, size_t num) {
  * \return The converted form.
  */
 Stmt ConvertSSA(Stmt stmt);
+
+/*! \brief Shared SSA renaming algorithm; dialects extend statement dispatch explicitly. */
+class IRConvertSSA : public StmtExprMutator {
+ public:
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IRConvertSSA, StmtExprMutator)
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  PrimFunc VisitPrimFunc(PrimFunc func);
+  IRModule VisitIRModule(IRModule mod);
+
+ protected:
+  explicit IRConvertSSA(const VTable* table) : StmtExprMutator(table) {}
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final;
+  Stmt WithScope(const std::function<Stmt()>& body);
+  Var DefineVar(Var var);
+  BufferStore VisitBufferAccess(BufferStore node);
+  TensorLoad VisitBufferAccess(TensorLoad node);
+  Var GetRemappedVar(Var var);
+  BufferVar GetRemappedBuffer(BufferVar buf);
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final;
+  static bool BufferDependsOnVar(const BufferVar& buffer, const VarNode* var);
+  static Var MakeNewVar(const Var& old_var);
+  void PushVarRemap(const Var& old_var, const Var& new_var);
+  void PopVarRemap(const Var& old_var, const Var& new_var);
+  void PopAllRemapsInCurrentScope();
+
+ private:
+  struct VarRemap {
+    Var old_var;
+    Var new_var;
+  };
+  /*! \brief Scope stack: each scope level holds the remaps introduced in that scope.
+   *
+   * When a body-carrying statement (For, Allocate, or a dialect statement) calls
+   * scope_.WithNewScope([&]{...}), a new scope level is pushed.
+   * Bind statements push their remaps to the current scope.
+   * On scope exit, the destructor of std::vector<VarRemap> triggers,
+   * and we undo all remaps in that level.
+   *
+   * Note: ScopeStack<T>::WithNewScope calls T's destructor on exit.
+   * std::vector's destructor destroys elements but does NOT call custom
+   * cleanup.  So we wrap the vector in ScopeLevel which handles cleanup.
+   */
+  struct ScopeLevel {
+    std::vector<VarRemap> remaps;
+    IRConvertSSA* parent{nullptr};
+
+    void push_back(VarRemap remap) { remaps.push_back(std::move(remap)); }
+    size_t size() const { return remaps.size(); }
+    VarRemap& back() { return remaps.back(); }
+    void pop_back() { remaps.pop_back(); }
+
+    ~ScopeLevel() {
+      if (!parent) return;
+      // Pop remaps in reverse order
+      while (remaps.size()) {
+        auto& remap = remaps.back();
+        parent->scoped_var_remap_[remap.old_var.get()].pop_back();
+        for (auto& kv : parent->buf_remap_) {
+          std::vector<BufferVar>& buffers = kv.second;
+          if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
+            buffers.pop_back();
+          }
+        }
+        remaps.pop_back();
+      }
+    }
+
+    ScopeLevel() = default;
+    ScopeLevel(const ScopeLevel&) = delete;
+    ScopeLevel& operator=(const ScopeLevel&) = delete;
+    ScopeLevel(ScopeLevel&& other) noexcept
+        : remaps(std::move(other.remaps)), parent(other.parent) {
+      other.parent = nullptr;  // prevent other's destructor from popping
+    }
+    ScopeLevel& operator=(ScopeLevel&& other) noexcept {
+      if (this != &other) {
+        // Run our destructor logic first
+        if (parent) {
+          while (remaps.size()) {
+            auto& remap = remaps.back();
+            parent->scoped_var_remap_[remap.old_var.get()].pop_back();
+            for (auto& kv : parent->buf_remap_) {
+              std::vector<BufferVar>& buffers = kv.second;
+              if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
+                buffers.pop_back();
+              }
+            }
+            remaps.pop_back();
+          }
+        }
+        remaps = std::move(other.remaps);
+        parent = other.parent;
+        other.parent = nullptr;
+      }
+      return *this;
+    }
+  };
+
+  std::unordered_map<const VarNode*, std::vector<Var>> scoped_var_remap_;
+  std::unordered_set<const VarNode*> defined_;
+  std::unordered_map<const VarNode*, std::vector<BufferVar>> buf_remap_;
+  std::unordered_map<const VarNode*, Var> function_scope_var_remap_;
+  ScopeStack<ScopeLevel> scope_;
+};
 
 /*!
  * \brief Return the storage scope associated with a buffer variable.

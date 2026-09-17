@@ -17,128 +17,82 @@
  * under the License.
  */
 
-#include "../../tirx/ir/data_type_rewriter.h"
+#include "data_type_rewriter.h"
 
-#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/op.h>
 
 #include <functional>
 
 namespace tvm {
-namespace tirx {
+namespace s_tir {
+using namespace tvm::tirx;
 using namespace tvm::prim;
-using s_tir::MatchBufferRegion;
-using s_tir::SBlock;
-using s_tir::SBlockNode;
-using s_tir::SBlockRealize;
-using s_tir::SBlockRealizeNode;
 
-class DataTypeLegalizer::Extension {
- public:
-  static void InitVTable(VTable* vtable);
-  static UnchangedOr<Stmt> MutateBlockRealize(DataTypeLegalizer* self,
-                                              const s_tir::SBlockRealizeNode* op,
-                                              InplaceMode inplace_mode);
-  static UnchangedOr<Stmt> MutateBlock(DataTypeLegalizer* self, const s_tir::SBlockNode* op,
-                                       InplaceMode inplace_mode);
-};
-class IndexDataTypeRewriter::Extension {
- public:
-  static void InitVTable(VTable* vtable);
-  static UnchangedOr<Stmt> MutateBlockRealize(IndexDataTypeRewriter* self,
-                                              const s_tir::SBlockRealizeNode* op,
-                                              InplaceMode inplace_mode);
-  static UnchangedOr<Stmt> MutateBlock(IndexDataTypeRewriter* self, const s_tir::SBlockNode* op,
-                                       InplaceMode inplace_mode);
-  static ffi::Map<ffi::String, ffi::Any> VisitBlockAnnotations(
-      IndexDataTypeRewriter* self, const ffi::Map<ffi::String, ffi::Any>& annotations);
-  static IterVar VisitIterVar(IndexDataTypeRewriter* self, const IterVar& iter_var);
-  static BufferRegion VisitBufferRegion(IndexDataTypeRewriter* self,
-                                        const BufferRegion& buffer_region);
-};
+PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
+  // Collect scalar dtype requirements without changing types.  Buffer definitions
+  // are rewritten only after every scalar replacement has been seeded.
+  class IndexVarCollector : public IndexDataTypeNormalizer {
+   public:
+    explicit IndexVarCollector(std::function<void(const VarNode*)> collect)
+        : IndexDataTypeNormalizer(PrimType::Int(64)), collect_(std::move(collect)) {}
+    using IndexDataTypeNormalizer::Mutate;
+    using IndexDataTypeNormalizer::Mutate_;
+    UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode mode) final {
+      if (def_region_kind() == kTVMFFIDefRegionKindNone && is_enabled_) collect_(op);
+      return IndexDataTypeNormalizer::Mutate_(op, mode);
+    }
 
-UnchangedOr<Stmt> DataTypeLegalizer::Extension::MutateBlockRealize(DataTypeLegalizer* self,
-                                                                   const SBlockRealizeNode* op,
-                                                                   InplaceMode inplace_mode) {
-  SBlockRealize realize = s_tir::StmtExprMutator::MutateBlockRealize(self, op, inplace_mode)
-                              .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                              .as_or_throw<SBlockRealize>();
-  ffi::Array<PrimExpr> new_iter_values;
-  bool changed = false;
-  for (int i = 0; i < static_cast<int>(op->iter_values.size()); ++i) {
-    PrimType dtype = realize->block->iter_vars[i]->var.ty();
-    if (op->iter_values[i].ty() != dtype) {
-      new_iter_values.push_back(prim::cast(dtype, realize->iter_values[i]));
-      changed = true;
+   protected:
+    bool CanRewriteDType(PrimType dtype) const final { return false; }
+
+   private:
+    std::function<void(const VarNode*)> collect_;
+  };
+  auto seed = [this](const VarNode* var) {
+    auto dtype = var->ty.as<PrimType>();
+    if (dtype && CanRewriteDType(dtype.value()) && dtype.value() != target_data_type_ &&
+        VarRemapGet(ffi::AnyView(var)) == nullptr) {
+      VarRemapSet(ffi::AnyView(var), ffi::GetRef<Var>(var).CopyWithDType(target_data_type_));
+    }
+  };
+  auto collector = ffi::make_object<IndexVarCollector>(seed);
+  collector->Mutate(func->body);
+  for (const Var& param : func->params) {
+    if (param.as<BufferVar>()) {
+      collector->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
+                                   [&] { return collector->Mutate(param); });
     } else {
-      new_iter_values.push_back(realize->iter_values[i]);
+      seed(param.get());
     }
   }
-  if (changed) {
-    realize.CopyOnWrite()->iter_values = std::move(new_iter_values);
-  }
-  return realize;
-}
-
-UnchangedOr<Stmt> DataTypeLegalizer::Extension::MutateBlock(DataTypeLegalizer* self,
-                                                            const SBlockNode* op,
-                                                            InplaceMode inplace_mode) {
-  SBlock new_block = s_tir::StmtExprMutator::MutateBlock(self, op, inplace_mode)
-                         .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                         .as_or_throw<SBlock>();
-  ffi::Array<IterVar> new_iter_vars = new_block->iter_vars.Map([](const IterVar& iter) {
-    PrimType dtype = iter->var.ty();
-    if (iter->dom->min.ty() != dtype || iter->dom->extent.ty() != dtype) {
-      IterVar new_iter = iter;
-      new_iter.CopyOnWrite()->dom =
-          Range(prim::cast(dtype, iter->dom->min), prim::cast(dtype, iter->dom->extent));
-      return new_iter;
-    } else {
-      return iter;
-    }
+  ffi::Array<Var> params = func->params.Map([this](const Var& param) {
+    return WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
+      return Mutate(param).ValueOrUnchanged(param).as_or_throw<Var>();
+    });
   });
-  if (!op->iter_vars.same_as(new_iter_vars)) {
-    new_block.CopyOnWrite()->iter_vars = std::move(new_iter_vars);
-  }
-  return new_block;
+  PrimFuncNode* new_func = func.CopyOnWrite();
+  new_func->params = std::move(params);
+  new_func->body = Mutate(new_func->body).ValueOrUnchanged(new_func->body);
+  return func;
 }
 
-void DataTypeLegalizer::Extension::InitVTable(VTable* vtable) {
-  vtable->ClearDispatch<SBlockNode>();
-  vtable->ClearDispatch<SBlockRealizeNode>();
-  vtable->SetDispatch<SBlockNode>(
-      [](const ffi::Object* node, ObjectMutator* base, InplaceMode mode) -> UnchangedOr<ffi::Any> {
-        return MutateBlock(static_cast<DataTypeLegalizer*>(base),
-                           static_cast<const SBlockNode*>(node), mode);
-      });
-  vtable->SetDispatch<SBlockRealizeNode>(
-      [](const ffi::Object* node, ObjectMutator* base, InplaceMode mode) -> UnchangedOr<ffi::Any> {
-        return MutateBlockRealize(static_cast<DataTypeLegalizer*>(base),
-                                  static_cast<const SBlockRealizeNode*>(node), mode);
-      });
-}
-TVM_FFI_STATIC_INIT_BLOCK() {
-  DataTypeLegalizer::RegisterExtension(DataTypeLegalizer::Extension::InitVTable);
-}
-
-UnchangedOr<Stmt> IndexDataTypeRewriter::Extension::MutateBlockRealize(IndexDataTypeRewriter* self,
-                                                                       const SBlockRealizeNode* op,
-                                                                       InplaceMode inplace_mode) {
-  bool is_condition = self->is_condition_;
-  self->is_condition_ = true;
-  auto new_predicate_result = self->Mutate(op->predicate, inplace_mode);
+UnchangedOr<Stmt> IndexDataTypeNormalizer::Mutate_(const SBlockRealizeNode* op,
+                                                   InplaceMode inplace_mode) {
+  bool is_condition = this->is_condition_;
+  this->is_condition_ = true;
+  auto new_predicate_result = this->Mutate(op->predicate, inplace_mode);
   bool new_predicate_unchanged = new_predicate_result.UnchangedOrSameAs(op->predicate);
   auto new_predicate = std::move(new_predicate_result).ValueOrUnchanged(op->predicate);
-  self->is_condition_ = is_condition;
+  this->is_condition_ = is_condition;
 
-  bool is_enabled = self->is_enabled_;
-  self->is_enabled_ = true;
-  auto new_iter_values = self->Mutate(op->iter_values, inplace_mode)
+  bool is_enabled = this->is_enabled_;
+  this->is_enabled_ = true;
+  auto new_iter_values = this->Mutate(op->iter_values, inplace_mode)
                              .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
                              .ValueOrUnchanged(op->iter_values);
-  self->is_enabled_ = is_enabled;
+  this->is_enabled_ = is_enabled;
   SBlock new_body =
-      self->Mutate(op->block, inplace_mode).ValueOrUnchanged(op->block).as_or_throw<SBlock>();
+      this->Mutate(op->block, inplace_mode).ValueOrUnchanged(op->block).as_or_throw<SBlock>();
   if (!new_predicate_unchanged || !new_iter_values.same_as(op->iter_values) ||
       !new_body.same_as(op->block)) {
     SBlockRealize new_block_realize = ffi::GetRef<SBlockRealize>(op);
@@ -153,36 +107,34 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Extension::MutateBlockRealize(IndexData
   }
 }
 
-UnchangedOr<Stmt> IndexDataTypeRewriter::Extension::MutateBlock(IndexDataTypeRewriter* self,
-                                                                const SBlockNode* op,
-                                                                InplaceMode inplace_mode) {
-  auto new_alloc_buffers = self->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
-    return self->Mutate(op->alloc_buffers, inplace_mode)
+UnchangedOr<Stmt> IndexDataTypeNormalizer::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
+  auto new_alloc_buffers = this->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
+    return this->Mutate(op->alloc_buffers, inplace_mode)
         .as_or_throw<UnchangedOr<ffi::Array<BufferVar>>>()
         .ValueOrUnchanged(op->alloc_buffers);
   });
-  auto new_match_buffers = op->match_buffers.Map([self](const MatchBufferRegion& match) {
-    BufferVar buffer = self->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
-      return self->Mutate(match->buffer, InplaceMode::kDisallow)
+  auto new_match_buffers = op->match_buffers.Map([this](const MatchBufferRegion& match) {
+    BufferVar buffer = this->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
+      return this->Mutate(match->buffer, InplaceMode::kDisallow)
           .as_or_throw<UnchangedOr<BufferVar>>()
           .ValueOrUnchanged(match->buffer);
     });
-    BufferRegion source = VisitBufferRegion(self, match->source);
+    BufferRegion source = VisitBufferRegion(match->source);
     if (buffer.same_as(match->buffer) && source.same_as(match->source)) return match;
     return MatchBufferRegion(buffer, source);
   });
   ffi::Array<BufferRegion> new_reads = op->reads.Map(
-      [self](const BufferRegion& buffer_region) { return VisitBufferRegion(self, buffer_region); });
+      [this](const BufferRegion& buffer_region) { return VisitBufferRegion(buffer_region); });
   ffi::Array<BufferRegion> new_writes = op->writes.Map(
-      [self](const BufferRegion& buffer_region) { return VisitBufferRegion(self, buffer_region); });
+      [this](const BufferRegion& buffer_region) { return VisitBufferRegion(buffer_region); });
   ffi::Array<IterVar> new_iter_vars =
-      op->iter_vars.Map([self](const IterVar& iter_var) { return VisitIterVar(self, iter_var); });
+      op->iter_vars.Map([this](const IterVar& iter_var) { return VisitIterVar(iter_var); });
   ffi::Optional<Stmt> new_init = std::nullopt;
   if (op->init.has_value()) {
-    new_init = self->Mutate(op->init.value(), inplace_mode).ValueOrUnchanged(op->init.value());
+    new_init = this->Mutate(op->init.value(), inplace_mode).ValueOrUnchanged(op->init.value());
   }
-  ffi::Map<ffi::String, ffi::Any> new_annotations = VisitBlockAnnotations(self, op->annotations);
-  auto new_body_result = self->Mutate(op->body, inplace_mode);
+  ffi::Map<ffi::String, ffi::Any> new_annotations = VisitBlockAnnotations(op->annotations);
+  auto new_body_result = this->Mutate(op->body, inplace_mode);
   bool new_body_unchanged = new_body_result.UnchangedOrSameAs(op->body);
   Stmt new_body = std::move(new_body_result).ValueOrUnchanged(op->body);
 
@@ -201,24 +153,22 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Extension::MutateBlock(IndexDataTypeRew
     n->init = std::move(new_init);
     n->annotations = std::move(new_annotations);
     n->body = std::move(new_body);
-    for (const auto& buffer : new_block->alloc_buffers) self->ValidateAllocation(buffer);
     return new_block;
   }
-  for (const auto& buffer : op->alloc_buffers) self->ValidateAllocation(buffer);
   return ffi::Unchanged();
 }
 
-ffi::Map<ffi::String, ffi::Any> IndexDataTypeRewriter::Extension::VisitBlockAnnotations(
-    IndexDataTypeRewriter* self, const ffi::Map<ffi::String, ffi::Any>& annotations) {
+ffi::Map<ffi::String, ffi::Any> IndexDataTypeNormalizer::VisitBlockAnnotations(
+    const ffi::Map<ffi::String, ffi::Any>& annotations) {
   auto new_annotations = annotations;
 
-  std::function<Any(const Any&)> f_mutate_obj = [self, &f_mutate_obj](const Any& obj) -> Any {
+  std::function<Any(const Any&)> f_mutate_obj = [this, &f_mutate_obj](const Any& obj) -> Any {
     if (obj == nullptr) {
       return obj;
     }
     if (auto var = obj.as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
       BufferVar buffer(var.value());
-      if (BufferVar new_buffer = self->Mutate(buffer, InplaceMode::kDisallow)
+      if (BufferVar new_buffer = this->Mutate(buffer, InplaceMode::kDisallow)
                                      .as_or_throw<UnchangedOr<BufferVar>>()
                                      .ValueOrUnchanged(buffer);
           !new_buffer.same_as(buffer)) {
@@ -240,18 +190,17 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeRewriter::Extension::VisitBlockAnno
   return new_annotations;
 }
 
-IterVar IndexDataTypeRewriter::Extension::VisitIterVar(IndexDataTypeRewriter* self,
-                                                       const IterVar& iter_var) {
-  bool is_enabled = self->is_enabled_;
-  self->is_enabled_ = true;
-  PrimVar new_var = self->Mutate(iter_var->var, InplaceMode::kDisallow)
+IterVar IndexDataTypeNormalizer::VisitIterVar(const IterVar& iter_var) {
+  bool is_enabled = this->is_enabled_;
+  this->is_enabled_ = true;
+  PrimVar new_var = this->Mutate(iter_var->var, InplaceMode::kDisallow)
                         .ValueOrUnchanged(iter_var->var)
                         .as_or_throw<PrimVar>();
   PrimExpr min =
-      self->Mutate(iter_var->dom->min, InplaceMode::kDisallow).ValueOrUnchanged(iter_var->dom->min);
-  PrimExpr extent = self->Mutate(iter_var->dom->extent, InplaceMode::kDisallow)
+      this->Mutate(iter_var->dom->min, InplaceMode::kDisallow).ValueOrUnchanged(iter_var->dom->min);
+  PrimExpr extent = this->Mutate(iter_var->dom->extent, InplaceMode::kDisallow)
                         .ValueOrUnchanged(iter_var->dom->extent);
-  self->is_enabled_ = is_enabled;
+  this->is_enabled_ = is_enabled;
   if (!new_var.same_as(iter_var->var) || !min.same_as(iter_var->dom->min) ||
       !extent.same_as(iter_var->dom->extent)) {
     IterVar new_iter_var = iter_var;
@@ -263,20 +212,19 @@ IterVar IndexDataTypeRewriter::Extension::VisitIterVar(IndexDataTypeRewriter* se
   return iter_var;
 }
 
-BufferRegion IndexDataTypeRewriter::Extension::VisitBufferRegion(
-    IndexDataTypeRewriter* self, const BufferRegion& buffer_region) {
-  BufferVar remapped_buffer = self->Mutate(buffer_region->buffer, InplaceMode::kDisallow)
+BufferRegion IndexDataTypeNormalizer::VisitBufferRegion(const BufferRegion& buffer_region) {
+  BufferVar remapped_buffer = this->Mutate(buffer_region->buffer, InplaceMode::kDisallow)
                                   .as_or_throw<UnchangedOr<BufferVar>>()
                                   .ValueOrUnchanged(buffer_region->buffer);
 
-  bool is_enabled = self->is_enabled_;
-  self->is_enabled_ = true;
+  bool is_enabled = this->is_enabled_;
+  this->is_enabled_ = true;
   auto new_region = buffer_region->region.Map([&](const Range& range) {
     return Range::FromMinExtent(
-        self->Mutate(range->min, InplaceMode::kDisallow).ValueOrUnchanged(range->min),
-        self->Mutate(range->extent, InplaceMode::kDisallow).ValueOrUnchanged(range->extent));
+        this->Mutate(range->min, InplaceMode::kDisallow).ValueOrUnchanged(range->min),
+        this->Mutate(range->extent, InplaceMode::kDisallow).ValueOrUnchanged(range->extent));
   });
-  self->is_enabled_ = is_enabled;
+  this->is_enabled_ = is_enabled;
 
   if (!remapped_buffer.same_as(buffer_region->buffer) ||
       !new_region.same_as(buffer_region->region)) {
@@ -286,22 +234,5 @@ BufferRegion IndexDataTypeRewriter::Extension::VisitBufferRegion(
   }
 }
 
-void IndexDataTypeRewriter::Extension::InitVTable(VTable* vtable) {
-  vtable->ClearDispatch<SBlockNode>();
-  vtable->SetDispatch<SBlockNode>(
-      [](const ffi::Object* node, ObjectMutator* base, InplaceMode mode) -> UnchangedOr<ffi::Any> {
-        return MutateBlock(static_cast<IndexDataTypeRewriter*>(base),
-                           static_cast<const SBlockNode*>(node), mode);
-      });
-  vtable->ClearDispatch<SBlockRealizeNode>();
-  vtable->SetDispatch<SBlockRealizeNode>(
-      [](const ffi::Object* node, ObjectMutator* base, InplaceMode mode) -> UnchangedOr<ffi::Any> {
-        return MutateBlockRealize(static_cast<IndexDataTypeRewriter*>(base),
-                                  static_cast<const SBlockRealizeNode*>(node), mode);
-      });
-}
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IndexDataTypeRewriter::RegisterExtension(IndexDataTypeRewriter::Extension::InitVTable);
-}
-}  // namespace tirx
+}  // namespace s_tir
 }  // namespace tvm

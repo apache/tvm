@@ -40,17 +40,6 @@
 namespace tvm {
 namespace tirx {
 
-namespace {
-std::vector<void (*)(StmtExprVisitor::VTable*)>& StmtExprVisitorExtensions() {
-  static std::vector<void (*)(StmtExprVisitor::VTable*)> extensions;
-  return extensions;
-}
-}  // namespace
-
-void StmtExprVisitor::RegisterExtension(void (*init)(VTable*)) {
-  StmtExprVisitorExtensions().push_back(init);
-}
-
 void StmtExprVisitor::InitVTable(VTable* vtable) {
   tvm::ExprVisitor::InitVTable(vtable);
   SetDispatch<StmtExprVisitor, BindNode>(vtable);
@@ -70,7 +59,6 @@ void StmtExprVisitor::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprVisitor, ScopeIdDefStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, TilePrimitiveCallNode>(vtable);
   SetDispatch<StmtExprVisitor, BufferRegionNode>(vtable);
-  for (auto init : StmtExprVisitorExtensions()) init(vtable);
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const VarNode* op) { return std::nullopt; }
@@ -284,17 +272,6 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TilePrimitiveCallNod
   return std::nullopt;
 }
 
-namespace {
-std::vector<void (*)(StmtExprMutator::VTable*)>& StmtExprMutatorExtensions() {
-  static std::vector<void (*)(StmtExprMutator::VTable*)> extensions;
-  return extensions;
-}
-}  // namespace
-
-void StmtExprMutator::RegisterExtension(void (*init)(VTable*)) {
-  StmtExprMutatorExtensions().push_back(init);
-}
-
 void StmtExprMutator::InitVTable(VTable* vtable) {
   tvm::ExprMutator::InitVTable(vtable);
   SetDispatch<StmtExprMutator, BindNode>(vtable);
@@ -314,7 +291,6 @@ void StmtExprMutator::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprMutator, ScopeIdDefStmtNode>(vtable);
   SetDispatch<StmtExprMutator, TilePrimitiveCallNode>(vtable);
   SetDispatch<StmtExprMutator, BufferRegionNode>(vtable);
-  for (auto init : StmtExprMutatorExtensions()) init(vtable);
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BindNode* op, InplaceMode inplace_mode) {

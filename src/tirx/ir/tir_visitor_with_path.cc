@@ -33,27 +33,6 @@
 
 namespace tvm {
 namespace tirx {
-namespace {
-std::vector<void (*)(TIRVisitorWithPath::VTable*)>& PathVisitorExtensions() {
-  static std::vector<void (*)(TIRVisitorWithPath::VTable*)> extensions;
-  return extensions;
-}
-}  // namespace
-void TIRVisitorWithPath::RegisterExtension(void (*init)(VTable*)) {
-  PathVisitorExtensions().push_back(init);
-}
-TIRVisitorWithPath::TIRVisitorWithPath()
-    : StmtVisitor([] {
-        static const VTable table = [] {
-          VTable table;
-          StmtVisitor::InitVTable(&table);
-          for (auto init : PathVisitorExtensions()) init(&table);
-          table.Finalize();
-          return table;
-        }();
-        return &table;
-      }()) {}
-
 using AccessPath = ffi::reflection::AccessPath;
 
 void TIRVisitorWithPath::Visit(const IRModule& mod, AccessPath path) {

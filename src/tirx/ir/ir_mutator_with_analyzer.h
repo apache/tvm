@@ -34,7 +34,6 @@
 
 #include <unordered_set>
 #include <utility>
-#include <vector>
 
 namespace tvm {
 namespace tirx {
@@ -50,11 +49,6 @@ namespace tirx {
  */
 class IRMutatorWithAnalyzer : public StmtExprMutator {
  public:
-  using StmtExprMutator::VTable;
-  // Dialect-owned handlers use nested access to the active traversal context.
-  class Extension;
-  // Extensions register during library initialization, before constructing a visitor.
-  static void RegisterExtension(void (*init)(VTable*));
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
   explicit IRMutatorWithAnalyzer(const arith::Analyzer& analyzer)

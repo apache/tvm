@@ -50,6 +50,19 @@ TEST(STIRFunctor, LegacyInheritedDispatchAndContainsNode) {
   EXPECT_FALSE(ContainsNode<ForNode>(realize));
 }
 
+TEST(STIRFunctor, CoreLegacyDispatchReachesDefaultForDialectNodes) {
+  class Dispatch : public tirx::StmtFunctor<bool(const Stmt&)> {
+   public:
+    using tirx::StmtFunctor<bool(const Stmt&)>::VisitStmt_;
+    bool VisitStmt_(const EvaluateNode*) final { return true; }
+    bool VisitStmtDefault_(const ffi::Object*) final { return false; }
+  } dispatch;
+  SBlock block({}, {}, {}, "block", Evaluate(0));
+  EXPECT_FALSE(dispatch(block));
+  EXPECT_FALSE(dispatch(SBlockRealize({}, IntImm::Bool(true), block)));
+  EXPECT_TRUE(dispatch(block->body));
+}
+
 TEST(STIRFunctor, NativeBlockOverrideReusesInheritedCoreHooks) {
   class Visitor : public StmtExprVisitor {
    public:
@@ -154,8 +167,10 @@ void CheckMutationRemapsBufferDefinitionsAndUses() {
   BufferVar matched = decl_buffer({extent + 1}, PrimType::Int(32));
   BufferRegion region(allocated, {Range::FromMinExtent(0, extent + 1)});
   MatchBufferRegion match(matched, region);
+  BufferRegion matched_region(matched, {Range::FromMinExtent(0, extent + 1)});
   Stmt body = SeqStmt({BufferStore(allocated, 0, {0}), BufferStore(matched, 0, {0})});
-  SBlock block({}, {region}, {region}, "block", body, std::nullopt, {allocated}, {match});
+  SBlock block({}, {region, matched_region}, {region, matched_region}, "block", body, std::nullopt,
+               {allocated}, {match});
   class Mutator : public Base {
    public:
     using Base::Mutate_;
@@ -173,6 +188,8 @@ void CheckMutationRemapsBufferDefinitionsAndUses() {
   EXPECT_TRUE(new_matched->shape[0].same_as(extent));
   EXPECT_TRUE(changed->reads[0]->buffer.same_as(new_allocated));
   EXPECT_TRUE(changed->writes[0]->buffer.same_as(new_allocated));
+  EXPECT_TRUE(changed->reads[1]->buffer.same_as(new_matched));
+  EXPECT_TRUE(changed->writes[1]->buffer.same_as(new_matched));
   EXPECT_TRUE(changed->match_buffers[0]->source->buffer.same_as(new_allocated));
   const auto* statements = changed->body.as<SeqStmtNode>();
   ASSERT_NE(statements, nullptr);
@@ -190,7 +207,104 @@ TEST(STIRFunctor, GenericTIRXMutationRemapsBufferDefinitionsAndUses) {
   CheckMutationRemapsBufferDefinitionsAndUses<tirx::StmtExprMutator>();
 }
 
-TEST(STIRFunctor, GenericTIRXVisitorUsesRegisteredNativePolicy) {
+TEST(STIRFunctor, StructuralAndGenericSubstitutionPreserveDefinitionUses) {
+  PrimVar extent("extent"), new_extent("new_extent"), index("index"), new_index("new_index");
+  BufferVar allocated = decl_buffer({extent}, PrimType::Int(32));
+  BufferVar matched = decl_buffer({extent}, PrimType::Int(32));
+  BufferRegion region(allocated, {Range::FromMinExtent(0, extent)});
+  BufferRegion matched_region(matched, {Range::FromMinExtent(0, extent)});
+  MatchBufferRegion match(matched, region);
+  IterVar iter(Range::FromMinExtent(0, extent), index, IterVarType::kDataPar);
+  Stmt body =
+      SeqStmt({BufferStore(allocated, extent, {index}), BufferStore(matched, extent, {index})});
+  SBlock block({iter}, {region, matched_region}, {region, matched_region}, "block", body,
+               Evaluate(extent), {allocated}, {match}, {{"annotation", extent}});
+  Stmt original = SBlockRealize({extent}, extent > 0, block);
+
+  auto check = [&](const Stmt& result) {
+    const auto* realize = result.as<SBlockRealizeNode>();
+    ASSERT_NE(realize, nullptr);
+    EXPECT_TRUE(realize->iter_values[0].same_as(new_extent));
+    EXPECT_TRUE(realize->predicate.as<prim::GTNode>()->a.same_as(new_extent));
+    const auto* changed = realize->block.get();
+    EXPECT_TRUE(changed->iter_vars[0]->var.same_as(new_index));
+    EXPECT_TRUE(changed->iter_vars[0]->dom->extent.same_as(new_extent));
+    EXPECT_TRUE(changed->alloc_buffers[0]->shape[0].same_as(new_extent));
+    EXPECT_TRUE(changed->match_buffers[0]->buffer->shape[0].same_as(new_extent));
+    EXPECT_TRUE(changed->match_buffers[0]->source->buffer.same_as(changed->alloc_buffers[0]));
+    EXPECT_TRUE(changed->reads[0]->buffer.same_as(changed->alloc_buffers[0]));
+    EXPECT_TRUE(changed->reads[1]->buffer.same_as(changed->match_buffers[0]->buffer));
+    EXPECT_TRUE(changed->writes[0]->buffer.same_as(changed->alloc_buffers[0]));
+    EXPECT_TRUE(changed->writes[1]->buffer.same_as(changed->match_buffers[0]->buffer));
+    EXPECT_TRUE(changed->reads[0]->region[0]->extent.same_as(new_extent));
+    EXPECT_TRUE(changed->reads[1]->region[0]->extent.same_as(new_extent));
+    const auto* statements = changed->body.as<SeqStmtNode>();
+    ASSERT_NE(statements, nullptr);
+    const auto* store = statements->seq[0].as<BufferStoreNode>();
+    EXPECT_TRUE(store->buffer.same_as(changed->alloc_buffers[0]));
+    EXPECT_TRUE(store->value.same_as(new_extent));
+    EXPECT_TRUE(store->indices[0].same_as(new_index));
+    EXPECT_TRUE(statements->seq[1].as<BufferStoreNode>()->buffer.same_as(
+        changed->match_buffers[0]->buffer));
+    EXPECT_TRUE(changed->init.value().as<EvaluateNode>()->value.same_as(new_extent));
+    EXPECT_TRUE(changed->annotations.at("annotation").cast<PrimExpr>().same_as(new_extent));
+    EXPECT_TRUE(block->iter_vars[0]->var.same_as(index));
+    EXPECT_TRUE(block->iter_vars[0]->dom->extent.same_as(extent));
+    EXPECT_TRUE(block->alloc_buffers[0].same_as(allocated));
+    EXPECT_TRUE(block->match_buffers[0]->buffer.same_as(matched));
+    EXPECT_TRUE(block->annotations.at("annotation").cast<PrimExpr>().same_as(extent));
+  };
+
+  Stmt structural = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                        original,
+                        [&](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                          if (var.same_as(extent)) return ffi::Any(new_extent);
+                          if (var.same_as(index)) return ffi::Any(new_index);
+                          return ffi::Unchanged();
+                        })
+                        .as_or_throw<Stmt>();
+  check(structural);
+  Stmt generic =
+      SubstituteWithDataTypeLegalization(original, [&](const Var& var) -> ffi::Optional<PrimExpr> {
+        if (var.same_as(extent)) return new_extent;
+        if (var.same_as(index)) return new_index;
+        return std::nullopt;
+      });
+  check(generic);
+
+  // Unique outer nodes may update in place, but their shared child arrays and
+  // regions must not modify the retained block used to construct them.
+  for (bool use_generic : {false, true}) {
+    SBlock local(block->iter_vars, block->reads, block->writes, "unique", block->body, block->init,
+                 block->alloc_buffers, block->match_buffers, block->annotations);
+    const auto* block_identity = local.get();
+    Stmt input = SBlockRealize({extent}, extent > 0, std::move(local));
+    const auto* realize_identity = input.get();
+    Stmt result;
+    if (use_generic) {
+      result = SubstituteWithDataTypeLegalization(std::move(input),
+                                                  [&](const Var& var) -> ffi::Optional<PrimExpr> {
+                                                    if (var.same_as(extent)) return new_extent;
+                                                    if (var.same_as(index)) return new_index;
+                                                    return std::nullopt;
+                                                  });
+    } else {
+      result = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                   std::move(input),
+                   [&](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                     if (var.same_as(extent)) return ffi::Any(new_extent);
+                     if (var.same_as(index)) return ffi::Any(new_index);
+                     return ffi::Unchanged();
+                   })
+                   .as_or_throw<Stmt>();
+    }
+    EXPECT_EQ(result.get(), realize_identity);
+    EXPECT_EQ(result.as<SBlockRealizeNode>()->block.get(), block_identity);
+    check(result);
+  }
+}
+
+TEST(STIRFunctor, GenericTIRXVisitorUsesFullStructuralTraversal) {
   PrimVar index("index"), annotation("annotation");
   BufferVar buffer = decl_buffer({16});
   BufferRegion region(buffer, {Range::FromMinExtent(0, 16)});
@@ -212,14 +326,14 @@ TEST(STIRFunctor, GenericTIRXVisitorUsesRegisteredNativePolicy) {
   };
   auto visitor = ffi::make_object<Visitor>();
   visitor->Visit(block);
-  EXPECT_EQ(std::count(visitor->vars.begin(), visitor->vars.end(), index.get()), 1);
-  EXPECT_EQ(std::count(visitor->vars.begin(), visitor->vars.end(), annotation.get()), 0);
+  EXPECT_EQ(std::count(visitor->vars.begin(), visitor->vars.end(), index.get()), 2);
+  EXPECT_EQ(std::count(visitor->vars.begin(), visitor->vars.end(), annotation.get()), 1);
   ASSERT_EQ(visitor->buffer_regions.size(), 2);
   EXPECT_EQ(visitor->buffer_regions[0], kTVMFFIDefRegionKindSimple);
   EXPECT_EQ(visitor->buffer_regions[1], kTVMFFIDefRegionKindNone);
 }
 
-TEST(STIRFunctor, GenericTIRXMutationPreservesBindersAndAnnotations) {
+TEST(STIRFunctor, GenericTIRXMutationRemapsBindersAndAnnotations) {
   PrimVar index("index"), replacement("replacement"), extent("extent");
   PrimExpr expression = extent + 1;
   IterVar iter(Range::FromMinExtent(0, expression), index, IterVarType::kDataPar);
@@ -237,9 +351,9 @@ TEST(STIRFunctor, GenericTIRXMutationPreservesBindersAndAnnotations) {
   Stmt result = mutator->Mutate(block, InplaceMode::kAllow).ValueOrUnchanged(block);
   const auto* changed = result.as<SBlockNode>();
   ASSERT_NE(changed, nullptr);
-  EXPECT_TRUE(changed->iter_vars[0]->var.same_as(index));
+  EXPECT_TRUE(changed->iter_vars[0]->var.same_as(replacement));
   EXPECT_TRUE(changed->iter_vars[0]->dom->extent.same_as(extent));
-  EXPECT_TRUE(changed->annotations.at("annotation").cast<PrimExpr>().same_as(expression));
+  EXPECT_TRUE(changed->annotations.at("annotation").cast<PrimExpr>().same_as(extent));
   EXPECT_TRUE(changed->body.as<BufferStoreNode>()->value.same_as(replacement));
   EXPECT_TRUE(changed->body.as<BufferStoreNode>()->buffer.same_as(changed->alloc_buffers[0]));
   EXPECT_TRUE(changed->alloc_buffers[0]->shape[0].same_as(extent));
@@ -253,10 +367,10 @@ TEST(STIRFunctor, GenericTIRXMutationPreservesBindersAndAnnotations) {
   EXPECT_TRUE(update.IsUnchanged());
   EXPECT_EQ(unique.get(), original);
   EXPECT_TRUE(unique->body.as<EvaluateNode>()->value.same_as(extent));
-  EXPECT_TRUE(unique->annotations.at("annotation").cast<PrimExpr>().same_as(expression));
+  EXPECT_TRUE(unique->annotations.at("annotation").cast<PrimExpr>().same_as(extent));
 }
 
-TEST(STIRFunctor, GenericTIRXPolicyPreservesInterruptAndErrorIdentity) {
+TEST(STIRFunctor, GenericTIRXFallbackPreservesInterruptAndErrorIdentity) {
   PrimVar annotation("annotation"), body("body");
   SBlock block({}, {}, {}, "block", Evaluate(body), std::nullopt, {}, {},
                {{"annotation", annotation}});
@@ -272,7 +386,7 @@ TEST(STIRFunctor, GenericTIRXPolicyPreservesInterruptAndErrorIdentity) {
   auto visitor = ffi::make_object<Visitor>();
   auto interrupt = visitor->Visit(block);
   ASSERT_TRUE(interrupt.has_value());
-  EXPECT_TRUE(interrupt.value()->value.cast<Var>().same_as(body));
+  EXPECT_TRUE(interrupt.value()->value.cast<Var>().same_as(annotation));
   EXPECT_EQ(visitor->count, 1);
 
   class Mutator : public tirx::StmtExprMutator {

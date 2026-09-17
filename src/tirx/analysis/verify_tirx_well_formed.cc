@@ -50,10 +50,9 @@ class ExecScopeVerifier : public Verifier<ExecScopeVerifier> {
  private:
   using Verifier::Visit;
 
-  bool EnterExtensionStmt(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+  void VisitStmtDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
                   << path;
-    return false;
   }
 
   void Dispatch_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override {
@@ -130,10 +129,9 @@ class LayoutVerifier : public Verifier<LayoutVerifier> {
  private:
   using Verifier::Visit;
 
-  bool EnterExtensionStmt(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+  void VisitStmtDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
                   << path;
-    return false;
   }
 };
 
@@ -144,10 +142,9 @@ class AsyncStructsVerifier : public Verifier<AsyncStructsVerifier> {
  private:
   using Verifier::Visit;
 
-  bool EnterExtensionStmt(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+  void VisitStmtDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
                   << path;
-    return false;
   }
 };
 
@@ -158,10 +155,9 @@ class DeviceFuncVerifier : public Verifier<DeviceFuncVerifier> {
  private:
   using Verifier::Visit;
 
-  bool EnterExtensionStmt(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+  void VisitStmtDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: " << op->GetTypeKey() << " is not allowed in tirx=True mode at "
                   << path;
-    return false;
   }
 };
 
@@ -189,11 +185,6 @@ bool VerifyTIRxWellFormed(const PrimFunc& func, bool assert_mode, bool device_fu
 bool VerifyTIRxWellFormed(const IRModule& mod, bool assert_mode, bool device_func) {
   for (const auto& [gvar, base_func] : mod->functions) {
     if (auto prim_func = base_func.as<PrimFunc>()) {
-      // s_tir=True PrimFuncs use s_tir semantics — defer to VerifyWellFormed.
-      if (prim_func.value()->attrs->dict.count(tvm::attr::kSTir)) {
-        if (!VerifyWellFormed(prim_func.value(), assert_mode)) return false;
-        continue;
-      }
       bool res = VerifyTIRxWellFormed(prim_func.value(), assert_mode, device_func);
       if (!res) {
         return false;

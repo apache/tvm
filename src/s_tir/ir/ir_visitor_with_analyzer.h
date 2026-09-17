@@ -25,14 +25,6 @@
 #include "../../tirx/ir_visitor_with_analyzer.h"
 
 namespace tvm {
-namespace tirx {
-class IRVisitorWithAnalyzer::Extension {
- public:
-  static ffi::Optional<VisitInterrupt> VisitBlock(IRVisitorWithAnalyzer* self,
-                                                  const s_tir::SBlockNode* op);
-  static void InitVTable(VTable* vtable);
-};
-}  // namespace tirx
 namespace s_tir {
 class IRVisitorWithAnalyzer : public tirx::IRVisitorWithAnalyzer {
  public:
@@ -40,15 +32,16 @@ class IRVisitorWithAnalyzer : public tirx::IRVisitorWithAnalyzer {
   using Parent::Visit;
   using Parent::Visit_;
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IRVisitorWithAnalyzer, Parent)
-  virtual ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) {
-    return Parent::Extension::VisitBlock(this, op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* op) {
+    return s_tir::StmtExprVisitor::VisitBlockRealize(this, op);
   }
 
  protected:
   static void InitVTable(VTable* vtable) {
     Parent::InitVTable(vtable);
-    vtable->ClearDispatch<SBlockNode>();
     SetDispatch<IRVisitorWithAnalyzer, SBlockNode>(vtable);
+    SetDispatch<IRVisitorWithAnalyzer, SBlockRealizeNode>(vtable);
   }
 };
 }  // namespace s_tir

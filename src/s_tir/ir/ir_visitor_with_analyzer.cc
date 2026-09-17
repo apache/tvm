@@ -20,26 +20,16 @@
 #include "ir_visitor_with_analyzer.h"
 
 namespace tvm {
-namespace tirx {
-ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Extension::VisitBlock(
-    IRVisitorWithAnalyzer* self, const s_tir::SBlockNode* op) {
-  return self->constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
+namespace s_tir {
+using namespace tirx;
+ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const SBlockNode* op) {
+  return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
     for (const auto& iter_var : op->iter_vars) {
-      self->analyzer_->Bind(iter_var->var, iter_var->dom);
+      analyzer_->Bind(iter_var->var, iter_var->dom);
     }
-    return s_tir::StmtExprVisitor::VisitBlock(self, op);
+    return s_tir::StmtExprVisitor::VisitBlock(this, op);
   });
 }
 
-void IRVisitorWithAnalyzer::Extension::InitVTable(VTable* vtable) {
-  vtable->ClearDispatch<s_tir::SBlockNode>();
-  vtable->SetDispatch<s_tir::SBlockNode>([](const ffi::Object* node, ObjectVisitor* base) {
-    return VisitBlock(static_cast<IRVisitorWithAnalyzer*>(base),
-                      static_cast<const s_tir::SBlockNode*>(node));
-  });
-}
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRVisitorWithAnalyzer::RegisterExtension(IRVisitorWithAnalyzer::Extension::InitVTable);
-}
-}  // namespace tirx
+}  // namespace s_tir
 }  // namespace tvm

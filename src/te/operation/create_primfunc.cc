@@ -40,7 +40,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../tirx/ir/data_type_rewriter.h"
+#include "../../s_tir/ir/data_type_rewriter.h"
 #include "graph.h"
 
 namespace tvm {
@@ -874,7 +874,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
   // Step 4. Create func and complete prim func.
   auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
   if (index_dtype_override.has_value()) {
-    func = ffi::make_object<IndexDataTypeNormalizer>(index_dtype_override.value())
+    func = ffi::make_object<s_tir::IndexDataTypeNormalizer>(index_dtype_override.value())
                ->Rewrite(std::move(func));
   }
   auto result = ffi::make_object<LayoutFreePlaceholdersNormalizer>()->Process(std::move(func));
@@ -950,7 +950,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_list,
   }
   auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
   if (index_dtype_override.has_value()) {
-    func = ffi::make_object<IndexDataTypeNormalizer>(index_dtype_override.value())
+    func = ffi::make_object<s_tir::IndexDataTypeNormalizer>(index_dtype_override.value())
                ->Rewrite(std::move(func));
   }
   auto result = ffi::make_object<LayoutFreePlaceholdersNormalizer>()->Process(std::move(func));

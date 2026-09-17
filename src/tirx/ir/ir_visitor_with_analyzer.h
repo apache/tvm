@@ -31,18 +31,11 @@
 #include <tvm/ir/with_context.h>
 #include <tvm/tirx/stmt_functor.h>
 
-#include <vector>
-
 namespace tvm {
 namespace tirx {
 
 class IRVisitorWithAnalyzer : public StmtExprVisitor {
  public:
-  using StmtExprVisitor::VTable;
-  // Dialect-owned handlers use nested access to the active traversal context.
-  class Extension;
-  // Extensions register during library initialization, before constructing a visitor.
-  static void RegisterExtension(void (*init)(VTable*));
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IRVisitorWithAnalyzer, StmtExprVisitor)
 
   PrimExpr Simplify(const PrimExpr& expr) { return analyzer_->Simplify(expr); }

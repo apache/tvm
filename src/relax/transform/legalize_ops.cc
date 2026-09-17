@@ -31,6 +31,7 @@
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tirx/transform.h>
 
 #include <set>
@@ -102,7 +103,7 @@ class LegalizeMutator : public ExprMutator {
       // Avoid accidental sharing of TIR variables in the legalized
       // PrimFuncs, when kernels for multiple devices are generated
       // from the same PrimFunc.
-      output = tirx::transform::ConvertSSA()(output);
+      output = s_tir::transform::ConvertSSA()(output);
     }
 
     return output;

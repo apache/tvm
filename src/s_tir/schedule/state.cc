@@ -432,7 +432,7 @@ ScheduleState::ScheduleState(IRModule mod, int debug_mask, bool enable_check) {
     const BaseFunc& base_func = kv.second;
     if (auto opt = base_func.as<PrimFunc>()) {
       auto func = opt.value();
-      VerifyWellFormed(func);
+      s_tir::VerifyWellFormed(func);
       SBlockInfoCollector::Collect(self, func->body);
     }
   }

@@ -119,19 +119,17 @@ class PrimFunc(BaseFunc, Scriptable):
 
         Examples
         --------
-        We can define a Meta TIR function with symbolic shape:
+        We can define a TIRX function with symbolic shape:
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @T.prim_func
             def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32) -> None:
                 A = T.match_buffer(a, (m, n), "float32")
                 B = T.match_buffer(b, (m, n), "float32")
 
                 for i, j in T.grid(m, n):
-                    with T.sblock():
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        B[vi, vj] = A[vi, vj]
+                    B[i, j] = A[i, j]
 
         Then we can make it specialized with given shapes or buffers.
 
@@ -146,15 +144,13 @@ class PrimFunc(BaseFunc, Scriptable):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @T.prim_func
             def mem_copy_16_16(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (16, 16), "float32")
                 B = T.match_buffer(b, (16, 16), "float32")
 
                 for i, j in T.grid(16, 16):
-                    with T.sblock():
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        B[vi, vj] = A[vi, vj]
+                    B[i, j] = A[i, j]
 
         Returns
         -------

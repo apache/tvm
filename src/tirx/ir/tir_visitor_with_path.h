@@ -45,23 +45,17 @@ namespace tirx {
 class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflection::AccessPath)>,
                            protected StmtFunctor<void(const Stmt&, ffi::reflection::AccessPath)> {
  public:
-  using StmtVisitor = StmtFunctor<void(const Stmt&, ffi::reflection::AccessPath)>;
-  using VTable = StmtVisitor::VTable;
-  // Dialect-owned handlers use nested access to the active traversal context.
-  class Extension;
-  TIRVisitorWithPath();
-  // Extensions register at library initialization, before first visitor construction.
-  static void RegisterExtension(void (*init)(VTable*));
+  TIRVisitorWithPath() = default;
   template <typename TObjectRef>
   void operator()(TObjectRef&& obj) {
     Visit(std::forward<TObjectRef>(obj), ffi::reflection::AccessPath::Root());
   }
 
  protected:
-  // A dialect restriction can reject extension statements without knowing concrete node types.
-  virtual bool EnterExtensionStmt(const ffi::Object* op, ffi::reflection::AccessPath path) {
-    return true;
-  }
+  using StmtVisitor = StmtFunctor<void(const Stmt&, ffi::reflection::AccessPath)>;
+  using VTable = StmtVisitor::VTable;
+  explicit TIRVisitorWithPath(const VTable* vtable) : StmtVisitor(vtable) {}
+  static void InitVTable(VTable* vtable) { StmtVisitor::InitVTable(vtable); }
   // Delegate to ExprFunctor::Dispatch for PrimExpr, and any subclasses
   virtual inline void Visit(const PrimExpr& obj, ffi::reflection::AccessPath path) {
     Dispatch(obj, path);
@@ -314,8 +308,8 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
 
 namespace {
 
-template <typename DerivedVerifier>
-class Verifier : protected TIRVisitorWithPath {
+template <typename DerivedVerifier, typename PathVisitor = TIRVisitorWithPath>
+class Verifier : protected PathVisitor {
  public:
   template <typename TirNodeRef>
   static bool Verify(const TirNodeRef& node, bool assert_on_error) {
@@ -326,6 +320,10 @@ class Verifier : protected TIRVisitorWithPath {
 
  protected:
   explicit Verifier(bool assert_on_error) : assert_on_error_(assert_on_error) {}
+  void VisitStmtDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+    Verify(false) << "TIR verifier does not support statement " << op->GetTypeKey() << " at "
+                  << path;
+  }
 
   /* \brief Helper class to handle the bool-or-assert handles
    *

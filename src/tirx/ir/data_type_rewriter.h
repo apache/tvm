@@ -47,18 +47,12 @@ namespace tirx {
  */
 class DataTypeLegalizer : public StmtExprMutator {
  public:
-  using StmtExprMutator::VTable;
-  // Dialect-owned handlers use nested access to the active traversal context.
-  class Extension;
-  // Register during library initialization, before the finalized table is first used.
-  static void RegisterExtension(void (*init)(VTable*));
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(DataTypeLegalizer, StmtExprMutator)
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
  protected:
   explicit DataTypeLegalizer(const VTable* vtable) : StmtExprMutator(vtable) {}
-  static void InitVTable(VTable* vtable);
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
@@ -103,17 +97,12 @@ class DataTypeLegalizer : public StmtExprMutator {
  */
 class IndexDataTypeRewriter : public DataTypeLegalizer {
  public:
-  using DataTypeLegalizer::VTable;
-  // Dialect-owned handlers use nested access to the active traversal context.
-  class Extension;
-  // Register during library initialization, before the finalized table is first used.
-  static void RegisterExtension(void (*init)(VTable*));
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IndexDataTypeRewriter, DataTypeLegalizer)
   using DataTypeLegalizer::Mutate;
   using DataTypeLegalizer::Mutate_;
 
  protected:
-  static void InitVTable(VTable* vtable);
+  explicit IndexDataTypeRewriter(const VTable* vtable) : DataTypeLegalizer(vtable) {}
   using Parent = DataTypeLegalizer;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override;
@@ -132,9 +121,6 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override;
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
-
-  // Dialect allocation hooks retain common buffer validation in the active rewriter.
-  virtual void ValidateAllocation(const BufferVar& buffer) {}
 
   // indicator of index expr to rewrite
   bool is_enabled_{false};
@@ -157,6 +143,7 @@ class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
   PrimFunc Rewrite(PrimFunc func);
 
  protected:
+  IndexDataTypeNormalizer(PrimType target_data_type, const VTable* vtable);
   using Parent = IndexDataTypeRewriter;
 
   UnchangedOr<PrimExpr> Mutate_(const IntImmNode* op, InplaceMode inplace_mode) override;

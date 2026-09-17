@@ -30,21 +30,7 @@
 
 namespace tvm {
 namespace tirx {
-namespace {
-std::vector<void (*)(IRVisitorWithAnalyzer::VTable*)>& IRVisitorWithAnalyzerExtensions() {
-  static std::vector<void (*)(IRVisitorWithAnalyzer::VTable*)> extensions;
-  return extensions;
-}
-}  // namespace
-
-void IRVisitorWithAnalyzer::RegisterExtension(void (*init)(VTable*)) {
-  IRVisitorWithAnalyzerExtensions().push_back(init);
-}
-
-void IRVisitorWithAnalyzer::InitVTable(VTable* vtable) {
-  StmtExprVisitor::InitVTable(vtable);
-  for (auto init : IRVisitorWithAnalyzerExtensions()) init(vtable);
-}
+void IRVisitorWithAnalyzer::InitVTable(VTable* vtable) { StmtExprVisitor::InitVTable(vtable); }
 
 ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const ForNode* op) {
   return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {

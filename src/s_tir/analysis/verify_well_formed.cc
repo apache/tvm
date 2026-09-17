@@ -19,7 +19,11 @@
 
 #include "../../tirx/analysis/verify_well_formed.h"
 
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
+
+#include "../ir/tir_visitor_with_path.h"
 
 namespace tvm {
 namespace s_tir {
@@ -133,6 +137,32 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
   bool has_error_{false};
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { tirx::RegisterWellFormedExtension(BlockVarAccessVerifier::Verify); }
+bool VerifyWellFormed(const tirx::PrimFunc& func, bool assert_mode) {
+  return BlockVarAccessVerifier::Verify(func, assert_mode) &&
+         tirx::VerifyWellFormedCommon<TIRVisitorWithPath>(func, assert_mode);
+}
+
+bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
+  for (const auto& [gvar, base_func] : mod->functions) {
+    if (auto func = base_func.as<tirx::PrimFunc>()) {
+      if (!BlockVarAccessVerifier::Verify(func.value(), assert_mode)) return false;
+    }
+  }
+  return tirx::VerifyWellFormedCommon<TIRVisitorWithPath>(mod, assert_mode);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::GlobalDef().def(
+      "s_tir.analysis.VerifyWellFormed", [](const ffi::ObjectRef& obj, bool assert_mode) {
+        if (auto func = obj.as<tirx::PrimFunc>()) {
+          return s_tir::VerifyWellFormed(func.value(), assert_mode);
+        }
+        if (auto mod = obj.as<IRModule>()) {
+          return s_tir::VerifyWellFormed(mod.value(), assert_mode);
+        }
+        TVM_FFI_THROW(TypeError) << "Expected a PrimFunc or IRModule, but received "
+                                 << obj->GetTypeKey();
+      });
+}
 }  // namespace s_tir
 }  // namespace tvm

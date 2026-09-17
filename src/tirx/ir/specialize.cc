@@ -21,8 +21,6 @@
  * \file src/tirx/ir/specialize.cc
  * \brief Specialize parameters of PrimFunc.
  */
-#include "specialize.h"
-
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
@@ -36,7 +34,6 @@
 
 #include <functional>
 #include <unordered_set>
-#include <vector>
 
 #include "../transform/ir_utils.h"
 
@@ -44,17 +41,6 @@ namespace tvm {
 namespace tirx {
 
 using VarMap = std::unordered_map<Var, Expr>;
-
-namespace {
-std::vector<void (*)(SpecializeVisitorVTable*)>& BufferPlannerExtensions() {
-  static std::vector<void (*)(SpecializeVisitorVTable*)> extensions;
-  return extensions;
-}
-}  // namespace
-
-void RegisterSpecializeBufferPlannerExtension(void (*init)(SpecializeVisitorVTable*)) {
-  BufferPlannerExtensions().push_back(init);
-}
 
 /**************** Helper functions ****************/
 
@@ -168,25 +154,18 @@ class PrimFuncSpecializer : public StmtExprMutator {
    public:
     using StmtExprVisitor::Visit_;
 
-    explicit BufferPlanner(PrimFuncSpecializer* specializer)
-        : StmtExprVisitor(GlobalVTable()), specializer_(specializer) {}
+    explicit BufferPlanner(PrimFuncSpecializer* specializer) : specializer_(specializer) {}
 
    private:
-    static const VTable* GlobalVTable() {
-      static const VTable table = [] {
-        VTable table;
-        StmtExprVisitor::InitVTable(&table);
-        for (auto init : BufferPlannerExtensions()) init(&table);
-        table.Finalize();
-        return table;
-      }();
-      return &table;
-    }
-
     ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
       if (op->ty.as<BufferTypeNode>()) {
         if (def_region_kind() == kTVMFFIDefRegionKindSimple) {
-          specializer_->MutateAllocBuffer(GetBufferVar(op));
+          const BufferVar buffer = GetBufferVar(op);
+          specializer_->MutateAllocBuffer(buffer);
+          // Structural extension nodes expose buffer definitions without a native
+          // statement hook. Plan their metadata as uses after defining the buffer.
+          return this->WithDefRegionKind(kTVMFFIDefRegionKindNone,
+                                         [&]() { return VisitBufferMetadata(buffer); });
         } else {
           specializer_->ValidateBufferUse(GetBufferVar(op));
         }
@@ -194,11 +173,15 @@ class PrimFuncSpecializer : public StmtExprMutator {
       return StmtExprVisitor::Visit_(op);
     }
 
+    ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
+      return this->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
+                                     [&]() { return this->Visit(op->buffer); });
+    }
+
     ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
       // The declaration establishes the buffer before visiting its data expression.
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
           kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->buffer); }));
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(op->buffer));
       return Visit(op->data);
     }
 

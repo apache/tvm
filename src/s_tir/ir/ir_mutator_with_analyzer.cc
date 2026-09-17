@@ -20,29 +20,17 @@
 #include "ir_mutator_with_analyzer.h"
 
 namespace tvm {
-namespace tirx {
-UnchangedOr<Stmt> IRMutatorWithAnalyzer::Extension::MutateBlock(IRMutatorWithAnalyzer* self,
-                                                                const s_tir::SBlockNode* op,
-                                                                InplaceMode inplace_mode) {
-  return self->constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
+namespace s_tir {
+using namespace tirx;
+UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
+  return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
     for (const auto& iter_var : op->iter_vars) {
-      self->analyzer_->Bind(iter_var->var, iter_var->dom);
-      self->iter_vars_.Set(iter_var->var, iter_var->dom);
+      analyzer_->Bind(iter_var->var, iter_var->dom);
+      iter_vars_.Set(iter_var->var, iter_var->dom);
     }
-    return s_tir::StmtExprMutator::MutateBlock(self, op, inplace_mode);
+    return s_tir::StmtExprMutator::MutateBlock(this, op, inplace_mode);
   });
 }
 
-void IRMutatorWithAnalyzer::Extension::InitVTable(VTable* vtable) {
-  vtable->ClearDispatch<s_tir::SBlockNode>();
-  vtable->SetDispatch<s_tir::SBlockNode>(
-      [](const ffi::Object* node, ObjectMutator* base, InplaceMode mode) -> UnchangedOr<ffi::Any> {
-        return MutateBlock(static_cast<IRMutatorWithAnalyzer*>(base),
-                           static_cast<const s_tir::SBlockNode*>(node), mode);
-      });
-}
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRMutatorWithAnalyzer::RegisterExtension(IRMutatorWithAnalyzer::Extension::InitVTable);
-}
-}  // namespace tirx
+}  // namespace s_tir
 }  // namespace tvm

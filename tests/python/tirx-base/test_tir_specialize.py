@@ -368,5 +368,49 @@ def test_specialization_updates_ty():
     tvm.ir.assert_structural_equal(after.ty, ty_expected)
 
 
+def test_specialize_structural_buffer_definitions():
+    """Extension definitions remain consistent across metadata, regions, and uses."""
+    n = tvm.tirx.Var("n", "int32")
+    allocated = tvm.tirx.decl_buffer((n,), "float32", name="allocated")
+    matched = tvm.tirx.decl_buffer((n,), "float32", name="matched")
+    source = tvm.tirx.BufferRegion(allocated, [tvm.ir.Range(n)])
+    read = tvm.tirx.BufferRegion(matched, [tvm.ir.Range(n)])
+    match = tvm.s_tir.MatchBufferRegion(matched, source)
+    block = tvm.s_tir.SBlock(
+        [],
+        [read],
+        [],
+        "use",
+        tvm.tirx.Evaluate(matched[n - 1]),
+        alloc_buffers=[allocated],
+        match_buffers=[match],
+        annotations={"extent": n},
+    )
+    before = tvm.tirx.PrimFunc([n], tvm.s_tir.SBlockRealize([], True, block))
+    assert tvm.s_tir.analysis.verify_well_formed(before)
+    after = before.specialize({n: 8})
+    assert tvm.s_tir.analysis.verify_well_formed(after)
+    result = after.body.block
+    assert not after.params
+    assert result.alloc_buffers[0].shape[0] == 8
+    assert result.match_buffers[0].buffer.shape[0] == 8
+    assert result.match_buffers[0].source.buffer.same_as(result.alloc_buffers[0])
+    assert result.reads[0].buffer.same_as(result.match_buffers[0].buffer)
+    assert result.body.value.source.same_as(result.match_buffers[0].buffer)
+    assert result.body.value.indices[0] == 7
+    assert result.annotations["extent"] == 8
+    # Specialization must not rewrite another owner's unspecialized definition.
+    assert block.alloc_buffers[0].shape[0].same_as(n)
+    assert block.match_buffers[0].buffer.shape[0].same_as(n)
+    assert block.annotations["extent"].same_as(n)
+
+
+def test_specialize_plain_tirx():
+    n = tvm.tirx.Var("n", "int32")
+    before = tvm.tirx.PrimFunc([n], tvm.tirx.Evaluate(n + 1))
+    expected = tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(9))
+    tvm.ir.assert_structural_equal(before.specialize({n: 8}), expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

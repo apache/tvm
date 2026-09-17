@@ -34,7 +34,7 @@
 #include <unordered_set>
 
 #include "../../s_tir/ir/ir_mutator_with_analyzer.h"
-#include "../../tirx/transform/ir_utils.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -722,7 +722,7 @@ Pass InjectVirtualThread() {
     n->body = ffi::make_object<VirtualThreadInjector>(analyzer)
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(std::move(n->body));
-    n->body = ConvertSSA(std::move(n->body));
+    n->body = s_tir::ConvertSSA(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectVirtualThread", {});
