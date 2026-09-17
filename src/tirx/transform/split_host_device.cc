@@ -337,8 +337,7 @@ class HostDeviceSplitter : public StmtExprMutator {
                                       assert_success});
 
     } else {
-      return Evaluate(
-          Call(PrimType::Void(), kernel_symbol_global, call_args).as_or_throw<PrimExpr>());
+      return Evaluate(Call(kernel_ret_type, kernel_symbol_global, call_args));
     }
   }
 
@@ -811,7 +810,8 @@ class DeviceKernelMutator : public StmtExprMutator {
         for (const Expr& arg : node->args) {
           args.push_back(arg);
         }
-        return Call(node->ty, builtin::call_extern(), args);
+        Type ret_ty = IsVoidType(node->ty) ? PrimType::Void() : node->ty;
+        return Call(ret_ty, builtin::call_extern(), args);
       }
     }
 
@@ -856,7 +856,7 @@ class DeviceKernelMutator : public StmtExprMutator {
                               .as_or_throw<PrimExpr>());
     }
 
-    PrimType node_ty = node->ty.as_or_throw<PrimType>();
+    PrimType node_ty = IsVoidType(node->ty) ? PrimType::Void() : node->ty.as_or_throw<PrimType>();
     PrimType ret_ty = node_ty.IsVoid() ? PrimType::Int(32) : node_ty;
 
     return Call(ret_ty, builtin::tvm_call_packed(), call_args).as_or_throw<PrimExpr>();

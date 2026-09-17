@@ -160,20 +160,3 @@ class FuncType(Type):
             arg_types,
             ret_type,
         )
-
-
-@tvm_ffi.register_object("ir.TensorMapType")
-class TensorMapType(Type):
-    """TensorMapType used in the low-level TIR.
-
-    Parameters
-    ----------
-    span : tvm.ir.Span
-        The span information.
-    """
-
-    def __init__(self, span=None):
-        self.__init_handle_by_constructor__(
-            _ffi_api.TensorMapType,
-            span,  # pylint: disable=no-member
-        )

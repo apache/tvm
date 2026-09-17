@@ -28,6 +28,7 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/script/builder/frame.h>
 #include <tvm/tirx/tile_primitive.h>
+#include <tvm/tirx/type.h>
 
 namespace tvm {
 namespace script {
@@ -524,7 +525,7 @@ inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
   return tvm::tirx::Var("", type_annotation);
 }
 
-inline Var TensorMap() { return tvm::tirx::Var("", PointerType(TensorMapType())); }
+inline Var TensorMap() { return tvm::tirx::Var("", PointerType(tvm::tirx::TensorMapType())); }
 
 #define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                      \
   inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {        \

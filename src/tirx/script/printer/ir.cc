@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/target/target.h>
+#include <tvm/tirx/type.h>
 
 #include "./utils.h"
 
@@ -89,7 +90,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           }
           element_type = LiteralDoc::DataType(prim_type->dtype,  //
                                               ty_p->Attr("element_type")->Attr("dtype"));
-        } else if (ty->element_type.as<TensorMapTypeNode>()) {
+        } else if (ty->element_type.as<tirx::TensorMapTypeNode>()) {
           return TIR(d, "TensorMap")->Call({});
         } else {
           element_type = d->AsDoc<ExprDoc>(ty->element_type, ty_p->Attr("element_type"));

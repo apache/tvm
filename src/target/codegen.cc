@@ -21,6 +21,7 @@
  * \file codegen.cc
  * \brief Common utilities to generated C style code.
  */
+#include <tvm/ffi/extra/base64.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -345,6 +346,22 @@ ffi::Module PackImportsToLLVM(const ffi::Module& mod, bool system_lib,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("target.Build", Build);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::TypeAttrDef<ffi::ModuleObj>()
+      .def("__data_to_json__",
+           [](const ffi::ModuleObj* node) {
+             std::string bytes = codegen::SerializeModuleToBytes(ffi::GetRef<ffi::Module>(node),
+                                                                 /*export_dso*/ false);
+             return ffi::Base64Encode(ffi::Bytes(bytes));
+           })
+      .def("__data_from_json__", [](const ffi::String& base64_bytes) {
+        ffi::Bytes bytes = ffi::Base64Decode(base64_bytes);
+        ffi::Module rtmod = codegen::DeserializeModuleFromBytes(bytes.operator std::string());
+        return rtmod;
+      });
 }
 
 // Export a few auxiliary function to the runtime namespace.

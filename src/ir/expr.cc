@@ -21,7 +21,6 @@
  * \file src/ir/expr.cc
  * \brief The expression AST nodes for the common IR infra.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
@@ -32,7 +31,6 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
-#include <tvm/te/tensor.h>
 
 #include <cmath>
 #include <utility>
