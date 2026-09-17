@@ -52,8 +52,8 @@ class CodeGenCUDA final : public CodeGenC {
   void PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
                               std::ostream& os) final;
   void PrintExtraAttrs(const PrimFunc& f, std::ostream& os) final;  // NOLINT(*)
-  void VisitStmt_(const ForNode* op) final;
-  void VisitStmt_(const WhileNode* op) final;
+  void Dispatch_(const ForNode* op) final;
+  void Dispatch_(const WhileNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   using CodeGenC::PrintType;
@@ -77,10 +77,10 @@ class CodeGenCUDA final : public CodeGenC {
   void Dispatch_(const FloatImmNode* op, std::ostream& os) final;
   void Dispatch_(const CallNode* op, std::ostream& os) final;
   void Dispatch_(const prim::CastNode* op, std::ostream& os) final;
-  void VisitStmt_(const EvaluateNode* op) final;
-  void VisitStmt_(const ReturnNode* op) final;
-  void VisitStmt_(const AllocBufferNode* op) final;
-  void VisitStmt_(const AttrStmtNode* op) final;
+  void Dispatch_(const EvaluateNode* op) final;
+  void Dispatch_(const ReturnNode* op) final;
+  void Dispatch_(const AllocBufferNode* op) final;
+  void Dispatch_(const AttrStmtNode* op) final;
 
   // Target
   Target target;

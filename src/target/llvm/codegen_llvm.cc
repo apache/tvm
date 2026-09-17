@@ -340,7 +340,7 @@ void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f) 
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   llvm::BasicBlock* entry = llvm::BasicBlock::Create(*ctx, "entry", function_);
   builder_->SetInsertPoint(entry);
-  this->VisitStmt(f->body);
+  this->Dispatch(f->body);
 
   // Add alignment attribute if needed.
   for (size_t i = 0; i < f->params.size(); ++i) {
@@ -901,7 +901,7 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
   EmitDebugLocation(body->span);
 
   PushLoopFrame(for_next, for_end);
-  this->VisitStmt(body);
+  this->Dispatch(body);
   PopLoopFrame();
   var_map_.erase(loop_var.get());
 
@@ -2071,7 +2071,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const prim::BroadcastNode* op) {
   return builder_->CreateShuffleVector(value, undef, mask);
 }
 
-void CodeGenLLVM::VisitStmt_(const BufferStoreNode* op) {
+void CodeGenLLVM::Dispatch_(const BufferStoreNode* op) {
   EmitDebugLocation(op);
   PrimType value_dtype = PrimType(op->value.ty()->dtype);
   Var buffer_var = op->buffer.var();
@@ -2111,7 +2111,7 @@ void CodeGenLLVM::VisitStmt_(const BufferStoreNode* op) {
   BufferAccessHelper(op->buffer, op->indices, std::nullopt, value_dtype, make_store);
 }
 
-void CodeGenLLVM::VisitStmt_(const ForNode* op) {
+void CodeGenLLVM::Dispatch_(const ForNode* op) {
   EmitDebugLocation(op);
   analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
   if (op->kind == ForKind::kUnrolled) {
@@ -2127,7 +2127,7 @@ void CodeGenLLVM::VisitStmt_(const ForNode* op) {
   CreateSerialFor(begin_value, end_value, MakeValue(step), op->loop_var, op->body);
 }
 
-void CodeGenLLVM::VisitStmt_(const WhileNode* op) {
+void CodeGenLLVM::Dispatch_(const WhileNode* op) {
   EmitDebugLocation(op);
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   auto* while_cond = llvm::BasicBlock::Create(*ctx, "while_cond", function_);
@@ -2138,13 +2138,13 @@ void CodeGenLLVM::VisitStmt_(const WhileNode* op) {
   builder_->CreateCondBr(MakeValue(op->condition), while_body, while_merge);
   builder_->SetInsertPoint(while_body);
   PushLoopFrame(while_cond, while_merge);
-  this->VisitStmt(op->body);
+  this->Dispatch(op->body);
   PopLoopFrame();
   builder_->CreateBr(while_cond);
   builder_->SetInsertPoint(while_merge);
 }
 
-void CodeGenLLVM::VisitStmt_(const ReturnNode* op) {
+void CodeGenLLVM::Dispatch_(const ReturnNode* op) {
   EmitDebugLocation(op);
   auto const* val = op->value.as<IntImmNode>();
   TVM_FFI_ICHECK(val) << "Return should be transformed to return zero "
@@ -2159,7 +2159,7 @@ void CodeGenLLVM::VisitStmt_(const ReturnNode* op) {
   builder_->SetInsertPoint(ret_dummy);
 }
 
-void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
+void CodeGenLLVM::Dispatch_(const IfThenElseNode* op) {
   EmitDebugLocation(op);
   llvm::Value* cond = MakeValue(op->condition);
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
@@ -2169,21 +2169,21 @@ void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
     auto* else_block = llvm::BasicBlock::Create(*ctx, "if_else", function_);
     builder_->CreateCondBr(cond, then_block, else_block);
     builder_->SetInsertPoint(then_block);
-    this->VisitStmt(op->then_case);
+    this->Dispatch(op->then_case);
     builder_->CreateBr(end_block);
     builder_->SetInsertPoint(else_block);
-    this->VisitStmt(op->else_case.value());
+    this->Dispatch(op->else_case.value());
     builder_->CreateBr(end_block);
   } else {
     builder_->CreateCondBr(cond, then_block, end_block, md_very_likely_branch_);
     builder_->SetInsertPoint(then_block);
-    this->VisitStmt(op->then_case);
+    this->Dispatch(op->then_case);
     builder_->CreateBr(end_block);
   }
   builder_->SetInsertPoint(end_block);
 }
 
-void CodeGenLLVM::VisitStmt_(const AllocBufferNode* op) {
+void CodeGenLLVM::Dispatch_(const AllocBufferNode* op) {
   EmitDebugLocation(op);
   TVM_FFI_ICHECK_EQ(op->buffer->shape.size(), 1)
       << "LLVM codegen only supports flat 1-d buffer allocation, but allocation of "
@@ -2230,7 +2230,7 @@ void CodeGenLLVM::VisitStmt_(const AllocBufferNode* op) {
   }
 }
 
-void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
+void CodeGenLLVM::Dispatch_(const AttrStmtNode* op) {
   EmitDebugLocation(op);
   if (op->attr_key == tirx::attr::thread_extent) {
     IterVar iv = op->node.as_or_throw<IterVar>();
@@ -2249,16 +2249,16 @@ void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
                                           alloc_storage_info_[v].alignment);
     }
   }
-  this->VisitStmt(op->body);
+  this->Dispatch(op->body);
 }
 
-void CodeGenLLVM::VisitStmt_(const AssertStmtNode* op) {
+void CodeGenLLVM::Dispatch_(const AssertStmtNode* op) {
   EmitDebugLocation(op);
   // AssertStmt is a leaf — no body to visit.
   // Constraint scoping is handled by ScopeStack in analysis passes.
 }
 
-void CodeGenLLVM::VisitStmt_(const BindNode* op) {
+void CodeGenLLVM::Dispatch_(const BindNode* op) {
   EmitDebugLocation(op);
   const VarNode* v = op->var.get();
   TVM_FFI_ICHECK(!var_map_.count(v));
@@ -2297,14 +2297,14 @@ void CodeGenLLVM::VisitStmt_(const BindNode* op) {
   AddDebugInformation(value, op->var);
 }
 
-void CodeGenLLVM::VisitStmt_(const SeqStmtNode* op) {
+void CodeGenLLVM::Dispatch_(const SeqStmtNode* op) {
   EmitDebugLocation(op);
   for (Stmt stmt : op->seq) {
-    this->VisitStmt(stmt);
+    this->Dispatch(stmt);
   }
 }
 
-void CodeGenLLVM::VisitStmt_(const DeclBufferNode* op) {
+void CodeGenLLVM::Dispatch_(const DeclBufferNode* op) {
   EmitDebugLocation(op);
   const VarNode* buffer = op->buffer.get();
   TVM_FFI_ICHECK(!var_map_.count(buffer));
@@ -2338,7 +2338,7 @@ void CodeGenLLVM::VisitStmt_(const DeclBufferNode* op) {
   }
 }
 
-void CodeGenLLVM::VisitStmt_(const EvaluateNode* op) {
+void CodeGenLLVM::Dispatch_(const EvaluateNode* op) {
   EmitDebugLocation(op);
   MakeValue(op->value);
 }

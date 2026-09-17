@@ -38,7 +38,7 @@
 #include <unordered_set>
 
 #include "../../arith/pattern_match.h"
-#include "../ir_mutator_with_analyzer.h"
+#include "../ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace tirx {

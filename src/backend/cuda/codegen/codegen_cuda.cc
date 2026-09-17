@@ -305,10 +305,10 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
   }
 }
 
-void CodeGenCUDA::VisitStmt_(const ReturnNode* op) {
+void CodeGenCUDA::Dispatch_(const ReturnNode* op) {
   if (!in_kernel_launch_) {
     // __device__ subroutines return real values.
-    CodeGenC::VisitStmt_(op);
+    CodeGenC::Dispatch_(op);
     return;
   }
   const auto* value = op->value.as<IntImmNode>();
@@ -336,7 +336,7 @@ std::string CodeGenCUDA::Finish() {
   return CodeGenC::Finish();
 }
 
-void CodeGenCUDA::VisitStmt_(const tirx::ForNode* op) {
+void CodeGenCUDA::Dispatch_(const tirx::ForNode* op) {
   // Materialize the loop bounds before emitting an unroll pragma.  PrintExpr
   // may introduce temporaries (for example, for a Select expression).  CUDA
   // requires #pragma unroll to immediately precede the loop it controls; if
@@ -380,7 +380,7 @@ void CodeGenCUDA::VisitStmt_(const tirx::ForNode* op) {
   stream << "}\n";
 }
 
-void CodeGenCUDA::VisitStmt_(const WhileNode* op) {
+void CodeGenCUDA::Dispatch_(const WhileNode* op) {
   PrintIndent();
   // Match CodeGenC: dynamic-trip-count loops must not be unrolled.
   stream << "#pragma unroll 1\n";
@@ -1612,7 +1612,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
   }
 }
 
-void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
+void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
   if (op->attr_key == s_tir::attr::fragment_shape) {
     const VarNode* buffer = op->node.as<VarNode>();
     const prim::StringImmNode* shape_str = op->value.as<prim::StringImmNode>();
@@ -1625,7 +1625,7 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
     const IntImmNode* queue_id = op->value.as<IntImmNode>();
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
         << "For CUDA, the index of an async queue must be 0.";
-    this->VisitStmt(op->body);
+    this->Dispatch(op->body);
     static const Op& ptx_cp_async_commit_group_op = Op::Get("tirx.ptx.cp_async_commit_group");
     // ptx Call layout: [operands...] [slot tokens] [pred marker ""].
     auto commit_group =
@@ -1655,12 +1655,12 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
     this->stream << ";\n";
     auto inner = op->body.as<AttrStmtNode>();
     TVM_FFI_ICHECK(inner);
-    this->VisitStmt(inner->body);
+    this->Dispatch(inner->body);
     return;
   } else if (op->attr_key == "disable_unroll") {
     PrintIndent();
     stream << "#pragma unroll 1\n";
-    this->VisitStmt(op->body);
+    this->Dispatch(op->body);
     return;
   } else if (op->attr_key == "pragma_unroll") {
     PrintIndent();
@@ -1669,14 +1669,14 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
       stream << " " << count->value;
     }
     stream << "\n";
-    this->VisitStmt(op->body);
+    this->Dispatch(op->body);
     return;
   } else if (op->attr_key == tirx::attr::thread_extent) {
   }
-  CodeGenC::VisitStmt_(op);
+  CodeGenC::Dispatch_(op);
 }
 
-void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
+void CodeGenCUDA::Dispatch_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
   std::string vid = AllocVarID(op->buffer.get(), op->buffer.name() + "_ptr");
 
@@ -1748,7 +1748,7 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
   }
 }
 
-void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
+void CodeGenCUDA::Dispatch_(const EvaluateNode* op) {
   if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call && call->op.same_as(tirx::builtin::tvm_global_barrier_kinit())) {
@@ -1761,7 +1761,7 @@ void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
     PrintIndent();
     stream << "}\n";
   } else {
-    CodeGenC::VisitStmt_(op);
+    CodeGenC::Dispatch_(op);
   }
 }
 

@@ -53,6 +53,9 @@ using namespace tirx;
 class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
                      public StmtFunctor<void(const Stmt&)> {
  public:
+  using tirx::ExprFunctor<spirv::Value(const Expr&)>::Dispatch;
+  using StmtFunctor::Dispatch;
+
   /*!
    * \brief Initialize the codegen based on a specific target.
    *
@@ -105,17 +108,17 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   spirv::Value Dispatch_(const TensorLoadNode* op) override;
   spirv::Value Dispatch_(const prim::ShuffleNode* op) override;
   // stmt
-  void VisitStmt_(const BufferStoreNode* op) override;
-  void VisitStmt_(const ForNode* op) override;
-  void VisitStmt_(const WhileNode* op) override;
-  void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const DeclBufferNode* op) override;
-  void VisitStmt_(const AllocBufferNode* op) override;
-  void VisitStmt_(const AttrStmtNode* op) override;
-  void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const BindNode* op) override;
-  void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const EvaluateNode* op) override;
+  void Dispatch_(const BufferStoreNode* op) override;
+  void Dispatch_(const ForNode* op) override;
+  void Dispatch_(const WhileNode* op) override;
+  void Dispatch_(const IfThenElseNode* op) override;
+  void Dispatch_(const DeclBufferNode* op) override;
+  void Dispatch_(const AllocBufferNode* op) override;
+  void Dispatch_(const AttrStmtNode* op) override;
+  void Dispatch_(const AssertStmtNode* op) override;
+  void Dispatch_(const BindNode* op) override;
+  void Dispatch_(const SeqStmtNode* op) override;
+  void Dispatch_(const EvaluateNode* op) override;
 
  protected:
   /*! \brief Storage information for a buffer */
