@@ -5287,6 +5287,34 @@ def test_reshape_zero_sized_dim_symbolic_target():
         verify_model_numerically(model, example_args, dynamic_shapes={"x": {0: batch}})
 
 
+def test_reshape_symbolic_target_same_rank():
+    # The identity-reshape shortcut compared the two shapes with list equality. On a
+    # symbolic dimension `==` builds a PrimExpr instead of answering, and Python then
+    # raises asking it for a truth value -- but only when the ranks match, since list
+    # equality compares lengths first. So `x.reshape(x.shape[0], -1)` imported and
+    # `x.reshape(x.shape[0], 0, x.shape[0])` on a rank-3 input raised ValueError.
+    class SymbolAtBothEnds(Module):
+        def forward(self, x):
+            return x.reshape(x.shape[0], 0, x.shape[0])
+
+    class Identity(Module):
+        def forward(self, x):
+            return x.reshape(x.shape[0], 2, 4)
+
+    batch = torch.export.Dim("batch", min=1, max=64)
+    verify_model_numerically(
+        SymbolAtBothEnds(),
+        (torch.randn(3, 0, 4, dtype=torch.float32),),
+        dynamic_shapes={"x": {0: batch}},
+    )
+    # A genuine identity is still recognised with a symbolic dimension: no reshape emitted.
+    x = torch.randn(3, 2, 4, dtype=torch.float32)
+    mod = from_exported_program(export(Identity(), (x,), dynamic_shapes={"x": {0: batch}}))
+    bindings = mod["main"].body.blocks[0].bindings
+    assert not any("reshape" in str(b.value) for b in bindings), mod["main"]
+    verify_model_numerically(Identity(), (x,), dynamic_shapes={"x": {0: batch}})
+
+
 def test_roll():
     class Roll1(Module):
         def forward(self, x):
