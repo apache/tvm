@@ -49,7 +49,6 @@ using namespace tvm::prim;
 using relax::FCodegen;
 using relax::MatchResult;
 using relax::TIRPattern;
-using s_tir::ExprComparator;
 using s_tir::TensorizeComparator;
 
 /*! \brief helper to match a for stmt to a pattern*/
@@ -86,7 +85,7 @@ class ForMatcher : public TensorizeComparator {
   std::vector<BufferVar> evaluated_buffers;
 
  private:
-  using ExprComparator::Dispatch_;
+  using TensorizeComparator::Dispatch_;
 
   ffi::Optional<PrimExpr> QueryEvaluatedSymbols(const Var& var) {
     for (const SymbolMap& symbol_map : evaluated_symbols) {
