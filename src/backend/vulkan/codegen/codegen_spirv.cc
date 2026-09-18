@@ -211,9 +211,9 @@ spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
   }
 
   auto type_int = builder_->GetSType(PrimType::Int(32));
-  builder_->MakeInst(spv::OpControlBarrier, builder_->prim::IntImm(type_int, sync_scope),
-                     builder_->prim::IntImm(type_int, sync_scope),
-                     builder_->prim::IntImm(type_int, memory_semantics));
+  builder_->MakeInst(spv::OpControlBarrier, builder_->IntImm(type_int, sync_scope),
+                     builder_->IntImm(type_int, sync_scope),
+                     builder_->IntImm(type_int, memory_semantics));
 
   return value;
 }
@@ -248,11 +248,11 @@ spirv::Value CodeGenSPIRV::Dispatch_(const prim::IntImmNode* op) {
     TVM_FFI_ICHECK_GE(value.value(), -bound) << "Integer immediate does not fit " << dtype;
     TVM_FFI_ICHECK_LT(value.value(), bound) << "Integer immediate does not fit " << dtype;
   }
-  return builder_->prim::IntImm(stype, value.value());
+  return builder_->IntImm(stype, value.value());
 }
 
 spirv::Value CodeGenSPIRV::Dispatch_(const prim::FloatImmNode* op) {
-  return builder_->prim::FloatImm(builder_->GetSType(op->ty.as_or_throw<PrimType>()), op->value);
+  return builder_->FloatImm(builder_->GetSType(op->ty.as_or_throw<PrimType>()), op->value);
 }
 
 spirv::Value CodeGenSPIRV::Dispatch_(const prim::StringImmNode* op) {
@@ -494,7 +494,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     PrimExpr dst_index = op->args[4].as_or_throw<PrimExpr>();
     int stride = AsIntImmNode(op->args[6])->value.as<int>().value();
     auto type_int = builder_->GetSType(PrimType::Int(32));
-    spirv::Value stride_val = builder_->prim::IntImm(type_int, stride);
+    spirv::Value stride_val = builder_->IntImm(type_int, stride);
     std::string layout = (op->args[7].as<prim::StringImmNode>())->value;
     spirv::SType dst_ptr_type =
         builder_->GetPointerType(fragment_type, fragment_info_[buffer_node].sclass);
@@ -555,7 +555,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     PrimExpr index = op->args[4].as_or_throw<PrimExpr>();
     int stride = AsIntImmNode(op->args[6])->value.as<int>().value();
     auto type_int = builder_->GetSType(PrimType::Int(32));
-    spirv::Value stride_val = builder_->prim::IntImm(type_int, stride);
+    spirv::Value stride_val = builder_->IntImm(type_int, stride);
     std::string layout = (op->args[7].as<prim::StringImmNode>())->value;
     spirv::Value dst_ptr = MakeValue(op->args[5]);
     spirv::SType& fragment_type = fragment_info_[buffer_node].stype;
@@ -760,7 +760,7 @@ void CodeGenSPIRV::Dispatch_(const ForNode* op) {
   spirv::Value step;
   if (op->HasTrivialStep()) {
     step = op->loop_var.ty().MatchesCode(DLDataTypeCode::kDLInt)
-               ? builder_->prim::IntImm(init_value.stype, 1)
+               ? builder_->IntImm(init_value.stype, 1)
                : builder_->UIntImm(init_value.stype, 1);
   } else {
     step = MakeValue(tvm::prim::cast(end.ty(), *op->step));

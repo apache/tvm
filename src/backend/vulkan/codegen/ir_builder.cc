@@ -87,7 +87,7 @@ void IRBuilder::InitPreDefs() {
   t_uint32_ = DeclareType(PrimType::UInt(32));
   t_bool_ = DeclareType(PrimType::Bool());
   t_fp32_ = DeclareType(PrimType::Float(32));
-  const_i32_zero_ = prim::IntImm(t_int32_, 0);
+  const_i32_zero_ = IntImm(t_int32_, 0);
 
   // declare void, and void functions
   t_void_.id = id_counter_++;
@@ -229,13 +229,13 @@ Value IRBuilder::StructArrayAccess(const SType& res_type, Value buffer, Value in
   return MakeValue(spv::OpInBoundsAccessChain, res_type, buffer, const_i32_zero_, index);
 }
 
-Value IRBuilder::prim::IntImm(const SType& dtype, int64_t value) {
+Value IRBuilder::IntImm(const SType& dtype, int64_t value) {
   return GetConst_(dtype, reinterpret_cast<uint64_t*>(&value));
 }
 
 Value IRBuilder::UIntImm(const SType& dtype, uint64_t value) { return GetConst_(dtype, &value); }
 
-Value IRBuilder::prim::FloatImm(const SType& dtype, double value) {
+Value IRBuilder::FloatImm(const SType& dtype, double value) {
   PrimType primitive_type = AsPrimType(dtype);
   if (primitive_type.bits() == 64) {
     return GetConst_(dtype, reinterpret_cast<uint64_t*>(&value));
@@ -252,7 +252,7 @@ Value IRBuilder::prim::FloatImm(const SType& dtype, double value) {
     if (data == 0)
       return GetConst_(dtype, &data);
     else
-      return Cast(dtype, prim::FloatImm(GetSType(PrimType::Float(32)), value));
+      return Cast(dtype, FloatImm(GetSType(PrimType::Float(32)), value));
   }
 }
 
@@ -323,7 +323,7 @@ Value IRBuilder::DeclarePushConstant(const std::vector<SType>& value_types) {
 Value IRBuilder::GetPushConstant(Value ptr_push_const, const SType& v_type, uint32_t index) {
   SType ptr_vtype = this->GetPointerType(v_type, spv::StorageClassPushConstant);
   Value ptr = this->MakeValue(spv::OpAccessChain, ptr_vtype, ptr_push_const,
-                              prim::IntImm(t_int32_, static_cast<int64_t>(index)));
+                              IntImm(t_int32_, static_cast<int64_t>(index)));
   return this->MakeValue(spv::OpLoad, v_type, ptr);
 }
 
@@ -342,7 +342,7 @@ void IRBuilder::DecorateBufferArgument(Value val, uint32_t descriptor_set, uint3
 Value IRBuilder::GetUniform(Value ptr_push_const, const SType& v_type, uint32_t index) {
   SType ptr_vtype = this->GetPointerType(v_type, spv::StorageClassUniform);
   Value ptr = this->MakeValue(spv::OpAccessChain, ptr_vtype, ptr_push_const,
-                              prim::IntImm(t_int32_, static_cast<int64_t>(index)));
+                              IntImm(t_int32_, static_cast<int64_t>(index)));
   return this->MakeValue(spv::OpLoad, v_type, ptr);
 }
 
@@ -728,7 +728,7 @@ Value IRBuilder::Cast(const SType& dst_type, spirv::Value value) {
   TVM_FFI_ICHECK_EQ(from.lanes(), to.lanes());
   if (from == PrimType::Bool()) {
     if (to.MatchesCode(DLDataTypeCode::kDLInt)) {
-      return Select(value, prim::IntImm(dst_type, 1), prim::IntImm(dst_type, 0));
+      return Select(value, IntImm(dst_type, 1), IntImm(dst_type, 0));
     } else if (to.MatchesCode(DLDataTypeCode::kDLUInt)) {
       return Select(value, UIntImm(dst_type, 1), UIntImm(dst_type, 0));
     } else if (to.MatchesCode(DLDataTypeCode::kDLFloat)) {
@@ -740,7 +740,7 @@ Value IRBuilder::Cast(const SType& dst_type, spirv::Value value) {
     }
   } else if (to == PrimType::Bool()) {
     if (from.MatchesCode(DLDataTypeCode::kDLInt)) {
-      return NE(value, prim::IntImm(value.stype, 0));
+      return NE(value, IntImm(value.stype, 0));
     } else if (from.MatchesCode(DLDataTypeCode::kDLUInt)) {
       return NE(value, UIntImm(value.stype, 0));
     } else {
@@ -787,7 +787,7 @@ Value IRBuilder::GetCompositeConst(const SType& ele_stype, const SType& composit
   if (it != composite_const_tbl_.end()) {
     return it->second;
   }
-  spirv::Value const_val = prim::FloatImm(ele_stype, dval);
+  spirv::Value const_val = FloatImm(ele_stype, dval);
   Value new_val = NewValue(composite_stype, kNormal);
   ib_.Begin(spv::OpConstantComposite).AddSeq(composite_stype, new_val, const_val);
   ib_.Commit(&global_);
