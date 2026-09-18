@@ -20,13 +20,9 @@ import tvm_ffi
 
 from .. import _ffi_api as _ir_ffi_api
 from ..base import Span
-from ..expr import Expr, ExprWithOp, Var
+from ..expr import Constant, Expr, ExprWithOp, Var
 from ..type import PrimType
 from . import _ffi_api as _prim_ffi_api
-
-
-class ConstExpr(ExprWithOp):
-    pass
 
 
 class BinaryOpExpr(ExprWithOp):
@@ -44,7 +40,7 @@ class LogicalExpr(ExprWithOp):
 
 
 @tvm_ffi.register_object("ir.FloatImm")
-class FloatImm(ConstExpr):
+class FloatImm(Constant):
     """Float constant.
 
     Parameters
@@ -76,7 +72,7 @@ class FloatImm(ConstExpr):
 
 
 @tvm_ffi.register_object("ir.IntImm")
-class IntImm(ConstExpr):
+class IntImm(Constant):
     """Int constant.
 
     Parameters
@@ -120,38 +116,6 @@ class IntImm(ConstExpr):
 
     def __bool__(self) -> bool:
         return self.__nonzero__()
-
-
-@tvm_ffi.register_object("prim.StringImm")  # type: ignore
-class StringImm(ConstExpr):
-    """String constant.
-
-    Parameters
-    ----------
-    value : str
-        The value of the function.
-
-    span : Optional[Span]
-        The location of this expression in the source code.
-    """
-
-    value: str
-
-    def __init__(self, value: str, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.StringImm, value, span)  # type: ignore
-
-    def __eq__(self, other: Expr) -> bool:
-        if isinstance(other, ConstExpr):
-            return self.value == other.value
-        return self.value == other
-
-    def __ne__(self, other: Expr) -> bool:
-        if isinstance(other, ConstExpr):
-            return self.value != other.value
-        return self.value != other
-
-    def __hash__(self) -> int:
-        return Expr.__hash__(self)
 
 
 @tvm_ffi.register_object("prim.Cast")

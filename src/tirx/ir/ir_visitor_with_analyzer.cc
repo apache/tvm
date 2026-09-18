@@ -84,7 +84,8 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const AttrStmtNode* 
         op->attr_key == tvm::tirx::attr::virtual_thread) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      analyzer_->Bind(iv->var, Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value));
+      PrimExpr extent = op->value.as_or_throw<PrimExpr>();
+      analyzer_->Bind(iv->var, Range::FromMinExtent(IntImm(extent.ty(), 0), extent));
     }
     return StmtExprVisitor::Visit_(op);
   });

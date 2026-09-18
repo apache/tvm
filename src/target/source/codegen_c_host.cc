@@ -223,7 +223,7 @@ void CodeGenCHost::PrintGetFuncFromBackend(const std::string& func_name,
 }
 
 void CodeGenCHost::PrintCallPacked(const CallNode* op) {
-  const prim::StringImmNode* func_name = op->args[0].as<prim::StringImmNode>();
+  const StringImmNode* func_name = op->args[0].as<StringImmNode>();
   TVM_FFI_ICHECK(func_name != nullptr)
       << "tvm_call_[c]packed_lowered expects first argument as function name";
   int64_t begin = static_cast<int64_t>(op->args[2].as<IntImmNode>()->value);
@@ -269,7 +269,7 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
 }
 
 std::string CodeGenCHost::GetPackedName(const CallNode* op) {
-  const prim::StringImmNode* s = op->args[0].as<prim::StringImmNode>();
+  const StringImmNode* s = op->args[0].as<StringImmNode>();
   TVM_FFI_ICHECK(s != nullptr) << "tvm_call_packed_lowered expects first argument as function name";
   std::string func_name = s->value;
   std::string packed_func_name = func_name + "_packed";
@@ -288,7 +288,7 @@ std::string CodeGenCHost::GetPackedName(const CallNode* op) {
 void CodeGenCHost::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (op->op.same_as(builtin::tvm_stack_alloca())) {
     std::string stack_name = name_supply_->FreshName("stack");
-    const std::string& type = op->args[0].as<prim::StringImmNode>()->value;
+    const std::string& type = op->args[0].as<StringImmNode>()->value;
     const IntImmNode* num = op->args[1].as<IntImmNode>();
     TVM_FFI_ICHECK(num != nullptr);
     static_assert(alignof(TVMFFIAny) % alignof(DLTensor) == 0, "invariant");

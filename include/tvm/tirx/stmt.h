@@ -122,7 +122,7 @@ class AttrStmtNode : public StmtNode {
   /*! \brief the type key of the attribute */
   ffi::String attr_key;
   /*! \brief The attribute value, value is well defined at current scope. */
-  PrimExpr value;
+  Expr value;
   /*! \brief The body statement to be executed */
   Stmt body;
 
@@ -143,8 +143,7 @@ class AttrStmtNode : public StmtNode {
  */
 class AttrStmt : public Stmt {
  public:
-  TVM_DLL AttrStmt(ffi::Any node, ffi::String attr_key, PrimExpr value, Stmt body,
-                   Span span = Span());
+  TVM_DLL AttrStmt(ffi::Any node, ffi::String attr_key, Expr value, Stmt body, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttrStmt, Stmt, AttrStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AttrStmtNode);
@@ -164,9 +163,9 @@ class AssertStmtNode : public StmtNode {
   /*! \brief Condition to be checked. */
   PrimExpr condition;
   /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
-  prim::StringImm error_kind;
+  StringImm error_kind;
   /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
-  ffi::Array<prim::StringImm> message_parts;
+  ffi::Array<StringImm> message_parts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -184,8 +183,8 @@ class AssertStmtNode : public StmtNode {
  */
 class AssertStmt : public Stmt {
  public:
-  TVM_DLL AssertStmt(PrimExpr condition, prim::StringImm error_kind,
-                     ffi::Array<prim::StringImm> message_parts, Span span = Span());
+  TVM_DLL AssertStmt(PrimExpr condition, StringImm error_kind, ffi::Array<StringImm> message_parts,
+                     Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AssertStmt, Stmt, AssertStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AssertStmtNode);

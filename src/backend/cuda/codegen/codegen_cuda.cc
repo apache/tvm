@@ -207,22 +207,22 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
     if (op->attr_key == tirx::attr::thread_extent) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       if (iv->var->name == "threadIdx.x" || iv->thread_tag == "threadIdx.x") {
-        threadIdx_x_ext = op->value;
+        threadIdx_x_ext = op->value.as_or_throw<PrimExpr>();
       }
       if (iv->var->name == "threadIdx.y" || iv->thread_tag == "threadIdx.y") {
-        threadIdx_y_ext = op->value;
+        threadIdx_y_ext = op->value.as_or_throw<PrimExpr>();
       }
       if (iv->var->name == "threadIdx.z" || iv->thread_tag == "threadIdx.z") {
-        threadIdx_z_ext = op->value;
+        threadIdx_z_ext = op->value.as_or_throw<PrimExpr>();
       }
       if (iv->var->name == "clusterCtaIdx.x" || iv->thread_tag == "clusterCtaIdx.x") {
-        clusterCtaIdx_x_ext = op->value;
+        clusterCtaIdx_x_ext = op->value.as_or_throw<PrimExpr>();
       }
       if (iv->var->name == "clusterCtaIdx.y" || iv->thread_tag == "clusterCtaIdx.y") {
-        clusterCtaIdx_y_ext = op->value;
+        clusterCtaIdx_y_ext = op->value.as_or_throw<PrimExpr>();
       }
       if (iv->var->name == "clusterCtaIdx.z" || iv->thread_tag == "clusterCtaIdx.z") {
-        clusterCtaIdx_z_ext = op->value;
+        clusterCtaIdx_z_ext = op->value.as_or_throw<PrimExpr>();
       }
     }
     return StmtExprVisitor::Visit_(op);
@@ -836,7 +836,7 @@ void CodeGenCUDA::PrintVecElemStore(const std::string& vec, const PrimType& t, i
 }
 
 void CodeGenCUDA::PrintStorageSync(const CallNode* op) {
-  const std::string& sync = op->args[0].as<prim::StringImmNode>()->value;
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
     // DO nothing.
   } else if (sync == "shared" || sync == "shared.dyn") {
@@ -1037,8 +1037,8 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     for (size_t i = 1; i < num_args + 1; i++) {
       args.push_back(this->PrintExpr(op->args[i]));
     }
-    std::string source_code = op->args[num_args + 1].as<prim::StringImmNode>()->value;
-    std::string func_name = op->args[0].as<prim::StringImmNode>()->value;
+    std::string source_code = op->args[num_args + 1].as<StringImmNode>()->value;
+    std::string func_name = op->args[0].as<StringImmNode>()->value;
     os << func_name << "(";
     for (size_t i = 0; i < num_args; i++) {
       const auto& arg = args[i];
@@ -1117,7 +1117,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     this->PrintExpr(op->args[4], os);
     os << "], ";
     this->PrintExpr(op->args[6], os);
-    if (const prim::StringImmNode* str = op->args[7].as<prim::StringImmNode>()) {
+    if (const StringImmNode* str = op->args[7].as<StringImmNode>()) {
       os << ", nvcuda::wmma::mem_" << str->value;
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid parameters";
@@ -1211,12 +1211,12 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     //       c_ptr_var, c_offset, saturate, [bit_op]
     codegen_tags_.insert("mma");
     TVM_FFI_ICHECK(op->args.size() == 13U || op->args.size() == 14U);
-    std::string shape = op->args[0].as_or_throw<prim::StringImm>()->value;
-    std::string A_layout = op->args[1].as_or_throw<prim::StringImm>()->value;
-    std::string B_layout = op->args[2].as_or_throw<prim::StringImm>()->value;
-    std::string A_dtype = op->args[3].as_or_throw<prim::StringImm>()->value;
-    std::string B_dtype = op->args[4].as_or_throw<prim::StringImm>()->value;
-    std::string C_dtype = op->args[5].as_or_throw<prim::StringImm>()->value;
+    std::string shape = op->args[0].as_or_throw<StringImm>()->value;
+    std::string A_layout = op->args[1].as_or_throw<StringImm>()->value;
+    std::string B_layout = op->args[2].as_or_throw<StringImm>()->value;
+    std::string A_dtype = op->args[3].as_or_throw<StringImm>()->value;
+    std::string B_dtype = op->args[4].as_or_throw<StringImm>()->value;
+    std::string C_dtype = op->args[5].as_or_throw<StringImm>()->value;
     std::string a_ref = this->PrintExpr(op->args[6]);
     std::string a_bias = this->PrintExpr(op->args[7]);
     std::string b_ref = this->PrintExpr(op->args[8]);
@@ -1224,8 +1224,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     std::string c_ref = this->PrintExpr(op->args[10]);
     std::string c_bias = this->PrintExpr(op->args[11]);
     bool saturate = op->args[12].as_or_throw<IntImm>()->value != 0;
-    std::string bit_op =
-        op->args.size() > 13 ? op->args[13].as_or_throw<prim::StringImm>()->value : "";
+    std::string bit_op = op->args.size() > 13 ? op->args[13].as_or_throw<StringImm>()->value : "";
     this->stream << PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref,
                                      a_bias, b_ref, b_bias, c_ref, c_bias, bit_op, saturate);
   } else if (IsOp(op, ptx_ldmatrix_legacy_op, "tirx.ptx_legacy.ldmatrix")) {
@@ -1236,7 +1235,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     // to PrimExpr whose IntImmNode value tells us the literal.
     bool trans = op->args[0].as_or_throw<IntImm>()->value != 0;
     int num = op->args[1].as_or_throw<IntImm>()->value.as<int>().value();
-    std::string type_str = op->args[2].as_or_throw<prim::StringImm>()->value;
+    std::string type_str = op->args[2].as_or_throw<StringImm>()->value;
     std::string local_ptr = this->PrintExpr(op->args[3]);
     std::string local_offset = this->PrintExpr(op->args[4]);
     std::string smem_ptr = this->PrintExpr(op->args[5]);
@@ -1615,11 +1614,11 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
 void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
   if (op->attr_key == s_tir::attr::fragment_shape) {
     const VarNode* buffer = op->node.as<VarNode>();
-    const prim::StringImmNode* shape_str = op->value.as<prim::StringImmNode>();
+    const StringImmNode* shape_str = op->value.as<StringImmNode>();
     fragment_shapes[buffer] = shape_str->value;
   } else if (op->attr_key == s_tir::attr::fragment_layout) {
     const VarNode* buffer = op->node.as<VarNode>();
-    const prim::StringImmNode* layout_str = op->value.as<prim::StringImmNode>();
+    const StringImmNode* layout_str = op->value.as<StringImmNode>();
     fragment_layouts[buffer] = layout_str->value;
   } else if (op->attr_key == s_tir::attr::async_commit_queue_scope) {
     const IntImmNode* queue_id = op->value.as<IntImmNode>();
@@ -1628,10 +1627,9 @@ void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
     this->Dispatch(op->body);
     static const Op& ptx_cp_async_commit_group_op = Op::Get("tirx.ptx.cp_async_commit_group");
     // ptx Call layout: [operands...] [slot tokens] [pred marker ""].
-    auto commit_group =
-        Call(PrimType::Void(), ptx_cp_async_commit_group_op,
-             {prim::StringImm("async"), prim::StringImm("commit_group"), prim::StringImm("")})
-            .as_or_throw<PrimExpr>();
+    auto commit_group = Call(PrimType::Void(), ptx_cp_async_commit_group_op,
+                             {StringImm("async"), StringImm("commit_group"), StringImm("")})
+                            .as_or_throw<PrimExpr>();
     this->PrintIndent();
     this->Dispatch(commit_group, this->stream);
     this->stream << ";\n";
@@ -1647,8 +1645,7 @@ void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
     // count is a role="imm" operand baked into the instruction text, so it must
     // already be a compile-time constant here (the pipeline pass guarantees it).
     auto wait_group = Call(PrimType::Void(), ptx_cp_async_wait_group_op,
-                           {wait_cnt, prim::StringImm("async"), prim::StringImm("wait_group"),
-                            prim::StringImm("")})
+                           {wait_cnt, StringImm("async"), StringImm("wait_group"), StringImm("")})
                           .as_or_throw<PrimExpr>();
     this->PrintIndent();
     this->Dispatch(wait_group, this->stream);

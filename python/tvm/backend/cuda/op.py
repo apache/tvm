@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 from tvm import tirx
-from tvm.ir import Call, Op
+from tvm.ir import Call, Op, StringImm
 from tvm.ir.type import PointerType, PrimType
 from tvm.runtime import const
 from tvm.tirx.op import bitwise_and, call_intrin, tvm_access_ptr
@@ -1103,7 +1103,7 @@ def _choice(name: str, value, options):
     """
     if isinstance(value, str):
         concrete = value
-    elif isinstance(value, tirx.StringImm):
+    elif isinstance(value, StringImm):
         concrete = value.value
     else:
         # Concrete int / IntImm value: validate.
@@ -1118,7 +1118,7 @@ def _choice(name: str, value, options):
 def _static_str(value):
     if isinstance(value, str):
         return value
-    if isinstance(value, tirx.StringImm):
+    if isinstance(value, StringImm):
         return value.value
     return None
 

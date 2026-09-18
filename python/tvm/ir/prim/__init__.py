@@ -33,7 +33,6 @@ from .expr import (
     Broadcast,
     Cast,
     CmpExpr,
-    ConstExpr,
     Div,
     FloatImm,
     FloorDiv,
@@ -50,7 +49,6 @@ from .expr import (
     Ramp,
     Select,
     Shuffle,
-    StringImm,
     Sub,
 )
 from .op import clz, convert, max_value, min_value

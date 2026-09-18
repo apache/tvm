@@ -53,7 +53,7 @@ inline PrimExpr DispatchPureExternLibDevice(const PrimExpr& e) {
   intrinsic_name << "__nv_" << name.substr(5);
   if (call_ty.bits() == 32) intrinsic_name << "f";
 
-  ffi::Array<Expr> new_args = {prim::StringImm(intrinsic_name.str())};
+  ffi::Array<Expr> new_args = {StringImm(intrinsic_name.str())};
   new_args.insert(new_args.end(), call->args.begin(), call->args.end());
   return Call(call_ty, builtin::call_pure_extern(), new_args).as_or_throw<PrimExpr>();
 }

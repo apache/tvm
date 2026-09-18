@@ -41,6 +41,39 @@ namespace tvm {
 
 namespace {
 
+template <typename TNode>
+TVMFFIAny ConstantVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  const TNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TNode>(value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->ty));
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+template <typename TNode>
+TVMFFIAny ConstantMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  const TNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TNode>(value);
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
+                                    mutator->MutateExpected(self->ty));
+  if (mapped_ty.UnchangedOrSameAs(self->ty)) return ffi::Unchanged().CopyToTVMFFIAny();
+  ffi::ObjectPtr<TNode> copy = ffi::make_object<TNode>(*self);
+  copy->ty = std::move(mapped_ty).ValueOrUnchanged(std::move(copy->ty));
+  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+}
+
+template <typename TNode>
+TVMFFIAny ConstantMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                     ffi::AnyView value) noexcept {
+  TNode* self = const_cast<TNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
+                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
+  if (!mapped_ty.UnchangedOrSameAs(self->ty)) {
+    self->ty = std::move(mapped_ty).ValueUnchecked();
+  }
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
 TVMFFIAny OpaqueExprVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const OpaqueExprNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const OpaqueExprNode>(value);
@@ -683,7 +716,7 @@ PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm::Int32(value)) {}
 
 PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(PrimType::Float(32), value)) {}
 
-PrimExpr PrimExpr::ConvertFallbackValue(ffi::String value) { return prim::StringImm(value); }
+Expr ffi::TypeTraits<Expr>::ConvertFallbackValue(ffi::String value) { return StringImm(value); }
 
 namespace ffi {
 
@@ -709,7 +742,57 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](Expr tuple, int index, Span span) { return TupleGetItem(tuple, index, span); });
 }
 
-// IntImm
+// Constants
+GenericConst::GenericConst(ffi::Any value, Type ty, Span span) {
+  TVM_FFI_CHECK(!ty.IsMissing(), TypeError) << "GenericConst requires an expression type";
+  TVM_FFI_CHECK(!value.as<ffi::BigInt>() && !value.as<bool>() && !value.as<double>() &&
+                    !value.as<ffi::String>(),
+                TypeError)
+      << "Primitive literals use IntImm, FloatImm, or StringImm";
+  auto node = ffi::make_object<GenericConstNode>();
+  node->value = std::move(value);
+  node->ty = std::move(ty);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+StringImm::StringImm(ffi::String value, Span span) {
+  auto node = ffi::make_object<StringImmNode>();
+  node->value = std::move(value);
+  node->ty = StringType();
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  ConstantNode::RegisterReflection();
+  GenericConstNode::RegisterReflection();
+  refl::TypeAttrDef<GenericConstNode>()
+      .attr(refl::type_attr::kStructuralVisit,
+            reinterpret_cast<void*>(&ConstantVisit<GenericConstNode>))
+      .attr(refl::type_attr::kStructuralMutate,
+            reinterpret_cast<void*>(&ConstantMutate<GenericConstNode>))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&ConstantMaybeInplaceMutate<GenericConstNode>));
+  StringImmNode::RegisterReflection();
+  refl::TypeAttrDef<StringImmNode>()
+      .attr(refl::type_attr::kStructuralVisit,
+            reinterpret_cast<void*>(&ConstantVisit<StringImmNode>))
+      .attr(refl::type_attr::kStructuralMutate,
+            reinterpret_cast<void*>(&ConstantMutate<StringImmNode>))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&ConstantMaybeInplaceMutate<StringImmNode>));
+  refl::GlobalDef()
+      .def("ir.GenericConst",
+           [](ffi::Any value, Type ty, Span span) {
+             return GenericConst(std::move(value), std::move(ty), std::move(span));
+           })
+      .def("ir.StringImm", [](ffi::String value, Span span) {
+        return StringImm(std::move(value), std::move(span));
+      });
+}
+
 IntImm::IntImm(PrimType value_ty, ffi::BigInt value, Span span) {
   DLDataType runtime_dtype = value_ty->dtype;
   DLDataTypeCode code = value_ty.code();

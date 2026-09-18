@@ -206,7 +206,8 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const AttrStmtNode* op, Inplace
         op->attr_key == tvm::tirx::attr::virtual_thread) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      Range dom = Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value);
+      PrimExpr extent = op->value.as_or_throw<PrimExpr>();
+      Range dom = Range::FromMinExtent(IntImm(extent.ty(), 0), extent);
       analyzer_->Bind(iv->var, dom);
       iter_vars_.Set(iv->var, dom);
     }

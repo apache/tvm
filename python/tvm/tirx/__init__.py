@@ -37,7 +37,7 @@ from .buffer import (
 )
 from .type import TensorMapType
 from .expr import convert
-from .expr import Var, Reduce, FloatImm, IntImm, StringImm, Cast
+from .expr import Var, Reduce, FloatImm, IntImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
 from .expr import Select, BufferLoad, Ramp, Broadcast, Shuffle

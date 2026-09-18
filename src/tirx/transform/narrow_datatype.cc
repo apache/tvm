@@ -127,8 +127,9 @@ class DataTypeVisitor final : public StmtExprVisitor {
     if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
-      vextent_.insert_or_assign(iv->var.as<VarNode>(), op->value.ty());
+      PrimExpr extent = op->value.as_or_throw<PrimExpr>();
+      analyzer_->Bind(iv->var, Range::FromMinExtent(0, extent));
+      vextent_.insert_or_assign(iv->var.as<VarNode>(), extent.ty());
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     } else {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
