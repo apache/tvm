@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include "../utils.h"
 
@@ -41,7 +42,7 @@ ffi::Array<PrimExpr> GetStrides(const BufferVar& buffer) {
     return {};
   }
   ffi::Array<PrimExpr> strides(ndim, PrimExpr{nullptr});
-  PrimExpr stride = IntImm(PrimType(buffer->DefaultIndexType()), 1);
+  PrimExpr stride = prim::IntImm(PrimType(buffer->DefaultIndexType()), 1);
   for (int i = ndim - 1; i >= 0; --i) {
     strides.Set(i, stride);
     stride = stride * buffer->shape[i];
@@ -104,9 +105,9 @@ class SplitExprCollector {
  private:
   void Visit(const sym::IterSplitExpr& expr) {
     if (auto var = expr->source->source.as<PrimVar>()) {
-      const auto* lower_factor_imm = expr->lower_factor.as<IntImmNode>();
+      const auto* lower_factor_imm = expr->lower_factor.as<prim::IntImmNode>();
       auto lower_factor = lower_factor_imm ? lower_factor_imm->value.as<int64_t>() : std::nullopt;
-      const auto* extent_imm = expr->extent.as<IntImmNode>();
+      const auto* extent_imm = expr->extent.as<prim::IntImmNode>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (!lower_factor.has_value() || !extent.has_value()) {
         failed_ = true;
@@ -150,7 +151,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
   // Step 2. Calculate a functor that flattens a multi-dimensional index
   auto f_flatten_index = [ndim, strides = GetStrides(buffer), dtype = buffer->DefaultIndexType()](
                              const ffi::Array<PrimExpr>& indices) -> PrimExpr {
-    PrimExpr flatten_index = IntImm(PrimType(dtype), 0);
+    PrimExpr flatten_index = prim::IntImm(PrimType(dtype), 0);
     for (int i = 0; i < ndim; ++i) {
       flatten_index = flatten_index + strides[i] * indices[i];
     }
@@ -224,15 +225,16 @@ ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
     for (int i = 0, n = indices.size(); i < n; ++i) {
       const Var& index = indices[inverse_order[i]];
       inv_permuted_indices.push_back(index);
-      analyzer->Bind(index, Range::FromMinExtent(0, IntImm::Int32(split_exprs[i].extent)));
+      analyzer->Bind(index, Range::FromMinExtent(0, prim::IntImm::Int32(split_exprs[i].extent)));
     }
 
     // Step 6.2: Fuse all the indices. This is the inverse of Step 5.2.
-    PrimExpr flattened_index = IntImm(indices[0]->ty.as_or_throw<PrimType>(), 0);
+    PrimExpr flattened_index = prim::IntImm(indices[0]->ty.as_or_throw<PrimType>(), 0);
     int64_t stride = 1;
     for (int i = static_cast<int>(split_exprs.size()) - 1; i >= 0; --i) {
       flattened_index =
-          inv_permuted_indices[i].as_or_throw<PrimExpr>() * IntImm::Int32(stride) + flattened_index;
+          inv_permuted_indices[i].as_or_throw<PrimExpr>() * prim::IntImm::Int32(stride) +
+          flattened_index;
       stride *= split_exprs[i].extent;
     }
     // Step 6.3: Split the flattened index into multiple indices. This is the inverse of Step 5.1.

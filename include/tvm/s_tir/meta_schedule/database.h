@@ -119,7 +119,7 @@ class TuningRecordNode : public ffi::Object {
   /*! \brief The workload. */
   Workload workload{ffi::UnsafeInit()};
   /*! \brief The profiling result in seconds. */
-  ffi::Optional<ffi::Array<FloatImm>> run_secs;
+  ffi::Optional<ffi::Array<prim::FloatImm>> run_secs;
   /*! \brief The target for tuning. */
   ffi::Optional<Target> target;
   /*! \brief The argument information. */
@@ -168,7 +168,7 @@ class TuningRecord : public ffi::ObjectRef {
    \param args_info The argument information of the tuning record.
   */
   TVM_DLL explicit TuningRecord(s_tir::Trace trace, Workload workload,
-                                ffi::Optional<ffi::Array<FloatImm>> run_secs,
+                                ffi::Optional<ffi::Array<prim::FloatImm>> run_secs,
                                 ffi::Optional<Target> target,
                                 ffi::Optional<ffi::Array<ArgInfo>> args_info);
   /*!

@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include <mutex>
@@ -141,8 +142,8 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
       TVM_FFI_ICHECK_EQ(inst->outputs.size(), 1);
       if (annotated.count(inst->outputs[0].as<ffi::Object>())) {
         TVM_FFI_ICHECK_EQ(inst->attrs.size(), 2);
-        std::vector<double> probs =
-            support::AsVector<FloatImm, double>(inst->attrs[1].as_or_throw<ffi::Array<FloatImm>>());
+        std::vector<double> probs = support::AsVector<prim::FloatImm, double>(
+            inst->attrs[1].as_or_throw<ffi::Array<prim::FloatImm>>());
         if (probs.size() == 1) {
           // Skip mutating the sampling instructions who have only single candidate.
           continue;
@@ -220,7 +221,7 @@ ffi::Optional<Trace> MutateSampleTileSize(const Trace& trace, Instruction inst,
     if (y != n_splits - 1) {
       divide_factor = factors[s_tir::SampleInt(rand_state, 1, factors.size())];
     } else {
-      ffi::BigInt limit = inst->attrs[1].as_or_throw<IntImm>()->value;
+      ffi::BigInt limit = inst->attrs[1].as_or_throw<prim::IntImm>()->value;
       int max_factor_index = static_cast<int>(factors.size()) - 1;
       for (; max_factor_index >= 1; max_factor_index--) {
         if (factors[max_factor_index] * tiles[y] <= limit) {
@@ -246,8 +247,8 @@ ffi::Optional<Trace> MutateSampleTileSize(const Trace& trace, Instruction inst,
 ffi::Optional<Trace> MutateSampleVectorize(const Trace& trace, Instruction inst,
                                            int64_t original_decision, TRandState* rand_state) {
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 2);
-  std::vector<double> probs =
-      support::AsVector<FloatImm, double>(inst->attrs[1].as_or_throw<ffi::Array<FloatImm>>());
+  std::vector<double> probs = support::AsVector<prim::FloatImm, double>(
+      inst->attrs[1].as_or_throw<ffi::Array<prim::FloatImm>>());
   probs.erase(probs.begin() + original_decision);
   int result = s_tir::MakeMultinomialSampler(rand_state, probs)();
   if (result >= original_decision) {

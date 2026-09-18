@@ -26,6 +26,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
@@ -372,7 +373,7 @@ class AliasAnalyzer {
 
 // given a shape, return the number of elements corresponding to it (product of elements)
 PrimExpr NumElements(const ShapeExpr& shape) {
-  PrimExpr ret = IntImm::Int64(1);
+  PrimExpr ret = prim::IntImm::Int64(1);
   for (auto dim : shape->values) {
     ret *= dim;
   }
@@ -976,7 +977,7 @@ ffi::Array<ffi::ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block,
   auto alias_sets = res.first;
   auto tuple_map = res.second;
   ffi::Map<Var, ffi::Array<int64_t>> new_alias_sets;
-  ffi::Map<IntImm, ffi::Array<ffi::Array<int64_t>>> new_tuple_map;
+  ffi::Map<prim::IntImm, ffi::Array<ffi::Array<int64_t>>> new_tuple_map;
   for (auto kv : alias_sets) {
     ffi::Array<int64_t> aliases;
     for (auto alias : kv.second) {
@@ -993,7 +994,7 @@ ffi::Array<ffi::ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block,
       }
       elem_aliases.push_back(dim_aliases);
     }
-    new_tuple_map.Set(IntImm::Int32(kv.first), elem_aliases);
+    new_tuple_map.Set(prim::IntImm::Int32(kv.first), elem_aliases);
   }
   return {new_alias_sets, new_tuple_map};
 }

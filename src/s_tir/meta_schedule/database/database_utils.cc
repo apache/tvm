@@ -30,8 +30,8 @@ namespace meta_schedule {
 void JSONDumps(Any json_obj, std::ostringstream& os) {
   if (json_obj == nullptr) {
     os << "null";
-  } else if (auto opt_int_imm = json_obj.try_cast<IntImm>()) {
-    IntImm int_imm = *std::move(opt_int_imm);
+  } else if (auto opt_int_imm = json_obj.try_cast<prim::IntImm>()) {
+    prim::IntImm int_imm = *std::move(opt_int_imm);
     PrimType int_ty = int_imm.ty();
     if (int_ty.MatchesElementType(DLDataTypeCode::kDLBool, 8) && !int_ty.IsScalableVector() &&
         !int_ty.IsFixedLengthVector()) {
@@ -43,8 +43,8 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
     } else {
       os << int_imm->value;
     }
-  } else if (auto opt_float_imm = json_obj.try_cast<FloatImm>()) {
-    FloatImm float_imm = *std::move(opt_float_imm);
+  } else if (auto opt_float_imm = json_obj.try_cast<prim::FloatImm>()) {
+    prim::FloatImm float_imm = *std::move(opt_float_imm);
     os << std::setprecision(20) << float_imm->value;
   } else if (auto opt_str = json_obj.as<ffi::String>()) {
     os << '"' << support::StrEscape((*opt_str).data(), (*opt_str).size()) << '"';

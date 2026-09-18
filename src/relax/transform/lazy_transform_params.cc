@@ -21,6 +21,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -37,7 +38,7 @@ using namespace tvm::prim;
 
 namespace {
 std::optional<int64_t> GetNumInputParams(const FunctionNode* func) {
-  if (auto opt_int_imm = func->GetAttr<IntImm>(attr::kNumInput)) {
+  if (auto opt_int_imm = func->GetAttr<prim::IntImm>(attr::kNumInput)) {
     int64_t num_input_params = static_cast<int64_t>(opt_int_imm.value()->value);
     TVM_FFI_CHECK_GE(num_input_params, 0, ValueError)
         << "Annotation for attr::kNumInput (\"" << attr::kNumInput
@@ -99,7 +100,7 @@ class LazyInputMutator : public ExprMutator {
       if (auto it = plan_->param_lookup.find(var); it != plan_->param_lookup.end()) {
         auto untyped = builder_->Emit(Call(Type::Missing(), plan_->fget_param,
                                            {
-                                               PrimExpr(IntImm::Int64(it->second)),
+                                               PrimExpr(prim::IntImm::Int64(it->second)),
                                                StringImm(var->name),
                                            }),
                                       var->name + "_untyped");
@@ -168,7 +169,7 @@ class LazyOutputMutator : public ExprMutator {
       ffi::Array<Binding> propagated_params;
       for (const auto& [output_index, expr] : inline_outputs) {
         Call fset_output_call(Type::Missing(), fset_output,
-                              {PrimExpr(IntImm::Int64(output_index)), expr});
+                              {PrimExpr(prim::IntImm::Int64(output_index)), expr});
         Var void_output("_void", TupleType(ffi::Array<Type>{}));
         propagated_params.push_back(VarBinding(void_output, fset_output_call));
       }
@@ -210,7 +211,7 @@ class LazyOutputMutator : public ExprMutator {
       if (auto it = plan_->output_lookup.find(var); it != plan_->output_lookup.end()) {
         for (auto output_index : it->second) {
           callback(Call(Type::Missing(), plan_->fset_output,
-                        {PrimExpr(IntImm::Int64(output_index)), var}));
+                        {PrimExpr(prim::IntImm::Int64(output_index)), var}));
         }
       }
     }

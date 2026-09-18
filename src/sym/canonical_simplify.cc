@@ -106,8 +106,8 @@ bool CastIsSafe(PrimType dtype, PrimExpr value, AnalyzerObj* analyzer) {
     return false;
   }
   ConstIntBound bound = analyzer->const_int_bound(value);
-  ffi::BigInt ubound = prim::max_value(dtype).as_or_throw<IntImm>()->value;
-  ffi::BigInt lbound = prim::min_value(dtype).as_or_throw<IntImm>()->value;
+  ffi::BigInt ubound = prim::max_value(dtype).as_or_throw<prim::IntImm>()->value;
+  ffi::BigInt lbound = prim::min_value(dtype).as_or_throw<prim::IntImm>()->value;
   if (value.ty().bits() <= dtype.bits() ||  // upcast is safe
       (bound->max_value <= ubound && bound->min_value >= lbound)) {
     return true;
@@ -148,18 +148,18 @@ class SplitExprNode : public CanonicalExprNode {
     PrimExpr res = this->index;
     PrimType dtype = this->ExprNode::ty.as_or_throw<PrimType>();
     if (this->scale == 0) {
-      return IntImm(dtype, 0);
+      return prim::IntImm(dtype, 0);
     }
     if (this->upper_factor.has_value()) {
-      res = ModImpl(res, IntImm(dtype, *this->upper_factor), div_mode);
+      res = ModImpl(res, prim::IntImm(dtype, *this->upper_factor), div_mode);
     }
     if (this->lower_factor != 1) {
-      res = DivImpl(res, IntImm(dtype, this->lower_factor), div_mode);
+      res = DivImpl(res, prim::IntImm(dtype, this->lower_factor), div_mode);
     }
     sscale *= this->scale;
     if (sscale != 1) {
       TVM_FFI_ICHECK(dtype.code() != DLDataTypeCode::kDLUInt || sscale > 0);
-      res = res * IntImm(dtype, sscale);
+      res = res * prim::IntImm(dtype, sscale);
     }
     return res;
   }
@@ -198,20 +198,20 @@ class SplitExprNode : public CanonicalExprNode {
       return false;
     }
     if (this->upper_factor.has_value()) {
-      res = ModImpl(res, IntImm(self_dtype, *this->upper_factor), div_mode);
+      res = ModImpl(res, prim::IntImm(self_dtype, *this->upper_factor), div_mode);
       if (!CastIsSafe(dtype, res, analyzer)) {
         return false;
       }
     }
     if (this->lower_factor != 1) {
-      res = DivImpl(res, IntImm(self_dtype, this->lower_factor), div_mode);
+      res = DivImpl(res, prim::IntImm(self_dtype, this->lower_factor), div_mode);
       if (!CastIsSafe(dtype, res, analyzer)) {
         return false;
       }
     }
     if (this->scale != 1) {
       TVM_FFI_ICHECK(self_dtype.code() != DLDataTypeCode::kDLUInt || this->scale > 0);
-      res = res * IntImm(self_dtype, this->scale);
+      res = res * prim::IntImm(self_dtype, this->scale);
       if (!CastIsSafe(dtype, res, analyzer)) {
         return false;
       }
@@ -278,7 +278,7 @@ class SumExprNode : public CanonicalExprNode {
     PrimType dtype = this->ExprNode::ty.as_or_throw<PrimType>();
     // quick path 1.
     if (this->args.size() == 0) {
-      return IntImm(dtype, this->base);
+      return prim::IntImm(dtype, this->base);
     }
     return Normalize_(dtype, SimplifySplitExprs(args), base);
   }
@@ -376,7 +376,7 @@ class SumExprNode : public CanonicalExprNode {
       }
       return true;  // upcast is safe after checking signed factor representability
     }
-    PrimExpr res = IntImm(dtype, 0);
+    PrimExpr res = prim::IntImm(dtype, 0);
     for (size_t i = 0; i < args.size(); ++i) {
       if (args[i]->scale > 0) {
         res = res + args[i]->Normalize();
@@ -386,7 +386,7 @@ class SumExprNode : public CanonicalExprNode {
       }
     }
     if ((base > 0 && !is_negated_min_value) || is_min_value) {
-      res = res + IntImm(dtype, base);
+      res = res + prim::IntImm(dtype, base);
       if (!CastIsSafe(dtype, res, analyzer)) {
         return false;
       }
@@ -402,7 +402,7 @@ class SumExprNode : public CanonicalExprNode {
     }
     // Subtract the negative boundary after nonconstant terms to avoid folding 0 - min_value.
     if ((base < 0 && !is_min_value) || is_negated_min_value) {
-      res = res - IntImm(dtype, -base);
+      res = res - prim::IntImm(dtype, -base);
       if (!CastIsSafe(dtype, res, analyzer)) {
         return false;
       }
@@ -540,14 +540,14 @@ class SumExprNode : public CanonicalExprNode {
     bool is_min_value = base == min_value;
     bool is_negated_min_value = dtype.MatchesCode(kDLInt) && base > 0 && -base == min_value;
     // Positive scales first
-    PrimExpr res = IntImm(dtype, 0);
+    PrimExpr res = prim::IntImm(dtype, 0);
     for (size_t i = 0; i < args.size(); ++i) {
       if (args[i]->scale > 0) {
         res = res + args[i]->Normalize();
       }
     }
     if ((base > 0 && !is_negated_min_value) || is_min_value) {
-      res = res + IntImm(dtype, base);
+      res = res + prim::IntImm(dtype, base);
     }
     // negative scales follows using sub.
     for (size_t i = 0; i < args.size(); ++i) {
@@ -557,7 +557,7 @@ class SumExprNode : public CanonicalExprNode {
     }
     // Subtract the negative boundary after nonconstant terms to avoid folding 0 - min_value.
     if ((base < 0 && !is_min_value) || is_negated_min_value) {
-      res = res - IntImm(dtype, -base);
+      res = res - prim::IntImm(dtype, -base);
     }
     return res;
   }
@@ -749,7 +749,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     }
     ffi::ObjectPtr<SumExprNode> n = ffi::make_object<SumExprNode>();
     n->ExprNode::ty = expr.ty();
-    if (const auto* op = expr.as<IntImmNode>()) {
+    if (const auto* op = expr.as<prim::IntImmNode>()) {
       n->base = op->value;
       return SumExpr(n);
     } else {
@@ -774,7 +774,7 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::AddNode* op
   // canonical form simplification.
   SumExpr ret = ToSumExpr(std::move(a));
 
-  if (const auto* op = b.as<IntImmNode>()) {
+  if (const auto* op = b.as<prim::IntImmNode>()) {
     ret.CopyOnWrite()->AddToSelf(op->value);
   } else if (auto op = b.as<SumExpr>()) {
     ret.CopyOnWrite()->AddToSelf(op.value(), 1);
@@ -799,7 +799,7 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::SubNode* op
   // canonical form simplification.
   SumExpr ret = ToSumExpr(std::move(a));
 
-  if (const auto* op = b.as<IntImmNode>()) {
+  if (const auto* op = b.as<prim::IntImmNode>()) {
     ret.CopyOnWrite()->AddToSelf(-op->value);
   } else if (auto op = b.as<SumExpr>()) {
     ret.CopyOnWrite()->AddToSelf(op.value(), -1);
@@ -822,10 +822,10 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::MulNode* op
   if (auto const_res = TryConstFold<prim::Mul>(a, b)) return *std::move(const_res);
 
   // x * c
-  if (a.as<IntImmNode>()) {
+  if (a.as<prim::IntImmNode>()) {
     std::swap(a, b);
   }
-  if (const auto* bconst = b.as<IntImmNode>()) {
+  if (const auto* bconst = b.as<prim::IntImmNode>()) {
     if (a.as<SumExprNode>()) {
       SumExpr ret = std::move(a).as_or_throw<SumExpr>();
       ret.CopyOnWrite()->MulToSelf(bconst->value);
@@ -904,11 +904,11 @@ SplitExpr CanonicalSimplifier::Impl::SplitDivConst(SplitExpr lhs, ffi::BigInt cv
                    (lower_factor < 0 ? -lower_factor : lower_factor)) {
       // A remainder has smaller magnitude than its modulus. Floor division also
       // requires matching signs so a negative quotient is not rounded down to -1.
-      return ToSplitExpr(IntImm(lhs.ty(), 0));
+      return ToSplitExpr(prim::IntImm(lhs.ty(), 0));
     } else {
       // move the upper_factor modular into index.
       lhs.CopyOnWrite()->index =
-          ModImpl(lhs->index, IntImm(lhs.ty(), *lhs->upper_factor), div_mode);
+          ModImpl(lhs->index, prim::IntImm(lhs.ty(), *lhs->upper_factor), div_mode);
       lhs.CopyOnWrite()->upper_factor = std::nullopt;
       lhs.CopyOnWrite()->scale = 1;
       lhs.CopyOnWrite()->lower_factor *= scaled_cval;
@@ -929,18 +929,18 @@ bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
                                                 PrimExpr* common_scale) {
   // the constant rhs case is covered by other simplifier so
   // we just skip to save the time
-  if (prhs->as<IntImmNode>()) return false;
+  if (prhs->as<prim::IntImmNode>()) return false;
   // collect lhs products and try to eliminate by matching them to prod in rhs
   ffi::Array<ffi::Optional<PrimExpr>> lhs_prods;
   PrimType rhs_ty = prhs->ty();
-  PrimExpr new_rhs = IntImm(rhs_ty, 1);
-  PrimExpr new_common_scale = IntImm(rhs_ty, 1);
+  PrimExpr new_rhs = prim::IntImm(rhs_ty, 1);
+  PrimExpr new_common_scale = prim::IntImm(rhs_ty, 1);
   ffi::BigInt lhs_cscale = 1, rhs_cscale = 1;
   int num_elimination = 0;
 
   // collect lhs product and constant scale.
   auto fcollect_lhs = [&](PrimExpr value) {
-    if (auto* intimm = value.as<IntImmNode>()) {
+    if (auto* intimm = value.as<prim::IntImmNode>()) {
       lhs_cscale *= intimm->value;
     } else {
       lhs_prods.push_back(value);
@@ -951,7 +951,7 @@ bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
   // collect rhs product and try to eliminate when possible
   PEqualChecker<PrimExpr> deep_equal;
   auto fcollect_rhs = [&](PrimExpr value) {
-    if (auto* intimm = value.as<IntImmNode>()) {
+    if (auto* intimm = value.as<prim::IntImmNode>()) {
       rhs_cscale *= intimm->value;
     } else {
       // try eliminate from lhs
@@ -977,13 +977,13 @@ bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
 
   // construct prod via canonical form
   PrimType lhs_ty = plhs->ty();
-  PrimExpr new_lhs = IntImm(lhs_ty, 1);
+  PrimExpr new_lhs = prim::IntImm(lhs_ty, 1);
   for (ffi::Optional<PrimExpr> val : lhs_prods) {
     if (val.has_value()) new_lhs = new_lhs * val.value();
   }
-  *plhs = new_lhs * IntImm(lhs_ty, lhs_cscale);
-  *prhs = new_rhs * IntImm(rhs_ty, rhs_cscale);
-  *common_scale = new_common_scale * IntImm(rhs_ty, cscale_gcd);
+  *plhs = new_lhs * prim::IntImm(lhs_ty, lhs_cscale);
+  *prhs = new_rhs * prim::IntImm(rhs_ty, rhs_cscale);
+  *common_scale = new_common_scale * prim::IntImm(rhs_ty, cscale_gcd);
   return true;
 }
 
@@ -998,7 +998,7 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::DivNode* op
 
   // const folding
   if (auto const_res = TryConstFold<prim::Div>(a, b)) return *std::move(const_res);
-  PVar<IntImm> c1;
+  PVar<prim::IntImm> c1;
   // x / c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
     ffi::BigInt cval = c1.Eval()->value;
@@ -1017,7 +1017,7 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::DivNode* op
           analyzer_->CanProveGreaterEqual(extra->Normalize(), 0)) {
         lhs.CopyOnWrite()->DivideBy(cval);
         PrimExpr temp = Normalize(extra);
-        if (const auto* pconst = temp.as<IntImmNode>()) {
+        if (const auto* pconst = temp.as<prim::IntImmNode>()) {
           lhs.CopyOnWrite()->AddToSelf(pconst->value / cval);
         } else {
           // if 0 <= extra < cval, it means the extra can be eliminated.
@@ -1031,7 +1031,7 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::DivNode* op
       // if a >= 0 && a < cval, then result == 0
       auto cbound = analyzer_->const_int_bound(Normalize(a));
       if (cbound->min_value >= 0 && cbound->max_value < cval) {
-        return IntImm(a.ty(), 0);
+        return prim::IntImm(a.ty(), 0);
       }
     }
     return SplitDivConst(ToSplitExpr(std::move(a)), cval, kTruncDiv);
@@ -1063,7 +1063,7 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorDivNod
 
   // const folding
   if (auto const_res = TryConstFold<prim::FloorDiv>(a, b)) return *std::move(const_res);
-  PVar<IntImm> c1;
+  PVar<prim::IntImm> c1;
   // x / c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
     ffi::BigInt cval = c1.Eval()->value;
@@ -1079,7 +1079,7 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorDivNod
       // continue simplification.
       lhs.CopyOnWrite()->DivideBy(cval);
       PrimExpr temp = Normalize(extra);
-      if (const auto* pconst = temp.as<IntImmNode>()) {
+      if (const auto* pconst = temp.as<prim::IntImmNode>()) {
         lhs.CopyOnWrite()->AddToSelf(ffi::floordiv(pconst->value, cval));
       } else {
         // if 0 <= extra < cval, it means the extra can be eliminated.
@@ -1094,7 +1094,7 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorDivNod
       // if a >= 0 && a < cval, then result == 0
       auto cbound = analyzer_->const_int_bound(Normalize(a));
       if (cbound->min_value >= 0 && cbound->max_value < cval) {
-        return IntImm(a.ty(), 0);
+        return prim::IntImm(a.ty(), 0);
       }
     }
     // Identity: floordiv(floormod(index, m*n), n) = floormod(floordiv(index, n), m)
@@ -1117,7 +1117,7 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorDivNod
             // Compute floordiv(index, cval) using the SumExpr decomposition
             lhs.CopyOnWrite()->DivideBy(cval);
             PrimExpr temp = Normalize(extra);
-            if (const auto* pconst = temp.as<IntImmNode>()) {
+            if (const auto* pconst = temp.as<prim::IntImmNode>()) {
               lhs.CopyOnWrite()->AddToSelf(ffi::floordiv(pconst->value, cval));
             } else {
               if (!(TryCompareConstant(temp, cval) == CompareResult::kLT &&
@@ -1127,7 +1127,7 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorDivNod
             }
             // Apply floormod(floordiv_result, m) to complete the identity
             PrimExpr div_result = Normalize(lhs);
-            PrimExpr expr = floormod(div_result, IntImm(a.ty(), new_mod));
+            PrimExpr expr = floormod(div_result, prim::IntImm(a.ty(), new_mod));
             return Mutate(expr, inplace_mode).ValueOrUnchanged(expr);
           }
         }
@@ -1179,7 +1179,7 @@ SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, ffi::BigInt cv
       // Do a recursive call to simplify the mod with the new factor.
       if (lhs->upper_factor.has_value() && new_upper_factor < *lhs->upper_factor &&
           lhs->lower_factor > 0) {
-        PrimExpr reduced = ModImpl(lhs->index, IntImm(lhs.ty(), new_upper_factor), div_mode);
+        PrimExpr reduced = ModImpl(lhs->index, prim::IntImm(lhs.ty(), new_upper_factor), div_mode);
         // Unchanged belongs to the reduced expression, not the caller's original modulo.
         auto updated =
             ToSplitExpr(Mutate(reduced, inplace_mode).ValueOrUnchanged(std::move(reduced)));
@@ -1224,7 +1224,7 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::ModNode* op
   // const folding
   if (auto const_res = TryConstFold<prim::Mod>(a, b)) return *std::move(const_res);
 
-  PVar<IntImm> c1;
+  PVar<prim::IntImm> c1;
   // x % c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
     ffi::BigInt cval = c1.Eval()->value;
@@ -1232,13 +1232,13 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::ModNode* op
       SumExpr lhs, extra;
       SeparateDivisibleParts(psum, cval, &lhs, &extra);
       if (extra->IsZero()) {
-        return IntImm(a.ty(), 0);
+        return prim::IntImm(a.ty(), 0);
       }
       // both lhs and extra are non-negative
       if (analyzer_->CanProveGreaterEqual(lhs->Normalize(), 0) &&
           analyzer_->CanProveGreaterEqual(extra->Normalize(), 0)) {
         PrimExpr temp = Normalize(extra);
-        if (temp.as<IntImmNode>()) {
+        if (temp.as<prim::IntImmNode>()) {
           return truncmod(temp, c1.Eval());
         } else {
           // If temp < cval && temp >=0 then can remove the mod.
@@ -1300,7 +1300,7 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorModNod
   // const folding
   if (auto const_res = TryConstFold<prim::FloorMod>(a, b)) return *std::move(const_res);
 
-  PVar<IntImm> c1;
+  PVar<prim::IntImm> c1;
   // x % c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
     ffi::BigInt cval = c1.Eval()->value;
@@ -1308,7 +1308,7 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorModNod
       SumExpr lhs, extra;
       SeparateDivisibleParts(psum, cval, &lhs, &extra);
       PrimExpr temp = Normalize(extra);
-      if (temp.as<IntImmNode>()) {
+      if (temp.as<prim::IntImmNode>()) {
         return floormod(temp, c1.Eval());
       } else {
         // If temp < cval && temp >=0 then can remove the mod.
@@ -1415,11 +1415,11 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::LTNode* op,
     PrimType dtype = divisible->ExprNode::ty.as_or_throw<PrimType>();
     TVM_FFI_ICHECK(extra->ExprNode::ty.as_or_throw<PrimType>() == dtype);
     PrimExpr normal_extra = extra->Normalize();
-    if (this->analyzer_->CanProve(normal_extra < IntImm(dtype, gcd)) &&
-        this->analyzer_->CanProve(normal_extra >= IntImm(dtype, 0))) {
+    if (this->analyzer_->CanProve(normal_extra < prim::IntImm(dtype, gcd)) &&
+        this->analyzer_->CanProve(normal_extra >= prim::IntImm(dtype, 0))) {
       // Case 1. 0 <= xn < d
       divisible.CopyOnWrite()->DivideBy(gcd);
-      PrimExpr normalized = divisible->Normalize() < IntImm(dtype, 0);
+      PrimExpr normalized = divisible->Normalize() < prim::IntImm(dtype, 0);
       return DirectMutate(normalized, inplace_mode).ValueOrUnchanged(std::move(normalized));
     } else if (extra->args.size() == 1 && extra->args[0]->scale == 1 &&
                extra->args[0]->upper_factor.has_value() &&
@@ -1436,9 +1436,9 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::LTNode* op,
       ffi::BigInt lower_factor = gcd * split_expr->lower_factor;
       ffi::BigInt upper_factor = *split_expr->upper_factor / lower_factor;
       divisible.CopyOnWrite()->DivideBy(gcd);
-      PrimExpr extra_expr = floormod(floordiv(split_expr->index, IntImm(dtype, lower_factor)),
-                                     IntImm(dtype, upper_factor));
-      PrimExpr normalized = divisible->Normalize() + extra_expr < IntImm(dtype, 0);
+      PrimExpr extra_expr = floormod(floordiv(split_expr->index, prim::IntImm(dtype, lower_factor)),
+                                     prim::IntImm(dtype, upper_factor));
+      PrimExpr normalized = divisible->Normalize() + extra_expr < prim::IntImm(dtype, 0);
       // Unchanged belongs to the new comparison, not the original input.
       return DirectMutate(normalized, inplace_mode).ValueOrUnchanged(std::move(normalized));
     }

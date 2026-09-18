@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -61,7 +62,8 @@ class ExternFunctionRewriter : ExprMutator {
       // Append the workspace parameter to this function.
       ffi::Array<Var> new_params = func_node->params;
 
-      auto ty = TensorType(ShapeExpr({IntImm::Int32(max_workspace_size_)}), PrimType::UInt(8));
+      auto ty =
+          TensorType(ShapeExpr({prim::IntImm::Int32(max_workspace_size_)}), PrimType::UInt(8));
       Var workspace_param(name_sup_->FreshName("workspace"), ty);
 
       if (func_node->GetAttr<ffi::String>(attr::kCodegen)) {
@@ -149,9 +151,9 @@ class WorkspaceProvider : ExprMutator {
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block_node) final {
     builder_->BeginDataflowBlock();
     if (!workspace_var_main_.defined()) {
-      auto shape = ShapeExpr({IntImm::Int32(max_workspace_size_)});
+      auto shape = ShapeExpr({prim::IntImm::Int32(max_workspace_size_)});
       auto ty = DataTypeImm((DLDataType{kDLUInt, 8, 1}));
-      auto workspace = MakeAllocTensor(shape, ty, IntImm::Int64(0));
+      auto workspace = MakeAllocTensor(shape, ty, prim::IntImm::Int64(0));
       workspace_var_main_ = builder_->Emit(workspace, "workspace_main");
     }
     for (const auto& binding : block_node->bindings) {

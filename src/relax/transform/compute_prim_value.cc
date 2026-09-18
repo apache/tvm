@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
@@ -86,8 +87,8 @@ class PrimExprComputeInjector : public ExprMutator {
   RELAX_LIFT_PRIM_EXPR(prim::RampNode);
   RELAX_LIFT_PRIM_EXPR(prim::BroadcastNode);
   RELAX_LIFT_PRIM_EXPR(prim::ShuffleNode);
-  RELAX_LIFT_PRIM_EXPR(tvm::IntImmNode);
-  RELAX_LIFT_PRIM_EXPR(tvm::FloatImmNode);
+  RELAX_LIFT_PRIM_EXPR(tvm::prim::IntImmNode);
+  RELAX_LIFT_PRIM_EXPR(tvm::prim::FloatImmNode);
   RELAX_LIFT_PRIM_EXPR(prim::StringImmNode);
 
 #undef RELAX_LIFT_PRIM_EXPR
@@ -97,7 +98,7 @@ class PrimExprComputeInjector : public ExprMutator {
   PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final { return expr; }
 
   Expr LiftPrimValue(const PrimExpr& node) {
-    if (node->IsInstance<IntImmNode>() || node->IsInstance<VarNode>()) {
+    if (node->IsInstance<prim::IntImmNode>() || node->IsInstance<VarNode>()) {
       return node;
     }
 

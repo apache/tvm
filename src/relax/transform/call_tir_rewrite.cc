@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -177,7 +178,7 @@ class CallTIRMutator : public ExprMutator {
     return builder_->Emit(Call(Type::Missing(), alloc_tensor_op,
                                {tensor_ty->shape.value().as_or_throw<ShapeExpr>(),
                                 DataTypeImm(tensor_ty->dtype.value()->dtype),
-                                IntImm::Int64(dev_index), StringImm(scope)},
+                                prim::IntImm::Int64(dev_index), StringImm(scope)},
                                Attrs(), {tensor_ty}),
                           "alloc");
   }

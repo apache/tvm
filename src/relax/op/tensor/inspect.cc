@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
@@ -73,7 +74,7 @@ std::tuple<TensorType, ffi::Optional<int64_t>> GetTensorArgInfoWithIndex(const C
 
   ffi::Optional<int64_t> int_imm_axis = std::nullopt;
   if (auto prim_value = axis.as<PrimExpr>()) {
-    if (const auto* int_imm = prim_value->as<IntImmNode>()) {
+    if (const auto* int_imm = prim_value->as<prim::IntImmNode>()) {
       int_imm_axis = static_cast<int64_t>(int_imm->value);
     }
   }
@@ -97,9 +98,10 @@ tirx::PrimFunc GetDLTensorField(tirx::builtin::TVMStructFieldKind field, PrimTyp
   tirx::Var value("value", field_ty);
 
   tirx::Stmt body = tirx::SeqStmt(
-      {tirx::Bind(value, tvm::Call(field_ty, tirx::builtin::tvm_struct_get(),
-                                   {dlpack_handle, IntImm::Int32(0), IntImm::Int32(field)})
-                             .as_or_throw<PrimExpr>()),
+      {tirx::Bind(value,
+                  tvm::Call(field_ty, tirx::builtin::tvm_struct_get(),
+                            {dlpack_handle, prim::IntImm::Int32(0), prim::IntImm::Int32(field)})
+                      .as_or_throw<PrimExpr>()),
        tirx::Return(value)});
 
   DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host_func", true}});
@@ -268,11 +270,12 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
     tirx::Stmt body = tirx::SeqStmt(
         {tirx::AssertStmt(0 <= axis.as_or_throw<PrimExpr>(), prim::StringImm("RuntimeError"),
                           {prim::StringImm("Specified axis may not be negative")}),
-         tirx::Bind(ndim,
-                    tvm::Call(ndim->ty.as_or_throw<PrimType>(), tirx::builtin::tvm_struct_get(),
-                              {dlpack_handle, IntImm::Int32(0),
-                               IntImm::Int32(tirx::builtin::TVMStructFieldKind::kDLTensorNDim)})
-                        .as_or_throw<PrimExpr>()),
+         tirx::Bind(
+             ndim,
+             tvm::Call(ndim->ty.as_or_throw<PrimType>(), tirx::builtin::tvm_struct_get(),
+                       {dlpack_handle, prim::IntImm::Int32(0),
+                        prim::IntImm::Int32(tirx::builtin::TVMStructFieldKind::kDLTensorNDim)})
+                 .as_or_throw<PrimExpr>()),
          tirx::AssertStmt(
              axis.as_or_throw<PrimExpr>() <
                  tvm::prim::cast(axis->ty.as_or_throw<PrimType>(), ndim.as_or_throw<PrimExpr>()),
@@ -282,8 +285,8 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
          tirx::DeclBuffer(
              shape_buffer,
              tvm::Call(shape_buffer.DataPointerType(), tirx::builtin::tvm_struct_get(),
-                       {dlpack_handle, IntImm::Int32(0),
-                        IntImm::Int32(tirx::builtin::TVMStructFieldKind::kDLTensorShape)})),
+                       {dlpack_handle, prim::IntImm::Int32(0),
+                        prim::IntImm::Int32(tirx::builtin::TVMStructFieldKind::kDLTensorShape)})),
          tirx::Bind(extent, tirx::BufferLoad(shape_buffer, {axis.as_or_throw<PrimExpr>()})),
          tirx::Return(extent)});
 
@@ -339,7 +342,7 @@ Type InferTypeTensorStride(const Call& call, const BlockBuilder&) {
     // striding of a tensor, it implicitly requires compact striding
     // for any legalizable Tensor.
     auto tensor_shape = opt_tensor_shape.value();
-    PrimExpr stride = IntImm::Int64(1);
+    PrimExpr stride = prim::IntImm::Int64(1);
     for (size_t axis = int_imm_axis.value() + 1; axis < tensor_shape.size(); axis++) {
       stride = stride * tensor_shape[axis];
     }

@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/type.h>
 
 #include <utility>
@@ -114,7 +115,7 @@ Type InferTypeMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
   const auto* anchor_shape = anchor_ty->shape.as<ShapeExprNode>();
 
   if (loc_shape != nullptr) {
-    const auto* loc_dim1 = loc_shape->values[1].as<IntImmNode>();
+    const auto* loc_dim1 = loc_shape->values[1].as<prim::IntImmNode>();
     if (loc_dim1 != nullptr && loc_dim1->value % 4 != 0) {
       TVM_FFI_VISIT_THROW(ValueError, call)
           << "multibox_transform_loc: loc_pred.shape[1] must be divisible by 4, got "
@@ -123,8 +124,8 @@ Type InferTypeMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
   }
 
   if (cls_shape != nullptr && loc_shape != nullptr) {
-    const auto* cls_b = cls_shape->values[0].as<IntImmNode>();
-    const auto* loc_b = loc_shape->values[0].as<IntImmNode>();
+    const auto* cls_b = cls_shape->values[0].as<prim::IntImmNode>();
+    const auto* loc_b = loc_shape->values[0].as<prim::IntImmNode>();
     if (cls_b != nullptr && loc_b != nullptr && cls_b->value != loc_b->value) {
       TVM_FFI_VISIT_THROW(ValueError, call)
           << "multibox_transform_loc: cls_pred.shape[0] must match loc_pred.shape[0], "
@@ -134,12 +135,12 @@ Type InferTypeMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
   }
 
   if (anchor_shape != nullptr) {
-    const auto* anchor_batch = anchor_shape->values[0].as<IntImmNode>();
+    const auto* anchor_batch = anchor_shape->values[0].as<prim::IntImmNode>();
     if (anchor_batch != nullptr && anchor_batch->value != 1) {
       TVM_FFI_VISIT_THROW(ValueError, call)
           << "multibox_transform_loc: anchor.shape[0] must be 1, got " << anchor_batch->value;
     }
-    const auto* anchor_last = anchor_shape->values[2].as<IntImmNode>();
+    const auto* anchor_last = anchor_shape->values[2].as<prim::IntImmNode>();
     if (anchor_last != nullptr && anchor_last->value != 4) {
       TVM_FFI_VISIT_THROW(ValueError, call)
           << "multibox_transform_loc: anchor.shape[2] must be 4 (ltrb), got " << anchor_last->value;
@@ -157,8 +158,8 @@ Type InferTypeMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
   const auto& num_anchors = cls_shape->values[2];
 
   if (loc_shape != nullptr) {
-    const auto* num_anchors_imm = num_anchors.as<IntImmNode>();
-    const auto* loc_dim1 = loc_shape->values[1].as<IntImmNode>();
+    const auto* num_anchors_imm = num_anchors.as<prim::IntImmNode>();
+    const auto* loc_dim1 = loc_shape->values[1].as<prim::IntImmNode>();
     if (num_anchors_imm != nullptr && loc_dim1 != nullptr &&
         loc_dim1->value != num_anchors_imm->value * 4) {
       TVM_FFI_VISIT_THROW(ValueError, call)
@@ -168,8 +169,8 @@ Type InferTypeMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
     }
   }
   if (anchor_shape != nullptr) {
-    const auto* num_anchors_imm = num_anchors.as<IntImmNode>();
-    const auto* anchor_num_anchors = anchor_shape->values[1].as<IntImmNode>();
+    const auto* num_anchors_imm = num_anchors.as<prim::IntImmNode>();
+    const auto* anchor_num_anchors = anchor_shape->values[1].as<prim::IntImmNode>();
     if (num_anchors_imm != nullptr && anchor_num_anchors != nullptr &&
         anchor_num_anchors->value != num_anchors_imm->value) {
       TVM_FFI_VISIT_THROW(ValueError, call)
@@ -179,7 +180,7 @@ Type InferTypeMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  ffi::Array<PrimExpr> boxes_shape = {batch, num_anchors, IntImm::Int32(4)};
+  ffi::Array<PrimExpr> boxes_shape = {batch, num_anchors, prim::IntImm::Int32(4)};
   ffi::Array<PrimExpr> scores_shape = {batch, num_classes, num_anchors};
   ffi::Array<Type> fields = {TensorType(ShapeExpr(boxes_shape), cls_ty->dtype, vdev),
                              TensorType(ShapeExpr(scores_shape), cls_ty->dtype, vdev)};

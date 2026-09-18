@@ -21,6 +21,7 @@
 #define TVM_TIRX_IR_SEQ_STMT_MUTATE_H_
 
 #include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/stmt.h>
 
 #include <iterator>
@@ -34,7 +35,7 @@ namespace detail {
 
 inline bool IsSeqStmtNoOp(ffi::AnyView stmt) {
   const auto* evaluate = stmt.as<EvaluateNode>();
-  const auto* value = evaluate == nullptr ? nullptr : evaluate->value.as<IntImmNode>();
+  const auto* value = evaluate == nullptr ? nullptr : evaluate->value.as<prim::IntImmNode>();
   return value != nullptr && value->value == 0;
 }
 

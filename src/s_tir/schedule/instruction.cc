@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include "./utils.h"
 
@@ -40,7 +41,7 @@ ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
       inputs.push_back(ffi::String("_"));
     } else if (obj.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
       inputs.push_back(obj);
-    } else if (obj.as<IntImmNode>() || obj.as<FloatImmNode>()) {
+    } else if (obj.as<prim::IntImmNode>() || obj.as<prim::FloatImmNode>()) {
       inputs.push_back(obj);
     } else if (auto expr = obj.as<PrimExpr>()) {
       auto f_substitute = [](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {

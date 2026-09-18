@@ -24,6 +24,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <cmath>
 #include <string>
@@ -449,7 +450,7 @@ void CodeGenOpenCL::Dispatch_(const AllocBufferNode* op) {
   // Compute constant_size from buffer shape
   size_t constant_size = 1;
   for (const auto& dim : op->buffer->shape) {
-    const IntImmNode* dim_imm = dim.as<IntImmNode>();
+    const prim::IntImmNode* dim_imm = dim.as<prim::IntImmNode>();
     TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
     constant_size *= dim_imm->value.as<size_t>().value();
   }
@@ -475,7 +476,7 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
     os << ')';
   } else if (op->op.same_as(tirx::builtin::texture2d_store())) {
     TextureArgument texture = UnwrapTextureArgument(op->args[0]);
-    const int channel_size = op->args[4].as_or_throw<IntImm>()->value.as<int>().value();
+    const int channel_size = op->args[4].as_or_throw<prim::IntImm>()->value.as<int>().value();
     TVM_FFI_ICHECK(channel_size == 64 || channel_size == 128)
         << "Unsupported Channel Size: " << channel_size;
     PrimType channel_type(runtime::GetChannelType(channel_size));
@@ -501,7 +502,7 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
     os << ", ";
     this->PrintExpr(op->args[3].as_or_throw<PrimExpr>(), os);
     os << ", ";
-    this->PrintExpr(IntImm::Int32(0), os);
+    this->PrintExpr(prim::IntImm::Int32(0), os);
     os << "), ";
     os << "as_";
     this->PrintType(channel_type, os);
@@ -511,7 +512,7 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
     TextureArgument texture = UnwrapTextureArgument(op->args[0]);
     enable_compliant_texture_reads_ = true;
     std::stringstream ss;
-    const int channel_size = op->args[4].as_or_throw<IntImm>()->value.as<int>().value();
+    const int channel_size = op->args[4].as_or_throw<prim::IntImm>()->value.as<int>().value();
     PrimType op_ty = op->ty.as_or_throw<PrimType>();
     const int data_lanes = channel_size / op_ty.bits();
     TVM_FFI_ICHECK(channel_size == 64 || channel_size == 128)
@@ -536,15 +537,15 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
     ss << ", ";
     this->PrintExpr(op->args[3].as_or_throw<PrimExpr>(), ss);
     ss << ", ";
-    this->PrintExpr(IntImm::Int32(0), ss);
+    this->PrintExpr(prim::IntImm::Int32(0), ss);
     ss << "))))";
 
     std::string rhs = SSAGetID(ss.str(), op_ty.WithLanes(data_lanes));
     if (auto ramp = op->args.back().as<prim::RampNode>()) {
-      const auto* base = ramp->base.as<IntImmNode>();
-      const auto* lanes_imm = ramp->lanes.as<IntImmNode>();
+      const auto* base = ramp->base.as<prim::IntImmNode>();
+      const auto* lanes_imm = ramp->lanes.as<prim::IntImmNode>();
       auto lanes = lanes_imm ? lanes_imm->value.as<int>() : std::nullopt;
-      const auto* stride = ramp->stride.as<IntImmNode>();
+      const auto* stride = ramp->stride.as<prim::IntImmNode>();
       if (base && lanes.has_value() && stride && base->value == 0 && *lanes == data_lanes &&
           stride->value == 1) {
         os << rhs;
@@ -615,7 +616,7 @@ void CodeGenOpenCL::Dispatch_(const prim::RampNode* op, std::ostream& os) {  // 
   os << "))";
 }
 
-void CodeGenOpenCL::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::Dispatch_(const prim::FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   if (std::isinf(op->value)) {
     if (op->value < 0) {
       os << "-";

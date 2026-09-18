@@ -232,7 +232,7 @@ class ScheduleNode : public ffi::Object {
    * \return The random variable sampled from candidates
    */
   virtual ExprRV SampleCategorical(const ffi::Array<int64_t>& candidates,
-                                   const ffi::Array<FloatImm>& probs,
+                                   const ffi::Array<prim::FloatImm>& probs,
                                    ffi::Optional<int64_t> decision = std::nullopt) = 0;
   /*!
    * \brief Sample the factors to perfect tile a specific loop
@@ -866,7 +866,7 @@ class ScheduleNode : public ffi::Object {
    * \param buf_index_array The array of buffer indices we hide access.
    */
   virtual void UnsafeHideBufferAccess(const SBlockRV& block_rv, const ffi::String& buf_type,
-                                      const ffi::Array<IntImm>& buf_index_array) = 0;
+                                      const ffi::Array<prim::IntImm>& buf_index_array) = 0;
 };
 
 /*!

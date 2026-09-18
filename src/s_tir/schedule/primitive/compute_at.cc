@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
@@ -271,7 +272,7 @@ class ScopeReconstructor : public StmtExprMutator {
     loop_vars.reserve(n_iters);
     loop_extents.reserve(n_iters);
     iter_values.reserve(n_iters);
-    PrimExpr predicate = IntImm::Bool(true);
+    PrimExpr predicate = prim::IntImm::Bool(true);
     for (int i = 0; i < n_iters; ++i) {
       Range iter_dom = iter_doms[i].dom.CoverRange(block_->iter_vars[i]->dom);
       if (preserve_unit_loops || !is_one(iter_dom->extent)) {
@@ -280,7 +281,7 @@ class ScopeReconstructor : public StmtExprMutator {
         loop_vars.push_back(var);
         loop_extents.push_back(analyzer->Simplify(iter_dom->extent));
         iter_values.push_back(iter_dom->min + var.as_or_throw<PrimExpr>());
-        analyzer->Bind(var, Range::FromMinExtent(IntImm(var->ty.as_or_throw<PrimType>(), 0),
+        analyzer->Bind(var, Range::FromMinExtent(prim::IntImm(var->ty.as_or_throw<PrimType>(), 0),
                                                  iter_dom->extent));
       } else {
         iter_values.push_back(iter_dom->min);
@@ -309,7 +310,7 @@ class ScopeReconstructor : public StmtExprMutator {
       const Var& loop_var = loop_vars[i];
       const PrimExpr& loop_extent = loop_extents[i];
       new_subtree = For(/*loop_var=*/loop_var.as_or_throw<PrimVar>(),
-                        /*min=*/IntImm::Int32(0),
+                        /*min=*/prim::IntImm::Int32(0),
                         /*extent=*/loop_extent,
                         /*ForKind=*/ForKind::kSerial,
                         /*body=*/std::move(new_subtree));
@@ -589,7 +590,7 @@ bool UpdateBlockVarDomainAffine(const VarNode* buffer, const ffi::Array<IterVar>
   for (size_t i = 0; i < ndim; ++i) {
     provide_indices.push_back(provided_region[i].min());
   }
-  auto res = sym::DetectIterMap(provide_indices, dom_map, IntImm::Bool(true),
+  auto res = sym::DetectIterMap(provide_indices, dom_map, prim::IntImm::Bool(true),
                                 sym::IterMapLevel::Bijective, analyzer_ref, false);
   if (res->indices.empty()) {
     return false;
@@ -597,8 +598,9 @@ bool UpdateBlockVarDomainAffine(const VarNode* buffer, const ffi::Array<IterVar>
   // calculate backward mapping (required region point -> block vars)
   NDIntSet required_bound;
   for (size_t i = 0; i < ndim; ++i) {
-    required_bound.push_back(sym::IntSet::Interval(IntImm(GetBufferVar(buffer)->shape[i].ty(), 0),
-                                                   max(GetBufferVar(buffer)->shape[i] - 1, 0)));
+    required_bound.push_back(
+        sym::IntSet::Interval(prim::IntImm(GetBufferVar(buffer)->shape[i].ty(), 0),
+                              max(GetBufferVar(buffer)->shape[i] - 1, 0)));
   }
   ffi::Map<Var, sym::IntSet> var_dom =
       InverseAffineIterMap(res->indices, required_region, analyzer);
@@ -843,14 +845,14 @@ struct ComputeAtTraits : public UnpackedInstTraits<ComputeAtTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, LoopRV loop_rv,
-                                      IntImm preserve_unit_loops, IntImm index) {
+                                      prim::IntImm preserve_unit_loops, prim::IntImm index) {
     return sch->ComputeAt(block_rv, loop_rv, preserve_unit_loops->value != 0,
                           index->value.as<int>().value());
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      ffi::String loop_rv, IntImm preserve_unit_loops,
-                                      IntImm index) {
+                                      ffi::String loop_rv, prim::IntImm preserve_unit_loops,
+                                      prim::IntImm index) {
     PythonAPICall py("compute_at");
     py.Input("block", block_rv);
     py.Input("loop", loop_rv);
@@ -873,14 +875,14 @@ struct ReverseComputeAtTraits : public UnpackedInstTraits<ReverseComputeAtTraits
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, LoopRV loop_rv,
-                                      IntImm preserve_unit_loops, IntImm index) {
+                                      prim::IntImm preserve_unit_loops, prim::IntImm index) {
     return sch->ReverseComputeAt(block_rv, loop_rv, preserve_unit_loops->value != 0,
                                  index->value.as<int>().value());
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      ffi::String loop_rv, IntImm preserve_unit_loops,
-                                      IntImm index) {
+                                      ffi::String loop_rv, prim::IntImm preserve_unit_loops,
+                                      prim::IntImm index) {
     PythonAPICall py("reverse_compute_at");
     py.Input("block", block_rv);
     py.Input("loop", loop_rv);

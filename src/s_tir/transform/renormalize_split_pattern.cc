@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -65,7 +66,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     // Pattern var to match any expression
     PVar<PrimExpr> x, y, z;
     // Pattern var match IntImm
-    PVar<IntImm> c1, c2, c3;
+    PVar<prim::IntImm> c1, c2, c3;
     // Pattern var for lanes in broadcast and ramp
     PVar<PrimExpr> lanes;
 
@@ -88,10 +89,10 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
       if (c1_val > 0 && c2_val > 0) {
         ffi::BigInt c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
-          return RecursiveRewrite(
-              floordiv(x.Eval() * c1_div + floordiv(y.Eval(), IntImm(c1.Eval().ty(), c3)), c2_div));
+          prim::IntImm c1_div = prim::IntImm(c1.Eval().ty(), c1_val / c3);
+          prim::IntImm c2_div = prim::IntImm(c2.Eval().ty(), c2_val / c3);
+          return RecursiveRewrite(floordiv(
+              x.Eval() * c1_div + floordiv(y.Eval(), prim::IntImm(c1.Eval().ty(), c3)), c2_div));
         }
       }
     }
@@ -101,11 +102,12 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
       if (c1_val > 0 && c2_val > 0) {
         ffi::BigInt c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
+          prim::IntImm c1_div = prim::IntImm(c1.Eval().ty(), c1_val / c3);
+          prim::IntImm c2_div = prim::IntImm(c2.Eval().ty(), c2_val / c3);
           return RecursiveRewrite(floordiv(
               x.Eval() * prim::Broadcast(c1_div, lanes.Eval()) +
-                  floordiv(y.Eval(), prim::Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
+                  floordiv(y.Eval(),
+                           prim::Broadcast(prim::IntImm(c1.Eval().ty(), c3), lanes.Eval())),
               prim::Broadcast(c2_div, lanes.Eval())));
         }
       }
@@ -118,10 +120,10 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
       if (c1_val > 0 && c2_val > 0) {
         ffi::BigInt c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
+          prim::IntImm c1_div = prim::IntImm(c1.Eval().ty(), c1_val / c3);
+          prim::IntImm c2_div = prim::IntImm(c2.Eval().ty(), c2_val / c3);
           return RecursiveRewrite(floordiv(
-              x.Eval() * c1_div + floordiv(y.Eval() + z.Eval(), IntImm(c1.Eval().ty(), c3)),
+              x.Eval() * c1_div + floordiv(y.Eval() + z.Eval(), prim::IntImm(c1.Eval().ty(), c3)),
               c2_div));
         }
       }
@@ -132,13 +134,13 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
       if (c1_val > 0 && c2_val > 0) {
         ffi::BigInt c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
-          return RecursiveRewrite(
-              floordiv(x.Eval() * prim::Broadcast(c1_div, lanes.Eval()) +
-                           floordiv(y.Eval() + z.Eval(),
-                                    prim::Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
-                       prim::Broadcast(c2_div, lanes.Eval())));
+          prim::IntImm c1_div = prim::IntImm(c1.Eval().ty(), c1_val / c3);
+          prim::IntImm c2_div = prim::IntImm(c2.Eval().ty(), c2_val / c3);
+          return RecursiveRewrite(floordiv(
+              x.Eval() * prim::Broadcast(c1_div, lanes.Eval()) +
+                  floordiv(y.Eval() + z.Eval(),
+                           prim::Broadcast(prim::IntImm(c1.Eval().ty(), c3), lanes.Eval())),
+              prim::Broadcast(c2_div, lanes.Eval())));
         }
       }
     }
@@ -168,7 +170,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     // Pattern var to match any expression
     PVar<PrimExpr> x;
     // Pattern var match IntImm
-    PVar<IntImm> c1, c2;
+    PVar<prim::IntImm> c1, c2;
     // x < c2 <=> x/c2 < 1 <=> floor(x / c2) < 1
     TRY_RECURSIVE_REWRITE_IF(x < c2, floordiv(x, c2) < 1, c2.Eval()->value > 0);  // NOLINT
     return ret;

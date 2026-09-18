@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <gtest/gtest.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <memory>
@@ -74,7 +75,7 @@ TEST(StmtFunctor, ExtendedTableForwardingAndAncestorDispatch) {
   ExtendedFunctor functor;
   int calls = 0;
   auto value = std::make_unique<int>(3);
-  EXPECT_EQ(functor(Evaluate(IntImm::Int32(1)), std::move(value), calls), 3);
+  EXPECT_EQ(functor(Evaluate(prim::IntImm::Int32(1)), std::move(value), calls), 3);
   EXPECT_EQ(value, nullptr);
   EXPECT_EQ(calls, 1);
 
@@ -108,8 +109,10 @@ TEST(StmtFunctor, EntryPointLifetimeAndNoRecursion) {
   {
     std::unique_ptr<StmtFunctor<int(const Stmt&)>> functor = std::make_unique<Functor>(&destroyed);
     // Evaluate would throw if the dispatcher recursed into the sequence.
-    EXPECT_EQ((*functor)(SeqStmt({Evaluate(IntImm::Int32(1)), Evaluate(IntImm::Int32(2))})), 12);
-    EXPECT_THROW((*functor)(Evaluate(IntImm::Int32(1))), ffi::Error);
+    EXPECT_EQ(
+        (*functor)(SeqStmt({Evaluate(prim::IntImm::Int32(1)), Evaluate(prim::IntImm::Int32(2))})),
+        12);
+    EXPECT_THROW((*functor)(Evaluate(prim::IntImm::Int32(1))), ffi::Error);
     EXPECT_THROW((*functor)(Stmt(nullptr)), ffi::Error);
   }
   EXPECT_TRUE(destroyed);
@@ -122,7 +125,7 @@ TEST(StmtFunctor, ReferenceResult) {
   };
   Functor functor;
   int value = 3;
-  functor(Evaluate(IntImm::Int32(1)), value) = 7;
+  functor(Evaluate(prim::IntImm::Int32(1)), value) = 7;
   EXPECT_EQ(value, 7);
 }
 

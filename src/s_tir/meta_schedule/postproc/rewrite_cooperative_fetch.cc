@@ -19,6 +19,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
@@ -47,7 +48,7 @@ ffi::Optional<int64_t> ParseThreadBinding(const Schedule& sch, const Instruction
     return std::nullopt;
   }
   return static_cast<int64_t>(
-      sch->Get(inst->inputs[0].as_or_throw<LoopRV>())->extent.as_or_throw<IntImm>()->value);
+      sch->Get(inst->inputs[0].as_or_throw<LoopRV>())->extent.as_or_throw<prim::IntImm>()->value);
 }
 
 /*!
@@ -70,7 +71,7 @@ ffi::Optional<SBlockRV> ParseAnnotate(const Schedule& sch, const Instruction& in
     return std::nullopt;
   }
   *vector_lane = static_cast<int64_t>(
-      sch->Get(inst->inputs[1].as_or_throw<ExprRV>()).as_or_throw<IntImm>()->value);
+      sch->Get(inst->inputs[1].as_or_throw<ExprRV>()).as_or_throw<prim::IntImm>()->value);
   return inst->inputs[0].as_or_throw<SBlockRV>();
 }
 
@@ -191,7 +192,7 @@ bool RewriteCooperativeFetchNode::Apply(const s_tir::Schedule& sch) {
       sch->Unannotate(block, s_tir::attr::meta_schedule_cooperative_fetch);
       s_tir::LoopRV fused = sch->GetLoops(block).back();
       int64_t fused_extent = -1;
-      const auto* extent_imm = sch->Get(fused)->extent.as<IntImmNode>();
+      const auto* extent_imm = sch->Get(fused)->extent.as<prim::IntImmNode>();
       if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
           extent.has_value()) {
         fused_extent = *extent;
@@ -210,30 +211,33 @@ bool RewriteCooperativeFetchNode::Apply(const s_tir::Schedule& sch) {
       }
       if (thread_extent_y != -1) {
         if (vector_lane > 1) {
-          ffi::Array<s_tir::LoopRV> split = sch->Split(fused, {std::nullopt,                    //
-                                                               IntImm::Int32(thread_extent_y),  //
-                                                               IntImm::Int32(thread_extent_x),  //
-                                                               IntImm::Int32(vector_lane)});
+          ffi::Array<s_tir::LoopRV> split =
+              sch->Split(fused, {std::nullopt,                          //
+                                 prim::IntImm::Int32(thread_extent_y),  //
+                                 prim::IntImm::Int32(thread_extent_x),  //
+                                 prim::IntImm::Int32(vector_lane)});
           sch->Vectorize(split[3]);
           sch->Bind(split[2], "threadIdx.x");
           sch->Bind(split[1], "threadIdx.y");
         } else {
-          ffi::Array<s_tir::LoopRV> split = sch->Split(fused, {std::nullopt,                    //
-                                                               IntImm::Int32(thread_extent_y),  //
-                                                               IntImm::Int32(thread_extent_x)});
+          ffi::Array<s_tir::LoopRV> split =
+              sch->Split(fused, {std::nullopt,                          //
+                                 prim::IntImm::Int32(thread_extent_y),  //
+                                 prim::IntImm::Int32(thread_extent_x)});
           sch->Bind(split[2], "threadIdx.x");
           sch->Bind(split[1], "threadIdx.y");
         }
       } else {
         if (vector_lane > 1) {
-          ffi::Array<s_tir::LoopRV> split = sch->Split(fused, {std::nullopt,                    //
-                                                               IntImm::Int32(thread_extent_x),  //
-                                                               IntImm::Int32(vector_lane)});
+          ffi::Array<s_tir::LoopRV> split =
+              sch->Split(fused, {std::nullopt,                          //
+                                 prim::IntImm::Int32(thread_extent_x),  //
+                                 prim::IntImm::Int32(vector_lane)});
           sch->Vectorize(split[2]);
           sch->Bind(split[1], "threadIdx.x");
         } else {
           ffi::Array<s_tir::LoopRV> split =
-              sch->Split(fused, {std::nullopt, IntImm::Int32(thread_extent_x)});
+              sch->Split(fused, {std::nullopt, prim::IntImm::Int32(thread_extent_x)});
           sch->Bind(split[1], "threadIdx.x");
         }
       }

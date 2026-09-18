@@ -21,6 +21,7 @@
  * \file src/relax/backend/vm/exec_builder.cc
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/exec_builder.h>
 
 #include <sstream>
@@ -348,7 +349,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              builder->DeclareFunction(name, static_cast<VMFuncInfo::FuncKind>(kind));
            })
       .def("relax.ExecBuilderEmitCall",
-           [](ExecBuilder builder, ffi::String name, ffi::Array<IntImm> args, int64_t dst) {
+           [](ExecBuilder builder, ffi::String name, ffi::Array<prim::IntImm> args, int64_t dst) {
              std::vector<Instruction::Arg> args_;
              for (size_t i = 0; i < args.size(); ++i) {
                args_.push_back(Instruction::Arg::FromData(static_cast<int64_t>(args[i]->value)));

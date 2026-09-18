@@ -147,7 +147,7 @@ class AndOfOrs {
 };
 
 AndOfOrs::AndOfOrs(const PrimExpr& expr)
-    : key_true_(GetKey(IntImm::Bool(true))), key_false_(GetKey(IntImm::Bool(false))) {
+    : key_true_(GetKey(prim::IntImm::Bool(true))), key_false_(GetKey(prim::IntImm::Bool(false))) {
   VisitAndExpressions(expr, [&](const PrimExpr& outer_expr) {
     std::vector<Key> or_components;
     VisitOrExpressions(outer_expr, [&](const PrimExpr& inner_expr) {
@@ -234,9 +234,9 @@ PrimExpr AndOfOrs::GetExpr(AndOfOrs::Key key) const {
 }
 
 PrimExpr AndOfOrs::ToPrimExpr() const {
-  PrimExpr expr = IntImm::Bool(true);
+  PrimExpr expr = prim::IntImm::Bool(true);
   for (const auto& chunk : chunks_) {
-    PrimExpr chunk_expr = IntImm::Bool(false);
+    PrimExpr chunk_expr = prim::IntImm::Bool(false);
     for (Key j : chunk) {
       chunk_expr = chunk_expr || GetExpr(j);
     }
@@ -367,7 +367,7 @@ void AndOfOrs::SimplifyAcrossChunks(AnalyzerObj* analyzer) {
           // When attempting to simplify (B and C), the analyzer may
           // assume that A is false.
           PrimExpr known = [&]() {
-            PrimExpr known = IntImm::Bool(true);
+            PrimExpr known = prim::IntImm::Bool(true);
             for (const auto& key : i_chunk) {
               if (&key != &key_i) {
                 known = known && analyzer->Simplify(!GetExpr(key));

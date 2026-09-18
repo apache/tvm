@@ -24,6 +24,7 @@
 #ifndef TVM_TOPI_NN_DILATE_H_
 #define TVM_TOPI_NN_DILATE_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/topi/tags.h>
@@ -86,7 +87,7 @@ inline Tensor dilate(const Tensor& x, ffi::Array<PrimExpr> strides, double dilat
         ffi::Array<PrimExpr> not_zero;
         ffi::Array<PrimExpr> index_tuple;
         for (size_t i = 0; i < n; ++i) {
-          if (IsConstInt(strides[i]) && strides[i].as_or_throw<IntImm>()->value == 1) {
+          if (IsConstInt(strides[i]) && strides[i].as_or_throw<prim::IntImm>()->value == 1) {
             index_tuple.push_back(indices[i]);
           } else {
             index_tuple.push_back(indexdiv(indices[i], strides[i]));

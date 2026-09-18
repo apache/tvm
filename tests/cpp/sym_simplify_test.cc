@@ -19,6 +19,7 @@
 
 #include <gtest/gtest.h>
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
@@ -46,8 +47,8 @@ TEST(Simplify, Mul) {
 
 TEST(Simplify, Mod) {
   tvm::sym::Analyzer ana;
-  auto x = tvm::IntImm::Int32(10);
-  auto y = tvm::IntImm::Int32(12);
+  auto x = tvm::prim::IntImm::Int32(10);
+  auto y = tvm::prim::IntImm::Int32(12);
   // Mod::make is used instead of % to avoid constant folding during
   // calling operator%(x,y). Mod::make doesn't try constant folding,
   // and therefore, the constant folding will be attempted in CanonicalSimplify
@@ -102,7 +103,7 @@ TEST(Simplify, AssumeConstraintKeepsBufferLoadStable) {
 
   sym::Analyzer analyzer;
   tirx::BufferVar buffer = tirx::decl_buffer({1}, PrimType::Int(32));
-  PrimExpr load = tirx::BufferLoad(buffer, {IntImm::Int32(0)});
+  PrimExpr load = tirx::BufferLoad(buffer, {prim::IntImm::Int32(0)});
   PrimExpr constraint = load > 0;
 
   {
@@ -137,17 +138,18 @@ TEST(Simplify, AssumeConstraintKeepsBufferLoadStable) {
 
 TEST(ConstantFold, Broadcast) {
   tvm::ffi::StructuralEqual checker;
-  auto i32x4 = tvm::prim::Broadcast(tvm::IntImm::Int32(10), 4);
+  auto i32x4 = tvm::prim::Broadcast(tvm::prim::IntImm::Int32(10), 4);
   auto i64x4 = tvm::prim::cast(i32x4.ty().WithBits(64), i32x4);
-  auto i64x4_expected = tvm::prim::Broadcast(tvm::IntImm::Int64(10), 4);
+  auto i64x4_expected = tvm::prim::Broadcast(tvm::prim::IntImm::Int64(10), 4);
   ASSERT_TRUE(checker(i64x4, i64x4_expected));
 }
 
 TEST(ConstantFold, Ramp) {
   tvm::ffi::StructuralEqual checker;
-  auto i32x4 = tvm::prim::Ramp(tvm::IntImm::Int32(10), tvm::IntImm::Int32(1), 4);
+  auto i32x4 = tvm::prim::Ramp(tvm::prim::IntImm::Int32(10), tvm::prim::IntImm::Int32(1), 4);
   auto i64x4 = tvm::prim::cast(i32x4.ty().WithBits(64), i32x4);
-  auto i64x4_expected = tvm::prim::Ramp(tvm::IntImm::Int64(10), tvm::IntImm::Int64(1), 4);
+  auto i64x4_expected =
+      tvm::prim::Ramp(tvm::prim::IntImm::Int64(10), tvm::prim::IntImm::Int64(1), 4);
   ASSERT_TRUE(checker(i64x4, i64x4_expected));
 
   auto f32x4 = tvm::prim::cast(tvm::PrimType::Float(32, 4), i32x4);

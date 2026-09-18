@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/index_map.h>
@@ -229,12 +230,12 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
   }
 
  public:
-  PrimExpr threadIdx_x_ext = IntImm::Int32(1);
-  PrimExpr threadIdx_y_ext = IntImm::Int32(1);
-  PrimExpr threadIdx_z_ext = IntImm::Int32(1);
-  PrimExpr clusterCtaIdx_x_ext = IntImm::Int32(1);
-  PrimExpr clusterCtaIdx_y_ext = IntImm::Int32(1);
-  PrimExpr clusterCtaIdx_z_ext = IntImm::Int32(1);
+  PrimExpr threadIdx_x_ext = prim::IntImm::Int32(1);
+  PrimExpr threadIdx_y_ext = prim::IntImm::Int32(1);
+  PrimExpr threadIdx_z_ext = prim::IntImm::Int32(1);
+  PrimExpr clusterCtaIdx_x_ext = prim::IntImm::Int32(1);
+  PrimExpr clusterCtaIdx_y_ext = prim::IntImm::Int32(1);
+  PrimExpr clusterCtaIdx_z_ext = prim::IntImm::Int32(1);
 };
 
 void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
@@ -245,7 +246,8 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
       extractor->threadIdx_x_ext * extractor->threadIdx_y_ext * extractor->threadIdx_z_ext);
   PrimExpr cluster_cta_yz_ext =
       analyzer->Simplify(extractor->clusterCtaIdx_y_ext * extractor->clusterCtaIdx_z_ext);
-  if (const IntImmNode* const cluster_cta_yz_ext_int = cluster_cta_yz_ext.as<IntImmNode>()) {
+  if (const prim::IntImmNode* const cluster_cta_yz_ext_int =
+          cluster_cta_yz_ext.as<prim::IntImmNode>()) {
     cluster_cta_x_is_linear_rank_ = cluster_cta_yz_ext_int->value == 1;
   } else {
     cluster_cta_x_is_linear_rank_ = false;
@@ -256,12 +258,12 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
     TVM_FFI_ICHECK_EQ(required_block_size.value(), 1);
     TVM_FFI_ICHECK(!max_registers.has_value())
         << tirx::attr::kRequiredBlockSize << " cannot be combined with maximum registers";
-    const auto* tx = extractor->threadIdx_x_ext.as<IntImmNode>();
-    const auto* ty = extractor->threadIdx_y_ext.as<IntImmNode>();
-    const auto* tz = extractor->threadIdx_z_ext.as<IntImmNode>();
-    const auto* cx = extractor->clusterCtaIdx_x_ext.as<IntImmNode>();
-    const auto* cy = extractor->clusterCtaIdx_y_ext.as<IntImmNode>();
-    const auto* cz = extractor->clusterCtaIdx_z_ext.as<IntImmNode>();
+    const auto* tx = extractor->threadIdx_x_ext.as<prim::IntImmNode>();
+    const auto* ty = extractor->threadIdx_y_ext.as<prim::IntImmNode>();
+    const auto* tz = extractor->threadIdx_z_ext.as<prim::IntImmNode>();
+    const auto* cx = extractor->clusterCtaIdx_x_ext.as<prim::IntImmNode>();
+    const auto* cy = extractor->clusterCtaIdx_y_ext.as<prim::IntImmNode>();
+    const auto* cz = extractor->clusterCtaIdx_z_ext.as<prim::IntImmNode>();
     TVM_FFI_ICHECK(tx && ty && tz && cx && cy && cz)
         << tirx::attr::kRequiredBlockSize << " requires static thread and cluster dimensions";
     os << " __block_size__((" << tx->value << ", " << ty->value << ", " << tz->value << "), ("
@@ -281,7 +283,7 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
     os << " __maxnreg__(" << max_registers.value() << ")";
     return;
   }
-  if (const IntImmNode* const threadIdx_ext_int = threadIdx_ext.as<IntImmNode>()) {
+  if (const prim::IntImmNode* const threadIdx_ext_int = threadIdx_ext.as<prim::IntImmNode>()) {
     if (threadIdx_ext_int->value == 1) {
       // unable to extract the number of threads per block, hence directly return
       return;
@@ -311,7 +313,7 @@ void CodeGenCUDA::Dispatch_(const ReturnNode* op) {
     CodeGenC::Dispatch_(op);
     return;
   }
-  const auto* value = op->value.as<IntImmNode>();
+  const auto* value = op->value.as<prim::IntImmNode>();
   TVM_FFI_ICHECK(value && value->value == 0)
       << "CUDA device kernel may only contain a successful early return, return 0";
   PrintIndent();
@@ -357,7 +359,7 @@ void CodeGenCUDA::Dispatch_(const tirx::ForNode* op) {
     stream << "#pragma unroll";
     if (auto count = (*it).second.as<int64_t>()) {
       stream << " " << count.value();
-    } else if (const auto* count = (*it).second.as<IntImmNode>()) {
+    } else if (const auto* count = (*it).second.as<prim::IntImmNode>()) {
       stream << " " << count->value;
     }
     stream << "\n";
@@ -1144,8 +1146,8 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
       os << "]" << ((i < 3) ? ", " : ")");
     }
   } else if (op->op.same_as(mma_store_op)) {
-    int m = op->args[0].as_or_throw<IntImm>()->value.as<int>().value();
-    int n = op->args[1].as_or_throw<IntImm>()->value.as<int>().value();
+    int m = op->args[0].as_or_throw<prim::IntImm>()->value.as<int>().value();
+    int n = op->args[1].as_or_throw<prim::IntImm>()->value.as<int>().value();
     std::string dst = this->PrintExpr(op->args[2]);
     std::string src = this->PrintExpr(op->args[3]);
     std::string src_offset = this->PrintExpr(op->args[4]);
@@ -1223,7 +1225,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     std::string b_bias = this->PrintExpr(op->args[9]);
     std::string c_ref = this->PrintExpr(op->args[10]);
     std::string c_bias = this->PrintExpr(op->args[11]);
-    bool saturate = op->args[12].as_or_throw<IntImm>()->value != 0;
+    bool saturate = op->args[12].as_or_throw<prim::IntImm>()->value != 0;
     std::string bit_op =
         op->args.size() > 13 ? op->args[13].as_or_throw<prim::StringImm>()->value : "";
     this->stream << PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref,
@@ -1234,8 +1236,8 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 7U);
     // `trans` and `num` may arrive as Bool/IntImm; both Downcastable
     // to PrimExpr whose IntImmNode value tells us the literal.
-    bool trans = op->args[0].as_or_throw<IntImm>()->value != 0;
-    int num = op->args[1].as_or_throw<IntImm>()->value.as<int>().value();
+    bool trans = op->args[0].as_or_throw<prim::IntImm>()->value != 0;
+    int num = op->args[1].as_or_throw<prim::IntImm>()->value.as<int>().value();
     std::string type_str = op->args[2].as_or_throw<prim::StringImm>()->value;
     std::string local_ptr = this->PrintExpr(op->args[3]);
     std::string local_offset = this->PrintExpr(op->args[4]);
@@ -1261,8 +1263,8 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     // args: m, n, dst_ptr, src_ptr_var, src_offset, dst_stride
     // (dst_ptr is typically an access_ptr Call that already encodes
     // dst.elem_offset and the global pointer cast.)
-    int m = op->args[0].as_or_throw<IntImm>()->value.as<int>().value();
-    int n = op->args[1].as_or_throw<IntImm>()->value.as<int>().value();
+    int m = op->args[0].as_or_throw<prim::IntImm>()->value.as<int>().value();
+    int n = op->args[1].as_or_throw<prim::IntImm>()->value.as<int>().value();
     std::string dst = this->PrintExpr(op->args[2]);
     std::string src = this->PrintExpr(op->args[3]);
     std::string src_offset = this->PrintExpr(op->args[4]);
@@ -1347,7 +1349,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     // template encoded at address 0): emit C++-style reinterpret_cast<T*>(...)
     // to match the encoded template. Runtime pointer reinterprets fall through
     // to CodeGenC, which emits the C-style (T*)... cast.
-    if (op->ty.as<PointerTypeNode>() && op->args[0].as<IntImmNode>()) {
+    if (op->ty.as<PointerTypeNode>() && op->args[0].as<prim::IntImmNode>()) {
       os << "reinterpret_cast<";
       if (const auto* pt = op->ty.as<PointerTypeNode>()) {
         if (const auto* et = pt->element_type.as<PrimTypeNode>()) {
@@ -1411,18 +1413,19 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
         value =
             Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
         PrimVar temp_var("temp_var", PrimType::UInt(16));
-        value = prim::Let(temp_var, value,
-                          prim::Cast(PrimType::UInt(8),
-                                     (temp_var & IntImm(PrimType::UInt(16), 0xF)) |
-                                         ((temp_var >> 4) & IntImm(PrimType::UInt(16), 0xF0))));
+        value =
+            prim::Let(temp_var, value,
+                      prim::Cast(PrimType::UInt(8),
+                                 (temp_var & prim::IntImm(PrimType::UInt(16), 0xF)) |
+                                     ((temp_var >> 4) & prim::IntImm(PrimType::UInt(16), 0xF0))));
       } else {
         value = prim::Cast(
             PrimType::UInt(16),
             Call(PrimType::UInt(8), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
         PrimVar temp_var("temp_var", PrimType::UInt(16));
         value = prim::Let(temp_var, value,
-                          (temp_var & IntImm(PrimType::UInt(16), 0xF)) |
-                              ((temp_var & IntImm(PrimType::UInt(16), 0xF0)) << 4));
+                          (temp_var & prim::IntImm(PrimType::UInt(16), 0xF)) |
+                              ((temp_var & prim::IntImm(PrimType::UInt(16), 0xF0)) << 4));
       }
       os << PrintExpr(Call(tgt_ty, tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
     } else if (lanes == 4) {
@@ -1432,22 +1435,23 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
         value =
             Call(PrimType::UInt(32), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
         PrimVar temp_var("temp_var", PrimType::UInt(32));
-        value = prim::Let(temp_var, value,
-                          prim::Cast(PrimType::UInt(16),
-                                     (temp_var & IntImm(PrimType::UInt(32), 0xF)) |
-                                         ((temp_var >> 4) & IntImm(PrimType::UInt(32), 0xF0)) |
-                                         ((temp_var >> 8) & IntImm(PrimType::UInt(32), 0xF00)) |
-                                         ((temp_var >> 12) & IntImm(PrimType::UInt(32), 0xF000))));
+        value = prim::Let(
+            temp_var, value,
+            prim::Cast(PrimType::UInt(16),
+                       (temp_var & prim::IntImm(PrimType::UInt(32), 0xF)) |
+                           ((temp_var >> 4) & prim::IntImm(PrimType::UInt(32), 0xF0)) |
+                           ((temp_var >> 8) & prim::IntImm(PrimType::UInt(32), 0xF00)) |
+                           ((temp_var >> 12) & prim::IntImm(PrimType::UInt(32), 0xF000))));
       } else {
         value = prim::Cast(PrimType::UInt(32),
                            Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value})
                                .as_or_throw<PrimExpr>());
         PrimVar temp_var("temp_var", PrimType::UInt(32));
         value = prim::Let(temp_var, value,
-                          (temp_var & IntImm(PrimType::UInt(32), 0xF)) |
-                              ((temp_var & IntImm(PrimType::UInt(32), 0xF0)) << 4) |
-                              ((temp_var & IntImm(PrimType::UInt(32), 0xF00)) << 8) |
-                              ((temp_var & IntImm(PrimType::UInt(32), 0xF000)) << 12));
+                          (temp_var & prim::IntImm(PrimType::UInt(32), 0xF)) |
+                              ((temp_var & prim::IntImm(PrimType::UInt(32), 0xF0)) << 4) |
+                              ((temp_var & prim::IntImm(PrimType::UInt(32), 0xF00)) << 8) |
+                              ((temp_var & prim::IntImm(PrimType::UInt(32), 0xF000)) << 12));
       }
       os << PrintExpr(Call(tgt_ty, tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
     } else {
@@ -1467,9 +1471,9 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
           << "print_buffer expects buffer_data to project a BufferVar";
     }
     PrimType dtype_ty = op->ty.as_or_throw<PrimType>();
-    bool is_string = op->args[2].as<IntImmNode>()->value != 0;
-    bool is_scalar = op->args[3].as<IntImmNode>()->value != 0;
-    int num_dims = op->args[4].as<IntImmNode>()->value.as<int>().value();
+    bool is_string = op->args[2].as<prim::IntImmNode>()->value != 0;
+    bool is_scalar = op->args[3].as<prim::IntImmNode>()->value != 0;
+    int num_dims = op->args[4].as<prim::IntImmNode>()->value.as<int>().value();
 
     TVM_FFI_ICHECK(!(is_string && is_scalar)) << "Cannot have both is_string and is_scalar true";
     if (is_string) {
@@ -1622,7 +1626,7 @@ void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
     const prim::StringImmNode* layout_str = op->value.as<prim::StringImmNode>();
     fragment_layouts[buffer] = layout_str->value;
   } else if (op->attr_key == s_tir::attr::async_commit_queue_scope) {
-    const IntImmNode* queue_id = op->value.as<IntImmNode>();
+    const prim::IntImmNode* queue_id = op->value.as<prim::IntImmNode>();
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
         << "For CUDA, the index of an async queue must be 0.";
     this->Dispatch(op->body);
@@ -1638,7 +1642,7 @@ void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
     return;
   } else if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
     auto wait_attrs = GetAsyncWaitAttributes(op);
-    auto queue_id = wait_attrs.first.as<IntImmNode>();
+    auto queue_id = wait_attrs.first.as<prim::IntImmNode>();
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
         << "For CUDA, the index of an async queue must be 0.";
     auto wait_cnt = wait_attrs.second;
@@ -1665,7 +1669,7 @@ void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
   } else if (op->attr_key == "pragma_unroll") {
     PrintIndent();
     stream << "#pragma unroll";
-    if (const auto* count = op->value.as<IntImmNode>(); count && count->value != 1) {
+    if (const auto* count = op->value.as<prim::IntImmNode>(); count && count->value != 1) {
       stream << " " << count->value;
     }
     stream << "\n";
@@ -1707,7 +1711,7 @@ void CodeGenCUDA::Dispatch_(const AllocBufferNode* op) {
     int align = op->buffer->data_alignment;
     auto it = op->annotations.find(tirx::attr::buffer_data_alignment);
     if (it != op->annotations.end()) {
-      if (const auto* n = (*it).second.as<IntImmNode>()) {
+      if (const auto* n = (*it).second.as<prim::IntImmNode>()) {
         align = n->value.as<int>().value();
       }
     }
@@ -1725,7 +1729,7 @@ void CodeGenCUDA::Dispatch_(const AllocBufferNode* op) {
     // Compute constant_size from buffer shape
     size_t constant_size = 1;
     for (const auto& dim : op->buffer->shape) {
-      const IntImmNode* dim_imm = dim.as<IntImmNode>();
+      const prim::IntImmNode* dim_imm = dim.as<prim::IntImmNode>();
       TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
       constant_size *= dim_imm->value.as<size_t>().value();
     }
@@ -1806,7 +1810,7 @@ void CodeGenCUDA::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {  
   if ((op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && op_ty.bits() == 8 &&
       lanes == 4) {
     // make_int8x4
-    const auto* imm = op->value.as<IntImmNode>();
+    const auto* imm = op->value.as<prim::IntImmNode>();
     auto p = imm ? imm->value.as<int64_t>() : std::nullopt;
     TVM_FFI_ICHECK(p.has_value());
     int64_t v = *p & 0xFF;
@@ -1873,7 +1877,7 @@ void CodeGenCUDA::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {  
 
   if ((op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && op_ty.bits() == 4) {
     bool fail = false;
-    const auto* imm = op->value.as<IntImmNode>();
+    const auto* imm = op->value.as<prim::IntImmNode>();
     auto p = imm ? imm->value.as<int64_t>() : std::nullopt;
     TVM_FFI_ICHECK(p.has_value());
     int64_t v = *p & 0xF;
@@ -1965,7 +1969,8 @@ void CodeGenCUDA::Dispatch_(const prim::SelectNode* op, std::ostream& os) {
   os << r_var;
 }
 
-inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p) {  // NOLINT(*)
+inline void PrintConst(const prim::FloatImmNode* op, std::ostream& os,
+                       CodeGenCUDA* p) {  // NOLINT(*)
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   // Type code is kBFloat
   if (op_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
@@ -2024,7 +2029,7 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p)
     }
     case 16: {
       os << "__float2half_rn" << '(';
-      FloatImm const_f32 = FloatImm(PrimType::Float(32), op->value);
+      prim::FloatImm const_f32 = prim::FloatImm(PrimType::Float(32), op->value);
       PrintConst(const_f32.get(), os, p);
       os << ')';
       break;
@@ -2034,7 +2039,7 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p)
   }
 }
 
-void CodeGenCUDA::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCUDA::Dispatch_(const prim::FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
 

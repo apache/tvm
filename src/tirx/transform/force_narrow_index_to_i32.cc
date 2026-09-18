@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/transform.h>
 
@@ -60,11 +61,11 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
  private:
   bool ShouldClampShiftAmounts() const final { return true; }
 
-  UnchangedOr<PrimExpr> Mutate_(const IntImmNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::IntImmNode* op, InplaceMode inplace_mode) final {
     // ignore the enabled condition and always rewrite i64
     if (op->ty.as_or_throw<PrimType>() == PrimType::Int(64)) {
-      TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<IntImm>()->value);
-      return IntImm::Int32(op->value);
+      TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<prim::IntImm>()->value);
+      return prim::IntImm::Int32(op->value);
     }
     return ffi::Unchanged();
   }

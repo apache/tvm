@@ -29,6 +29,7 @@
 #include <llvm/ADT/StringRef.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #if LLVM_VERSION_MAJOR >= 17
 #include <llvm/TargetParser/Triple.h>
 #else
@@ -679,8 +680,8 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_va
   }
 
   int64_t base = 0, width = 0;
-  sym::PVar<IntImm> pbase, pstride;
-  sym::PVar<IntImm> planes;
+  sym::PVar<prim::IntImm> pbase, pstride;
+  sym::PVar<prim::IntImm> planes;
   // create meta-data for alias analysis
   // Use a group of binary tree ranges of memory banks.
   int64_t xwith = 0;
@@ -691,7 +692,7 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_va
       base = *b;
       xwith = *w;
     }
-  } else if (const auto* imm = index.as<IntImmNode>()) {
+  } else if (const auto* imm = index.as<prim::IntImmNode>()) {
     if (auto ptr = imm->value.as<int64_t>(); ptr.has_value()) {
       base = *ptr;
       xwith = 1;
@@ -1374,7 +1375,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   if (op->op.same_as(builtin_call_llvm_intrin_) || op->op.same_as(builtin_call_llvm_pure_intrin_)) {
     TVM_FFI_ICHECK_GE(args.size(), 1U);
     llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(
-        args[0].as_or_throw<IntImm>()->value.as<unsigned>().value());
+        args[0].as_or_throw<prim::IntImm>()->value.as<unsigned>().value());
     std::vector<llvm::Value*> arg_value;
     std::vector<llvm::Type*> arg_type;
     for (size_t i = 1; i < args.size(); ++i) {
@@ -1570,7 +1571,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const prim::CastNode* op) {
   return CreateCast(PrimType(op->value.ty()->dtype),
                     PrimType(op->ty.as_or_throw<PrimType>()->dtype), MakeValue(op->value));
 }
-llvm::Value* CodeGenLLVM::Dispatch_(const IntImmNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::IntImmNode* op) {
   PrimType dtype = op->ty.as_or_throw<PrimType>();
   TVM_FFI_ICHECK_GT(dtype.bits(), 0);
   llvm::Type* llvm_type = DTypeToLLVMType(dtype);
@@ -1596,7 +1597,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const IntImmNode* op) {
   return llvm::ConstantInt::getSigned(llvm_type, value.value());
 }
 
-llvm::Value* CodeGenLLVM::Dispatch_(const FloatImmNode* op) {
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::FloatImmNode* op) {
   return llvm::ConstantFP::get(DTypeToLLVMType(PrimType(op->ty.as_or_throw<PrimType>()->dtype)),
                                op->value);
 }
@@ -2065,7 +2066,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const prim::ShuffleNode* op) {
   llvm::Value* v0 = CreateVecConcat(vecs);
   std::vector<uint32_t> idx(op->indices.size());
   for (int i = 0, e = op->indices.size(); i < e; ++i) {
-    const auto* imm = op->indices[i].as<IntImmNode>();
+    const auto* imm = op->indices[i].as<prim::IntImmNode>();
     auto val = imm ? imm->value.as<int64_t>() : std::nullopt;
     TVM_FFI_ICHECK(val.has_value() && *val >= 0 && *val < total_lanes)
         << "Shuffled indeces are suppose to be int, "
@@ -2143,7 +2144,7 @@ void CodeGenLLVM::Dispatch_(const ForNode* op) {
   } else {
     TVM_FFI_ICHECK(op->kind == ForKind::kSerial);
   }
-  PrimExpr step = op->step.value_or(IntImm(op->extent.ty(), 1));
+  PrimExpr step = op->step.value_or(prim::IntImm(op->extent.ty(), 1));
   PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
   llvm::Value* begin_value = MakeValue(op->min);
   llvm::Value* end_value = MakeValue(end);
@@ -2169,7 +2170,7 @@ void CodeGenLLVM::Dispatch_(const WhileNode* op) {
 
 void CodeGenLLVM::Dispatch_(const ReturnNode* op) {
   EmitDebugLocation(op);
-  auto const* val = op->value.as<IntImmNode>();
+  auto const* val = op->value.as<prim::IntImmNode>();
   TVM_FFI_ICHECK(val) << "Return should be transformed to return zero "
                       << "before LLVM code generation.";
   TVM_FFI_ICHECK_EQ(val->value, 0)
@@ -2214,7 +2215,7 @@ void CodeGenLLVM::Dispatch_(const AllocBufferNode* op) {
 
   llvm::Value* buf = nullptr;
 
-  const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
+  const prim::IntImmNode* dim_imm = op->buffer->shape[0].as<prim::IntImmNode>();
   TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation";
   int64_t constant_size = static_cast<int64_t>(dim_imm->value);
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation";
@@ -2266,7 +2267,7 @@ void CodeGenLLVM::Dispatch_(const AttrStmtNode* op) {
   } else if (op->attr_key == tirx::attr::storage_alignment) {
     const VarNode* v = op->node.as<VarNode>();
     TVM_FFI_ICHECK(v);
-    alloc_storage_info_[v].alignment = op->value.as<IntImmNode>()->value.as<int>().value();
+    alloc_storage_info_[v].alignment = op->value.as<prim::IntImmNode>()->value.as<int>().value();
     if (var_map_.count(v) && alloc_storage_info_[v].alignment > 1) {
       builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(v),
                                           alloc_storage_info_[v].alignment);
@@ -2558,24 +2559,24 @@ static void CodegenLLVMRegisterReflection() {
            []() -> std::string { return llvm::sys::getProcessTriple(); })
       .def("tvm.codegen.llvm.GetHostCPUName",
            []() -> std::string { return llvm::sys::getHostCPUName().str(); })
-      .def("tvm.codegen.llvm.GetHostCPUFeatures", []() -> ffi::Map<ffi::String, IntImm> {
+      .def("tvm.codegen.llvm.GetHostCPUFeatures", []() -> ffi::Map<ffi::String, prim::IntImm> {
 #if TVM_LLVM_VERSION >= 190
-        ffi::Map<ffi::String, IntImm> ret;
+        ffi::Map<ffi::String, prim::IntImm> ret;
         auto features = llvm::sys::getHostCPUFeatures();
         for (auto it = features.begin(); it != features.end(); ++it) {
           std::string name = it->getKey().str();
           bool value = it->getValue();
-          ret.Set(name, IntImm::Bool(value));
+          ret.Set(name, prim::IntImm::Bool(value));
         }
         return ret;
 #else
       llvm::StringMap<bool> features;
       if (llvm::sys::getHostCPUFeatures(features)) {
-        ffi::Map<ffi::String, IntImm> ret;
+        ffi::Map<ffi::String, prim::IntImm> ret;
         for (auto it = features.begin(); it != features.end(); ++it) {
           std::string name = it->getKey().str();
           bool value = it->getValue();
-          ret.Set(name, IntImm::Bool(value));
+          ret.Set(name, prim::IntImm::Bool(value));
         }
         return ret;
       }

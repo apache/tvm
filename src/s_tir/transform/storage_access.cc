@@ -23,6 +23,7 @@
 #include "storage_access.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op.h>
 
@@ -314,7 +315,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
     Var buffer = ResolveBuffer(buffer_var.value());
     PrimExpr offset = op->args[2].as_or_throw<PrimExpr>();
     PrimExpr extent = op->args[3].as_or_throw<PrimExpr>();
-    const IntImmNode* flag = op->args[4].as<IntImmNode>();
+    const prim::IntImmNode* flag = op->args[4].as<prim::IntImmNode>();
     StorageScope scope = GetScope(buffer_var.value());
     // The buffer scope.
     if (Enabled(buffer.get(), scope)) {

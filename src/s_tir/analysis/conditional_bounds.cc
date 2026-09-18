@@ -26,6 +26,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/pattern.h>
@@ -264,9 +265,9 @@ class NormalizeComparisons : public tvm::ExprMutator {
     PrimType a_ty = a.ty();
     if (std::is_same<T, prim::LT>::value &&
         (a_ty.code() == DLDataTypeCode::kDLInt || a_ty.code() == DLDataTypeCode::kDLUInt)) {
-      return prim::LE(analyzer_->Simplify(a - b + 1), IntImm(a.ty(), 0));
+      return prim::LE(analyzer_->Simplify(a - b + 1), prim::IntImm(a.ty(), 0));
     }
-    return T(analyzer_->Simplify(a - b), IntImm(a.ty(), 0));
+    return T(analyzer_->Simplify(a - b), prim::IntImm(a.ty(), 0));
   }
   sym::Analyzer analyzer_;
 };
@@ -307,7 +308,7 @@ void ClassifyByPolarity(const PrimVar& var, const std::vector<PrimExpr>& current
   for (const PrimExpr& ineq : current_ineq_set) {
     if (const prim::LENode* le = ineq.as<prim::LENode>()) {
       ffi::Array<PrimExpr> coef = sym::DetectLinearEquation(le->a, {var});
-      const auto* imm = !coef.empty() ? coef[0].as<IntImmNode>() : nullptr;
+      const auto* imm = !coef.empty() ? coef[0].as<prim::IntImmNode>() : nullptr;
       if (auto value = imm ? imm->value.as<int64_t>() : std::nullopt; value.has_value()) {
         int64_t coef0 = *value;
         if (coef0 == 0) {
@@ -322,7 +323,7 @@ void ClassifyByPolarity(const PrimVar& var, const std::vector<PrimExpr>& current
       }
     } else if (const prim::EQNode* eq = ineq.as<prim::EQNode>()) {
       ffi::Array<PrimExpr> coef = sym::DetectLinearEquation(eq->a, {var});
-      const auto* imm = !coef.empty() ? coef[0].as<IntImmNode>() : nullptr;
+      const auto* imm = !coef.empty() ? coef[0].as<prim::IntImmNode>() : nullptr;
       if (auto value = imm ? imm->value.as<int64_t>() : std::nullopt; value.has_value()) {
         int64_t coef0 = *value;
         if (coef0 == 0) {
@@ -424,10 +425,10 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
         auto first_gcd = ExtendedEuclidean(pos.first, -neg.first, &gcd_x, &gcd_y);
         PrimType v_ty = v.ty();
         PrimExpr c_pos = prim::MakeConst(v_ty, neg.first / first_gcd);
-        PrimExpr c_neg = IntImm(v_ty, pos.first / first_gcd);
+        PrimExpr c_neg = prim::IntImm(v_ty, pos.first / first_gcd);
         // eliminate the current variable
         PrimExpr new_lhs = c_neg * neg.second - c_pos * pos.second;
-        PrimExpr new_ineq = prim::LE(new_lhs, IntImm(pos.second.ty(), 0));
+        PrimExpr new_ineq = prim::LE(new_lhs, prim::IntImm(pos.second.ty(), 0));
         // we need rewrite_simplify -> canonical_simplify -> rewrite_simplify
         // to help simplify things like (((y + 10) - (-1*(y - 20))) <= 0) => y - 5 <= 0
         // with steps = 2 it's (y*2) - 10 <= 0
@@ -520,7 +521,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     PrimExpr e_simp = analyzer->Simplify(e, kSimplifyRewriteCanonicalRewrite);
     if (is_const_int(e_simp, 0)) {
       // contradiction detected
-      other_conditions = {IntImm::Bool(false)};
+      other_conditions = {prim::IntImm::Bool(false)};
       break;
     } else if (is_const_int(e_simp, 1)) {
       continue;
@@ -587,7 +588,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
         if (analyzer->CanProveGreaterEqual(-best_range->extent, 0)) {
           // range.extent <= 0 implies the input inequality system is unsolvable
           return IntConstraints(/*variables=*/{}, /*ranges=*/{},
-                                /*relations=*/{IntImm::Bool(false)});
+                                /*relations=*/{prim::IntImm::Bool(false)});
         }
         res_ranges.Set(var, best_range);
         vranges.Set(var, best_range);
@@ -644,7 +645,7 @@ ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition(
         } else {
           is_simple &= obj->IsInstance<prim::AddNode>() || obj->IsInstance<prim::SubNode>() ||
                        obj->IsInstance<prim::MulNode>() || obj->IsInstance<prim::FloorDivNode>() ||
-                       obj->IsInstance<prim::FloorModNode>() || obj->IsInstance<IntImmNode>();
+                       obj->IsInstance<prim::FloorModNode>() || obj->IsInstance<prim::IntImmNode>();
         }
         return ffi::WalkResult::Advance();
       };

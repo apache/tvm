@@ -336,7 +336,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
         Var virtual_var = new_indices[i];
         PrimExpr dim = new_buffer->shape[i];
         new_iter_values.push_back(var.as_or_throw<PrimExpr>());
-        new_iter_vars.push_back(IterVar(Range::FromMinExtent(IntImm(dim.ty(), 0), dim),
+        new_iter_vars.push_back(IterVar(Range::FromMinExtent(prim::IntImm(dim.ty(), 0), dim),
                                         virtual_var.as_or_throw<PrimVar>(), kDataPar));
         loop_var_to_virtual_var.Set(var, virtual_var);
       }
@@ -534,7 +534,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer.name() << "_assumptions";
     auto read_region = BufferRegionFromPoint(new_buffer, indices);
-    stmt = SBlockRealize(iter_values, IntImm::Bool(true),
+    stmt = SBlockRealize(iter_values, prim::IntImm::Bool(true),
                          SBlock(iter_vars, {read_region}, {}, block_name.str(), stmt));
 
     for (size_t rev_i = 0; rev_i < inverse->initial_indices.size(); rev_i++) {
@@ -1219,7 +1219,7 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const ffi::Array<PrimE
 
   if (!var_map.empty()) {
     auto final_indices = index_map->final_indices.Map([&](PrimExpr index) {
-      if (auto* ptr = index.as<IntImmNode>()) {
+      if (auto* ptr = index.as<prim::IntImmNode>()) {
         TVM_FFI_ICHECK(index_dtype.has_value());
         return tvm::prim::MakeConst(PrimType(*index_dtype), ptr->value);
       } else {
@@ -1274,12 +1274,12 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   const SBlockNode* scope_block = TVM_SREF_TO_SBLOCK(scope_sref);
 
   ffi::Optional<IndexMap> opt_inverse = std::nullopt;
-  PrimExpr padding_predicate = IntImm::Bool(false);
+  PrimExpr padding_predicate = prim::IntImm::Bool(false);
   if (!assume_injective_transform) {
     std::tie(opt_inverse, padding_predicate) = [&]() {
       ffi::Array<Range> region;
       for (const auto& dim : old_buffer->shape) {
-        region.push_back(Range::FromMinExtent(IntImm(dim.ty(), 0), dim));
+        region.push_back(Range::FromMinExtent(prim::IntImm(dim.ty(), 0), dim));
       }
       return index_map.NonSurjectiveInverse(region, analyzer);
     }();
@@ -1513,7 +1513,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     }
     PrimType dtype = new_block_var->ty.as_or_throw<PrimType>();
     new_block_iters.push_back(IterVar(
-        /*dom=*/Range::FromMinExtent(IntImm(dtype, 0), cast(dtype, new_block_iter_range[i])),
+        /*dom=*/Range::FromMinExtent(prim::IntImm(dtype, 0), cast(dtype, new_block_iter_range[i])),
         /*var=*/std::move(new_block_var).as_or_throw<PrimVar>(), /*iter_type=*/iter_type));
   }
 
@@ -1524,7 +1524,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   {
     ffi::Array<Range> initial_ranges;
     for (const PrimExpr& extent : block_iter_range_array) {
-      initial_ranges.push_back(Range::FromMinExtent(IntImm(extent.ty(), 0), extent));
+      initial_ranges.push_back(Range::FromMinExtent(prim::IntImm(extent.ty(), 0), extent));
     }
     IndexMap inverse_index_map{nullptr};
     try {
@@ -1595,9 +1595,9 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IndexMap index_map,
-                                      IntImm buffer_index, IntImm buffer_index_type,
+                                      prim::IntImm buffer_index, prim::IntImm buffer_index_type,
                                       ffi::Optional<IndexMap> pad_value,
-                                      IntImm assume_injective_transform) {
+                                      prim::IntImm assume_injective_transform) {
     return sch->TransformLayout(
         block_rv, buffer_index->value.as<int>().value(),
         static_cast<BufferIndexType>(buffer_index_type->value.as<int>().value()), index_map,
@@ -1605,9 +1605,10 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      IndexMap index_map, IntImm buffer_index,
-                                      IntImm buffer_index_type, ffi::Optional<IndexMap> pad_value,
-                                      IntImm assume_injective_transform) {
+                                      IndexMap index_map, prim::IntImm buffer_index,
+                                      prim::IntImm buffer_index_type,
+                                      ffi::Optional<IndexMap> pad_value,
+                                      prim::IntImm assume_injective_transform) {
     PythonAPICall py("transform_layout");
     py.Input("block", block_rv);
 

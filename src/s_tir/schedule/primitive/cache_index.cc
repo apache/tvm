@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/int_set.h>
 
@@ -66,8 +67,8 @@ PrimType DeterminePrimType(const sym::IntSet& range) {
   if (ana->CanProve(range.min() >= INT32_MIN && range.max() <= INT32_MAX)) {
     return PrimType::Int(32);
   } else {
-    TVM_FFI_ICHECK(ana->CanProve(range.min() >= IntImm::Int64(INT64_MIN) &&
-                                 range.max() <= IntImm::Int64(INT64_MAX)));
+    TVM_FFI_ICHECK(ana->CanProve(range.min() >= prim::IntImm::Int64(INT64_MIN) &&
+                                 range.max() <= prim::IntImm::Int64(INT64_MAX)));
     return PrimType::Int(64);
   }
 }
@@ -318,14 +319,14 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
       const Var& block_var = info->origin_block_vars[expr_index][i];
       PrimType block_var_ty = block_var->ty.as_or_throw<PrimType>();
       PrimVar var("v" + std::to_string(access_indices.size()), block_var_ty);
-      Range range =
-          Range::FromMinExtent(IntImm(block_var_ty, 0), info->range_map.at(iter_vars[i])->extent);
+      Range range = Range::FromMinExtent(prim::IntImm(block_var_ty, 0),
+                                         info->range_map.at(iter_vars[i])->extent);
       block_vars.push_back(IterVar(/*dom=*/range,
                                    /*var=*/var,
                                    /*IterVarType=*/kDataPar));
 
       access_indices.push_back(var);
-      access_region.push_back(Range::FromMinExtent(var, IntImm(var.ty(), 1)));
+      access_region.push_back(Range::FromMinExtent(var, prim::IntImm(var.ty(), 1)));
       block_var_map.Set(block_var, var);
     }
 
@@ -352,7 +353,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     blocks.push_back(block);
     // Create the block realize node
     Stmt body = SBlockRealize(/*values=*/iter_values,
-                              /*predicate=*/IntImm::Bool(true),
+                              /*predicate=*/prim::IntImm::Bool(true),
                               /*block=*/block);
     // Create surrounding loops
     for (size_t i = loop_vars.size(); i >= 1; --i) {
@@ -541,12 +542,12 @@ struct CacheIndexTraits : public UnpackedInstTraits<CacheIndexTraits> {
 
   static ffi::Array<SBlockRV> UnpackedApplyToSchedule(Schedule sch, SBlockRV block,
                                                       ffi::String storage_scope,
-                                                      IntImm cse_thresh) {
+                                                      prim::IntImm cse_thresh) {
     return sch->CacheIndex(block, storage_scope, cse_thresh->value.as<int>().value());
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      ffi::String storage_scope, IntImm cse_thresh) {
+                                      ffi::String storage_scope, prim::IntImm cse_thresh) {
     PythonAPICall py("cache_index");
     py.Input("block", block);
     py.Input("storage_scope", storage_scope);

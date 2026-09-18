@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/type.h>
 
@@ -28,8 +29,8 @@ namespace printer {
 TVM_FFI_STATIC_INIT_BLOCK() { TIRFrameNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<IntImm>(
-      "", [](IntImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
+  IRDocsifier::vtable().set_dispatch<prim::IntImm>(
+      "", [](prim::IntImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
         DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
         if (dtype == d->cfg->int_dtype) {
           return LiteralDoc::Int(imm, imm_p->Attr("value"));
@@ -43,8 +44,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<FloatImm>(
-      "", [](FloatImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
+  IRDocsifier::vtable().set_dispatch<prim::FloatImm>(
+      "", [](prim::FloatImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
         DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
         if (dtype == d->cfg->float_dtype) {
           return LiteralDoc::Float(imm->value, imm_p->Attr("value"));
@@ -122,8 +123,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(IntImmNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(FloatImmNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(prim::IntImmNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(prim::FloatImmNode, ReprPrintTIR);
 TVM_REGISTER_SCRIPT_AS_REPR(PrimTypeNode, ReprPrintTIR);
 TVM_REGISTER_SCRIPT_AS_REPR(PointerTypeNode, ReprPrintTIR);
 TVM_REGISTER_SCRIPT_AS_REPR(TupleTypeNode, ReprPrintTIR);

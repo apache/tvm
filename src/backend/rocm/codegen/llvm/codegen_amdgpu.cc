@@ -39,6 +39,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #if TVM_LLVM_VERSION < 170
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #endif
@@ -107,7 +108,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       buf = AllocateSharedMemory(dtype, 0, 3, std::min(info.alignment, 16),
                                  llvm::GlobalValue::ExternalLinkage);
     } else {
-      const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
+      const prim::IntImmNode* dim_imm = op->buffer->shape[0].as<prim::IntImmNode>();
       TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
       size_t constant_size = dim_imm->value.as<size_t>().value();
       TVM_FFI_ICHECK_GT(constant_size, 0)

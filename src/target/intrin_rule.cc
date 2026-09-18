@@ -23,6 +23,7 @@
  */
 #include "intrin_rule.h"
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/op.h>
@@ -284,12 +285,12 @@ TVM_REGISTER_OP("tirx.q_multiply_shift")
 
       // Lambda function to extract the int value from PrimExpr
       auto get_int_value = [](const PrimExpr node) {
-        if (auto int_node = node.as<IntImmNode>()) {
+        if (auto int_node = node.as<prim::IntImmNode>()) {
           return static_cast<int64_t>(int_node->value);
         }
         auto broadcast_node = node.as<prim::BroadcastNode>();
         TVM_FFI_ICHECK(broadcast_node != nullptr);
-        auto int_node = broadcast_node->value.as<IntImmNode>();
+        auto int_node = broadcast_node->value.as<prim::IntImmNode>();
         TVM_FFI_ICHECK(int_node != nullptr);
         return static_cast<int64_t>(int_node->value);
       };

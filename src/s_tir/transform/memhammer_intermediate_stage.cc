@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/prim/expr.h>
 
 #include "memhammer_rewrite_rule.h"
 
@@ -127,14 +128,14 @@ class IndexPatternFinder : public StmtExprVisitor {
     }
     if (ffi::Optional<Range> range = var_range_.Get(ffi::GetRef<Var>(op))) {
       PrimExpr index = ffi::GetRef<Var>(op).as_or_throw<PrimExpr>();
-      int64_t max = static_cast<int64_t>(range.value()->extent.as<IntImmNode>()->value);
+      int64_t max = static_cast<int64_t>(range.value()->extent.as<prim::IntImmNode>()->value);
       int64_t extent = max;
       for (int i = static_cast<int>(operator_stack.size()) - 1; i >= 0; i--) {
         Operator o = operator_stack[i];
         switch (o.kind) {
           case Operator::OpKind::Mul:
             max *= o.operand;
-            index = index * IntImm::Int32(o.operand);
+            index = index * prim::IntImm::Int32(o.operand);
             break;
           case Operator::OpKind::FloorDiv:
             if (max % o.operand != 0 && o.operand % max != 0) {
@@ -149,7 +150,7 @@ class IndexPatternFinder : public StmtExprVisitor {
               success_ = false;
               return std::nullopt;
             }
-            index = floordiv(index, IntImm::Int32(o.operand));
+            index = floordiv(index, prim::IntImm::Int32(o.operand));
             break;
           case Operator::OpKind::FloorMod:
             int64_t step = max / extent;
@@ -164,12 +165,12 @@ class IndexPatternFinder : public StmtExprVisitor {
               extent = std::max(static_cast<int64_t>(1), std::min(extent, o.operand / step));
               max = extent * step;
             }
-            index = floormod(index, IntImm::Int32(o.operand));
+            index = floormod(index, prim::IntImm::Int32(o.operand));
         }
       }
       if (extent > 1) {
         TVM_FFI_ICHECK(max % extent == 0);
-        access_shape_.push_back(IntImm::Int32(extent));
+        access_shape_.push_back(prim::IntImm::Int32(extent));
         resulting_index_->push_back(floordiv(index, max / extent));
       }
     }
@@ -177,7 +178,7 @@ class IndexPatternFinder : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const FloorDivNode* op) final {
-    int64_t b = static_cast<int64_t>(op->b.as<IntImmNode>()->value);
+    int64_t b = static_cast<int64_t>(op->b.as<prim::IntImmNode>()->value);
     operator_stack.push_back(Operator{Operator::OpKind::FloorDiv, b});
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     operator_stack.pop_back();
@@ -185,7 +186,7 @@ class IndexPatternFinder : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const FloorModNode* op) final {
-    int64_t b = static_cast<int64_t>(op->b.as<IntImmNode>()->value);
+    int64_t b = static_cast<int64_t>(op->b.as<prim::IntImmNode>()->value);
     operator_stack.push_back(Operator{Operator::OpKind::FloorMod, b});
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     operator_stack.pop_back();
@@ -193,7 +194,7 @@ class IndexPatternFinder : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const MulNode* op) final {
-    int64_t b = static_cast<int64_t>(op->b.as<IntImmNode>()->value);
+    int64_t b = static_cast<int64_t>(op->b.as<prim::IntImmNode>()->value);
     operator_stack.push_back(Operator{Operator::OpKind::Mul, b});
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     operator_stack.pop_back();

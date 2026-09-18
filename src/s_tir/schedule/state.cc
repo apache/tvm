@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/int_set.h>
 
@@ -1102,11 +1103,12 @@ void ScheduleStateNode::UpdateScopeSBlockInfo(const Stmt& stmt) {
   SBlockInfoCollector::Collect(this, stmt);
 }
 
-TVM_DLL ffi::Array<IntImm> GetCachedFlags(const ScheduleState& self, const StmtSRef& block_sref) {
+TVM_DLL ffi::Array<prim::IntImm> GetCachedFlags(const ScheduleState& self,
+                                                const StmtSRef& block_sref) {
   const SBlockInfo& info = self->GetSBlockInfo(block_sref);
-  return {IntImm::Bool(info.affine_binding),  //
-          IntImm::Bool(info.region_cover),    //
-          IntImm::Bool(info.stage_pipeline)};
+  return {prim::IntImm::Bool(info.affine_binding),  //
+          prim::IntImm::Bool(info.region_cover),    //
+          prim::IntImm::Bool(info.stage_pipeline)};
 }
 
 /**************** FFI ****************/

@@ -25,6 +25,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/type_functor.h>
@@ -216,7 +217,7 @@ ShapeType::ShapeType(ffi::Array<PrimExpr> values, Span span) : Type(ffi::UnsafeI
   ffi::ObjectPtr<ShapeTypeNode> n = ffi::make_object<ShapeTypeNode>();
   n->ndim = static_cast<int>(values.size());
   n->values = values.Map([](PrimExpr value) {
-    if (value->IsInstance<IntImmNode>()) {
+    if (value->IsInstance<prim::IntImmNode>()) {
       return tvm::prim::cast(PrimType::Int(64), value);
     }
     TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
@@ -310,7 +311,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              auto index = slice[0].as<PrimExpr>();
              TVM_FFI_CHECK(index.has_value(), TypeError)
                  << "A Relax expression requires a point index";
-             const auto* imm = index.value().as<IntImmNode>();
+             const auto* imm = index.value().as<prim::IntImmNode>();
              TVM_FFI_CHECK(imm != nullptr, TypeError)
                  << "A Relax expression requires a constant integer index";
              return TupleGetItem(value, imm->value.as<int>().value(), span);

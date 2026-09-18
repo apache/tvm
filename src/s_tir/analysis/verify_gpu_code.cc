@@ -73,7 +73,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
     runtime::StorageScope storage_scope = runtime::StorageScope::Create(scope);
     int64_t const_size = 1;
     for (const PrimExpr& e : op->buffer->shape) {
-      if (auto* imm = e.as<IntImmNode>()) {
+      if (auto* imm = e.as<prim::IntImmNode>()) {
         const_size = static_cast<int64_t>(const_size * imm->value);
       } else {
         const_size = 0;
@@ -109,7 +109,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
       }
 
       Var var = op->node.as<IterVarNode>()->var;
-      const auto* extent = op->value.as<IntImmNode>();
+      const auto* extent = op->value.as<prim::IntImmNode>();
       TVM_FFI_ICHECK(extent);
 
       std::string name = var.get()->name;
@@ -190,7 +190,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) {
     if (op->loop_var->name == "vthread.s") {
-      const auto* extent = op->extent.as<IntImmNode>();
+      const auto* extent = op->extent.as<prim::IntImmNode>();
       TVM_FFI_ICHECK(extent);
 
       size_t num_vthread = extent->value.as<size_t>().value();
@@ -312,7 +312,7 @@ std::vector<ffi::String> VerifyGPUCode_(const PrimFunc& func,
   int64_t max_kernels = INT64_MAX;
 
   for (auto iter : constraints) {
-    const IntImmNode* val = iter.second.as<IntImmNode>();
+    const prim::IntImmNode* val = iter.second.as<prim::IntImmNode>();
     if (iter.first == "max_local_memory_per_block") {
       max_local_memory_per_block = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_shared_memory_per_block") {

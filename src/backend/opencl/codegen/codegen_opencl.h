@@ -24,6 +24,7 @@
 #ifndef TVM_TARGET_OPENCL_CODEGEN_OPENCL_H_
 #define TVM_TARGET_OPENCL_CODEGEN_OPENCL_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/codegen.h>
 
 #include <string>
@@ -68,7 +69,7 @@ class CodeGenOpenCL final : public CodeGenC {
   void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const prim::RampNode* op, std::ostream& os) final;       // NOLINT(*)
   void Dispatch_(const CallNode* op, std::ostream& os) final;             // NOLINT(*)
-  void Dispatch_(const FloatImmNode* op, std::ostream& os) final;         // NOLINT(*)
+  void Dispatch_(const prim::FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
 
   // overload min and max to avoid ambiguous call errors
   void Dispatch_(const prim::MinNode* op, std::ostream& os) final;

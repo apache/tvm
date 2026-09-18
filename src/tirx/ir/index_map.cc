@@ -25,6 +25,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/int_set.h>
@@ -77,7 +78,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
     // return the pre-defined inverse index map if exists.  In this
     // case, the user-defined inverse is assumed to be correct and
     // bijective.
-    PrimExpr padding_predicate = IntImm::Bool(false);
+    PrimExpr padding_predicate = prim::IntImm::Bool(false);
     return {self->inverse_index_map.value().as_or_throw<IndexMap>(), padding_predicate};
   }
 
@@ -293,7 +294,7 @@ ffi::Array<PrimExpr> IndexMapNode::MapShape(const ffi::Array<PrimExpr>& shape,
 
   ffi::Array<Range> ranges;
   for (auto& dim : shape) {
-    ranges.push_back(Range(IntImm(dim.ty(), 0), dim));
+    ranges.push_back(Range(prim::IntImm(dim.ty(), 0), dim));
   }
   ffi::Array<Range> mapped = MapRanges(std::move(ranges), analyzer);
 
@@ -322,7 +323,7 @@ runtime::Tensor IndexMapNode::MapTensor(runtime::Tensor arr_src) const {
 
   std::vector<int64_t> dst_shape_int;
   for (size_t i = 0; i < dst_shape.size(); ++i) {
-    dst_shape_int.push_back(static_cast<int64_t>(dst_shape[i].as<IntImmNode>()->value));
+    dst_shape_int.push_back(static_cast<int64_t>(dst_shape[i].as<prim::IntImmNode>()->value));
   }
 
   auto elem_bytes = (arr_src->dtype.bits / 8) * arr_src->dtype.lanes;
@@ -350,7 +351,7 @@ runtime::Tensor IndexMapNode::MapTensor(runtime::Tensor arr_src) const {
     auto mul_factor = size_1d;
     for (size_t j = 0; j < dst_indices.size(); ++j) {
       mul_factor /= dst_shape_int[j];
-      dst_linear_index += dst_indices[j].as<IntImmNode>()->value * mul_factor;
+      dst_linear_index += dst_indices[j].as<prim::IntImmNode>()->value * mul_factor;
     }
     std::copy(bytes_src.begin() + i * elem_bytes, bytes_src.begin() + (i + 1) * elem_bytes,
               bytes_dst.begin() + static_cast<int64_t>(dst_linear_index) * elem_bytes);

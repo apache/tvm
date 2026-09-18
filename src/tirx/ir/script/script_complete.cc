@@ -25,6 +25,7 @@
 #include "./script_complete.h"
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -90,7 +91,7 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
     int mask = 0;
     auto it = op->annotations.find(s_tir::attr::script_parsing_detect_access);
     if (it != op->annotations.end()) {
-      mask = (*it).second.as_or_throw<IntImm>()->value.as<int>().value();
+      mask = (*it).second.as_or_throw<prim::IntImm>()->value.as<int>().value();
     }
     // ignore root block or blocks which already has reads/writes regions
     if (mask != 0 && s_tir_) {
@@ -166,7 +167,7 @@ PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocat
 
   if (s_tir && should_insert_root) {
     s_tir::SBlock root_block({}, {}, {}, "root", std::move(res), std::nullopt, root_allocates);
-    res = s_tir::SBlockRealize({}, IntImm::Bool(true), std::move(root_block));
+    res = s_tir::SBlockRealize({}, prim::IntImm::Bool(true), std::move(root_block));
   }
 
   // generate surrounding loops automatically

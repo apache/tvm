@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include "../utils.h"
 
@@ -44,10 +45,10 @@ class GradientBasedNode final : public TaskSchedulerNode {
                                     TaskSchedulerNode);
 
  public:
-  void Tune(ffi::Array<TuneContext> tasks, ffi::Array<FloatImm> task_weights, int max_trials_global,
-            int max_trials_per_task, int num_trials_per_iter, Builder builder, Runner runner,
-            ffi::Array<MeasureCallback> measure_callbacks, ffi::Optional<Database> database,
-            ffi::Optional<CostModel> cost_model) final {
+  void Tune(ffi::Array<TuneContext> tasks, ffi::Array<prim::FloatImm> task_weights,
+            int max_trials_global, int max_trials_per_task, int num_trials_per_iter,
+            Builder builder, Runner runner, ffi::Array<MeasureCallback> measure_callbacks,
+            ffi::Optional<Database> database, ffi::Optional<CostModel> cost_model) final {
     int n_tasks = tasks.size();
     round_robin_rounds_ = 0;
     best_latency_history_.resize(n_tasks, std::vector<double>());

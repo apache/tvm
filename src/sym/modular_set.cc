@@ -26,6 +26,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/sym/analyzer.h>
 
 #include <limits>
@@ -115,7 +116,7 @@ class ModularSetAnalyzer::Impl : public tvm::ExprFunctor<ModularSetAnalyzer::Ent
   // Detect useful constraints and use them in the analysis scope.
   std::function<void()> EnterConstraint(const PrimExpr& constraint) {
     PVar<Var> var;
-    PVar<IntImm> coeff, base;
+    PVar<prim::IntImm> coeff, base;
     // pattern match interesting constraints
     if ((truncmod(var, coeff) == base).Match(constraint) ||
         (floormod(var, coeff) == base).Match(constraint)) {
@@ -150,7 +151,7 @@ class ModularSetAnalyzer::Impl : public tvm::ExprFunctor<ModularSetAnalyzer::Ent
 
   Entry Dispatch_(const prim::CastNode* op) final { return Dispatch(op->value); }
 
-  Entry Dispatch_(const IntImmNode* op) final {
+  Entry Dispatch_(const prim::IntImmNode* op) final {
     if (auto value = op->value.as<int64_t>(); value.has_value()) return Entry(0, *value);
     return Everything();
   }
@@ -308,7 +309,7 @@ class ModularSetAnalyzer::Impl : public tvm::ExprFunctor<ModularSetAnalyzer::Ent
     Entry b = Dispatch(op->args[1].as_or_throw<PrimExpr>());
     if (b.is_const()) {
       int shift;
-      if (is_const_power_of_two_integer(IntImm::Int32(b.base + 1), &shift)) {
+      if (is_const_power_of_two_integer(prim::IntImm::Int32(b.base + 1), &shift)) {
         return ModByConst(op->args[0].as_or_throw<PrimExpr>(), static_cast<int64_t>(1) << shift,
                           true);
       }

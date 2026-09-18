@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
@@ -258,8 +259,8 @@ bool Is64BitPayload(PayloadType type) {
 
 bool IsScalarBufferAccess(const BufferVar& buffer, const ffi::Array<PrimExpr>& indices) {
   if (buffer->shape.size() != 1 || indices.size() != 1) return false;
-  const auto* extent = buffer->shape[0].as<IntImmNode>();
-  const auto* index = indices[0].as<IntImmNode>();
+  const auto* extent = buffer->shape[0].as<prim::IntImmNode>();
+  const auto* index = indices[0].as<prim::IntImmNode>();
   return extent && extent->value == 1 && index && index->value == 0;
 }
 
@@ -614,7 +615,7 @@ class StripIket : public StmtExprMutator {
 
   UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) final {
     if (call->op.same_as(IketRangeStartOp()) || call->op.same_as(IketSentinelOp())) {
-      return IntImm(PrimType::UInt(32), 0);
+      return prim::IntImm(PrimType::UInt(32), 0);
     }
     return StmtExprMutator::Mutate_(call, inplace_mode);
   }
@@ -624,7 +625,7 @@ class StripIket : public StmtExprMutator {
 
 bool IsEvaluateZero(const Stmt& stmt) {
   const auto* evaluate = stmt.as<EvaluateNode>();
-  const auto* value = evaluate ? evaluate->value.as<IntImmNode>() : nullptr;
+  const auto* value = evaluate ? evaluate->value.as<prim::IntImmNode>() : nullptr;
   return value && value->value == 0;
 }
 
@@ -1154,7 +1155,7 @@ class InstrumentOfficialKernel : public StmtExprMutator {
   UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) final {
     if (call->op.same_as(IketRangeStartOp())) {
       const Declaration& declaration = Lookup(DeclarationKind::kRange, call);
-      PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
+      PrimExpr event_id = prim::IntImm(PrimType::UInt(32), declaration.event_id);
       if (declaration.has_payload) {
         return Event(
             event_id,
@@ -1164,10 +1165,10 @@ class InstrumentOfficialKernel : public StmtExprMutator {
       }
       return Event(event_id);
     }
-    if (call->op.same_as(IketSentinelOp())) return IntImm(PrimType::UInt(32), 0);
+    if (call->op.same_as(IketSentinelOp())) return prim::IntImm(PrimType::UInt(32), 0);
     if (call->op.same_as(IketMarkOp())) {
       const Declaration& declaration = Lookup(DeclarationKind::kMark, call);
-      PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
+      PrimExpr event_id = prim::IntImm(PrimType::UInt(32), declaration.event_id);
       if (declaration.has_payload) {
         return Event(
             event_id,
@@ -1179,7 +1180,7 @@ class InstrumentOfficialKernel : public StmtExprMutator {
     }
     if (call->op.same_as(IketRangePushOp())) {
       const Declaration& declaration = Lookup(DeclarationKind::kPush, call);
-      PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
+      PrimExpr event_id = prim::IntImm(PrimType::UInt(32), declaration.event_id);
       if (declaration.has_payload) {
         return Event(
             event_id,
@@ -1190,7 +1191,7 @@ class InstrumentOfficialKernel : public StmtExprMutator {
       return Event(event_id);
     }
     if (call->op.same_as(IketRangePopOp())) {
-      return Event(IntImm(PrimType::UInt(32), kRangePopEventId));
+      return Event(prim::IntImm(PrimType::UInt(32), kRangePopEventId));
     }
     if (call->op.same_as(IketRangeEndOp())) {
       TVM_FFI_THROW(ValueError) << "range_end must be emitted in statement position";

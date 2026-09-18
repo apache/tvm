@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 namespace tvm {
 namespace relax {
@@ -147,7 +148,7 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
 
     if (HasVoidType(arg_relative_byte_offset)) {
       // No byte offset is specified, so no change is applied.
-      return IntImm::Int64(0);
+      return prim::IntImm::Int64(0);
     } else if (auto prim_ty = ty.as<PrimTypeNode>()) {
       TVM_FFI_CHECK_EQ(prim_ty->dtype, (DLDataType{kDLInt, 64, 1}), TypeError)
           << "Operator " << call->op
@@ -192,12 +193,12 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<PrimType> output_dtype = view_dtype_arg_present ? view_dtype : data_ty->dtype;
 
   // Helper function returns the number of bytes per vectorized element.
-  auto get_size_bytes = [](DLDataType dtype) -> ffi::Optional<IntImm> {
+  auto get_size_bytes = [](DLDataType dtype) -> ffi::Optional<prim::IntImm> {
     PrimType ty(dtype);
     if (ty.IsVoid() || ty.IsScalableVector()) {
       return std::nullopt;
     } else {
-      return IntImm::Int64(static_cast<int64_t>(ty.StorageBytes()));
+      return prim::IntImm::Int64(static_cast<int64_t>(ty.StorageBytes()));
     }
   };
 
@@ -209,7 +210,7 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
       return std::nullopt;
     }
 
-    PrimExpr num_elements = IntImm::Int32(1);
+    PrimExpr num_elements = prim::IntImm::Int32(1);
     for (const auto& dim : shape.value()) {
       num_elements *= dim;
     }
@@ -219,9 +220,9 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<PrimExpr> input_nelements = get_num_elements(input_shape);
   ffi::Optional<PrimExpr> output_nelements = get_num_elements(output_shape);
 
-  ffi::Optional<IntImm> input_element_size =
+  ffi::Optional<prim::IntImm> input_element_size =
       data_ty->dtype.has_value() ? get_size_bytes(data_ty->dtype.value()->dtype) : std::nullopt;
-  ffi::Optional<IntImm> output_element_size =
+  ffi::Optional<prim::IntImm> output_element_size =
       output_dtype.has_value() ? get_size_bytes(output_dtype.value()->dtype) : std::nullopt;
 
   if (input_nelements && output_nelements && input_element_size && output_element_size &&
@@ -380,7 +381,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   }
 
   if (HasVoidType(relative_byte_offset)) {
-    relative_byte_offset = IntImm::Int64(0);
+    relative_byte_offset = prim::IntImm::Int64(0);
   }
 
   TypeDeriveFunc infer_ty_env_func;

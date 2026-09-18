@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -52,7 +53,7 @@ class LoopCanonicalizer : public StmtExprMutator {
     }
     const auto* loop_var = op->loop_var.get();
     PrimType loop_var_ty = loop_var->ty.as_or_throw<PrimType>();
-    PrimExpr step = op->step.value_or(IntImm(loop_var_ty, 1));
+    PrimExpr step = op->step.value_or(prim::IntImm(loop_var_ty, 1));
 
     // report warning for negative step, since it would be a forever loop
     if (!analyzer_->CanProveGreaterEqual(step, 1)) {
@@ -63,7 +64,7 @@ class LoopCanonicalizer : public StmtExprMutator {
 
     VarRemapSet(op->loop_var, op->loop_var.as_or_throw<PrimExpr>() * step + op->min);
     Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-    PrimExpr min = IntImm(loop_var_ty, 0);
+    PrimExpr min = prim::IntImm(loop_var_ty, 0);
     PrimExpr extent = analyzer_->Simplify(ceildiv(op->extent, step));
     if (inplace_mode == InplaceMode::kAllow) {
       auto* writable = const_cast<ForNode*>(op);

@@ -24,6 +24,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -153,8 +154,8 @@ ffi::Array<BufferVar> MakeScratchpads(const ffi::Array<BufferVar>& reduction_buf
     name = name + "_thread_" + buffer.name();
     new_buffers.push_back(BufferVar(name, BufferType(/*storage_scope=*/"local",
                                                      /*dtype=*/buffer->dtype,
-                                                     /*shape=*/{IntImm::Int32(1)},
-                                                     /*strides=*/{IntImm::Int32(1)},
+                                                     /*shape=*/{prim::IntImm::Int32(1)},
+                                                     /*strides=*/{prim::IntImm::Int32(1)},
                                                      /*elem_offset=*/PrimExpr{nullptr},
                                                      /*data_alignment=*/0,
                                                      /*offset_factor=*/0)));
@@ -360,11 +361,11 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     ffi::Array<Stmt> inits;
     inits.reserve(n_buffers);
     for (int i = 0; i < n_buffers; ++i) {
-      inits.push_back(
-          BufferStore(it_buffers.value()[i], reducer->identity_element[i], {IntImm::Int32(0)}));
+      inits.push_back(BufferStore(it_buffers.value()[i], reducer->identity_element[i],
+                                  {prim::IntImm::Int32(0)}));
     }
     stmts.push_back(SBlockRealize(/*iter_values=*/{},
-                                  /*predicate=*/IntImm::Bool(true),
+                                  /*predicate=*/prim::IntImm::Bool(true),
                                   /*block=*/
                                   SBlock(/*iter_vars=*/{},
                                          /*reads=*/{},
@@ -401,17 +402,17 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     ffi::Array<PrimExpr> parameters;
     parameters.reserve(reduction_loops.size() + 4);
     // 1-st argument: number of buffers
-    parameters.push_back(IntImm(PrimType::UInt(32), n_buffers));
+    parameters.push_back(prim::IntImm(PrimType::UInt(32), n_buffers));
     // Next `n_buffers` arguments: sources
     if (it_buffers.has_value()) {
       for (int i = 0; i < n_buffers; ++i) {
-        parameters.push_back(BufferLoad(it_buffers.value()[i], {IntImm::Int32(0)}));
+        parameters.push_back(BufferLoad(it_buffers.value()[i], {prim::IntImm::Int32(0)}));
       }
     } else {
       parameters.insert(parameters.end(), combiner_rhs.begin(), combiner_rhs.end());
     }
     // Next argument: predicate
-    parameters.push_back(IntImm::Bool(true));
+    parameters.push_back(prim::IntImm::Bool(true));
     // Next `n_buffers` arguments: destinations
     for (int i = 0; i < n_buffers; ++i) {
       parameters.push_back(BufferLoad(ct_buffers[i], {0}));
@@ -437,7 +438,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     }
     stmts.push_back(SBlockRealize(
         /*iter_values=*/std::move(bindings),
-        /*predicate=*/IntImm::Bool(true),
+        /*predicate=*/prim::IntImm::Bool(true),
         /*block=*/
         SBlock(/*iter_vars=*/std::move(iter_vars),
                /*reads=*/std::move(reads),
@@ -446,7 +447,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                /*body=*/
                AttrStmt(/*node=*/reducer,
                         /*attr_key=*/s_tir::attr::reduce_scope,
-                        /*value=*/IntImm::Int32(0),
+                        /*value=*/prim::IntImm::Int32(0),
                         /*body=*/
                         Evaluate(Call(/*dtype=*/PrimType::Void(),
                                       /*op=*/tirx::builtin::tvm_thread_allreduce(),
@@ -503,15 +504,15 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                                .as_or_throw<PrimExpr>());
     }
     for (int i = 0; i < n_buffers; ++i) {
-      wb_updates.push_back(
-          BufferStore(wb_buffers[i], BufferLoad(ct_buffers[i], {IntImm::Int32(0)}), wb_indices));
+      wb_updates.push_back(BufferStore(
+          wb_buffers[i], BufferLoad(ct_buffers[i], {prim::IntImm::Int32(0)}), wb_indices));
       wb_regions.push_back(BufferRegion(wb_buffers[i], region));
     }
 
     // Construct the predicate of the write-back block. It is the conjunction of
     // - each predicate clause of the original block which contains spatial loop var, and
     // - `t == 0` for each reduction thread dim when the write-back buffer is not local.
-    PrimExpr wb_predicate = IntImm::Bool(true);
+    PrimExpr wb_predicate = prim::IntImm::Bool(true);
     std::unordered_set<const VarNode*> reduction_loop_vars;
     reduction_loop_vars.reserve(reduction_loops.size());
     for (const ForNode* reduction_loop : reduction_loops) {
@@ -547,8 +548,8 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     if (wb_buffers[0].scope() != "local") {
       for (const ForNode* loop : reduction_loops) {
         if (loop->thread_binding.has_value()) {
-          wb_predicate = wb_predicate &&
-                         (static_cast<PrimExpr>(loop->loop_var) == IntImm(loop->loop_var.ty(), 0));
+          wb_predicate = wb_predicate && (static_cast<PrimExpr>(loop->loop_var) ==
+                                          prim::IntImm(loop->loop_var.ty(), 0));
         }
       }
     }

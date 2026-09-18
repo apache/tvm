@@ -24,6 +24,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -373,7 +374,7 @@ ffi::Map<ffi::String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& co
     }
   }
   // Set script_parsing_detect_access
-  annotations.Set(s_tir::attr::script_parsing_detect_access, IntImm::Int32(3));
+  annotations.Set(s_tir::attr::script_parsing_detect_access, prim::IntImm::Int32(3));
   return annotations;
 }
 
@@ -630,7 +631,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
         GenerateBodyStmt(leaf.store_indices, buffers, leaf.axes_remap, expr_body, info, analyzer);
     seq_stmt.push_back(
         s_tir::SBlockRealize(/*iter_values=*/leaf.bindings,
-                             /*predicate=*/IntImm::Bool(true),
+                             /*predicate=*/prim::IntImm::Bool(true),
                              /*block=*/
                              s_tir::SBlock(/*iter_vars=*/leaf.block_iters,
                                            /*reads=*/{},
@@ -653,7 +654,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
                                    info, analyzer);
       seq_stmt.push_back(
           s_tir::SBlockRealize(/*iter_values=*/leaf.bindings,
-                               /*predicate=*/IntImm::Bool(true),
+                               /*predicate=*/prim::IntImm::Bool(true),
                                /*block=*/
                                s_tir::SBlock(/*iter_vars=*/leaf.block_iters,
                                              /*reads=*/{},
@@ -682,7 +683,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
 
       // wrap nested block
       body = s_tir::SBlockRealize(/*iter_values=*/cur.bindings,
-                                  /*predicate=*/IntImm::Bool(true),
+                                  /*predicate=*/prim::IntImm::Bool(true),
                                   /*block=*/
                                   s_tir::SBlock(/*iter_vars=*/block_iters,
                                                 /*reads=*/{},
@@ -723,7 +724,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     const te::Tensor& output_tensor = extern_op.output(i);
     BufferVar output_buffer = placeholder;
     if (!info->IsArg(output_tensor)) {
-      PrimExpr zero_offset = IntImm(placeholder->elem_offset.ty(), 0);
+      PrimExpr zero_offset = prim::IntImm(placeholder->elem_offset.ty(), 0);
       if (auto offset_var = placeholder->elem_offset.as<PrimVar>()) {
         var_map[offset_var.value().get()] = zero_offset;
       }
@@ -754,7 +755,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
 
   // Step 4. Generate opaque block as body.
   return s_tir::SBlockRealize(/*iter_values=*/{},
-                              /*predicate=*/IntImm::Bool(true),
+                              /*predicate=*/prim::IntImm::Bool(true),
                               /*block=*/
                               s_tir::SBlock(/*iter_vars=*/{},
                                             /*reads=*/{},

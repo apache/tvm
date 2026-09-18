@@ -27,6 +27,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/type.h>
 #include <tvm/tirx/op.h>
 
@@ -111,8 +112,8 @@ class OpAttrExtractor {
       bool can_be_double = true;
       for (size_t i = 0; i < an->size(); ++i) {
         const auto& elem = (*an)[i];
-        bool is_int = elem.try_cast<int64_t>() || elem.as<IntImmNode>();
-        bool is_float = elem.try_cast<double>() || elem.as<FloatImmNode>();
+        bool is_int = elem.try_cast<int64_t>() || elem.as<prim::IntImmNode>();
+        bool is_float = elem.try_cast<double>() || elem.as<prim::FloatImmNode>();
         if (!is_int) {
           can_be_int = false;
         }
@@ -126,7 +127,7 @@ class OpAttrExtractor {
         for (size_t i = 0; i < an->size(); ++i) {
           if (auto opt_int = (*an)[i].try_cast<int64_t>()) {
             attr.push_back(opt_int.value());
-          } else if (const auto* im = (*an)[i].as<IntImmNode>()) {
+          } else if (const auto* im = (*an)[i].as<prim::IntImmNode>()) {
             attr.push_back(static_cast<int64_t>(im->value));
           }
         }
@@ -138,11 +139,11 @@ class OpAttrExtractor {
           const auto& elem = (*an)[i];
           if (auto opt_float = elem.try_cast<double>()) {
             attr.push_back(opt_float.value());
-          } else if (const auto* fm = elem.as<FloatImmNode>()) {
+          } else if (const auto* fm = elem.as<prim::FloatImmNode>()) {
             attr.push_back(fm->value);
           } else if (auto opt_int = elem.try_cast<int64_t>()) {
             attr.push_back(static_cast<double>(opt_int.value()));
-          } else if (const auto* im = elem.as<IntImmNode>()) {
+          } else if (const auto* im = elem.as<prim::IntImmNode>()) {
             attr.push_back(static_cast<double>(im->value));
           }
         }
@@ -161,9 +162,9 @@ class OpAttrExtractor {
       }
     } else if (*value == nullptr) {  // Skip NullValue
       SetNodeAttr(key, ffi::String(""));
-    } else if (const auto* im = (*value).as<IntImmNode>()) {
+    } else if (const auto* im = (*value).as<prim::IntImmNode>()) {
       SetNodeAttr(key, static_cast<int64_t>(im->value));
-    } else if (const auto* fm = (*value).as<FloatImmNode>()) {
+    } else if (const auto* fm = (*value).as<prim::FloatImmNode>()) {
       SetNodeAttr(key, static_cast<double>(fm->value));
     } else if (const auto opt_str = (*value).as<ffi::String>()) {
       SetNodeAttr(key, *opt_str);

@@ -218,19 +218,21 @@ Each ``Object`` subclass will override this to register its members. Here is an 
 
 .. code:: c
 
-  class IntImmNode : public PrimExprNode {
+  namespace tvm::prim {
+  class IntImmNode : public ExprNode {
   public:
     /*! \brief the Internal value. */
-    int64_t value;
+    ffi::BigInt value;
 
     static void RegisterReflection() {
       namespace refl = tvm::ffi::reflection;
       refl::ObjectDef<IntImmNode>().def_ro("value", &IntImmNode::value);
     }
-    TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IntImm", IntImmNode, PrimExprNode);
+    TVM_FFI_DECLARE_OBJECT_INFO_FINAL("prim.IntImm", IntImmNode, ExprNode);
   };
   // in cc file
   TVM_FFI_STATIC_INIT_BLOCK() { IntImmNode::RegisterReflection(); }
+  }  // namespace tvm::prim
 
 The RegisterReflection gives us a reflection API to register each member of the object.
 We can use this function to visit the node and serialize any language object recursively.
@@ -241,7 +243,7 @@ For example,  we can access the value field of the IntImmNode.
 
     import tvm
 
-    x = tvm.tirx.IntImm("int32", 1)
+    x = tvm.ir.prim.IntImm("int32", 1)
     # access the value field of IntImmNode
     print(x.value)
 

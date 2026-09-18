@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
@@ -130,8 +131,8 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm buffer_index,
-                                      IntImm buffer_index_type, IndexMap index_map) {
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, prim::IntImm buffer_index,
+                                      prim::IntImm buffer_index_type, IndexMap index_map) {
     return sch->AnnotateBufferAccess(
         block, buffer_index->value.as<int>().value(),
         static_cast<BufferIndexType>(buffer_index_type->value.as<int>().value()), index_map);
@@ -169,7 +170,7 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      IntImm buffer_index, IntImm buffer_index_type,
+                                      prim::IntImm buffer_index, prim::IntImm buffer_index_type,
                                       IndexMap index_map) {
     PythonAPICall py("annotate_buffer_access");
     py.Input("block", block);

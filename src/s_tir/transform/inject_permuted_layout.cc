@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -131,7 +132,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     if (auto opt_str = annotation.as<ffi::String>()) {
       // Support string annotation for backward compatibility
       return *opt_str != "";
-    } else if (auto* node = annotation.as<IntImmNode>()) {
+    } else if (auto* node = annotation.as<prim::IntImmNode>()) {
       return node->value != 0;
     } else if (auto opt_val = annotation.try_cast<int64_t>()) {
       return *opt_val != 0;
@@ -175,8 +176,8 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
         << " should be at least 2";
 
     auto dim = buffer->shape.size();
-    auto buffer_row_size = buffer->shape[dim - 1].as<IntImmNode>()->value;
-    auto buffer_col_size = buffer->shape[dim - 2].as<IntImmNode>()->value;
+    auto buffer_row_size = buffer->shape[dim - 1].as<prim::IntImmNode>()->value;
+    auto buffer_col_size = buffer->shape[dim - 2].as<prim::IntImmNode>()->value;
 
     if (buffer_row_size % 64 != 0) {
       TVM_FFI_ICHECK(buffer_row_size % 32 == 0)
@@ -304,7 +305,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
       auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr, smem_offset);
       auto new_call = call.CopyOnWrite();
       new_call->args.Set(5, new_access_ptr);
-      new_call->args.Set(6, IntImm(smem_offset.ty(), 0));
+      new_call->args.Set(6, prim::IntImm(smem_offset.ty(), 0));
       return call;
     } else if (call->op.same_as(mma_store_op)) {
       // TODO(yixin): mma_store is not fully tested yet

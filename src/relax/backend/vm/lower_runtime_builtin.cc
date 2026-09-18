@@ -23,6 +23,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/backend.h>
@@ -177,8 +178,8 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     int dev_type = vdev->target->GetTargetDeviceType();
     int dev_id = vdev->vdevice_id;
     StringImm storage_scope = StringImm(vdev->memory_scope);
-    args.push_back(IntImm::Int64(dev_type));
-    args.push_back(IntImm::Int64(dev_id));
+    args.push_back(prim::IntImm::Int64(dev_type));
+    args.push_back(prim::IntImm::Int64(dev_id));
     args.push_back(storage_scope);
     return Call(Type::Missing(), builtin_to_device_, args, call_node->attrs, {GetType(call_node)});
   }

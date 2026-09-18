@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
@@ -175,7 +176,7 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
       // consistent order for all static shapes, and to consistently
       // select the same dynamic weight to participate.
       auto is_dynamic_split = [](const SplitInfo& split) -> bool {
-        return !split.split_size->IsInstance<IntImmNode>();
+        return !split.split_size->IsInstance<prim::IntImmNode>();
       };
       std::stable_sort(splits.begin(), splits.end(),
                        [&is_dynamic_split](const auto& a, const auto& b) {
@@ -235,13 +236,13 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
       }
 
       int split_index = 0;
-      ffi::Array<IntImm> sections;
+      ffi::Array<prim::IntImm> sections;
       for (size_t i = 0; i + 1 < splits.size(); i++) {
-        auto width = splits[i].split_size.as<IntImmNode>();
+        auto width = splits[i].split_size.as<prim::IntImmNode>();
         TVM_FFI_CHECK(width, InternalError)
             << "All splits except the last one must have a static shape";
         split_index = (split_index + width->value).as<int>().value();
-        sections.push_back(IntImm::Int64(split_index));
+        sections.push_back(prim::IntImm::Int64(split_index));
       }
 
       int lhs_dim = GetTensorType(lhs)->ndim;

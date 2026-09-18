@@ -22,6 +22,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <utility>
 #include <vector>
@@ -282,7 +283,7 @@ Type InferTypePad(const Call& call, const BlockBuilder& ctx) {
     const auto* data_shape = input_ty[0]->shape.as<ShapeExprNode>();
     for (int i = 0; i < ndim; i++) {
       // Sum pad width for this axis.
-      PrimExpr added_width = IntImm::Int64(pad_width[2 * i] + pad_width[(2 * i) + 1]);
+      PrimExpr added_width = prim::IntImm::Int64(pad_width[2 * i] + pad_width[(2 * i) + 1]);
       const PrimExpr current_width = data_shape->values[i];
       out_shape.push_back(current_width + added_width);
     }
@@ -339,11 +340,11 @@ Type InferTypePixelShuffle(const Call& call, const BlockBuilder& ctx) {
   PrimExpr h_in = in_shape[h_idx];
   PrimExpr w_in = in_shape[w_idx];
 
-  PrimExpr r_expr = IntImm::Int32(r);
+  PrimExpr r_expr = prim::IntImm::Int32(r);
   PrimExpr r_squared = r_expr * r_expr;
 
-  const auto* c_in_imm = c_in.as<IntImmNode>();
-  const auto* r2_imm = r_squared.as<IntImmNode>();
+  const auto* c_in_imm = c_in.as<prim::IntImmNode>();
+  const auto* r2_imm = r_squared.as<prim::IntImmNode>();
 
   TVM_FFI_ICHECK_EQ(c_in_imm->value % r2_imm->value, 0)
       << "Number of input channels must be divisible by the square of the upscale factor";
@@ -1221,7 +1222,7 @@ Type InferTypeBatchFlatten(const Call& call, const BlockBuilder& ctx) {
   }
 
   PrimExpr batch_dim = data_shape->values[0];
-  PrimExpr flat_dim = IntImm::Int64(1);
+  PrimExpr flat_dim = prim::IntImm::Int64(1);
   for (size_t i = 1; i < data_shape->values.size(); ++i) {
     flat_dim = flat_dim * data_shape->values[i];
   }

@@ -24,6 +24,7 @@
 
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/codegen.h>
 
 #include <algorithm>
@@ -226,8 +227,8 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
   const prim::StringImmNode* func_name = op->args[0].as<prim::StringImmNode>();
   TVM_FFI_ICHECK(func_name != nullptr)
       << "tvm_call_[c]packed_lowered expects first argument as function name";
-  int64_t begin = static_cast<int64_t>(op->args[2].as<IntImmNode>()->value);
-  int64_t end = static_cast<int64_t>(op->args[3].as<IntImmNode>()->value);
+  int64_t begin = static_cast<int64_t>(op->args[2].as<prim::IntImmNode>()->value);
+  int64_t end = static_cast<int64_t>(op->args[3].as<prim::IntImmNode>()->value);
   int64_t num_args = end - begin;
   TVM_FFI_ICHECK_GE(num_args, 0);
 
@@ -289,7 +290,7 @@ void CodeGenCHost::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
   if (op->op.same_as(builtin::tvm_stack_alloca())) {
     std::string stack_name = name_supply_->FreshName("stack");
     const std::string& type = op->args[0].as<prim::StringImmNode>()->value;
-    const IntImmNode* num = op->args[1].as<IntImmNode>();
+    const prim::IntImmNode* num = op->args[1].as<prim::IntImmNode>();
     TVM_FFI_ICHECK(num != nullptr);
     static_assert(alignof(TVMFFIAny) % alignof(DLTensor) == 0, "invariant");
     size_t count = num->value.as<size_t>().value();

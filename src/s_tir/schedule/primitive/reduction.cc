@@ -20,6 +20,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/te/operation.h>
 
@@ -170,7 +171,7 @@ class LoopHeightError : public ScheduleErrorContextObj {
 
 PrimExpr RewriteInitPredicate(PrimExpr pred,
                               const std::unordered_set<const VarNode*>& discarded_loops) {
-  if (is_one(pred)) return IntImm::Bool(true);
+  if (is_one(pred)) return prim::IntImm::Bool(true);
   if (const auto* and_node = pred.as<AndNode>()) {
     return RewriteInitPredicate(and_node->a, discarded_loops) &&
            RewriteInitPredicate(and_node->b, discarded_loops);
@@ -183,7 +184,7 @@ PrimExpr RewriteInitPredicate(PrimExpr pred,
                                           : ffi::WalkResult::Advance();
   };
   return ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(pred, walkfn).has_value()
-             ? IntImm::Bool(true)
+             ? prim::IntImm::Bool(true)
              : pred;
 }
 
@@ -814,7 +815,7 @@ class BaseBlockCreator {
     CreateReadWriteRegions();
 
     ffi::String new_block_name = old_block_realize_->block->name_hint;
-    PrimExpr predicate = IntImm::Bool(true);
+    PrimExpr predicate = prim::IntImm::Bool(true);
     if (is_rf_block_) {
       new_block_name = new_block_name + "_rf";
       predicate = old_block_realize_->predicate;
@@ -1077,7 +1078,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
       ffi::Array<Range> region = write_region->region;
       region.insert(
           region.begin() + factor_axis_,
-          Range::FromMinExtent(additional_iter_->var, IntImm(additional_iter_->var.ty(), 1)));
+          Range::FromMinExtent(additional_iter_->var, prim::IntImm(additional_iter_->var.ty(), 1)));
       ffi::Optional<BufferVar> rf_buffer =
           buffer_map.Get(write_region->source.as_or_throw<tvm::tirx::BufferVar>());
       TVM_FFI_ICHECK(rf_buffer.has_value());
@@ -1513,12 +1514,12 @@ struct RFactorTraits : public UnpackedInstTraits<RFactorTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, IntImm factor_axis) {
+  static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, prim::IntImm factor_axis) {
     return sch->RFactor(loop_rv, factor_axis->value.as<int>().value());
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
-                                      IntImm factor_axis) {
+                                      prim::IntImm factor_axis) {
     PythonAPICall py("rfactor");
     py.Input("loop", loop_rv);
     py.Input("factor_axis", factor_axis->value.as<int>().value());

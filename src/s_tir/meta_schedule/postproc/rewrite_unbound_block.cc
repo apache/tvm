@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/meta_schedule/schedule/cuda/thread_bind.h>
 #include <tvm/s_tir/stmt.h>
 
@@ -139,7 +140,7 @@ bool RewriteUnboundBlockNode::Apply(const s_tir::Schedule& sch) {
   using s_tir::Schedule;
   TVM_FFI_ICHECK_NE(this->max_threads_per_block_, -1);
   auto get_factor = [t = this->max_threads_per_block_](int max_extent) -> ExprRV {
-    return IntImm::Int32(std::min(t, max_extent));
+    return prim::IntImm::Int32(std::min(t, max_extent));
   };
   std::vector<std::pair<tirx::StmtSRef, ffi::String>> unbound_blocks =
       s_tir::UnboundBlockFinder::Find(sch->state());

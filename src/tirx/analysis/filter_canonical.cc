@@ -166,11 +166,11 @@ bool TryParseCompareAtom(const PrimExpr& expr, const ScopeIdPredicate& is_scope_
   // Identify the var side and the const side. Reject if both sides are vars
   // or both are constants -- neither shape is in the canonical grammar.
   const VarNode* var_node = lhs.as<VarNode>();
-  const IntImmNode* imm_node = rhs.as<IntImmNode>();
+  const prim::IntImmNode* imm_node = rhs.as<prim::IntImmNode>();
   bool mirrored = false;
   if (var_node == nullptr || imm_node == nullptr) {
     var_node = rhs.as<VarNode>();
-    imm_node = lhs.as<IntImmNode>();
+    imm_node = lhs.as<prim::IntImmNode>();
     mirrored = true;
   }
   if (var_node == nullptr || imm_node == nullptr) return false;

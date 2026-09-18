@@ -92,7 +92,7 @@ bool IsStaticSharedMemory(const BufferVar& buffer) {
 static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents) {
   int64_t result = 1;
   for (size_t i = 0; i < extents.size(); ++i) {
-    if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
+    if (const prim::IntImmNode* int_size = extents[i].as<prim::IntImmNode>()) {
       auto product = (result * int_size->value).as<int64_t>();
       if (!product.has_value()) return 0;
       result = *product;

@@ -27,6 +27,7 @@
 #ifndef TVM_TARGET_WEBGPU_CODEGEN_WEBGPU_H_
 #define TVM_TARGET_WEBGPU_CODEGEN_WEBGPU_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/codegen.h>
 
 #include <cstddef>
@@ -72,8 +73,8 @@ class CodeGenWebGPU final : public CodeGenC {
   void Dispatch_(const prim::CastNode* op, std::ostream& os) final;       // NOLINT(*)
   void Dispatch_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
   void Dispatch_(const prim::LetNode* op, std::ostream& os) final;        // NOLINT(*)
-  void Dispatch_(const FloatImmNode* op, std::ostream& os) final;         // NOLINT(*)
-  void Dispatch_(const IntImmNode* op, std::ostream& os) final;           // NOLINT(*)
+  void Dispatch_(const prim::FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
+  void Dispatch_(const prim::IntImmNode* op, std::ostream& os) final;     // NOLINT(*)
 
   // stmt printing
   void Dispatch_(const BindNode* op) final;

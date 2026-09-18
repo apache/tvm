@@ -21,6 +21,7 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
@@ -64,7 +65,7 @@ class ConstantFolder : public ExprMutator {
 
     std::vector<int64_t> shape_values;
     for (const auto v : shape->values) {
-      auto* ptr = v.as<IntImmNode>();
+      auto* ptr = v.as<prim::IntImmNode>();
       if (!ptr) return std::nullopt;
       auto value = ptr->value.as<int64_t>();
       if (!value.has_value()) return std::nullopt;
@@ -172,7 +173,7 @@ class ConstantFolder : public ExprMutator {
 
     int64_t num_elements = 1;
     for (const auto& dim : opt_shape.value()) {
-      const auto* int_dim = dim.as<IntImmNode>();
+      const auto* int_dim = dim.as<prim::IntImmNode>();
       if (!int_dim) return true;
       auto d = int_dim->value.as<int64_t>();
       if (int_dim->value <= 0) return true;
@@ -386,7 +387,7 @@ class ConstantFolder : public ExprMutator {
           int64_t num_elems = ndarray->shape[0];
           ffi::Array<PrimExpr> shape_values;
           for (int64_t i = 0; i < num_elems; i++) {
-            shape_values.push_back(IntImm::Int64(data[i]));
+            shape_values.push_back(prim::IntImm::Int64(data[i]));
           }
           return ShapeExpr(shape_values);
         }
@@ -404,7 +405,7 @@ class ConstantFolder : public ExprMutator {
             is_known = false;
             break;
           }
-          arr.push_back(static_cast<int64_t>(val.as<IntImmNode>()->value));
+          arr.push_back(static_cast<int64_t>(val.as<prim::IntImmNode>()->value));
         }
         if (is_known) {
           const auto func = tvm::ffi::Function::GetGlobalRequired("relax.run.shape_to_tensor");

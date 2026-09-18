@@ -24,6 +24,7 @@
 #ifndef TVM_TOPI_CONTRIB_CUBLAS_H_
 #define TVM_TOPI_CONTRIB_CUBLAS_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
 #include <tvm/topi/detail/extern.h>
 
@@ -51,8 +52,8 @@ inline Tensor cublas_matmul(const Tensor& lhs, const Tensor& rhs, bool transa, b
       {{n, m}}, {lhs->GetDataType()}, {lhs, rhs},
       [&](ffi::Array<BufferVar> ins, ffi::Array<BufferVar> outs) {
         return call_packed({prim::StringImm("tvm.contrib.cublas.matmul"), pack_buffer(ins[0]),
-                            pack_buffer(ins[1]), pack_buffer(outs[0]), IntImm::Int32(transa),
-                            IntImm::Int32(transb)});
+                            pack_buffer(ins[1]), pack_buffer(outs[0]), prim::IntImm::Int32(transa),
+                            prim::IntImm::Int32(transb)});
       },
       "C", "", {})[0];
 }
@@ -77,8 +78,8 @@ inline Tensor cublas_batch_matmul(const Tensor& lhs, const Tensor& rhs, bool tra
       {{b, n, m}}, {lhs->GetDataType()}, {lhs, rhs},
       [&](ffi::Array<BufferVar> ins, ffi::Array<BufferVar> outs) {
         return call_packed({prim::StringImm("tvm.contrib.cublas.batch_matmul"), pack_buffer(ins[0]),
-                            pack_buffer(ins[1]), pack_buffer(outs[0]), IntImm::Int32(transa),
-                            IntImm::Int32(transb)});
+                            pack_buffer(ins[1]), pack_buffer(outs[0]), prim::IntImm::Int32(transa),
+                            prim::IntImm::Int32(transb)});
       },
       "C", "", {})[0];
 }

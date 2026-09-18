@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
@@ -79,7 +80,8 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
 
     // Step 3. Try block fusion.
     int n_candidate = static_cast<int>(thread_extents.size());
-    ffi::Array<FloatImm> probs(n_candidate, FloatImm(PrimType::Float(32), 1.0 / n_candidate));
+    ffi::Array<prim::FloatImm> probs(n_candidate,
+                                     prim::FloatImm(PrimType::Float(32), 1.0 / n_candidate));
     s_tir::ExprRV thread_extent = tmp_sch->SampleCategorical(thread_extents, probs);
     if (fusible) {
       TVM_FFI_ICHECK(target_sblock.defined());

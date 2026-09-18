@@ -97,7 +97,7 @@ class ExprTouched final : public StmtExprVisitor {
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->args[i]));
       }
     } else if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {
-      const auto* rw_mask = op->args[4].as<IntImmNode>();
+      const auto* rw_mask = op->args[4].as<prim::IntImmNode>();
       auto buffer = GetBufferDataVar(op->args[1]);
       if (!buffer.has_value()) {
         // Nested access pointers are valid pointer expressions.  Visit the
@@ -631,7 +631,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
         PrimType var_ty = var_->ty.as_or_throw<PrimType>();
         auto f_substitute = [this, i,
                              var_ty](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-          if (var.same_as(var_)) return ffi::Any(IntImm(var_ty, i));
+          if (var.same_as(var_)) return ffi::Any(prim::IntImm(var_ty, i));
           return ffi::Unchanged();
         };
         seq.push_back(
@@ -648,7 +648,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       };
       stmt = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(stmt, f_substitute).as_or_throw<Stmt>();
       PrimType idx_dtype = idx->ty.as_or_throw<PrimType>();
-      return For(idx.as_or_throw<PrimVar>(), IntImm(idx_dtype, 0),
+      return For(idx.as_or_throw<PrimVar>(), prim::IntImm(idx_dtype, 0),
                  prim::MakeConst(idx_dtype, num_threads_), ForKind::kSerial, stmt);
     }
   }
@@ -699,7 +699,7 @@ class VirtualThreadInjector : public s_tir::IRMutatorWithAnalyzer {
     if (op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       bool allow_share = std::string(iv->thread_tag).substr(0, 7) == "vthread";
-      int nthread = op->value.as<IntImmNode>()->value.as<int>().value();
+      int nthread = op->value.as<prim::IntImmNode>()->value.as<int>().value();
       auto vs = ffi::make_object<VarTouchedAnalysis>();
       auto touched = vs->TouchedVar(op->body, iv->var.get());
       auto injector =

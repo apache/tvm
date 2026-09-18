@@ -74,8 +74,8 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool Dispatch_(const MaxNode* op, const PrimExpr& other) override;
   bool Dispatch_(const FloorDivNode* op, const PrimExpr& other) override;
   bool Dispatch_(const FloorModNode* op, const PrimExpr& other) override;
-  bool Dispatch_(const IntImmNode* op, const PrimExpr& other) override;
-  bool Dispatch_(const FloatImmNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const prim::IntImmNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const prim::FloatImmNode* op, const PrimExpr& other) override;
   bool Dispatch_(const CastNode* op, const PrimExpr& other) override;
   bool Dispatch_(const VarNode* op, const PrimExpr& other) override;
   bool Dispatch_(const TensorLoadNode* op, const PrimExpr& other) override;

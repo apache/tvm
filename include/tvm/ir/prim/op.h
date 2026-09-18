@@ -468,7 +468,7 @@ TVM_DLL PrimExpr IntegerAbs(PrimExpr x, Span span = Span());
 /*!
  * \brief Make a const value with certain data type.
  *
- * Prefer direct IntImm or FloatImm construction when dtype is known to be
+ * Prefer direct prim::IntImm or prim::FloatImm construction when dtype is known to be
  * scalar integer or floating point. This makes the compiled code more compact
  * and efficient. Keep MakeConst for generic overload cases where dtype can be
  * integer, floating point, or vector-valued and the caller needs its
@@ -511,7 +511,7 @@ inline bool is_one(const PrimExpr& x) { return is_const_int(x, 1); }
 inline bool is_zero(const PrimExpr& x) { return is_const_int(x, 0); }
 
 /*!
- * \brief Check whether x is an integer constant, including wide IntImm values.
+ * \brief Check whether x is an integer constant, including wide prim::IntImm values.
  * \return whether x is constant
  */
 inline bool is_const_int(const PrimExpr& x);
@@ -534,31 +534,32 @@ inline bool is_const_number(const PrimExpr& x);
 TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
 
 // Implementation details after this
-inline bool is_const_int(const PrimExpr& x) { return x.as<IntImmNode>() != nullptr; }
+inline bool is_const_int(const PrimExpr& x) { return x.as<prim::IntImmNode>() != nullptr; }
 
 inline bool is_const_number(const PrimExpr& x) {
-  if (x.as<IntImmNode>()) {
+  if (x.as<prim::IntImmNode>()) {
     return true;
-  } else if (x.as<FloatImmNode>()) {
+  } else if (x.as<prim::FloatImmNode>()) {
     return true;
   } else if (const auto* op = x.as<prim::BroadcastNode>()) {
-    return (op->value->IsInstance<IntImmNode>() || op->value->IsInstance<FloatImmNode>());
+    return (op->value->IsInstance<prim::IntImmNode>() ||
+            op->value->IsInstance<prim::FloatImmNode>());
   }
   return false;
 }
 
 inline bool is_positive_const(const PrimExpr& a) {
-  const auto* as_int = a.as<IntImmNode>();
+  const auto* as_int = a.as<prim::IntImmNode>();
   return as_int && as_int->value > 0;
 }
 
 inline bool is_negative_const(const PrimExpr& a) {
-  const auto* as_int = a.as<IntImmNode>();
+  const auto* as_int = a.as<prim::IntImmNode>();
   return as_int && as_int->value < 0;
 }
 
 inline bool is_const_int(const PrimExpr& x, int64_t value) {
-  const auto* as_int = x.as<IntImmNode>();
+  const auto* as_int = x.as<prim::IntImmNode>();
   return as_int && as_int->value == value;
 }
 
@@ -569,11 +570,11 @@ inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value, Span span = Spa
   } else {
     DLDataTypeCode code = dtype.code();
     if (code == DLDataTypeCode::kDLInt || code == DLDataTypeCode::kDLBool) {
-      return IntImm(dtype, ffi::BigInt(value), span);
+      return prim::IntImm(dtype, ffi::BigInt(value), span);
     }
     if (code == DLDataTypeCode::kDLUInt) {
       TVM_FFI_ICHECK(value >= 0) << "cannot make uint from negative value " << value;
-      return IntImm(dtype, ffi::BigInt(value), span);
+      return prim::IntImm(dtype, ffi::BigInt(value), span);
     }
     if (dtype.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLFloat8_e3m4,
                           DLDataTypeCode::kDLFloat8_e4m3, DLDataTypeCode::kDLFloat8_e4m3b11fnuz,
@@ -582,7 +583,7 @@ inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value, Span span = Spa
                           DLDataTypeCode::kDLFloat8_e8m0fnu, DLDataTypeCode::kDLFloat6_e2m3fn,
                           DLDataTypeCode::kDLFloat6_e3m2fn, DLDataTypeCode::kDLFloat4_e2m1fn) ||
         dtype.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
-      return FloatImm(dtype, static_cast<double>(value), span);
+      return prim::FloatImm(dtype, static_cast<double>(value), span);
     }
     TVM_FFI_THROW(InternalError) << "cannot make const for type " << dtype;
     throw;
@@ -624,7 +625,7 @@ inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span) {
   inline PrimExpr Name(int a, const PrimExpr& b) { return Name(prim::MakeConst(b.ty(), a), b); } \
   inline PrimExpr Name(const PrimExpr& a, int b) { return Name(a, prim::MakeConst(a.ty(), b)); } \
   inline PrimExpr Name(const PrimExpr& a, double b) {                                            \
-    return Name(a, FloatImm(PrimType::Float(64), b));                                            \
+    return Name(a, prim::FloatImm(PrimType::Float(64), b));                                      \
   }
 
 #define TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD_SPANNED(Name)                 \
@@ -641,7 +642,7 @@ inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span) {
     return Name(a, prim::MakeConst(a.ty(), b), span);                     \
   }                                                                       \
   inline PrimExpr Name(const PrimExpr& a, double b, Span span = Span()) { \
-    return Name(a, FloatImm(PrimType::Float(64), b), span);               \
+    return Name(a, prim::FloatImm(PrimType::Float(64), b), span);         \
   }
 
 #define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(Name)                             \

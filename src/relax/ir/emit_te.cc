@@ -24,6 +24,7 @@
 
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/type.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -50,7 +51,7 @@ te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::
     ffi::Array<PrimExpr> shape;
     shape.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      shape.push_back(IntImm::Int64(shape_tuple[i]));
+      shape.push_back(prim::IntImm::Int64(shape_tuple[i]));
     }
     n->shape = std::move(shape);
     return te::PlaceholderOp(n).output(0);

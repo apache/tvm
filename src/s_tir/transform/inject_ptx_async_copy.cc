@@ -194,11 +194,11 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
             // https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#asynchronous-memory-operations
             bool else_value_is_zero = false;
             if (auto* b = call->args[2].as<prim::BroadcastNode>()) {
-              if (auto* f = b->value.as<FloatImmNode>()) {
+              if (auto* f = b->value.as<prim::FloatImmNode>()) {
                 else_value_is_zero = f->value == 0.0f;
               }
             }
-            if (auto* f = call->args[2].as<FloatImmNode>()) {
+            if (auto* f = call->args[2].as<prim::FloatImmNode>()) {
               else_value_is_zero = f->value == 0.0f;
             }
             if (else_value_is_zero) {

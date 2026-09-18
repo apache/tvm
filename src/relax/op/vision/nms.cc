@@ -25,6 +25,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/attrs/vision.h>
 #include <tvm/relax/type.h>
 #include <tvm/sym/analyzer.h>
@@ -162,7 +163,7 @@ Type InferTypeGetValidCounts(const Call& call, const BlockBuilder& ctx) {
   auto batch = data_shape->values[0];
   auto num_anchors = data_shape->values[1];
   auto elem_length = data_shape->values[2];
-  const auto* elem_length_imm = elem_length.as<IntImmNode>();
+  const auto* elem_length_imm = elem_length.as<prim::IntImmNode>();
   if (elem_length_imm != nullptr) {
     if (attrs->score_index < 0 || attrs->score_index >= elem_length_imm->value) {
       TVM_FFI_VISIT_THROW(ValueError, call)
@@ -291,7 +292,7 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid non_max_suppression attrs";
   auto vdev = data_ty->vdevice;
   if (data_shape != nullptr) {
-    const auto* elem_length_imm = data_shape->values[2].as<IntImmNode>();
+    const auto* elem_length_imm = data_shape->values[2].as<prim::IntImmNode>();
     if (elem_length_imm != nullptr) {
       const ffi::BigInt& elem_length = elem_length_imm->value;
       if (attrs->score_index < 0 || attrs->score_index >= elem_length) {
@@ -329,7 +330,7 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
       tvm::ffi::Array<Type> fields = {
           TensorType(ffi::GetRef<ShapeExpr>(data_shape), data_ty->dtype, vdev),
           TensorType(ShapeExpr({batch, num_anchors}), PrimType::Int(32), vdev),
-          TensorType(ShapeExpr({batch, IntImm::Int64(1)}), PrimType::Int(32), vdev)};
+          TensorType(ShapeExpr({batch, prim::IntImm::Int64(1)}), PrimType::Int(32), vdev)};
       return TupleType(fields);
     }
 
@@ -343,7 +344,7 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
     auto num_anchors = data_shape->values[1];
     tvm::ffi::Array<Type> fields = {
         TensorType(ShapeExpr({batch, num_anchors}), PrimType::Int(32), vdev),
-        TensorType(ShapeExpr({batch, IntImm::Int64(1)}), PrimType::Int(32), vdev)};
+        TensorType(ShapeExpr({batch, prim::IntImm::Int64(1)}), PrimType::Int(32), vdev)};
     return TupleType(fields);
   }
 

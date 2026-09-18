@@ -414,7 +414,8 @@ inline bool is_no_op(const tirx::Stmt& stmt) {
 }
 
 inline Expr ConstHandle(int64_t value, Span span) {
-  return reinterpret(PointerType::VoidPointerTy(), IntImm(PrimType::UInt(64), value, span), span);
+  return reinterpret(PointerType::VoidPointerTy(), prim::IntImm(PrimType::UInt(64), value, span),
+                     span);
 }
 
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(logaddexp);

@@ -396,16 +396,16 @@ struct StorageAlignTraits : public UnpackedInstTraits<StorageAlignTraits> {
   static constexpr size_t kNumAttrs = 4;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm buffer_index,
-                                      IntImm axis, IntImm factor, IntImm offset) {
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, prim::IntImm buffer_index,
+                                      prim::IntImm axis, prim::IntImm factor, prim::IntImm offset) {
     return sch->StorageAlign(block_rv, buffer_index->value.as<int>().value(),
                              axis->value.as<int>().value(), factor->value.as<int>().value(),
                              offset->value.as<int>().value());
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      IntImm buffer_index, IntImm axis, IntImm factor,
-                                      IntImm offset) {
+                                      prim::IntImm buffer_index, prim::IntImm axis,
+                                      prim::IntImm factor, prim::IntImm offset) {
     PythonAPICall py("storage_align");
     py.Input("block", block_rv);
     py.Input("buffer_index", buffer_index);
@@ -428,13 +428,13 @@ struct SetScopeTraits : public UnpackedInstTraits<SetScopeTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm buffer_index,
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, prim::IntImm buffer_index,
                                       ffi::String storage_scope) {
     return sch->SetScope(block_rv, buffer_index->value.as<int>().value(), storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      IntImm buffer_index, ffi::String storage_scope) {
+                                      prim::IntImm buffer_index, ffi::String storage_scope) {
     PythonAPICall py("set_scope");
     py.Input("block", block_rv);
     py.Input("buffer_index", buffer_index);
@@ -455,13 +455,13 @@ struct UnsafeSetDTypeTraits : public UnpackedInstTraits<UnsafeSetDTypeTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm buffer_index,
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, prim::IntImm buffer_index,
                                       ffi::String dtype) {
     return sch->UnsafeSetDType(block_rv, buffer_index->value.as<int>().value(), dtype);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      IntImm buffer_index, ffi::String dtype) {
+                                      prim::IntImm buffer_index, ffi::String dtype) {
     PythonAPICall py("unsafe_set_dtype");
     py.Input("block", block_rv);
     py.Input("buffer_index", buffer_index);

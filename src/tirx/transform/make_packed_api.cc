@@ -108,22 +108,23 @@ class ReturnRewriter : public StmtExprMutator {
 
   Stmt WriteToOut(Expr val) {
     auto info = ConvertForFFI(val);
-    Stmt store_tindex = tirx::Evaluate(
-        Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
-             {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::builtin::kTVMFFIAnyTypeIndex),
-              IntImm::Int32(info.type_index)})
-            .as_or_throw<PrimExpr>());
-    Stmt store_zero_padding =
+    Stmt store_tindex =
         tirx::Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
-                            {ret_var_, IntImm::Int32(0),
-                             IntImm::Int32(tirx::builtin::kTVMFFIAnyZeroPadding), IntImm::Int32(0)})
+                            {ret_var_, prim::IntImm::Int32(0),
+                             prim::IntImm::Int32(tirx::builtin::kTVMFFIAnyTypeIndex),
+                             prim::IntImm::Int32(info.type_index)})
                            .as_or_throw<PrimExpr>());
+    Stmt store_zero_padding = tirx::Evaluate(
+        Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
+             {ret_var_, prim::IntImm::Int32(0),
+              prim::IntImm::Int32(tirx::builtin::kTVMFFIAnyZeroPadding), prim::IntImm::Int32(0)})
+            .as_or_throw<PrimExpr>());
     Stmt store_val =
         tirx::Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
-                            {ret_var_, IntImm::Int32(0),
-                             IntImm::Int32(tirx::builtin::kTVMFFIAnyUnionValue), info.expr})
+                            {ret_var_, prim::IntImm::Int32(0),
+                             prim::IntImm::Int32(tirx::builtin::kTVMFFIAnyUnionValue), info.expr})
                            .as_or_throw<PrimExpr>());
-    Stmt ret_zero = Return(IntImm::Int32(0));
+    Stmt ret_zero = Return(prim::IntImm::Int32(0));
     return SeqStmt({store_tindex, store_zero_padding, store_val, ret_zero});
   }
 
@@ -240,7 +241,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 
   // The device context
   PrimVar device_id("dev_id");
-  IntImm device_type(PrimType::Int(32), target_device_type);
+  prim::IntImm device_type(PrimType::Int(32), target_device_type);
 
   // Create TVMFFIABIBuilder and decode all packed args
   TVMFFIABIBuilder binder(name_hint, func_ptr->params, v_packed_args, v_num_packed_args,
@@ -281,7 +282,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   }
 
   // Return error code of zero on success
-  body = SeqStmt({body, Return(IntImm::Int32(0))});
+  body = SeqStmt({body, Return(prim::IntImm::Int32(0))});
 
   body = MergeNest({std::move(result.init_nest), seq_check, std::move(result.asserts),
                     std::move(result.decl_buffers)},

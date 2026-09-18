@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/type.h>
@@ -392,7 +393,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     }
     if (name == "call_llvm_pure_intrin" || name == "call_llvm_intrin") {
       int n_args = call->args.size();
-      int64_t id = static_cast<int64_t>(call->args[0].as<IntImmNode>()->value);
+      int64_t id = static_cast<int64_t>(call->args[0].as<prim::IntImmNode>()->value);
       auto f_llvm_lookup_intrinsic_name =
           tvm::ffi::Function::GetGlobal("target.llvm_get_intrinsic_name");
 

@@ -25,6 +25,7 @@
 #define TVM_TOPI_DETAIL_EXTERN_H_
 
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
 
@@ -114,7 +115,7 @@ inline Expr pack_buffer(BufferVar buf) {
   ffi::Array<Expr> pack_args{buf->data,
                              shape,
                              strides,
-                             IntImm::Int32(static_cast<int64_t>(buf->shape.size())),
+                             prim::IntImm::Int32(static_cast<int64_t>(buf->shape.size())),
                              MakeConst(PrimType(buf->dtype), 0),
                              buf->elem_offset};
   return Call(PointerType::VoidPointerTy(), tvm::tirx::builtin::tvm_stack_make_array(), pack_args);

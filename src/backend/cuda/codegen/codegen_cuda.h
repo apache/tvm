@@ -74,7 +74,7 @@ class CodeGenCUDA final : public CodeGenC {
   void Dispatch_(const prim::RampNode* op, std::ostream& os) final;       // NOLINT(*)
   void Dispatch_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
   void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
-  void Dispatch_(const FloatImmNode* op, std::ostream& os) final;
+  void Dispatch_(const prim::FloatImmNode* op, std::ostream& os) final;
   void Dispatch_(const CallNode* op, std::ostream& os) final;
   void Dispatch_(const prim::CastNode* op, std::ostream& os) final;
   void Dispatch_(const EvaluateNode* op) final;
@@ -133,7 +133,7 @@ class CodeGenCUDA final : public CodeGenC {
 
   std::unordered_map<const VarNode*, std::string> fragment_shapes;
   std::unordered_map<const VarNode*, std::string> fragment_layouts;
-  friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p);
+  friend void PrintConst(const prim::FloatImmNode* op, std::ostream& os, CodeGenCUDA* p);
   void PrintWmmaScope(const std::string& scope, const PrimType& t, const VarNode* variable,
                       std::ostream& os);
   int32_t GetWmmaFragmentSize(const std::string& scope, const VarNode* variable, int32_t size);

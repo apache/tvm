@@ -24,6 +24,7 @@
 #ifndef TVM_TARGET_METAL_CODEGEN_METAL_H_
 #define TVM_TARGET_METAL_CODEGEN_METAL_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/codegen.h>
 
 #include <string>
@@ -57,7 +58,7 @@ class CodeGenMetal final : public CodeGenC {
   void Dispatch_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
   void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const CallNode* op, std::ostream& os) final;             // NOLINT(*)
-  void Dispatch_(const FloatImmNode* op, std::ostream& os) final;         // NOLINT(*)
+  void Dispatch_(const prim::FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
 
   // reuse parent's function.
   using CodeGenC::PrintType;

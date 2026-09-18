@@ -23,6 +23,7 @@
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/script/printer/config.h>
@@ -278,11 +279,11 @@ class LiteralDoc : public ExprDoc {
    * \param p The object path
    */
   static LiteralDoc Int(int64_t v, const ffi::Optional<AccessPath>& p) {
-    return LiteralDoc(IntImm::Int64(v), p);
+    return LiteralDoc(prim::IntImm::Int64(v), p);
   }
 
   /*! rief Create an integer literal without narrowing its typed payload. */
-  static LiteralDoc Int(IntImm v, const ffi::Optional<AccessPath>& p) {
+  static LiteralDoc Int(prim::IntImm v, const ffi::Optional<AccessPath>& p) {
     return LiteralDoc(std::move(v), p);
   }
   /*!
@@ -291,7 +292,7 @@ class LiteralDoc : public ExprDoc {
    * \param p The object path
    */
   static LiteralDoc Boolean(bool v, const ffi::Optional<AccessPath>& p) {
-    return LiteralDoc(IntImm::Bool(v), p);
+    return LiteralDoc(prim::IntImm::Bool(v), p);
   }
   /*!
    * \brief Create a LiteralDoc to represent float.
@@ -299,7 +300,7 @@ class LiteralDoc : public ExprDoc {
    * \param p The object path
    */
   static LiteralDoc Float(double v, const ffi::Optional<AccessPath>& p) {
-    return LiteralDoc(FloatImm(PrimType::Float(64), v), p);
+    return LiteralDoc(prim::FloatImm(PrimType::Float(64), v), p);
   }
   /*!
    * \brief Create a LiteralDoc to represent string.

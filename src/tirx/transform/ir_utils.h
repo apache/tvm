@@ -99,7 +99,8 @@ inline ffi::Array<T> UpdateArray(ffi::Array<T> arr, F fupdate) {
  * \return the get expression.
  */
 inline Expr TVMStructGet(Type type, Var handle, int index, builtin::TVMStructFieldKind kind) {
-  ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind))};
+  ffi::Array<Expr> args = {handle, prim::IntImm::Int32(index),
+                           prim::IntImm::Int32(static_cast<int>(kind))};
   return Call(std::move(type), builtin::tvm_struct_get(), args);
 }
 
@@ -115,7 +116,7 @@ inline PrimExpr TVMStructGet(PrimType type, Var handle, int index,
  * \param offset the offset index.
  */
 inline Call AddressOffset(Var handle, PrimType dtype, int offset) {
-  PrimExpr offset_expr = IntImm::Int32(offset * dtype.lanes());
+  PrimExpr offset_expr = prim::IntImm::Int32(offset * dtype.lanes());
   ffi::Array<PrimExpr> shape = {offset_expr + 1};
   auto pointer_type = handle->ty.as_or_throw<PointerType>();
   BufferVar dummy_buf(handle->name,
@@ -134,8 +135,8 @@ inline Call AddressOffset(Var handle, PrimType dtype, int offset) {
 inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
   if (dtype.lanes() != 1) {
     PrimType offset_ty = offset.ty();
-    offset = offset * IntImm(offset_ty, dtype.lanes());
-    offset = prim::Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
+    offset = offset * prim::IntImm(offset_ty, dtype.lanes());
+    offset = prim::Ramp(offset, prim::IntImm(offset_ty, 1), dtype.lanes());
   }
 
   ffi::Array<PrimExpr> shape = {offset + 1};
@@ -156,8 +157,8 @@ inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
  * \return the set stmt.
  */
 inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind, Expr value) {
-  ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind)),
-                           value};
+  ffi::Array<Expr> args = {handle, prim::IntImm::Int32(index),
+                           prim::IntImm::Int32(static_cast<int>(kind)), value};
   return Evaluate(Call(PrimType::Int(32), builtin::tvm_struct_set(), args).as_or_throw<PrimExpr>());
 }
 
@@ -205,7 +206,7 @@ inline int GetTempAllocaAlignment(const PrimType& type, int64_t const_size) {
  */
 inline PrimExpr ConstInt32(size_t index) {
   TVM_FFI_ICHECK_LE(index, std::numeric_limits<int>::max());
-  return IntImm::Int32(static_cast<int>(index));
+  return prim::IntImm::Int32(static_cast<int>(index));
 }
 
 /*!

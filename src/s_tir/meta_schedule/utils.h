@@ -443,12 +443,12 @@ inline int GetTargetNumCores(const Target& target) {
  * \return The median of the running time in millisecond
  */
 inline double GetRunMsMedian(const RunnerResult& runner_result) {
-  ffi::Array<FloatImm> run_secs = runner_result->run_secs.value();
+  ffi::Array<prim::FloatImm> run_secs = runner_result->run_secs.value();
   TVM_FFI_ICHECK(!run_secs.empty());
   std::vector<double> v;
   v.reserve(run_secs.size());
   std::transform(run_secs.begin(), run_secs.end(), std::back_inserter(v),
-                 [](const FloatImm& f) -> double { return f->value; });
+                 [](const prim::FloatImm& f) -> double { return f->value; });
   std::sort(v.begin(), v.end());
   int n = v.size();
   if (n % 2 == 0) {
@@ -463,16 +463,16 @@ inline double GetRunMsMedian(const RunnerResult& runner_result) {
  * \param obj The object to be converted
  * \return The array of floating point numbers
  */
-inline ffi::Array<FloatImm> AsFloatArray(const ffi::ObjectRef& obj) {
+inline ffi::Array<prim::FloatImm> AsFloatArray(const ffi::ObjectRef& obj) {
   const ffi::ArrayObj* arr = obj.as<ffi::ArrayObj>();
   TVM_FFI_CHECK(arr, TypeError) << "Expect an array, but gets: " << obj->GetTypeKey();
-  ffi::Array<FloatImm> results;
+  ffi::Array<prim::FloatImm> results;
   results.reserve(arr->size());
   for (Any val : *arr) {
-    auto float_value = [&]() -> FloatImm {
-      if (auto opt_int_imm = val.try_cast<IntImm>()) {
-        return FloatImm(PrimType::Float(32), static_cast<double>((*opt_int_imm)->value));
-      } else if (auto opt_float_imm = val.try_cast<FloatImm>()) {
+    auto float_value = [&]() -> prim::FloatImm {
+      if (auto opt_int_imm = val.try_cast<prim::IntImm>()) {
+        return prim::FloatImm(PrimType::Float(32), static_cast<double>((*opt_int_imm)->value));
+      } else if (auto opt_float_imm = val.try_cast<prim::FloatImm>()) {
         return *std::move(opt_float_imm);
       } else {
         TVM_FFI_THROW(TypeError) << "Expect an array of float or int, but gets: "
@@ -498,7 +498,7 @@ inline ffi::Array<int64_t> AsIntArray(const ffi::ObjectRef& obj) {
   results.reserve(arr->size());
   for (Any val : *arr) {
     auto int_value = [&]() -> int64_t {
-      if (auto opt_int_imm = val.try_cast<IntImm>()) {
+      if (auto opt_int_imm = val.try_cast<prim::IntImm>()) {
         return static_cast<int64_t>((*opt_int_imm)->value);
       } else {
         TVM_FFI_THROW(TypeError) << "Expect an array of integers, but gets: " << val.GetTypeKey();
@@ -514,12 +514,12 @@ inline ffi::Array<int64_t> AsIntArray(const ffi::ObjectRef& obj) {
 struct SortTuningRecordByMeanRunSecs {
   static const constexpr double kMaxMeanTime = 1e10;
 
-  static double Mean(const ffi::Array<FloatImm>& a) {
+  static double Mean(const ffi::Array<prim::FloatImm>& a) {
     if (a.empty()) {
       return kMaxMeanTime;
     }
     double sum = 0.0;
-    for (const FloatImm& i : a) {
+    for (const prim::FloatImm& i : a) {
       sum += i->value;
     }
     return sum / a.size();
@@ -557,8 +557,8 @@ inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
     dst->postprocs = std::move(postprocs);
   }
   if (src->mutator_probs.has_value()) {
-    ffi::Map<Mutator, FloatImm> original = src->mutator_probs.value();
-    ffi::Map<Mutator, FloatImm> mutator_probs;
+    ffi::Map<Mutator, prim::FloatImm> original = src->mutator_probs.value();
+    ffi::Map<Mutator, prim::FloatImm> mutator_probs;
     for (const auto& kv : original) {
       mutator_probs.Set(kv.first->Clone(), kv.second);
     }
@@ -604,9 +604,9 @@ inline ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
  * \param arr The array of FloatImm.
  * \return The summary of the values in the given array.
  */
-inline double Sum(const ffi::Array<FloatImm>& arr) {
+inline double Sum(const ffi::Array<prim::FloatImm>& arr) {
   double sum = 0;
-  for (const FloatImm& f : arr) {
+  for (const prim::FloatImm& f : arr) {
     sum += f->value;
   }
   return sum;
@@ -674,7 +674,8 @@ class SBlockCollector : public s_tir::StmtExprVisitor {
     // Otherwise collect all blocks.
     bool collect_block = true;
     if (f_block_filter_ != nullptr) {
-      collect_block = f_block_filter_(ffi::GetRef<s_tir::SBlock>(block)).cast<IntImm>()->value != 0;
+      collect_block =
+          f_block_filter_(ffi::GetRef<s_tir::SBlock>(block)).cast<prim::IntImm>()->value != 0;
     }
     if (collect_block) {
       blocks_to_collect_.push_back(block->name_hint);

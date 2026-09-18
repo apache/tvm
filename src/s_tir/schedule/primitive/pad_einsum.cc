@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op.h>
 
@@ -37,7 +38,7 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialBufferIndices(
     const ffi::Array<PrimExpr>& buffer_access) {
   ffi::Array<Var> indices;
   for (const PrimExpr& index : buffer_access) {
-    if (index->IsInstance<IntImmNode>()) {
+    if (index->IsInstance<prim::IntImmNode>()) {
       continue;
     }
     auto var = index.as<PrimVar>();
@@ -56,7 +57,7 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialBufferAccess(const TensorRegion& buff
     if (!tvm::prim::is_one(range->extent)) {
       return std::nullopt;
     }
-    if (range->min->IsInstance<IntImmNode>()) {
+    if (range->min->IsInstance<prim::IntImmNode>()) {
       continue;
     }
     if (auto var = range->min.as<PrimVar>()) {
@@ -147,9 +148,9 @@ struct BufferPadding {
     int ndim = buffer_region->region.size();
     for (int i = 0; i < ndim; ++i) {
       PrimExpr pos = buffer_region->region[i]->min;
-      TVM_FFI_ICHECK(pos->IsInstance<IntImmNode>() || pos.as<PrimVar>());
-      if (pos->IsInstance<IntImmNode>()) {
-        shape.push_back(IntImm(pos.ty(), 1));
+      TVM_FFI_ICHECK(pos->IsInstance<prim::IntImmNode>() || pos.as<PrimVar>());
+      if (pos->IsInstance<prim::IntImmNode>()) {
+        shape.push_back(prim::IntImm(pos.ty(), 1));
       } else if (ffi::Optional<PrimExpr> extent = iter_extents.Get(pos.as_or_throw<Var>())) {
         shape.push_back(extent.value());
       } else {
@@ -175,17 +176,17 @@ struct BufferPadding {
       } else {
         dim = buffer->shape[i];
       }
-      Range dom = Range::FromMinExtent(IntImm(dim.ty(), 0), dim);
+      Range dom = Range::FromMinExtent(prim::IntImm(dim.ty(), 0), dim);
       loop_vars.push_back(Var("i" + std::to_string(i), dim.ty()));
       loop_doms.push_back(dom);
       IterVar iter_var(dom, PrimVar("v" + std::to_string(i), dim.ty()), kDataPar);
-      instance_dom.push_back(Range::FromMinExtent(iter_var->var, IntImm(dim.ty(), 1)));
+      instance_dom.push_back(Range::FromMinExtent(iter_var->var, prim::IntImm(dim.ty(), 1)));
       iter_vars.push_back(iter_var);
       indices.push_back(iter_var->var);
     }
     Stmt body{nullptr};
     if (is_read) {
-      PrimExpr predicate = IntImm::Bool(true);
+      PrimExpr predicate = prim::IntImm::Bool(true);
       for (int i = 0; i < ndim; ++i) {
         if (!analyzer->CanProveEqual(buffer->shape[i], padded_buffer->shape[i])) {
           predicate = predicate && (indices[i] < buffer->shape[i]);
@@ -208,7 +209,7 @@ struct BufferPadding {
     ffi::Array<PrimExpr> prim_loop_vars;
     prim_loop_vars.reserve(loop_vars.size());
     for (const Var& var : loop_vars) prim_loop_vars.push_back(var.as_or_throw<PrimExpr>());
-    body = SBlockRealize(prim_loop_vars, IntImm::Bool(true), new_block);
+    body = SBlockRealize(prim_loop_vars, prim::IntImm::Bool(true), new_block);
     for (int i = ndim - 1; i >= 0; --i) {
       body = For(loop_vars[i].as_or_throw<PrimVar>(), loop_doms[i]->min, loop_doms[i]->extent,
                  ForKind::kSerial, std::move(body));
@@ -406,7 +407,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   for (int i = 0, n = padding.size(); i < n; ++i) {
     const IterVar& iter = block->iter_vars[i];
     PrimExpr dom = iter->dom->extent;
-    PrimExpr pad_imm = IntImm(dom.ty(), padding[i]);
+    PrimExpr pad_imm = prim::IntImm(dom.ty(), padding[i]);
     PrimExpr new_dom = analyzer->Simplify(ceildiv(dom, pad_imm) * pad_imm);
     if (!analyzer->CanProveEqual(new_dom, dom)) {
       replacer->iter2padded_extents.Set(iter->var, new_dom);

@@ -67,6 +67,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
@@ -118,7 +119,7 @@ class StorageTokenNode : public ffi::Object {
   /*! \brief Get the constant number of bytes that this token requires, or -1 if the number of bytes
    * is symbolic */
   int64_t const_bytes() const {
-    const auto* imm = bytes.as<IntImmNode>();
+    const auto* imm = bytes.as<prim::IntImmNode>();
     auto const_val = imm ? imm->value.as<int64_t>() : std::nullopt;
     if (const_val.has_value()) {
       return *const_val;
@@ -144,7 +145,7 @@ class StorageToken : public ffi::ObjectRef {
     TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
         << "Cannot statically plan storage size for scalable vector dtype " << dtype_ty;
     ffi::BigInt const_coeff = dtype_ty.StorageBytes();
-    PrimExpr size = IntImm::Int64(1);
+    PrimExpr size = prim::IntImm::Int64(1);
     bool size_computed = false;
 
     if (vdevice.has_value()) {
@@ -170,7 +171,7 @@ class StorageToken : public ffi::ObjectRef {
     }
     if (!size_computed) {
       for (const PrimExpr& dim_len : shape) {
-        if (const IntImmNode* const_dim_len = dim_len.as<IntImmNode>()) {
+        if (const prim::IntImmNode* const_dim_len = dim_len.as<prim::IntImmNode>()) {
           const_coeff *= const_dim_len->value;
         } else {
           size *= dim_len;
@@ -178,7 +179,7 @@ class StorageToken : public ffi::ObjectRef {
       }
     }
 
-    size = IntImm::Int64(const_coeff) * size;
+    size = prim::IntImm::Int64(const_coeff) * size;
 
     ffi::ObjectPtr<StorageTokenNode> n = ffi::make_object<StorageTokenNode>();
     n->bytes = size;
@@ -264,7 +265,7 @@ class TokenAllocatorMixed {
       TVM_FFI_ICHECK_GE(available_size, 0);
       TVM_FFI_ICHECK_GE(size, available_size);
       // Enlarge the token size.
-      available_token->bytes = IntImm::Int64(size);
+      available_token->bytes = prim::IntImm::Int64(size);
       available_token->ref_counter = prototype->ref_counter;
       pool.erase(mid);
       return available_token;
@@ -430,17 +431,17 @@ void SetTIRVarRangeConstraints(Function func, sym::AnalyzerObj* ana,
   // memory planning.
   // NOTE: we only apply the annotated bounds to the TIR variables that
   // appear in the **function signature**.
-  ffi::Map<ffi::String, IntImm> var_upper_bound_attr_raw =
-      func->GetAttr<ffi::Map<ffi::String, IntImm>>("tir_var_upper_bound")
-          .value_or(ffi::Map<ffi::String, IntImm>());
-  ffi::Map<ffi::String, IntImm> var_lower_bound_attr_raw =
-      func->GetAttr<ffi::Map<ffi::String, IntImm>>("tir_var_lower_bound")
-          .value_or(ffi::Map<ffi::String, IntImm>());
+  ffi::Map<ffi::String, prim::IntImm> var_upper_bound_attr_raw =
+      func->GetAttr<ffi::Map<ffi::String, prim::IntImm>>("tir_var_upper_bound")
+          .value_or(ffi::Map<ffi::String, prim::IntImm>());
+  ffi::Map<ffi::String, prim::IntImm> var_lower_bound_attr_raw =
+      func->GetAttr<ffi::Map<ffi::String, prim::IntImm>>("tir_var_lower_bound")
+          .value_or(ffi::Map<ffi::String, prim::IntImm>());
   ffi::Array<ffi::String> non_negative_var_attr_raw =
       func->GetAttr<ffi::Array<ffi::String>>("tir_non_negative_var")
           .value_or(ffi::Array<ffi::String>());
-  std::unordered_map<ffi::String, IntImm> var_upper_bound_attr;
-  std::unordered_map<ffi::String, IntImm> var_lower_bound_attr;
+  std::unordered_map<ffi::String, prim::IntImm> var_upper_bound_attr;
+  std::unordered_map<ffi::String, prim::IntImm> var_lower_bound_attr;
   std::unordered_set<ffi::String> non_negative_var_attr;
   // We manually check the value type to ensure the values are all positive IntImm.
   for (auto [key, value] : var_upper_bound_attr_raw) {
@@ -463,8 +464,8 @@ void SetTIRVarRangeConstraints(Function func, sym::AnalyzerObj* ana,
     if (it_upper != var_upper_bound_attr.end()) {
       ffi::BigInt lower = (it_lower != var_lower_bound_attr.end()) ? it_lower->second->value : 0;
       const ffi::BigInt& upper = it_upper->second->value;
-      tvm::Range range = tvm::Range::FromMinExtent(tvm::IntImm::Int64(lower),
-                                                   tvm::IntImm::Int64(upper - lower + 1));
+      tvm::Range range = tvm::Range::FromMinExtent(tvm::prim::IntImm::Int64(lower),
+                                                   tvm::prim::IntImm::Int64(upper - lower + 1));
       ana->Bind(tir_var, range);
       dom_map->Set(tir_var, sym::IntSet::FromRange(range));
     } else if (it_lower != var_lower_bound_attr.end() && it_lower->second->value >= 0) {
@@ -499,7 +500,7 @@ ffi::Array<PrimExpr> GetUpperBoundShape(ffi::Array<PrimExpr> shape, sym::Analyze
         upper_bounded_shape.push_back(dim_len);
       }
     } else {
-      upper_bounded_shape.push_back(tvm::IntImm::Int64(max_bound));
+      upper_bounded_shape.push_back(tvm::prim::IntImm::Int64(max_bound));
     }
   }
   return upper_bounded_shape;
@@ -508,7 +509,7 @@ ffi::Array<PrimExpr> GetUpperBoundShape(ffi::Array<PrimExpr> shape, sym::Analyze
 /*! \brief Check if a shape is static (a.k.a., has no TIR variable). */
 bool IsStaticShape(ffi::Array<PrimExpr> shape) {
   for (const PrimExpr& dim : shape) {
-    const auto* int_len = dim.as<IntImmNode>();
+    const auto* int_len = dim.as<prim::IntImmNode>();
     if (!int_len) {
       return false;
     }
@@ -665,7 +666,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     StringImm storage_scope = call->args[3].as_or_throw<StringImm>();
 
     int64_t vdevice_index = -1;
-    if (const auto* int_imm = call->args[2].as<IntImmNode>()) {
+    if (const auto* int_imm = call->args[2].as<prim::IntImmNode>()) {
       vdevice_index = int_imm->value.as<int>().value();
     }
     ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
@@ -918,7 +919,7 @@ class StorageAllocationRewriter : public ExprMutator {
       }
       constexpr static const char* plan_dyn_attr_ = "relax.memory_plan_dynamic_func_output";
       plan_dynamic_output_ = static_cast<bool>(
-          func_->GetAttr<IntImm>(plan_dyn_attr_).value_or(IntImm::Int32(0))->value);
+          func_->GetAttr<prim::IntImm>(plan_dyn_attr_).value_or(prim::IntImm::Int32(0))->value);
       if (plan_dynamic_output_) {
         SetTIRVarRangeConstraints(ffi::GetRef<Function>(func_), ana_.get(), &dom_map_);
       }
@@ -968,7 +969,7 @@ class StorageAllocationRewriter : public ExprMutator {
       }
 
       // And always create a `memory.alloc_tensor` for the old `builtin.alloc_tensor`.
-      PrimExpr offset = IntImm::Int64(0);
+      PrimExpr offset = prim::IntImm::Int64(0);
       DLDataType dtype = ty->dtype.value()->dtype;
       return Call(Type::Missing(), mem_alloc_tensor,
                   {storage_var, offset, ty->shape.value(), DataTypeImm(dtype), call->args[2]},
@@ -998,7 +999,7 @@ class StorageAllocationRewriter : public ExprMutator {
         PrimType dtype_ty(dtype);
         TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
             << "Cannot statically plan storage size for scalable vector dtype " << dtype_ty;
-        bytes *= IntImm::Int64(static_cast<int64_t>(dtype_ty.StorageBytes()));
+        bytes *= prim::IntImm::Int64(static_cast<int64_t>(dtype_ty.StorageBytes()));
         Call alloc_storage(Type::Missing(), mem_alloc_storage,
                            {/*size=*/ShapeExpr({bytes}),
                             /*virtual_device_index=*/call->args[2].as_or_throw<PrimExpr>(),
@@ -1007,7 +1008,7 @@ class StorageAllocationRewriter : public ExprMutator {
         Var storage = builder_->Emit(alloc_storage, "storage");
         return Call(Type::Missing(), mem_alloc_tensor,
                     {storage,  //
-                     /*offset=*/IntImm::Int64(0),
+                     /*offset=*/prim::IntImm::Int64(0),
                      /*shape=*/ffi::GetRef<ShapeExpr>(shape),  //
                      /*dtype=*/DataTypeImm(dtype),
                      /*vdevice_index=*/call->args[2]});
@@ -1072,7 +1073,7 @@ PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DLDataType
   struct Shape {
     const ffi::Array<PrimExpr>& shape;
     int64_t operator[](size_t i) const {
-      const auto* imm = shape[i].as<IntImmNode>();
+      const auto* imm = shape[i].as<prim::IntImmNode>();
       auto value = imm ? imm->value.as<int64_t>() : std::nullopt;
       TVM_FFI_ICHECK(value.has_value()) << "Dymamic shapes not suported over texture now";
       return *value;
@@ -1085,7 +1086,7 @@ PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DLDataType
   TVM_FFI_ICHECK_GE(lanes, 0) << "Can't fetch the bytes of a scalable vector at a compile time.";
   size_t size = runtime::GetTextureMemorySize<Shape>(shape, dtype.bits, lanes,
                                                      vdevice->memory_scope, image_row_align);
-  return IntImm::Int64(size);
+  return prim::IntImm::Int64(size);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

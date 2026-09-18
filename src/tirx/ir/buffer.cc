@@ -92,13 +92,13 @@ ffi::ObjectRef RealizeBufferSubscript(
   region.reserve(buffer_ty->shape.size());
   for (size_t i = 0; i < slice.size(); ++i) {
     if (auto point = slice[i].as<PrimExpr>()) {
-      region.push_back(Range::FromMinExtent(point.value(), IntImm(point.value().ty(), 1)));
+      region.push_back(Range::FromMinExtent(point.value(), prim::IntImm(point.value().ty(), 1)));
     } else {
       auto descriptor = slice[i]
                             .as<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
                                            ffi::Optional<PrimExpr>>>()
                             .value();
-      PrimExpr start = descriptor.get<0>().value_or(IntImm(buffer_ty->shape[i].ty(), 0));
+      PrimExpr start = descriptor.get<0>().value_or(prim::IntImm(buffer_ty->shape[i].ty(), 0));
       PrimExpr stop = descriptor.get<1>().value_or(buffer_ty->shape[i]);
       // Preserve the sole simplification performed by the former Python path.
       region.push_back(Range::FromMinExtent(start, analyzer->Simplify(stop - start)));
@@ -106,7 +106,7 @@ ffi::ObjectRef RealizeBufferSubscript(
   }
   for (size_t i = slice.size(); i < buffer_ty->shape.size(); ++i) {
     region.push_back(
-        Range::FromMinExtent(IntImm(buffer_ty->shape[i].ty(), 0), buffer_ty->shape[i]));
+        Range::FromMinExtent(prim::IntImm(buffer_ty->shape[i].ty(), 0), buffer_ty->shape[i]));
   }
   return BufferRegion(buffer, region, span);
 }
@@ -249,7 +249,7 @@ BufferType::BufferType(ffi::String storage_scope, PrimType dtype, ffi::Array<Pri
   n->shape = std::move(shape);
   n->strides = std::move(strides);
   if (!elem_offset.defined()) {
-    elem_offset = IntImm(PrimType(n->DefaultIndexType()), 0);
+    elem_offset = prim::IntImm(PrimType(n->DefaultIndexType()), 0);
   }
   n->elem_offset = std::move(elem_offset);
   n->data_alignment =
@@ -637,7 +637,7 @@ BufferVar BufferVar::MakeStrideView() const {
   if ((*this)->shape.size() == 0) return *this;
   const BufferTypeNode* self = operator->();
   TVM_FFI_ICHECK(self != nullptr);
-  PrimExpr acc = IntImm(PrimType(self->DefaultIndexType()), 1);
+  PrimExpr acc = prim::IntImm(PrimType(self->DefaultIndexType()), 1);
   std::vector<PrimExpr> temp;
   for (size_t i = self->shape.size(); i != 0; --i) {
     temp.push_back(acc);
@@ -697,13 +697,13 @@ Expr BufferVar::access_ptr(int access_mask, PointerType ptr_type, int content_la
   PrimExpr e_dtype;
   PrimExpr extent;
   if (self->shape.size() == 0) {
-    extent = IntImm(PrimType(self->DefaultIndexType()), 1);
+    extent = prim::IntImm(PrimType(self->DefaultIndexType()), 1);
   } else if (self->strides.size() == self->shape.size()) {
     int highest_dim = 0;
     extent = self->strides[highest_dim] * self->shape[highest_dim] - offset;
   } else {
     extent = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                   IntImm::Int32(1), self->shape) -
+                   prim::IntImm::Int32(1), self->shape) -
              offset;
   }
   PrimExpr elem_offset = self->elem_offset + offset;
@@ -718,7 +718,7 @@ Expr BufferVar::access_ptr(int access_mask, PointerType ptr_type, int content_la
   if (input_extent.has_value()) {
     extent = input_extent.value();
   }
-  ffi::Array<Expr> acc_args{e_dtype, data(), elem_offset, extent, IntImm::Int32(access_mask)};
+  ffi::Array<Expr> acc_args{e_dtype, data(), elem_offset, extent, prim::IntImm::Int32(access_mask)};
   return Call(ptr_type, tirx::builtin::tvm_access_ptr(), acc_args);
 }
 

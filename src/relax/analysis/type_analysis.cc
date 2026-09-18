@@ -27,6 +27,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type_functor.h>
@@ -200,7 +201,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
       if (!ret.has_value()) return ffi::Unchanged();
 
       PrimExpr value = ret.value().as_or_throw<PrimExpr>();
-      if (value->IsInstance<IntImmNode>()) {
+      if (value->IsInstance<prim::IntImmNode>()) {
         return ffi::Any(tvm::prim::cast(PrimType::Int(64), value));
       }
       TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
@@ -487,8 +488,8 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
    */
   virtual BaseCheckResult PrimExprMatchCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
     // get static shape checking right.
-    auto* int_lhs = lhs.as<IntImmNode>();
-    auto* int_rhs = rhs.as<IntImmNode>();
+    auto* int_lhs = lhs.as<prim::IntImmNode>();
+    auto* int_rhs = rhs.as<prim::IntImmNode>();
     if (int_lhs && int_rhs) {
       if (int_lhs->value == int_rhs->value) {
         return BaseCheckResult::kPass;
@@ -625,95 +626,95 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
   PrimExpr VisitType(const Type& lhs, const Type& other) override {
     if (lhs.same_as(other)) {
       // Early bail-out if the Type has reference equality.
-      return IntImm::Bool(true);
+      return prim::IntImm::Bool(true);
     } else {
       return TypeFunctor::VisitType(lhs, other);
     }
   }
 
   PrimExpr VisitType_(const AnyTypeNode* lhs, const Type& other) final {
-    return IntImm::Bool(true);
+    return prim::IntImm::Bool(true);
   }
 
   PrimExpr VisitType_(const PrimTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<PrimTypeNode>();
     if (rhs == nullptr) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
 
     if (lhs->dtype != rhs->dtype) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
 
-    return IntImm::Bool(true);
+    return prim::IntImm::Bool(true);
   }
 
   PrimExpr VisitType_(const ShapeTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<ShapeTypeNode>();
     if (rhs == nullptr) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
     // lhs have unknown ndim
     if (lhs->IsUnknownNdim()) {
-      return IntImm::Bool(true);
+      return prim::IntImm::Bool(true);
     }
 
     // ndim must match
     if (lhs->ndim != rhs->ndim) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
 
     if (lhs->values.has_value() && rhs->values.has_value()) {
       return ArrayCheck(lhs->values.value(), rhs->values.value());
     } else if (lhs->values.has_value() && !rhs->values.has_value()) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     } else {
-      return IntImm::Bool(true);
+      return prim::IntImm::Bool(true);
     }
   }
 
   PrimExpr VisitType_(const TensorTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<TensorTypeNode>();
     if (rhs == nullptr) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
     // dtype mismatch
     if (!lhs->IsUnknownDtype() && !rhs->IsUnknownDtype() &&
         lhs->dtype.value() != rhs->dtype.value()) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
     if (!lhs->IsUnknownDtype() && rhs->IsUnknownDtype()) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
 
     // ndim mismatch
     if (!lhs->IsUnknownNdim() && lhs->ndim != rhs->ndim) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
 
     // vdevice mismatch
     if (lhs->vdevice.has_value() && !rhs->vdevice.has_value()) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
     if (lhs->vdevice.has_value() && rhs->vdevice.has_value()) {
       VDevice lhs_vdevice = lhs->vdevice.value();
       VDevice rhs_vdevice = rhs->vdevice.value();
       if (lhs_vdevice->target.defined() && !rhs_vdevice->target.defined()) {
-        return IntImm::Bool(false);
+        return prim::IntImm::Bool(false);
       }
       // mismatch in either the target, vdevice_id, or memory_scope
       if ((lhs_vdevice->target.defined() && rhs_vdevice->target.defined()) &&
           (lhs_vdevice->target != rhs_vdevice->target ||
            lhs_vdevice->vdevice_id != rhs_vdevice->vdevice_id ||
            lhs_vdevice->memory_scope != rhs_vdevice->memory_scope)) {
-        return IntImm::Bool(false);
+        return prim::IntImm::Bool(false);
       }
     }
 
     if (lhs->shape.same_as(rhs->shape)) {
-      return IntImm::Bool(true);
+      return prim::IntImm::Bool(true);
     } else if (lhs->shape.has_value() && !rhs->shape.has_value()) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
 
     auto* lhs_shape = lhs->shape.as<ShapeExprNode>();
@@ -721,22 +722,22 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
     if (lhs_shape && rhs_shape) {
       return ArrayCheck(lhs_shape->values, rhs_shape->values);
     } else if (lhs_shape && !rhs_shape) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
 
-    return IntImm::Bool(true);
+    return prim::IntImm::Bool(true);
   }
 
   PrimExpr VisitType_(const distributed::DTensorTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<distributed::DTensorTypeNode>();
     if (rhs == nullptr) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
 
     ffi::StructuralEqual struct_equal;
     if (!struct_equal(lhs->device_mesh, rhs->device_mesh) ||
         !struct_equal(lhs->placement, rhs->placement)) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
 
     return this->VisitType(lhs->tensor_ty, rhs->tensor_ty);
@@ -745,7 +746,7 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
   PrimExpr VisitType_(const TupleTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<TupleTypeNode>();
     if (rhs == nullptr) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
     return ArrayCheck(lhs->fields, rhs->fields);
   }
@@ -753,19 +754,19 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
   PrimExpr VisitType_(const FuncTypeNode* lhs, const Type& other) override {
     auto* rhs = other.as<FuncTypeNode>();
     if (rhs == nullptr) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
 
     // Check purity: Pure functions are a subtype of impure functions
     if (lhs->purity && !rhs->purity) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
 
     if (lhs->derive_func.has_value() && !lhs->derive_func.same_as(rhs->derive_func)) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
     if (lhs->params.has_value() && !rhs->params.has_value()) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
 
     PrimExpr all_match = VisitType(lhs->ret, rhs->ret);
@@ -774,7 +775,7 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
     if (lhs->params.has_value()) {
       param_check = ArrayCheck(lhs->params.value(), rhs->params.value());
     } else {
-      param_check = IntImm::Bool(true);
+      param_check = prim::IntImm::Bool(true);
     }
 
     PrimExpr ret_check = VisitType(lhs->ret, rhs->ret);
@@ -785,10 +786,10 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
  private:
   PrimExpr ArrayCheck(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimExpr>& rhs) {
     if (lhs.size() != rhs.size()) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
 
-    PrimExpr all_equal = IntImm::Bool(true);
+    PrimExpr all_equal = prim::IntImm::Bool(true);
     for (size_t i = 0; i < lhs.size(); i++) {
       all_equal = all_equal && (lhs[i] == rhs[i]);
     }
@@ -797,10 +798,10 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
 
   PrimExpr ArrayCheck(const ffi::Array<Type>& lhs, const ffi::Array<Type>& rhs) {
     if (lhs.size() != rhs.size()) {
-      return IntImm::Bool(false);
+      return prim::IntImm::Bool(false);
     }
 
-    PrimExpr all_pass = IntImm::Bool(true);
+    PrimExpr all_pass = prim::IntImm::Bool(true);
 
     for (size_t i = 0; i < lhs.size(); ++i) {
       all_pass = all_pass && VisitType(lhs[i], rhs[i]);
@@ -1274,7 +1275,7 @@ class NonNegativeExpressionCollector : relax::TypeVisitor {
   }
 
   void VisitTypeExprField(const PrimExpr& size_expr) override {
-    if (auto size_int = size_expr.as<IntImmNode>(); size_int && size_int->value >= 0) {
+    if (auto size_int = size_expr.as<prim::IntImmNode>(); size_int && size_int->value >= 0) {
       // Avoid cluttering the result with non-negative integers
       return;
     }

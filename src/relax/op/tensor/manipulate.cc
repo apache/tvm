@@ -27,6 +27,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 
 #include <algorithm>
@@ -115,7 +116,7 @@ Type InferTypeBroadcastTo(const Call& call, const BlockBuilder& ctx) {
   for (int i = 0; i < old_ndim; ++i) {
     PrimExpr old_len = old_shape_value[old_ndim - i - 1];
     PrimExpr tgt_len = tgt_shape_value[tgt_ndim - i - 1];
-    const auto* old_len_int = old_len.as<IntImmNode>();
+    const auto* old_len_int = old_len.as<prim::IntImmNode>();
     if (old_len_int != nullptr && old_len_int->value == 1) {
       continue;
     } else if (analyzer->CanProve(old_len != tgt_len)) {
@@ -169,11 +170,11 @@ ffi::Optional<ffi::Array<PrimExpr>> CheckConcatOutputShape(
       return structural_equal(a[axis], first_concat_dim);
     });
     if (all_same) {
-      return first_concat_dim * IntImm::Int64(shape_values.size());
+      return first_concat_dim * prim::IntImm::Int64(shape_values.size());
     }
 
     // General case, add up the dimensions along the specified axis.
-    PrimExpr concat_sum = IntImm::Int64(0);
+    PrimExpr concat_sum = prim::IntImm::Int64(0);
     for (ffi::Array<PrimExpr> shape_value : shape_values) {
       concat_sum += shape_value[axis];
     }
@@ -437,7 +438,7 @@ Type InferTypeExpandDims(const Call& call, const BlockBuilder& ctx) {
   std::vector<PrimExpr> output_shape;
   output_shape.resize(output_ndim, PrimExpr());
   for (int i = 0; i < n_new_dim; ++i) {
-    output_shape[axes[i]] = IntImm::Int64(1);
+    output_shape[axes[i]] = prim::IntImm::Int64(1);
   }
 
   int i_data_shape = 0;
@@ -505,7 +506,7 @@ TVM_REGISTER_OP("relax.expand_dims")
 
 // Helper function for flatten and reshape.
 PrimExpr ComputeShapeProduct(const ffi::Array<PrimExpr>& shape_values) {
-  PrimExpr shape_prod = IntImm::Int64(1);
+  PrimExpr shape_prod = prim::IntImm::Int64(1);
   for (PrimExpr value : shape_values) {
     shape_prod *= value;
   }
@@ -620,7 +621,7 @@ Type InferTypeIndexTensor(const Call& call, const BlockBuilder& ctx) {
     // initialise broadcast result with 1's
     ffi::Array<PrimExpr> out_shape;
     for (int i = 0; i < max_index_ndim; ++i) {
-      out_shape.push_back(IntImm::Int64(1));
+      out_shape.push_back(prim::IntImm::Int64(1));
     }
 
     for (const auto& ishape : index_shapes) {
@@ -633,8 +634,8 @@ Type InferTypeIndexTensor(const Call& call, const BlockBuilder& ctx) {
         PrimExpr lhs_dim = out_shape[lhs_axis];
         PrimExpr rhs_dim = ishape[rhs_axis];
 
-        const auto* lhs_int = lhs_dim.as<IntImmNode>();
-        const auto* rhs_int = rhs_dim.as<IntImmNode>();
+        const auto* lhs_int = lhs_dim.as<prim::IntImmNode>();
+        const auto* rhs_int = rhs_dim.as<prim::IntImmNode>();
 
         // Case 1: current broadcast slot is 1 -> always replace
         if (lhs_int && lhs_int->value == 1) {
@@ -920,7 +921,7 @@ Expr ConvertNewShapeToExpr(const Expr& data,
         << "Reshape requires the new shape values to be all "
            "integers. However, the give new shape is "
         << shape;
-    const auto* int_len = len.as<IntImmNode>();
+    const auto* int_len = len.as<prim::IntImmNode>();
     if (int_len != nullptr && int_len->value == 0) {
       // Note that this dimension should be copied from the original shape.
       zero_dims.push_back(i);
@@ -968,10 +969,10 @@ Expr ConvertNewShapeToExpr(const Expr& data,
 
   // Set any -1 dimensions to complete the number of appropriate elements.
   // Start by computing the shape product of all positive indices.
-  PrimExpr new_shape_prod = IntImm::Int64(1);
+  PrimExpr new_shape_prod = prim::IntImm::Int64(1);
   for (int i = 0; i < static_cast<int>(array_ref.size()); ++i) {
     PrimExpr new_dim = array_ref[i];
-    const auto* int_dim = new_dim.as<IntImmNode>();
+    const auto* int_dim = new_dim.as<prim::IntImmNode>();
     // We expect any symbolic not to signal the intent of -1, and therefore do no check for
     // symbolic value here.
     if (int_dim == nullptr || int_dim->value > 0) {
@@ -1052,26 +1053,27 @@ TVM_REGISTER_OP("relax.reshape")
 
 /* relax.split */
 
-Expr split(Expr x, ffi::Variant<IntImm, ffi::Array<IntImm>> indices_or_sections, int axis) {
+Expr split(Expr x, ffi::Variant<prim::IntImm, ffi::Array<prim::IntImm>> indices_or_sections,
+           int axis) {
   ffi::ObjectPtr<SplitAttrs> attrs = ffi::make_object<SplitAttrs>();
   ffi::ObjectRef indices_or_sections_obj;
 
   if (const auto* indices = indices_or_sections.as<ffi::ArrayObj>()) {
     for (int i = 0; i < static_cast<int>(indices->size()); ++i) {
-      const auto* idx = indices->at(i).as<IntImmNode>();
+      const auto* idx = indices->at(i).as<prim::IntImmNode>();
       TVM_FFI_ICHECK(idx != nullptr)
           << "Split op only accepts an array of integers as the indices. "
              "However, the given indices "
           << indices_or_sections << " contains some non-integer.";
     }
     indices_or_sections_obj = ConvertIntImmToInt64(
-        ffi::GetRef<ffi::ObjectRef>(indices).as_or_throw<ffi::Array<IntImm>>());
-  } else if (const auto* n_section = indices_or_sections.as<IntImmNode>()) {
+        ffi::GetRef<ffi::ObjectRef>(indices).as_or_throw<ffi::Array<prim::IntImm>>());
+  } else if (const auto* n_section = indices_or_sections.as<prim::IntImmNode>()) {
     TVM_FFI_ICHECK_GT(n_section->value, 0)
         << "Split op expects the input number of sections to be a "
            "positive integer. However, the given number of sections is "
         << n_section->value;
-    indices_or_sections_obj = IntImm::Int64(n_section->value);
+    indices_or_sections_obj = prim::IntImm::Int64(n_section->value);
   } else {
     TVM_FFI_THROW(InternalError)
         << "Split op expects the input indices_or_sections to be either an Array of "
@@ -1095,7 +1097,7 @@ Type InferTypeSplit(const Call& call, const BlockBuilder& ctx) {
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   int axis = data_ty->IsUnknownNdim() ? -1 : NormalizeAxis(call, ctx, data_ty->ndim, attrs->axis);
 
-  if (auto opt_indices = attrs->indices_or_sections.as<ffi::Array<IntImm>>()) {
+  if (auto opt_indices = attrs->indices_or_sections.as<ffi::Array<prim::IntImm>>()) {
     auto p_indices = opt_indices.value();
     // When there is not index, return the input tensor's type.
     if (p_indices.size() == 0) {
@@ -1109,7 +1111,7 @@ Type InferTypeSplit(const Call& call, const BlockBuilder& ctx) {
 
     TVM_FFI_ICHECK_NE(axis, -1);
 
-    IntImm zero(tvm::PrimType::Int(64), /*value=*/0);
+    prim::IntImm zero(tvm::PrimType::Int(64), /*value=*/0);
 
     std::vector<Type> output_ty;
     for (size_t i = 0; i < p_indices.size() + 1; i++) {
@@ -1139,7 +1141,7 @@ Type InferTypeSplit(const Call& call, const BlockBuilder& ctx) {
       output_ty.push_back(TensorType(ShapeExpr(shape), data_ty->dtype, data_ty->vdevice));
     }
     return TupleType(output_ty);
-  } else if (const auto* p_n_section = attrs->indices_or_sections.as<IntImmNode>()) {
+  } else if (const auto* p_n_section = attrs->indices_or_sections.as<prim::IntImmNode>()) {
     TVM_FFI_ICHECK_GT(p_n_section->value, 0);
     int n_section = p_n_section->value.as<int>().value();
     // When the number of section is one, return the input tensor's type.
@@ -1267,7 +1269,7 @@ Type InferTypeSqueeze(const Call& call, const BlockBuilder& ctx) {
     for (int i = 0; i < static_cast<int>(axes.size()); ++i) {
       // Todo(relax-team): revisit here for better check on if the axis being squeezed has length 1.
       // When `axis` is given, the dim lengths at the axes must be integer 1 when it is not symbolic
-      const auto* int_len = shape_value.value()[axes[i]].as<IntImmNode>();
+      const auto* int_len = shape_value.value()[axes[i]].as<prim::IntImmNode>();
       // If a dimension is not 1, silently skip it (no-op), matching PyTorch behavior.
       if ((int_len != nullptr && int_len->value == 1) || int_len == nullptr) {
         axis_removal_mask[axes[i]] = true;
@@ -1283,7 +1285,7 @@ Type InferTypeSqueeze(const Call& call, const BlockBuilder& ctx) {
     }
     for (int i = 0; i < data_ty->ndim; ++i) {
       // Whenever a dimension length is symbolic, fall back to unknown ndim.
-      const auto* int_len = shape_value.value()[i].as<IntImmNode>();
+      const auto* int_len = shape_value.value()[i].as<prim::IntImmNode>();
       if (int_len == nullptr) {
         return TensorType(data_ty->dtype, kUnknownNDim, data_ty->vdevice);
       }
@@ -1399,8 +1401,8 @@ void CheckCollapseShape(const Call& call, const BlockBuilder& ctx,
     }
     const PrimExpr& dim0 = data_shape[data_ax];
     const PrimExpr& dim1 = target_shape[target_ax];
-    const auto* int_dim0 = dim0.as<IntImmNode>();
-    const auto* int_dim1 = dim1.as<IntImmNode>();
+    const auto* int_dim0 = dim0.as<prim::IntImmNode>();
+    const auto* int_dim1 = dim1.as<prim::IntImmNode>();
 
     if (analyzer->CanProveEqual(dim0, dim1) || (int_dim1 != nullptr && int_dim1->value == 1)) {
       --target_ax;
@@ -1466,7 +1468,7 @@ ffi::Optional<ffi::Array<PrimExpr>> CheckStackOutputShape(
   for (int i = 0; i < axis; ++i) {
     output_shape.push_back(shape_values[0][i]);
   }
-  output_shape.push_back(IntImm::Int64(shape_values.size()));  // Stack dimension
+  output_shape.push_back(prim::IntImm::Int64(shape_values.size()));  // Stack dimension
   for (int i = axis; i < static_cast<int>(shape_values[0].size()); ++i) {
     output_shape.push_back(shape_values[0][i]);
   }
@@ -1905,10 +1907,10 @@ Type InferTypeTile(const Call& call, const BlockBuilder& ctx) {
     if (i < l_delta) {
       out_shape.push_back(data_shape->values[i - ndim_delta]);
     } else if (i < ndim_delta) {
-      out_shape.push_back(IntImm::Int64(attrs->repeats[i - l_delta]));
+      out_shape.push_back(prim::IntImm::Int64(attrs->repeats[i - l_delta]));
     } else {
       out_shape.push_back(analyzer->Simplify(data_shape->values[i - ndim_delta] *
-                                             IntImm::Int64(attrs->repeats[i - l_delta])));
+                                             prim::IntImm::Int64(attrs->repeats[i - l_delta])));
     }
   }
 
@@ -2325,10 +2327,10 @@ Type InferTypeGatherND(const Call& call, const BlockBuilder& ctx) {
   // Check if indices shape is known
   const auto* indices_shape = indices_ty->shape.as<ShapeExprNode>();
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
-  if (!indices_shape || !indices_shape->values.back()->IsInstance<IntImmNode>()) {
+  if (!indices_shape || !indices_shape->values.back()->IsInstance<prim::IntImmNode>()) {
     return TensorType(data_ty->dtype, kUnknownNDim, data_ty->vdevice);
   }
-  int l = indices_shape->values.back().as<IntImmNode>()->value.as<int>().value();
+  int l = indices_shape->values.back().as<prim::IntImmNode>()->value.as<int>().value();
   int output_ndim = indices_ty->ndim + input_dims - l - 1 - batch_dims;
   if (!data_shape) {
     return TensorType(data_ty->dtype, output_ndim, data_ty->vdevice);
@@ -2832,7 +2834,8 @@ Type InferTypeScatterND(const Call& call, const BlockBuilder& ctx) {
   const auto* updates_shape = updates_ty->shape.as<ShapeExprNode>();
 
   if (data_shape && indices_shape && updates_shape) {
-    const IntImmNode* k_dim = indices_shape->values[indices_ty->ndim - 1].as<IntImmNode>();
+    const prim::IntImmNode* k_dim =
+        indices_shape->values[indices_ty->ndim - 1].as<prim::IntImmNode>();
     if (!k_dim) {
       TVM_FFI_VISIT_THROW(ValueError, call)
           << "ScatterND needs a static shape for the last axis of indices, got "

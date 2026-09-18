@@ -24,6 +24,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/type.h>
 
 namespace tvm {
@@ -42,7 +43,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             << "A tuple expression requires exactly one index";
         auto index = slice[0].as<PrimExpr>();
         TVM_FFI_CHECK(index.has_value(), TypeError) << "A tuple expression requires a point index";
-        const auto* imm = index.value().as<IntImmNode>();
+        const auto* imm = index.value().as<prim::IntImmNode>();
         TVM_FFI_CHECK(imm != nullptr, TypeError)
             << "A tuple expression requires a constant integer index";
         return TupleGetItem(value, imm->value.as<int>().value(), span);

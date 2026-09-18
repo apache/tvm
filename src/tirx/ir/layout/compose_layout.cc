@@ -77,7 +77,7 @@ void CollectOffsetTerms(const PrimExpr& expr, int sign, std::vector<PrimExpr>* d
                         int64_t* constant, bool* valid, const sym::Analyzer& analyzer) {
   if (!*valid) return;
   PrimExpr simplified = analyzer->Simplify(expr);
-  if (const auto* imm = simplified.as<IntImmNode>()) {
+  if (const auto* imm = simplified.as<prim::IntImmNode>()) {
     int64_t signed_value;
     auto value = imm->value.as<int64_t>();
     if (!value.has_value() || !MulWithoutOverflow(*value, sign, &signed_value) ||
@@ -106,25 +106,25 @@ void CollectOffsetTerms(const PrimExpr& expr, int sign, std::vector<PrimExpr>* d
 std::optional<PrimExpr> DivideExactTerm(const PrimExpr& term, int64_t divisor,
                                         const sym::Analyzer& analyzer) {
   PrimExpr simplified = analyzer->Simplify(term);
-  if (const auto* imm = simplified.as<IntImmNode>()) {
+  if (const auto* imm = simplified.as<prim::IntImmNode>()) {
     if (imm->value % divisor != 0) return std::nullopt;
-    return IntImm(simplified.ty(), imm->value / divisor);
+    return prim::IntImm(simplified.ty(), imm->value / divisor);
   }
 
   if (const auto* mul = simplified.as<prim::MulNode>()) {
-    const IntImmNode* factor = mul->a.as<IntImmNode>();
+    const prim::IntImmNode* factor = mul->a.as<prim::IntImmNode>();
     PrimExpr value = mul->b;
     if (factor == nullptr) {
-      factor = mul->b.as<IntImmNode>();
+      factor = mul->b.as<prim::IntImmNode>();
       value = mul->a;
     }
     if (factor != nullptr && factor->value >= 0 && factor->value % divisor == 0) {
-      return analyzer->Simplify(value * IntImm(value.ty(), factor->value / divisor));
+      return analyzer->Simplify(value * prim::IntImm(value.ty(), factor->value / divisor));
     }
   }
 
-  PrimExpr scale = IntImm(simplified.ty(), divisor);
-  if (!analyzer->CanProveEqual(floormod(simplified, scale), IntImm(simplified.ty(), 0))) {
+  PrimExpr scale = prim::IntImm(simplified.ty(), divisor);
+  if (!analyzer->CanProveEqual(floormod(simplified, scale), prim::IntImm(simplified.ty(), 0))) {
     return std::nullopt;
   }
   return analyzer->Simplify(floordiv(simplified, scale));
@@ -149,7 +149,7 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
   sym::Analyzer analyzer;
   for (size_t i = 0; i < tile->shard.size(); ++i) {
     if (analyzer->CanProveEqual(tile->shard[i]->extent, 1)) {
-      coord.Set(i, IntImm(coord[i].ty(), 0));
+      coord.Set(i, prim::IntImm(coord[i].ty(), 0));
     }
   }
 
@@ -193,11 +193,11 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
     const Iter& iter = tile->shard[i];
     if (analyzer->CanProveEqual(iter->extent, 1)) continue;
     PrimExpr simplified_stride = analyzer->Simplify(iter->stride);
-    const auto* stride_imm = simplified_stride.as<IntImmNode>();
+    const auto* stride_imm = simplified_stride.as<prim::IntImmNode>();
     auto stride = stride_imm ? stride_imm->value.as<int64_t>() : std::nullopt;
     if (!stride.has_value() || *stride < 0) return fallback();
     PrimExpr term = analyzer->Simplify(coord[i] * iter->stride);
-    if (const auto* imm = term.as<IntImmNode>()) {
+    if (const auto* imm = term.as<prim::IntImmNode>()) {
       auto value = imm->value.as<int64_t>();
       if (!value.has_value() || !add_constant(*value)) return fallback();
       continue;
@@ -207,7 +207,7 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
       continue;
     }
     PrimExpr simplified_extent = analyzer->Simplify(iter->extent);
-    const auto* extent_imm = simplified_extent.as<IntImmNode>();
+    const auto* extent_imm = simplified_extent.as<prim::IntImmNode>();
     auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
     if (!extent.has_value() || *extent <= 0) return fallback();
     int64_t term_max;
@@ -224,10 +224,10 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
     // below one atom, so it can continue through the existing carry proof.
     if (term_max >= atom && *stride > 0 && *stride < atom && atom % *stride == 0) {
       int64_t n = atom / *stride;
-      PrimExpr n_expr = IntImm(coord[i].ty(), n);
+      PrimExpr n_expr = prim::IntImm(coord[i].ty(), n);
       PrimExpr high_coord = analyzer->Simplify(floordiv(coord[i], n_expr));
       PrimExpr low_coord = analyzer->Simplify(floormod(coord[i], n_expr));
-      PrimExpr high_term = analyzer->Simplify(high_coord * IntImm(high_coord.ty(), atom));
+      PrimExpr high_term = analyzer->Simplify(high_coord * prim::IntImm(high_coord.ty(), atom));
       PrimExpr low_term = analyzer->Simplify(low_coord * iter->stride);
       add_high(high_term, high_coord);
 
@@ -267,11 +267,11 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
   int64_t constant_low = constant % atom;
   int64_t constant_high = constant - constant_low;
   if (constant_high != 0) {
-    PrimExpr high_term = IntImm(m.ty(), constant_high);
+    PrimExpr high_term = prim::IntImm(m.ty(), constant_high);
     AddExpr(&high, high_term, analyzer);
     int64_t constant_phase = (constant_high / atom) & layout->inner_mask;
     if (constant_phase != 0) {
-      AddExpr(&high_in_atoms, IntImm(m.ty(), constant_phase), analyzer);
+      AddExpr(&high_in_atoms, prim::IntImm(m.ty(), constant_phase), analyzer);
     }
   }
 
@@ -285,7 +285,7 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
     if (low_max >= lowest_constant_bit) return fallback();
   }
 
-  PrimExpr zero = IntImm(m.ty(), 0);
+  PrimExpr zero = prim::IntImm(m.ty(), 0);
   PrimExpr high_expr = high.value_or(zero);
   PrimExpr low_expr = low.value_or(zero);
   PrimExpr high_atoms_expr = high_in_atoms.value_or(zero);
@@ -293,7 +293,7 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
   PrimExpr permuted_low = low_expr ^ (phase << layout->per_element);
   PrimExpr base = analyzer->Simplify(high_expr + permuted_low);
   PrimExpr address =
-      constant_low == 0 ? base : analyzer->Simplify(base ^ IntImm(base.ty(), constant_low));
+      constant_low == 0 ? base : analyzer->Simplify(base ^ prim::IntImm(base.ty(), constant_low));
   return {{"m", address}};
 }
 
@@ -381,7 +381,7 @@ ffi::Map<ffi::String, PrimExpr> ComposeLayoutNode::Apply(const ffi::Array<PrimEx
   ffi::Array<PrimExpr> shard_coord;
   shard_coord.reserve(grouped_tile->shard.size());
   for (size_t i = 0; i < grouped_tile->shard.size(); ++i) {
-    shard_coord.push_back(IntImm::Int32(0));
+    shard_coord.push_back(prim::IntImm::Int32(0));
   }
   for (size_t d = 0; d < shape.size(); ++d) {
     int64_t start = separators[d];

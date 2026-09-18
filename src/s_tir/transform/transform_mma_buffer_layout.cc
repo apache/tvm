@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -63,8 +64,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         // bi = 16, bj = 8
         size_t size = buffer->shape.size();
         TVM_FFI_ICHECK_GE(size, 2);
-        const IntImmNode* dim0 = buffer->shape[size - 2].as<IntImmNode>();
-        const IntImmNode* dim1 = buffer->shape[size - 1].as<IntImmNode>();
+        const prim::IntImmNode* dim0 = buffer->shape[size - 2].as<prim::IntImmNode>();
+        const prim::IntImmNode* dim1 = buffer->shape[size - 1].as<prim::IntImmNode>();
         TVM_FFI_ICHECK(dim0 != nullptr && dim1 != nullptr);
         TVM_FFI_ICHECK(dim0->value % 16 == 0 && dim1->value % 8 == 0);
 
@@ -72,8 +73,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         for (size_t i = 0; i < size - 2; ++i) {
           new_shape.push_back(buffer->shape[i]);
         }
-        new_shape.insert(new_shape.end(),
-                         {IntImm::Int32(dim0->value / 16), IntImm::Int32(dim1->value / 8), 2, 2});
+        new_shape.insert(new_shape.end(), {prim::IntImm::Int32(dim0->value / 16),
+                                           prim::IntImm::Int32(dim1->value / 8), 2, 2});
 
         BufferVar new_buffer =
             decl_buffer(std::move(new_shape), buffer->dtype, buffer.name(), "local");
@@ -85,16 +86,16 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         // bi = 32, bj = 8
         size_t size = buffer->shape.size();
         TVM_FFI_ICHECK_GE(size, 2);
-        const IntImmNode* dim0 = buffer->shape[size - 2].as<IntImmNode>();
-        const IntImmNode* dim1 = buffer->shape[size - 1].as<IntImmNode>();
+        const prim::IntImmNode* dim0 = buffer->shape[size - 2].as<prim::IntImmNode>();
+        const prim::IntImmNode* dim1 = buffer->shape[size - 1].as<prim::IntImmNode>();
         TVM_FFI_ICHECK(dim0 != nullptr && dim1 != nullptr);
         TVM_FFI_ICHECK(dim0->value % 32 == 0 && dim1->value % 8 == 0);
         std::vector<PrimExpr> new_shape;
         for (size_t i = 0; i < size - 2; ++i) {
           new_shape.push_back(buffer->shape[i]);
         }
-        new_shape.insert(new_shape.end(),
-                         {IntImm::Int32(dim0->value / 32), IntImm::Int32(dim1->value / 8), 4, 2});
+        new_shape.insert(new_shape.end(), {prim::IntImm::Int32(dim0->value / 32),
+                                           prim::IntImm::Int32(dim1->value / 8), 4, 2});
 
         BufferVar new_buffer =
             decl_buffer(std::move(new_shape), buffer->dtype, buffer.name(), "local");
@@ -106,16 +107,16 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         // bj = 8, bj = 32
         size_t size = buffer->shape.size();
         TVM_FFI_ICHECK_GE(size, 2);
-        const IntImmNode* dim0 = buffer->shape[size - 2].as<IntImmNode>();
-        const IntImmNode* dim1 = buffer->shape[size - 1].as<IntImmNode>();
+        const prim::IntImmNode* dim0 = buffer->shape[size - 2].as<prim::IntImmNode>();
+        const prim::IntImmNode* dim1 = buffer->shape[size - 1].as<prim::IntImmNode>();
         TVM_FFI_ICHECK(dim0 != nullptr && dim1 != nullptr);
         TVM_FFI_ICHECK(dim0->value % 8 == 0 && dim1->value % 32 == 0);
         std::vector<PrimExpr> new_shape;
         for (size_t i = 0; i < size - 2; ++i) {
           new_shape.push_back(buffer->shape[i]);
         }
-        new_shape.insert(new_shape.end(),
-                         {IntImm::Int32(dim0->value / 8), IntImm::Int32(dim1->value / 32), 1, 8});
+        new_shape.insert(new_shape.end(), {prim::IntImm::Int32(dim0->value / 8),
+                                           prim::IntImm::Int32(dim1->value / 32), 1, 8});
 
         BufferVar new_buffer =
             decl_buffer(std::move(new_shape), buffer->dtype, buffer.name(), "local");

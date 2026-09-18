@@ -27,6 +27,7 @@
 #include <llvm/IR/Intrinsics.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -175,9 +176,9 @@ TVM_REGISTER_OP("prim.clz")
       TVM_FFI_ICHECK(call != nullptr);
       TVM_FFI_ICHECK_EQ(call->args.size(), 1);
       ffi::Array<PrimExpr> cargs;
-      cargs.push_back(IntImm(PrimType::UInt(32), ::llvm::Intrinsic::ctlz));
+      cargs.push_back(prim::IntImm(PrimType::UInt(32), ::llvm::Intrinsic::ctlz));
       cargs.push_back(call->args[0].as_or_throw<PrimExpr>());
-      cargs.push_back(IntImm(PrimType::Int(1), 1));  // is_zero_undef
+      cargs.push_back(prim::IntImm(PrimType::Int(1), 1));  // is_zero_undef
       // LLVM requires that the return type must match the first argument type
       auto clz =
           Call(call->args[0]->ty.as_or_throw<PrimType>(), tirx::builtin::call_llvm_intrin(), cargs)

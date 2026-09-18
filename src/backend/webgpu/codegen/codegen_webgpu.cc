@@ -26,6 +26,7 @@
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/support/io.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/builtin.h>
@@ -140,7 +141,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
         if (ts.rank == 1) {
           TVM_FFI_ICHECK_GE(ts.dim_index, 0) << "vthread should have been optimized out by here";
           TVM_FFI_ICHECK_LT(ts.dim_index, 3);
-          auto* sizeptr = op->value.as<IntImmNode>();
+          auto* sizeptr = op->value.as<prim::IntImmNode>();
           TVM_FFI_ICHECK(sizeptr) << "CodeGenWebGPU: only allows constant thread group size "
                                   << " get " << op->value;
           info_.workgroup_size[ts.dim_index] = sizeptr->value.as<uint32_t>().value();
@@ -551,7 +552,7 @@ void CodeGenWebGPU::Dispatch_(const prim::LetNode* op, std::ostream& os) {  // N
   TVM_FFI_ICHECK(removed);
 }
 
-void CodeGenWebGPU::Dispatch_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenWebGPU::Dispatch_(const prim::IntImmNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK_LE(op->ty.as_or_throw<PrimType>().bits(), 32)
       << "WebGPU does not support integer immediate type " << op->ty;
   if (op->ty.as_or_throw<PrimType>().bits() == 32) {
@@ -570,7 +571,7 @@ void CodeGenWebGPU::Dispatch_(const IntImmNode* op, std::ostream& os) {  // NOLI
   }
 }
 
-void CodeGenWebGPU::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenWebGPU::Dispatch_(const prim::FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   std::ostringstream temp;
   temp << std::scientific << op->value;
   if (op->ty.as_or_throw<PrimType>().bits() == 32) {
@@ -728,11 +729,11 @@ void CodeGenWebGPU::Dispatch_(const AllocBufferNode* op) {
   size_t constant_size = 1;
   sym::Analyzer analyzer;
   for (const auto& dim : op->buffer->shape) {
-    const auto* dim_imm = dim.as<IntImmNode>();
+    const auto* dim_imm = dim.as<prim::IntImmNode>();
     int64_t dim_size =
         dim_imm ? static_cast<int64_t>(dim_imm->value) : analyzer->const_int_bound(dim)->max_value;
     if (dim_imm == nullptr) {
-      const auto* dtype_max = max_value(dim.ty()).as<IntImmNode>();
+      const auto* dtype_max = max_value(dim.ty()).as<prim::IntImmNode>();
       // An integer dtype's intrinsic maximum is not a program-derived allocation bound.
       TVM_FFI_ICHECK(dtype_max && dim_size < dtype_max->value)
           << "WebGPU allocation extent requires a finite compile-time upper bound, but got " << dim;

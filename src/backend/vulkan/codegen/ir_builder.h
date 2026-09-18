@@ -483,7 +483,7 @@ class IRBuilder {
    * \param dtype The content data type.
    * \param value The data value.
    */
-  Value IntImm(const SType& dtype, int64_t value);
+  Value prim::IntImm(const SType& dtype, int64_t value);
   /*
    * \brief Create a const unsigned integer.
    * \param dtype The content data type.
@@ -495,7 +495,7 @@ class IRBuilder {
    * \param dtype The content data type.
    * \param value The data value.
    */
-  Value FloatImm(const SType& dtype, double value);
+  Value prim::FloatImm(const SType& dtype, double value);
   /*
    * \brief Declare buffer argument of function
    *

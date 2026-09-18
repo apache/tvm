@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/s_tir/analysis.h>
 
@@ -153,7 +154,7 @@ void TaskCleanUp(TaskRecordNode* self, int task_id, const ffi::Array<RunnerResul
   self->runner_futures = std::nullopt;
 }
 
-void TaskSchedulerNode::Tune(ffi::Array<TuneContext> ctxs, ffi::Array<FloatImm> task_weights,
+void TaskSchedulerNode::Tune(ffi::Array<TuneContext> ctxs, ffi::Array<prim::FloatImm> task_weights,
                              int max_trials_global, int max_trials_per_task,
                              int num_trials_per_iter, Builder builder, Runner runner,
                              ffi::Array<MeasureCallback> measure_callbacks,
@@ -371,10 +372,10 @@ ffi::Array<RunnerResult> PyTaskSchedulerNode::JoinRunningTask(int task_id) {
   }
 }
 
-void PyTaskSchedulerNode::Tune(ffi::Array<TuneContext> tasks, ffi::Array<FloatImm> task_weights,
-                               int max_trials_global, int max_trials_per_task,
-                               int num_trials_per_iter, Builder builder, Runner runner,
-                               ffi::Array<MeasureCallback> measure_callbacks,
+void PyTaskSchedulerNode::Tune(ffi::Array<TuneContext> tasks,
+                               ffi::Array<prim::FloatImm> task_weights, int max_trials_global,
+                               int max_trials_per_task, int num_trials_per_iter, Builder builder,
+                               Runner runner, ffi::Array<MeasureCallback> measure_callbacks,
                                ffi::Optional<Database> database,
                                ffi::Optional<CostModel> cost_model) {
   if (f_tune == nullptr) {

@@ -254,7 +254,7 @@ ffi::Array<tvm::tirx::Var> CtaIdInPair(PrimType dtype) {
   ffi::Array<tvm::tirx::Var> scope_ids{tvm::PrimVar("", dtype)};
   tvm::tirx::ScopeIdDef def(
       scope_ids.Map([](tvm::tirx::Var var) { return var.as_or_throw<tvm::PrimVar>(); }),
-      ffi::Array<PrimExpr>{IntImm::Int32(2)}, tvm::tirx::ScopeBinding::kClusterCtaPair);
+      ffi::Array<PrimExpr>{prim::IntImm::Int32(2)}, tvm::tirx::ScopeBinding::kClusterCtaPair);
   AddToParent(tvm::tirx::ScopeIdDefStmt(def));
   return scope_ids;
 }
@@ -524,8 +524,8 @@ PrimType InferLoopVarDtype(const PrimExpr& start, const PrimExpr& stop,
  */
 PrimExpr ConvertLoopBound(const PrimExpr& e, const PrimType& var_ty) {
   if (e.ty() == var_ty) return e;
-  if (const auto* imm = e.as<IntImmNode>()) {
-    return tvm::IntImm(var_ty, imm->value);
+  if (const auto* imm = e.as<prim::IntImmNode>()) {
+    return tvm::prim::IntImm(var_ty, imm->value);
   }
   return tvm::prim::Cast(var_ty, e);
 }
@@ -607,7 +607,8 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
       // extent is a single PrimExpr
       PrimType var_ty = dtype.value_or(prim_expr.value().ty());
       n->vars.push_back(Var("v", var_ty));
-      n->doms.push_back(Range(tvm::IntImm(var_ty, 0), ConvertLoopBound(prim_expr.value(), var_ty)));
+      n->doms.push_back(
+          Range(tvm::prim::IntImm(var_ty, 0), ConvertLoopBound(prim_expr.value(), var_ty)));
     } else if (auto tuple = extent.as<ffi::Tuple<PrimExpr, PrimExpr>>()) {
       // extent is a tuple of two PrimExpr (start, extent)
       PrimType var_ty = dtype.value_or(tuple.value().get<0>().ty());
@@ -679,7 +680,7 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
   ffi::ObjectPtr<LaunchThreadFrameNode> n = ffi::make_object<LaunchThreadFrameNode>();
   if (!iter_var->dom.defined()) {
     const_cast<tvm::tirx::IterVarNode*>(iter_var.get())->dom =
-        Range(tvm::IntImm(extent.ty(), 0), extent);
+        Range(tvm::prim::IntImm(extent.ty(), 0), extent);
   } else if (!sym::Analyzer()->CanProveEqual(iter_var->dom->extent, extent)) {
     TVM_FFI_THROW(InternalError) << "ValueError: Inconsistent extents of environment thread. "
                                  << iter_var->dom->extent << " vs " << extent;
@@ -712,7 +713,7 @@ AttrFrame DeviceEntry() {
   // enclosing PrimFuncFrame: ``IRBuilderFrameNode::ExitWithScope`` runs
   // callbacks before popping itself, so the AttrFrame is closed and its
   // emitted ``AttrStmt`` lands in the PrimFunc's body sequence.
-  AttrFrame frame = Attr(0, ffi::String(tvm::tirx::attr::kDeviceEntry), IntImm::Bool(true));
+  AttrFrame frame = Attr(0, ffi::String(tvm::tirx::attr::kDeviceEntry), prim::IntImm::Bool(true));
   IRBuilder builder = IRBuilder::Current();
   ffi::Optional<PrimFuncFrame> pf_frame = builder->FindFrame<PrimFuncFrame>();
   TVM_FFI_ICHECK(pf_frame.has_value())

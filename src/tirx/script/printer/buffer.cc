@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/device_api.h>  // For `kAllocAlignment`
 #include <tvm/s_tir/stmt.h>
 
@@ -173,7 +174,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
   }
   // Step 5. Handle `buffer.elem_offset`
   bool needs_print_factor = false;
-  if (const auto* int_imm = buffer->elem_offset.as<IntImmNode>()) {
+  if (const auto* int_imm = buffer->elem_offset.as<prim::IntImmNode>()) {
     if (int_imm->value != 0 ||
         int_imm->ty.as_or_throw<PrimType>()->dtype != buffer->DefaultIndexType()) {
       kwargs.Set("elem_offset",
@@ -344,7 +345,7 @@ ffi::Array<Doc> BufferIndices(const ffi::Array<PrimExpr>& indices, const AccessP
   indices_doc.reserve(n);
   for (int i = 0; i < n; ++i) {
     if (const auto* ramp = indices[i].as<prim::RampNode>()) {
-      if (const auto* stride = ramp->stride.as<IntImmNode>()) {
+      if (const auto* stride = ramp->stride.as<prim::IntImmNode>()) {
         AccessPath ramp_p = p->Attr("indices")->ArrayItem(i);
         AccessPath stride_p = ramp_p->Attr("stride");
         ExprDoc start = d->AsDoc<ExprDoc>(ramp->base,  //

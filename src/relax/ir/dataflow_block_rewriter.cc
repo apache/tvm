@@ -25,6 +25,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
@@ -212,7 +213,7 @@ static std::optional<MatchState> TryValidate(
       auto [necessary_condition, is_sufficient] = constraint->AsCondition(query_match_state);
 
       necessary_condition = analyzer->Simplify(necessary_condition);
-      const auto* known = necessary_condition.as<IntImmNode>();
+      const auto* known = necessary_condition.as<prim::IntImmNode>();
 
       if (known && known->value != 0 && is_sufficient) {
         // The condition passes, and the expression provided is both

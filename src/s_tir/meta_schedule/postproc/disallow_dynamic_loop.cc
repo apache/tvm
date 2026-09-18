@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include "../utils.h"
 
@@ -44,7 +45,7 @@ struct DynamicExtentFinder : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
-    if (!loop->extent->IsInstance<IntImmNode>()) {
+    if (!loop->extent->IsInstance<prim::IntImmNode>()) {
       found_ = true;
     } else {
       return StmtExprVisitor::Visit_(loop);

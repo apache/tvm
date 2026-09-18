@@ -246,14 +246,14 @@ class PatternMatcher : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const IntImmNode* op) final {
-    const auto* ptr = expr_to_match_.as<IntImmNode>();
+  ffi::Optional<VisitInterrupt> Visit_(const prim::IntImmNode* op) final {
+    const auto* ptr = expr_to_match_.as<prim::IntImmNode>();
     match_success_ = ptr != nullptr && op->value == ptr->value;
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const FloatImmNode* op) final {
-    const auto* ptr = expr_to_match_.as<FloatImmNode>();
+  ffi::Optional<VisitInterrupt> Visit_(const prim::FloatImmNode* op) final {
+    const auto* ptr = expr_to_match_.as<prim::FloatImmNode>();
     match_success_ = ptr != nullptr && op->value == ptr->value;
     return std::nullopt;
   }

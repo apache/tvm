@@ -19,6 +19,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
@@ -414,7 +415,7 @@ ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, Span span) {
   ffi::ObjectPtr<ShapeExprNode> n = ffi::make_object<ShapeExprNode>();
 
   n->values = values.Map([](PrimExpr value) {
-    if (value->IsInstance<IntImmNode>()) {
+    if (value->IsInstance<prim::IntImmNode>()) {
       return tvm::prim::cast(PrimType::Int(64), value);
     }
     TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
@@ -474,7 +475,7 @@ Constant::Constant(runtime::Tensor data, ffi::Optional<Type> ty_annotation, Span
   ffi::Array<PrimExpr> values;
   auto shape_tuple = n->data.Shape();
   for (size_t dim = 0; dim < shape_tuple.size(); ++dim) {
-    values.push_back(IntImm::Int64(shape_tuple[dim]));
+    values.push_back(prim::IntImm::Int64(shape_tuple[dim]));
   }
   if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();

@@ -211,13 +211,13 @@ inline bool IsThreadIdx(const runtime::ThreadScope& thread_scope) {
  * variable or a constant shift from a variable
  */
 inline ffi::Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr,
-                                              ffi::Optional<IntImm>* constant) {
+                                              ffi::Optional<prim::IntImm>* constant) {
   if (auto var = expr.as<PrimVar>()) {
     *constant = std::nullopt;
     return static_cast<Var>(var.value());
   }
   sym::PVar<Var> var;
-  sym::PVar<IntImm> shift;
+  sym::PVar<prim::IntImm> shift;
   // match: "var + shift"
   if ((var + shift).Match(expr) || (shift + var).Match(expr)) {
     *constant = shift.Eval();
@@ -225,8 +225,8 @@ inline ffi::Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr,
   }
   // match: "var - shift"
   if ((var - shift).Match(expr)) {
-    IntImm result = shift.Eval();
-    *constant = IntImm(result.ty(), -result->value);
+    prim::IntImm result = shift.Eval();
+    *constant = prim::IntImm(result.ty(), -result->value);
     return var.Eval();
   }
   return std::nullopt;

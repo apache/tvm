@@ -25,6 +25,7 @@
 #define TVM_RELAX_BACKEND_CONTRIB_UTILS_H_
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 
@@ -48,7 +49,7 @@ namespace backend {
 inline std::vector<int64_t> GetIntShape(const ffi::Array<PrimExpr>& shape) {
   std::vector<int64_t> ret;
   for (const auto& dim : shape) {
-    const auto* imm = dim.as<IntImmNode>();
+    const auto* imm = dim.as<prim::IntImmNode>();
     auto pval = imm ? imm->value.as<int64_t>() : std::nullopt;
     ret.push_back(pval.has_value() ? *pval : -1);
   }
@@ -117,7 +118,7 @@ inline const CallNode* GetOpInFunction(Function f, const std::string& op_name) {
  * \return A mapping between variable pattern names and their positions in the partitioned
  * function parameter list.
  */
-ffi::Map<ffi::String, IntImm> ExtractArgIdx(ffi::String pattern_name, Function f);
+ffi::Map<ffi::String, prim::IntImm> ExtractArgIdx(ffi::String pattern_name, Function f);
 
 /*!
  * \brief Converts a numeric value to std::string.

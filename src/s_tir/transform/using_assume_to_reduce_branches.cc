@@ -38,6 +38,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -181,7 +182,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
   PrimExpr CurrentScopePredicate() const {
     /* This combines all the constraints in a scope */
-    PrimExpr predicate = IntImm::Bool(true);
+    PrimExpr predicate = prim::IntImm::Bool(true);
     for (const auto& condition : conditions_) {
       predicate = predicate && condition;
     }
@@ -308,7 +309,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   }
 
   void AssumeConstraintComponent(PrimExpr assumption) {
-    PrimExpr additional_predicate = IntImm::Bool(true);
+    PrimExpr additional_predicate = prim::IntImm::Bool(true);
     assume_struct buf_data;
 
     std::vector<PrimExpr> buffer_exprs;

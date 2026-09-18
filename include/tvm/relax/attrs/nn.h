@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_ATTRS_NN_H_
 #define TVM_RELAX_ATTRS_NN_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/expr.h>
 
 namespace tvm {
@@ -725,9 +726,9 @@ struct DropoutAttrs : public AttrsNode {
 
 /*! \brief Attributes used in Attention operator */
 struct AttentionAttrs : public AttrsNode {
-  ffi::Optional<FloatImm> scale;
+  ffi::Optional<prim::FloatImm> scale;
   ffi::Optional<ffi::String> causal_mask;
-  ffi::Optional<IntImm> window_size;
+  ffi::Optional<prim::IntImm> window_size;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

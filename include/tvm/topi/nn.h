@@ -233,12 +233,12 @@ inline tvm::te::Tensor pad(
       if (pad_mode == "constant") {
         return tvm::if_then_else(
             foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); },
-                  IntImm::Bool(true), sel),
+                  prim::IntImm::Bool(true), sel),
             t(indices), pad_value);
       } else if (pad_mode == "edge" || pad_mode == "reflect") {
         return tvm::if_then_else(
             foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); },
-                  IntImm::Bool(true), sel),
+                  prim::IntImm::Bool(true), sel),
             t(indices), t(pad_idx));
       }
     }
@@ -537,7 +537,7 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
         << padded_input << ")"
         << " must be divisible by its block size (" << block_size << ")";
 
-    PrimExpr bs = IntImm::Int64(block_shape[i - 1]);
+    PrimExpr bs = prim::IntImm::Int64(block_shape[i - 1]);
     r_shape.push_back(div(padded_shape[i], bs));
     r_shape.push_back(bs);
     block_shape_prod *= bs;
@@ -552,7 +552,7 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
   }
   o_shape.push_back(tvm::PrimExpr(batch) * block_shape_prod);
   for (size_t i = 1; i <= num_block_dims; i++) {
-    PrimExpr bs = IntImm::Int64(block_shape[i - 1]);
+    PrimExpr bs = prim::IntImm::Int64(block_shape[i - 1]);
     o_shape.push_back(div(padded_shape[i], bs));
   }
   // append remaining shape
@@ -598,7 +598,7 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
   int batch = static_cast<int>(GetConstInt(in_shape[0]));
 
   for (size_t i = 0; i < num_block_dims; i++) {
-    PrimExpr bs = IntImm::Int64(block_shape[i]);
+    PrimExpr bs = prim::IntImm::Int64(block_shape[i]);
     r_shape.push_back(bs);
     block_shape_prod *= bs;
   }
@@ -617,7 +617,7 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
   ffi::Array<PrimExpr> r_p_shape;
   r_p_shape.push_back(batch / block_shape_prod);
   for (size_t i = 1; i <= num_block_dims; i++) {
-    PrimExpr bs = IntImm::Int64(block_shape[i - 1]);
+    PrimExpr bs = prim::IntImm::Int64(block_shape[i - 1]);
     r_p_shape.push_back(in_shape[i] * bs);
   }
   for (size_t i = num_block_dims + 1; i < num_input_dims; i++) {
@@ -630,29 +630,29 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
   out = reshape(out, r_p_shape);
 
   // Crop the start and end of dimensions of out
-  ffi::Array<ffi::Optional<IntImm>> begin_idx, end_idx;
-  ffi::Array<IntImm> strides;
+  ffi::Array<ffi::Optional<prim::IntImm>> begin_idx, end_idx;
+  ffi::Array<prim::IntImm> strides;
   PrimType index_ty = PrimType::Int(64);
   for (size_t i = 0; i < r_p_shape.size(); ++i) {
-    strides.push_back(IntImm(index_ty, 1));
+    strides.push_back(prim::IntImm(index_ty, 1));
     if (i > 0 && i <= num_block_dims) {
       // prepare begin and end index for spatial dimensions
-      const auto* begin_i_imm = crop_begin_list[i - 1].as<IntImmNode>();
+      const auto* begin_i_imm = crop_begin_list[i - 1].as<prim::IntImmNode>();
       ffi::BigInt begin_i = begin_i_imm ? begin_i_imm->value : GetConstInt(crop_begin_list[i - 1]);
-      const auto* end_i_imm = crop_end_list[i - 1].as<IntImmNode>();
+      const auto* end_i_imm = crop_end_list[i - 1].as<prim::IntImmNode>();
       ffi::BigInt end_i = end_i_imm ? end_i_imm->value : GetConstInt(crop_end_list[i - 1]);
-      const auto* out_i_imm = r_p_shape[i].as<IntImmNode>();
+      const auto* out_i_imm = r_p_shape[i].as<prim::IntImmNode>();
       ffi::BigInt out_i = out_i_imm ? out_i_imm->value : GetConstInt(r_p_shape[i]);
       TVM_FFI_ICHECK_GT(out_i, (begin_i + end_i))
           << "Incorrect crop sizes for (" << i << ")th dim, can not crop more than"
           << " output size" << out_i << " vs " << (begin_i + end_i);
-      begin_idx.push_back(IntImm(index_ty, begin_i));
-      end_idx.push_back(IntImm(index_ty, out_i - end_i));
+      begin_idx.push_back(prim::IntImm(index_ty, begin_i));
+      end_idx.push_back(prim::IntImm(index_ty, out_i - end_i));
     } else {
       // ignore the batch and remaining dimension
-      begin_idx.push_back(IntImm(index_ty, 0));
-      const auto* extent = r_p_shape[i].as<IntImmNode>();
-      end_idx.push_back(IntImm(index_ty, extent ? extent->value : GetConstInt(r_p_shape[i])));
+      begin_idx.push_back(prim::IntImm(index_ty, 0));
+      const auto* extent = r_p_shape[i].as<prim::IntImmNode>();
+      end_idx.push_back(prim::IntImm(index_ty, extent ? extent->value : GetConstInt(r_p_shape[i])));
     }
   }
 

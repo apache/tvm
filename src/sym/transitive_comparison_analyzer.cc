@@ -352,7 +352,7 @@ CompareResult Negate(CompareResult res) {
 std::tuple<PrimExpr, PrimExpr, int64_t> ExtractOffsets(const PrimExpr& lhs, const PrimExpr& rhs) {
   auto extract_offset = [](const PrimExpr& expr) -> std::pair<PrimExpr, ffi::BigInt> {
     PVar<PrimExpr> x;
-    PVar<IntImm> c;
+    PVar<prim::IntImm> c;
     if ((x + c).Match(expr)) {
       return {x.Eval(), c.Eval()->value};
     } else if ((x - c).Match(expr)) {
@@ -397,7 +397,7 @@ TransitiveComparisonAnalyzer::Impl::FromExpr(const PrimExpr& expr) {
   PrimExpr lhs_expr = x.Eval();
   PrimExpr rhs_expr = y.Eval();
 
-  if (lhs_expr.as<IntImmNode>() && rhs_expr.as<IntImmNode>()) {
+  if (lhs_expr.as<prim::IntImmNode>() && rhs_expr.as<prim::IntImmNode>()) {
     return std::nullopt;
   }
 
@@ -633,8 +633,8 @@ CompareResult TransitiveComparisonAnalyzer::Impl::TryCompare(const PrimExpr& lhs
 
   // Bail out early if possible.  This int check should have been
   // constant-folded earlier, so this check shouldn't occur.
-  auto* x_int = lhs_expr.as<IntImmNode>();
-  auto* y_int = rhs_expr.as<IntImmNode>();
+  auto* x_int = lhs_expr.as<prim::IntImmNode>();
+  auto* y_int = rhs_expr.as<prim::IntImmNode>();
   if (x_int && y_int) {
     if (x_int->value < y_int->value) {
       return CompareResult::kLT;

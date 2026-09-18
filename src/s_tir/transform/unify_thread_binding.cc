@@ -23,6 +23,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -64,7 +65,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
     }
     IterVar old_iter_var = op->node.as_or_throw<IterVar>();
     return UnifyThreadBindingImpl(op, old_iter_var->var, old_iter_var,
-                                  Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value),
+                                  Range::FromMinExtent(prim::IntImm(op->value.ty(), 0), op->value),
                                   inplace_mode);
   }
 
@@ -88,8 +89,8 @@ class ThreadBindingUnifier : public StmtExprMutator {
       // Create a new unit loop with the annotation.
       PrimType loop_ty = op->loop_var.ty();
       return For(/*loop_var=*/PrimVar("var", loop_ty),  //
-                 /*min=*/IntImm(loop_ty, 0),            //
-                 /*extent=*/IntImm(loop_ty, 1),         //
+                 /*min=*/prim::IntImm(loop_ty, 0),      //
+                 /*extent=*/prim::IntImm(loop_ty, 1),   //
                  /*kind=*/ForKind::kSerial, stmt,       //
                  /*thread_binding=*/std::nullopt,       //
                  /*annotation=*/std::move(annotations),

@@ -27,6 +27,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <vector>
 
@@ -129,7 +130,8 @@ Type InferTypeConv1d(const Call& call, const BlockBuilder& ctx) {
 
   PrimExpr input_w = data_NCW_shape[2];
   PrimExpr kernel_w = weight_OIW_shape[2];
-  PrimExpr padding_w = IntImm::Int32(attrs->padding[0]) + IntImm::Int32(attrs->padding[1]);
+  PrimExpr padding_w =
+      prim::IntImm::Int32(attrs->padding[0]) + prim::IntImm::Int32(attrs->padding[1]);
 
   std::vector<PrimExpr> out_NCW_shape;
   out_NCW_shape.resize(3);
@@ -137,9 +139,9 @@ Type InferTypeConv1d(const Call& call, const BlockBuilder& ctx) {
   out_NCW_shape[1] = weight_OIW_shape[0];
 
   PrimExpr numerator_w =
-      input_w + padding_w - IntImm::Int32(attrs->dilation[0]) * (kernel_w - 1) - 1;
+      input_w + padding_w - prim::IntImm::Int32(attrs->dilation[0]) * (kernel_w - 1) - 1;
   out_NCW_shape[2] =
-      analyzer->Simplify(floordiv(numerator_w, IntImm::Int32(attrs->strides[0])) + 1);
+      analyzer->Simplify(floordiv(numerator_w, prim::IntImm::Int32(attrs->strides[0])) + 1);
 
   ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
   return TensorType(ShapeExpr(out_shape), out_dtype, vdevice);
@@ -301,8 +303,10 @@ Type InferTypeConv2d(const Call& call, const BlockBuilder& ctx) {
   PrimExpr input_w = data_NCHW_shape[3];
   PrimExpr kernel_h = weight_OIHW_shape[2];
   PrimExpr kernel_w = weight_OIHW_shape[3];
-  PrimExpr padding_h = IntImm::Int32(attrs->padding[0]) + IntImm::Int32(attrs->padding[2]);
-  PrimExpr padding_w = IntImm::Int32(attrs->padding[1]) + IntImm::Int32(attrs->padding[3]);
+  PrimExpr padding_h =
+      prim::IntImm::Int32(attrs->padding[0]) + prim::IntImm::Int32(attrs->padding[2]);
+  PrimExpr padding_w =
+      prim::IntImm::Int32(attrs->padding[1]) + prim::IntImm::Int32(attrs->padding[3]);
 
   std::vector<PrimExpr> out_NCHW_shape;
   out_NCHW_shape.resize(4);
@@ -310,13 +314,13 @@ Type InferTypeConv2d(const Call& call, const BlockBuilder& ctx) {
   out_NCHW_shape[1] = weight_OIHW_shape[0];
 
   PrimExpr numerator_h =
-      input_h + padding_h - IntImm::Int32(attrs->dilation[0]) * (kernel_h - 1) - 1;
+      input_h + padding_h - prim::IntImm::Int32(attrs->dilation[0]) * (kernel_h - 1) - 1;
   PrimExpr numerator_w =
-      input_w + padding_w - IntImm::Int32(attrs->dilation[1]) * (kernel_w - 1) - 1;
+      input_w + padding_w - prim::IntImm::Int32(attrs->dilation[1]) * (kernel_w - 1) - 1;
   out_NCHW_shape[2] =
-      analyzer->Simplify(floordiv(numerator_h, IntImm::Int32(attrs->strides[0])) + 1);
+      analyzer->Simplify(floordiv(numerator_h, prim::IntImm::Int32(attrs->strides[0])) + 1);
   out_NCHW_shape[3] =
-      analyzer->Simplify(floordiv(numerator_w, IntImm::Int32(attrs->strides[1])) + 1);
+      analyzer->Simplify(floordiv(numerator_w, prim::IntImm::Int32(attrs->strides[1])) + 1);
 
   ffi::Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
   return TensorType(ShapeExpr(out_shape), out_dtype, vdevice);
@@ -517,9 +521,12 @@ Type InferTypeConv3d(const Call& call, const BlockBuilder& ctx) {
   PrimExpr kernel_d = weight_OIDHW_shape[2];
   PrimExpr kernel_h = weight_OIDHW_shape[3];
   PrimExpr kernel_w = weight_OIDHW_shape[4];
-  PrimExpr padding_d = IntImm::Int32(attrs->padding[0]) + IntImm::Int32(attrs->padding[3]);
-  PrimExpr padding_h = IntImm::Int32(attrs->padding[1]) + IntImm::Int32(attrs->padding[4]);
-  PrimExpr padding_w = IntImm::Int32(attrs->padding[2]) + IntImm::Int32(attrs->padding[5]);
+  PrimExpr padding_d =
+      prim::IntImm::Int32(attrs->padding[0]) + prim::IntImm::Int32(attrs->padding[3]);
+  PrimExpr padding_h =
+      prim::IntImm::Int32(attrs->padding[1]) + prim::IntImm::Int32(attrs->padding[4]);
+  PrimExpr padding_w =
+      prim::IntImm::Int32(attrs->padding[2]) + prim::IntImm::Int32(attrs->padding[5]);
 
   std::vector<PrimExpr> out_NCDHW_shape;
   out_NCDHW_shape.resize(5);
@@ -527,17 +534,17 @@ Type InferTypeConv3d(const Call& call, const BlockBuilder& ctx) {
   out_NCDHW_shape[1] = weight_OIDHW_shape[0];
 
   PrimExpr numerator_d =
-      input_d + padding_d - IntImm::Int32(attrs->dilation[0]) * (kernel_d - 1) - 1;
+      input_d + padding_d - prim::IntImm::Int32(attrs->dilation[0]) * (kernel_d - 1) - 1;
   PrimExpr numerator_h =
-      input_h + padding_h - IntImm::Int32(attrs->dilation[1]) * (kernel_h - 1) - 1;
+      input_h + padding_h - prim::IntImm::Int32(attrs->dilation[1]) * (kernel_h - 1) - 1;
   PrimExpr numerator_w =
-      input_w + padding_w - IntImm::Int32(attrs->dilation[2]) * (kernel_w - 1) - 1;
+      input_w + padding_w - prim::IntImm::Int32(attrs->dilation[2]) * (kernel_w - 1) - 1;
   out_NCDHW_shape[2] =
-      analyzer->Simplify(floordiv(numerator_d, IntImm::Int32(attrs->strides[0])) + 1);
+      analyzer->Simplify(floordiv(numerator_d, prim::IntImm::Int32(attrs->strides[0])) + 1);
   out_NCDHW_shape[3] =
-      analyzer->Simplify(floordiv(numerator_h, IntImm::Int32(attrs->strides[1])) + 1);
+      analyzer->Simplify(floordiv(numerator_h, prim::IntImm::Int32(attrs->strides[1])) + 1);
   out_NCDHW_shape[4] =
-      analyzer->Simplify(floordiv(numerator_w, IntImm::Int32(attrs->strides[2])) + 1);
+      analyzer->Simplify(floordiv(numerator_w, prim::IntImm::Int32(attrs->strides[2])) + 1);
 
   ffi::Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
   return TensorType(ShapeExpr(out_shape), out_dtype, vdevice);
@@ -709,16 +716,17 @@ Type InferTypeConv1dTranspose(const Call& call, const BlockBuilder& ctx) {
 
   PrimExpr input_w = data_NCW_shape[2];
   PrimExpr kernel_w = weight_IOW_shape[2];
-  PrimExpr padding_w = IntImm::Int32(attrs->padding[0]) + IntImm::Int32(attrs->padding[1]);
+  PrimExpr padding_w =
+      prim::IntImm::Int32(attrs->padding[0]) + prim::IntImm::Int32(attrs->padding[1]);
 
   std::vector<PrimExpr> out_NCW_shape;
   out_NCW_shape.resize(3);
   out_NCW_shape[0] = data_NCW_shape[0];
   out_NCW_shape[1] = weight_IOW_shape[1] * attrs->groups;
 
-  PrimExpr out_w = (input_w - 1) * IntImm::Int32(attrs->strides[0]) - padding_w +
-                   IntImm::Int32(attrs->dilation[0]) * (kernel_w - 1) +
-                   IntImm::Int32(attrs->output_padding[0]) + 1;
+  PrimExpr out_w = (input_w - 1) * prim::IntImm::Int32(attrs->strides[0]) - padding_w +
+                   prim::IntImm::Int32(attrs->dilation[0]) * (kernel_w - 1) +
+                   prim::IntImm::Int32(attrs->output_padding[0]) + 1;
   out_NCW_shape[2] = analyzer->Simplify(out_w);
 
   ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
@@ -901,20 +909,22 @@ Type InferTypeConv2dTranspose(const Call& call, const BlockBuilder& ctx) {
   PrimExpr input_w = data_NCHW_shape[3];
   PrimExpr kernel_h = weight_IOHW_shape[2];
   PrimExpr kernel_w = weight_IOHW_shape[3];
-  PrimExpr padding_h = IntImm::Int32(attrs->padding[0]) + IntImm::Int32(attrs->padding[2]);
-  PrimExpr padding_w = IntImm::Int32(attrs->padding[1]) + IntImm::Int32(attrs->padding[3]);
+  PrimExpr padding_h =
+      prim::IntImm::Int32(attrs->padding[0]) + prim::IntImm::Int32(attrs->padding[2]);
+  PrimExpr padding_w =
+      prim::IntImm::Int32(attrs->padding[1]) + prim::IntImm::Int32(attrs->padding[3]);
 
   std::vector<PrimExpr> out_NCHW_shape;
   out_NCHW_shape.resize(4);
   out_NCHW_shape[0] = data_NCHW_shape[0];
   out_NCHW_shape[1] = weight_IOHW_shape[1] * attrs->groups;
 
-  PrimExpr out_h = (input_h - 1) * IntImm::Int32(attrs->strides[0]) - padding_h +
-                   IntImm::Int32(attrs->dilation[0]) * (kernel_h - 1) +
-                   IntImm::Int32(attrs->output_padding[0]) + 1;
-  PrimExpr out_w = (input_w - 1) * IntImm::Int32(attrs->strides[1]) - padding_w +
-                   IntImm::Int32(attrs->dilation[1]) * (kernel_w - 1) +
-                   IntImm::Int32(attrs->output_padding[1]) + 1;
+  PrimExpr out_h = (input_h - 1) * prim::IntImm::Int32(attrs->strides[0]) - padding_h +
+                   prim::IntImm::Int32(attrs->dilation[0]) * (kernel_h - 1) +
+                   prim::IntImm::Int32(attrs->output_padding[0]) + 1;
+  PrimExpr out_w = (input_w - 1) * prim::IntImm::Int32(attrs->strides[1]) - padding_w +
+                   prim::IntImm::Int32(attrs->dilation[1]) * (kernel_w - 1) +
+                   prim::IntImm::Int32(attrs->output_padding[1]) + 1;
   out_NCHW_shape[2] = analyzer->Simplify(out_h);
   out_NCHW_shape[3] = analyzer->Simplify(out_w);
 
@@ -1136,24 +1146,27 @@ Type InferTypeConv3dTranspose(const Call& call, const BlockBuilder& ctx) {
   PrimExpr kernel_d = weight_IODHW_shape[2];
   PrimExpr kernel_h = weight_IODHW_shape[3];
   PrimExpr kernel_w = weight_IODHW_shape[4];
-  PrimExpr padding_d = IntImm::Int32(attrs->padding[0]) + IntImm::Int32(attrs->padding[3]);
-  PrimExpr padding_h = IntImm::Int32(attrs->padding[1]) + IntImm::Int32(attrs->padding[4]);
-  PrimExpr padding_w = IntImm::Int32(attrs->padding[2]) + IntImm::Int32(attrs->padding[5]);
+  PrimExpr padding_d =
+      prim::IntImm::Int32(attrs->padding[0]) + prim::IntImm::Int32(attrs->padding[3]);
+  PrimExpr padding_h =
+      prim::IntImm::Int32(attrs->padding[1]) + prim::IntImm::Int32(attrs->padding[4]);
+  PrimExpr padding_w =
+      prim::IntImm::Int32(attrs->padding[2]) + prim::IntImm::Int32(attrs->padding[5]);
 
   std::vector<PrimExpr> out_NCDHW_shape;
   out_NCDHW_shape.resize(5);
   out_NCDHW_shape[0] = data_NCDHW_shape[0];
   out_NCDHW_shape[1] = weight_IODHW_shape[1] * attrs->groups;
 
-  PrimExpr out_d = (input_d - 1) * IntImm::Int32(attrs->strides[0]) - padding_d +
-                   IntImm::Int32(attrs->dilation[0]) * (kernel_d - 1) +
-                   IntImm::Int32(attrs->output_padding[0]) + 1;
-  PrimExpr out_h = (input_h - 1) * IntImm::Int32(attrs->strides[1]) - padding_h +
-                   IntImm::Int32(attrs->dilation[1]) * (kernel_h - 1) +
-                   IntImm::Int32(attrs->output_padding[1]) + 1;
-  PrimExpr out_w = (input_w - 1) * IntImm::Int32(attrs->strides[2]) - padding_w +
-                   IntImm::Int32(attrs->dilation[2]) * (kernel_w - 1) +
-                   IntImm::Int32(attrs->output_padding[2]) + 1;
+  PrimExpr out_d = (input_d - 1) * prim::IntImm::Int32(attrs->strides[0]) - padding_d +
+                   prim::IntImm::Int32(attrs->dilation[0]) * (kernel_d - 1) +
+                   prim::IntImm::Int32(attrs->output_padding[0]) + 1;
+  PrimExpr out_h = (input_h - 1) * prim::IntImm::Int32(attrs->strides[1]) - padding_h +
+                   prim::IntImm::Int32(attrs->dilation[1]) * (kernel_h - 1) +
+                   prim::IntImm::Int32(attrs->output_padding[1]) + 1;
+  PrimExpr out_w = (input_w - 1) * prim::IntImm::Int32(attrs->strides[2]) - padding_w +
+                   prim::IntImm::Int32(attrs->dilation[2]) * (kernel_w - 1) +
+                   prim::IntImm::Int32(attrs->output_padding[2]) + 1;
   out_NCDHW_shape[2] = analyzer->Simplify(out_d);
   out_NCDHW_shape[3] = analyzer->Simplify(out_h);
   out_NCDHW_shape[4] = analyzer->Simplify(out_w);

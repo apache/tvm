@@ -24,6 +24,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
@@ -64,7 +65,7 @@ void IRMutatorWithAnalyzer::MarkBufferParamShapes(const tirx::PrimFunc& func) {
 
 ffi::Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(
     const ffi::Array<PrimExpr>& indices, bool non_trivial_only) {
-  PrimExpr pred = IntImm::Bool(true);
+  PrimExpr pred = prim::IntImm::Bool(true);
   for (PrimExpr val : iter_predicates_) {
     pred = pred && val;
   }
@@ -74,7 +75,7 @@ ffi::Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(
       indices, this->iter_vars_, pred, sym::IterMapLevel::Surjective, analyzer_ref);
   if (non_trivial_only) {
     for (int i = 0; i < n; ++i) {
-      if (simplified[i]->IsInstance<IntImmNode>() && indices[i].as<PrimVar>()) {
+      if (simplified[i]->IsInstance<prim::IntImmNode>() && indices[i].as<PrimVar>()) {
         simplified.Set(i, indices[i]);
       }
     }
@@ -100,7 +101,7 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const ForNode* op, InplaceMode 
     }
     Stmt body = constraint_scope_.WithNewScope([&]() -> Stmt {
       EnterConstraintFacts(&constraint_scope_.Current(), analyzer_,
-                           extent > IntImm(extent.ty(), 0));
+                           extent > prim::IntImm(extent.ty(), 0));
       return this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     });
     if (min_unchanged && extent_unchanged && body.same_as(op->body) && step.same_as(op->step)) {
@@ -206,7 +207,7 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const AttrStmtNode* op, Inplace
         op->attr_key == tvm::tirx::attr::virtual_thread) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      Range dom = Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value);
+      Range dom = Range::FromMinExtent(prim::IntImm(op->value.ty(), 0), op->value);
       analyzer_->Bind(iv->var, dom);
       iter_vars_.Set(iv->var, dom);
     }

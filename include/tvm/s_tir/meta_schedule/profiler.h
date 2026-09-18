@@ -70,7 +70,7 @@ class ProfilerNode : public ffi::Object {
 
  public:
   /*! \brief Get the internal stats of the running time */
-  ffi::Map<ffi::String, FloatImm> Get() const;
+  ffi::Map<ffi::String, prim::FloatImm> Get() const;
   /*! \brief Return a summary of profiling results as table format */
   ffi::String Table() const;
 };

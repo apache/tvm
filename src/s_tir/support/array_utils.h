@@ -20,6 +20,7 @@
 #define TVM_S_TIR_SUPPORT_ARRAY_UTILS_H_
 #include <tvm/ffi/container/array.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <list>
 #include <vector>
@@ -167,7 +168,7 @@ struct AsVectorImpl<TSrcObjectRef, int> {
   inline std::vector<int> operator()(const ffi::Array<TSrcObjectRef>& array) const {
     ffi::Any ret_value;
     ret_value = array;
-    ffi::Array<IntImm> as_int_vec = ret_value.cast<ffi::Array<IntImm>>();
+    ffi::Array<prim::IntImm> as_int_vec = ret_value.cast<ffi::Array<prim::IntImm>>();
 
     std::vector<int> results;
     for (const auto& value : as_int_vec) {
@@ -182,7 +183,7 @@ struct AsVectorImpl<TSrcObjectRef, int64_t> {
   inline std::vector<int64_t> operator()(const ffi::Array<TSrcObjectRef>& array) const {
     ffi::Any ret_value;
     ret_value = array;
-    ffi::Array<IntImm> as_int_vec = ret_value.cast<ffi::Array<IntImm>>();
+    ffi::Array<prim::IntImm> as_int_vec = ret_value.cast<ffi::Array<prim::IntImm>>();
 
     std::vector<int64_t> results;
     for (const auto& value : as_int_vec) {
@@ -197,7 +198,7 @@ struct AsVectorImpl<TSrcObjectRef, double> {
   inline std::vector<double> operator()(const ffi::Array<TSrcObjectRef>& array) const {
     ffi::Any ret_value;
     ret_value = array;
-    ffi::Array<FloatImm> as_int_vec = ret_value.cast<ffi::Array<FloatImm>>();
+    ffi::Array<prim::FloatImm> as_int_vec = ret_value.cast<ffi::Array<prim::FloatImm>>();
 
     std::vector<double> results;
     for (const auto& value : as_int_vec) {

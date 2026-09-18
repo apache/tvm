@@ -19,6 +19,7 @@
 #include "./multi_level_tiling.h"
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/meta_schedule/schedule_rule.h>
 #include <tvm/s_tir/stmt.h>
@@ -235,7 +236,7 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state,
       }
       idx = &s_indices_;
       if (spatial_loop_product != -1) {
-        const auto* extent_imm = sch->Get(loop)->extent.as<IntImmNode>();
+        const auto* extent_imm = sch->Get(loop)->extent.as<prim::IntImmNode>();
         if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
             extent.has_value()) {
           spatial_loop_product *= *extent;
@@ -286,9 +287,9 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state,
       low_inclusive = this->thread_warp_size_;
     }
     sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_low_inclusive,
-                  IntImm::Int32(low_inclusive));
+                  prim::IntImm::Int32(low_inclusive));
     sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_high_inclusive,
-                  IntImm::Int32(high_inclusive));
+                  prim::IntImm::Int32(high_inclusive));
   }
   return {state};
 }
@@ -399,7 +400,8 @@ void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
     valid_vector_lens_arr.reserve(valid_vector_lens.size());
     for (int v : valid_vector_lens) valid_vector_lens_arr.push_back(static_cast<int64_t>(v));
     s_tir::ExprRV vector_load_len = (*sch)->SampleCategorical(
-        valid_vector_lens_arr, ffi::Array<FloatImm>(n, FloatImm(PrimType::Float(32), prob)));
+        valid_vector_lens_arr,
+        ffi::Array<prim::FloatImm>(n, prim::FloatImm(PrimType::Float(32), prob)));
     (*sch)->Annotate(block, s_tir::attr::meta_schedule_cooperative_fetch, vector_load_len);
   }
 }

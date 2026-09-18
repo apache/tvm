@@ -424,9 +424,9 @@ inline void PythonAPICall::AsPythonString(const Any& obj, std::ostream& os) {
     os << "None";
   } else if (auto opt_str = obj.as<ffi::String>()) {
     os << *opt_str;
-  } else if (const auto opt_int_imm = obj.try_cast<IntImm>()) {
+  } else if (const auto opt_int_imm = obj.try_cast<prim::IntImm>()) {
     os << (*opt_int_imm)->value;
-  } else if (const auto opt_float_imm = obj.try_cast<FloatImm>()) {
+  } else if (const auto opt_float_imm = obj.try_cast<prim::FloatImm>()) {
     os.precision(17);
     os << (*opt_float_imm)->value;
   } else if (const auto* array = obj.as<ffi::ArrayObj>()) {

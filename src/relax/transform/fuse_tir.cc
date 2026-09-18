@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
@@ -106,8 +107,8 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
   TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::FloorDivNode);
   TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(prim::FloorModNode);
 
-  void Dispatch_(const IntImmNode* op, const PrimExpr& other) {
-    const auto* rhs = other.as<IntImmNode>();
+  void Dispatch_(const prim::IntImmNode* op, const PrimExpr& other) {
+    const auto* rhs = other.as<prim::IntImmNode>();
     if (!rhs || (op->value != rhs->value)) {
       TVM_FFI_THROW(InternalError)
           << "Parameter expression " << ffi::GetRef<PrimExpr>(op)
@@ -116,8 +117,8 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
     }
   }
 
-  void Dispatch_(const FloatImmNode* op, const PrimExpr& other) {
-    const auto* rhs = other.as<FloatImmNode>();
+  void Dispatch_(const prim::FloatImmNode* op, const PrimExpr& other) {
+    const auto* rhs = other.as<prim::FloatImmNode>();
     if (!rhs || (op->value != rhs->value)) {
       TVM_FFI_THROW(InternalError) << "Parameter expression " << ffi::GetRef<PrimExpr>(op)
                                    << " expected an float argument with value " << op->value << ", "
@@ -165,7 +166,7 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
 
   sym::AnalyzerObj* analyzer_;
   ffi::Map<tirx::Var, PrimExpr>* var_remap_;
-  PrimExpr must_prove_ = IntImm::Bool(true);
+  PrimExpr must_prove_ = prim::IntImm::Bool(true);
 };
 
 /*!
@@ -880,7 +881,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     body = subst->Mutate(body).ValueOrUnchanged(body);
     body = s_tir::SBlock({}, {}, {}, "root", std::move(body), std::nullopt, alloc_buffers);
-    body = s_tir::SBlockRealize({}, IntImm::Bool(true), body.as_or_throw<s_tir::SBlock>());
+    body = s_tir::SBlockRealize({}, prim::IntImm::Bool(true), body.as_or_throw<s_tir::SBlock>());
     ffi::Array<tirx::Var> params = func_info_.params.Map([&](const tirx::Var& param) {
       if (auto buffer = func_info_.buffer_map.Get(param)) {
         return buffer.value().var();

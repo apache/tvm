@@ -23,6 +23,7 @@
 #include "codegen_c.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/type.h>
@@ -476,7 +477,7 @@ void CodeGenC::PrintStorageScope(const std::string& scope, std::ostream& os) {  
   TVM_FFI_ICHECK_EQ(scope, "global");
 }
 
-inline void PrintConst(const IntImmNode* op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
+inline void PrintConst(const prim::IntImmNode* op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
   PrimType dtype = op->ty.as_or_throw<PrimType>();
   TVM_FFI_ICHECK_GT(dtype.bits(), 0);
   TVM_FFI_ICHECK_LE(dtype.bits(), 64) << "Unsupported C integer immediate type " << dtype;
@@ -517,7 +518,7 @@ inline void PrintConst(const IntImmNode* op, std::ostream& os, CodeGenC* p) {  /
   os << temp.str();
 }
 
-inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
+inline void PrintConst(const prim::FloatImmNode* op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
   switch (op->ty.as_or_throw<PrimType>().bits()) {
     case 64:
     case 32: {
@@ -540,11 +541,11 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenC* p) { 
   }
 }
 
-void CodeGenC::Dispatch_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::IntImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
 
-void CodeGenC::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const prim::FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
 void CodeGenC::Dispatch_(const prim::StringImmNode* op, std::ostream& os) {  // NOLINT(*)
@@ -827,7 +828,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     } else if (op->op.same_as(tirx::builtin::tvm_struct_get())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
       os << GetStructRef(op->ty, op->args[0], op->args[1].as_or_throw<PrimExpr>(),
-                         op->args[2].as<IntImmNode>()->value.as<int>().value());
+                         op->args[2].as<prim::IntImmNode>()->value.as<int>().value());
     } else if (op->op.same_as(tirx::builtin::isnullptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
       os << "(";
@@ -1197,12 +1198,12 @@ void CodeGenC::Dispatch_(const prim::ShuffleNode* op, std::ostream& os) {  // NO
   }
   if (op->indices.size() == 1) {
     // This is an extract element
-    TVM_FFI_ICHECK(op->indices[0]->IsInstance<IntImmNode>())
+    TVM_FFI_ICHECK(op->indices[0]->IsInstance<prim::IntImmNode>())
         << "The ShuffleNode indices are expected to be constants at codegen time. However, "
         << "a non-constant index is " << op->indices[0]
         << ". Please avoid using ShuffleNode or eliminate the ShuffleNode with loop unroll or "
         << "vectorize.";
-    int64_t idx = static_cast<int64_t>(op->indices[0].as_or_throw<IntImm>()->value);
+    int64_t idx = static_cast<int64_t>(op->indices[0].as_or_throw<prim::IntImm>()->value);
     TVM_FFI_ICHECK_LT(idx, concat_vec.size());
     os << concat_vec[idx];
   } else {
@@ -1212,12 +1213,12 @@ void CodeGenC::Dispatch_(const prim::ShuffleNode* op, std::ostream& os) {  // NO
     os << '(';
     for (size_t i = 0; i < op->indices.size(); ++i) {
       if (i != 0) os << ", ";
-      TVM_FFI_ICHECK(op->indices[i]->IsInstance<IntImmNode>())
+      TVM_FFI_ICHECK(op->indices[i]->IsInstance<prim::IntImmNode>())
           << "The ShuffleNode indices are expected to be constants at codegen time. However, "
           << "a non-constant index is " << op->indices[i]
           << ". Please avoid using ShuffleNode or eliminate the ShuffleNode with loop unroll or "
           << "vectorize.";
-      os << concat_vec[op->indices[i].as_or_throw<IntImm>()->value.as<size_t>().value()];
+      os << concat_vec[op->indices[i].as_or_throw<prim::IntImm>()->value.as<size_t>().value()];
     }
     os << ')';
   }
@@ -1266,7 +1267,7 @@ void CodeGenC::Dispatch_(const AllocBufferNode* op) {
   const auto& shape = op->buffer->shape;
   size_t constant_size = 1;
   for (const auto& dim : shape) {
-    const IntImmNode* dim_imm = dim.as<IntImmNode>();
+    const prim::IntImmNode* dim_imm = dim.as<prim::IntImmNode>();
     TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
     constant_size *= dim_imm->value.as<size_t>().value();
   }
@@ -1470,7 +1471,7 @@ void CodeGenC::Dispatch_(const EvaluateNode* op) {
       return;
     } else if (call->op.same_as(tirx::builtin::tvm_struct_set())) {
       TVM_FFI_ICHECK_EQ(call->args.size(), 4);
-      int kind = call->args[2].as<IntImmNode>()->value.as<int>().value();
+      int kind = call->args[2].as<prim::IntImmNode>()->value.as<int>().value();
       Type store_ty = call->args[3]->ty;
       std::string ref =
           GetStructRef(store_ty, call->args[0], call->args[1].as_or_throw<PrimExpr>(), kind);

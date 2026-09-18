@@ -118,9 +118,9 @@ TEST(IRF, CountVar) {
 TEST(IRF, PreOrderStructuralWalk) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Stmt init =
-      IfThenElse(IntImm::Bool(true), Evaluate(IntImm::Int32(0)), Evaluate(IntImm::Int32(0)));
-  Stmt body = Evaluate(IntImm::Int32(1));
+  Stmt init = IfThenElse(prim::IntImm::Bool(true), Evaluate(prim::IntImm::Int32(0)),
+                         Evaluate(prim::IntImm::Int32(0)));
+  Stmt body = Evaluate(prim::IntImm::Int32(1));
   s_tir::SBlock block(/*iter_vars=*/{}, /*reads=*/{},
                       /*writes=*/{}, /*name_hint=*/"block", /*body=*/body,
                       /*init=*/init);
@@ -132,7 +132,7 @@ TEST(IRF, PreOrderStructuralWalk) {
     return ffi::WalkResult::Skip();
   };
   auto visit_evaluate = [&](const Evaluate& eval) -> ffi::Expected<ffi::WalkResult> {
-    if (const auto* int_imm = eval->value.as<IntImmNode>()) {
+    if (const auto* int_imm = eval->value.as<prim::IntImmNode>()) {
       if (int_imm->value == 0) {
         stopped_at_if = false;
       } else if (int_imm->value == 1) {
@@ -158,7 +158,7 @@ TEST(IRF, ExprTransform) {
   class MyExprFunctor : public tirx::ExprFunctor<int(const Expr&, int)> {
    public:
     int Dispatch_(const VarNode* op, int b) final { return b; }
-    int Dispatch_(const IntImmNode* op, int b) final { return op->value.as<int>().value(); }
+    int Dispatch_(const prim::IntImmNode* op, int b) final { return op->value.as<int>().value(); }
     int Dispatch_(const prim::AddNode* op, int b) final {
       return Dispatch(op->a, b) + Dispatch(op->b, b);
     }
@@ -187,7 +187,7 @@ TEST(IRF, ExprVisit) {
     int count = 0;
     // implementation
     void Dispatch_(const VarNode* op) final { ++count; }
-    void Dispatch_(const IntImmNode* op) final {}
+    void Dispatch_(const prim::IntImmNode* op) final {}
     void Dispatch_(const prim::AddNode* op) final {
       Dispatch(op->a);
       Dispatch(op->b);
@@ -240,7 +240,7 @@ TEST(IRF, StmtVisitor) {
     // construct block and block_realize
     s_tir::SBlock block = s_tir::SBlock({}, {buffer_region}, {buffer_region}, "block", body, body,
                                         {}, {match_buffer_region});
-    Stmt block_realize = s_tir::SBlockRealize({}, IntImm::Bool(true), block);
+    Stmt block_realize = s_tir::SBlockRealize({}, prim::IntImm::Bool(true), block);
 
     v->count = 0;
     v->Visit(block_realize);
@@ -367,7 +367,7 @@ TEST(IRF, StmtExprMutator) {
     // construct block and block_realize
     s_tir::SBlock block = s_tir::SBlock({}, {buffer_region}, {buffer_region}, "block", body, body,
                                         {}, {match_buffer_region});
-    Stmt block_realize = s_tir::SBlockRealize({}, IntImm::Bool(true), block);
+    Stmt block_realize = s_tir::SBlockRealize({}, prim::IntImm::Bool(true), block);
     body = v->Mutate(block_realize).ValueOrUnchanged(std::move(block_realize));
     // the body should be changed
     s_tir::SBlock new_block = body.as<s_tir::SBlockRealizeNode>()->block;
@@ -390,13 +390,13 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
   using namespace tvm::tirx;
 
   auto make_input = []() -> Stmt {
-    return SeqStmt(
-        {Evaluate(IntImm::Int32(5)), Evaluate(IntImm::Int32(1)), Evaluate(IntImm::Int32(4))});
+    return SeqStmt({Evaluate(prim::IntImm::Int32(5)), Evaluate(prim::IntImm::Int32(1)),
+                    Evaluate(prim::IntImm::Int32(4))});
   };
   auto expand_one = [](const Evaluate& evaluate) -> Stmt {
-    const auto* value = evaluate->value.as<IntImmNode>();
+    const auto* value = evaluate->value.as<prim::IntImmNode>();
     if (value != nullptr && value->value == 1) {
-      return SeqStmt({Evaluate(IntImm::Int32(2)), Evaluate(IntImm::Int32(3))});
+      return SeqStmt({Evaluate(prim::IntImm::Int32(2)), Evaluate(prim::IntImm::Int32(3))});
     }
     return evaluate;
   };
@@ -408,7 +408,7 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
     for (int64_t expected_value : expected) {
       const auto* evaluate = seq->seq[i].as<EvaluateNode>();
       ASSERT_NE(evaluate, nullptr);
-      const auto* value = evaluate->value.as<IntImmNode>();
+      const auto* value = evaluate->value.as<prim::IntImmNode>();
       ASSERT_NE(value, nullptr);
       EXPECT_EQ(value->value, expected_value);
       ++i;
@@ -436,8 +436,8 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
   }
 
   auto make_boundary_input = []() -> Stmt {
-    return SeqStmt({Evaluate(IntImm::Int32(1)), Evaluate(IntImm::Int32(2)),
-                    Evaluate(IntImm::Int32(3)), Evaluate(IntImm::Int32(4))});
+    return SeqStmt({Evaluate(prim::IntImm::Int32(1)), Evaluate(prim::IntImm::Int32(2)),
+                    Evaluate(prim::IntImm::Int32(3)), Evaluate(prim::IntImm::Int32(4))});
   };
   auto check_differential = [&](const auto& transform, std::initializer_list<int64_t> expected,
                                 bool expect_array_reuse) {
@@ -463,26 +463,26 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
   };
 
   auto shrink_first_grow_last = [](const Evaluate& evaluate) -> Stmt {
-    const auto* value = evaluate->value.as<IntImmNode>();
+    const auto* value = evaluate->value.as<prim::IntImmNode>();
     if (value != nullptr && value->value == 1) {
       return Evaluate(0);
     }
     if (value != nullptr && value->value == 4) {
-      return SeqStmt({Evaluate(IntImm::Int32(30)), Evaluate(IntImm::Int32(31))});
+      return SeqStmt({Evaluate(prim::IntImm::Int32(30)), Evaluate(prim::IntImm::Int32(31))});
     }
     return evaluate;
   };
   check_differential(shrink_first_grow_last, {2, 3, 30, 31}, true);
 
   auto empty_first_grow_last = [](const Evaluate& evaluate) -> Stmt {
-    const auto* value = evaluate->value.as<IntImmNode>();
+    const auto* value = evaluate->value.as<prim::IntImmNode>();
     if (value != nullptr && value->value == 1) {
       auto empty = ffi::make_object<SeqStmtNode>();
       empty->seq = {};
       return Stmt(std::move(empty));
     }
     if (value != nullptr && value->value == 4) {
-      return SeqStmt({Evaluate(IntImm::Int32(30)), Evaluate(IntImm::Int32(31))});
+      return SeqStmt({Evaluate(prim::IntImm::Int32(30)), Evaluate(prim::IntImm::Int32(31))});
     }
     return evaluate;
   };
@@ -491,9 +491,9 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
   int overflow_callback_count = 0;
   auto grow_first_shrink_last = [&overflow_callback_count](const Evaluate& evaluate) -> Stmt {
     ++overflow_callback_count;
-    const auto* value = evaluate->value.as<IntImmNode>();
+    const auto* value = evaluate->value.as<prim::IntImmNode>();
     if (value != nullptr && value->value == 1) {
-      return SeqStmt({Evaluate(IntImm::Int32(10)), Evaluate(IntImm::Int32(11))});
+      return SeqStmt({Evaluate(prim::IntImm::Int32(10)), Evaluate(prim::IntImm::Int32(11))});
     }
     if (value != nullptr && value->value == 4) {
       return Evaluate(0);
@@ -504,25 +504,25 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
   EXPECT_EQ(overflow_callback_count, 8);
 
   auto grow_last_over_capacity = [](const Evaluate& evaluate) -> Stmt {
-    const auto* value = evaluate->value.as<IntImmNode>();
+    const auto* value = evaluate->value.as<prim::IntImmNode>();
     if (value != nullptr && value->value == 4) {
-      return SeqStmt({Evaluate(IntImm::Int32(40)), Evaluate(IntImm::Int32(41))});
+      return SeqStmt({Evaluate(prim::IntImm::Int32(40)), Evaluate(prim::IntImm::Int32(41))});
     }
     return evaluate;
   };
   check_differential(grow_last_over_capacity, {1, 2, 3, 40, 41}, false);
 
   auto replace_middle_with_one = [](const Evaluate& evaluate) -> Stmt {
-    const auto* value = evaluate->value.as<IntImmNode>();
+    const auto* value = evaluate->value.as<prim::IntImmNode>();
     if (value != nullptr && value->value == 2) {
-      return Evaluate(IntImm::Int32(10));
+      return Evaluate(prim::IntImm::Int32(10));
     }
     return evaluate;
   };
   check_differential(replace_middle_with_one, {1, 10, 3, 4}, true);
 
   auto remove_first = [](const Evaluate& evaluate) -> Stmt {
-    const auto* value = evaluate->value.as<IntImmNode>();
+    const auto* value = evaluate->value.as<prim::IntImmNode>();
     return value != nullptr && value->value == 1 ? Evaluate(0) : Stmt(evaluate);
   };
   check_differential(remove_first, {2, 3, 4}, true);
@@ -539,13 +539,13 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
   for (const Stmt& result : {ordinary, inplace}) {
     const auto* evaluate = result.as<EvaluateNode>();
     ASSERT_NE(evaluate, nullptr);
-    const auto* value = evaluate->value.as<IntImmNode>();
+    const auto* value = evaluate->value.as<prim::IntImmNode>();
     ASSERT_NE(value, nullptr);
     EXPECT_EQ(value->value, 0);
   }
 
   auto keep_last = [](const Evaluate& evaluate) -> Stmt {
-    const auto* value = evaluate->value.as<IntImmNode>();
+    const auto* value = evaluate->value.as<prim::IntImmNode>();
     return value != nullptr && value->value == 4 ? Stmt(evaluate) : Stmt(Evaluate(0));
   };
   ordinary_input = make_boundary_input();
@@ -558,7 +558,7 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
   for (const Stmt& result : {ordinary, inplace}) {
     const auto* evaluate = result.as<EvaluateNode>();
     ASSERT_NE(evaluate, nullptr);
-    const auto* value = evaluate->value.as<IntImmNode>();
+    const auto* value = evaluate->value.as<prim::IntImmNode>();
     ASSERT_NE(value, nullptr);
     EXPECT_EQ(value->value, 4);
   }
@@ -568,12 +568,12 @@ TEST(IRF, StructuralMapPreservesSeqStmtElementUniqueness) {
   using namespace tvm;
   using namespace tvm::tirx;
 
-  auto replace_one = [](const IntImm& value) -> PrimExpr {
-    return value->value == 1 ? IntImm::Int32(2) : PrimExpr(value);
+  auto replace_one = [](const prim::IntImm& value) -> PrimExpr {
+    return value->value == 1 ? prim::IntImm::Int32(2) : PrimExpr(value);
   };
 
   {
-    Stmt input = SeqStmt({Evaluate(IntImm::Int32(1)), Evaluate(IntImm::Int32(3))});
+    Stmt input = SeqStmt({Evaluate(prim::IntImm::Int32(1)), Evaluate(prim::IntImm::Int32(3))});
     const auto* original_root = input.get();
     const auto* original_first = input.as<SeqStmtNode>()->seq[0].as<EvaluateNode>();
     Stmt mapped = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), replace_one)
@@ -583,11 +583,12 @@ TEST(IRF, StructuralMapPreservesSeqStmtElementUniqueness) {
     ASSERT_NE(mapped_seq, nullptr);
     EXPECT_EQ(mapped.get(), original_root);
     EXPECT_EQ(mapped_seq->seq[0].get(), original_first);
-    EXPECT_EQ(mapped_seq->seq[0].as<EvaluateNode>()->value.as<IntImmNode>()->value, 2);
+    EXPECT_EQ(mapped_seq->seq[0].as<EvaluateNode>()->value.as<prim::IntImmNode>()->value, 2);
   }
 
   {
-    ffi::Array<Stmt> shared_seq = {Evaluate(IntImm::Int32(1)), Evaluate(IntImm::Int32(3))};
+    ffi::Array<Stmt> shared_seq = {Evaluate(prim::IntImm::Int32(1)),
+                                   Evaluate(prim::IntImm::Int32(3))};
     const auto* shared_first = shared_seq[0].as<EvaluateNode>();
     Stmt input = SeqStmt(shared_seq);
     Stmt mapped = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(input), replace_one)
@@ -597,12 +598,12 @@ TEST(IRF, StructuralMapPreservesSeqStmtElementUniqueness) {
     ASSERT_NE(mapped_seq, nullptr);
     EXPECT_FALSE(mapped_seq->seq.same_as(shared_seq));
     EXPECT_EQ(shared_seq[0].get(), shared_first);
-    EXPECT_EQ(shared_seq[0].as<EvaluateNode>()->value.as<IntImmNode>()->value, 1);
-    EXPECT_EQ(mapped_seq->seq[0].as<EvaluateNode>()->value.as<IntImmNode>()->value, 2);
+    EXPECT_EQ(shared_seq[0].as<EvaluateNode>()->value.as<prim::IntImmNode>()->value, 1);
+    EXPECT_EQ(mapped_seq->seq[0].as<EvaluateNode>()->value.as<prim::IntImmNode>()->value, 2);
 
     Stmt unchanged_input = SeqStmt(shared_seq);
     const auto* unchanged_root = unchanged_input.get();
-    auto no_float_match = [](const FloatImm& value) -> PrimExpr { return value; };
+    auto no_float_match = [](const prim::FloatImm& value) -> PrimExpr { return value; };
     Stmt unchanged =
         ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(std::move(unchanged_input), no_float_match)
             .as_or_throw<Stmt>();
@@ -686,7 +687,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
     tirx::Var y = x.CopyWithSuffix("subst");
     PrimVar m("m", PrimType::Int(32));
     BufferVar buffer = fmakebuffer();
-    Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
+    Stmt store = BufferStore(buffer, prim::FloatImm(dtype, 0), {prim::IntImm::Int32(0)});
     Stmt decl = SeqStmt({DeclBuffer(buffer, x), store});
     auto f_subst = [&](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (var.same_as(x)) return ffi::Any(y);
@@ -710,7 +711,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
   {
     // test identity substitution on expression
     BufferVar buffer = fmakebuffer();
-    PrimExpr expr = BufferLoad(buffer, {IntImm::Int32(0)});
+    PrimExpr expr = BufferLoad(buffer, {prim::IntImm::Int32(0)});
     auto f_subst = [&](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       return ffi::Any(var);
     };
@@ -733,7 +734,7 @@ TEST(IRF, SubstituteWithDataTypeLegalizationPreservesShiftAmounts) {
     return std::nullopt;
   };
 
-  PrimExpr shift_amount = IntImm::Int64(40);
+  PrimExpr shift_amount = prim::IntImm::Int64(40);
   PrimExpr widened_y = cast(PrimType::Int(64), y);
   PrimExpr actual_left = SubstituteWithDataTypeLegalization(x << shift_amount, f_subst);
   PrimExpr actual_right = SubstituteWithDataTypeLegalization(x >> shift_amount, f_subst);

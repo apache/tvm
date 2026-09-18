@@ -80,9 +80,9 @@ inline void UnpackSum(const PrimExpr& value, FLeaf fleaf, int sign = 1) {
 inline PrimExpr MulAndNormalize(const PrimExpr& lhs, const PrimExpr& rhs) {
   ffi::BigInt cscale = 1;
   PrimType lhs_ty = lhs.ty();
-  PrimExpr res = IntImm(lhs_ty, 1);
+  PrimExpr res = prim::IntImm(lhs_ty, 1);
   auto fcollect = [&](PrimExpr val) {
-    if (const auto* intimm = val.as<IntImmNode>()) {
+    if (const auto* intimm = val.as<prim::IntImmNode>()) {
       cscale *= intimm->value;
     } else {
       res = res * val;
@@ -91,7 +91,7 @@ inline PrimExpr MulAndNormalize(const PrimExpr& lhs, const PrimExpr& rhs) {
   UnpackReduction<prim::MulNode>(lhs, fcollect);
   UnpackReduction<prim::MulNode>(rhs, fcollect);
   if (cscale != 1) {
-    res = res * IntImm(res.ty(), cscale);
+    res = res * prim::IntImm(res.ty(), cscale);
   }
   return res;
 }

@@ -164,22 +164,23 @@ TEST(NestedMsg, MapAndDecompose) {
   relax::Expr t0 = bb->Normalize(Tuple({x, y}));
   relax::Expr t1 = bb->Normalize(Tuple({t0, x, z, t0}));
 
-  auto c0 = IntImm::Int32(0);
-  auto c1 = IntImm::Int32(1);
-  auto c2 = IntImm::Int32(2);
+  auto c0 = prim::IntImm::Int32(0);
+  auto c1 = prim::IntImm::Int32(1);
+  auto c2 = prim::IntImm::Int32(2);
 
-  auto output = MapToNestedMsg<IntImm>(t1, [&](Expr value) {
+  auto output = MapToNestedMsg<prim::IntImm>(t1, [&](Expr value) {
     if (value.same_as(x)) return c0;
     if (value.same_as(y)) return c1;
     return c2;
   });
 
-  NestedMsg<IntImm> expected = {{c0, c1}, c0, c2, {c0, c1}};
+  NestedMsg<prim::IntImm> expected = {{c0, c1}, c0, c2, {c0, c1}};
 
-  EXPECT_TRUE(Equal(output, expected,
-                    [](IntImm lhs, IntImm rhs) -> bool { return lhs->value == rhs->value; }));
+  EXPECT_TRUE(Equal(output, expected, [](prim::IntImm lhs, prim::IntImm rhs) -> bool {
+    return lhs->value == rhs->value;
+  }));
 
-  auto output2 = MapToNestedMsg<IntImm>(GetType(t1), [&](Type ty) -> NestedMsg<IntImm> {
+  auto output2 = MapToNestedMsg<prim::IntImm>(GetType(t1), [&](Type ty) -> NestedMsg<prim::IntImm> {
     const auto* prim_ty = ty.as<PrimTypeNode>();
     if (prim_ty == nullptr) return std::nullopt;
     int bits = prim_ty->dtype.bits;
@@ -189,12 +190,13 @@ TEST(NestedMsg, MapAndDecompose) {
     return std::nullopt;
   });
 
-  EXPECT_TRUE(Equal(output2, expected,
-                    [](IntImm lhs, IntImm rhs) -> bool { return lhs->value == rhs->value; }));
+  EXPECT_TRUE(Equal(output2, expected, [](prim::IntImm lhs, prim::IntImm rhs) -> bool {
+    return lhs->value == rhs->value;
+  }));
 
   int x_count = 0, y_count = 0, z_count = 0;
 
-  DecomposeNestedMsg(t1, expected, [&](Expr value, NestedMsg<IntImm> msg) {
+  DecomposeNestedMsg(t1, expected, [&](Expr value, NestedMsg<prim::IntImm> msg) {
     if (value.same_as(x)) {
       EXPECT_TRUE(msg.LeafValue().same_as(c0));
       ++x_count;
@@ -237,14 +239,14 @@ TEST(NestedMsg, NestedMsgToExpr) {
   auto sf0 = ScalarTensorType(PrimType::Float(32));
   auto sf1 = TupleType({sf0, sf0});
 
-  auto c0 = IntImm::Int32(0);
-  auto c1 = IntImm::Int32(1);
-  auto c2 = IntImm::Int32(2);
+  auto c0 = prim::IntImm::Int32(0);
+  auto c1 = prim::IntImm::Int32(1);
+  auto c2 = prim::IntImm::Int32(2);
 
   tvm::Var x("x", sf0), y("y", sf0), z("z", sf0);
 
-  NestedMsg<IntImm> msg = {c0, {c0, c1}, {c0, {c1, c2}}};
-  auto expr = NestedMsgToExpr<IntImm>(msg, [&](ffi::Optional<IntImm> leaf) {
+  NestedMsg<prim::IntImm> msg = {c0, {c0, c1}, {c0, {c1, c2}}};
+  auto expr = NestedMsgToExpr<prim::IntImm>(msg, [&](ffi::Optional<prim::IntImm> leaf) {
     TVM_FFI_ICHECK(leaf.has_value());
     int value = leaf.value()->value.as<int>().value();
     switch (value) {
@@ -268,51 +270,54 @@ TEST(NestedMsg, NestedMsgToExpr) {
 }
 
 TEST(NestedMsg, CombineNestedMsg) {
-  auto c0 = IntImm::Int32(0);
-  auto c1 = IntImm::Int32(1);
-  auto c2 = IntImm::Int32(2);
+  auto c0 = prim::IntImm::Int32(0);
+  auto c1 = prim::IntImm::Int32(1);
+  auto c2 = prim::IntImm::Int32(2);
 
-  NestedMsg<IntImm> lhs = {c0, {c0, c1}, std::nullopt, {c0, {c1, c2}}};
-  NestedMsg<IntImm> rhs = {c1, {c2, std::nullopt}, std::nullopt, {c1, {c2, c2}}};
-  NestedMsg<IntImm> expected = {c1, {c2, c1}, std::nullopt, {c1, {c2, c2}}};
+  NestedMsg<prim::IntImm> lhs = {c0, {c0, c1}, std::nullopt, {c0, {c1, c2}}};
+  NestedMsg<prim::IntImm> rhs = {c1, {c2, std::nullopt}, std::nullopt, {c1, {c2, c2}}};
+  NestedMsg<prim::IntImm> expected = {c1, {c2, c1}, std::nullopt, {c1, {c2, c2}}};
 
-  auto output = CombineNestedMsg(lhs, rhs, [](IntImm x, IntImm y) {
+  auto output = CombineNestedMsg(lhs, rhs, [](prim::IntImm x, prim::IntImm y) {
     if (x->value > y->value) return x;
     return y;
   });
 
-  EXPECT_TRUE(Equal(output, expected,
-                    [](IntImm lhs, IntImm rhs) -> bool { return lhs->value == rhs->value; }));
+  EXPECT_TRUE(Equal(output, expected, [](prim::IntImm lhs, prim::IntImm rhs) -> bool {
+    return lhs->value == rhs->value;
+  }));
 }
 
 TEST(NestedMsg, MapNestedMsg) {
-  auto c0 = IntImm::Int32(0);
-  auto c1 = IntImm::Int32(1);
-  auto c2 = IntImm::Int32(2);
-  auto c3 = IntImm::Int32(3);
+  auto c0 = prim::IntImm::Int32(0);
+  auto c1 = prim::IntImm::Int32(1);
+  auto c2 = prim::IntImm::Int32(2);
+  auto c3 = prim::IntImm::Int32(3);
 
-  NestedMsg<IntImm> msg = {c0, {c0, c1}, std::nullopt, {c0, {c2, c1}}};
-  NestedMsg<IntImm> expected = {c3, {c3, std::nullopt}, std::nullopt, {c3, {c2, std::nullopt}}};
+  NestedMsg<prim::IntImm> msg = {c0, {c0, c1}, std::nullopt, {c0, {c2, c1}}};
+  NestedMsg<prim::IntImm> expected = {
+      c3, {c3, std::nullopt}, std::nullopt, {c3, {c2, std::nullopt}}};
 
-  auto output = MapNestedMsg(msg, [](IntImm x) {
+  auto output = MapNestedMsg(msg, [](prim::IntImm x) {
     if (x->value == 0) {
-      return NestedMsg<IntImm>(IntImm::Int32(3));
+      return NestedMsg<prim::IntImm>(prim::IntImm::Int32(3));
     } else if (x->value == 1) {
-      return NestedMsg<IntImm>();
+      return NestedMsg<prim::IntImm>();
     } else {
-      return NestedMsg<IntImm>(x);
+      return NestedMsg<prim::IntImm>(x);
     }
   });
 
-  EXPECT_TRUE(Equal(output, expected,
-                    [](IntImm lhs, IntImm rhs) -> bool { return lhs->value == rhs->value; }));
+  EXPECT_TRUE(Equal(output, expected, [](prim::IntImm lhs, prim::IntImm rhs) -> bool {
+    return lhs->value == rhs->value;
+  }));
 }
 
 TEST(NestedMsg, TransformTupleLeaf) {
-  auto c0 = IntImm::Int32(0);
-  auto c1 = IntImm::Int32(1);
-  auto c2 = IntImm::Int32(2);
-  using NInt = NestedMsg<IntImm>;
+  auto c0 = prim::IntImm::Int32(0);
+  auto c1 = prim::IntImm::Int32(1);
+  auto c2 = prim::IntImm::Int32(2);
+  using NInt = NestedMsg<prim::IntImm>;
 
   NInt msg1 = {c0, {c0, c1}, c2, {c0, {c1, c2}}};
   NInt msg2 = {c1, {c2, c0}, c2, {c1, {c2, c0}}};
@@ -323,8 +328,8 @@ TEST(NestedMsg, TransformTupleLeaf) {
   Expr expr = bb->Normalize(Tuple({x, Tuple({x, x}), x, Tuple({x, Tuple({x, x})})}));
 
   auto ftransleaf = [&](Expr value, std::array<NInt, 2> msgs) -> Expr {
-    int lhs = msgs[0].LeafValue().as_or_throw<IntImm>()->value.as<int>().value();
-    int rhs = msgs[1].LeafValue().as_or_throw<IntImm>()->value.as<int>().value();
+    int lhs = msgs[0].LeafValue().as_or_throw<prim::IntImm>()->value.as<int>().value();
+    int rhs = msgs[1].LeafValue().as_or_throw<prim::IntImm>()->value.as<int>().value();
     if (lhs > rhs)
       return z;
     else if (lhs == rhs)

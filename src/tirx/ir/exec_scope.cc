@@ -18,6 +18,7 @@
  */
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/builtin.h>
@@ -397,7 +398,7 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
       for (int i = 0; i < out_dim; ++i) {
         ret.push_back(
             Call(PrimType::Int(32), cuda_mov_sreg_op,
-                 {IntImm::Int32(32), prim::StringImm("clusterid." + std::string(1, 'x' + i))})
+                 {prim::IntImm::Int32(32), prim::StringImm("clusterid." + std::string(1, 'x' + i))})
                 .as_or_throw<PrimExpr>());
       }
       return ret;
@@ -446,9 +447,10 @@ ffi::Array<PrimExpr> ScopeIdResolve::Resolve(ScopeBinding binding,
 
 PrimExpr ScopeIdResolve::ComputeWarpIdInCta(const LaunchParams& params) {
   PrimExpr warp_id = prim::FloorDiv(GetLinearThreadIndex(params), 32);
-  PrimExpr mask = IntImm(PrimType::UInt(32), 0xffffffff);
+  PrimExpr mask = prim::IntImm(PrimType::UInt(32), 0xffffffff);
   return Call(warp_id.ty(), builtin::tvm_warp_shuffle(),
-              {mask, warp_id, IntImm::Int32(0), IntImm::Int32(32), IntImm::Int32(32)})
+              {mask, warp_id, prim::IntImm::Int32(0), prim::IntImm::Int32(32),
+               prim::IntImm::Int32(32)})
       .as_or_throw<PrimExpr>();
 }
 

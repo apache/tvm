@@ -41,14 +41,14 @@ using namespace tvm::prim;
 
 namespace {
 
-const IntImmNode* AsIntImmNode(const Expr& expr) {
-  const IntImmNode* node = expr.as<IntImmNode>();
+const prim::IntImmNode* AsIntImmNode(const Expr& expr) {
+  const prim::IntImmNode* node = expr.as<prim::IntImmNode>();
   TVM_FFI_ICHECK(node);
   return node;
 }
 
-const FloatImmNode* AsFloatImmNode(const Expr& expr) {
-  const FloatImmNode* node = expr.as<FloatImmNode>();
+const prim::FloatImmNode* AsFloatImmNode(const Expr& expr) {
+  const prim::FloatImmNode* node = expr.as<prim::FloatImmNode>();
   TVM_FFI_ICHECK(node);
   return node;
 }
@@ -172,7 +172,7 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(const IterVar& iv, const PrimExpr& ext
   spirv::Value v;
   if (ts.rank == 1) {
     v = builder_->GetLocalID(ts.dim_index);
-    auto* sizeptr = extent.as<IntImmNode>();
+    auto* sizeptr = extent.as<prim::IntImmNode>();
     TVM_FFI_ICHECK(sizeptr) << "SPIRV only allows constant thread group size "
                             << " get " << extent;
     TVM_FFI_ICHECK_GE(ts.dim_index, 0) << "vthread should have been optimized out by here";
@@ -211,9 +211,9 @@ spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
   }
 
   auto type_int = builder_->GetSType(PrimType::Int(32));
-  builder_->MakeInst(spv::OpControlBarrier, builder_->IntImm(type_int, sync_scope),
-                     builder_->IntImm(type_int, sync_scope),
-                     builder_->IntImm(type_int, memory_semantics));
+  builder_->MakeInst(spv::OpControlBarrier, builder_->prim::IntImm(type_int, sync_scope),
+                     builder_->prim::IntImm(type_int, sync_scope),
+                     builder_->prim::IntImm(type_int, memory_semantics));
 
   return value;
 }
@@ -224,7 +224,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const VarNode* op) {
   return it->second;
 }
 
-spirv::Value CodeGenSPIRV::Dispatch_(const IntImmNode* op) {
+spirv::Value CodeGenSPIRV::Dispatch_(const prim::IntImmNode* op) {
   PrimType dtype = op->ty.as_or_throw<PrimType>();
   TVM_FFI_ICHECK_GT(dtype.bits(), 0);
   TVM_FFI_ICHECK_LE(dtype.bits(), 64) << "Unsupported SPIR-V integer immediate type " << dtype;
@@ -248,11 +248,11 @@ spirv::Value CodeGenSPIRV::Dispatch_(const IntImmNode* op) {
     TVM_FFI_ICHECK_GE(value.value(), -bound) << "Integer immediate does not fit " << dtype;
     TVM_FFI_ICHECK_LT(value.value(), bound) << "Integer immediate does not fit " << dtype;
   }
-  return builder_->IntImm(stype, value.value());
+  return builder_->prim::IntImm(stype, value.value());
 }
 
-spirv::Value CodeGenSPIRV::Dispatch_(const FloatImmNode* op) {
-  return builder_->FloatImm(builder_->GetSType(op->ty.as_or_throw<PrimType>()), op->value);
+spirv::Value CodeGenSPIRV::Dispatch_(const prim::FloatImmNode* op) {
+  return builder_->prim::FloatImm(builder_->GetSType(op->ty.as_or_throw<PrimType>()), op->value);
 }
 
 spirv::Value CodeGenSPIRV::Dispatch_(const prim::StringImmNode* op) {
@@ -365,7 +365,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     return MakeValue(op->args[0]);
   } else if (op->op.same_as(tirx::builtin::call_spirv_pure_glsl450())) {
     TVM_FFI_ICHECK_GE(op->args.size(), 2U);
-    uint32_t inst_id = op->args[0].as<IntImmNode>()->value.as<uint32_t>().value();
+    uint32_t inst_id = op->args[0].as<prim::IntImmNode>()->value.as<uint32_t>().value();
     std::vector<spirv::Value> values;
     for (size_t i = 1; i < op->args.size(); ++i) {
       values.push_back(MakeValue(op->args[i]));
@@ -494,7 +494,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     PrimExpr dst_index = op->args[4].as_or_throw<PrimExpr>();
     int stride = AsIntImmNode(op->args[6])->value.as<int>().value();
     auto type_int = builder_->GetSType(PrimType::Int(32));
-    spirv::Value stride_val = builder_->IntImm(type_int, stride);
+    spirv::Value stride_val = builder_->prim::IntImm(type_int, stride);
     std::string layout = (op->args[7].as<prim::StringImmNode>())->value;
     spirv::SType dst_ptr_type =
         builder_->GetPointerType(fragment_type, fragment_info_[buffer_node].sclass);
@@ -555,7 +555,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     PrimExpr index = op->args[4].as_or_throw<PrimExpr>();
     int stride = AsIntImmNode(op->args[6])->value.as<int>().value();
     auto type_int = builder_->GetSType(PrimType::Int(32));
-    spirv::Value stride_val = builder_->IntImm(type_int, stride);
+    spirv::Value stride_val = builder_->prim::IntImm(type_int, stride);
     std::string layout = (op->args[7].as<prim::StringImmNode>())->value;
     spirv::Value dst_ptr = MakeValue(op->args[5]);
     spirv::SType& fragment_type = fragment_info_[buffer_node].stype;
@@ -760,7 +760,7 @@ void CodeGenSPIRV::Dispatch_(const ForNode* op) {
   spirv::Value step;
   if (op->HasTrivialStep()) {
     step = op->loop_var.ty().MatchesCode(DLDataTypeCode::kDLInt)
-               ? builder_->IntImm(init_value.stype, 1)
+               ? builder_->prim::IntImm(init_value.stype, 1)
                : builder_->UIntImm(init_value.stype, 1);
   } else {
     step = MakeValue(tvm::prim::cast(end.ty(), *op->step));
@@ -871,7 +871,7 @@ void CodeGenSPIRV::Dispatch_(const IfThenElseNode* op) {
 
 void CodeGenSPIRV::Dispatch_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(!op->buffer->dtype.IsVoid());
-  const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
+  const prim::IntImmNode* dim_imm = op->buffer->shape[0].as<prim::IntImmNode>();
   TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
   size_t constant_size = dim_imm->value.as<size_t>().value();
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";

@@ -459,7 +459,7 @@ class Vectorizer : public StmtExprMutator {
   Vectorizer(Var var, PrimExpr var_lanes, Target target)
       : var_(var), var_lanes_(var_lanes), target_(target) {
     PrimType var_ty = var->ty.as_or_throw<PrimType>();
-    ramp_ = prim::Ramp(IntImm(var_ty, 0), IntImm(var_ty, 1), var_lanes);
+    ramp_ = prim::Ramp(prim::IntImm(var_ty, 0), prim::IntImm(var_ty, 1), var_lanes);
     VarRemapSet(var_, ramp_);
   }
 
@@ -616,11 +616,11 @@ class Vectorizer : public StmtExprMutator {
     TVM_FFI_ICHECK(!stride.ty().IsScalableVector())
         << "Ramp stride with scalable dtype is not supported";
     if (base.ty().IsFixedLengthVector() && stride.ty().IsScalar()) {
-      TVM_FFI_ICHECK(op->lanes->IsInstance<IntImmNode>())
+      TVM_FFI_ICHECK(op->lanes->IsInstance<prim::IntImmNode>())
           << "Vectorizing over existing scalable vectors is not supported.";
       const prim::RampNode* base_ramp = base.as<prim::RampNode>();
-      int op_lanes = op->lanes.as_or_throw<IntImm>()->value.as<int>().value();
-      int base_ramp_lanes = base_ramp->lanes.as_or_throw<IntImm>()->value.as<int>().value();
+      int op_lanes = op->lanes.as_or_throw<prim::IntImm>()->value.as<int>().value();
+      int base_ramp_lanes = base_ramp->lanes.as_or_throw<prim::IntImm>()->value.as<int>().value();
       if (analyzer_->CanProve(base_ramp->stride ==
                               stride * MakeConst(stride.ty(), base_ramp_lanes))) {
         return prim::Ramp(base_ramp->base, stride, op_lanes * base_ramp_lanes);
@@ -781,7 +781,7 @@ class Vectorizer : public StmtExprMutator {
       ffi::Array<PrimExpr> fcd =
           MutateArray({op->args.back().as_or_throw<PrimExpr>()}, &lane, inplace_mode);
       PrimType dtype = GetTextureElementType(op->args[0]);
-      TVM_FFI_ICHECK(lane * dtype.bits() <= op->args[4].as<IntImmNode>()->value)
+      TVM_FFI_ICHECK(lane * dtype.bits() <= op->args[4].as<prim::IntImmNode>()->value)
           << "Expected Data to be Read is lesser than or equal to Texture Load length";
 
       auto new_args = op->args;
@@ -794,7 +794,7 @@ class Vectorizer : public StmtExprMutator {
       ffi::Array<PrimExpr> value{op->args.back().as_or_throw<PrimExpr>()};
       ffi::Array<PrimExpr> mutated_value = MutateArray(value, &lane, inplace_mode);
       PrimType dtype = GetTextureElementType(op->args[0]);
-      TVM_FFI_ICHECK(lane * dtype.bits() == op->args[4].as<IntImmNode>()->value)
+      TVM_FFI_ICHECK(lane * dtype.bits() == op->args[4].as<prim::IntImmNode>()->value)
           << "Expected Data to be Written equal to Texture Store length";
       ffi::Array<Expr> new_args = op->args;
       new_args.Set(new_args.size() - 1, mutated_value[0]);
@@ -912,18 +912,20 @@ class Vectorizer : public StmtExprMutator {
       return ffi::Unchanged();
     }
 
-    int new_vec_length =
-        var_lanes_.as_or_throw<IntImm>()->value.as<int>().value() / op->vectors[0].ty().lanes();
+    int new_vec_length = var_lanes_.as_or_throw<prim::IntImm>()->value.as<int>().value() /
+                         op->vectors[0].ty().lanes();
     PrimExpr updated_index = indices[0];
     // Check that the indices satisfy the specific patterns.
     auto f_check_index = [this, op](const PrimExpr& index) {
       // Allowing Ramp(0, 1, var_lanes_)
       if (const auto* ramp = index.as<prim::RampNode>()) {
-        if (ramp->base->IsInstance<IntImmNode>() && ramp->base.as_or_throw<IntImm>()->value == 0 &&
-            ramp->stride->IsInstance<IntImmNode>() &&
-            ramp->stride.as_or_throw<IntImm>()->value == 1 &&
-            ramp->lanes->IsInstance<IntImmNode>() &&
-            ramp->lanes.as_or_throw<IntImm>()->value == var_lanes_.as_or_throw<IntImm>()->value) {
+        if (ramp->base->IsInstance<prim::IntImmNode>() &&
+            ramp->base.as_or_throw<prim::IntImm>()->value == 0 &&
+            ramp->stride->IsInstance<prim::IntImmNode>() &&
+            ramp->stride.as_or_throw<prim::IntImm>()->value == 1 &&
+            ramp->lanes->IsInstance<prim::IntImmNode>() &&
+            ramp->lanes.as_or_throw<prim::IntImm>()->value ==
+                var_lanes_.as_or_throw<prim::IntImm>()->value) {
           return true;
         }
       }
@@ -931,18 +933,19 @@ class Vectorizer : public StmtExprMutator {
       if (const auto* floordiv = index.as<prim::FloorModNode>()) {
         if (const auto* ramp = floordiv->a.as<prim::RampNode>()) {
           if (const auto* broadcast = floordiv->b.as<prim::BroadcastNode>()) {
-            if (ramp->base->IsInstance<IntImmNode>() &&
-                ramp->base.as_or_throw<IntImm>()->value == 0 &&
-                ramp->stride->IsInstance<IntImmNode>() &&
-                ramp->stride.as_or_throw<IntImm>()->value == 1 &&
-                ramp->lanes->IsInstance<IntImmNode>() &&
-                ramp->lanes.as_or_throw<IntImm>()->value ==
-                    var_lanes_.as_or_throw<IntImm>()->value &&
-                broadcast->value->IsInstance<IntImmNode>() &&
-                broadcast->value.as_or_throw<IntImm>()->value == op->vectors[0].ty().lanes() &&
-                broadcast->lanes->IsInstance<IntImmNode>() &&
-                broadcast->lanes.as_or_throw<IntImm>()->value ==
-                    var_lanes_.as_or_throw<IntImm>()->value) {
+            if (ramp->base->IsInstance<prim::IntImmNode>() &&
+                ramp->base.as_or_throw<prim::IntImm>()->value == 0 &&
+                ramp->stride->IsInstance<prim::IntImmNode>() &&
+                ramp->stride.as_or_throw<prim::IntImm>()->value == 1 &&
+                ramp->lanes->IsInstance<prim::IntImmNode>() &&
+                ramp->lanes.as_or_throw<prim::IntImm>()->value ==
+                    var_lanes_.as_or_throw<prim::IntImm>()->value &&
+                broadcast->value->IsInstance<prim::IntImmNode>() &&
+                broadcast->value.as_or_throw<prim::IntImm>()->value ==
+                    op->vectors[0].ty().lanes() &&
+                broadcast->lanes->IsInstance<prim::IntImmNode>() &&
+                broadcast->lanes.as_or_throw<prim::IntImm>()->value ==
+                    var_lanes_.as_or_throw<prim::IntImm>()->value) {
               return true;
             }
           }
@@ -955,7 +958,7 @@ class Vectorizer : public StmtExprMutator {
 
     if (new_vec_length == 1) {
       PrimType var_ty = var_->ty.as_or_throw<PrimType>();
-      auto f_substitute = [old_var = var_, replacement = tvm::IntImm(var_ty, 0)](
+      auto f_substitute = [old_var = var_, replacement = tvm::prim::IntImm(var_ty, 0)](
                               const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
         if (var.same_as(old_var)) return ffi::Any(replacement);
         return ffi::Unchanged();
@@ -966,8 +969,8 @@ class Vectorizer : public StmtExprMutator {
       PrimExpr prev_ramp = ramp_;
       PrimExpr prev_var_lanes = var_lanes_;
       PrimType var_ty = var_->ty.as_or_throw<PrimType>();
-      ramp_ = prim::Ramp(IntImm(var_ty, 0), IntImm(var_ty, 2), new_vec_length);
-      var_lanes_ = tvm::IntImm(var_lanes_.ty(), new_vec_length);
+      ramp_ = prim::Ramp(prim::IntImm(var_ty, 0), prim::IntImm(var_ty, 2), new_vec_length);
+      var_lanes_ = tvm::prim::IntImm(var_lanes_.ty(), new_vec_length);
       lane_vectors = 0;
       vectors = MutateArray(op->vectors, &lane_vectors, inplace_mode);
       ramp_ = prev_ramp;
@@ -1139,7 +1142,8 @@ class Vectorizer : public StmtExprMutator {
     auto substituter = ffi::make_object<StmtExprMutator>();
     substituter->VarRemapSet(var_, idx);
     stmt = substituter->Mutate(stmt).ValueOrUnchanged(stmt);
-    return For(idx.as_or_throw<PrimVar>(), IntImm(var_ty, 0), var_lanes_, ForKind::kSerial, stmt);
+    return For(idx.as_or_throw<PrimVar>(), prim::IntImm(var_ty, 0), var_lanes_, ForKind::kSerial,
+               stmt);
   }
 
  private:
@@ -1257,7 +1261,7 @@ class Vectorizer : public StmtExprMutator {
         const prim::RampNode* a_ramp = a.as<prim::RampNode>();
         if (a.ty().IsScalar() && b_ramp) {
           return prim::Ramp(fcompute(a, b_ramp->base),
-                            fcompute(IntImm(b_ramp->stride.ty(), 0), b_ramp->stride),
+                            fcompute(prim::IntImm(b_ramp->stride.ty(), 0), b_ramp->stride),
                             b_ramp->lanes);
         }
         if (b.ty().IsScalar() && a_ramp) {
@@ -1286,7 +1290,7 @@ class LoopVectorizer : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     if (op->kind == ForKind::kVectorized) {
-      auto* extent_as_int = op->extent.as<IntImmNode>();
+      auto* extent_as_int = op->extent.as<prim::IntImmNode>();
 
       TVM_FFI_ICHECK(is_zero(op->min));
       // General calls still have vectorization paths that query a compile-time
@@ -1326,8 +1330,8 @@ class LoopVectorizer : public StmtExprMutator {
     // selects the runtime vector length with vsetvli.
     static constexpr int kDefaultVScaleFactor = 4;
     PrimType index_dtype = op->loop_var.ty();
-    PrimExpr zero = IntImm(index_dtype, 0);
-    PrimExpr fixed_extent = IntImm(index_dtype, extent);
+    PrimExpr zero = prim::IntImm(index_dtype, 0);
+    PrimExpr fixed_extent = prim::IntImm(index_dtype, extent);
     PrimExpr scalable_lanes = CreateNewLanes(/*is_scalable=*/true, kDefaultVScaleFactor);
     PrimType lane_dtype = scalable_lanes.ty();
     PrimExpr scalable_lanes_index = scalable_lanes;
@@ -1347,7 +1351,7 @@ class LoopVectorizer : public StmtExprMutator {
     substituter->VarRemapSet(op->loop_var, index);
     Stmt body = substituter->Mutate(op->body).ValueOrUnchanged(op->body);
     Stmt guarded_body = IfThenElse(index < fixed_extent, body, std::nullopt, op->span);
-    Stmt vector_loop = For(inner, IntImm(lane_dtype, 0), scalable_lanes, ForKind::kVectorized,
+    Stmt vector_loop = For(inner, prim::IntImm(lane_dtype, 0), scalable_lanes, ForKind::kVectorized,
                            guarded_body, std::nullopt, op->annotations, std::nullopt, op->span);
     Stmt loop = For(outer, zero, num_chunks, ForKind::kSerial, vector_loop, std::nullopt, {},
                     std::nullopt, op->span);

@@ -24,6 +24,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <string>
 
@@ -112,10 +113,10 @@ class cuDNNJSONSerializer : public JSONSerializer {
         root_call->args[1]->ty.as_or_throw<TensorType>()->shape.value().as_or_throw<ShapeExpr>();
     auto v_shape =
         root_call->args[2]->ty.as_or_throw<TensorType>()->shape.value().as_or_throw<ShapeExpr>();
-    int num_heads = q_shape->values[2].as<IntImmNode>()->value.as<int>().value();
-    int num_kv_heads = k_shape->values[2].as<IntImmNode>()->value.as<int>().value();
-    int head_size = q_shape->values[3].as<IntImmNode>()->value.as<int>().value();
-    int head_size_v = v_shape->values[3].as<IntImmNode>()->value.as<int>().value();
+    int num_heads = q_shape->values[2].as<prim::IntImmNode>()->value.as<int>().value();
+    int num_kv_heads = k_shape->values[2].as<prim::IntImmNode>()->value.as<int>().value();
+    int head_size = q_shape->values[3].as<prim::IntImmNode>()->value.as<int>().value();
+    int head_size_v = v_shape->values[3].as<prim::IntImmNode>()->value.as<int>().value();
     SetCallNodeAttribute(node, root_call);
 
     node->SetAttr("num_heads", static_cast<int64_t>(num_heads));

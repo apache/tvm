@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -289,7 +290,8 @@ Pass RemoveUnusedOutputs() {
                   // could remember the index mapping and re-index any access
                   // into the old tuple, but it's simpler to just let
                   // CanonicalizeBindings and DCE handle it.
-                  new_results.push_back(PrimExpr(FloatImm(tvm::PrimType::Float(64), std::nan(""))));
+                  new_results.push_back(
+                      PrimExpr(prim::FloatImm(tvm::PrimType::Float(64), std::nan(""))));
                 }
               }
 

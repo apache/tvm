@@ -888,13 +888,13 @@ class StoragePlanRewriter : public StmtExprMutator {
                    "allocations.";
             PrimExpr sz = op->buffer->shape[0];
             auto nbits = op->buffer->dtype.bits() * op->buffer->dtype.lanes();
-            if (const auto* imm = sz.as<IntImmNode>()) {
+            if (const auto* imm = sz.as<prim::IntImmNode>()) {
               if (imm->value > std::numeric_limits<int>::max() / nbits) {
                 LOG(WARNING) << "The allocation requires : " << imm->value << " * " << nbits
                              << " bits, which is greater than the maximum of"
                                 " int32. The size is cast to int64."
                              << "\n";
-                sz = IntImm::Int64(imm->value);
+                sz = prim::IntImm::Int64(imm->value);
               }
             }
             // transform to bits
@@ -911,7 +911,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           combo_size = indexdiv(combo_size, type_bits);
           // round up for can not divided
           if (!divided) {
-            combo_size = combo_size + IntImm::Int32(1);
+            combo_size = combo_size + prim::IntImm::Int32(1);
           }
           combo_size = analyzer_->Simplify(combo_size);
           BufferVar buf(e->alloc_var->name, BufferType(e->scope.to_string(), alloc_type,
@@ -1569,8 +1569,8 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     if (indices.size()) {
       const prim::RampNode* ramp_index = indices[indices.size() - 1].as<prim::RampNode>();
       if (ramp_index && is_one(ramp_index->stride)) {
-        if (ramp_index->lanes->IsInstance<IntImmNode>()) {
-          int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
+        if (ramp_index->lanes->IsInstance<prim::IntImmNode>()) {
+          int lanes = ramp_index->lanes.as_or_throw<prim::IntImm>()->value.as<int>().value();
           sym::ModularSet me = analyzer_->modular_set(ramp_index->base);
           if ((me->coeff % lanes == 0) && (me->base % lanes == 0)) {
             lanes_used = lanes;
@@ -1750,8 +1750,9 @@ class VectorTypeRewriter : public StmtExprMutator {
       return {node, shuffle_index};
     }
 
-    if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
-      int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
+    if (ramp_index && is_one(ramp_index->stride) &&
+        ramp_index->lanes->IsInstance<prim::IntImmNode>()) {
+      int lanes = ramp_index->lanes.as_or_throw<prim::IntImm>()->value.as<int>().value();
       PrimExpr new_index = ramp_index->base / MakeConst(ramp_index->base.ty(), lanes);
       if (lanes != info.factor()) {
         TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);
@@ -1795,8 +1796,9 @@ class VectorTypeRewriter : public StmtExprMutator {
       return {node, shuffle_index};
     }
 
-    if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
-      int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
+    if (ramp_index && is_one(ramp_index->stride) &&
+        ramp_index->lanes->IsInstance<prim::IntImmNode>()) {
+      int lanes = ramp_index->lanes.as_or_throw<prim::IntImm>()->value.as<int>().value();
       PrimExpr new_index = ramp_index->base / MakeConst(ramp_index->base.ty(), lanes);
       if (lanes != info.factor()) {
         TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);

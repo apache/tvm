@@ -237,6 +237,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/backend/adreno/transform.h>
 #include <tvm/relax/dataflow_matcher.h>
@@ -427,9 +428,9 @@ class CollectConsumerScopeInfo : public ExprVisitor {
     // currently we support only textures been made from 5d tensors
     // 5d requirement is not limitation of textures in general, it is limitation how
     // we are representing memory scopes/layout and flattening of textures in tirx
-    if (shape.size() == 5 && shape[4].as<IntImmNode>()->value == 4) {
+    if (shape.size() == 5 && shape[4].as<prim::IntImmNode>()->value == 4) {
       for (auto ind : shape) {
-        if (!ind.as<IntImmNode>()) {
+        if (!ind.as<prim::IntImmNode>()) {
           // Dynamic tensors
           return "global.texture-nchw";
         }
@@ -439,10 +440,10 @@ class CollectConsumerScopeInfo : public ExprVisitor {
           static_cast<int>(target_->GetAttr<int64_t>("texture_spatial_limit").value_or(16384));
       int depth_limit =
           static_cast<int>(target_->GetAttr<int64_t>("texture_depth_limit").value_or(2048));
-      int a0 = shape[0].as<IntImmNode>()->value.as<int>().value();
-      int a1 = shape[1].as<IntImmNode>()->value.as<int>().value();
-      int a2 = shape[2].as<IntImmNode>()->value.as<int>().value();
-      int a3 = shape[3].as<IntImmNode>()->value.as<int>().value();
+      int a0 = shape[0].as<prim::IntImmNode>()->value.as<int>().value();
+      int a1 = shape[1].as<prim::IntImmNode>()->value.as<int>().value();
+      int a2 = shape[2].as<prim::IntImmNode>()->value.as<int>().value();
+      int a3 = shape[3].as<prim::IntImmNode>()->value.as<int>().value();
 
       int d1r = a0 * a1;
       int d2r = a2 * a3;

@@ -19,6 +19,7 @@
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/script/printer/doc.h>
 #include <tvm/tirx/tile_primitive.h>
 
@@ -432,14 +433,14 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
   const ffi::Any& value = doc->value;
   if (value == nullptr) {
     output_ << "None";
-  } else if (const auto* int_imm = value.as<IntImmNode>()) {
+  } else if (const auto* int_imm = value.as<prim::IntImmNode>()) {
     PrimType int_ty = int_imm->ty.as_or_throw<PrimType>();
     if (int_ty.MatchesCode(DLDataTypeCode::kDLBool)) {
       output_ << (int_imm->value ? "True" : "False");
     } else {
       output_ << int_imm->value;
     }
-  } else if (const auto* float_imm = value.as<FloatImmNode>()) {
+  } else if (const auto* float_imm = value.as<prim::FloatImmNode>()) {
     // TODO(yelite): Make float number printing roundtrippable
     if (std::isinf(float_imm->value) || std::isnan(float_imm->value)) {
       output_ << '"' << float_imm->value << '"';

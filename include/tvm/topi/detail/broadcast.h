@@ -24,6 +24,7 @@
 #ifndef TVM_TOPI_DETAIL_BROADCAST_H_
 #define TVM_TOPI_DETAIL_BROADCAST_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
 #include <tvm/topi/detail/constant_utils.h>
 
@@ -62,8 +63,8 @@ inline BroadcastHelper BroadcastShape(const tvm::ffi::Array<tvm::PrimExpr>& shap
 
   for (i = 1; i <= std::min(s1_size, s2_size); ++i) {
     // TODO(@icemelon9): Need to revisit this part
-    const IntImmNode* static_size1 = shape1[s1_size - i].as<IntImmNode>();
-    const IntImmNode* static_size2 = shape2[s2_size - i].as<IntImmNode>();
+    const prim::IntImmNode* static_size1 = shape1[s1_size - i].as<prim::IntImmNode>();
+    const prim::IntImmNode* static_size2 = shape2[s2_size - i].as<prim::IntImmNode>();
     PrimType common_type = CommonType(shape1[s1_size - i].ty(), shape2[s2_size - i].ty());
 
     bh.all_vars.push_front(tvm::PrimVar("dim", common_type));
@@ -130,7 +131,7 @@ inline tvm::ffi::Array<tvm::PrimExpr> InputIndexFromBroadcast(
     // Only inject 0 here if we have not yet reached the dimension of I
     // (i.e. this must be a 1)
     if (!found && (ovars.size() - i) <= expected_dims) {
-      ivars.push_back(tvm::IntImm(ovars[i].ty(), 0));
+      ivars.push_back(tvm::prim::IntImm(ovars[i].ty(), 0));
     }
   }
   TVM_FFI_ICHECK(expected_dims == ivars.size());

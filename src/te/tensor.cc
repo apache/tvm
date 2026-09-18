@@ -26,6 +26,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/tensor.h>
 
@@ -111,8 +112,8 @@ inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,
 
   if (support_negative_indices) {
     for (size_t i = 0; i < shape.size(); i++) {
-      PrimExpr new_index =
-          prim::Select(indices[i] < IntImm(indices[i].ty(), 0), indices[i] + shape[i], indices[i]);
+      PrimExpr new_index = prim::Select(indices[i] < prim::IntImm(indices[i].ty(), 0),
+                                        indices[i] + shape[i], indices[i]);
       indices.Set(i, new_index);
     }
   }

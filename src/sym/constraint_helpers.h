@@ -38,9 +38,9 @@ namespace detail {
 
 enum class CompareKind { kEQ, kLT, kLE, kGT, kGE };
 
-inline void AppendFloorDivConstraints(const prim::FloorDivNode* div, const IntImm& k,
+inline void AppendFloorDivConstraints(const prim::FloorDivNode* div, const prim::IntImm& k,
                                       CompareKind kind, std::vector<PrimExpr>* out) {
-  auto divisor = div->b.as<IntImm>();
+  auto divisor = div->b.as<prim::IntImm>();
   if (!divisor.has_value() || (*divisor)->value <= 0) return;
 
   PrimType dtype = div->a.ty();
@@ -51,8 +51,8 @@ inline void AppendFloorDivConstraints(const prim::FloorDivNode* div, const IntIm
   ffi::BigInt limit = ffi::BigInt(1) << (dtype.bits() - is_signed);
   ffi::BigInt minimum = is_signed ? -limit : ffi::BigInt(0);
   if (lo_value < minimum || lo_value >= limit || hi_value < minimum || hi_value >= limit) return;
-  PrimExpr lo = IntImm(dtype, lo_value);
-  PrimExpr hi = IntImm(dtype, hi_value);
+  PrimExpr lo = prim::IntImm(dtype, lo_value);
+  PrimExpr hi = prim::IntImm(dtype, hi_value);
 
   switch (kind) {
     case CompareKind::kEQ:
@@ -93,11 +93,11 @@ inline CompareKind InvertCompare(CompareKind kind) {
 inline void CollectFloorDivConstraintsFromCompare(const PrimExpr& lhs, const PrimExpr& rhs,
                                                   CompareKind kind, std::vector<PrimExpr>* out) {
   if (const auto* div = lhs.as<prim::FloorDivNode>()) {
-    if (auto value = rhs.as<IntImm>(); value.has_value())
+    if (auto value = rhs.as<prim::IntImm>(); value.has_value())
       AppendFloorDivConstraints(div, *value, kind, out);
   }
   if (const auto* div = rhs.as<prim::FloorDivNode>()) {
-    if (auto value = lhs.as<IntImm>(); value.has_value()) {
+    if (auto value = lhs.as<prim::IntImm>(); value.has_value()) {
       AppendFloorDivConstraints(div, *value, InvertCompare(kind), out);
     }
   }

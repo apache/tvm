@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <algorithm>
 #include <utility>
@@ -222,8 +223,9 @@ Type InferTypeArgmaxArgmin(const Call& call, const BlockBuilder& ctx) {
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
     if (!attrs->axis.has_value() && attrs->keepdims && out_ndim != kUnknownNDim) {
-      return TensorType(ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm(out_dtype, /*value=*/1))),
-                        out_dtype, data_ty->vdevice);
+      return TensorType(
+          ShapeExpr(ffi::Array<PrimExpr>(out_ndim, prim::IntImm(out_dtype, /*value=*/1))),
+          out_dtype, data_ty->vdevice);
     } else {
       return out_ndim == 0
                  ? TensorType(ShapeExpr(ffi::Array<PrimExpr>()), out_dtype, data_ty->vdevice)
@@ -241,7 +243,7 @@ Type InferTypeArgmaxArgmin(const Call& call, const BlockBuilder& ctx) {
     if (attrs->axis.has_value() && i != axis) {
       out_shape.push_back(data_shape->values[i]);
     } else if (attrs->keepdims) {
-      out_shape.push_back(IntImm(out_dtype, /*value=*/1));
+      out_shape.push_back(prim::IntImm(out_dtype, /*value=*/1));
     }
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);

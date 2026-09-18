@@ -203,8 +203,8 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   // override codegen
   llvm::Value* Dispatch_(const VarNode* op) override;
   llvm::Value* Dispatch_(const prim::CastNode* op) override;
-  llvm::Value* Dispatch_(const IntImmNode* op) override;
-  llvm::Value* Dispatch_(const FloatImmNode* op) override;
+  llvm::Value* Dispatch_(const prim::IntImmNode* op) override;
+  llvm::Value* Dispatch_(const prim::FloatImmNode* op) override;
   llvm::Value* Dispatch_(const prim::StringImmNode* op) override;
   llvm::Value* Dispatch_(const prim::AddNode* op) override;
   llvm::Value* Dispatch_(const prim::SubNode* op) override;

@@ -65,10 +65,11 @@ struct ConstraintSet {
         write_region(write_region),
         data_bits(data_bits) {
     if (auto add_local_stage = ann.Get("local_stage")) {
-      this->add_local_stage = static_cast<bool>(add_local_stage.value().cast<IntImm>()->value);
+      this->add_local_stage =
+          static_cast<bool>(add_local_stage.value().cast<prim::IntImm>()->value);
     }
     if (auto vector_bytes = ann.Get("vector_bytes")) {
-      this->vector_bytes = vector_bytes.value().cast<IntImm>()->value.as<int>().value();
+      this->vector_bytes = vector_bytes.value().cast<prim::IntImm>()->value.as<int>().value();
     }
   }
 };

@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/distributed.h>
 #include <tvm/relax/attrs/linear_algebra.h>
@@ -297,7 +298,7 @@ class ShardingConflictHandler : public ExprVisitor {
             << ": Replicate sharding device mesh axis " << sharding_dim
             << ". Conflict Handling logic will be added in the future.";
         sharded_mesh_dim.insert(sharding_dim);
-        if (const auto* val = shape->values[i].as<IntImmNode>()) {
+        if (const auto* val = shape->values[i].as<prim::IntImmNode>()) {
           if (val->value < device_mesh.value()->shape[sharding_spec.second]) {
             axis_group_graph_->AddPropagationCutPoint({var.get(), i}, sharding_spec);
           }

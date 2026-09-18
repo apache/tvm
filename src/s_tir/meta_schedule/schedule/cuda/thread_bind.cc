@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/meta_schedule/schedule/cuda/thread_bind.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/tirx/op.h>
@@ -56,12 +57,12 @@ std::function<ExprRV(int64_t)> MakeFactorSampler(Schedule sch, ffi::Array<int64_
     }
     int n = extents.size();
     if (n == 0) {
-      return IntImm::Int32(max_extent);
+      return prim::IntImm::Int32(max_extent);
     }
     if (n == 1) {
-      return IntImm::Int32(extents[0]);
+      return prim::IntImm::Int32(extents[0]);
     }
-    ffi::Array<FloatImm> probs(n, FloatImm(PrimType::Float(32), 1.0 / n));
+    ffi::Array<prim::FloatImm> probs(n, prim::FloatImm(PrimType::Float(32), 1.0 / n));
     return sch->SampleCategorical(extents, probs);
   };
 }
@@ -70,7 +71,7 @@ ffi::Array<LoopRV> BindSpatialLoop(Schedule sch, LoopRV loop, int64_t max_thread
                                    int64_t max_threads_per_block,
                                    std::function<ExprRV(int64_t)> get_factor) {
   int64_t extent = -1;
-  const auto* e_imm = sch->Get(loop)->extent.as<IntImmNode>();
+  const auto* e_imm = sch->Get(loop)->extent.as<prim::IntImmNode>();
   if (auto e = e_imm ? e_imm->value.as<int64_t>() : std::nullopt; e.has_value()) {
     extent = *e;
   } else {
@@ -87,8 +88,9 @@ ffi::Array<LoopRV> BindSpatialLoop(Schedule sch, LoopRV loop, int64_t max_thread
     sch->Bind(splits[1], "threadIdx.x");
     return {splits[0], splits[1]};
   } else {
-    ffi::Array<LoopRV> splits = sch->Split(loop, {std::nullopt, IntImm::Int32(max_threadblocks),  //
-                                                  IntImm::Int32(max_threads_per_block)});
+    ffi::Array<LoopRV> splits =
+        sch->Split(loop, {std::nullopt, prim::IntImm::Int32(max_threadblocks),  //
+                          prim::IntImm::Int32(max_threads_per_block)});
     TVM_FFI_ICHECK_EQ(splits.size(), 3);
     sch->Reorder({splits[1], splits[2], splits[0]});
     sch->Bind(splits[1], "blockIdx.x");

@@ -133,7 +133,7 @@ inline IntervalSet Combine(AnalyzerObj* analyzer, IntervalSet a, IntervalSet b, 
     return IntervalSet::SinglePoint(expr);
   }
   if (is_logical_op<Op>::value) {
-    return IntervalSet(IntImm(dtype, 0), IntImm(dtype, 1));
+    return IntervalSet(prim::IntImm(dtype, 0), prim::IntImm(dtype, 1));
   }
   if (a->IsEmpty()) return a;
   if (b->IsEmpty()) return b;
@@ -195,7 +195,7 @@ inline IntervalSet Combine<prim::Mul>(AnalyzerObj* analyzer, IntervalSet a, Inte
       PrimExpr max_value = a->HasLowerBound() ? a->min_value * b->min_value : pos_inf();
       return IntervalSet(min_value, max_value);
     } else if (a->HasUpperBound() && a->HasLowerBound()) {
-      PrimExpr sign = b->min_value >= IntImm(b->min_value.ty().WithLanes(1), 0);
+      PrimExpr sign = b->min_value >= prim::IntImm(b->min_value.ty().WithLanes(1), 0);
       PrimExpr e1 = a->min_value * b->min_value;
       PrimExpr e2 = a->max_value * b->min_value;
       return IntervalSet(prim::Select(sign, e1, e2), prim::Select(sign, e2, e1));
@@ -228,7 +228,7 @@ inline IntervalSet Combine<prim::Div>(AnalyzerObj* analyzer, IntervalSet a, Inte
       PrimExpr max_value = a->HasLowerBound() ? a->min_value / b->min_value : pos_inf();
       return IntervalSet(min_value, max_value);
     } else if (a->HasUpperBound() && a->HasLowerBound()) {
-      PrimExpr sign = b->min_value >= IntImm(b->min_value.ty().WithLanes(1), 0);
+      PrimExpr sign = b->min_value >= prim::IntImm(b->min_value.ty().WithLanes(1), 0);
       PrimExpr e1 = a->min_value / b->min_value;
       PrimExpr e2 = a->max_value / b->min_value;
       return IntervalSet(prim::Select(sign, e1, e2), prim::Select(sign, e2, e1));
@@ -257,7 +257,7 @@ inline IntervalSet Combine<prim::Mod>(AnalyzerObj* analyzer, IntervalSet a, Inte
     // is the case of our application.
     // TODO(tqchen): add bound constraints for a.
     if (analyzer->CanProveGreaterEqual(divisor, 0)) {
-      return IntervalSet(IntImm(divisor.ty(), 0), divisor - 1);
+      return IntervalSet(prim::IntImm(divisor.ty(), 0), divisor - 1);
     } else {
       PrimExpr bound = prim::IntegerAbs(divisor) - 1;
       return IntervalSet(-bound, bound);
@@ -290,7 +290,7 @@ inline IntervalSet Combine<prim::FloorDiv>(AnalyzerObj* analyzer, IntervalSet a,
       PrimExpr max_value = a->HasLowerBound() ? floordiv(a->min_value, b->min_value) : pos_inf();
       return IntervalSet(min_value, max_value);
     } else if (a->HasUpperBound() && a->HasLowerBound()) {
-      PrimExpr sign = b->min_value >= IntImm(b->min_value.ty().WithLanes(1), 0);
+      PrimExpr sign = b->min_value >= prim::IntImm(b->min_value.ty().WithLanes(1), 0);
       PrimExpr e1 = floordiv(a->min_value, b->min_value);
       PrimExpr e2 = floordiv(a->max_value, b->min_value);
       return IntervalSet(prim::Select(sign, e1, e2), prim::Select(sign, e2, e1));
@@ -315,7 +315,7 @@ inline IntervalSet Combine<prim::FloorMod>(AnalyzerObj* analyzer, IntervalSet a,
       TVM_FFI_THROW(InternalError) << "Modular by zero in CombineInterval Mod";
     }
     if (analyzer->CanProveGreaterEqual(divisor, 0)) {
-      if (divisor.as<IntImmNode>()) {
+      if (divisor.as<prim::IntImmNode>()) {
         // a mod b = a - (a / b) * b if a_max / b == a_min / b
         auto qmax = a->HasUpperBound() ? floordiv(a->max_value, divisor) : pos_inf();
         auto qmin = a->HasLowerBound() ? floordiv(a->min_value, divisor) : neg_inf();
@@ -331,7 +331,7 @@ inline IntervalSet Combine<prim::FloorMod>(AnalyzerObj* analyzer, IntervalSet a,
         }
       }
       // Enhanced: Use ModularSet analysis for better bounds
-      if (auto div_value = divisor.as<IntImm>(); div_value.has_value()) {
+      if (auto div_value = divisor.as<prim::IntImm>(); div_value.has_value()) {
         const ffi::BigInt& div_val = (*div_value)->value;
 
         // Analyze the modular properties of the dividend
@@ -349,12 +349,13 @@ inline IntervalSet Combine<prim::FloorMod>(AnalyzerObj* analyzer, IntervalSet a,
 
             if (max_mod_result >= 0 && max_mod_result < div_val) {
               PrimType result_ty = op->ty.as_or_throw<PrimType>();
-              return IntervalSet(IntImm(result_ty, 0), IntImm(result_ty, max_mod_result));
+              return IntervalSet(prim::IntImm(result_ty, 0),
+                                 prim::IntImm(result_ty, max_mod_result));
             }
           }
         }
       }
-      return IntervalSet(IntImm(divisor.ty(), 0), divisor - 1);
+      return IntervalSet(prim::IntImm(divisor.ty(), 0), divisor - 1);
     } else {
       PrimExpr bound = prim::IntegerAbs(divisor) - 1;
       return IntervalSet(-bound, bound);
@@ -420,7 +421,7 @@ class IntervalSetEvaluator : public tvm::ExprFunctor<IntervalSet(const Expr&)> {
     return IntervalSet(min_set->min_value, max_set->max_value);
   }
 
-  IntervalSet Dispatch_(const IntImmNode* op) final {
+  IntervalSet Dispatch_(const prim::IntImmNode* op) final {
     return IntervalSet::SinglePoint(ffi::GetRef<PrimExpr>(op));
   }
 
@@ -525,12 +526,12 @@ class IntervalSetEvaluator : public tvm::ExprFunctor<IntervalSet(const Expr&)> {
     // Unsigned ramp addition can wrap, so its endpoints need not be monotone.
     if (op->base.ty().MatchesCode(DLDataTypeCode::kDLUInt)) return IntervalSet::Everything();
     IntervalSet base = Eval(op->base);
-    PVar<IntImm> stride;
+    PVar<prim::IntImm> stride;
     if (stride.Match(op->stride)) {
       PrimType t = op->base.ty();
       const ffi::BigInt& vstride = stride.Eval()->value;
-      if (op->lanes->IsInstance<IntImmNode>()) {
-        int lanes = op->lanes.as_or_throw<IntImm>()->value.as<int>().value();
+      if (op->lanes->IsInstance<prim::IntImmNode>()) {
+        int lanes = op->lanes.as_or_throw<prim::IntImm>()->value.as<int>().value();
         ffi::BigInt span = vstride * (lanes - 1);
         ffi::BigInt limit = ffi::BigInt(1) << (t.bits() - 1);
         if (span < -limit || span >= limit) return IntervalSet::Everything();
@@ -538,13 +539,13 @@ class IntervalSetEvaluator : public tvm::ExprFunctor<IntervalSet(const Expr&)> {
           PrimExpr stride_expr = prim::MakeConst(t, span);
           auto add_op = prim::Add(op->base, stride_expr);
           auto add_node = add_op.as<prim::AddNode>();
-          return Combine<prim::Add>(analyzer_, base, IntervalSet(IntImm(t, 0), stride_expr),
+          return Combine<prim::Add>(analyzer_, base, IntervalSet(prim::IntImm(t, 0), stride_expr),
                                     add_node);
         } else {
           PrimExpr stride_expr = prim::MakeConst(t, span);
           auto add_op = prim::Add(op->base, stride_expr);
           auto add_node = add_op.as<prim::AddNode>();
-          return Combine<prim::Add>(analyzer_, base, IntervalSet(stride_expr, IntImm(t, 0)),
+          return Combine<prim::Add>(analyzer_, base, IntervalSet(stride_expr, prim::IntImm(t, 0)),
                                     add_node);
         }
       }

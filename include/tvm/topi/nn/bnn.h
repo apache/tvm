@@ -24,6 +24,7 @@
 #ifndef TVM_TOPI_NN_BNN_H_
 #define TVM_TOPI_NN_BNN_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/topi/detail/constant_utils.h>
@@ -71,7 +72,7 @@ inline tvm::te::Tensor binarize_pack(const tvm::te::Tensor& data, int axis,
           start_idx.push_back(i == static_cast<size_t>(axis) ? indices[i] * 32
                                                              : static_cast<PrimExpr>(indices[i]));
         }
-        PrimExpr packed = IntImm(PrimType::UInt(32), 0);
+        PrimExpr packed = prim::IntImm(PrimType::UInt(32), 0);
         for (size_t j = 0; j < 32; ++j) {
           ffi::Array<PrimExpr> idx;
           for (size_t i = 0; i < n; ++i) {

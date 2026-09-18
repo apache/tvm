@@ -25,6 +25,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/manipulate.h>
@@ -131,9 +132,9 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
       const std::string key = "arg_" + std::string(arg_infos[i]->name);
       if (auto prim_value = arg.as<PrimExpr>()) {
         PrimExpr value = prim_value.value();
-        if (const auto* imm = value.as<IntImmNode>()) {
+        if (const auto* imm = value.as<prim::IntImmNode>()) {
           node_->SetAttr(key, static_cast<int64_t>(imm->value));
-        } else if (const auto* fimm = value.as<FloatImmNode>()) {
+        } else if (const auto* fimm = value.as<prim::FloatImmNode>()) {
           node_->SetAttr(key, static_cast<double>(fimm->value));
         }
       } else if (const auto* shape_expr = arg.as<ShapeExprNode>()) {
@@ -179,7 +180,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   void SetIntArrayAttr(const std::string& key, const ffi::Array<PrimExpr>& exprs) {
     ffi::Array<int64_t> values;
     for (const PrimExpr& expr : exprs) {
-      const auto* imm = expr.as<IntImmNode>();
+      const auto* imm = expr.as<prim::IntImmNode>();
       if (imm == nullptr) return;
       values.push_back(static_cast<int64_t>(imm->value));
     }
@@ -368,7 +369,7 @@ ffi::Array<ffi::Module> TensorRTCompiler(ffi::Array<Function> functions,
         TVM_FFI_CHECK(shape != nullptr, ValueError)
             << "TensorRT compile-time engine building requires static positive input dimensions";
         for (const auto& dim : shape->values) {
-          const auto* value = dim.as<IntImmNode>();
+          const auto* value = dim.as<prim::IntImmNode>();
           TVM_FFI_CHECK(value != nullptr && value->value > 0, ValueError)
               << "TensorRT compile-time engine building requires static positive input dimensions";
         }

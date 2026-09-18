@@ -164,15 +164,17 @@ class PEqualChecker<PrimExpr> {
 };
 
 template <>
-class PEqualChecker<IntImm> {
+class PEqualChecker<prim::IntImm> {
  public:
-  bool operator()(const IntImm& lhs, const IntImm& rhs) const { return lhs->value == rhs->value; }
+  bool operator()(const prim::IntImm& lhs, const prim::IntImm& rhs) const {
+    return lhs->value == rhs->value;
+  }
 };
 
 template <>
-class PEqualChecker<FloatImm> {
+class PEqualChecker<prim::FloatImm> {
  public:
-  bool operator()(const FloatImm& lhs, const FloatImm& rhs) const {
+  bool operator()(const prim::FloatImm& lhs, const prim::FloatImm& rhs) const {
     return std::fabs(lhs->value - rhs->value) < 1e-20;
   }
 };
@@ -372,7 +374,7 @@ class PConstWithTypeLike : public Pattern<PConstWithTypeLike<TA>> {
   void InitMatch_() const {}
 
   bool Match_(const ffi::ObjectRef& node) const {
-    if (const IntImmNode* ptr = node.as<IntImmNode>()) {
+    if (const prim::IntImmNode* ptr = node.as<prim::IntImmNode>()) {
       return ptr->value == value_;
     } else {
       return false;

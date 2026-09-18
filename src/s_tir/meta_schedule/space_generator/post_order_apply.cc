@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include "../utils.h"
 
@@ -108,7 +109,7 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
 SpaceGenerator SpaceGenerator::PostOrderApply(
     ffi::Function f_block_filter, ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
     ffi::Optional<ffi::Array<Postproc>> postprocs,
-    ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs) {
+    ffi::Optional<ffi::Map<Mutator, prim::FloatImm>> mutator_probs) {
   ffi::ObjectPtr<PostOrderApplyNode> n = ffi::make_object<PostOrderApplyNode>();
   n->sch_rules = std::move(sch_rules);
   n->postprocs = std::move(postprocs);

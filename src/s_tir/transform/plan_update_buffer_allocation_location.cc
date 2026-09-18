@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -231,7 +232,7 @@ class BufferAllocationLocator : public StmtExprMutator {
         GetSBlockReadWriteRegion(opaque_block, buffer_data_to_buffer_);
     n->reads = access[0];
     n->writes = access[1];
-    SBlockRealize realize({}, IntImm::Bool(true), std::move(opaque_block));
+    SBlockRealize realize({}, prim::IntImm::Bool(true), std::move(opaque_block));
     return realize;
   }
 

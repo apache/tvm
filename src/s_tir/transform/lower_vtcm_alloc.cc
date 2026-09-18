@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
@@ -44,7 +45,7 @@ class VtcmAllocator : public StmtExprMutator {
     if (IsVtcmStorage(storage_scope)) {
       ffi::Array<Expr> args;
       args.push_back(prim::StringImm(storage_scope));
-      args.push_back(IntImm::Int64(op->buffer->shape.size()));
+      args.push_back(prim::IntImm::Int64(op->buffer->shape.size()));
       args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
                           op->buffer->shape));
       return DeclBuffer(op->buffer, Call(op->buffer.DataPointerType(),

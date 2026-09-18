@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
@@ -124,8 +125,8 @@ bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
   candidate->inst = ffi::GetRef<Instruction>(sample_inst);
   // SampleCategorical decision is Optional<int64_t> after the Integer phase-out.
   candidate->decision = trace->decisions[ffi::GetRef<Instruction>(sample_inst)].cast<int64_t>();
-  candidate->probs = support::AsVector<FloatImm, double>(
-      sample_inst->attrs[1].as_or_throw<ffi::Array<FloatImm>>());
+  candidate->probs = support::AsVector<prim::FloatImm, double>(
+      sample_inst->attrs[1].as_or_throw<ffi::Array<prim::FloatImm>>());
   return true;
 }
 

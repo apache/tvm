@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ir/prim/expr.h>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "./memhammer_rewrite_rule.h"
@@ -72,7 +73,7 @@ Stmt FuseNestLoops(Stmt body) {
  */
 Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   const ForNode* loop = TVM_TYPE_AS(stmt, ForNode);
-  int loop_extent = loop->extent.as_or_throw<IntImm>()->value.as<int>().value();
+  int loop_extent = loop->extent.as_or_throw<prim::IntImm>()->value.as<int>().value();
   int vector_bytes = constraints.vector_bytes;
   int data_bits = constraints.data_bits;
   int vector_len = std::max(1, vector_bytes * 8 / data_bits);
@@ -199,8 +200,8 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   }
   // Step 2. Get Inverse mapping
   sym::Analyzer analyzer;
-  auto iter_map =
-      sym::DetectIterMap(mapping_pattern, var_range, IntImm::Bool(true), sym::Bijective, analyzer);
+  auto iter_map = sym::DetectIterMap(mapping_pattern, var_range, prim::IntImm::Bool(true),
+                                     sym::Bijective, analyzer);
   TVM_FFI_ICHECK_EQ(iter_map->indices.size(), loop_vars.size());
   ffi::Map<Var, PrimExpr> inverse_mapping = sym::InverseAffineIterMap(iter_map->indices, loop_vars);
   // Step 3. Generate new body

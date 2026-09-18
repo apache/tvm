@@ -26,6 +26,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
@@ -691,13 +692,13 @@ ffi::ObjectRef RealizeBufferRegionSubscript(Expr value, SubscriptSlice slice, Sp
     const Range& old_range = source->region[i];
     if (auto point = slice[i].as<PrimExpr>()) {
       PrimExpr new_min = old_range->min + point.value();
-      region.push_back(Range::FromMinExtent(new_min, IntImm(point.value().ty(), 1)));
+      region.push_back(Range::FromMinExtent(new_min, prim::IntImm(point.value().ty(), 1)));
     } else {
       auto descriptor = slice[i]
                             .as<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
                                            ffi::Optional<PrimExpr>>>()
                             .value();
-      PrimExpr start = descriptor.get<0>().value_or(IntImm(old_range->extent.ty(), 0));
+      PrimExpr start = descriptor.get<0>().value_or(prim::IntImm(old_range->extent.ty(), 0));
       PrimExpr stop = descriptor.get<1>().value_or(old_range->extent);
       region.push_back(
           Range::FromMinExtent(old_range->min + start, analyzer->Simplify(stop - start)));
@@ -873,11 +874,11 @@ For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt bod
     PrimType e_ty = e.ty();
     PrimType loop_var_ty = loop_var.ty();
     if (e_ty == loop_var_ty) return e;
-    if (const IntImmNode* a = e.as<IntImmNode>()) {
+    if (const prim::IntImmNode* a = e.as<prim::IntImmNode>()) {
       TVM_FFI_ICHECK(IntImmValueFits(a->value, loop_var_ty))
           << "Literal value " << a->value << " is not representable in the loop variable's dtype ("
           << loop_var_ty << ")";
-      return IntImm(loop_var_ty, a->value);
+      return prim::IntImm(loop_var_ty, a->value);
     }
     TVM_FFI_ICHECK(e_ty.bits() <= loop_var_ty.bits())
         << " Loop variable's dtype (" << loop_var_ty

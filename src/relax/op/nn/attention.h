@@ -25,6 +25,7 @@
 #ifndef TVM_RELAX_OP_NN_ATTENTION_H_
 #define TVM_RELAX_OP_NN_ATTENTION_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/attrs/nn.h>
 
 #include "../op_common.h"
@@ -34,8 +35,8 @@ namespace relax {
 
 /*! \brief fused multi head attention */
 Expr attention(Expr query, Expr key, Expr value, ffi::Optional<Expr> bias,
-               ffi::Optional<FloatImm> scale, ffi::Optional<ffi::String> causal_mask,
-               ffi::Optional<IntImm> window_size);
+               ffi::Optional<prim::FloatImm> scale, ffi::Optional<ffi::String> causal_mask,
+               ffi::Optional<prim::IntImm> window_size);
 
 }  // namespace relax
 }  // namespace tvm

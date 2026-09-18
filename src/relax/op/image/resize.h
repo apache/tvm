@@ -25,6 +25,7 @@
 #ifndef TVM_RELAX_OP_IMAGE_RESIZE_H_
 #define TVM_RELAX_OP_IMAGE_RESIZE_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/attrs/image.h>
 
 #include "../op_common.h"
@@ -33,13 +34,13 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Image resize2d operator. */
-Expr resize2d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout,
+Expr resize2d(Expr data, Expr size, ffi::Array<prim::FloatImm> roi, ffi::String layout,
               ffi::String method, ffi::String coordinate_transformation_mode,
               ffi::String rounding_method, double cubic_alpha, int cubic_exclude,
               double extrapolation_value, ffi::Optional<DLDataType> out_dtype);
 
 /*! \brief Image resize3d operator. */
-Expr resize3d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout,
+Expr resize3d(Expr data, Expr size, ffi::Array<prim::FloatImm> roi, ffi::String layout,
               ffi::String method, ffi::String coordinate_transformation_mode,
               ffi::String rounding_method, double cubic_alpha, int cubic_exclude,
               double extrapolation_value, ffi::Optional<DLDataType> out_dtype);

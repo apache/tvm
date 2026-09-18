@@ -27,6 +27,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <utility>
 
@@ -38,7 +39,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { Resize3DAttrs::RegisterReflection(); }
 
 /* relax.resize2d */
 
-Expr resize2d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout,
+Expr resize2d(Expr data, Expr size, ffi::Array<prim::FloatImm> roi, ffi::String layout,
               ffi::String method, ffi::String coordinate_transformation_mode,
               ffi::String rounding_method, double cubic_alpha, int cubic_exclude,
               double extrapolation_value, ffi::Optional<DLDataType> out_dtype) {
@@ -154,7 +155,7 @@ TVM_REGISTER_OP("relax.image.resize2d")
 
 /* relax.resize3d */
 
-Expr resize3d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout,
+Expr resize3d(Expr data, Expr size, ffi::Array<prim::FloatImm> roi, ffi::String layout,
               ffi::String method, ffi::String coordinate_transformation_mode,
               ffi::String rounding_method, double cubic_alpha, int cubic_exclude,
               double extrapolation_value, ffi::Optional<DLDataType> out_dtype) {
@@ -412,7 +413,7 @@ Type InferTypeAffineGrid(const Call& call, const BlockBuilder& ctx) {
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape != nullptr) {
     if (data_shape->values.size() >= 2) {
-      auto* dim1 = data_shape->values[1].as<IntImmNode>();
+      auto* dim1 = data_shape->values[1].as<prim::IntImmNode>();
       if (dim1 != nullptr && dim1->value != spatial) {
         TVM_FFI_VISIT_THROW(ValueError, call)
             << "AffineGrid expects the second dimension of input to be " << spatial << ", but got "
@@ -420,7 +421,7 @@ Type InferTypeAffineGrid(const Call& call, const BlockBuilder& ctx) {
       }
     }
     if (data_shape->values.size() >= 3) {
-      auto* dim2 = data_shape->values[2].as<IntImmNode>();
+      auto* dim2 = data_shape->values[2].as<prim::IntImmNode>();
       if (dim2 != nullptr && dim2->value != spatial + 1) {
         TVM_FFI_VISIT_THROW(ValueError, call)
             << "AffineGrid expects the third dimension of input to be " << spatial + 1
@@ -437,8 +438,8 @@ Type InferTypeAffineGrid(const Call& call, const BlockBuilder& ctx) {
 
   // Output shape: [batch, spatial, *target_spatial_dims].
   ffi::Array<PrimExpr> out_shape;
-  out_shape.push_back(data_shape->values[0]);   // batch
-  out_shape.push_back(IntImm::Int64(spatial));  // number of spatial coordinates
+  out_shape.push_back(data_shape->values[0]);         // batch
+  out_shape.push_back(prim::IntImm::Int64(spatial));  // number of spatial coordinates
   for (int i = 0; i < spatial; ++i) {
     out_shape.push_back(size_value->values[i]);  // target spatial dim
   }

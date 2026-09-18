@@ -25,6 +25,7 @@
 #include "statistical.h"
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <string>
 #include <vector>
@@ -68,7 +69,7 @@ Type InferTypeStatistical(const Call& call, const BlockBuilder& ctx) {
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
     if (!attrs->axis.has_value() && attrs->keepdims && out_ndim != kUnknownNDim) {
-      return TensorType(ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm::Int64(/*value=*/1))),
+      return TensorType(ShapeExpr(ffi::Array<PrimExpr>(out_ndim, prim::IntImm::Int64(/*value=*/1))),
                         data_ty->dtype, data_ty->vdevice);
     } else {
       return out_ndim == 0
@@ -83,7 +84,7 @@ Type InferTypeStatistical(const Call& call, const BlockBuilder& ctx) {
     if (attrs->axis.has_value() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
       out_shape.push_back(data_shape->values[i]);
     } else if (attrs->keepdims) {
-      out_shape.push_back(IntImm::Int64(/*value=*/1));
+      out_shape.push_back(prim::IntImm::Int64(/*value=*/1));
     }
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
@@ -211,7 +212,7 @@ Type InferTypeStatisticalExtension(const Call& call, const BlockBuilder& ctx) {
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
     if (!attrs->axis.has_value() && attrs->keepdims && out_ndim != kUnknownNDim) {
-      return TensorType(ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm::Int64(/*value=*/1))),
+      return TensorType(ShapeExpr(ffi::Array<PrimExpr>(out_ndim, prim::IntImm::Int64(/*value=*/1))),
                         data_ty->dtype, data_ty->vdevice);
     }
     if (out_ndim == 0) {
@@ -227,7 +228,7 @@ Type InferTypeStatisticalExtension(const Call& call, const BlockBuilder& ctx) {
     if (attrs->axis.has_value() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
       out_shape.push_back(data_shape->values[i]);
     } else if (attrs->keepdims) {
-      out_shape.push_back(IntImm::Int64(/*value=*/1));
+      out_shape.push_back(prim::IntImm::Int64(/*value=*/1));
     }
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);

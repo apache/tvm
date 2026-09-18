@@ -22,6 +22,7 @@
  * \brief Final cleanup stage for TIRx lowering.
  */
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
@@ -174,7 +175,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
           tile_layout && tile_layout->HasThreadAxis()) {
         // Logical alloc_buffer with thread axes: physical shape = memory-axis span
         sym::Analyzer ana;
-        PrimExpr mem_span = IntImm::Int32(1);
+        PrimExpr mem_span = prim::IntImm::Int32(1);
         for (const auto& iter : tile_layout->shard) {
           if (iter->axis->IsMemoryAxis()) {
             mem_span = mem_span + (iter->extent - 1) * iter->stride;

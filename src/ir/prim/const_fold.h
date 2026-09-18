@@ -128,17 +128,16 @@ inline double GetFoldResultDoubleRepr(float x) {
   return res;
 }
 
-#define TVM_PRIM_CONST_PROPAGATION(BODY)         \
-  using tvm::FloatImmNode;                       \
-  const IntImmNode* pa = a.as<IntImmNode>();     \
-  const IntImmNode* pb = b.as<IntImmNode>();     \
-  const FloatImmNode* fa = a.as<FloatImmNode>(); \
-  const FloatImmNode* fb = b.as<FloatImmNode>(); \
+#define TVM_PRIM_CONST_PROPAGATION(BODY)                     \
+  const prim::IntImmNode* pa = a.as<prim::IntImmNode>();     \
+  const prim::IntImmNode* pb = b.as<prim::IntImmNode>();     \
+  const prim::FloatImmNode* fa = a.as<prim::FloatImmNode>(); \
+  const prim::FloatImmNode* fb = b.as<prim::FloatImmNode>(); \
   BODY;
 
 #define TVM_PRIM_INDEX_CONST_PROPAGATION(BODY)                                                \
-  const IntImmNode* pa = a.as<IntImmNode>();                                                  \
-  const IntImmNode* pb = b.as<IntImmNode>();                                                  \
+  const prim::IntImmNode* pa = a.as<prim::IntImmNode>();                                      \
+  const prim::IntImmNode* pb = b.as<prim::IntImmNode>();                                      \
   if (::tvm::prim::detail::IsIndexTypedExpr(a) && ::tvm::prim::detail::IsIndexTypedExpr(b)) { \
     BODY;                                                                                     \
   }
@@ -150,16 +149,16 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::Add>(PrimExpr a, PrimExpr b) {
     PrimType result_ty = a.ty();
     if (pa && pb) {
       ffi::BigInt res = pa->value + pb->value;
-      return IntImm(result_ty, GetFoldResult(res, result_ty));
+      return prim::IntImm(result_ty, GetFoldResult(res, result_ty));
     }
     if (pa && pa->value == 0) return b;
     if (pb && pb->value == 0) return a;
     if (fa && fb) {
       if (result_ty.bits() == 32) {
-        return FloatImm(result_ty, GetFoldResultDoubleRepr(static_cast<float>(fa->value) +
-                                                           static_cast<float>(fb->value)));
+        return prim::FloatImm(result_ty, GetFoldResultDoubleRepr(static_cast<float>(fa->value) +
+                                                                 static_cast<float>(fb->value)));
       } else if (result_ty.bits() == 64) {
-        return FloatImm(result_ty, fa->value + fb->value);
+        return prim::FloatImm(result_ty, fa->value + fb->value);
       }
     }
     if (fa && fa->value == 0) return b;
@@ -180,15 +179,15 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::Sub>(PrimExpr a, PrimExpr b) {
     PrimType result_ty = a.ty();
     if (pa && pb) {
       ffi::BigInt res = pa->value - pb->value;
-      return IntImm(result_ty, GetFoldResult(res, result_ty));
+      return prim::IntImm(result_ty, GetFoldResult(res, result_ty));
     }
     if (pb && pb->value == 0) return a;
     if (fa && fb) {
       if (result_ty.bits() == 32) {
-        return FloatImm(result_ty, GetFoldResultDoubleRepr(static_cast<float>(fa->value) -
-                                                           static_cast<float>(fb->value)));
+        return prim::FloatImm(result_ty, GetFoldResultDoubleRepr(static_cast<float>(fa->value) -
+                                                                 static_cast<float>(fb->value)));
       } else if (result_ty.bits() == 64) {
-        return FloatImm(result_ty, fa->value - fb->value);
+        return prim::FloatImm(result_ty, fa->value - fb->value);
       }
     }
     if (fb && fb->value == 0) return a;
@@ -202,7 +201,7 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::Mul>(PrimExpr a, PrimExpr b) {
     PrimType result_ty = a.ty();
     if (pa && pb) {
       ffi::BigInt res = pa->value * pb->value;
-      return IntImm(result_ty, GetFoldResult(res, result_ty));
+      return prim::IntImm(result_ty, GetFoldResult(res, result_ty));
     }
     if (pa) {
       if (pa->value == 1) return b;
@@ -214,10 +213,10 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::Mul>(PrimExpr a, PrimExpr b) {
     }
     if (fa && fb) {
       if (result_ty.bits() == 32) {
-        return FloatImm(result_ty, GetFoldResultDoubleRepr(static_cast<float>(fa->value) *
-                                                           static_cast<float>(fb->value)));
+        return prim::FloatImm(result_ty, GetFoldResultDoubleRepr(static_cast<float>(fa->value) *
+                                                                 static_cast<float>(fb->value)));
       } else if (result_ty.bits() == 64) {
-        return FloatImm(result_ty, fa->value * fb->value);
+        return prim::FloatImm(result_ty, fa->value * fb->value);
       }
     }
     if (fa) {
@@ -241,7 +240,7 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::Div>(PrimExpr a, PrimExpr b) {
       // NOTE: this will assumes truc div.
       TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
       ffi::BigInt res = pa->value / pb->value;
-      return IntImm(result_ty, GetFoldResult(res, result_ty));
+      return prim::IntImm(result_ty, GetFoldResult(res, result_ty));
     }
     if (pa) {
       if (pa->value == 0) return a;
@@ -253,10 +252,10 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::Div>(PrimExpr a, PrimExpr b) {
     if (fa && fb) {
       TVM_FFI_ICHECK_NE(fb->value, 0) << "Divide by zero";
       if (result_ty.bits() == 32) {
-        return FloatImm(result_ty, GetFoldResultDoubleRepr(static_cast<float>(fa->value) /
-                                                           static_cast<float>(fb->value)));
+        return prim::FloatImm(result_ty, GetFoldResultDoubleRepr(static_cast<float>(fa->value) /
+                                                                 static_cast<float>(fb->value)));
       } else if (result_ty.bits() == 64) {
-        return FloatImm(result_ty, fa->value / fb->value);
+        return prim::FloatImm(result_ty, fa->value / fb->value);
       }
     }
     if (fa && fa->value == 0) return a;
@@ -275,20 +274,20 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::Mod>(PrimExpr a, PrimExpr b) {
     if (pa && pb) {
       TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
       ffi::BigInt res = pa->value % pb->value;
-      return IntImm(result_ty, GetFoldResult(res, result_ty));
+      return prim::IntImm(result_ty, GetFoldResult(res, result_ty));
     }
     if (pa) {
       if (pa->value == 0) return a;
     }
     if (pb) {
-      if (pb->value == 1) return IntImm(result_ty, 0);
+      if (pb->value == 1) return prim::IntImm(result_ty, 0);
       TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
     }
   });
   // Fold wide literals without enabling symbolic index rewrites for their type.
   if (pa && pb && a.ty().bits() >= 64) {
     TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
-    return IntImm(a.ty(), GetFoldResult(pa->value % pb->value, a.ty()));
+    return prim::IntImm(a.ty(), GetFoldResult(pa->value % pb->value, a.ty()));
   }
   return std::nullopt;
 }
@@ -300,7 +299,7 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::FloorDiv>(PrimExpr a, PrimExpr
     if (pa && pb) {
       TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
       ffi::BigInt res = ffi::floordiv(pa->value, pb->value);
-      return IntImm(result_ty, GetFoldResult(res, result_ty));
+      return prim::IntImm(result_ty, GetFoldResult(res, result_ty));
     }
     if (pa) {
       if (pa->value == 0) return a;
@@ -311,11 +310,11 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::FloorDiv>(PrimExpr a, PrimExpr
     }
     if (fa && fb && fb->value != 0) {
       if (result_ty.bits() == 32) {
-        return FloatImm(result_ty,
-                        GetFoldResultDoubleRepr(std::floor(static_cast<float>(fa->value) /
-                                                           static_cast<float>(fb->value))));
+        return prim::FloatImm(result_ty,
+                              GetFoldResultDoubleRepr(std::floor(static_cast<float>(fa->value) /
+                                                                 static_cast<float>(fb->value))));
       } else if (result_ty.bits() == 64) {
-        return FloatImm(result_ty, std::floor(fa->value / fb->value));
+        return prim::FloatImm(result_ty, std::floor(fa->value / fb->value));
       } else {
         return std::nullopt;
       }
@@ -336,20 +335,20 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::FloorMod>(PrimExpr a, PrimExpr
     if (pa && pb) {
       TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
       ffi::BigInt res = ffi::floormod(pa->value, pb->value);
-      return IntImm(result_ty, GetFoldResult(res, result_ty));
+      return prim::IntImm(result_ty, GetFoldResult(res, result_ty));
     }
     if (pa) {
       if (pa->value == 0) return a;
     }
     if (pb) {
-      if (pb->value == 1) return IntImm(result_ty, 0);
+      if (pb->value == 1) return prim::IntImm(result_ty, 0);
       TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
     }
   });
   // Fold wide literals without enabling symbolic index rewrites for their type.
   if (pa && pb && (a.ty().bits() >= 64 || a.ty().MatchesCode(DLDataTypeCode::kDLUInt))) {
     TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
-    return IntImm(a.ty(), GetFoldResult(ffi::floormod(pa->value, pb->value), a.ty()));
+    return prim::IntImm(a.ty(), GetFoldResult(ffi::floormod(pa->value, pb->value), a.ty()));
   }
   return std::nullopt;
 }
@@ -358,8 +357,8 @@ template <>
 inline ffi::Optional<PrimExpr> TryConstFold<prim::Min>(PrimExpr a, PrimExpr b) {
   TVM_PRIM_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
-    if (pa && pb) return IntImm(result_ty, std::min(pa->value, pb->value));
-    if (fa && fb) return FloatImm(result_ty, std::min(fa->value, fb->value));
+    if (pa && pb) return prim::IntImm(result_ty, std::min(pa->value, pb->value));
+    if (fa && fb) return prim::FloatImm(result_ty, std::min(fa->value, fb->value));
   });
   if (a.same_as(b)) return a;
   return std::nullopt;
@@ -369,8 +368,8 @@ template <>
 inline ffi::Optional<PrimExpr> TryConstFold<prim::Max>(PrimExpr a, PrimExpr b) {
   TVM_PRIM_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
-    if (pa && pb) return IntImm(result_ty, std::max(pa->value, pb->value));
-    if (fa && fb) return FloatImm(result_ty, std::max(fa->value, fb->value));
+    if (pa && pb) return prim::IntImm(result_ty, std::max(pa->value, pb->value));
+    if (fa && fb) return prim::FloatImm(result_ty, std::max(fa->value, fb->value));
   });
   if (a.same_as(b)) return a;
   return std::nullopt;
@@ -379,8 +378,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::Max>(PrimExpr a, PrimExpr b) {
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<prim::GT>(PrimExpr a, PrimExpr b) {
   TVM_PRIM_CONST_PROPAGATION({
-    if (pa && pb) return IntImm::Bool(pa->value > pb->value);
-    if (fa && fb) return IntImm::Bool(fa->value > fb->value);
+    if (pa && pb) return prim::IntImm::Bool(pa->value > pb->value);
+    if (fa && fb) return prim::IntImm::Bool(fa->value > fb->value);
   });
   return std::nullopt;
 }
@@ -388,8 +387,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::GT>(PrimExpr a, PrimExpr b) {
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<prim::GE>(PrimExpr a, PrimExpr b) {
   TVM_PRIM_CONST_PROPAGATION({
-    if (pa && pb) return IntImm::Bool(pa->value >= pb->value);
-    if (fa && fb) return IntImm::Bool(fa->value >= fb->value);
+    if (pa && pb) return prim::IntImm::Bool(pa->value >= pb->value);
+    if (fa && fb) return prim::IntImm::Bool(fa->value >= fb->value);
   });
   return std::nullopt;
 }
@@ -397,8 +396,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::GE>(PrimExpr a, PrimExpr b) {
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<prim::LT>(PrimExpr a, PrimExpr b) {
   TVM_PRIM_CONST_PROPAGATION({
-    if (pa && pb) return IntImm::Bool(pa->value < pb->value);
-    if (fa && fb) return IntImm::Bool(fa->value < fb->value);
+    if (pa && pb) return prim::IntImm::Bool(pa->value < pb->value);
+    if (fa && fb) return prim::IntImm::Bool(fa->value < fb->value);
   });
   return std::nullopt;
 }
@@ -406,8 +405,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::LT>(PrimExpr a, PrimExpr b) {
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<prim::LE>(PrimExpr a, PrimExpr b) {
   TVM_PRIM_CONST_PROPAGATION({
-    if (pa && pb) return IntImm::Bool(pa->value <= pb->value);
-    if (fa && fb) return IntImm::Bool(fa->value <= fb->value);
+    if (pa && pb) return prim::IntImm::Bool(pa->value <= pb->value);
+    if (fa && fb) return prim::IntImm::Bool(fa->value <= fb->value);
   });
   return std::nullopt;
 }
@@ -415,8 +414,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::LE>(PrimExpr a, PrimExpr b) {
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<prim::EQ>(PrimExpr a, PrimExpr b) {
   TVM_PRIM_CONST_PROPAGATION({
-    if (pa && pb) return IntImm::Bool(pa->value == pb->value);
-    if (fa && fb) return IntImm::Bool(fa->value == fb->value);
+    if (pa && pb) return prim::IntImm::Bool(pa->value == pb->value);
+    if (fa && fb) return prim::IntImm::Bool(fa->value == fb->value);
   });
   return std::nullopt;
 }
@@ -424,16 +423,16 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::EQ>(PrimExpr a, PrimExpr b) {
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<prim::NE>(PrimExpr a, PrimExpr b) {
   TVM_PRIM_CONST_PROPAGATION({
-    if (pa && pb) return IntImm::Bool(pa->value != pb->value);
-    if (fa && fb) return IntImm::Bool(fa->value != fb->value);
+    if (pa && pb) return prim::IntImm::Bool(pa->value != pb->value);
+    if (fa && fb) return prim::IntImm::Bool(fa->value != fb->value);
   });
   return std::nullopt;
 }
 
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<prim::And>(PrimExpr a, PrimExpr b) {
-  const IntImmNode* pa = a.as<IntImmNode>();
-  const IntImmNode* pb = b.as<IntImmNode>();
+  const prim::IntImmNode* pa = a.as<prim::IntImmNode>();
+  const prim::IntImmNode* pb = b.as<prim::IntImmNode>();
   if (pa && pa->value) return b;
   if (pa && !pa->value) return a;
   if (pb && pb->value) return a;
@@ -443,8 +442,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::And>(PrimExpr a, PrimExpr b) {
 
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<prim::Or>(PrimExpr a, PrimExpr b) {
-  const IntImmNode* pa = a.as<IntImmNode>();
-  const IntImmNode* pb = b.as<IntImmNode>();
+  const prim::IntImmNode* pa = a.as<prim::IntImmNode>();
+  const prim::IntImmNode* pb = b.as<prim::IntImmNode>();
   if (pa && pa->value) return a;
   if (pa && !pa->value) return b;
   if (pb && pb->value) return b;
@@ -454,9 +453,9 @@ inline ffi::Optional<PrimExpr> TryConstFold<prim::Or>(PrimExpr a, PrimExpr b) {
 
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<prim::Not>(PrimExpr a) {
-  const IntImmNode* pa = a.as<IntImmNode>();
+  const prim::IntImmNode* pa = a.as<prim::IntImmNode>();
   if (pa) {
-    return IntImm::Bool(!(pa->value));
+    return prim::IntImm::Bool(!(pa->value));
   }
   return std::nullopt;
 }

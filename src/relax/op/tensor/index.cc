@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/topi/transform.h>
@@ -364,7 +365,7 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
     if (!data_ty) return std::nullopt;
     if (!data_ty->shape) return std::nullopt;
 
-    auto opt_axes_tuple = UnpackTupleOfPrimExpr<IntImm>(axes);
+    auto opt_axes_tuple = UnpackTupleOfPrimExpr<prim::IntImm>(axes);
     if (!opt_axes_tuple) return std::nullopt;
     auto axes_tuple = opt_axes_tuple.value();
 
@@ -395,7 +396,7 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
 
       strides_tuple = opt_strides_tuple.value();
     } else {
-      strides_tuple = ffi::Array<PrimExpr>(axes_tuple.size(), IntImm::Int64(1));
+      strides_tuple = ffi::Array<PrimExpr>(axes_tuple.size(), prim::IntImm::Int64(1));
     }
 
     TVM_FFI_ICHECK_EQ(axes_tuple.size(), strides_tuple.size())
@@ -415,7 +416,8 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
 
     ffi::Array<int64_t> axes_tuple_i64;
     axes_tuple_i64.reserve(axes_tuple.size());
-    for (const IntImm& v : axes_tuple) axes_tuple_i64.push_back(static_cast<int64_t>(v->value));
+    for (const prim::IntImm& v : axes_tuple)
+      axes_tuple_i64.push_back(static_cast<int64_t>(v->value));
     std::vector<int> axes = NormalizeAxes(call, ctx, data_ty->ndim, axes_tuple_i64);
     auto attrs = call->attrs.as<StridedSliceAttrs>();
 
@@ -469,21 +471,21 @@ InferLayoutOutput InferLayoutStridedSlice(
     existing_layout = LayoutDecision(InitialLayout(tensor_ty->ndim));
   }
 
-  auto opt_axes_tuple = UnpackTupleOfPrimExpr<IntImm>(call->args[1]);
+  auto opt_axes_tuple = UnpackTupleOfPrimExpr<prim::IntImm>(call->args[1]);
   TVM_FFI_ICHECK(opt_axes_tuple) << "Layout inference of " << call->op
                                  << " requires slices to be along static axes.  "
                                  << "However, expression " << call
                                  << " slices along non-static axes " << call->args[1];
-  ffi::Array<IntImm> axes_tuple = opt_axes_tuple.value();
+  ffi::Array<prim::IntImm> axes_tuple = opt_axes_tuple.value();
 
   ffi::Array<Expr> new_axes;
   for (const auto& axis : axes_tuple) {
     int new_axis = FindAxis(existing_layout->layout, axis->value.as<int>().value());
-    new_axes.push_back(IntImm::Int64(new_axis));
+    new_axes.push_back(prim::IntImm::Int64(new_axis));
   }
 
   return InferLayoutOutput({existing_layout}, {existing_layout}, call->attrs,
-                           {{IntImm::Int32(1), relax::Tuple(new_axes)}});
+                           {{prim::IntImm::Int32(1), relax::Tuple(new_axes)}});
 }
 
 TVM_REGISTER_OP("relax.strided_slice")
@@ -540,7 +542,7 @@ Type InferTypeDynStridedSlice(const Call& call, const BlockBuilder& ctx) {
                           << " to have well-defined shape.";
     // NOTE(tvm-team): This strong restriction seems necessary for now until we have a generic
     // solution in converting 1d Tensor with unknown num_elem to ffi::Array<PrimExpr>.
-    const auto* num_elem = shape->values[0].as<IntImmNode>();
+    const auto* num_elem = shape->values[0].as<prim::IntImmNode>();
     TVM_FFI_ICHECK(num_elem) << "Dynamic strided slice requires the input " << name
                              << " to have a known integer shape value.";
     TVM_FFI_ICHECK_EQ(num_elem->value, n_axis)

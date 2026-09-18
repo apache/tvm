@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/transform.h>
@@ -54,7 +55,7 @@ class ThreadExtentChecker : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) {
     runtime::ThreadScope thread_scope = GetThreadScope(loop);
     if (IsThreadIdx(thread_scope)) {
-      const auto* p_ext_imm = loop->extent.as<IntImmNode>();
+      const auto* p_ext_imm = loop->extent.as<prim::IntImmNode>();
       if (auto p_ext = p_ext_imm ? p_ext_imm->value.as<int64_t>() : std::nullopt;
           p_ext.has_value()) {
         int64_t ext = *p_ext;
@@ -117,10 +118,10 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief Extract attribute from a target. */
-IntImm Extract(const Target& target, const char* name) {
+prim::IntImm Extract(const Target& target, const char* name) {
   TVM_FFI_ICHECK(target.defined());
   if (ffi::Optional<int64_t> v = target->GetAttr<int64_t>(name)) {
-    return IntImm::Int64(v.value());
+    return prim::IntImm::Int64(v.value());
   }
   TVM_FFI_THROW(AttributedError) << "\"" << name << "\" is not defined in the target";
   throw;
@@ -139,8 +140,8 @@ class VerifyGPUCodeNode : public PostprocNode {
     this->target_constraints_ = ffi::Map<ffi::String, PrimExpr>{
         {"max_shared_memory_per_block", Extract(this->target_, "max_shared_memory_per_block")},
         {"max_threads_per_block", Extract(this->target_, "max_threads_per_block")},
-        {"max_vthread", IntImm::Int32(8)},
-        {"max_vector_bytes", IntImm::Int32(16)},
+        {"max_vthread", prim::IntImm::Int32(8)},
+        {"max_vector_bytes", prim::IntImm::Int32(16)},
     };
     thread_warp_size_ = Extract(this->target_, "thread_warp_size")->value.as<int>().value();
   }

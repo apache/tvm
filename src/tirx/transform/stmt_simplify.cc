@@ -208,7 +208,7 @@ ffi::Optional<bool> StmtSimplifier::ProveCondition(PrimExpr condition) const {
   condition = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(condition, f_substitute)
                   .as_or_throw<PrimExpr>();
   condition = analyzer_->Simplify(condition);
-  if (const auto* as_int = condition.as<IntImmNode>()) {
+  if (const auto* as_int = condition.as<prim::IntImmNode>()) {
     return as_int->value != 0;
   } else {
     return std::nullopt;

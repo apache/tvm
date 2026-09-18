@@ -85,12 +85,12 @@ static Expr LowerAccessPtr(const CallNode* call,
       << "tvm_access_ptr expects a buffer Var or nested tvm_access_ptr as args[1], but got "
       << buffer;
   Var buffer_var = ffi::GetRef<Var>(buffer_node);
-  PrimExpr scalar_extent = offset + IntImm(offset.ty(), 1);
+  PrimExpr scalar_extent = offset + prim::IntImm(offset.ty(), 1);
   if (dtype.lanes() != 1) {
     PrimType offset_ty = offset.ty();
-    offset = offset * IntImm(offset_ty, dtype.lanes());
-    scalar_extent = offset + IntImm(offset_ty, dtype.lanes());
-    offset = prim::Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
+    offset = offset * prim::IntImm(offset_ty, dtype.lanes());
+    scalar_extent = offset + prim::IntImm(offset_ty, dtype.lanes());
+    offset = prim::Ramp(offset, prim::IntImm(offset_ty, 1), dtype.lanes());
   }
 
   PrimType scalar_dtype = dtype.WithLanes(1);
@@ -229,7 +229,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
 
     if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
       // lower to right shift if possible.
-      return op->a >> IntImm(dtype, shift);
+      return op->a >> prim::IntImm(dtype, shift);
     }
 
     if (analyzer_->CanProveGreaterEqual(op->b, 0)) {
@@ -237,15 +237,15 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
       if (analyzer_->CanProveGreaterEqual(op->a, 0) || analyzer_->CanProveGreaterEqual(e, 0)) {
         return truncdiv(op->a, op->b);
       }
-      const auto* b_as_intimm = op->b.as<IntImmNode>();
+      const auto* b_as_intimm = op->b.as<prim::IntImmNode>();
       if (auto b_value = b_as_intimm ? b_as_intimm->value.as<int64_t>() : std::nullopt;
           b_value.has_value()) {
         if (auto opt_c_value = TryFindShiftCoefficientForPositiveRange(op->a, *b_value);
             opt_c_value.has_value()) {
           int64_t c_value = *opt_c_value;
           // now we can safely lower to truncdiv
-          return truncdiv(op->a + IntImm(dtype, b_as_intimm->value * c_value), op->b) -
-                 IntImm(dtype, c_value);
+          return truncdiv(op->a + prim::IntImm(dtype, b_as_intimm->value * c_value), op->b) -
+                 prim::IntImm(dtype, c_value);
         }
       }
       DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divident";
@@ -256,7 +256,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
       // So we need to correct these cases.
       if ((dtype == PrimType::Int(32) || dtype == PrimType::Int(64)) && support_bitwise_op_) {
         // equivalent to rdiv + (rmod >= 0 ? 0: -1);
-        return rdiv + (rmod >> IntImm(dtype, dtype.bits() - 1));
+        return rdiv + (rmod >> prim::IntImm(dtype, dtype.bits() - 1));
       } else {
         return prim::Select(rmod >= 0, rdiv, rdiv - MakeConst(dtype, 1));
       }
@@ -295,7 +295,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
       // lower to masking if possible.
       ffi::BigInt mask = (ffi::BigInt(1) << shift) - 1;
-      return op->a & IntImm(dtype, mask);
+      return op->a & prim::IntImm(dtype, mask);
     }
 
     if (analyzer_->CanProveGreaterEqual(op->b, 0)) {
@@ -303,14 +303,14 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
       if (analyzer_->CanProveGreaterEqual(op->a, 0)) {
         return truncmod(op->a, op->b);
       }
-      const auto* b_as_intimm = op->b.as<IntImmNode>();
+      const auto* b_as_intimm = op->b.as<prim::IntImmNode>();
       if (auto b_value = b_as_intimm ? b_as_intimm->value.as<int64_t>() : std::nullopt;
           b_value.has_value()) {
         if (auto opt_c_value = TryFindShiftCoefficientForPositiveRange(op->a, *b_value);
             opt_c_value.has_value()) {
           int64_t c_value = *opt_c_value;
           // floormod(a, b) == floormod(a + b*c, b)  == truncmod(a + b*c, b)
-          return truncmod(op->a + IntImm(dtype, b_as_intimm->value * c_value), op->b);
+          return truncmod(op->a + prim::IntImm(dtype, b_as_intimm->value * c_value), op->b);
         }
       }
       DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divident";
@@ -322,7 +322,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
         // (rmod >> shift) & b
         // -> (rmod >= 0 ? 0: -1) & b
         // -> rmod >= 0 ? 0 : b
-        return rmod + (op->b & (rmod >> IntImm(dtype, dtype.bits() - 1)));
+        return rmod + (op->b & (rmod >> prim::IntImm(dtype, dtype.bits() - 1)));
       } else {
         return prim::Select(rmod >= 0, rmod, rmod + op->b);
       }
@@ -350,7 +350,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
   UnchangedOr<PrimExpr> Mutate_(const prim::MaxNode* op, InplaceMode inplace_mode) final {
     using namespace sym;
     PVar<PrimExpr> x, y;
-    PVar<IntImm> c;
+    PVar<prim::IntImm> c;
     auto e = ffi::GetRef<PrimExpr>(op);
     if (max(floordiv(x, y), c).Match(e) && c.Eval()->value >= 0 &&
         analyzer_->CanProveGreaterEqual(y.Eval(), 0)) {
@@ -462,7 +462,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     PrimType a_ty = a.ty();
     // This overflow check is scalar element based. Lane count is intentionally ignored.
     auto dtype_max = tvm::prim::max_value(PrimType(a_ty.code(), a_ty.bits()))
-                         .as_or_throw<IntImm>()
+                         .as_or_throw<prim::IntImm>()
                          ->value.as<int64_t>();
     if (!dtype_max.has_value()) return std::nullopt;
     const int64_t max_value_of_dtype = *dtype_max;

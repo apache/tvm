@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
@@ -182,7 +183,7 @@ class PipelineOpaqueAccessRewriter {
     int fragment_size = GetWmmaFragmentSize(old_buffer);
     PrimExpr offset =
         floordiv(foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                       IntImm::Int32(1), old_buffer->shape),
+                       prim::IntImm::Int32(1), old_buffer->shape),
                  fragment_size);
     new_buffer_offset +=
         floormod(pipeline_loop_->loop_var - pipeline_loop_->min, new_buffer->shape[0]) * offset;
@@ -192,7 +193,7 @@ class PipelineOpaqueAccessRewriter {
   Expr RewriteBufferAccess(const Call& call, const std::vector<int> arg_indices) {
     auto product = [](const ffi::Array<PrimExpr>& input) {
       return foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                   IntImm::Int32(1), input);
+                   prim::IntImm::Int32(1), input);
     };
     ffi::Array<Expr> new_args = call->args;
     for (int i : arg_indices) {
@@ -211,7 +212,7 @@ class PipelineOpaqueAccessRewriter {
         if (buffer.scope() == "m16n8k8.matrixA" || buffer.scope() == "m16n8k8.matrixB") {
           // mma scope size will shrink by warp size
           // @see transform_mma_buffer_layout
-          TVM_FFI_ICHECK_EQ(floormod(offset, 32).as_or_throw<IntImm>()->value, 0)
+          TVM_FFI_ICHECK_EQ(floormod(offset, 32).as_or_throw<prim::IntImm>()->value, 0)
               << "mma scope size should be multiple of warp size";
           offset = floordiv(offset, 32);
         }
@@ -277,7 +278,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
               ? Range::FromMinExtent(0, new_buffer->shape[0])
               : Range::FromMinExtent(floormod((pipeline_loop_->loop_var - pipeline_loop_->min),
                                               new_buffer->shape[0]),
-                                     IntImm::Int32(1));
+                                     prim::IntImm::Int32(1));
       new_region.insert(new_region.begin(), accessed_version);
       return BufferRegion(new_buffer, new_region);
     }
@@ -439,7 +440,7 @@ class PipelineRewriter : public StmtExprMutator {
     }
     SBlock block = MakeSBlock(stmt, buffer_data_to_buffer_);
     block.CopyOnWrite()->alloc_buffers = std::move(alloc_buffers);
-    return SBlockRealize({}, IntImm::Bool(true), block);
+    return SBlockRealize({}, prim::IntImm::Bool(true), block);
   }
 
   /*!
@@ -876,7 +877,7 @@ class PipelineRewriter : public StmtExprMutator {
     PrimExpr extent = end - start;
 
     auto make_nop = []() {
-      return SBlockRealize({}, IntImm::Bool(true), MakeSBlock(Evaluate(0), {}));
+      return SBlockRealize({}, prim::IntImm::Bool(true), MakeSBlock(Evaluate(0), {}));
     };
 
     if (analyzer_->CanProve(extent <= 0)) {
@@ -1047,7 +1048,7 @@ class PipelineRewriter : public StmtExprMutator {
       }
     }
 
-    return SBlockRealize({}, IntImm::Bool(true),
+    return SBlockRealize({}, prim::IntImm::Bool(true),
                          MakeSBlock(std::move(new_loop), buffer_data_to_buffer_));
   }
 
@@ -1302,7 +1303,7 @@ class PipelineInjector : public StmtExprMutator {
 
     auto it = op->annotations.find(s_tir::attr::double_buffer_scope);
     if (it != op->annotations.end()) {
-      int buffer_index = (*it).second.cast<IntImm>()->value.as<int>().value();
+      int buffer_index = (*it).second.cast<prim::IntImm>()->value.as<int>().value();
       TVM_FFI_CHECK(buffer_index >= 0 && static_cast<size_t>(buffer_index) < op->writes.size(),
                     ValueError)
           << "Index of the buffer exceeds the size of the write regions of the block. ("

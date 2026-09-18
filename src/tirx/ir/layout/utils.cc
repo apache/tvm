@@ -62,8 +62,8 @@ std::vector<PrimExpr> GetDefaultStrides(const ffi::Array<PrimExpr>& data, PrimEx
   // Python preserves the shape's dtype). Otherwise int64-shaped buffers
   // get int32 strides and structurally differ from parser output.
   PrimExpr current_stride = initial_stride;
-  if (const auto* imm = current_stride.as<IntImmNode>()) {
-    current_stride = IntImm(data[0].ty(), imm->value);
+  if (const auto* imm = current_stride.as<prim::IntImmNode>()) {
+    current_stride = prim::IntImm(data[0].ty(), imm->value);
   }
   for (int i = static_cast<int>(n) - 1; i >= 0; --i) {
     strides[i] = current_stride;

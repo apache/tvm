@@ -20,6 +20,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../ir_comparator.h"
@@ -1425,7 +1426,7 @@ AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& wri
   var2idx.reserve(w_dim);
   for (int i = 0; i < w_dim; ++i) {
     const Range& dom = write_region->region[i];
-    if (!dom->extent.as<IntImmNode>()) {
+    if (!dom->extent.as<prim::IntImmNode>()) {
       return kNotExist;
     }
     if (auto var = dom->min.as<PrimVar>()) {
@@ -1441,17 +1442,17 @@ AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& wri
   std::vector<int> mapped(r_dim, -1);
   for (int i = 0; i < r_dim; ++i) {
     const Range& dom = read_region->region[i];
-    if (!dom->extent.as<IntImmNode>()) {
+    if (!dom->extent.as<prim::IntImmNode>()) {
       return kNotExist;
     }
     // Case 1. Read index is a constant
-    if (dom->min.as<IntImmNode>()) {
+    if (dom->min.as<prim::IntImmNode>()) {
       no_const_read = false;
       continue;
     }
     // Case 2. Read index cannot be recognized as `var +/- const`
     // where `var` is a write index and `const` is an optional constant shift
-    ffi::Optional<IntImm> opt_const = std::nullopt;
+    ffi::Optional<prim::IntImm> opt_const = std::nullopt;
     ffi::Optional<Var> opt_var = AnalyzeVarWithShift(dom->min, &opt_const);
     const VarNode* var = opt_var.has_value() ? opt_var.value().get() : nullptr;
     if (var == nullptr || !var2idx.count(var)) {
@@ -1595,7 +1596,7 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
     // Step 2.3. Collect the block vars that are used to index the read region
     std::unordered_set<const VarNode*> vars;
     for (const Range& range : regions) {
-      if (!range->extent.as<IntImmNode>()) {
+      if (!range->extent.as<prim::IntImmNode>()) {
         return false;
       }
       for (const Var& var : UndefinedVars(range->min)) {
@@ -1639,7 +1640,7 @@ std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const s_tir::Sc
   for (const tirx::StmtSRef& loop_sref : loops) {
     tirx::IterVarType type = GetLoopIterType(loop_sref);
     if (type == tirx::kDataPar) {
-      const auto* extent_imm = TVM_SREF_TO_FOR(loop_sref)->extent.as<IntImmNode>();
+      const auto* extent_imm = TVM_SREF_TO_FOR(loop_sref)->extent.as<prim::IntImmNode>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (extent.has_value() && *extent != -1) {
         cum_space_len *= *extent;
@@ -1647,7 +1648,7 @@ std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const s_tir::Sc
         return std::make_pair(-1, -1);
       }
     } else if (type == tirx::kCommReduce) {
-      const auto* extent_imm = TVM_SREF_TO_FOR(loop_sref)->extent.as<IntImmNode>();
+      const auto* extent_imm = TVM_SREF_TO_FOR(loop_sref)->extent.as<prim::IntImmNode>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (extent.has_value() && *extent != -1) {
         cum_reduce_len *= *extent;
@@ -1735,7 +1736,7 @@ bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
 
 PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, sym::AnalyzerObj* analyzer) {
   auto simplified = analyzer->Simplify(expr);
-  if (simplified->IsInstance<IntImmNode>()) {
+  if (simplified->IsInstance<prim::IntImmNode>()) {
     return expr;
   } else {
     return simplified;
@@ -1873,11 +1874,11 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
         break;
       }
     }
-    if (desc_loop == nullptr || desc_loop->extent.as<IntImmNode>() == nullptr) {
+    if (desc_loop == nullptr || desc_loop->extent.as<prim::IntImmNode>() == nullptr) {
       return std::nullopt;
     }
 
-    const IntImmNode* int_desc_extent = desc_loop->extent.as<IntImmNode>();
+    const prim::IntImmNode* int_desc_extent = desc_loop->extent.as<prim::IntImmNode>();
 
     // Step 3.2. Find the corresponding iter_value of the target block with a matching iterator type
     PrimExpr block_bind;
@@ -1909,7 +1910,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
         allow_padding = false;
       }
 
-      const IntImmNode* int_block_extent = block_loops[i]->extent.as<IntImmNode>();
+      const prim::IntImmNode* int_block_extent = block_loops[i]->extent.as<prim::IntImmNode>();
 
       // Check divisibility
       if (!int_block_extent) {

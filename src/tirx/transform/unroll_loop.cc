@@ -109,13 +109,13 @@ class LoopUnroller : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == "pragma_auto_unroll_max_step") {
-      int value = op->value.as_or_throw<IntImm>()->value.as<int>().value();
+      int value = op->value.as_or_throw<prim::IntImm>()->value.as<int>().value();
       std::swap(value, auto_max_step_);
       Stmt ret = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
       std::swap(value, auto_max_step_);
       return ret;
     } else if (op->attr_key == "pragma_unroll_explicit") {
-      bool explicit_unroll = static_cast<bool>(op->value.as_or_throw<IntImm>()->value);
+      bool explicit_unroll = static_cast<bool>(op->value.as_or_throw<prim::IntImm>()->value);
       std::swap(explicit_unroll, explicit_unroll_);
       Stmt ret = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
       std::swap(explicit_unroll, explicit_unroll_);
@@ -252,7 +252,7 @@ class LoopUnroller : public StmtExprMutator {
       return ffi::Unchanged();
     };
     for (int i = 0; i < value; ++i) {
-      vmap.Set(op->loop_var, op->min + IntImm(op->loop_var.ty(), i));
+      vmap.Set(op->loop_var, op->min + prim::IntImm(op->loop_var.ty(), i));
       Stmt step =
           ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, f_substitute).as_or_throw<Stmt>();
       unrolled.push_back(step);
@@ -265,7 +265,7 @@ class LoopUnroller : public StmtExprMutator {
   int GetExtent(const ForNode* op) {
     // constant folding.
     PrimExpr extent = analyzer_->Simplify(op->extent);
-    const IntImmNode* v1 = extent.as<IntImmNode>();
+    const prim::IntImmNode* v1 = extent.as<prim::IntImmNode>();
     int value = -1;
     // integers that do not fit in int32_t are treated as symbolic,
     // as it's impossible to unroll such large loops

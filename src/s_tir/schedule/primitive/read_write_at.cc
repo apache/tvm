@@ -20,6 +20,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include <string>
@@ -336,12 +337,12 @@ struct ReadWriteAtImpl {
     }
     Stmt stmt = BufferStore(copy_to, /*value=*/BufferLoad(copy_from, indices), /*indices=*/indices);
     for (int i = n - 1; i >= 0; --i) {
-      stmt = For(loop_vars[i].as_or_throw<PrimVar>(), IntImm::Int32(0), domain[i]->extent,
+      stmt = For(loop_vars[i].as_or_throw<PrimVar>(), prim::IntImm::Int32(0), domain[i]->extent,
                  ForKind::kSerial, stmt);
     }
     return SBlockRealize(
         /*values=*/iter_values,
-        /*predicate=*/IntImm::Bool(true),
+        /*predicate=*/prim::IntImm::Bool(true),
         SBlock(/*iter_vars=*/iter_vars,
                /*reads=*/{BufferRegion(copy_from, domain)},
                /*writes=*/{BufferRegion(copy_to, domain)},
@@ -402,12 +403,13 @@ struct ReadAtTraits : public UnpackedInstTraits<ReadAtTraits> {
   StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                   int buffer_index, const ffi::String& storage_scope);
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
-                                          IntImm read_buffer_index, ffi::String storage_scope) {
+                                          prim::IntImm read_buffer_index,
+                                          ffi::String storage_scope) {
     return sch->ReadAt(loop, block, read_buffer_index->value.as<int>().value(), storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
-                                      ffi::String block, IntImm read_buffer_index,
+                                      ffi::String block, prim::IntImm read_buffer_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("read_at");
     py.Input("loop", loop);
@@ -432,12 +434,13 @@ struct WriteAtTraits : public UnpackedInstTraits<WriteAtTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
-                                          IntImm write_buffer_index, ffi::String storage_scope) {
+                                          prim::IntImm write_buffer_index,
+                                          ffi::String storage_scope) {
     return sch->WriteAt(loop, block, write_buffer_index->value.as<int>().value(), storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
-                                      ffi::String block, IntImm write_buffer_index,
+                                      ffi::String block, prim::IntImm write_buffer_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("write_at");
     py.Input("loop", loop);

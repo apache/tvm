@@ -48,7 +48,8 @@ class TracedScheduleNode : public ConcreteScheduleNode {
 
  public:
   /******** Schedule: Sampling ********/
-  ExprRV SampleCategorical(const ffi::Array<int64_t>& candidates, const ffi::Array<FloatImm>& probs,
+  ExprRV SampleCategorical(const ffi::Array<int64_t>& candidates,
+                           const ffi::Array<prim::FloatImm>& probs,
                            ffi::Optional<int64_t> decision = std::nullopt) final;
   ffi::Array<ExprRV> SamplePerfectTile(
       const LoopRV& loop_rv, int n, int max_innermost_factor,
@@ -147,7 +148,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   /******** Schedule: Misc ********/
   void EnterPostproc() final;
   void UnsafeHideBufferAccess(const SBlockRV& block_rv, const ffi::String& buf_type,
-                              const ffi::Array<IntImm>& buf_index_array) final;
+                              const ffi::Array<prim::IntImm>& buf_index_array) final;
   void AnnotateBufferAccess(const SBlockRV& block_rv, int buffer_index,
                             BufferIndexType buffer_index_type, const IndexMap& index_map) final;
 };

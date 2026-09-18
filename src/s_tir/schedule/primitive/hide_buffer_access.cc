@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include <set>
@@ -86,7 +87,7 @@ class InvalidIndexError : public ScheduleErrorContextObj {
 
 void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
                             const ffi::String& buf_type,
-                            const ffi::Array<IntImm>& buf_index_array) {
+                            const ffi::Array<prim::IntImm>& buf_index_array) {
   /*!
    * Check:
    *   - validity of buf_index_array
@@ -103,7 +104,7 @@ void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
   }
 
   std::set<int> buf_indices;
-  for (const IntImm& buf_idx : buf_index_array) {
+  for (const prim::IntImm& buf_idx : buf_index_array) {
     int buf_idx_val = buf_idx->value.as<int>().value();
     if (buf_idx_val >= 0 && buf_idx_val < num_access_regions) {
       buf_indices.insert(buf_idx_val);
@@ -155,12 +156,13 @@ struct UnsafeHideBufferAccessTraits : public UnpackedInstTraits<UnsafeHideBuffer
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, ffi::String buf_type,
-                                      ffi::Array<IntImm> buf_index_array) {
+                                      ffi::Array<prim::IntImm> buf_index_array) {
     sch->UnsafeHideBufferAccess(block, buf_type, buf_index_array);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      ffi::String buf_type, ffi::Array<IntImm> buf_index_array) {
+                                      ffi::String buf_type,
+                                      ffi::Array<prim::IntImm> buf_index_array) {
     PythonAPICall py("unsafe_hide_buffer_access");
     py.Input("block", block);
     py.Input("buf_type", buf_type);

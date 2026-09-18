@@ -25,6 +25,7 @@
 #include "sorting.h"
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <vector>
 
@@ -142,7 +143,7 @@ Type InferTypeTopK(const Call& call, const BlockBuilder& ctx) {
     output_tys.push_back(TensorType(indices_type, data_ty->ndim, data_ty->vdevice));
   } else {
     ffi::Array<PrimExpr> out_shape = data_shape->values;
-    const auto* int_dim = out_shape[axis].as<IntImmNode>();
+    const auto* int_dim = out_shape[axis].as<prim::IntImmNode>();
     if (k > 0 && (int_dim == nullptr || k < int_dim->value)) {
       out_shape.Set(axis, k);
     }

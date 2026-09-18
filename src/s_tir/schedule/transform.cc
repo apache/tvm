@@ -20,6 +20,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/tensor_intrin.h>
 #include <tvm/tirx/builtin.h>
@@ -402,8 +403,8 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
     // Extract the loop extent
     PrimExpr block_extent = analyzer->Simplify(block_loop->extent);
     PrimExpr desc_extent = analyzer->Simplify(desc_loop->extent);
-    const auto* int_block_extent = block_extent.as<IntImmNode>();
-    const auto* int_desc_extent = desc_extent.as<IntImmNode>();
+    const auto* int_block_extent = block_extent.as<prim::IntImmNode>();
+    const auto* int_desc_extent = desc_extent.as<prim::IntImmNode>();
     TVM_FFI_ICHECK(int_block_extent != nullptr && int_desc_extent != nullptr);
     // Check divisibility
     const ffi::BigInt& total = int_block_extent->value;
@@ -412,7 +413,7 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
     // Do the split. Leave the outer extent as std::nullopt (unspecified) so that the split factors
     // can be used for different extents (needed during tuning).
     ffi::Array<LoopRV> split =
-        sch->Split(loop2rv.at(block_loop_sref), {std::nullopt, IntImm::Int32(inner)});
+        sch->Split(loop2rv.at(block_loop_sref), {std::nullopt, prim::IntImm::Int32(inner)});
     TVM_FFI_ICHECK_EQ(split.size(), 2);
     inner_loops.insert(sch->GetSRef(split[1]).operator->());
     // The inner split will be reordered to the loop domain that is tensorized
@@ -535,7 +536,7 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
 
   ffi::Array<ffi::Array<LoopRV>> block_loops;
   ffi::Array<ffi::Array<IterVar>> block_iters;
-  ffi::Array<IntImm> block_is_reduction;
+  ffi::Array<prim::IntImm> block_is_reduction;
   for (const SBlockRV& block : leaf_blocks) {
     ffi::Array<IterVar> iters = sch->Get(block)->iter_vars;
     bool has_spatial_iter = false;
@@ -552,7 +553,7 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
       }
     }
     if (index_map_outputs.empty() || !has_spatial_iter) {
-      index_map_outputs.insert(index_map_outputs.begin(), IntImm::Int64(0));
+      index_map_outputs.insert(index_map_outputs.begin(), prim::IntImm::Int64(0));
     }
     try {
       sch->TransformBlockLayout(block, IndexMap(index_map_inputs, index_map_outputs));
@@ -564,7 +565,7 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
     bool is_reduction = IsReductionBlock(sch->state(),         //
                                          sch->GetSRef(block),  //
                                          sch->GetSRef(root_block));
-    block_is_reduction.push_back(IntImm::Bool(is_reduction));
+    block_is_reduction.push_back(prim::IntImm::Bool(is_reduction));
   }
   return ffi::Array<ffi::ObjectRef>{leaf_blocks, block_loops, block_iters, block_is_reduction};
 }

@@ -83,9 +83,9 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
  private:
   int64_t NewRegister() { return registers_num_++; }
 
-  static IntImm ConstInt64(int64_t value) { return IntImm::Int64(value); }
+  static prim::IntImm ConstInt64(int64_t value) { return prim::IntImm::Int64(value); }
 
-  static IntImm ConstInt32(int64_t value) { return IntImm::Int32(value); }
+  static prim::IntImm ConstInt32(int64_t value) { return prim::IntImm::Int32(value); }
 
   Expr RegListGet(int64_t slot) const {
     // use 128 bits to represent any
@@ -237,7 +237,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
 
     if (call_node->op.same_as(null_value_op_)) {
       return tvm::Call(tvm::PointerType::VoidPointerTy(), tirx::builtin::reinterpret(),
-                       {IntImm::Int64(0)});
+                       {prim::IntImm::Int64(0)});
     }
     int64_t dst_reg = HasVoidType(call) ? -1 : NewRegister();
     if (call->op.as<OpNode>()) {
@@ -327,8 +327,8 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
   VM_TIR_PRIM_EXPR(prim::RampNode);
   VM_TIR_PRIM_EXPR(prim::BroadcastNode);
   VM_TIR_PRIM_EXPR(prim::ShuffleNode);
-  VM_TIR_PRIM_EXPR(tvm::IntImmNode);
-  VM_TIR_PRIM_EXPR(tvm::FloatImmNode);
+  VM_TIR_PRIM_EXPR(tvm::prim::IntImmNode);
+  VM_TIR_PRIM_EXPR(tvm::prim::FloatImmNode);
   VM_TIR_PRIM_EXPR(prim::StringImmNode);
 
 #undef VM_TIR_PRIM_EXPR
@@ -340,7 +340,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
   ffi::Optional<Expr> VisitExpr_(const ShapeExprNode* op) final {
     std::vector<int64_t> shape;
     for (PrimExpr e : op->values) {
-      if (auto* int_value = e.as<IntImmNode>()) {
+      if (auto* int_value = e.as<prim::IntImmNode>()) {
         shape.push_back(static_cast<int64_t>(int_value->value));
       } else {
         TVM_FFI_THROW(InternalError)
@@ -459,7 +459,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
       args.push_back(this->VisitExpr(call_node->args[i]).value());
     }
     int64_t vdevice_index = -1;
-    if (const auto* int_imm = call_node->args[4].as<IntImmNode>()) {
+    if (const auto* int_imm = call_node->args[4].as<prim::IntImmNode>()) {
       vdevice_index = int_imm->value.as<int>().value();
     }
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
@@ -481,7 +481,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     TVM_FFI_ICHECK(tir_call->op.same_as(tirx::builtin::anylist_getitem()));
     TVM_FFI_ICHECK(tir_call->args.size() == 2);
     TVM_FFI_ICHECK(tir_call->args[0].same_as(reg_anylist_handle_));
-    const auto* p_dst_reg = tir_call->args[1].as<IntImmNode>();
+    const auto* p_dst_reg = tir_call->args[1].as<prim::IntImmNode>();
     TVM_FFI_ICHECK(p_dst_reg != nullptr);
     TVM_FFI_ICHECK(
         p_dst_reg->ty.as_or_throw<PrimType>().MatchesElementType(DLDataTypeCode::kDLInt, 32));

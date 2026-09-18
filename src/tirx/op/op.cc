@@ -183,9 +183,9 @@ PrimExpr infinity(PrimType value_ty, Span span) {
   TVM_FFI_ICHECK_EQ(dtype.lanes(), 1);
   if (IsFloatType(dtype)) {
     if (dtype.bits() == 64) {
-      return FloatImm(value_ty, std::numeric_limits<double>::infinity(), span);
+      return prim::FloatImm(value_ty, std::numeric_limits<double>::infinity(), span);
     } else if (dtype.bits() == 32 || dtype.bits() == 16) {
-      return FloatImm(value_ty, std::numeric_limits<float>::infinity(), span);
+      return prim::FloatImm(value_ty, std::numeric_limits<float>::infinity(), span);
     }
   }
   TVM_FFI_THROW(InternalError) << "Cannot decide infinity for type " << dtype;
@@ -259,7 +259,7 @@ PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
 
   // If we detect pow(x, 3), suggest using x * x * x
   if (y.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
-    const IntImmNode* px = y.as<IntImmNode>();
+    const prim::IntImmNode* px = y.as<prim::IntImmNode>();
     if (px) {
       if (px->value >= 3) {
         LOG(WARNING)
@@ -269,7 +269,7 @@ PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
       }
     }
   } else if (IsFloatType(y.ty())) {
-    const FloatImmNode* fx = y.as<FloatImmNode>();
+    const prim::FloatImmNode* fx = y.as<prim::FloatImmNode>();
     if (fx) {
       if (fx->value >= 3.0) {
         LOG(WARNING)
@@ -291,9 +291,9 @@ PrimExpr abs(PrimExpr x, Span span) {
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
     return prim::IntegerAbs(x, span);
   } else if (IsFloatType(x.ty()) || IsBFloat16Type(x.ty())) {
-    const FloatImmNode* fx = x.as<FloatImmNode>();
+    const prim::FloatImmNode* fx = x.as<prim::FloatImmNode>();
     if (fx) {
-      return FloatImm(x.ty(), std::fabs(fx->value), fx->span);
+      return prim::FloatImm(x.ty(), std::fabs(fx->value), fx->span);
     }
     static const Op& fabs_op = Op::Get("tirx.fabs");
     return Call(x.ty(), fabs_op, {x}, {}, {}, span).as_or_throw<PrimExpr>();
@@ -315,7 +315,7 @@ PrimExpr isnan(PrimExpr x, Span span) {
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     return MakeConst(t, false);
   } else if (IsFloatType(x.ty())) {
-    const FloatImmNode* fx = x.as<FloatImmNode>();
+    const prim::FloatImmNode* fx = x.as<prim::FloatImmNode>();
     if (fx) {
       return MakeConst(t, std::isnan(fx->value), fx->span);
     }
@@ -356,7 +356,7 @@ PrimExpr sum(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
   PrimExpr result = prim::Add(x, y, span);
   PrimExpr identity_element = MakeConst(source.ty(), 0, span);
   te::CommReducer combiner = te::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
+  return te::Reduce(combiner, {source}, rdom, prim::IntImm::Bool(true), 0, init, span);
 }
 
 PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
@@ -365,7 +365,7 @@ PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
   PrimExpr result = prim::And(x, y, span);
   PrimExpr identity_element = MakeConst(source.ty(), true, span);
   te::CommReducer combiner = te::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
+  return te::Reduce(combiner, {source}, rdom, prim::IntImm::Bool(true), 0, init, span);
 }
 
 PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
@@ -374,7 +374,7 @@ PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
   PrimExpr result = prim::Or(x, y, span);
   PrimExpr identity_element = MakeConst(source.ty(), false, span);
   te::CommReducer combiner = te::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
+  return te::Reduce(combiner, {source}, rdom, prim::IntImm::Bool(true), 0, init, span);
 }
 
 }  // namespace tvm::prim
@@ -386,7 +386,7 @@ PrimExpr max(PrimExpr source, ffi::Array<tirx::IterVar> rdom, ffi::Array<PrimExp
   PrimExpr result = prim::Max(x, y, span);
   PrimExpr identity_element = prim::min_value(source.ty(), span);
   te::CommReducer combiner = te::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
+  return te::Reduce(combiner, {source}, rdom, prim::IntImm::Bool(true), 0, init, span);
 }
 
 PrimExpr min(PrimExpr source, ffi::Array<tirx::IterVar> rdom, ffi::Array<PrimExpr> init,
@@ -395,7 +395,7 @@ PrimExpr min(PrimExpr source, ffi::Array<tirx::IterVar> rdom, ffi::Array<PrimExp
   PrimExpr result = prim::Min(x, y, span);
   PrimExpr identity_element = prim::max_value(source.ty(), span);
   te::CommReducer combiner = te::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
+  return te::Reduce(combiner, {source}, rdom, prim::IntImm::Bool(true), 0, init, span);
 }
 
 }  // namespace tvm
@@ -412,7 +412,7 @@ PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> in
     PrimExpr result = prim::Mul(x, y, span);
     PrimExpr identity_element = MakeConst(source.ty(), 1, span);
     te::CommReducer combiner = te::CommReducer({x}, {y}, {result}, {identity_element}, span);
-    return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
+    return te::Reduce(combiner, {source}, rdom, prim::IntImm::Bool(true), 0, init, span);
   }
 }
 
@@ -432,8 +432,8 @@ PrimExpr floor(PrimExpr x, Span span) {
                          DLDataTypeCode::kDLBool)) {
     return x;
   }
-  const FloatImmNode* fx = x.as<FloatImmNode>();
-  if (fx) return FloatImm(x.ty(), std::floor(fx->value), fx->span);
+  const prim::FloatImmNode* fx = x.as<prim::FloatImmNode>();
+  if (fx) return prim::FloatImm(x.ty(), std::floor(fx->value), fx->span);
   static const Op& floor_op = Op::Get("tirx.floor");
   return Call(x.ty(), floor_op, {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
@@ -446,8 +446,8 @@ PrimExpr round(PrimExpr x, Span span) {
                          DLDataTypeCode::kDLBool)) {
     return x;
   }
-  const FloatImmNode* fx = x.as<FloatImmNode>();
-  if (fx) return FloatImm(x.ty(), std::nearbyint(fx->value), fx->span);
+  const prim::FloatImmNode* fx = x.as<prim::FloatImmNode>();
+  if (fx) return prim::FloatImm(x.ty(), std::nearbyint(fx->value), fx->span);
   static const Op& round_op = Op::Get("tirx.round");
   return Call(x.ty(), round_op, {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
@@ -460,8 +460,8 @@ PrimExpr nearbyint(PrimExpr x, Span span) {
                          DLDataTypeCode::kDLBool)) {
     return x;
   }
-  const FloatImmNode* fx = x.as<FloatImmNode>();
-  if (fx) return FloatImm(x.ty(), std::nearbyint(fx->value), fx->span);
+  const prim::FloatImmNode* fx = x.as<prim::FloatImmNode>();
+  if (fx) return prim::FloatImm(x.ty(), std::nearbyint(fx->value), fx->span);
   static const Op& nearbyint_op = Op::Get("tirx.nearbyint");
   return Call(x.ty(), nearbyint_op, {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
@@ -474,10 +474,10 @@ PrimExpr trunc(PrimExpr x, Span span) {
                          DLDataTypeCode::kDLBool)) {
     return x;
   }
-  const FloatImmNode* fx = x.as<FloatImmNode>();
+  const prim::FloatImmNode* fx = x.as<prim::FloatImmNode>();
   if (fx) {
-    return FloatImm(x.ty(), (fx->value < 0 ? std::ceil(fx->value) : std::floor(fx->value)),
-                    fx->span);
+    return prim::FloatImm(x.ty(), (fx->value < 0 ? std::ceil(fx->value) : std::floor(fx->value)),
+                          fx->span);
   }
   static const Op& trunc_op = Op::Get("tirx.trunc");
   return Call(x.ty(), trunc_op, {x}, {}, {}, span).as_or_throw<PrimExpr>();
@@ -577,24 +577,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 PrimExpr fast_erf_float_expr(PrimExpr arg, int bits) {
   PrimType fp_ty = PrimType::Float(bits);
-  auto plus_4 = FloatImm(fp_ty, 4.f);
-  auto minus_4 = FloatImm(fp_ty, -4.f);
+  auto plus_4 = prim::FloatImm(fp_ty, 4.f);
+  auto minus_4 = prim::FloatImm(fp_ty, -4.f);
 
   // The monomial coefficients of the numerator polynomial (odd).
-  auto alpha_1 = FloatImm(fp_ty, -1.60960333262415e-02f);
-  auto alpha_3 = FloatImm(fp_ty, -2.95459980854025e-03f);
-  auto alpha_5 = FloatImm(fp_ty, -7.34990630326855e-04f);
-  auto alpha_7 = FloatImm(fp_ty, -5.69250639462346e-05f);
-  auto alpha_9 = FloatImm(fp_ty, -2.10102402082508e-06f);
-  auto alpha_11 = FloatImm(fp_ty, 2.77068142495902e-08f);
-  auto alpha_13 = FloatImm(fp_ty, -2.72614225801306e-10f);
+  auto alpha_1 = prim::FloatImm(fp_ty, -1.60960333262415e-02f);
+  auto alpha_3 = prim::FloatImm(fp_ty, -2.95459980854025e-03f);
+  auto alpha_5 = prim::FloatImm(fp_ty, -7.34990630326855e-04f);
+  auto alpha_7 = prim::FloatImm(fp_ty, -5.69250639462346e-05f);
+  auto alpha_9 = prim::FloatImm(fp_ty, -2.10102402082508e-06f);
+  auto alpha_11 = prim::FloatImm(fp_ty, 2.77068142495902e-08f);
+  auto alpha_13 = prim::FloatImm(fp_ty, -2.72614225801306e-10f);
 
   // The monomial coefficients of the denominator polynomial (even).
-  auto beta_0 = FloatImm(fp_ty, -1.42647390514189e-02f);
-  auto beta_2 = FloatImm(fp_ty, -7.37332916720468e-03f);
-  auto beta_4 = FloatImm(fp_ty, -1.68282697438203e-03f);
-  auto beta_6 = FloatImm(fp_ty, -2.13374055278905e-04f);
-  auto beta_8 = FloatImm(fp_ty, -1.45660718464996e-05f);
+  auto beta_0 = prim::FloatImm(fp_ty, -1.42647390514189e-02f);
+  auto beta_2 = prim::FloatImm(fp_ty, -7.37332916720468e-03f);
+  auto beta_4 = prim::FloatImm(fp_ty, -1.68282697438203e-03f);
+  auto beta_6 = prim::FloatImm(fp_ty, -2.13374055278905e-04f);
+  auto beta_8 = prim::FloatImm(fp_ty, -1.45660718464996e-05f);
 
   // clamp x
   auto x = tvm::max(tvm::min(arg, plus_4), minus_4);
@@ -625,7 +625,7 @@ bool ExtractBool(const ffi::PackedArgs& args, int index) {
   } catch (...) {
     // Handle IntImm case (from TIR parsing)
     PrimExpr expr = args[index].cast<PrimExpr>();
-    if (auto int_imm = expr.as<IntImmNode>()) {
+    if (auto int_imm = expr.as<prim::IntImmNode>()) {
       return int_imm->value != 0;
     }
     LOG(FATAL) << "Cannot extract bool from argument at index " << index;
@@ -640,7 +640,7 @@ int ExtractInt(const ffi::PackedArgs& args, int index) {
   } catch (...) {
     // Handle IntImm case (from TIR parsing)
     PrimExpr expr = args[index].cast<PrimExpr>();
-    if (auto int_imm = expr.as<IntImmNode>()) {
+    if (auto int_imm = expr.as<prim::IntImmNode>()) {
       auto value = int_imm->value.as<int>();
       TVM_FFI_CHECK(value.has_value(), OverflowError) << "Integer argument does not fit int";
       return *value;
@@ -657,9 +657,9 @@ PrimExpr PrintOpPacked(Expr data, DLDataType dtype, bool is_string, bool is_scal
   ffi::Array<Expr> args;
   args.push_back(data);
   args.push_back(prim::StringImm(ffi::DLDataTypeToString(dtype)));
-  args.push_back(IntImm::Bool(is_string));
-  args.push_back(IntImm::Bool(is_scalar));
-  args.push_back(IntImm(u32_ty, dim_num));
+  args.push_back(prim::IntImm::Bool(is_string));
+  args.push_back(prim::IntImm::Bool(is_scalar));
+  args.push_back(prim::IntImm(u32_ty, dim_num));
   for (const auto& dim : shape) {
     args.push_back(dim);
   }

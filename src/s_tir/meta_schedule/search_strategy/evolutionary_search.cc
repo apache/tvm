@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <mutex>
 
@@ -129,7 +130,7 @@ struct PerThreadData {
    * \param mutator_probs The probability of each mutator as a dict.
    */
   void Set(const std::vector<double>& scores, double genetic_mutate_prob,
-           const ffi::Map<Mutator, FloatImm>& mutator_probs) {
+           const ffi::Map<Mutator, prim::FloatImm>& mutator_probs) {
     trace_sampler = s_tir::MakeMultinomialSampler(&rand_state, scores);
     mutator_sampler = MakeMutatorSampler(genetic_mutate_prob, mutator_probs, &rand_state);
   }
@@ -141,8 +142,8 @@ struct PerThreadData {
    * \return The sampler created
    */
   static std::function<ffi::Optional<Mutator>()> MakeMutatorSampler(
-      double genetic_mutate_prob,                        //
-      const ffi::Map<Mutator, FloatImm>& mutator_probs,  //
+      double genetic_mutate_prob,                              //
+      const ffi::Map<Mutator, prim::FloatImm>& mutator_probs,  //
       TRandState* rand_state) {
     std::vector<ffi::Optional<Mutator>> mutators;
     std::vector<double> masses;
@@ -355,7 +356,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
   /*! \brief The postprocessors */
   ffi::Array<Postproc> postprocs_;
   /*! \brief The mutators and their probability. */
-  ffi::Map<Mutator, FloatImm> mutator_probs_;
+  ffi::Map<Mutator, prim::FloatImm> mutator_probs_;
   /*! \brief The random state. To be initialized with TuneContext. */
   TRandState rand_state_;
   /*! \brief The state of the search strategy. */

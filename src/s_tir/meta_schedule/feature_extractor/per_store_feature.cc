@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/transform.h>
@@ -72,7 +73,7 @@ std::vector<int64_t> GetBufferShape(const BufferVar& buffer, sym::AnalyzerObj* a
   std::vector<int64_t> result;
   result.reserve(ndim);
   for (const PrimExpr& i : buffer->shape) {
-    if (const IntImmNode* int_imm = i.as<IntImmNode>()) {
+    if (const prim::IntImmNode* int_imm = i.as<prim::IntImmNode>()) {
       result.push_back(static_cast<int64_t>(int_imm->value));
       continue;
     }
@@ -92,8 +93,8 @@ std::vector<int64_t> GetBufferShape(const BufferVar& buffer, sym::AnalyzerObj* a
  * \return The value of `pragma_auto_unroll_max_step` if it exists, or -1 if it does not exist
  */
 int64_t GetPragmaAutoUnroll(const ForNode* loop) {
-  if (ffi::Optional<IntImm> auto_unroll =
-          GetAnn<IntImm>(loop, tirx::attr::pragma_auto_unroll_max_step)) {
+  if (ffi::Optional<prim::IntImm> auto_unroll =
+          GetAnn<prim::IntImm>(loop, tirx::attr::pragma_auto_unroll_max_step)) {
     return static_cast<int64_t>(auto_unroll.value()->value);
   }
   return -1;
@@ -110,7 +111,7 @@ int64_t GetPragmaAutoUnroll(const ForNode* loop) {
  */
 int64_t FirstLoopExtent(const ForVec& loops, int64_t default_value) {
   if (!loops.empty()) {
-    const auto* extent_imm = loops[0]->extent.as<IntImmNode>();
+    const auto* extent_imm = loops[0]->extent.as<prim::IntImmNode>();
     if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
         extent.has_value()) {
       return *extent;
@@ -178,10 +179,10 @@ int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices, const IntVec&
     ffi::Optional<VisitInterrupt> Visit_(const MulNode* node) override {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
       if (visited_var && !visited_add) {
-        if (const auto* a = node->a.as<IntImmNode>()) {
+        if (const auto* a = node->a.as<prim::IntImmNode>()) {
           visited_mul = true;
           stride = static_cast<int64_t>(a->value);
-        } else if (const auto* b = node->b.as<IntImmNode>()) {
+        } else if (const auto* b = node->b.as<prim::IntImmNode>()) {
           visited_mul = true;
           stride = static_cast<int64_t>(b->value);
         }
@@ -360,7 +361,7 @@ struct LoopNest {
    * \return A list of for loops that the loop is bound to
    */
   ForVec* Push(const ForNode* loop, int64_t* auto_unroll_attr) {
-    const auto* extent_imm = loop->extent.as<IntImmNode>();
+    const auto* extent_imm = loop->extent.as<prim::IntImmNode>();
     if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
         extent.has_value()) {
       this->prod *= *extent;
@@ -415,7 +416,7 @@ struct LoopNest {
     if (auto_unroll_attr > 0) {
       this->auto_unroll.pop_back();
     }
-    const auto* extent_imm = loop->extent.as<IntImmNode>();
+    const auto* extent_imm = loop->extent.as<prim::IntImmNode>();
     if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
         extent.has_value()) {
       this->prod /= *extent;
@@ -638,7 +639,7 @@ Feature::ForKindFeature::ForKindFeature(const ForVec& loops) {
     this->len = 0;
     this->pos = ForKindFeature::Pos::kPosNone;
   } else {
-    const auto* last_loop_extent_imm = loops.back()->extent.as<IntImmNode>();
+    const auto* last_loop_extent_imm = loops.back()->extent.as<prim::IntImmNode>();
     auto last_loop_extent =
         last_loop_extent_imm ? last_loop_extent_imm->value.as<int64_t>() : std::nullopt;
     this->num = loops.size();
@@ -646,7 +647,7 @@ Feature::ForKindFeature::ForKindFeature(const ForVec& loops) {
     this->pos = ForKindFeature::Pos::kPosMixed;
     int64_t& prod = this->prod = 1;
     for (const ForNode* loop : loops) {
-      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      const auto* extent_imm = loop->extent.as<prim::IntImmNode>();
       if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
           extent.has_value()) {
         prod *= *extent;
@@ -923,7 +924,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, sym::AnalyzerObj*
   // Calculate this->prod
   int64_t& prod = this->prod_non_strided_loop_extent = 1;
   for (int j = n_loops - 1; j > i; --j) {
-    const auto* extent_imm = loops[j]->extent.as<IntImmNode>();
+    const auto* extent_imm = loops[j]->extent.as<prim::IntImmNode>();
     if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
         extent.has_value()) {
       prod *= *extent;
@@ -961,7 +962,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
     // Case 1. Find an invariant loop, i.e. reuse with kLoopMultipleRead
     if (!region_vars.count(loop->loop_var.get())) {
       reuse_type = ReuseType::kLoopMultipleRead;
-      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      const auto* extent_imm = loop->extent.as<prim::IntImmNode>();
       if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
           extent.has_value()) {
         reuse_ct = *extent;
@@ -970,7 +971,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
       }
       reuse_dis_iter = 1;
       for (int j = n_loops - 1; j > i; --j) {
-        const auto* extent_imm = loops[j]->extent.as<IntImmNode>();
+        const auto* extent_imm = loops[j]->extent.as<prim::IntImmNode>();
         if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
             extent.has_value()) {
           reuse_dis_iter *= *extent;
@@ -993,7 +994,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
     const IntVec& touched = buffer_touched_under_loop.at(loop).at(buffer);
     if (touched.size() >= 2) {
       int64_t extent = 1;
-      const auto* ext_imm = loop->extent.as<IntImmNode>();
+      const auto* ext_imm = loop->extent.as<prim::IntImmNode>();
       if (auto ext = ext_imm ? ext_imm->value.as<int64_t>() : std::nullopt; ext.has_value()) {
         extent = *ext;
       }
@@ -1126,7 +1127,7 @@ struct Feature {
                                arith_ops.float_math_func + arith_ops.float_other_func;
     total_compute_ops /= loop_nest.prod;
     for (int i = n_loops - 1; i >= 0; --i) {
-      const auto* extent_imm = loops[i]->extent.as<IntImmNode>();
+      const auto* extent_imm = loops[i]->extent.as<prim::IntImmNode>();
       if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
           extent.has_value()) {
         total_compute_ops *= *extent;
@@ -1365,7 +1366,8 @@ class PerStoreFeatureCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
-    if (store->value->IsInstance<IntImmNode>() || store->value->IsInstance<FloatImmNode>()) {
+    if (store->value->IsInstance<prim::IntImmNode>() ||
+        store->value->IsInstance<prim::FloatImmNode>()) {
       return std::nullopt;
     }
     const VarNode* buffer = store->buffer.get();

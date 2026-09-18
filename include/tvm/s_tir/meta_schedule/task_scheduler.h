@@ -181,7 +181,7 @@ class TaskSchedulerNode : public ffi::Object {
    * \param cost_model The cost model used in tuning
    */
   virtual void Tune(ffi::Array<TuneContext> tasks,                  //
-                    ffi::Array<FloatImm> task_weights,              //
+                    ffi::Array<prim::FloatImm> task_weights,        //
                     int max_trials_global,                          //
                     int max_trials_per_task,                        //
                     int num_trials_per_iter,                        //
@@ -224,7 +224,7 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
   using FJoinRunningTask = ffi::TypedFunction<ffi::Array<RunnerResult>(int)>;
   /*! \brief The function type of `Tune` method. */
   using FTune = ffi::TypedFunction<void(ffi::Array<TuneContext> tasks,                  //
-                                        ffi::Array<FloatImm> task_weights,              //
+                                        ffi::Array<prim::FloatImm> task_weights,        //
                                         int max_trials_global,                          //
                                         int max_trials_per_task,                        //
                                         int num_trials_per_iter,                        //
@@ -248,10 +248,10 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
 
   int NextTaskId() final;
   ffi::Array<RunnerResult> JoinRunningTask(int task_id) final;
-  void Tune(ffi::Array<TuneContext> tasks, ffi::Array<FloatImm> task_weights, int max_trials_global,
-            int max_trials_per_task, int num_trials_per_iter, Builder builder, Runner runner,
-            ffi::Array<MeasureCallback> measure_callbacks, ffi::Optional<Database> database,
-            ffi::Optional<CostModel> cost_model) final;
+  void Tune(ffi::Array<TuneContext> tasks, ffi::Array<prim::FloatImm> task_weights,
+            int max_trials_global, int max_trials_per_task, int num_trials_per_iter,
+            Builder builder, Runner runner, ffi::Array<MeasureCallback> measure_callbacks,
+            ffi::Optional<Database> database, ffi::Optional<CostModel> cost_model) final;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PyTaskScheduler", PyTaskSchedulerNode,
                                     TaskSchedulerNode);
 };

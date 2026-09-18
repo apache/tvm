@@ -150,7 +150,7 @@ ComputationTable BuildTableForThreeChildrenNode(const ComputationTable& table_ch
 ComputationTable ComputationsDoneBy::GetComputationsDoneBy(
     const PrimExpr& expr, std::function<bool(const PrimExpr&)> is_eligible_computation,
     std::function<bool(const PrimExpr&)> can_contain_computations) {
-  if (expr.as<IntImmNode>() != nullptr || expr.as<FloatImmNode>() != nullptr ||
+  if (expr.as<prim::IntImmNode>() != nullptr || expr.as<prim::FloatImmNode>() != nullptr ||
       expr.as<prim::StringImmNode>() != nullptr || expr.as<PrimVar>()) {
     return {};
   }
@@ -218,7 +218,7 @@ ffi::Optional<VisitInterrupt> ComputationsDoneBy::Visit(ffi::AnyView expr_value)
     return s_tir::StmtExprVisitor::Visit(expr_value);
   }
   PrimExpr expr = opt_expr.value();
-  if (expr.as<IntImmNode>() != nullptr || expr.as<FloatImmNode>() != nullptr ||
+  if (expr.as<prim::IntImmNode>() != nullptr || expr.as<prim::FloatImmNode>() != nullptr ||
       expr.as<prim::StringImmNode>() != nullptr || expr.as<PrimVar>()) {
     return std::nullopt;
   }

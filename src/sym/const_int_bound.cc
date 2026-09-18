@@ -232,7 +232,7 @@ class ConstIntBoundAnalyzer::Impl
     return divisor;
   }
 
-  Entry Dispatch_(const IntImmNode* op) final {
+  Entry Dispatch_(const prim::IntImmNode* op) final {
     if (op->value >= kPosInf) return MakeBound(kPosInf - 1, kPosInf);
     if (op->value <= kNegInf) return MakeBound(kNegInf, kNegInf + 1);
     int64_t value = static_cast<int64_t>(op->value);
@@ -811,7 +811,7 @@ class ConstIntBoundAnalyzer::Impl
    */
   static std::vector<BoundInfo> DetectBoundInfo(const PrimExpr& cond) {
     PVar<PrimExpr> x, y;
-    PVar<IntImm> c;
+    PVar<prim::IntImm> c;
 
     std::vector<BoundInfo> info;
     auto add_info = [&](const PrimExpr& expr, const ffi::BigInt& min_value,
@@ -819,7 +819,7 @@ class ConstIntBoundAnalyzer::Impl
       // If the conditional is comparing two integers, do not assign a
       // value to them.
       if (auto min = min_value.as<int64_t>(), max = max_value.as<int64_t>();
-          min.has_value() && max.has_value() && !expr->IsInstance<IntImmNode>()) {
+          min.has_value() && max.has_value() && !expr->IsInstance<prim::IntImmNode>()) {
         info.push_back(BoundInfo(expr, MakeBound(*min, *max)));
       }
     };
@@ -874,7 +874,7 @@ class ConstIntBoundAnalyzer::Impl
    * Helper function for CastNode visitor
    */
   Entry CeilLog2Bounds(PrimExpr arg) {
-    if (auto as_float = arg.as<FloatImmNode>()) {
+    if (auto as_float = arg.as<prim::FloatImmNode>()) {
       // A cast from int to float may have already been simplified
       // out.  Normally we don't inspect floating-point arguments, but here we can
       int64_t val = std::ceil(std::log2(as_float->value));

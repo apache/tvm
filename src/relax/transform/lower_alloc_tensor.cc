@@ -22,6 +22,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 
@@ -76,7 +77,7 @@ class Mutator : public ExprMutator {
         PrimType dtype_ty(dtype->value);
         TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
             << "Cannot statically compute allocation size for scalable vector dtype " << dtype_ty;
-        PrimExpr nbytes = IntImm::Int64(static_cast<int64_t>(dtype_ty.StorageBytes()));
+        PrimExpr nbytes = prim::IntImm::Int64(static_cast<int64_t>(dtype_ty.StorageBytes()));
         for (const auto& dim : shape) {
           nbytes *= dim;
         }
@@ -86,14 +87,14 @@ class Mutator : public ExprMutator {
       ShapeExpr size({nbytes});
 
       int64_t vdevice_index = -1;
-      if (const auto* int_imm = op->args[2].as<IntImmNode>()) {
+      if (const auto* int_imm = op->args[2].as<prim::IntImmNode>()) {
         vdevice_index = int_imm->value.as<int>().value();
       }
       ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
       if (vdevice.has_value()) {
         std::string dev_kind = vdevice.value()->target->kind->name;
-        PrimExpr dev_size = IntImm::Int64(1);
+        PrimExpr dev_size = prim::IntImm::Int64(1);
         if (vdevice.value()->memory_scope != "global") {
           auto device_size_handler =
               tvm::ffi::Function::GetGlobal(std::string("DeviceGetMemSize.") + dev_kind);
@@ -113,7 +114,7 @@ class Mutator : public ExprMutator {
         }
       }
 
-      auto offset = IntImm::Int64(0);
+      auto offset = prim::IntImm::Int64(0);
 
       Expr storage = Call(
           Type::Missing(), mem_alloc_storage_op,

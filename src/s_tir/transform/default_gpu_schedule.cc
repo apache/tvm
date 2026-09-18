@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../meta_schedule/utils.h"
@@ -66,21 +67,22 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   // fuse all data parallel loops
   s_tir::LoopRV fused = sch->Fuse(data_parallel_loops, /*preserve_unit_iters=*/false);
   int64_t product = std::numeric_limits<int64_t>::max();
-  if (sch->Get(fused)->extent->IsInstance<IntImmNode>()) {
-    product = static_cast<int64_t>(sch->Get(fused)->extent.as<IntImmNode>()->value);
+  if (sch->Get(fused)->extent->IsInstance<prim::IntImmNode>()) {
+    product = static_cast<int64_t>(sch->Get(fused)->extent.as<prim::IntImmNode>()->value);
   }
   // schedule the fused loop
   if (product > max_thread_per_block * max_threadblocks) {
     ffi::Array<s_tir::LoopRV> splits =
         sch->Split(fused,
-                   /*factors=*/{std::nullopt, IntImm::Int32(max_threadblocks),
-                                IntImm::Int32(max_thread_per_block)});
+                   /*factors=*/{std::nullopt, prim::IntImm::Int32(max_threadblocks),
+                                prim::IntImm::Int32(max_thread_per_block)});
     sch->Reorder(/*ordered_loop_rvs=*/{splits[1], splits[2], splits[0]});
     sch->Bind(splits[1], "blockIdx.x");
     sch->Bind(splits[2], "threadIdx.x");
   } else {
     ffi::Array<s_tir::LoopRV> splits = sch->Split(
-        fused, /*factors=*/{std::nullopt, IntImm::Int32(std::min(product, max_thread_per_block))});
+        fused,
+        /*factors=*/{std::nullopt, prim::IntImm::Int32(std::min(product, max_thread_per_block))});
     sch->Bind(splits[0], "blockIdx.x");
     sch->Bind(splits[1], "threadIdx.x");
   }
@@ -132,8 +134,8 @@ tirx::PrimFunc WrapBareSBlockBody(const tirx::PrimFunc& func) {
   if (inner->IsInstance<tirx::ForNode>() || inner->IsInstance<s_tir::SBlockRealizeNode>()) {
     return func;
   }
-  tvm::IntImm zero(tvm::PrimType::Int(32), 0);
-  tvm::IntImm one(tvm::PrimType::Int(32), 1);
+  tvm::prim::IntImm zero(tvm::PrimType::Int(32), 0);
+  tvm::prim::IntImm one(tvm::PrimType::Int(32), 1);
   tirx::Var loop_var("u", tvm::PrimType::Int(32));
   tirx::Var iter_var_var("vu", tvm::PrimType::Int(32));
   tirx::IterVar new_iter(tvm::Range::FromMinExtent(zero, one), iter_var_var.as_or_throw<PrimVar>(),
@@ -150,7 +152,7 @@ tirx::PrimFunc WrapBareSBlockBody(const tirx::PrimFunc& func) {
                            /*writes=*/ffi::Array<tvm::TensorRegion>{},
                            /*name_hint=*/"root", /*body=*/for_stmt);
   s_tir::SBlockRealize root_realize(/*iter_values=*/ffi::Array<tvm::PrimExpr>{},
-                                    /*predicate=*/IntImm::Bool(true), root_block);
+                                    /*predicate=*/prim::IntImm::Bool(true), root_block);
   tirx::PrimFunc result = func;
   result.CopyOnWrite()->body = std::move(root_realize);
   return result;

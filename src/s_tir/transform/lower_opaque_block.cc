@@ -23,6 +23,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -77,7 +78,7 @@ class OpaqueBlockLower : public StmtExprMutator {
         allocate_annotations.Set(s_tir::attr::buffer_dim_align, allocate_aligns);
       }
       allocate_annotations.Set(tirx::attr::buffer_data_alignment,
-                               IntImm::Int32(buffer->data_alignment));
+                               prim::IntImm::Int32(buffer->data_alignment));
       allocate_annotations.Set(tirx::attr::buffer_allocated_addr, buffer->allocated_addr);
       body = SeqStmt::Flatten(AllocBuffer(buffer, allocate_annotations), std::move(body));
     }

@@ -25,6 +25,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/sym/int_set.h>
 #include <tvm/sym/iter_affine_map.h>
@@ -109,7 +110,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   //     B[i] = A[T.abs(i-8)]
 
   sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
-  auto src_iter_map = sym::DetectIterMap({src_index}, loop_ranges, IntImm::Bool(true),
+  auto src_iter_map = sym::DetectIterMap({src_index}, loop_ranges, prim::IntImm::Bool(true),
                                          sym::IterMapLevel::Bijective, analyzer_ref);
   if (src_iter_map->errors.size()) {
     return static_cast<const std::stringstream&>(std::stringstream()
@@ -119,7 +120,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
                                                  << " for src_index = " << src_index)
         .str();
   }
-  auto dst_iter_map = sym::DetectIterMap({dst_index}, loop_ranges, IntImm::Bool(true),
+  auto dst_iter_map = sym::DetectIterMap({dst_index}, loop_ranges, prim::IntImm::Bool(true),
                                          sym::IterMapLevel::Bijective, analyzer_ref);
   if (dst_iter_map->errors.size()) {
     return static_cast<const std::stringstream&>(std::stringstream()
@@ -218,16 +219,19 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
 
   auto make_comparison_tuple = [](const sym::IterSplitExpr& expr) {
     auto as_int_or_zero = [](auto& val) -> ffi::BigInt {
-      if (auto* as_int = val.template as<IntImmNode>()) {
+      if (auto* as_int = val.template as<prim::IntImmNode>()) {
         return as_int->value;
       } else {
         return 0;
       }
     };
     return std::tuple{
-        static_cast<bool>(expr->scale.as<IntImmNode>()),        as_int_or_zero(expr->scale),
-        static_cast<bool>(expr->extent.as<IntImmNode>()),       as_int_or_zero(expr->lower_factor),
-        static_cast<bool>(expr->lower_factor.as<IntImmNode>()), as_int_or_zero(expr->lower_factor),
+        static_cast<bool>(expr->scale.as<prim::IntImmNode>()),
+        as_int_or_zero(expr->scale),
+        static_cast<bool>(expr->extent.as<prim::IntImmNode>()),
+        as_int_or_zero(expr->lower_factor),
+        static_cast<bool>(expr->lower_factor.as<prim::IntImmNode>()),
+        as_int_or_zero(expr->lower_factor),
     };
   };
   auto sorting_function = [&make_comparison_tuple](const sym::IterSplitExpr& lhs,

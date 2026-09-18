@@ -58,7 +58,7 @@ class BuiltinLower : public StmtExprMutator {
   static PrimFunc Build(PrimFunc func) {
     ffi::Optional<PrimExpr> device_type = std::nullopt;
     if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
-      device_type = IntImm::Int32(target.value()->kind->default_device_type);
+      device_type = prim::IntImm::Int32(target.value()->kind->default_device_type);
     }
 
     auto mutator = ffi::make_object<BuiltinLower>(device_type);
@@ -142,7 +142,7 @@ class BuiltinLower : public StmtExprMutator {
     {
       // NOTE: this scope reference is invalid after any mutation is applied to alloca_scope_.
       auto& scope = precheck->alloca_scope_.back();
-      scope.stack_shape = decl_buffer({IntImm::Int64(0)}, PrimType::Int(64), "stack_shape");
+      scope.stack_shape = decl_buffer({prim::IntImm::Int64(0)}, PrimType::Int(64), "stack_shape");
     }
 
     precheck->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
@@ -183,7 +183,7 @@ class BuiltinLower : public StmtExprMutator {
       }
 
       if (scope.max_sizes.shape_stack != -1) {
-        scope.stack_shape = decl_buffer({IntImm::Int64(scope.max_sizes.shape_stack)},
+        scope.stack_shape = decl_buffer({prim::IntImm::Int64(scope.max_sizes.shape_stack)},
                                         PrimType::Int(64), "stack_shape");
         stmt = SeqStmt::Flatten(
             DeclBuffer(scope.stack_shape, StackAlloca(scope.stack_shape.DataPointerType(), "shape",
@@ -257,7 +257,7 @@ class BuiltinLower : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<AllocBufferNode>();
     if (op->annotations.count(transform::kDisableLowerTVMBuiltin)) {
-      if (op->annotations[transform::kDisableLowerTVMBuiltin].as_or_throw<IntImm>()->value) {
+      if (op->annotations[transform::kDisableLowerTVMBuiltin].as_or_throw<prim::IntImm>()->value) {
         return stmt;
       }
     }
@@ -265,7 +265,7 @@ class BuiltinLower : public StmtExprMutator {
       return stmt;
     }
     int64_t nbytes = GetVectorBytes(op->buffer->dtype);
-    if (const auto* dev_type = device_type_.as<IntImmNode>();
+    if (const auto* dev_type = device_type_.as<prim::IntImmNode>();
         dev_type && dev_type->value == kDLCPU) {
       auto storage_scope = op->buffer->storage_scope;
       if (storage_scope == "global") {
@@ -276,7 +276,7 @@ class BuiltinLower : public StmtExprMutator {
         }
       }
     }
-    PrimExpr total_bytes = IntImm(PrimType::UInt(64), nbytes);
+    PrimExpr total_bytes = prim::IntImm(PrimType::UInt(64), nbytes);
     for (size_t i = 0; i < op->buffer->shape.size(); ++i) {
       total_bytes = total_bytes * op->buffer->shape[i];
     }
@@ -295,17 +295,17 @@ class BuiltinLower : public StmtExprMutator {
                             {prim::cast(PrimType::Int(32), device_type_.value()),
                              prim::cast(PrimType::Int(32), device_id_.value()), op->buffer.data()})
                            .as_or_throw<PrimExpr>();
-    Stmt free_stmt = IfThenElse(free_op != IntImm::Int32(0), throw_last_error);
+    Stmt free_stmt = IfThenElse(free_op != prim::IntImm::Int32(0), throw_last_error);
 
     // Push free to enclosing scope's pending_frees (LIFO ordering preserved).
     scope_.Current().pending_frees.push_back(free_stmt);
 
-    Stmt alloc_bind = DeclBuffer(
-        op->buffer,
-        Call(op->buffer.DataPointerType(), alloc_workspace_op,
-             {prim::cast(PrimType::Int(32), device_type_.value()),
-              prim::cast(PrimType::Int(32), device_id_.value()), total_bytes,
-              IntImm::Int32(op->buffer->dtype.code()), IntImm::Int32(op->buffer->dtype.bits())}));
+    Stmt alloc_bind =
+        DeclBuffer(op->buffer, Call(op->buffer.DataPointerType(), alloc_workspace_op,
+                                    {prim::cast(PrimType::Int(32), device_type_.value()),
+                                     prim::cast(PrimType::Int(32), device_id_.value()), total_bytes,
+                                     prim::IntImm::Int32(op->buffer->dtype.code()),
+                                     prim::IntImm::Int32(op->buffer->dtype.bits())}));
 
     return SeqStmt({alloc_bind, alloc_nullptr_check});
   }
@@ -423,7 +423,7 @@ class BuiltinLower : public StmtExprMutator {
     } else if (op->op.same_as(builtin::tvm_stack_make_array())) {
       return MakeArray(op);
     } else if (op->op.same_as(builtin::tvm_context_id())) {
-      return IntImm(op->ty.as_or_throw<PrimType>(), 0);
+      return prim::IntImm(op->ty.as_or_throw<PrimType>(), 0);
     } else if (op->op.same_as(builtin::dma_copy())) {
       return MakeDMACopy(op);
     } else if (op->op.same_as(builtin::dma_wait())) {
@@ -441,7 +441,7 @@ class BuiltinLower : public StmtExprMutator {
     TVM_FFI_ICHECK(device_type_) << "Method " << method_name << " requires the device type, "
                                  << "but occurred outside of a \"device_type\" annotation";
 
-    auto as_int = device_type_.as<IntImmNode>();
+    auto as_int = device_type_.as<prim::IntImmNode>();
     TVM_FFI_ICHECK(as_int) << "Method " << method_name
                            << " requires the device type to be a DLDeviceType enum value, "
                            << "but was instead the expression " << device_type_ << " with type "
@@ -542,18 +542,19 @@ class BuiltinLower : public StmtExprMutator {
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorNDim,
                                        op->args[3].as_or_throw<PrimExpr>()));
     PrimType dtype = op->args[4].as_or_throw<PrimExpr>().ty();
-    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorTypeCode,
-                                       IntImm(PrimType::UInt(8), static_cast<int>(dtype.code()))));
+    prep_seq.emplace_back(
+        TVMStructSet(scope.stack_array, idx, builtin::kDLTensorTypeCode,
+                     prim::IntImm(PrimType::UInt(8), static_cast<int>(dtype.code()))));
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorTypeBits,
-                                       IntImm(PrimType::UInt(8), dtype.bits())));
+                                       prim::IntImm(PrimType::UInt(8), dtype.bits())));
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorTypeLanes,
-                                       IntImm(PrimType::UInt(16), dtype.lanes())));
+                                       prim::IntImm(PrimType::UInt(16), dtype.lanes())));
     // set byte offset
     int data_bytes = GetVectorBytes(dtype);
     PrimExpr elem_offset = op->args[5].as_or_throw<PrimExpr>();
     PrimExpr byte_offset;
     if (!is_zero(elem_offset)) {
-      byte_offset = elem_offset * IntImm(elem_offset.ty(), data_bytes);
+      byte_offset = elem_offset * prim::IntImm(elem_offset.ty(), data_bytes);
     } else {
       byte_offset = elem_offset;
     }
@@ -685,7 +686,7 @@ class BuiltinLower : public StmtExprMutator {
     prep_seq.emplace_back(
         TVMStructSet(scope.stack_ffi_any, num_args, builtin::kTVMFFIAnyZeroPadding, ConstInt32(0)));
     prep_seq.emplace_back(TVMStructSet(scope.stack_ffi_any, num_args, builtin::kTVMFFIAnyUnionValue,
-                                       IntImm::Int64(0)));
+                                       prim::IntImm::Int64(0)));
     // Verify stack size matches earlier value.
     if (is_precheck_) {
       scope.UpdateMax();
@@ -717,8 +718,11 @@ class BuiltinLower : public StmtExprMutator {
     PrimType dtype = ffi::GetRef<PrimType>(dtype_node);
 
     ffi::Array<Expr> args = {
-        GetDeviceMethodName("alloc_nd"), device_type_.value(),        device_id_.value(),
-        IntImm::Int32(dtype.code()),     IntImm::Int32(dtype.bits()),
+        GetDeviceMethodName("alloc_nd"),
+        device_type_.value(),
+        device_id_.value(),
+        prim::IntImm::Int32(dtype.code()),
+        prim::IntImm::Int32(dtype.bits()),
     };
 
     for (size_t i = 0; i < call->args.size(); ++i) {
@@ -738,7 +742,7 @@ class BuiltinLower : public StmtExprMutator {
                         {GetDeviceMethodName("free_nd"), device_type_.value(), device_id_.value(),
                          storage_scope, let->var});
     Stmt free_stmt =
-        IfThenElse(free_op.as_or_throw<PrimExpr>() != IntImm::Int32(0), throw_last_error);
+        IfThenElse(free_op.as_or_throw<PrimExpr>() != prim::IntImm::Int32(0), throw_last_error);
     // Visit the free_stmt so tvm_call_packed builtins inside it get lowered.
     free_stmt = StmtExprMutator::Mutate(ffi::AnyView(free_stmt), InplaceMode::kDisallow)
                     .ValueOrUnchanged(free_stmt)
@@ -757,7 +761,7 @@ class BuiltinLower : public StmtExprMutator {
     // specially set array handle.
     if (const CallNode* buf = arg.as<CallNode>()) {
       if (buf->op.same_as(builtin::tvm_struct_get()) &&
-          buf->args[2].as<IntImmNode>()->value == builtin::kDLTensorAddr) {
+          buf->args[2].as<prim::IntImmNode>()->value == builtin::kDLTensorAddr) {
         return true;
       }
     }

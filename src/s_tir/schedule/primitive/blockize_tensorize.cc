@@ -20,6 +20,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/tensor_intrin.h>
@@ -37,7 +38,7 @@ using namespace tvm::prim;
 using namespace tvm::tirx;
 
 Range RangeFromExtent(const PrimExpr& extent) {
-  return Range::FromMinExtent(IntImm(extent.ty(), 0), extent);
+  return Range::FromMinExtent(prim::IntImm(extent.ty(), 0), extent);
 }
 
 template <class T>
@@ -142,8 +143,8 @@ ffi::Array<ffi::Array<sym::IterMark>> TrivialSubspaceDivision(const ffi::Array<I
       return {};
     }
   }
-  res.push_back({sym::IterMark(sym::IterSumExpr({}, 0), IntImm::Bool(true)),
-                 sym::IterMark(sym::IterSumExpr({}, 0), IntImm::Bool(true))});
+  res.push_back({sym::IterMark(sym::IterSumExpr({}, 0), prim::IntImm::Bool(true)),
+                 sym::IterMark(sym::IterSumExpr({}, 0), prim::IntImm::Bool(true))});
   return res;
 }
 
@@ -261,7 +262,7 @@ ffi::Map<Var, PrimExpr> DeriveBlockBinding(
       // substitution
       if (is_one(outer_mark->extent) && !preserve_unit_iters) {
         // Simplify outer if not preserve_unit_iters
-        sub = IntImm(outer_mark->extent.ty(), 0);
+        sub = prim::IntImm(outer_mark->extent.ty(), 0);
       } else {
         sub = outer_iter;
       }
@@ -880,7 +881,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     new_region.reserve(cur->shape.size());
     for (int i = 0; i < offset; i++) {
       PrimExpr min = indices_base[i];
-      PrimExpr extent = IntImm(min.ty(), 1);
+      PrimExpr extent = prim::IntImm(min.ty(), 1);
       new_region.push_back(Range::FromMinExtent(min, extent));
     }
     for (int i = 0; i < static_cast<int>(old_region.size()); i++) {
@@ -928,7 +929,7 @@ struct BlockizeTraits : public UnpackedInstTraits<BlockizeTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, ffi::ObjectRef target,
-                                          IntImm preserve_unit_iters) {
+                                          prim::IntImm preserve_unit_iters) {
     if (auto loop = target.as<LoopRV>()) {
       return sch->Blockize(loop.value(), preserve_unit_iters->value != 0);
     } else if (auto blocks = target.as<ffi::Array<SBlockRV>>()) {
@@ -939,7 +940,7 @@ struct BlockizeTraits : public UnpackedInstTraits<BlockizeTraits> {
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::ObjectRef target,
-                                      IntImm preserve_unit_iters) {
+                                      prim::IntImm preserve_unit_iters) {
     PythonAPICall py("blockize");
     py.Input("target", target);
     py.Input("preserve_unit_iters", preserve_unit_iters->value != 0);
@@ -961,7 +962,7 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, ffi::ObjectRef block_or_loop_rv,
-                                      ffi::String intrin, IntImm preserve_unit_iters) {
+                                      ffi::String intrin, prim::IntImm preserve_unit_iters) {
     if (auto block = block_or_loop_rv.as<SBlockRV>()) {
       sch->Tensorize(block.value(), intrin, preserve_unit_iters->value != 0);
     } else if (auto loop = block_or_loop_rv.as<LoopRV>()) {
@@ -973,7 +974,7 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_or_loop_rv,
-                                      ffi::String intrin, IntImm preserve_unit_iters) {
+                                      ffi::String intrin, prim::IntImm preserve_unit_iters) {
     PythonAPICall py("tensorize");
     py.Input("block_or_loop", block_or_loop_rv);
     py.Input("tensor_intrin", intrin);

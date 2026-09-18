@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <algorithm>
 
@@ -88,7 +89,7 @@ Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compu
 
   auto get_shape = [](const Type& ty) -> ffi::Optional<ffi::Array<PrimExpr>> {
     if (ty.as<PrimTypeNode>()) {
-      return ffi::Array<PrimExpr>{IntImm::Int64(1)};
+      return ffi::Array<PrimExpr>{prim::IntImm::Int64(1)};
     } else if (const auto* tensor = ty.as<TensorTypeNode>()) {
       return tensor->GetShape();
     } else {

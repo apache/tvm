@@ -140,7 +140,7 @@ PrimExpr NormalizeBooleanOperators(PrimExpr expr) {
 
 std::tuple<PrimExpr, ffi::BigInt> ExtractConstantOffset(const PrimExpr& expr) {
   PVar<PrimExpr> x;
-  PVar<IntImm> c1;
+  PVar<prim::IntImm> c1;
 
   // Any (c1+x) terms are normalized into (x+c1), so we don't need to
   // check for it.
@@ -217,7 +217,7 @@ CompareResult RewriteSimplifier::Impl::TryComparisonOfProductAndSum(const PrimEx
                    (B * A) + (A + B) * C,
                }
                    .Match(diff)) {
-      return std::tuple{A.Eval(), B.Eval(), C.Eval(), IntImm::Int32(-1)};
+      return std::tuple{A.Eval(), B.Eval(), C.Eval(), prim::IntImm::Int32(-1)};
     } else {
       return std::nullopt;
     }
@@ -338,7 +338,7 @@ CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, int64_t val
   // For stronger comparison proof that is out of the recursive simplifcation
   // consider look at analyzer::CanProveStrong
   PrimExpr diff = Mutate(x).ValueOrUnchanged(x);
-  if (const auto* ptr = diff.as<IntImmNode>()) {
+  if (const auto* ptr = diff.as<prim::IntImmNode>()) {
     if (ptr->value == val) {
       return CompareResult::kEQ;
     } else if (ptr->value > val) {
@@ -402,9 +402,9 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::AddNode* op,
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2, c3;
+  PVar<prim::IntImm> c1, c2, c3;
   // Pattern var match FloatImm
-  PVar<FloatImm> c4;
+  PVar<prim::FloatImm> c4;
   // Pattern var for lanes in broadcast and ramp
   PVar<PrimExpr> lanes;
   // Vector rules
@@ -527,7 +527,7 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
         // applied.
         negation = NormalizeBooleanOperators(prim::Not(subconstraint));
       } else {
-        negation = subconstraint == IntImm(subconstraint.ty(), 0);
+        negation = subconstraint == prim::IntImm(subconstraint.ty(), 0);
       }
       literal_constraints_.push_back(prim::Not(negation));
     }
@@ -556,7 +556,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::SubNode* op,
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2, c3;
+  PVar<prim::IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<PrimExpr> lanes;
 
@@ -747,9 +747,9 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::MulNode* op,
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVar<prim::IntImm> c1, c2;
   // Pattern var match FloatImm
-  PVar<FloatImm> c3;
+  PVar<prim::FloatImm> c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<PrimExpr> lanes;
   // Vector rules
@@ -788,7 +788,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::DivNode* op,
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2, c3;
+  PVar<prim::IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<PrimExpr> lanes;
 
@@ -806,7 +806,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::DivNode* op,
         return ramp(div(b1, c2), div(c1, c2), lanes).Eval();
       }
       // If all possible indices in ramp are the same.
-      if (const auto* lanes_int = lanes.Eval().as<IntImmNode>();
+      if (const auto* lanes_int = lanes.Eval().as<prim::IntImmNode>();
           lanes_int && CanProveGreaterEqual(b1.Eval(), 0)) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
         ffi::BigInt ramp_min = bmod->base / c2val;
@@ -830,7 +830,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::DivNode* op,
     if (truncdiv(c1, c2).Match(ret)) {
       ffi::BigInt c1val = c1.Eval()->value;
       ffi::BigInt c2val = c2.Eval()->value;
-      return IntImm(op->ty.as_or_throw<PrimType>(), (c1val / c2val));
+      return prim::IntImm(op->ty.as_or_throw<PrimType>(), (c1val / c2val));
     }
 
     // while it is always true for trunc div
@@ -945,7 +945,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::ModNode* op,
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVar<prim::IntImm> c1, c2;
   // Pattern var for lanes in broadcast and ramp
   PVar<PrimExpr> lanes;
 
@@ -966,7 +966,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::ModNode* op,
       // If all possible indices in ramp are the same.
       if (CanProveGreaterEqual(b1.Eval(), 0)) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
-        if (const auto* lanes_int = lanes.Eval().as<IntImmNode>()) {
+        if (const auto* lanes_int = lanes.Eval().as<prim::IntImmNode>()) {
           ffi::BigInt ramp_min = bmod->base / c2val;
           ffi::BigInt ramp_max = (bmod->base + (lanes_int->value - 1) * c1val) / c2val;
           if (bmod->coeff % c2val == 0 && ramp_min == ramp_max) {
@@ -1006,7 +1006,8 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::ModNode* op,
     // NOTE: trunc div required
     TVM_TRY_RECURSIVE_REWRITE_IF(
         truncmod(x, c1),
-        truncmod(x, PConst<PrimExpr>(IntImm(op->ty.as_or_throw<PrimType>(), -c1.Eval()->value))),
+        truncmod(x,
+                 PConst<PrimExpr>(prim::IntImm(op->ty.as_or_throw<PrimType>(), -c1.Eval()->value))),
         c1.Eval()->value < 0 &&
             c1.Eval()->value != (c1.Eval().ty().bits() == 64
                                      ? std::numeric_limits<int64_t>::min()
@@ -1017,7 +1018,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::ModNode* op,
       ModularSet mod = analyzer_->modular_set(x.Eval());
       ffi::BigInt c1val = c1.Eval()->value;
       if (mod->coeff % c1val == 0 && c1val > 0 && CanProveGreaterEqual(x.Eval(), 0)) {
-        return IntImm(c1.Eval().ty(), (mod->base % c1.Eval()->value));
+        return prim::IntImm(c1.Eval().ty(), (mod->base % c1.Eval()->value));
       }
     }
   }
@@ -1033,7 +1034,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode*
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2, c3;
+  PVar<prim::IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<PrimExpr> lanes;
 
@@ -1051,7 +1052,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode*
         return ramp(floordiv(b1, c2), floordiv(c1, c2), lanes).Eval();
       }
       // If all possible indices in ramp are the same.
-      if (const auto* lanes_int = lanes.Eval().as<IntImmNode>()) {
+      if (const auto* lanes_int = lanes.Eval().as<prim::IntImmNode>()) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
         ffi::BigInt ramp_min = floordiv(bmod->base, c2val);
         ffi::BigInt ramp_max = floordiv(bmod->base + (lanes_int->value - 1) * c1val, c2val);
@@ -1082,7 +1083,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode*
         floordiv(y + x * c1, c2).Match(ret)) {
       ffi::BigInt c1val = c1.Eval()->value;
       ffi::BigInt c2val = c2.Eval()->value;
-      PrimExpr yval = y.EvalOr(IntImm(c1.Eval().ty(), 0));
+      PrimExpr yval = y.EvalOr(prim::IntImm(c1.Eval().ty(), 0));
       if (c2val == 0) return ret;
 
       // try eliminate residue part
@@ -1092,7 +1093,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode*
       auto bound = analyzer_->const_int_bound(residue);
       if (bound.defined() && bound->max_value == bound->min_value) {
         return x.Eval() * floordiv(c1.Eval(), c2.Eval()) +
-               (y_div + IntImm::Int32(bound->max_value));
+               (y_div + prim::IntImm::Int32(bound->max_value));
       }
 
       // try simplify divisor
@@ -1236,7 +1237,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2, c3;
+  PVar<prim::IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<PrimExpr> lanes;
 
@@ -1256,13 +1257,14 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
       }
       // If all possible indices in ramp are the same.
       ModularSet bmod = analyzer_->modular_set(b1.Eval());
-      if (const auto* lanes_int = lanes.Eval().as<IntImmNode>()) {
+      if (const auto* lanes_int = lanes.Eval().as<prim::IntImmNode>()) {
         ffi::BigInt ramp_min = floordiv(bmod->base, c2val);
         ffi::BigInt ramp_max = floordiv(bmod->base + (lanes_int->value - 1) * c1val, c2val);
         if (ramp_min == ramp_max) {
           // If b1 can divide c2
           if (bmod->coeff % c2val == 0) {
-            return ramp(PConst<PrimExpr>(IntImm(c2.Eval().ty(), ffi::floormod(bmod->base, c2val))),
+            return ramp(PConst<PrimExpr>(
+                            prim::IntImm(c2.Eval().ty(), ffi::floormod(bmod->base, c2val))),
                         c1, lanes)
                 .Eval();
           }
@@ -1324,7 +1326,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
         // try modular analysis
         ModularSet mod = analyzer_->modular_set(x.Eval());
         if (mod->coeff % c1val == 0) {
-          return IntImm(c1.Eval().ty(), floormod(mod->base, c1.Eval()->value));
+          return prim::IntImm(c1.Eval().ty(), floormod(mod->base, c1.Eval()->value));
         }
 
         // floormod(x,c1) is a no-op when x is already in the
@@ -1368,7 +1370,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
       // the signed block's modular-analysis branch is valid here as well.
       ModularSet mod = analyzer_->modular_set(x.Eval());
       if (mod->coeff % c2val == 0) {
-        return IntImm(c2.Eval().ty(), floormod(mod->base, c2.Eval()->value));
+        return prim::IntImm(c2.Eval().ty(), floormod(mod->base, c2.Eval()->value));
       }
     }
 
@@ -1386,7 +1388,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
         ModularSet mod = analyzer_->modular_set(x.Eval());
         if (mod->coeff % c2.Eval()->value == 0) {
           LOG(WARNING) << "sym: no-overflow floormod rule on unsigned expr: " << ret;
-          return IntImm(c2.Eval().ty(), floormod(mod->base, c2.Eval()->value));
+          return prim::IntImm(c2.Eval().ty(), floormod(mod->base, c2.Eval()->value));
         }
       }
     }
@@ -1404,7 +1406,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::MinNode* op,
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVar<prim::IntImm> c1, c2;
   PVar<PrimExpr> lanes;
 
   // vector rule
@@ -1554,7 +1556,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::MinNode* op,
       int64_t minimum = c1.Eval().ty().bits() == 64 ? std::numeric_limits<int64_t>::min()
                                                     : -(int64_t{1} << (c1.Eval().ty().bits() - 1));
       if (c2val % c1val == 0 && !(c1val == -1 && c2val == minimum)) {
-        PConst<PrimExpr> quotient(IntImm(c1.Eval().ty(), c2val / c1val));
+        PConst<PrimExpr> quotient(prim::IntImm(c1.Eval().ty(), c2val / c1val));
         if (c1val > 0) {
           return (min(x, quotient) * c1).Eval();
         } else {
@@ -1583,7 +1585,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::MaxNode* op,
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVar<prim::IntImm> c1, c2;
   PVar<PrimExpr> lanes;
 
   // vector rule
@@ -1742,7 +1744,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::MaxNode* op,
       int64_t minimum = c1.Eval().ty().bits() == 64 ? std::numeric_limits<int64_t>::min()
                                                     : -(int64_t{1} << (c1.Eval().ty().bits() - 1));
       if (c2val % c1val == 0 && !(c1val == -1 && c2val == minimum)) {
-        PConst<PrimExpr> quotient(IntImm(c1.Eval().ty(), c2val / c1val));
+        PConst<PrimExpr> quotient(prim::IntImm(c1.Eval().ty(), c2val / c1val));
         if (c1val > 0) {
           return (max(x, quotient) * c1).Eval();
         } else {
@@ -1800,7 +1802,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(prim::EQ ret, InplaceMode in
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVar<prim::IntImm> c1, c2;
   PVar<PrimExpr> lanes;
   PConst<PrimExpr> ctrue(prim::MakeConst(ret->ty.as_or_throw<PrimType>(), true));
 
@@ -1954,7 +1956,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(prim::LT ret, InplaceMode in
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVar<prim::IntImm> c1, c2;
   PVar<PrimExpr> lanes;
 
   // vector rule
@@ -2089,9 +2091,9 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(prim::LT ret, InplaceMode in
       } else if (diff == 1) {
         return lhs <= rhs;
       } else if (diff < 0 && rhs_offset != 0 && -diff <= maximum) {
-        return lhs + IntImm(lhs.ty(), -diff) < rhs;
+        return lhs + prim::IntImm(lhs.ty(), -diff) < rhs;
       } else if (diff > 0 && lhs_offset != 0 && diff <= maximum) {
-        return lhs < rhs + IntImm(rhs.ty(), diff);
+        return lhs < rhs + prim::IntImm(rhs.ty(), diff);
       }
 
       return std::nullopt;
@@ -2207,7 +2209,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::AndNode* op,
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2, c3;
+  PVar<prim::IntImm> c1, c2, c3;
   PVar<PrimExpr> lanes;
 
   if (IsVectorExpr(op)) {
@@ -2357,7 +2359,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::OrNode* op,
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVar<prim::IntImm> c1, c2;
   PVar<PrimExpr> lanes;
 
   if (IsVectorExpr(op)) {
@@ -2426,12 +2428,12 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
       prim::is_const_int(op->args[0].as_or_throw<PrimExpr>())) {
     return op->args[0].as_or_throw<PrimExpr>();
   } else if (op->op.same_as(prim::builtin::shift_right())) {
-    if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
+    if (op->args[0].as<prim::IntImmNode>() && op->args[1].as<prim::IntImmNode>()) {
       // the operator overload will eagerly constant fold.
       return op->args[0].as_or_throw<PrimExpr>() >> op->args[1].as_or_throw<PrimExpr>();
     }
   } else if (op->op.same_as(prim::builtin::shift_left())) {
-    if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
+    if (op->args[0].as<prim::IntImmNode>() && op->args[1].as<prim::IntImmNode>()) {
       // the operator overload will eagerly constant fold.
       return op->args[0].as_or_throw<PrimExpr>() << op->args[1].as_or_throw<PrimExpr>();
     }
@@ -2442,31 +2444,31 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
   PrimType ret_ty = op->ty.as_or_throw<PrimType>();
   if (op->op.same_as(ceil_op)) {
     PrimExpr ceil_arg = op->args[0].as_or_throw<PrimExpr>();
-    if (auto arg_int = op->args[0].as<IntImmNode>()) {
-      return prim::cast(ret_ty, IntImm(arg_int->ty.as_or_throw<PrimType>(), arg_int->value));
-    } else if (auto arg_float = ceil_arg.as<FloatImmNode>()) {
-      return prim::cast(
-          ret_ty, FloatImm(arg_float->ty.as_or_throw<PrimType>(), std::ceil(arg_float->value)));
+    if (auto arg_int = op->args[0].as<prim::IntImmNode>()) {
+      return prim::cast(ret_ty, prim::IntImm(arg_int->ty.as_or_throw<PrimType>(), arg_int->value));
+    } else if (auto arg_float = ceil_arg.as<prim::FloatImmNode>()) {
+      return prim::cast(ret_ty, prim::FloatImm(arg_float->ty.as_or_throw<PrimType>(),
+                                               std::ceil(arg_float->value)));
     } else if (auto arg_call = ceil_arg.as<CallNode>()) {
       // ceil(log2(cast(n,"float64"))) is used as the implementation of
       // topi.math.ceil_log2, and appears in iteration bounds.
       if (arg_call->op.same_as(log2_op)) {
         PrimExpr log_arg = arg_call->args[0].as_or_throw<PrimExpr>();
-        if (auto as_float = log_arg.as<FloatImmNode>()) {
+        if (auto as_float = log_arg.as<prim::FloatImmNode>()) {
           // ceil(log2(n)) can be simplified, and should produce the
           // same integer result regardless of the target's rounding
           // conventions.
-          return FloatImm(ret_ty, std::ceil(std::log2(as_float->value)));
+          return prim::FloatImm(ret_ty, std::ceil(std::log2(as_float->value)));
         }
       }
     }
   } else if (op->op.same_as(clz_op)) {
-    if (const auto* arg_int = op->args[0].as<IntImmNode>()) {
+    if (const auto* arg_int = op->args[0].as<prim::IntImmNode>()) {
       int bits = arg_int->ty.as_or_throw<PrimType>().bits();
-      if (arg_int->value == 0) return IntImm(ret_ty, bits);
+      if (arg_int->value == 0) return prim::IntImm(ret_ty, bits);
       for (int i = bits - 1; i >= 0; --i) {
         if ((ffi::BigInt(1) << i) & arg_int->value) {
-          return IntImm(ret_ty, bits - i - 1);
+          return prim::IntImm(ret_ty, bits - i - 1);
         }
       }
       TVM_FFI_THROW(InternalError) << "Should not reach here";

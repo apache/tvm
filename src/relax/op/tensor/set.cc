@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <algorithm>
 #include <utility>
@@ -66,7 +67,7 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
   }
   if (!data_ty->IsUnknownNdim() && axis.defined()) {
     // Normalize the axis for sanity check purpose.
-    if (const auto* axis_int = axis.as<IntImmNode>()) {
+    if (const auto* axis_int = axis.as<prim::IntImmNode>()) {
       NormalizeAxis(call, ctx, data_ty->ndim, axis_int->value.as<int>().value());
     }
   }
@@ -79,10 +80,10 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
   return_counts = call->args[4].as_or_throw<PrimExpr>();
 
   auto f_convert_to_int64 = [](const PrimExpr& value) {
-    TVM_FFI_ICHECK(value->IsInstance<IntImmNode>())
+    TVM_FFI_ICHECK(value->IsInstance<prim::IntImmNode>())
         << value << " expects to be IntImm, but gets " << value->GetTypeKey();
-    const auto* val_node = value.as<IntImmNode>();
-    auto val_imm = ffi::GetRef<IntImm>(val_node);
+    const auto* val_node = value.as<prim::IntImmNode>();
+    auto val_imm = ffi::GetRef<prim::IntImm>(val_node);
     return static_cast<int64_t>(val_imm->value);
   };
 
@@ -94,8 +95,8 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
 
   // unique values
   if (data_ty->ndim == 0) {
-    output_ty.push_back(
-        TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), data_ty->dtype, data_ty->vdevice));
+    output_ty.push_back(TensorType(ShapeExpr({prim::IntImm::Int64(/*value=*/1)}), data_ty->dtype,
+                                   data_ty->vdevice));
   } else if (axis.defined()) {
     output_ty.push_back(TensorType(data_ty->dtype, data_ty->ndim, data_ty->vdevice));
   } else {
@@ -106,8 +107,8 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
   // index: always 1D
   if (f_convert_to_int64(return_index)) {
     if (data_ty->ndim == 0) {
-      output_ty.push_back(
-          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), PrimType::Int(64), data_ty->vdevice));
+      output_ty.push_back(TensorType(ShapeExpr({prim::IntImm::Int64(/*value=*/1)}),
+                                     PrimType::Int(64), data_ty->vdevice));
     } else {
       output_ty.push_back(TensorType(PrimType::Int(64), /*ndim=*/1, data_ty->vdevice));
     }
@@ -116,8 +117,8 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
   // inverse_indices: always 1D per ONNX spec
   if (f_convert_to_int64(return_inverse)) {
     if (data_ty->ndim == 0) {
-      output_ty.push_back(
-          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), PrimType::Int(64), data_ty->vdevice));
+      output_ty.push_back(TensorType(ShapeExpr({prim::IntImm::Int64(/*value=*/1)}),
+                                     PrimType::Int(64), data_ty->vdevice));
     } else {
       output_ty.push_back(TensorType(PrimType::Int(64), /*ndim=*/1, data_ty->vdevice));
     }
@@ -126,8 +127,8 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
   // counts: always 1D
   if (f_convert_to_int64(return_counts)) {
     if (data_ty->ndim == 0) {
-      output_ty.push_back(
-          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), PrimType::Int(64), data_ty->vdevice));
+      output_ty.push_back(TensorType(ShapeExpr({prim::IntImm::Int64(/*value=*/1)}),
+                                     PrimType::Int(64), data_ty->vdevice));
     } else {
       output_ty.push_back(TensorType(PrimType::Int(64), /*ndim=*/1, data_ty->vdevice));
     }

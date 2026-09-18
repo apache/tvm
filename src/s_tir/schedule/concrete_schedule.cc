@@ -19,6 +19,7 @@
 #include "./concrete_schedule.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/tensor_intrin.h>
@@ -250,7 +251,7 @@ LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
 }
 
 ExprRV ConcreteScheduleNode::SampleCategorical(const ffi::Array<int64_t>& candidates,
-                                               const ffi::Array<FloatImm>& probs,
+                                               const ffi::Array<prim::FloatImm>& probs,
                                                ffi::Optional<int64_t> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
   return CreateRV(s_tir::SampleCategorical(&this->rand_state_, candidates, probs, &decision));
@@ -501,7 +502,7 @@ ffi::Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
   // infer factor if needed and check validity of factors
   for (size_t i = 0; i < factor_rvs.size(); i++) {
     if (!factor_rvs[i].has_value()) {
-      factors.push_back(IntImm::Int32(-1));
+      factors.push_back(prim::IntImm::Int32(-1));
       if (infer_index != -1) {
         throw MakeScheduleError<NotSingleInferFactorError>(state_->mod);
       }
@@ -509,8 +510,8 @@ ffi::Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
     } else {
       PrimExpr factor = this->Get(factor_rvs[i].value());
       if (is_const_int(factor) && !is_positive_const(factor)) {
-        throw MakeScheduleError<NonPositiveFactorError>(state_->mod, factor.as<IntImmNode>()->value,
-                                                        i);
+        throw MakeScheduleError<NonPositiveFactorError>(state_->mod,
+                                                        factor.as<prim::IntImmNode>()->value, i);
       }
       if (factor.ty().bits() > loop->extent.ty().bits()) {
         factor = cast(loop->extent.ty(), factor);
@@ -569,7 +570,7 @@ ffi::Array<LoopRV> ConcreteScheduleNode::LoopPartition(
   // infer factor if needed and check validity of factors
   for (size_t i = 0; i < factor_rvs.size(); i++) {
     if (!factor_rvs[i].has_value()) {
-      factors.push_back(IntImm::Int32(-1));
+      factors.push_back(prim::IntImm::Int32(-1));
       if (infer_index != -1) {
         throw MakeScheduleError<NotSingleInferFactorError>(state_->mod);
       }
@@ -577,8 +578,8 @@ ffi::Array<LoopRV> ConcreteScheduleNode::LoopPartition(
     } else {
       PrimExpr factor = this->Get(factor_rvs[i].value());
       if (is_const_int(factor) && !is_positive_const(factor)) {
-        throw MakeScheduleError<NonPositiveFactorError>(state_->mod, factor.as<IntImmNode>()->value,
-                                                        i);
+        throw MakeScheduleError<NonPositiveFactorError>(state_->mod,
+                                                        factor.as<prim::IntImmNode>()->value, i);
       }
       if (factor.ty().bits() > loop->extent.ty().bits()) {
         factor = cast(loop->extent.ty(), factor);
@@ -954,10 +955,10 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
     return ann_val;
   }
   // prefer to return int/float literals for annotations
-  if (auto opt_intimm = ann_val.try_cast<IntImm>()) {
+  if (auto opt_intimm = ann_val.try_cast<prim::IntImm>()) {
     return (*std::move(opt_intimm))->value;
   }
-  if (auto opt_floatimm = ann_val.try_cast<FloatImm>()) {
+  if (auto opt_floatimm = ann_val.try_cast<prim::FloatImm>()) {
     return (*std::move(opt_floatimm))->value;
   }
 
@@ -966,10 +967,10 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
         << "ffi::String is expected, but gets StringImm";
     auto res_expr = this->Get(expr.value());
     // prefer to return int/float literals for annotations
-    if (auto opt_intimm = res_expr.as<IntImm>()) {
+    if (auto opt_intimm = res_expr.as<prim::IntImm>()) {
       return (*std::move(opt_intimm))->value;
     }
-    if (auto opt_floatimm = res_expr.as<FloatImm>()) {
+    if (auto opt_floatimm = res_expr.as<prim::FloatImm>()) {
       return (*std::move(opt_floatimm))->value;
     }
     return res_expr;
@@ -1098,7 +1099,7 @@ void ConcreteScheduleNode::RollingBuffer(const SBlockRV& block_rv, int write_buf
 
 void ConcreteScheduleNode::UnsafeHideBufferAccess(const SBlockRV& block_rv,
                                                   const ffi::String& buf_type,
-                                                  const ffi::Array<IntImm>& buf_index_array) {
+                                                  const ffi::Array<prim::IntImm>& buf_index_array) {
   TVM_TIR_SCHEDULE_BEGIN();
   s_tir::UnsafeHideBufferAccess(state_, this->GetSRef(block_rv), buf_type, buf_index_array);
   TVM_TIR_SCHEDULE_END("hide-buffer-access", this->error_render_level_);

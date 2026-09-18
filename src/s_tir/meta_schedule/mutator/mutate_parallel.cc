@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include <algorithm>
@@ -53,8 +54,8 @@ bool IsAnnotateWithParallel(const Instruction& inst) {
  */
 Instruction ReplaceAnnValue(Instruction inst, int64_t ann_val) {
   TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
-  return Instruction(/*kind=*/inst->kind,                                   //
-                     /*inputs=*/{inst->inputs[0], IntImm::Int32(ann_val)},  //
+  return Instruction(/*kind=*/inst->kind,                                         //
+                     /*inputs=*/{inst->inputs[0], prim::IntImm::Int32(ann_val)},  //
                      /*attrs=*/inst->attrs,
                      /*outputs=*/inst->outputs);
 }
@@ -100,7 +101,7 @@ std::vector<std::vector<int64_t>> AnalyzeParallel(const ScheduleState& self,
          (loop = loop_sref->StmtAs<ForNode>()) != nullptr;  //
          loop_sref = loop_sref->parent) {
       int64_t loop_extent = -1;
-      const auto* ext_imm = loop->extent.as<IntImmNode>();
+      const auto* ext_imm = loop->extent.as<prim::IntImmNode>();
       if (auto ext = ext_imm ? ext_imm->value.as<int64_t>() : std::nullopt; ext.has_value()) {
         if (!info.non_spatial_vars.count(loop->loop_var.get())) {
           loop_extent = *ext;
@@ -249,7 +250,8 @@ bool FindParallelDecision(const Trace& trace, TRandState* rand_state,
       get_sblock_insts.at(ann_inst->inputs[0].as_or_throw<s_tir::SBlockRV>().get());
   TVM_FFI_ICHECK_EQ(get_sblock_inst->attrs.size(), 2);
   candidate->inst = ffi::GetRef<Instruction>(ann_inst);
-  candidate->parallel_extent = static_cast<int64_t>(ann_inst->inputs[1].cast<IntImm>()->value);
+  candidate->parallel_extent =
+      static_cast<int64_t>(ann_inst->inputs[1].cast<prim::IntImm>()->value);
   candidate->block_name = get_sblock_inst->attrs[0].as_or_throw<ffi::String>();
   candidate->func_name = get_sblock_inst->attrs[1].as_or_throw<ffi::String>();
   return true;

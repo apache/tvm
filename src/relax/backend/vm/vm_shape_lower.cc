@@ -155,7 +155,7 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
   }
 
   void CollectPrimExprSlot(const PrimExpr& expr) {
-    if (expr->IsInstance<IntImmNode>()) return;
+    if (expr->IsInstance<prim::IntImmNode>()) return;
     if (const auto* call = expr.as<CallNode>()) {
       TVM_FFI_CHECK(!IsRelaxOwnedCall(call), ValueError)
           << "VM shape expressions cannot compile a Relax-owned Call: " << ffi::GetRef<Call>(call);
@@ -345,7 +345,7 @@ class VMShapeLowerMutator
     slot_map_.clear();
     current_gvar_ = gvar;
     PrimExprSlotCollector::Collect(func, &slot_vec_, &slot_map_);
-    heap_size_ = IntImm(tvm::PrimType(ShapeDType()), static_cast<int64_t>(slot_vec_.size()));
+    heap_size_ = prim::IntImm(tvm::PrimType(ShapeDType()), static_cast<int64_t>(slot_vec_.size()));
     VarBinding shape_heap_binding = this->AllocShapeHeapBinding(heap_size_);
     shape_heap_ = shape_heap_binding->var;
 
@@ -435,7 +435,7 @@ class VMShapeLowerMutator
     }
 
     auto [code, rvalue] = MakeMatchArgs(slot->expr, false);
-    ffi::Array<Expr> args = {runtime_var, shape_heap_, IntImm::Int64(static_cast<int>(code)),
+    ffi::Array<Expr> args = {runtime_var, shape_heap_, prim::IntImm::Int64(static_cast<int>(code)),
                              rvalue, GetErrContext(err_ctx)};
     builder_->Emit(Call(Type::Missing(), builtin_match_prim_value_, args, Attrs(), {void_ty_}),
                    "_");
@@ -469,7 +469,7 @@ class VMShapeLowerMutator
     return emit_err_ctx_ ? StringImm(err_ctx) : StringImm("");
   }
 
-  VarBinding AllocShapeHeapBinding(IntImm heap_size) {
+  VarBinding AllocShapeHeapBinding(prim::IntImm heap_size) {
     if (heap_size->value > 0) {
       TensorType heap_ty(PrimType(ShapeDType()), 1);
       Var var("shape_heap", heap_ty);
@@ -498,24 +498,25 @@ class VMShapeLowerMutator
   std::pair<Expr, Expr> MakeSymbolicShapeArg(const PrimExpr& expr) {
     using runtime::vm::MakeShapeCode;
 
-    if (auto* int_expr = expr.as<IntImmNode>()) {
-      return {IntImm::Int64(static_cast<int>(MakeShapeCode::kUseImm)),
-              IntImm::Int64(int_expr->value)};
+    if (auto* int_expr = expr.as<prim::IntImmNode>()) {
+      return {prim::IntImm::Int64(static_cast<int>(MakeShapeCode::kUseImm)),
+              prim::IntImm::Int64(int_expr->value)};
     } else {
       auto it = slot_map_.find(expr);
       TVM_FFI_ICHECK(it != slot_map_.end());
       auto* slot = it->second;
       TVM_FFI_ICHECK(slot->value_computed)
           << "PrimExpr " << expr << " in function " << current_gvar_ << " has not been computed";
-      return {IntImm::Int64(static_cast<int>(MakeShapeCode::kLoadShape)),
-              IntImm::Int64(slot->index)};
+      return {prim::IntImm::Int64(static_cast<int>(MakeShapeCode::kLoadShape)),
+              prim::IntImm::Int64(slot->index)};
     }
   }
 
   Expr RewritePrimValue(const PrimExpr& value) {
     using runtime::vm::MakeShapeCode;
     // Constant shape can be preserved.
-    bool is_const_value = value->IsInstance<IntImmNode>() || value->IsInstance<FloatImmNode>();
+    bool is_const_value =
+        value->IsInstance<prim::IntImmNode>() || value->IsInstance<prim::FloatImmNode>();
     if (is_const_value) {
       return value;
     }
@@ -534,13 +535,14 @@ class VMShapeLowerMutator
     using runtime::vm::MakeShapeCode;
     // Constant shape can be preserved.
     bool is_const_shape = std::all_of(op->values.begin(), op->values.end(), [](const PrimExpr& e) {
-      return e->IsInstance<IntImmNode>();
+      return e->IsInstance<prim::IntImmNode>();
     });
     if (is_const_shape) {
       return ffi::GetRef<Expr>(op);
     }
 
-    ffi::Array<Expr> args = {shape_heap_, IntImm::Int64(static_cast<int64_t>(op->values.size()))};
+    ffi::Array<Expr> args = {shape_heap_,
+                             prim::IntImm::Int64(static_cast<int64_t>(op->values.size()))};
     for (PrimExpr expr : op->values) {
       auto [code, value_or_index] = MakeSymbolicShapeArg(expr);
       args.push_back(code);
@@ -593,15 +595,15 @@ class VMShapeLowerMutator
                                                              bool require_value_computed) {
     using runtime::vm::MatchShapeCode;
 
-    if (auto* int_expr = expr.as<IntImmNode>()) {
-      return {MatchShapeCode::kAssertEqualToImm, IntImm::Int64(int_expr->value)};
+    if (auto* int_expr = expr.as<prim::IntImmNode>()) {
+      return {MatchShapeCode::kAssertEqualToImm, prim::IntImm::Int64(int_expr->value)};
     }
 
     auto it = slot_map_.find(expr);
     TVM_FFI_ICHECK(it != slot_map_.end());
     auto* slot = it->second;
     if (slot->value_computed) {
-      return {MatchShapeCode::kAssertEqualToLoad, IntImm::Int64(slot->index)};
+      return {MatchShapeCode::kAssertEqualToLoad, prim::IntImm::Int64(slot->index)};
     }
 
     // the value is not yet computed
@@ -612,11 +614,11 @@ class VMShapeLowerMutator
       slot->value_computed = true;
       ready_vars_.push_back(slot);
 
-      return {MatchShapeCode::kStoreToHeap, IntImm::Int64(slot->index)};
+      return {MatchShapeCode::kStoreToHeap, prim::IntImm::Int64(slot->index)};
     }
 
     // otherwise, we skip and mark it as outstanding
-    return {MatchShapeCode::kNoOp, IntImm::Int64(0)};
+    return {MatchShapeCode::kNoOp, prim::IntImm::Int64(0)};
   }
 
   //-------------------------------------------------------
@@ -654,14 +656,14 @@ class VMShapeLowerMutator
         TVM_FFI_ICHECK_EQ(item.pattern.size(), 1);
       } else {
         match_op = builtin_match_shape_;
-        args.push_back(IntImm::Int64(item.pattern.size()));
+        args.push_back(prim::IntImm::Int64(item.pattern.size()));
       }
 
       for (PrimExpr expr : item.pattern) {
         auto [code, rvalue] = MakeMatchArgs(expr, require_value_computed);
         all_nop = all_nop && code == MatchShapeCode::kNoOp;
         any_nop = any_nop || code == MatchShapeCode::kNoOp;
-        args.push_back(IntImm::Int64(static_cast<int>(code)));
+        args.push_back(prim::IntImm::Int64(static_cast<int>(code)));
         args.push_back(rvalue);
       }
       if (any_nop) {
@@ -716,8 +718,9 @@ class VMShapeLowerMutator
     ffi::Map<tirx::Var, PrimExpr> var_map;
     for (const auto& [expr, slot] : slot_map_) {
       if (auto var = expr.as<tirx::Var>()) {
-        var_map.Set(var.value(),
-                    tirx::BufferLoad(buffer, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
+        var_map.Set(
+            var.value(),
+            tirx::BufferLoad(buffer, {prim::IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
       }
     }
     auto f_substitute =
@@ -732,8 +735,8 @@ class VMShapeLowerMutator
       slot->value_computed = true;
       PrimExpr value = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(slot->expr, f_substitute)
                            .as_or_throw<PrimExpr>();
-      seq.push_back(
-          tirx::BufferStore(buffer, value, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
+      seq.push_back(tirx::BufferStore(buffer, value,
+                                      {prim::IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
     }
 
     tirx::Stmt body = tirx::SeqStmt::Flatten(seq);
@@ -806,7 +809,8 @@ class VMShapeLowerMutator
     if (always_check || !IsBaseOf(ShapeType(op->ndim), GetType(value))) {
       // check_shape_info(value, ndim, err_ctx)
       Call call(Type::Missing(), builtin_check_shape_info_,
-                {value, IntImm::Int64(op->ndim), GetErrContext(err_ctx)}, Attrs(), {void_ty_});
+                {value, prim::IntImm::Int64(op->ndim), GetErrContext(err_ctx)}, Attrs(),
+                {void_ty_});
       builder_->Emit(call, "_");
     }
     if (op->values.has_value()) {
@@ -824,7 +828,7 @@ class VMShapeLowerMutator
     auto* shape_expr = op->shape.as<ShapeExprNode>();
     if (dynamic_only &&
         std::all_of(shape_expr->values.begin(), shape_expr->values.end(),
-                    [](const PrimExpr& e) { return e->IsInstance<IntImmNode>(); })) {
+                    [](const PrimExpr& e) { return e->IsInstance<prim::IntImmNode>(); })) {
       // if we only check dynamic shapes, and the shape is static, we can skip.
       return;
     }
@@ -833,7 +837,7 @@ class VMShapeLowerMutator
       Expr dtype_arg = op->IsUnknownDtype() ? Expr(Call(Type::Missing(), null_value_op_, {}))
                                             : Expr(DataTypeImm(op->dtype.value()->dtype));
       Call call(Type::Missing(), builtin_check_tensor_info_,
-                {value, IntImm::Int64(op->ndim), dtype_arg, GetErrContext(err_ctx)}, Attrs(),
+                {value, prim::IntImm::Int64(op->ndim), dtype_arg, GetErrContext(err_ctx)}, Attrs(),
                 {void_ty_});
       builder_->Emit(call, "_");
     }
@@ -865,8 +869,8 @@ class VMShapeLowerMutator
       return TupleGetItem(value, index);
     } else {
       // call runtime tuple get item, and return a object.
-      Call call(Type::Missing(), builtin_tuple_getitem_, {value, IntImm::Int64(index)}, Attrs(),
-                {object_ty_});
+      Call call(Type::Missing(), builtin_tuple_getitem_, {value, prim::IntImm::Int64(index)},
+                Attrs(), {object_ty_});
       UpdateType(call, ObjectType());
       return call;
     }
@@ -881,10 +885,10 @@ class VMShapeLowerMutator
     }
     if (always_check || !value_tinfo) {
       // check_tuple_info(value, tuple_size)
-      Call call(
-          Type::Missing(), builtin_check_tuple_info_,
-          {value, IntImm::Int64(static_cast<int64_t>(op->fields.size())), GetErrContext(err_ctx)},
-          Attrs(), {void_ty_});
+      Call call(Type::Missing(), builtin_check_tuple_info_,
+                {value, prim::IntImm::Int64(static_cast<int64_t>(op->fields.size())),
+                 GetErrContext(err_ctx)},
+                Attrs(), {void_ty_});
       builder_->Emit(call, "_");
     }
     // recursively visit each sub-field and run matching
@@ -912,7 +916,7 @@ class VMShapeLowerMutator
   /*! \brief heap ptr to store the PrimExpr slots. */
   Var shape_heap_;
   /*! \brief heap size. */
-  IntImm heap_size_;
+  prim::IntImm heap_size_;
   /*! \brief index => slot. */
   std::vector<std::unique_ptr<PrimExprSlot>> slot_vec_;
   /*! \brief Expr => slot. */

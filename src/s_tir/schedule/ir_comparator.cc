@@ -20,6 +20,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
 
@@ -339,8 +340,8 @@ TVM_DECLARE_TENSORIZE_COMPARATOR_BINOP(MaxNode);
 TVM_DECLARE_TENSORIZE_COMPARATOR_BINOP(FloorDivNode);
 TVM_DECLARE_TENSORIZE_COMPARATOR_BINOP(FloorModNode);
 
-bool TensorizeComparator::Dispatch_(const IntImmNode* op, const PrimExpr& other) {
-  const auto* rhs = other.as<IntImmNode>();
+bool TensorizeComparator::Dispatch_(const prim::IntImmNode* op, const PrimExpr& other) {
+  const auto* rhs = other.as<prim::IntImmNode>();
   if (op->value != rhs->value) {
     if (assert_mode_) {
       std::ostringstream os;
@@ -353,8 +354,8 @@ bool TensorizeComparator::Dispatch_(const IntImmNode* op, const PrimExpr& other)
   return true;
 }
 
-bool TensorizeComparator::Dispatch_(const FloatImmNode* op, const PrimExpr& other) {
-  const auto* rhs = other.as<FloatImmNode>();
+bool TensorizeComparator::Dispatch_(const prim::FloatImmNode* op, const PrimExpr& other) {
+  const auto* rhs = other.as<prim::FloatImmNode>();
   if (op->value != rhs->value) {
     if (assert_mode_) {
       std::ostringstream os;
@@ -816,7 +817,7 @@ bool AutoTensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
     auto is_scalar_access = [](const ffi::Array<PrimExpr>& indices, PrimExpr index) {
       // Check if the indexing is of the form C[0]
       if (indices.size() > 1) return false;
-      auto int_imm = index.template as<IntImmNode>();
+      auto int_imm = index.template as<prim::IntImmNode>();
       if (int_imm && int_imm->value == 0) return true;
       return false;
     };

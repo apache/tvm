@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr_functor.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <vector>
 
@@ -52,7 +53,7 @@ class Collect : public ExprVisitor {
  public:
   using ExprVisitor::Visit_;
   std::vector<int64_t> values;
-  ffi::Optional<VisitInterrupt> Visit_(const IntImmNode* node) override {
+  ffi::Optional<VisitInterrupt> Visit_(const prim::IntImmNode* node) override {
     values.push_back(node->value.as<int64_t>().value());
     return std::nullopt;
   }
@@ -60,48 +61,48 @@ class Collect : public ExprVisitor {
 
 TEST(ExprVisitor, StructuralFallback) {
   auto visitor = ffi::make_object<Collect>();
-  PairExpr pair(IntImm::Int32(1), IntImm::Int32(2));
+  PairExpr pair(prim::IntImm::Int32(1), prim::IntImm::Int32(2));
   auto result = visitor->VisitExpected(pair);
   ASSERT_TRUE(result.is_ok());
   EXPECT_FALSE(result.value().has_value());
   EXPECT_EQ(visitor->values, (std::vector<int64_t>{1, 2}));
-  EXPECT_EQ(pair->left.as<IntImmNode>()->value, 1);
-  EXPECT_EQ(pair->right.as<IntImmNode>()->value, 2);
+  EXPECT_EQ(pair->left.as<prim::IntImmNode>()->value, 1);
+  EXPECT_EQ(pair->right.as<prim::IntImmNode>()->value, 2);
 }
 
 class Rewrite : public ExprMutator {
  public:
   using ExprMutator::Mutate_;
-  UnchangedOr<PrimExpr> Mutate_(const IntImmNode* node, InplaceMode inplace_mode) override {
-    return IntImm::Int32(node->value + 1);
+  UnchangedOr<PrimExpr> Mutate_(const prim::IntImmNode* node, InplaceMode inplace_mode) override {
+    return prim::IntImm::Int32(node->value + 1);
   }
 };
 
 TEST(ExprMutator, StructuralFallback) {
   auto mutator = ffi::make_object<Rewrite>();
-  PairExpr pair(IntImm::Int32(1), IntImm::Int32(2));
+  PairExpr pair(prim::IntImm::Int32(1), prim::IntImm::Int32(2));
   auto result = mutator->MutateExpected(pair).value();
   ASSERT_FALSE(result.IsUnchanged());
   auto replacement = std::move(result).ValueUnchecked();
   const auto* changed = replacement.as<PairExprNode>();
   ASSERT_NE(changed, nullptr);
-  EXPECT_EQ(changed->left.as<IntImmNode>()->value, 2);
-  EXPECT_EQ(changed->right.as<IntImmNode>()->value, 3);
-  EXPECT_EQ(pair->left.as<IntImmNode>()->value, 1);
-  EXPECT_EQ(pair->right.as<IntImmNode>()->value, 2);
+  EXPECT_EQ(changed->left.as<prim::IntImmNode>()->value, 2);
+  EXPECT_EQ(changed->right.as<prim::IntImmNode>()->value, 3);
+  EXPECT_EQ(pair->left.as<prim::IntImmNode>()->value, 1);
+  EXPECT_EQ(pair->right.as<prim::IntImmNode>()->value, 2);
 }
 
 class ThrowNativeError : public ExprMutator {
  public:
   using ExprMutator::Mutate_;
   ffi::Error error{"ValueError", "native mutation error", ""};
-  UnchangedOr<PrimExpr> Mutate_(const IntImmNode*, InplaceMode) override { throw error; }
+  UnchangedOr<PrimExpr> Mutate_(const prim::IntImmNode*, InplaceMode) override { throw error; }
 };
 
 TEST(ExprMutator, NativeErrorContextThroughStructuralFallback) {
   auto mutator = ffi::make_object<ThrowNativeError>();
-  PrimExpr sum = prim::Add(IntImm::Int32(1), IntImm::Int32(2));
-  PairExpr pair(sum, IntImm::Int32(3));
+  PrimExpr sum = prim::Add(prim::IntImm::Int32(1), prim::IntImm::Int32(2));
+  PairExpr pair(sum, prim::IntImm::Int32(3));
   auto result = mutator->MutateExpected(pair);
   ASSERT_TRUE(result.is_err());
   EXPECT_TRUE(result.error().same_as(mutator->error));

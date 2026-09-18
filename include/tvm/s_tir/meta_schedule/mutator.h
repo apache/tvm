@@ -129,13 +129,13 @@ class Mutator : public ffi::ObjectRef {
   TVM_DLL static Mutator PyMutator(FInitializeWithTuneContext f_initialize_with_tune_context,
                                    FApply f_apply, FClone f_clone);
   /*! \brief Create default mutators for LLVM */
-  TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultLLVM();
+  TVM_DLL static ffi::Map<Mutator, prim::FloatImm, void> DefaultLLVM();
   /*! \brief Create default mutators for CUDA */
-  TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultCUDA();
+  TVM_DLL static ffi::Map<Mutator, prim::FloatImm, void> DefaultCUDA();
   /*! \brief Create default mutators for CUDA with TensorCore */
-  TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultCUDATensorCore();
+  TVM_DLL static ffi::Map<Mutator, prim::FloatImm, void> DefaultCUDATensorCore();
   /*! \brief Create default mutators for Hexagon */
-  TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultHexagon();
+  TVM_DLL static ffi::Map<Mutator, prim::FloatImm, void> DefaultHexagon();
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Mutator, ffi::ObjectRef, MutatorNode);
 };

@@ -97,10 +97,10 @@ class ExprFunctor<R(const Expr&, Args...)> {
   virtual R Dispatch_(const CallNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  virtual R Dispatch_(const IntImmNode* node, Args... args) {
+  virtual R Dispatch_(const prim::IntImmNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  virtual R Dispatch_(const FloatImmNode* node, Args... args) {
+  virtual R Dispatch_(const prim::FloatImmNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
   virtual R Dispatch_(const OpNode* node, Args... args) {
@@ -214,8 +214,8 @@ class ExprFunctor<R(const Expr&, Args...)> {
     SetDispatch<TSelf, VarNode>(vtable);
     SetDispatch<TSelf, GlobalVarNode>(vtable);
     SetDispatch<TSelf, CallNode>(vtable);
-    SetDispatch<TSelf, IntImmNode>(vtable);
-    SetDispatch<TSelf, FloatImmNode>(vtable);
+    SetDispatch<TSelf, prim::IntImmNode>(vtable);
+    SetDispatch<TSelf, prim::FloatImmNode>(vtable);
     SetDispatch<TSelf, OpNode>(vtable);
     SetDispatch<TSelf, prim::StringImmNode>(vtable);
     SetDispatch<TSelf, prim::CastNode>(vtable);
@@ -314,8 +314,8 @@ class TVM_DLL ExprVisitor : public ObjectVisitor {
   virtual ffi::Optional<VisitInterrupt> Visit_(const VarNode* node);
   virtual ffi::Optional<VisitInterrupt> Visit_(const GlobalVarNode* node);
   virtual ffi::Optional<VisitInterrupt> Visit_(const CallNode* node);
-  virtual ffi::Optional<VisitInterrupt> Visit_(const IntImmNode* node);
-  virtual ffi::Optional<VisitInterrupt> Visit_(const FloatImmNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::IntImmNode* node);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const prim::FloatImmNode* node);
   virtual ffi::Optional<VisitInterrupt> Visit_(const OpNode* node);
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::StringImmNode* node);
   virtual ffi::Optional<VisitInterrupt> Visit_(const prim::CastNode* node);
@@ -432,8 +432,8 @@ class TVM_DLL ExprMutator : public ObjectMutator {
   virtual UnchangedOr<Expr> Mutate_(const VarNode* node, InplaceMode inplace_mode);
   virtual UnchangedOr<Expr> Mutate_(const GlobalVarNode* node, InplaceMode inplace_mode);
   virtual UnchangedOr<Expr> Mutate_(const CallNode* node, InplaceMode inplace_mode);
-  virtual UnchangedOr<PrimExpr> Mutate_(const IntImmNode* node, InplaceMode inplace_mode);
-  virtual UnchangedOr<PrimExpr> Mutate_(const FloatImmNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::IntImmNode* node, InplaceMode inplace_mode);
+  virtual UnchangedOr<PrimExpr> Mutate_(const prim::FloatImmNode* node, InplaceMode inplace_mode);
   virtual UnchangedOr<Expr> Mutate_(const OpNode* node, InplaceMode inplace_mode);
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::StringImmNode* node, InplaceMode inplace_mode);
   virtual UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* node, InplaceMode inplace_mode);

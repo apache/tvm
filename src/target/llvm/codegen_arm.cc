@@ -28,6 +28,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include "codegen_cpu.h"
 
@@ -56,7 +57,7 @@ class CodeGenARM final : public CodeGenCPU {
 llvm::Value* CodeGenARM::CreateIntrinsic(const CallNode* op) {
   if (op->op.same_as(builtin_call_llvm_intrin_) || op->op.same_as(builtin_call_llvm_pure_intrin_)) {
     llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(
-        op->args[0].as_or_throw<IntImm>()->value.as<unsigned>().value());
+        op->args[0].as_or_throw<prim::IntImm>()->value.as<unsigned>().value());
     if (id == llvm::Intrinsic::ctpop) {
       PrimExpr e = ARMPopcount(op);
       return CodeGenCPU::CreateIntrinsic(e.as<CallNode>());
@@ -77,7 +78,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
   if (!call_ty.IsFixedLengthVector() || call_ty.bits() == 8 ||
       (total_size != 128 && total_size != 64)) {
     ffi::Array<PrimExpr> vcnt_args;
-    vcnt_args.push_back(IntImm(PrimType::UInt(32), ctpop_id));
+    vcnt_args.push_back(prim::IntImm(PrimType::UInt(32), ctpop_id));
     vcnt_args.push_back(e);
     return Call(call_ty, builtin_call_llvm_pure_intrin_, vcnt_args).as_or_throw<PrimExpr>();
   }
@@ -101,14 +102,14 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
   const CallNode* c0 = input8.as<CallNode>();
   TVM_FFI_ICHECK(c0 != nullptr);
   ffi::Array<PrimExpr> vcnt8_args;
-  vcnt8_args.push_back(IntImm(PrimType::UInt(32), ctpop_id));
+  vcnt8_args.push_back(prim::IntImm(PrimType::UInt(32), ctpop_id));
   vcnt8_args.push_back(input8);
   PrimExpr vcnt8 =
       Call(uint8_type, builtin_call_llvm_pure_intrin_, vcnt8_args).as_or_throw<PrimExpr>();
 
   // Accumulation 8->16bit
   ffi::Array<PrimExpr> vcnt16_args;
-  vcnt16_args.push_back(IntImm(PrimType::UInt(32), vpaddlu_id));
+  vcnt16_args.push_back(prim::IntImm(PrimType::UInt(32), vpaddlu_id));
   vcnt16_args.push_back(vcnt8);
   PrimExpr vcnt16 =
       Call(uint16_type, builtin_call_llvm_pure_intrin_, vcnt16_args).as_or_throw<PrimExpr>();
@@ -118,7 +119,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
 
   // Accumulation 16->32bit
   ffi::Array<PrimExpr> vcnt32_args;
-  vcnt32_args.push_back(IntImm(PrimType::UInt(32), vpaddlu_id));
+  vcnt32_args.push_back(prim::IntImm(PrimType::UInt(32), vpaddlu_id));
   vcnt32_args.push_back(vcnt16);
   PrimExpr vcnt32 =
       Call(uint32_type, builtin_call_llvm_pure_intrin_, vcnt32_args).as_or_throw<PrimExpr>();
@@ -128,7 +129,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
 
   // Accumulation 32->64bit
   ffi::Array<PrimExpr> vcnt64_args;
-  vcnt64_args.push_back(IntImm(PrimType::UInt(32), vpaddlu_id));
+  vcnt64_args.push_back(prim::IntImm(PrimType::UInt(32), vpaddlu_id));
   vcnt64_args.push_back(vcnt32);
   return Call(call_ty, builtin_call_llvm_pure_intrin_, vcnt64_args).as_or_throw<PrimExpr>();
 }

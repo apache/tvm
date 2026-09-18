@@ -241,7 +241,7 @@ def test_make_smap():
 
 
 def test_make_node():
-    x = tvm.ir.make_node("ir.IntImm", ty=tvm.ir.PrimType("int32"), value=10, span=None)
+    x = tvm.ir.make_node("prim.IntImm", ty=tvm.ir.PrimType("int32"), value=10, span=None)
     assert isinstance(x, tvm.tirx.IntImm)
     assert x.value == 10
     A = te.placeholder((10,), name="A")
@@ -252,10 +252,30 @@ def test_make_node():
     assert AA.value_index == A.value_index
 
     y = tvm.ir.make_node(
-        "ir.IntImm", ty=tvm.ir.PrimType(tvm_ffi.core.String("int32")), value=10, span=None
+        "prim.IntImm", ty=tvm.ir.PrimType(tvm_ffi.core.String("int32")), value=10, span=None
     )
     assert isinstance(y, tvm.tirx.IntImm)
     assert y.value == 10
+
+
+@pytest.mark.parametrize(
+    "name,dtype,value",
+    [("IntImm", "uint64", 2**64 - 1), ("FloatImm", "float32", 1.5)],
+)
+def test_primitive_immediate_registration(name, dtype, value):
+    canonical = getattr(tvm.ir.prim, name)
+    assert canonical is getattr(tvm.tirx, name)
+    constructed = tvm_ffi.get_global_func(f"prim.{name}")(dtype, value, None)
+    reflected = tvm.ir.make_node(f"prim.{name}", ty=tvm.ir.PrimType(dtype), value=value, span=None)
+    for node in [canonical(dtype, value), constructed, reflected]:
+        assert type(node) is canonical
+        assert node.value == value
+        serialized = tvm.ir.save_json(node)
+        assert f"prim.{name}" in serialized
+        restored = tvm.ir.load_json(serialized)
+        assert type(restored) is canonical
+        assert restored.value == value
+        tvm.ir.assert_structural_equal(node, restored)
 
 
 def test_make_sum():

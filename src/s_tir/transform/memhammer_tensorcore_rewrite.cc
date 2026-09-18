@@ -21,6 +21,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "./memhammer_rewrite_rule.h"
@@ -145,7 +146,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   BufferVar new_src_buffer(
       /*name=*/"src", BufferType(/*storage_scope=*/src_buffer.scope(),
                                  /*dtype=*/dtype,
-                                 /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
+                                 /*shape=*/{prim::IntImm::Int32(16), prim::IntImm::Int32(16)},
                                  /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
                                  /*elem_offset=*/PrimVar("src_elem_offset", int32_ty),
                                  /*data_alignment=*/64,
@@ -153,7 +154,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   BufferVar new_tgt_buffer(
       /*name=*/"tgt", BufferType(/*storage_scope=*/tgt_buffer.scope(),
                                  /*dtype=*/dtype,
-                                 /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
+                                 /*shape=*/{prim::IntImm::Int32(16), prim::IntImm::Int32(16)},
                                  /*strides=*/{},
                                  /*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty),
                                  /*data_alignment=*/64,
@@ -163,7 +164,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},
-      /*predicate=*/IntImm::Bool(true),
+      /*predicate=*/prim::IntImm::Bool(true),
       SBlock(
           /*iter_vars=*/{},
           /*reads=*/{BufferRegion(src_buffer, read_region)},
@@ -252,20 +253,20 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   PrimType dtype_ty = src_buffer->dtype;
   const PrimType& dtype = dtype_ty;
 
-  BufferVar new_src_buffer(
-      "src", BufferType(src_buffer.scope(), dtype, {IntImm::Int32(16), IntImm::Int32(16)}, {},
-                        PrimVar("src_elem_offset", int32_ty), 64, 16));
-  BufferVar new_tgt_buffer(
-      "tgt", BufferType(tgt_buffer.scope(), dtype, {IntImm::Int32(16), IntImm::Int32(16)},
-                        {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
-                        PrimVar("tgt_elem_offset", int32_ty), 64, 16));
+  BufferVar new_src_buffer("src", BufferType(src_buffer.scope(), dtype,
+                                             {prim::IntImm::Int32(16), prim::IntImm::Int32(16)}, {},
+                                             PrimVar("src_elem_offset", int32_ty), 64, 16));
+  BufferVar new_tgt_buffer("tgt", BufferType(tgt_buffer.scope(), dtype,
+                                             {prim::IntImm::Int32(16), prim::IntImm::Int32(16)},
+                                             {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
+                                             PrimVar("tgt_elem_offset", int32_ty), 64, 16));
 
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
   static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},  //
-      /*predicate=*/IntImm::Bool(true),
+      /*predicate=*/prim::IntImm::Bool(true),
       SBlock(/*iter_vars=*/{},
              /*reads=*/{BufferRegion(src_buffer, read_region)},
              /*writes=*/{BufferRegion(tgt_buffer, write_region)},
@@ -480,10 +481,10 @@ Stmt RewriteMmaStore(Stmt stmt) {
   PrimType dtype_ty = src_buffer->dtype;
   const PrimType& dtype = dtype_ty;
   BufferVar new_src_buffer(
-      "src", BufferType(src_buffer.scope(), dtype, {IntImm::Int32(8), IntImm::Int32(8)}, {},
-                        PrimVar("src_elem_offset", int32_ty), 64, 8));
+      "src", BufferType(src_buffer.scope(), dtype, {prim::IntImm::Int32(8), prim::IntImm::Int32(8)},
+                        {}, PrimVar("src_elem_offset", int32_ty), 64, 8));
   BufferVar new_tgt_buffer(
-      "tgt", BufferType(tgt_buffer.scope(), dtype, {IntImm::Int32(8), IntImm::Int32(8)},
+      "tgt", BufferType(tgt_buffer.scope(), dtype, {prim::IntImm::Int32(8), prim::IntImm::Int32(8)},
                         {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
                         PrimVar("tgt_elem_offset", int32_ty), 64, 8));
 
@@ -498,7 +499,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
   PrimVar vec("vec");
   Stmt mma_body = SBlockRealize(
       /*iter_values=*/{},  //
-      /*predicate=*/IntImm::Bool(true),
+      /*predicate=*/prim::IntImm::Bool(true),
       SBlock(/*iter_vars=*/{},
              /*reads=*/{BufferRegion(src_buffer, read_region)},
              /*writes=*/{BufferRegion(tgt_buffer, write_region)},
@@ -510,7 +511,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
                      /*iter_type=*/IterVarType::kThreadIndex,
                      /*thread_tag=*/"threadIdx.x"),
                  /*attr_key=*/"thread_extent",
-                 /*value=*/IntImm::Int32(32),
+                 /*value=*/prim::IntImm::Int32(32),
                  /*body=*/
                  For(vec.as_or_throw<PrimVar>(), 0, 2, ForKind::kVectorized,
                      /*body=*/

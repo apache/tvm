@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
@@ -239,7 +240,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const ShapeExprNode* op) final {
     std::vector<int64_t> shape;
     for (PrimExpr e : op->values) {
-      if (auto* int_value = e.as<IntImmNode>()) {
+      if (auto* int_value = e.as<prim::IntImmNode>()) {
         shape.push_back(static_cast<int64_t>(int_value->value));
       } else {
         TVM_FFI_THROW(InternalError)
@@ -249,11 +250,11 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return builder_->ConvertConstant(ffi::Shape(shape));
   }
 
-  Instruction::Arg VisitExpr_(const IntImmNode* op) final {
+  Instruction::Arg VisitExpr_(const prim::IntImmNode* op) final {
     return builder_->ConvertConstant(op->value);
   }
 
-  Instruction::Arg VisitExpr_(const FloatImmNode* op) final {
+  Instruction::Arg VisitExpr_(const prim::FloatImmNode* op) final {
     return builder_->ConvertConstant(op->value);
   }
 
@@ -355,7 +356,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       args.push_back(this->VisitExpr(call_node->args[i]));
     }
     int64_t vdevice_index = -1;
-    if (const auto* int_imm = call_node->args[4].as<IntImmNode>()) {
+    if (const auto* int_imm = call_node->args[4].as<prim::IntImmNode>()) {
       vdevice_index = int_imm->value.as<int>().value();
     }
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);

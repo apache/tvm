@@ -56,11 +56,11 @@ NType NTypeMerge(const NType& a, const NType& b) {
 }
 
 ffi::Array<ffi::ObjectRef> InferMixedPrecisionFollow(const Call& call, DLDataType out_dtype) {
-  return {IntImm::Int32(MixedPrecisionPolicyKind::kFollow), call};
+  return {prim::IntImm::Int32(MixedPrecisionPolicyKind::kFollow), call};
 }
 
 ffi::Array<ffi::ObjectRef> InferMixedPrecisionNever(const Call& call, DLDataType out_dtype) {
-  return {IntImm::Int32(MixedPrecisionPolicyKind::kNever), call};
+  return {prim::IntImm::Int32(MixedPrecisionPolicyKind::kNever), call};
 }
 
 }  // namespace relax

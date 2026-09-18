@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/linear_algebra.h>
 #include <tvm/relax/attrs/manipulate.h>
@@ -52,7 +53,7 @@ ffi::Array<PrimExpr> GetBatchPrefix(const ffi::Array<PrimExpr>& shape) {
 }
 
 PrimExpr ProductDims(const ffi::Array<PrimExpr>& dims) {
-  PrimExpr product = IntImm::Int64(1);
+  PrimExpr product = prim::IntImm::Int64(1);
   for (const auto& dim : dims) product = product * dim;
   return product;
 }
@@ -127,7 +128,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
   auto pat = pat_matmul_on_lhs | pat_matmul_on_rhs | pat_permuted_matmul_on_lhs |
              pat_permuted_matmul_on_rhs;
 
-  PrimExpr symbolic_var_constraints = IntImm::Bool(true);
+  PrimExpr symbolic_var_constraints = prim::IntImm::Bool(true);
   auto upper_bounds = func->GetAttr<ffi::Map<ffi::String, Any>>("tir_var_upper_bound");
   auto lower_bounds = func->GetAttr<ffi::Map<ffi::String, Any>>("tir_var_lower_bound");
 
@@ -254,13 +255,13 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     // operations required, assuming a naive matmul (see below).
 
     if (shape_a.size() == 1) {
-      shape_a = {IntImm(shape_a[0].ty(), 1), shape_a[0]};
+      shape_a = {prim::IntImm(shape_a[0].ty(), 1), shape_a[0]};
     }
     if (shape_b.size() == 1) {
       if (matches.count(pat_matmul_on_lhs)) {
-        shape_b = {shape_b[0], IntImm(shape_b[0].ty(), 1)};
+        shape_b = {shape_b[0], prim::IntImm(shape_b[0].ty(), 1)};
       } else if (matches.count(pat_matmul_on_rhs)) {
-        shape_b = {IntImm(shape_b[0].ty(), 1), shape_b[0]};
+        shape_b = {prim::IntImm(shape_b[0].ty(), 1), shape_b[0]};
       } else {
         TVM_FFI_THROW(InternalError)
             << "OrPattern " << pat << " matched, but neither " << pat_matmul_on_lhs << " nor "
@@ -268,7 +269,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       }
     }
     if (shape_c.size() == 1) {
-      shape_c = {shape_c[0], IntImm(shape_c[0].ty(), 1)};
+      shape_c = {shape_c[0], prim::IntImm(shape_c[0].ty(), 1)};
     }
 
     PrimExpr size_N = shape_a[shape_a.size() - 2];  // row of A

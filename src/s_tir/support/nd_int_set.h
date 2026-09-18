@@ -20,6 +20,7 @@
 #define TVM_S_TIR_SUPPORT_ND_INT_SET_H_
 
 #include <tvm/ir/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/sym/int_set.h>
 
 #include <unordered_map>
@@ -51,7 +52,7 @@ inline NDIntSet NDIntSetFromRegion(const tirx::Region& region) {
  * \return The constructed set.
  */
 inline NDIntSet NDIntSetFromShape(const ffi::Array<PrimExpr>& shape) {
-  PrimExpr zero = IntImm::Int32(0);
+  PrimExpr zero = prim::IntImm::Int32(0);
   NDIntSet result;
   result.reserve(shape.size());
   for (const PrimExpr& extent : shape) {

@@ -25,6 +25,7 @@
 
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/pattern.h>
@@ -181,7 +182,7 @@ class ScopeIdDefRemover : public StmtExprMutator {
     // Drop the def stmt by replacing with a no-op Evaluate(0). It will be
     // flattened away by SeqStmt::Flatten elsewhere or stay as a benign
     // no-op for downstream passes.
-    return Evaluate(IntImm::Int32(0));
+    return Evaluate(prim::IntImm::Int32(0));
   }
 };
 
@@ -680,7 +681,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   // dispatched impls too.
   void PrepareLaunchParams(const AttrStmtNode* entry_node, Stmt body,
                            std::vector<std::pair<Var, PrimExpr>>* scope_binds) {
-    Stmt gather_target = AttrStmt(0, tvm::tirx::attr::kDeviceEntry, IntImm::Bool(true), body);
+    Stmt gather_target = AttrStmt(0, tvm::tirx::attr::kDeviceEntry, prim::IntImm::Bool(true), body);
     std::vector<ScopeIdDefWithSource> gathered = ScopeIdDefGather::Gather(gather_target);
     Array<ScopeIdDef> defs;
     defs.reserve(gathered.size());
@@ -711,7 +712,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
                             std::vector<std::pair<Var, const StmtNode*>>* implicit_scope_id_evals) {
     // Gather from a temporary stmt synthesized as the device-entry marker
     // so direct ScopeIdDefStmt children are attributed back to entry_node.
-    Stmt gather_target = AttrStmt(0, tvm::tirx::attr::kDeviceEntry, IntImm::Bool(true), body);
+    Stmt gather_target = AttrStmt(0, tvm::tirx::attr::kDeviceEntry, prim::IntImm::Bool(true), body);
     std::vector<ScopeIdDefWithSource> gathered = ScopeIdDefGather::Gather(gather_target);
     // Remap the synthetic source pointer back to the real entry_node so the
     // injector matches against the actual node present in the post-processed
@@ -820,7 +821,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       for (const char* k : keys) {
         auto it = launch_params_.find(ffi::String(k));
         if (it == launch_params_.end()) continue;
-        const auto* imm = it->second->dom->extent.as<IntImmNode>();
+        const auto* imm = it->second->dom->extent.as<prim::IntImmNode>();
         if (imm == nullptr) return 0;  // symbolic
         auto product = (n * imm->value).as<int64_t>();
         if (!product.has_value()) return 0;
@@ -833,7 +834,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       for (const auto& [thread_key, axis_name] : keys) {
         auto it = launch_params_.find(ffi::String(thread_key));
         if (it == launch_params_.end()) continue;
-        const auto* imm = it->second->dom->extent.as<IntImmNode>();
+        const auto* imm = it->second->dom->extent.as<prim::IntImmNode>();
         if (imm == nullptr) return std::vector<std::pair<std::string, int64_t>>();
         auto value = imm->value.as<int64_t>();
         if (!value.has_value()) return std::vector<std::pair<std::string, int64_t>>();
@@ -1035,7 +1036,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   }
 
   static bool TryExtractIntImm(const PrimExpr& expr, int64_t* value) {
-    if (const auto* imm = expr.as<IntImmNode>()) {
+    if (const auto* imm = expr.as<prim::IntImmNode>()) {
       if (auto value_i64 = imm->value.as<int64_t>(); value_i64.has_value()) {
         *value = *value_i64;
         return true;
@@ -1513,7 +1514,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     if (pred_ty.MatchesCode(DLDataTypeCode::kDLBool)) {
       return pred;
     }
-    return pred != IntImm(pred.ty(), 0);
+    return pred != prim::IntImm(pred.ty(), 0);
   }
 
   ffi::Map<Var, Range> var_range_map_;

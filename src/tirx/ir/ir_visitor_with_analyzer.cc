@@ -24,6 +24,7 @@
 
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
@@ -41,7 +42,7 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const ForNode* op) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(*op->step));
     }
     return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
-      constraint_scope_.Current().Emplace(analyzer_, op->extent > IntImm(op->extent.ty(), 0));
+      constraint_scope_.Current().Emplace(analyzer_, op->extent > prim::IntImm(op->extent.ty(), 0));
       return this->Visit(op->body);
     });
   });
@@ -84,7 +85,7 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const AttrStmtNode* 
         op->attr_key == tvm::tirx::attr::virtual_thread) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      analyzer_->Bind(iv->var, Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value));
+      analyzer_->Bind(iv->var, Range::FromMinExtent(prim::IntImm(op->value.ty(), 0), op->value));
     }
     return StmtExprVisitor::Visit_(op);
   });

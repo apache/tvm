@@ -30,6 +30,7 @@
 #include <llvm/Support/Casting.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <string>
 #include <vector>
@@ -69,9 +70,9 @@ llvm::Value* CodeGenX86_64::Dispatch_(const prim::CastNode* op) {
               MakeValue(
                   Call(PrimType::Int(16, from.lanes()), tirx::builtin::reinterpret(), {op->value})
                       .as_or_throw<PrimExpr>()),
-              MakeValue(prim::Broadcast(FloatImm(PrimType::Float(32), 0), from.lanes())),
-              /*mask=*/MakeValue(IntImm(PrimType::Int(16), -1)),
-              /*rounding-mode=*/MakeValue(IntImm::Int32(4)),
+              MakeValue(prim::Broadcast(prim::FloatImm(PrimType::Float(32), 0), from.lanes())),
+              /*mask=*/MakeValue(prim::IntImm(PrimType::Int(16), -1)),
+              /*rounding-mode=*/MakeValue(prim::IntImm::Int32(4)),
           });
     }
   }

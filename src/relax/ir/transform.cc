@@ -26,6 +26,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -37,7 +38,7 @@ namespace tvm {
 namespace relax {
 namespace transform {
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.fallback_device_type", IntImm);
+TVM_REGISTER_PASS_CONFIG_OPTION("relax.fallback_device_type", prim::IntImm);
 
 class FunctionPass;
 

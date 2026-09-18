@@ -24,6 +24,7 @@
 #ifndef TVM_TOPI_REDUCTION_H_
 #define TVM_TOPI_REDUCTION_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
 #include <tvm/topi/broadcast.h>
 #include <tvm/topi/detail/constant_utils.h>
@@ -291,7 +292,7 @@ inline FCommReduce MakeCommReducer(FCombine fcombine, FIdentity fidentity,
 
     auto result = fcombine(callback_lhs, callback_rhs);
     auto id_elem = fidentity(dtypes);
-    auto cond = condition != nullptr ? *condition : IntImm::Bool(true);
+    auto cond = condition != nullptr ? *condition : prim::IntImm::Bool(true);
 
     auto combiner = tvm::te::CommReducer(lhs, rhs, result, id_elem);
     ffi::Array<PrimExpr> outputs;

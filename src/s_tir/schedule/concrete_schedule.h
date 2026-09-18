@@ -89,7 +89,8 @@ class ConcreteScheduleNode : public ScheduleNode {
 
  public:
   /******** Schedule: Sampling ********/
-  ExprRV SampleCategorical(const ffi::Array<int64_t>& candidates, const ffi::Array<FloatImm>& probs,
+  ExprRV SampleCategorical(const ffi::Array<int64_t>& candidates,
+                           const ffi::Array<prim::FloatImm>& probs,
                            ffi::Optional<int64_t> decision = std::nullopt) override;
   ffi::Array<ExprRV> SamplePerfectTile(
       const LoopRV& loop_rv, int n, int max_innermost_factor,
@@ -191,7 +192,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   /******** Schedule: Misc ********/
   void EnterPostproc() override {}
   void UnsafeHideBufferAccess(const SBlockRV& block_rv, const ffi::String& buf_type,
-                              const ffi::Array<IntImm>& buf_index_array) override;
+                              const ffi::Array<prim::IntImm>& buf_index_array) override;
   void AnnotateBufferAccess(const SBlockRV& block_rv, int buffer_index,
                             BufferIndexType buffer_index_type, const IndexMap& index_map) override;
 
@@ -267,8 +268,8 @@ inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
       TVM_FFI_THROW(IndexError) << "Cannot find corresponding ExprRV: " << var;
     }
     const ffi::ObjectRef& obj = (*it).second;
-    const auto* int_imm = TVM_TYPE_AS(obj, IntImmNode);
-    return ffi::Any(IntImm::Int32(int_imm->value));
+    const auto* int_imm = TVM_TYPE_AS(obj, prim::IntImmNode);
+    return ffi::Any(prim::IntImm::Int32(int_imm->value));
   };
   PrimExpr transformed =
       ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr_rv, f_substitute).as_or_throw<PrimExpr>();
@@ -372,7 +373,7 @@ inline T ConcreteScheduleNode::CreateRV(const StmtSRef& sref) {
 
 inline ExprRV ConcreteScheduleNode::CreateRV(int64_t value) {
   Var rv("v" + std::to_string(this->symbol_table_.size() + 1), PrimType::Int(32));
-  this->symbol_table_.Set(rv, IntImm::Int32(static_cast<int32_t>(value)));
+  this->symbol_table_.Set(rv, prim::IntImm::Int32(static_cast<int32_t>(value)));
   return rv.as_or_throw<PrimExpr>();
 }
 

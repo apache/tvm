@@ -259,8 +259,8 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
       if (dtype.MatchesCode(DLDataTypeCode::kDLUInt) && dtype.bits() == 64) {
         solver->add(ctx->int_val(0) <= e && e <= ctx->int_val((uint64_t)UINT64_MAX));
       } else {
-        auto min_val = min_value(dtype).as_or_throw<IntImm>()->value;
-        auto max_val = max_value(dtype).as_or_throw<IntImm>()->value;
+        auto min_val = min_value(dtype).as_or_throw<prim::IntImm>()->value;
+        auto max_val = max_value(dtype).as_or_throw<prim::IntImm>()->value;
         solver->add(IntegerValue(*ctx, min_val) <= e && e <= IntegerValue(*ctx, max_val));
       }
       return e;
@@ -338,10 +338,10 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
       return true;
     }
     auto checkTrivilCmp = [this](const PrimExpr& lhs, const PrimExpr& rhs) {
-      if (IsFreeNode(lhs) && rhs->IsInstance<IntImmNode>()) {
+      if (IsFreeNode(lhs) && rhs->IsInstance<prim::IntImmNode>()) {
         return true;
       }
-      if (IsFreeNode(rhs) && lhs->IsInstance<IntImmNode>()) {
+      if (IsFreeNode(rhs) && lhs->IsInstance<prim::IntImmNode>()) {
         return true;
       }
       if (IsFreeNode(lhs) && IsFreeNode(rhs)) {
@@ -349,13 +349,13 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
       }
       // cast('xxx', free_var) == constant
       if (auto cast = lhs.as<prim::CastNode>()) {
-        if (IsFreeNode(cast->value) && rhs->IsInstance<IntImmNode>()) {
+        if (IsFreeNode(cast->value) && rhs->IsInstance<prim::IntImmNode>()) {
           return true;
         }
       }
       // constant == cast('xxx', free_var)
       if (auto cast = rhs.as<prim::CastNode>()) {
-        if (IsFreeNode(cast->value) && lhs->IsInstance<IntImmNode>()) {
+        if (IsFreeNode(cast->value) && lhs->IsInstance<prim::IntImmNode>()) {
           return true;
         }
       }
@@ -439,7 +439,7 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
     //    test is_const_int on min and extent individually and add the two constants
     //    in C++. Otherwise this fast path is never taken and we always emit the more expensive
     //    symbolic constraint below.
-    if (auto min_imm = min.as<IntImm>(), extent_imm = extent.as<IntImm>();
+    if (auto min_imm = min.as<prim::IntImm>(), extent_imm = extent.as<prim::IntImm>();
         min_imm.has_value() && extent_imm.has_value()) {
       const ffi::BigInt& min_value = (*min_imm)->value;
       ffi::BigInt max_value = min_value + (*extent_imm)->value;
@@ -882,7 +882,7 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
   z3::expr Dispatch_(const prim::SelectNode* op) override {
     return z3::ite(VisitBool(op->condition), VisitInt(op->true_value), VisitInt(op->false_value));
   }
-  z3::expr Dispatch_(const IntImmNode* op) override { return IntegerValue(*ctx, op->value); }
+  z3::expr Dispatch_(const prim::IntImmNode* op) override { return IntegerValue(*ctx, op->value); }
 
   // Bitwise operations
   z3::expr Dispatch_(const CallNode* op) override {

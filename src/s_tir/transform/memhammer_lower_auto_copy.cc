@@ -123,16 +123,17 @@ class AutoPadder {
         // Step 2. For each dimension, select a padding that has minimal bank conflict
         for (int k = n - 2; k >= 0; k--) {  // dims
           int max_pad_size = static_cast<int>(std::min(
-              max_pad_factor_ *
-                  static_cast<double>((stride * buffer->shape[k + 1]).as<IntImmNode>()->value),
+              max_pad_factor_ * static_cast<double>(
+                                    (stride * buffer->shape[k + 1]).as<prim::IntImmNode>()->value),
               static_cast<double>(32 * 32 / data_bits)));
           int min_conflict = INT32_MAX;
           int min_conflict_pad = -1;
           for (int pad = 0; pad <= max_pad_size; pad += pad_min) {  // select padding
-            int padded_stride = (((stride * buffer->shape[k + 1]).as<IntImmNode>()->value + pad) %
-                                 (32 * 32 / data_bits))
-                                    .as<int>()
-                                    .value();
+            int padded_stride =
+                (((stride * buffer->shape[k + 1]).as<prim::IntImmNode>()->value + pad) %
+                 (32 * 32 / data_bits))
+                    .as<int>()
+                    .value();
             int conflict = 0;
             for (int i = 0; i < static_cast<int>(iter_spaces.size()); i++) {  // accesses
               auto iter_space = iter_spaces[i][k];
@@ -156,11 +157,11 @@ class AutoPadder {
           for (int i = 0; i < static_cast<int>(iter_spaces.size()); i++) {  // accesses
             auto iter_space = iter_spaces[i][k];
             if (!iter_space.empty()) {
-              int padded_stride =
-                  (((stride * buffer->shape[k + 1]).as<IntImmNode>()->value + min_conflict_pad) %
-                   (32 * 32 / data_bits))
-                      .as<int>()
-                      .value();
+              int padded_stride = (((stride * buffer->shape[k + 1]).as<prim::IntImmNode>()->value +
+                                    min_conflict_pad) %
+                                   (32 * 32 / data_bits))
+                                      .as<int>()
+                                      .value();
               std::vector<int> span;
               for (int v1 : iter_space) {
                 for (int v2 : low_dim_iter_space[i]) {
@@ -315,7 +316,7 @@ class AutoPadder {
         return std::nullopt;
       }
       int extent =
-          var_range_[ffi::GetRef<Var>(op)]->extent.as<IntImmNode>()->value.as<int>().value();
+          var_range_[ffi::GetRef<Var>(op)]->extent.as<prim::IntImmNode>()->value.as<int>().value();
       if (extent > 1) {
         stack_.push({{extent, 1}});
       } else {
@@ -365,7 +366,7 @@ class AutoPadder {
       }
       std::vector<Pattern> inner = stack_.top();
       stack_.pop();
-      int lower_factor = op->b.as<IntImmNode>()->value.as<int>().value();
+      int lower_factor = op->b.as<prim::IntImmNode>()->value.as<int>().value();
       std::vector<Pattern> ret;
       for (const Pattern& pattern : inner) {
         if (pattern.scale >= lower_factor) {
@@ -393,7 +394,7 @@ class AutoPadder {
       }
       std::vector<Pattern> inner = stack_.top();
       stack_.pop();
-      int extent = op->b.as<IntImmNode>()->value.as<int>().value();
+      int extent = op->b.as<prim::IntImmNode>()->value.as<int>().value();
       std::vector<Pattern> ret;
       for (const Pattern& pattern : inner) {
         if (pattern.scale < extent) {
@@ -419,7 +420,7 @@ class AutoPadder {
       }
       std::vector<Pattern> inner = stack_.top();
       stack_.pop();
-      int scale = op->b.as<IntImmNode>()->value.as<int>().value();
+      int scale = op->b.as<prim::IntImmNode>()->value.as<int>().value();
       std::vector<Pattern> ret;
       for (const Pattern& pattern : inner) {
         ret.push_back({pattern.extent, pattern.scale * scale});
@@ -494,11 +495,11 @@ class AutoPadder {
    private:
     bool CheckVarContiguous(PrimExpr e, Var var, const ffi::Map<Var, PrimExpr>& subst_map) {
       auto f_substitute_zero = [var](const Var& v) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-        if (v.same_as(var)) return ffi::Any(IntImm::Int32(0));
+        if (v.same_as(var)) return ffi::Any(prim::IntImm::Int32(0));
         return ffi::Unchanged();
       };
       auto f_substitute_one = [var](const Var& v) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-        if (v.same_as(var)) return ffi::Any(IntImm::Int32(1));
+        if (v.same_as(var)) return ffi::Any(prim::IntImm::Int32(1));
         return ffi::Unchanged();
       };
       auto f_substitute = [&subst_map](const Var& v) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -521,11 +522,11 @@ class AutoPadder {
       } else {
         int64_t extent =
             warp_thread_extent_.Get(op->thread_binding.value()->thread_tag).value_or(1);
-        var_range_.Set(op->loop_var, Range::FromMinExtent(op->min, IntImm::Int64(extent)));
+        var_range_.Set(op->loop_var, Range::FromMinExtent(op->min, prim::IntImm::Int64(extent)));
       }
       if (op->kind == ForKind::kVectorized) {
         vector_var = op->loop_var;
-        vector_length_ = op->extent.as<IntImmNode>()->value.as<int>().value();
+        vector_length_ = op->extent.as<prim::IntImmNode>()->value.as<int>().value();
       }
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (op->kind == ForKind::kVectorized) {
@@ -829,7 +830,7 @@ class ThreadExtentCollector : public StmtExprVisitor {
   }
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     if (op->thread_binding.has_value() && op->thread_binding.value()->iter_type == kThreadIndex) {
-      if (const auto* extent = op->extent.as<IntImmNode>()) {
+      if (const auto* extent = op->extent.as<prim::IntImmNode>()) {
         thread_extent_.Set(op->thread_binding.value()->thread_tag,
                            static_cast<int64_t>(extent->value));
       }

@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/prim/expr.h>
 
 #include "../../../tirx/script/printer/utils.h"
 #include "./utils.h"
@@ -81,8 +82,8 @@ Doc PrintCanonicalVar(Var n, AccessPath n_p, IRDocsifier d) {
 TVM_FFI_STATIC_INIT_BLOCK() { IRDocsifier::vtable().set_dispatch<Var>("relax", PrintCanonicalVar); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tvm::IntImm>(                        //
-      "relax", [](tvm::IntImm n, AccessPath n_p, IRDocsifier d) -> Doc {  //
+  IRDocsifier::vtable().set_dispatch<tvm::prim::IntImm>(                        //
+      "relax", [](tvm::prim::IntImm n, AccessPath n_p, IRDocsifier d) -> Doc {  //
         // TODO(@junrushao): support non-int64 cases
         if (n->ty.as_or_throw<PrimType>().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
           return LiteralDoc::Boolean(static_cast<bool>(n->value), n_p);

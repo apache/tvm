@@ -26,6 +26,7 @@
 #define TVM_RELAX_EXPR_FUNCTOR_H_
 
 #include <tvm/ir/object_functor.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
@@ -180,8 +181,8 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const prim::RampNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const prim::BroadcastNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const prim::ShuffleNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const tvm::IntImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const tvm::FloatImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tvm::prim::IntImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tvm::prim::FloatImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const prim::StringImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const SeqExprNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const IfNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -234,8 +235,8 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAX_EXPR_FUNCTOR_DISPATCH(prim::RampNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(prim::BroadcastNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(prim::ShuffleNode);
-    RELAX_EXPR_FUNCTOR_DISPATCH(tvm::IntImmNode);
-    RELAX_EXPR_FUNCTOR_DISPATCH(tvm::FloatImmNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tvm::prim::IntImmNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tvm::prim::FloatImmNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(prim::StringImmNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(SeqExprNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(IfNode);
@@ -293,8 +294,8 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   void VisitExpr_(const prim::RampNode* op) override;
   void VisitExpr_(const prim::BroadcastNode* op) override;
   void VisitExpr_(const prim::ShuffleNode* op) override;
-  void VisitExpr_(const tvm::IntImmNode* op) override;
-  void VisitExpr_(const tvm::FloatImmNode* op) override;
+  void VisitExpr_(const tvm::prim::IntImmNode* op) override;
+  void VisitExpr_(const tvm::prim::FloatImmNode* op) override;
   void VisitExpr_(const prim::StringImmNode* op) override;
   void VisitExpr_(const SeqExprNode* op) override;
   void VisitExpr_(const IfNode* op) override;
@@ -448,8 +449,8 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
   Expr VisitExpr_(const prim::RampNode* op) override;
   Expr VisitExpr_(const prim::BroadcastNode* op) override;
   Expr VisitExpr_(const prim::ShuffleNode* op) override;
-  Expr VisitExpr_(const tvm::IntImmNode* op) override;
-  Expr VisitExpr_(const tvm::FloatImmNode* op) override;
+  Expr VisitExpr_(const tvm::prim::IntImmNode* op) override;
+  Expr VisitExpr_(const tvm::prim::FloatImmNode* op) override;
   Expr VisitExpr_(const prim::StringImmNode* op) override;
   Expr VisitExpr_(const SeqExprNode* op) override;
   Expr VisitExpr_(const IfNode* op) override;

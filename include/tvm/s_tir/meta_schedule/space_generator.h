@@ -81,7 +81,7 @@ class SpaceGeneratorNode : public ffi::Object {
   /*! \brief The postprocessors. */
   ffi::Optional<ffi::Array<Postproc>> postprocs;
   /*! \brief The probability of using certain mutator. */
-  ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs;
+  ffi::Optional<ffi::Map<Mutator, prim::FloatImm>> mutator_probs;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -166,7 +166,7 @@ class SpaceGenerator : public ffi::ObjectRef {
   TVM_DLL static SpaceGenerator PySpaceGenerator(
       ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
       ffi::Optional<ffi::Array<Postproc>> postprocs,
-      ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs,
+      ffi::Optional<ffi::Map<Mutator, prim::FloatImm>> mutator_probs,
       FInitializeWithTuneContext f_initialize_with_tune_context,
       FGenerateDesignSpace f_generate_design_space, FClone f_clone);
   /*!
@@ -182,7 +182,7 @@ class SpaceGenerator : public ffi::ObjectRef {
   TVM_DLL static SpaceGenerator ScheduleFn(
       ffi::Function schedule_fn, ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
       ffi::Optional<ffi::Array<Postproc>> postprocs,
-      ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs);
+      ffi::Optional<ffi::Map<Mutator, prim::FloatImm>> mutator_probs);
   /*!
    * \brief Create a design space generator that is union of multiple design space generators.
    * \param space_generators An array of design space generators to be unioned.
@@ -195,7 +195,7 @@ class SpaceGenerator : public ffi::ObjectRef {
       ffi::Array<SpaceGenerator, void> space_generators,
       ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
       ffi::Optional<ffi::Array<Postproc>> postprocs,
-      ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs);
+      ffi::Optional<ffi::Map<Mutator, prim::FloatImm>> mutator_probs);
   /*!
    * \brief Create a design space generator that generates design spaces by applying schedule
    * rules to blocks in post-DFS order.
@@ -208,7 +208,7 @@ class SpaceGenerator : public ffi::ObjectRef {
   TVM_DLL static SpaceGenerator PostOrderApply(
       ffi::Function f_block_filter, ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
       ffi::Optional<ffi::Array<Postproc>> postprocs,
-      ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs);
+      ffi::Optional<ffi::Map<Mutator, prim::FloatImm>> mutator_probs);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SpaceGenerator, ffi::ObjectRef, SpaceGeneratorNode);
 };
 

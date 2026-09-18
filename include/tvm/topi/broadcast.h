@@ -24,6 +24,7 @@
 #ifndef TVM_TOPI_BROADCAST_H_
 #define TVM_TOPI_BROADCAST_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/topi/detail/broadcast.h>
 #include <tvm/topi/detail/constant_utils.h>
 #include <tvm/topi/tags.h>
@@ -55,7 +56,7 @@ inline tvm::te::Tensor broadcast_to(const tvm::te::Tensor& t,
   TVM_FFI_ICHECK_EQ(output_shape.size(), bh.common_shape.size());
   ffi::Array<PrimExpr> oshape;
   for (size_t i = 0; i < output_shape.size(); ++i) {
-    if (output_shape[i].as<IntImmNode>() == nullptr) {
+    if (output_shape[i].as<prim::IntImmNode>() == nullptr) {
       oshape.push_back(output_shape[i]);
     } else {
       TVM_FFI_ICHECK(topi::detail::EqualCheck(output_shape[i], bh.common_shape[i]));

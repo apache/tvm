@@ -580,7 +580,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     const auto* alloc_storage_call = binding->value.as<CallNode>();
     auto shape = alloc_storage_call->args[0].as_or_throw<ShapeExpr>();
     return std::all_of(shape->values.begin(), shape->values.end(),
-                       [](const PrimExpr& expr) { return expr.as<IntImmNode>() != nullptr; });
+                       [](const PrimExpr& expr) { return expr.as<prim::IntImmNode>() != nullptr; });
   }
 
   /*!
@@ -685,9 +685,10 @@ Function MergeAllocationPlans(const std::vector<LiftedFunctionRewritePlan*>& all
       TVM_FFI_ICHECK(alloc_storage->op.same_as(mem_alloc_storage_op));
       auto storage_shape = alloc_storage->args[0].as_or_throw<ShapeExpr>();
       TVM_FFI_ICHECK_EQ(storage_shape->values.size(), 1);
-      int64_t size = static_cast<int64_t>(storage_shape->values[0].as_or_throw<IntImm>()->value);
+      int64_t size =
+          static_cast<int64_t>(storage_shape->values[0].as_or_throw<prim::IntImm>()->value);
       int64_t virtual_device_id = static_cast<int64_t>(
-          alloc_storage->args[1].as_or_throw<PrimExpr>().as_or_throw<IntImm>()->value);
+          alloc_storage->args[1].as_or_throw<PrimExpr>().as_or_throw<prim::IntImm>()->value);
       TVM_FFI_ICHECK_EQ(virtual_device_id, 0);
       ffi::String storage_scope = alloc_storage->args[2].as_or_throw<StringImm>()->value;
       auto [it, _] = storage_records.try_emplace(storage_scope, alloc_plans.size());
@@ -798,8 +799,8 @@ class CUDAGraphRewriter : public ExprMutator {
       auto ret_ty = gv_alloc->ty.as_or_throw<FuncType>()->ret;
       launch_subgraph =
           Call(Type::Missing(), call_builtin_with_ctx_op,
-               {builtin_get_cached_alloc, Tuple({gv_alloc, PrimExpr(IntImm::Int64(0))})}, Attrs(),
-               {ret_ty});
+               {builtin_get_cached_alloc, Tuple({gv_alloc, PrimExpr(prim::IntImm::Int64(0))})},
+               Attrs(), {ret_ty});
     } else {
       auto gv_func = builder_->AddFunction(
           plan->func, current_func_.value()->name_hint + "_cuda_graph_capture");
@@ -825,7 +826,7 @@ class CUDAGraphRewriter : public ExprMutator {
       }
       // Arguments of builtin_run_or_capture
       ffi::Array<Expr> tuple_arg_fields{gv_func, Tuple(args),
-                                        PrimExpr(IntImm::Int64(index_capture_++))};
+                                        PrimExpr(prim::IntImm::Int64(index_capture_++))};
       if (plan->propogated_tir_vars.has_value()) {
         // The shape expr is explicitly passed twice, one as the last argument of the lifted
         // function, one as the last argument of builtin_run_or_capture as the cache key. Explicitly

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/prim/expr.h>
 #include <tvm/sym/analyzer.h>
 
 #include <algorithm>
@@ -394,7 +395,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
 
         PrimExpr storage_span = expected_storage->GetSpan(ffi::Optional<ffi::String>());
         PrimExpr storage_size = expected_storage->GetSize(ffi::Optional<ffi::String>());
-        PrimExpr child_total = IntImm::Int32(1);
+        PrimExpr child_total = prim::IntImm::Int32(1);
         for (const PrimExpr& dim : child->shape) {
           child_total = child_total * dim;
         }
@@ -444,8 +445,8 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
       }
     }
     if (shapes_compatible && !child->shape.empty()) {
-      auto* child_last = child->shape.back().as<IntImmNode>();
-      auto* parent_last = parent->shape.back().as<IntImmNode>();
+      auto* child_last = child->shape.back().as<prim::IntImmNode>();
+      auto* parent_last = parent->shape.back().as<prim::IntImmNode>();
       if (child_last && parent_last) {
         if (child_bits > parent_bits) {
           // Cast up: child_last = parent_last / ratio
@@ -467,8 +468,8 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
           // Cast up requires pack: last shard iter must have stride=1
           // and extent divisible by ratio
           const auto& last_iter = ptile->shard.back();
-          auto* last_stride = last_iter->stride.as<IntImmNode>();
-          auto* last_extent = last_iter->extent.as<IntImmNode>();
+          auto* last_stride = last_iter->stride.as<prim::IntImmNode>();
+          auto* last_extent = last_iter->extent.as<prim::IntImmNode>();
           int ratio = child_bits / parent_bits;
           if (!last_stride || last_stride->value != 1 || !last_extent ||
               last_extent->value % ratio != 0) {
@@ -559,7 +560,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
     bool all_const = true;
     for (int i = static_cast<int>(ndim) - 1; i >= 0; --i) {
       parent_rm_strides[i] = stride;
-      if (auto* s = parent->shape[i].as<IntImmNode>()) {
+      if (auto* s = parent->shape[i].as<prim::IntImmNode>()) {
         auto product = (stride * s->value).as<int64_t>();
         if (!product.has_value()) {
           all_const = false;
@@ -574,11 +575,11 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
     if (all_const) {
       bool is_partition = true;
       for (size_t i = 0; i < ndim; ++i) {
-        auto* grid_dim = child->shape[i].as<IntImmNode>();
-        auto* tile_dim = child->shape[ndim + i].as<IntImmNode>();
-        auto* parent_dim = parent->shape[i].as<IntImmNode>();
-        auto* grid_stride = child->strides[i].as<IntImmNode>();
-        auto* tile_stride = child->strides[ndim + i].as<IntImmNode>();
+        auto* grid_dim = child->shape[i].as<prim::IntImmNode>();
+        auto* tile_dim = child->shape[ndim + i].as<prim::IntImmNode>();
+        auto* parent_dim = parent->shape[i].as<prim::IntImmNode>();
+        auto* grid_stride = child->strides[i].as<prim::IntImmNode>();
+        auto* tile_stride = child->strides[ndim + i].as<prim::IntImmNode>();
         if (!grid_dim || !tile_dim || !parent_dim || !grid_stride || !tile_stride) {
           is_partition = false;
           break;

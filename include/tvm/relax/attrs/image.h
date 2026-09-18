@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_ATTRS_IMAGE_H_
 #define TVM_RELAX_ATTRS_IMAGE_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/expr.h>
 
 namespace tvm {
@@ -31,7 +32,7 @@ namespace relax {
 
 /*! \brief Attributes used in image resize2d operator */
 struct Resize2DAttrs : public AttrsNode {
-  ffi::Array<FloatImm> roi;
+  ffi::Array<prim::FloatImm> roi;
   ffi::String layout;
   ffi::String method;
   ffi::String coordinate_transformation_mode;
@@ -80,7 +81,7 @@ struct Resize2DAttrs : public AttrsNode {
 
 /*! \brief Attributes used in image resize3d operator */
 struct Resize3DAttrs : public AttrsNode {
-  ffi::Array<FloatImm> roi;
+  ffi::Array<prim::FloatImm> roi;
   ffi::String layout;
   ffi::String method;
   ffi::String coordinate_transformation_mode;

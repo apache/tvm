@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../../schedule/analysis.h"
@@ -101,7 +102,7 @@ MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv
     return MultiLevelTilingNode::SplitLoop(sch, block_rv, loop_rv, n_tiles);
   } else {
     // We split the innermost spatial loop in a way that always uses the maximum vector length.
-    const auto* extent_int_imm = loop->extent.as<IntImmNode>();
+    const auto* extent_int_imm = loop->extent.as<prim::IntImmNode>();
     auto extent_int = extent_int_imm ? extent_int_imm->value.as<int64_t>() : std::nullopt;
     if (extent_int.has_value() && *extent_int > vec_len) {
       ffi::Array<s_tir::LoopRV> inner_splits =

@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/distributed/type.h>
@@ -41,7 +42,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
-  if (const auto* pvalue = lhs.as<IntImmNode>()) {
+  if (const auto* pvalue = lhs.as<prim::IntImmNode>()) {
     return pvalue->value == value;
   }
   return false;
@@ -49,12 +50,12 @@ bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
 
 bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
   PrimExpr diff = lhs - rhs;
-  if (const auto* pdiff = diff.as<IntImmNode>()) {
+  if (const auto* pdiff = diff.as<prim::IntImmNode>()) {
     return pdiff->value == 0;
   }
   tvm::sym::Analyzer ana;
   diff = ana->Simplify(diff);
-  if (const auto* pdiff = diff.as<IntImmNode>()) {
+  if (const auto* pdiff = diff.as<prim::IntImmNode>()) {
     return pdiff->value == 0;
   }
   return false;
@@ -1064,7 +1065,7 @@ Type ReturnTensorToShapeType(const Call& call, const BlockBuilder& ctx) {
 
   if (tensor_ty->shape.has_value()) {
     ShapeExpr shape_expr = tensor_ty->shape.value().as_or_throw<ShapeExpr>();
-    const IntImmNode* ndim = shape_expr->values[0].as<IntImmNode>();
+    const prim::IntImmNode* ndim = shape_expr->values[0].as<prim::IntImmNode>();
     if (ndim) {
       return ShapeType(ndim->value.as<int>().value());
     }
@@ -1128,7 +1129,7 @@ Type InferTypeAllocateTensor(const Call& call, const BlockBuilder& ctx) {
     out_dtype = PrimType(dtype_imm->value);
   }
   int64_t vdevice_index = -1;
-  if (const auto* int_imm = call->args[2].as<IntImmNode>()) {
+  if (const auto* int_imm = call->args[2].as<prim::IntImmNode>()) {
     vdevice_index = int_imm->value.as<int>().value();
   }
   auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
@@ -1206,7 +1207,7 @@ Type InferTypeMemAllocTensor(const Call& call, const BlockBuilder& ctx) {
 
   if (call->args.size() == 5) {
     int64_t vdevice_index = -1;
-    if (const auto* int_imm = call->args[4].as<IntImmNode>()) {
+    if (const auto* int_imm = call->args[4].as<prim::IntImmNode>()) {
       vdevice_index = int_imm->value.as<int>().value();
     }
     auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
@@ -1250,7 +1251,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         } else {
           *ret = MakeMemAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimExpr>(),
                                     args[2].cast<Expr>(), args[3].cast<DataTypeImm>(),
-                                    IntImm::Int64(0));
+                                    prim::IntImm::Int64(0));
         }
       });
 }
@@ -1329,7 +1330,7 @@ Type InferTypeVMAllocTensor(const Call& call, const BlockBuilder& ctx) {
     out_dtype = PrimType(dtype_imm->value);
   }
   int64_t vdevice_index = -1;
-  if (const auto* int_imm = call->args[4].as<IntImmNode>()) {
+  if (const auto* int_imm = call->args[4].as<prim::IntImmNode>()) {
     vdevice_index = int_imm->value.as<int>().value();
   }
   auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
@@ -1375,7 +1376,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                args[3].cast<DataTypeImm>(), args[4].cast<PrimExpr>());
     } else {
       *ret = MakeVMAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimExpr>(), args[2].cast<Expr>(),
-                               args[3].cast<DataTypeImm>(), IntImm::Int64(0));
+                               args[3].cast<DataTypeImm>(), prim::IntImm::Int64(0));
     }
   });
 }

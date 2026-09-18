@@ -294,7 +294,7 @@ class AllocBuffer : public Stmt {
   std::optional<int64_t> ConstantAllocationSize() const {
     int64_t result = 1;
     for (const PrimExpr& extent : (*this)->buffer->shape) {
-      if (const auto* int_size = extent.as<IntImmNode>()) {
+      if (const auto* int_size = extent.as<prim::IntImmNode>()) {
         auto product = (result * int_size->value).as<int64_t>();
         if (!product.has_value()) return std::nullopt;
         result = *product;
@@ -490,7 +490,8 @@ class SeqStmt : public Stmt {
         // should be removed to ensure that Flatten(a+b) is equivalent
         // to Flatten(Flatten(a), Flatten(b)).
         if (auto* op = stmt_or_seq.template as<EvaluateNode>()) {
-          if (auto* as_int = op->value.template as<IntImmNode>(); as_int && as_int->value == 0) {
+          if (auto* as_int = op->value.template as<prim::IntImmNode>();
+              as_int && as_int->value == 0) {
             return;
           }
         }

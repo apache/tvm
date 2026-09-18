@@ -21,6 +21,7 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <utility>
 
@@ -30,8 +31,8 @@ namespace relax {
 /* relax.nn.attention */
 
 Expr attention(Expr query, Expr key, Expr value, ffi::Optional<Expr> bias,
-               ffi::Optional<FloatImm> scale, ffi::Optional<ffi::String> causal_mask,
-               ffi::Optional<IntImm> window_size) {
+               ffi::Optional<prim::FloatImm> scale, ffi::Optional<ffi::String> causal_mask,
+               ffi::Optional<prim::IntImm> window_size) {
   ffi::ObjectPtr<AttentionAttrs> attrs = ffi::make_object<AttentionAttrs>();
   attrs->scale = scale;
   attrs->causal_mask = causal_mask;
@@ -47,8 +48,9 @@ Expr attention(Expr query, Expr key, Expr value, ffi::Optional<Expr> bias,
 }
 
 Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr seqstart_k,
-                       Expr max_seqlen_q, Expr max_seqlen_k, ffi::Optional<FloatImm> scale,
-                       ffi::Optional<ffi::String> causal_mask, ffi::Optional<IntImm> window_size) {
+                       Expr max_seqlen_q, Expr max_seqlen_k, ffi::Optional<prim::FloatImm> scale,
+                       ffi::Optional<ffi::String> causal_mask,
+                       ffi::Optional<prim::IntImm> window_size) {
   ffi::ObjectPtr<AttentionAttrs> attrs = ffi::make_object<AttentionAttrs>();
   attrs->scale = scale;
   attrs->causal_mask = causal_mask;

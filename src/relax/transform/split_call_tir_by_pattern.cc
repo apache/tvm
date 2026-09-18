@@ -24,6 +24,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/tir_pattern.h>
 #include <tvm/relax/transform.h>
@@ -106,7 +107,7 @@ class ForMatcher : public TensorizeComparator {
       if (pattern_vars_.count(rhs_var)) {
         // special case for pattern vars
         if (!lhs.as<PrimVar>()) {
-          if (lhs->IsInstance<IntImmNode>() || lhs->IsInstance<FloatImmNode>()) {
+          if (lhs->IsInstance<prim::IntImmNode>() || lhs->IsInstance<prim::FloatImmNode>()) {
             ffi::Optional<PrimExpr> value = QueryEvaluatedSymbols(rhs_var);
             if (value.has_value()) {
               if (!analyzer_->CanProveEqual(lhs, value.value())) return false;
@@ -606,7 +607,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   ffi::Array<ffi::Any> codegen_result = f_codegen(match_results);
   TVM_FFI_ICHECK(codegen_result.size() == 3);
   ffi::String library_code = codegen_result[0].as_or_throw<ffi::String>();
-  int num_matched_ops = codegen_result[1].as_or_throw<IntImm>()->value.as<int>().value();
+  int num_matched_ops = codegen_result[1].as_or_throw<prim::IntImm>()->value.as<int>().value();
   ffi::Array<BufferVar> func1_args = codegen_result[2].as_or_throw<ffi::Array<BufferVar>>();
   if (num_matched_ops == 0) {
     return {func, std::nullopt};

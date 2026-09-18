@@ -22,6 +22,7 @@
  * \brief Use for rewriting the TIRs after meta_schedule layout rewrite post process.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -85,7 +86,7 @@ class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
                                                           : SeqStmt(layout_rewrite_preproc_stmts_);
     body = s_tir::SBlockRealize(
         /*iter_values=*/ffi::Array<PrimExpr>(),
-        /*predicate=*/IntImm::Bool(true),
+        /*predicate=*/prim::IntImm::Bool(true),
         /*block=*/
         s_tir::SBlock(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
                       /*name_hint=*/"root", body));
@@ -128,7 +129,7 @@ class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
 
     body = s_tir::SBlockRealize(
         /*iter_values=*/ffi::Array<PrimExpr>(),
-        /*predicate=*/IntImm::Bool(true),
+        /*predicate=*/prim::IntImm::Bool(true),
         /*block=*/
         s_tir::SBlock(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
                       /*name_hint=*/"root", body,
@@ -313,7 +314,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
       preproc_args.push_back(call_tir_args[info.buffer_index]);
       tirx::BufferVar rewritten_buffer = info.post_rewrite_buffer;
       for (const auto& shape_expr : rewritten_buffer->shape) {
-        TVM_FFI_ICHECK(shape_expr.as<IntImmNode>())
+        TVM_FFI_ICHECK(shape_expr.as<prim::IntImmNode>())
             << "Currently does not support rewrite buffer with "
                "dynamic shape.";
       }

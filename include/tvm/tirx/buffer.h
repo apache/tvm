@@ -28,6 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/var.h>
 
@@ -226,7 +227,7 @@ class BufferVar : public Var {
    * \param input_extent The extent of ptr.
    */
   TVM_DLL Expr access_ptr(int access_mask, PointerType ptr_type = PointerType::VoidPointerTy(),
-                          int content_lanes = 1, PrimExpr offset = IntImm::Int32(0),
+                          int content_lanes = 1, PrimExpr offset = prim::IntImm::Int32(0),
                           ffi::Optional<PrimExpr> input_extent = std::nullopt) const;
   /*!
    * \brief Create an Expr that does a vector load at begin index.

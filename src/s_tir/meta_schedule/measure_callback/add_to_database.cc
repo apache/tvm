@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include "../utils.h"
 
@@ -43,11 +44,11 @@ class AddToDatabaseNode : public MeasureCallbackNode {
     for (int i = 0; i < n; ++i) {
       RunnerResult result = runner_results[i];
       MeasureCandidate candidate = measure_candidates[i];
-      ffi::Array<FloatImm> run_secs{nullptr};
+      ffi::Array<prim::FloatImm> run_secs{nullptr};
       if (result->run_secs.has_value()) {
         run_secs = result->run_secs.value();
       } else {
-        run_secs = ffi::Array<FloatImm>{FloatImm(PrimType::Float(32), 1e10)};
+        run_secs = ffi::Array<prim::FloatImm>{prim::FloatImm(PrimType::Float(32), 1e10)};
       }
       database->CommitTuningRecord(TuningRecord(
           /*trace=*/candidate->sch->trace().value(),

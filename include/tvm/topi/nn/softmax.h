@@ -24,6 +24,7 @@
 #ifndef TVM_TOPI_NN_SOFTMAX_H_
 #define TVM_TOPI_NN_SOFTMAX_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
 #include <tvm/topi/reduction.h>
 #include <tvm/topi/tags.h>
@@ -62,7 +63,7 @@ inline Tensor softmax(const Tensor& x, int axis = -1, std::string name = "tensor
   auto reduced_shape = MakeReduceTargetShape({axis}, x, false, false);
 
   tvm::ffi::Map<ffi::String, ffi::Any> attrs;
-  attrs.Set("axis", IntImm::Int32(axis));
+  attrs.Set("axis", prim::IntImm::Int32(axis));
 
   auto insert_reduce_index = [axis, ndim](const ffi::Array<PrimVar>& indices,
                                           const IterVar& reduce_index) {

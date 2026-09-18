@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
@@ -91,7 +92,7 @@ class ScopeIdVerifier : public Verifier<ScopeIdVerifier> {
       auto cta_thread_it = verifier.id_set.find(ScopeBinding::kCtaThread);
       if (cta_thread_it != verifier.id_set.end() && !(*cta_thread_it).second.is_deferred()) {
         PrimExpr ext = (*cta_thread_it).second.fused_extent();
-        if (const auto* imm = ext.as<IntImmNode>()) {
+        if (const auto* imm = ext.as<prim::IntImmNode>()) {
           Verify(imm->value > 0) << "TIRxError: kernel at " << path
                                  << " has non-positive thread count " << imm->value;
           bool needs_warp_align = verifier.id_set.count(ScopeBinding::kCtaWarp) ||

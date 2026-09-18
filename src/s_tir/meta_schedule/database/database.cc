@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include "../module_equality.h"
 #include "../utils.h"
@@ -76,7 +77,7 @@ Workload Workload::FromJSON(const ffi::ObjectRef& json_obj) {
 /******** TuningRecord ********/
 
 TuningRecord::TuningRecord(s_tir::Trace trace, Workload workload,
-                           ffi::Optional<ffi::Array<FloatImm>> run_secs,
+                           ffi::Optional<ffi::Array<prim::FloatImm>> run_secs,
                            ffi::Optional<Target> target,
                            ffi::Optional<ffi::Array<ArgInfo>> args_info) {
   ffi::ObjectPtr<TuningRecordNode> n = ffi::make_object<TuningRecordNode>();
@@ -136,7 +137,7 @@ bool TuningRecordNode::IsValid() const {
 
 TuningRecord TuningRecord::FromJSON(const ffi::ObjectRef& json_obj, const Workload& workload) {
   s_tir::Trace trace{ffi::UnsafeInit()};
-  ffi::Optional<ffi::Array<FloatImm>> run_secs;
+  ffi::Optional<ffi::Array<prim::FloatImm>> run_secs;
   ffi::Optional<Target> target;
   ffi::Optional<ffi::Array<ArgInfo>> args_info;
   try {
@@ -303,8 +304,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("s_tir.meta_schedule.WorkloadAsJSON", &WorkloadNode::AsJSON)
       .def("s_tir.meta_schedule.WorkloadFromJSON", &Workload::FromJSON)
       .def("s_tir.meta_schedule.TuningRecord",
-           [](s_tir::Trace trace, Workload workload, ffi::Optional<ffi::Array<FloatImm>> run_secs,
-              ffi::Optional<Target> target, ffi::Optional<ffi::Array<ArgInfo>> args_info) {
+           [](s_tir::Trace trace, Workload workload,
+              ffi::Optional<ffi::Array<prim::FloatImm>> run_secs, ffi::Optional<Target> target,
+              ffi::Optional<ffi::Array<ArgInfo>> args_info) {
              return TuningRecord(trace, workload, run_secs, target, args_info);
            })
       .def_method("s_tir.meta_schedule.TuningRecordAsMeasureCandidate",

@@ -136,7 +136,7 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
     static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
     static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
     if (op->op.same_as(mma_fill_op) && GetBufferVar(op->args[1]) == buffer_) {
-      auto* local_size = op->args[0].as<IntImmNode>();
+      auto* local_size = op->args[0].as<prim::IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
       warp_coeff_ = local_size->value.as<int>().value();
     } else if (op->op.same_as(ptx_ldmatrix_legacy_op) && GetBufferVar(op->args[3]) == buffer_) {
@@ -145,7 +145,7 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
       // is derived.
       UpdatePattern(op->args[4].as_or_throw<PrimExpr>());
     } else if (op->op.same_as(mma_fill_legacy_op) && GetBufferVar(op->args[1]) == buffer_) {
-      auto* local_size = op->args[0].as<IntImmNode>();
+      auto* local_size = op->args[0].as<prim::IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill_legacy";
       warp_coeff_ = local_size->value.as<int>().value();
     }
@@ -188,7 +188,7 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
            "thread local registers and shuffling values between these registers. Currently only "
            "linear equation indices are supported.";
     PrimExpr mcoeff = analyzer_->canonical_simplify(m[0]);
-    const auto* mcoeff_as_int = mcoeff.as<IntImmNode>();
+    const auto* mcoeff_as_int = mcoeff.as<prim::IntImmNode>();
     TVM_FFI_ICHECK(mcoeff_as_int && mcoeff_as_int->value > 0)
         << "LowerWarpMemory failed due to store index=" << index
         << ", require positive constant coefficient on warp index " << warp_index_ << " but get "
@@ -234,7 +234,7 @@ class WarpIndexFinder : public StmtExprVisitor {
     if (op->attr_key == attr::thread_extent) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       if (iv->thread_tag == "threadIdx.x") {
-        auto* value_as_int = op->value.as<IntImmNode>();
+        auto* value_as_int = op->value.as<prim::IntImmNode>();
         TVM_FFI_ICHECK(value_as_int && value_as_int->value <= warp_size_ &&
                        warp_size_ % value_as_int->value == 0)
             << "Expect threadIdx.x 's size to be no larger than, and a factor of"
@@ -276,7 +276,7 @@ class WarpAccessRewriter : public StmtExprMutator {
     buffer_ = op->buffer.get();
     int64_t alloc_size = 1;
     for (const auto& dim : op->buffer->shape) {
-      if (const IntImmNode* int_size = dim.as<IntImmNode>()) {
+      if (const prim::IntImmNode* int_size = dim.as<prim::IntImmNode>()) {
         alloc_size = static_cast<int64_t>(alloc_size * int_size->value);
       } else {
         alloc_size = 0;
@@ -297,9 +297,9 @@ class WarpAccessRewriter : public StmtExprMutator {
 
     auto type = CopyBufferType(op->buffer);
     type->storage_scope = "local";
-    type->shape = {IntImm::Int32(alloc_size / width_)};
+    type->shape = {prim::IntImm::Int32(alloc_size / width_)};
     type->strides = {};
-    type->elem_offset = IntImm(op->buffer->elem_offset.ty(), 0);
+    type->elem_offset = prim::IntImm(op->buffer->elem_offset.ty(), 0);
     BufferVar new_buf = RebuildBufferVar(op->buffer, std::move(type));
     new_buffer_ = new_buf;
     Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
@@ -442,10 +442,10 @@ class WarpAccessRewriter : public StmtExprMutator {
       TVM_FFI_ICHECK(sym::ramp(base, 1, index_ty.lanes()).Match(index));
 
       auto [local_index, group] = SplitIndexByGroup(base.Eval());
-      local_index = prim::Ramp(local_index, IntImm(local_index.ty(), 1), index_ty.lanes());
+      local_index = prim::Ramp(local_index, prim::IntImm(local_index.ty(), 1), index_ty.lanes());
       return std::make_pair(local_index, group);
     }
-    PrimExpr m = IntImm(index_ty, warp_coeff_);
+    PrimExpr m = prim::IntImm(index_ty, warp_coeff_);
 
     // simple case, warp index is on the highest.
     if (warp_group_ == 1) {
@@ -456,7 +456,7 @@ class WarpAccessRewriter : public StmtExprMutator {
       PrimExpr x = analyzer_->canonical_simplify(indexmod(index, m));
       PrimExpr y = index / MakeConst(index_ty, warp_coeff_ * width_);
       y = y * m + x;
-      PrimExpr z = indexdiv(indexmod(index, IntImm(index_ty, warp_coeff_ * width_)), m);
+      PrimExpr z = indexdiv(indexmod(index, prim::IntImm(index_ty, warp_coeff_ * width_)), m);
       return std::make_pair(analyzer_->canonical_simplify(y), analyzer_->canonical_simplify(z));
     }
   }

@@ -62,7 +62,7 @@ class TextureLoweringBase : public StmtExprMutator {
 
   inline PrimExpr SimplifyOffset(const ffi::Array<PrimExpr>& shape,
                                  const ffi::Array<PrimExpr>& index) const {
-    PrimExpr base = IntImm::Int32(0);
+    PrimExpr base = prim::IntImm::Int32(0);
     TVM_FFI_ICHECK_EQ(shape.size(), index.size());
     if (index.size() > 0) {
       PrimExpr offset = index[0];
@@ -152,8 +152,8 @@ class TextureFlattener : public TextureLoweringBase {
     PrimExpr col_offset = SimplifyOffset(col_dims, col_indices);
     PrimExpr depth_offset = SimplifyOffset(depth_dims, depth_indices);
     PrimExpr channel_size =
-        IntImm(PrimType::Int(32, 1),
-               buffer->shape.back().as_or_throw<IntImm>()->value * buffer->dtype.bits());
+        prim::IntImm(PrimType::Int(32, 1), buffer->shape.back().as_or_throw<prim::IntImm>()->value *
+                                               buffer->dtype.bits());
     args.push_back(row_offset);
     args.push_back(col_offset);
     args.push_back(depth_offset);

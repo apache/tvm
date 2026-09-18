@@ -60,7 +60,7 @@ std::vector<int32_t> SampleWithoutReplacement(LinearCongruentialEngine::TRandSta
  */
 TVM_DLL int64_t SampleCategorical(LinearCongruentialEngine::TRandState* rand_state,
                                   const ffi::Array<int64_t>& candidates,
-                                  const ffi::Array<FloatImm>& probs,
+                                  const ffi::Array<prim::FloatImm>& probs,
                                   ffi::Optional<int64_t>* decision);
 /*!
  * \brief Create a sampling function that does multinomial sampling.
@@ -721,7 +721,7 @@ TVM_DLL void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int w
  */
 TVM_DLL void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
                                     const ffi::String& buf_type,
-                                    const ffi::Array<IntImm>& buf_index_array);
+                                    const ffi::Array<prim::IntImm>& buf_index_array);
 
 /*!
  * \brief Annotate the read or write region of a specific buffer in a block

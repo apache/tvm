@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include <functional>
@@ -188,7 +189,7 @@ class RollingBufferInfoCollector {
     std::vector<int> bound_overlaps;
 
     sym::PVar<Var> p_var;
-    sym::PVar<IntImm> p_stride, p_divisor;
+    sym::PVar<prim::IntImm> p_stride, p_divisor;
     for (auto bound : region) {
       auto stride = 0;
       auto divisor = 1;
@@ -223,7 +224,7 @@ class RollingBufferInfoCollector {
       }
       auto bound_overlap = 0;
       if (iter_var.has_value()) {
-        const auto& extent = bound->extent.as_or_throw<IntImm>()->value;
+        const auto& extent = bound->extent.as_or_throw<prim::IntImm>()->value;
         bound_overlap = (extent - stride).as<int>().value();
         // Since Pass CompactBufferAllocation will be responsible for compacting the buffer
         // allocation region, there is no need to roll over the axis where the overlap is not
@@ -496,12 +497,13 @@ struct RollingBufferTraits : public UnpackedInstTraits<RollingBufferTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm write_buffer_index) {
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block,
+                                      prim::IntImm write_buffer_index) {
     return sch->RollingBuffer(block, write_buffer_index->value.as<int>().value());
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      IntImm write_buffer_index) {
+                                      prim::IntImm write_buffer_index) {
     PythonAPICall py("rolling_buffer");
     py.Input("block", block);
     py.Input("write_buffer_index", write_buffer_index);

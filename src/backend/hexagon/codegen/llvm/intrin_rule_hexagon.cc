@@ -20,6 +20,7 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <llvm/IR/Intrinsics.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -81,8 +82,8 @@ inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
     return TVMExternCall(call, tvm_wrapper);
   }
 #endif
-  new_args.push_back(IntImm(PrimType::UInt(32), id));
-  new_args.push_back(IntImm(PrimType::UInt(32), num_sign));
+  new_args.push_back(prim::IntImm(PrimType::UInt(32), id));
+  new_args.push_back(prim::IntImm(PrimType::UInt(32), num_sign));
   ffi::Array<PrimExpr> call_args = call->args.as_or_throw<ffi::Array<PrimExpr>>();
   new_args.insert(new_args.end(), call_args.begin(), call_args.end());
   return Call(call->ty.as_or_throw<PrimType>(), tirx::builtin::call_llvm_pure_intrin(), new_args)

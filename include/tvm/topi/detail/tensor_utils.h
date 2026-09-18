@@ -24,6 +24,7 @@
 #ifndef TVM_TOPI_DETAIL_TENSOR_UTILS_H_
 #define TVM_TOPI_DETAIL_TENSOR_UTILS_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
 
 #include <vector>
@@ -43,7 +44,7 @@ using namespace tvm::te;
 inline bool is_empty_shape(const ffi::Array<PrimExpr>& x) {
   bool is_empty = false;
   for (const auto& dim : x) {
-    if (auto int_dim = dim.as<IntImmNode>()) {
+    if (auto int_dim = dim.as<prim::IntImmNode>()) {
       if (int_dim->value == 0) {
         is_empty = true;
         break;

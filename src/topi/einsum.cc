@@ -22,6 +22,7 @@
  * \brief Einstein summation op
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/topi/broadcast.h>
 #include <tvm/topi/einsum.h>
 
@@ -104,13 +105,13 @@ EinsumEquation EinsumEquation::FromString(const std::string& equation) {
 }
 
 PrimExpr GetBroadcastedExtent(const PrimExpr& extent1, const PrimExpr& extent2) {
-  const IntImmNode* extent1_imm = extent1.as<IntImmNode>();
-  const IntImmNode* extent2_imm = extent2.as<IntImmNode>();
+  const prim::IntImmNode* extent1_imm = extent1.as<prim::IntImmNode>();
+  const prim::IntImmNode* extent2_imm = extent2.as<prim::IntImmNode>();
   if (extent1_imm != nullptr && extent2_imm != nullptr) {
     if (extent1_imm->value == extent2_imm->value) {
       return extent1;
     } else if (extent1_imm->value == 1 || extent2_imm->value == 1) {
-      return IntImm::Int32(std::max(extent1_imm->value, extent2_imm->value));
+      return prim::IntImm::Int32(std::max(extent1_imm->value, extent2_imm->value));
     }
     TVM_FFI_THROW(InternalError) << "Cannot broadcast extents " << extent1 << " and " << extent2;
     throw;
@@ -128,7 +129,7 @@ PrimExpr GetIndexForBroadcastedDim(const PrimVar& index, const PrimExpr& extent,
   // Check if current dimension is being broadcasted to `broadcasted_extent` (symbolic shape is
   // handled)
   if (is_one(extent) && !is_one(broadcasted_extent)) {
-    return IntImm(index.ty(), 0);
+    return prim::IntImm(index.ty(), 0);
   }
   return index;
 }

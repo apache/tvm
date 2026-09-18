@@ -27,6 +27,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/sym/analyzer.h>
 
 #include <string>
@@ -462,14 +463,14 @@ Expr tril(Expr x, Expr k) {
   return Call(Type::Missing(), op, {x, k});
 }
 
-Expr tril(Expr x, int k) { return tril(x, IntImm::Int64(k)); }
+Expr tril(Expr x, int k) { return tril(x, prim::IntImm::Int64(k)); }
 
 Expr triu(Expr x, Expr k) {
   static const Op& op = Op::Get("relax.triu");
   return Call(Type::Missing(), op, {x, k});
 }
 
-Expr triu(Expr x, int k) { return triu(x, IntImm::Int64(k)); }
+Expr triu(Expr x, int k) { return triu(x, prim::IntImm::Int64(k)); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 
@@ -60,11 +61,11 @@ class StrideExtractor : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const MulNode* node) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
 
-    if (const auto* a = node->a.as<IntImmNode>()) {
+    if (const auto* a = node->a.as<prim::IntImmNode>()) {
       if (strides_.count(node->b.get())) {
         strides_[node] = static_cast<int64_t>(strides_[node->b.get()] * a->value);
       }
-    } else if (const auto* b = node->b.as<IntImmNode>()) {
+    } else if (const auto* b = node->b.as<prim::IntImmNode>()) {
       if (strides_.count(node->a.get())) {
         strides_[node] = static_cast<int64_t>(strides_[node->a.get()] * b->value);
       }
@@ -117,22 +118,22 @@ bool ParseAnnotation(const SBlock& block, ParsedAnnotation* parsed) {
   for (const auto& ann : block->annotations) {
     if (ann.first == s_tir::attr::meta_schedule_parallel) {
       found = true;
-      if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
+      if (auto opt_int_imm = ann.second.try_cast<prim::IntImm>()) {
         parsed->max_parallel_extent = (*opt_int_imm)->value.as<int>().value();
       }
     } else if (ann.first == s_tir::attr::meta_schedule_vectorize) {
       found = true;
-      if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
+      if (auto opt_int_imm = ann.second.try_cast<prim::IntImm>()) {
         parsed->max_vectorize_extent = (*opt_int_imm)->value.as<int>().value();
       }
     } else if (ann.first == s_tir::attr::meta_schedule_unroll_explicit) {
       found = true;
-      if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
+      if (auto opt_int_imm = ann.second.try_cast<prim::IntImm>()) {
         parsed->unroll_explicit = (*opt_int_imm)->value.as<int>().value();
       }
     } else if (ann.first == s_tir::attr::meta_schedule_unroll_implicit) {
       found = true;
-      if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
+      if (auto opt_int_imm = ann.second.try_cast<prim::IntImm>()) {
         parsed->unroll_implicit = (*opt_int_imm)->value.as<int>().value();
       }
     }
@@ -175,7 +176,7 @@ int CalculateNumRewritableLoops(const ffi::Array<StmtSRef>& loop_srefs,
       continue;
     }
     // Check if the loop extent is valid
-    if (const auto* extent = loop->extent.as<IntImmNode>();
+    if (const auto* extent = loop->extent.as<prim::IntImmNode>();
         !extent || !extent->value.as<int64_t>().has_value()) {
       continue;
     }
@@ -244,7 +245,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
           break;
         }
         const auto* shape =
-            access->source.as_or_throw<tvm::tirx::BufferVar>()->shape[i].as<IntImmNode>();
+            access->source.as_or_throw<tvm::tirx::BufferVar>()->shape[i].as<prim::IntImmNode>();
         if (shape == nullptr) {
           can_analyze_contiguous_access = false;
           break;
@@ -277,7 +278,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
       } else {
         // contiguous memory access
         const auto* prev_used_iter_extent_imm =
-            TVM_SREF_TO_FOR(loop_srefs[prev_used_iter])->extent.as<IntImmNode>();
+            TVM_SREF_TO_FOR(loop_srefs[prev_used_iter])->extent.as<prim::IntImmNode>();
         auto prev_used_iter_extent = prev_used_iter_extent_imm
                                          ? prev_used_iter_extent_imm->value.as<int64_t>()
                                          : std::nullopt;
@@ -310,7 +311,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         break;
       }
       // Check if the loop extent is valid
-      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      const auto* extent_imm = loop->extent.as<prim::IntImmNode>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (!extent.has_value()) {
         break;
@@ -348,7 +349,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         break;
       }
       // Check if the loop extent is valid
-      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      const auto* extent_imm = loop->extent.as<prim::IntImmNode>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (!extent.has_value()) {
         break;
@@ -402,7 +403,7 @@ void RewriteFuseSplitParallelVectorize(const Schedule& sch, ffi::Array<LoopRV>* 
                                        int vec_len) {
   size_t n_loops = loop_rvs->size();
   LoopRV fused = sch->Fuse({loop_rvs->begin(), loop_rvs->end()});
-  ffi::Array<LoopRV> split = sch->Split(fused, {std::nullopt, IntImm::Int32(vec_len)});
+  ffi::Array<LoopRV> split = sch->Split(fused, {std::nullopt, prim::IntImm::Int32(vec_len)});
   TVM_FFI_ICHECK_EQ(split.size(), 2);
   const LoopRV& outer = split[0];
   const LoopRV& inner = split[1];
@@ -440,8 +441,8 @@ void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const
     return;
   }
 
-  sch->Annotate(loop, tirx::attr::pragma_auto_unroll_max_step, IntImm::Int32(max_step));
-  sch->Annotate(loop, tirx::attr::pragma_unroll_explicit, IntImm::Int32(unroll_explicit));
+  sch->Annotate(loop, tirx::attr::pragma_auto_unroll_max_step, prim::IntImm::Int32(max_step));
+  sch->Annotate(loop, tirx::attr::pragma_unroll_explicit, prim::IntImm::Int32(unroll_explicit));
 }
 
 }  // namespace s_tir

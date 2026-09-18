@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 
 #include "../../../target/canonicalizer/llvm/arm_aprofile.h"
@@ -97,7 +98,7 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
     ffi::String kind = GetRuleKindFromTarget(context->target.value());
     ffi::Array<ScheduleRule> default_sch_rules;
     ffi::Array<Postproc> default_postprocs;
-    ffi::Map<Mutator, FloatImm> default_mutator_probs;
+    ffi::Map<Mutator, prim::FloatImm> default_mutator_probs;
     // for target with skylake-avx512
     if (kind == "llvm") {
       default_sch_rules = ScheduleRule::DefaultLLVM();
@@ -190,7 +191,7 @@ SpaceGenerator PySpaceGeneratorNode::Clone() const {
 SpaceGenerator SpaceGenerator::PySpaceGenerator(
     ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
     ffi::Optional<ffi::Array<Postproc>> postprocs,
-    ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs,
+    ffi::Optional<ffi::Map<Mutator, prim::FloatImm>> mutator_probs,
     FInitializeWithTuneContext f_initialize_with_tune_context,
     FGenerateDesignSpace f_generate_design_space, FClone f_clone) {
   ffi::ObjectPtr<PySpaceGeneratorNode> n = ffi::make_object<PySpaceGeneratorNode>();

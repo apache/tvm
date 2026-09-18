@@ -26,6 +26,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
@@ -91,10 +92,10 @@ class DataTypeVisitor final : public StmtExprVisitor {
         analyzer_->const_int_bound(e, &bound_);
       }
       ConstIntBound bound = bound_[e];
-      int64_t ubound =
-          static_cast<int64_t>(max_value(PrimType::Int(target_bits_)).as_or_throw<IntImm>()->value);
-      int64_t lbound =
-          static_cast<int64_t>(min_value(PrimType::Int(target_bits_)).as_or_throw<IntImm>()->value);
+      int64_t ubound = static_cast<int64_t>(
+          max_value(PrimType::Int(target_bits_)).as_or_throw<prim::IntImm>()->value);
+      int64_t lbound = static_cast<int64_t>(
+          min_value(PrimType::Int(target_bits_)).as_or_throw<prim::IntImm>()->value);
       if (e_ty.bits() <= target_bits_ ||
           (bound->max_value <= ubound && bound->min_value >= lbound)) {
         bits = target_bits_;
@@ -152,7 +153,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const IntImmNode* op) {
+  ffi::Optional<VisitInterrupt> Visit_(const prim::IntImmNode* op) {
     PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (op_ty.MatchesCode(DLDataTypeCode::kDLInt)) {
       // We only narrow and never promote, so the result dtype
@@ -233,10 +234,10 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
   // provided by the parent class are fully visible to users of this class.
   // (Discussed further in https://github.com/apache/tvm/pull/13267)
 
-  UnchangedOr<PrimExpr> Mutate_(const IntImmNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::IntImmNode* op, InplaceMode inplace_mode) final {
     if (is_enabled_) {
       if (visitor_->vmap.find(op) != visitor_->vmap.end()) {
-        return IntImm(visitor_->vmap.at(op), op->value);
+        return prim::IntImm(visitor_->vmap.at(op), op->value);
       }
     }
     return Parent::Mutate_(op, inplace_mode);

@@ -24,6 +24,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
@@ -42,13 +43,13 @@ namespace contrib {
 
 /*! \brief Attributes to store the compiler options for OpenCLML. */
 struct OpenCLMLCompilerConfigNode : public ffi::Object {
-  IntImm clml_version;
+  prim::IntImm clml_version;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<OpenCLMLCompilerConfigNode>().def_ro(
         "clml_version", &OpenCLMLCompilerConfigNode::clml_version,
-        "OpenCLML version as (major, minor, patch).", refl::DefaultValue(IntImm::Int32(3)));
+        "OpenCLML version as (major, minor, patch).", refl::DefaultValue(prim::IntImm::Int32(3)));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.OpenCLMLCompilerConfig",
                                     OpenCLMLCompilerConfigNode, ffi::Object);
@@ -332,11 +333,11 @@ inline constexpr bool IsOpenCLMLRuntimeEnabled() {
  * \brief Get OpenCLML version that TVM is built against.
  * \return The OpenCLML SDK version.
  */
-IntImm GetOpenCLMLVersion() {
+prim::IntImm GetOpenCLMLVersion() {
 #if TVM_GRAPH_EXECUTOR_CLML
-  return IntImm::Int32(TVM_CLML_VERSION);
+  return prim::IntImm::Int32(TVM_CLML_VERSION);
 #else
-  return IntImm::Int32(3);
+  return prim::IntImm::Int32(3);
 #endif  // TVM_GRAPH_EXECUTOR_CLML
 }
 

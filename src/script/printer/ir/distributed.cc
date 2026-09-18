@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/prim/expr.h>
 
 #include "./utils.h"
 namespace tvm {
@@ -31,7 +32,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         ffi::Array<ExprDoc> results;
         results.reserve(s);
         for (int i = 0; i < s; ++i) {
-          results.push_back(d->AsDoc<ExprDoc>(IntImm::Int32(n[i]), n_p->ArrayItem(i)));
+          results.push_back(d->AsDoc<ExprDoc>(prim::IntImm::Int32(n[i]), n_p->ArrayItem(i)));
         }
         return TupleDoc(results);
       });

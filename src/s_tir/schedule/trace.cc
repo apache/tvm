@@ -20,6 +20,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <sstream>
 
@@ -193,7 +194,7 @@ ffi::Array<Any> TranslateInputRVs(
         TVM_FFI_THROW(IndexError) << "Random variable is not defined " << input;
         throw;
       }
-    } else if (input.as<IntImmNode>() || input.as<FloatImmNode>()) {
+    } else if (input.as<prim::IntImmNode>() || input.as<prim::FloatImmNode>()) {
       // Case 3. integer or floating-point number
       results.push_back(input);
     } else if (input.as<ffi::ArrayObj>()) {
@@ -243,7 +244,7 @@ ffi::Array<Any> TranslateInputRVs(
       continue;
     }
     // Case 3. integer or floating-point immediate
-    if (input.as<IntImmNode>() || input.as<FloatImmNode>()) {
+    if (input.as<prim::IntImmNode>() || input.as<prim::FloatImmNode>()) {
       results.push_back(input);
       continue;
     }
@@ -315,7 +316,7 @@ ffi::Array<Any> TranslateInputRVs(
  * automatically by the FFI fallback in `TypeTraits<IntImm>`.
  */
 Any NormalizeJSONIntegers(const Any& value) {
-  if (auto opt_int = value.try_cast<IntImm>()) {
+  if (auto opt_int = value.try_cast<prim::IntImm>()) {
     return opt_int.value()->value;
   }
   if (auto opt_arr = value.try_cast<ffi::Array<Any>>()) {
@@ -469,7 +470,7 @@ ffi::ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
     Any decision = this->GetDecision(inst);
     if (decision != nullptr) {
       json_decisions.push_back(ffi::Array<ffi::Any>{
-          /* 0: index    */ IntImm::Int32(i),
+          /* 0: index    */ prim::IntImm::Int32(i),
           /* 1: decision */ decision,
       });
     }
@@ -533,7 +534,7 @@ void Trace::ApplyJSONToSchedule(ffi::ObjectRef json, Schedule sch) {
     try {
       const ffi::ArrayObj* arr = decision_entry.as<ffi::ArrayObj>();
       TVM_FFI_ICHECK(arr && arr->size() == 2);
-      auto arr0 = arr->at(0).try_cast<IntImm>();
+      auto arr0 = arr->at(0).try_cast<prim::IntImm>();
       TVM_FFI_ICHECK(arr0);
       index = static_cast<int64_t>(arr0.value()->value);
       // Unbox any IntImm into int64_t so decisions whose trait expects

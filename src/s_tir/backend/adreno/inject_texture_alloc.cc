@@ -21,6 +21,7 @@
  * \file inject_texture_alloc.cc
  */
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -68,7 +69,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       const auto& extents = op->buffer->shape;
       TVM_FFI_ICHECK(extents.size() >= 3) << "Only 2D Array RGBA texture is currently supported";
       const int data_bits = op->buffer->dtype.bits(),
-                vec_length = extents.back().as<IntImmNode>()->value.as<int>().value();
+                vec_length = extents.back().as<prim::IntImmNode>()->value.as<int>().value();
       const int channel_size = data_bits * vec_length;
       TVM_FFI_ICHECK(channel_size == 128 || channel_size == 64)
           << "Invalid Channel Size: " << channel_size << " bits";
@@ -77,10 +78,10 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       auto texture = ApplyTexture2DFlattening<PrimExpr>(extents, extents.size(), axis);
       ffi::Array<Expr> args;
       args.push_back(prim::StringImm(storage_scope));
-      args.push_back(IntImm::Int64(3));
+      args.push_back(prim::IntImm::Int64(3));
       args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
                           {texture.width, texture.height, texture.depth}));
-      args.push_back(IntImm::Int64(channel_size));
+      args.push_back(prim::IntImm::Int64(channel_size));
       stmt = DeclBuffer(op->buffer, Call(op->buffer.DataPointerType(),
                                          tirx::builtin::nd_mem_alloc_with_scope(), args));
     }

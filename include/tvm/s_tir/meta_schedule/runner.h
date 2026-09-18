@@ -74,7 +74,7 @@ class RunnerInput : public ffi::ObjectRef {
 class RunnerResultNode : public ffi::Object {
  public:
   /*! \brief The run time in seconds.*/
-  ffi::Optional<ffi::Array<FloatImm>> run_secs;
+  ffi::Optional<ffi::Array<prim::FloatImm>> run_secs;
   /*! \brief The error message, if any. */
   ffi::Optional<ffi::String> error_msg;
 
@@ -99,7 +99,7 @@ class RunnerResult : public ffi::ObjectRef {
    * \brief The run time in seconds.
    * \brief The error message, if any.
    */
-  TVM_DLL explicit RunnerResult(ffi::Optional<ffi::Array<FloatImm>> run_secs,
+  TVM_DLL explicit RunnerResult(ffi::Optional<ffi::Array<prim::FloatImm>> run_secs,
                                 ffi::Optional<ffi::String> error_msg);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RunnerResult, ffi::ObjectRef, RunnerResultNode);
 };

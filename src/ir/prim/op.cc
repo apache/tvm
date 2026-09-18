@@ -159,11 +159,11 @@ PrimExpr max_value(PrimType value_ty, Span span) {
   TVM_FFI_ICHECK_EQ(dtype.lanes(), 1);
   if (dtype.MatchesCode(DLDataTypeCode::kDLInt)) {
     if (dtype.bits() == 64) {
-      return IntImm(value_ty, std::numeric_limits<int64_t>::max(), span);
+      return prim::IntImm(value_ty, std::numeric_limits<int64_t>::max(), span);
     } else if (dtype.bits() < 64) {
       int64_t val = 1;
       val = (val << (dtype.bits() - 1)) - 1;
-      return IntImm(value_ty, val, span);
+      return prim::IntImm(value_ty, val, span);
     }
   } else if (dtype.MatchesCode(DLDataTypeCode::kDLUInt)) {
     if (dtype.bits() == 64) {
@@ -171,44 +171,44 @@ PrimExpr max_value(PrimType value_ty, Span span) {
     } else if (dtype.bits() < 64) {
       uint64_t val = 1;
       val = (val << static_cast<uint64_t>(dtype.bits())) - 1;
-      return IntImm(value_ty, static_cast<int64_t>(val), span);
+      return prim::IntImm(value_ty, static_cast<int64_t>(val), span);
     }
   } else if (IsFloatType(dtype)) {
     if (dtype.bits() == 64) {
-      return FloatImm(value_ty, std::numeric_limits<double>::max(), span);
+      return prim::FloatImm(value_ty, std::numeric_limits<double>::max(), span);
     } else if (dtype.bits() == 32) {
-      return FloatImm(value_ty, std::numeric_limits<float>::max(), span);
+      return prim::FloatImm(value_ty, std::numeric_limits<float>::max(), span);
     } else if (dtype.bits() == 16) {
-      return FloatImm(value_ty, 65504.0, span);
+      return prim::FloatImm(value_ty, 65504.0, span);
     }
   } else if (IsBFloat16Type(dtype)) {
-    return FloatImm(value_ty, std::numeric_limits<float>::max(), span);
+    return prim::FloatImm(value_ty, std::numeric_limits<float>::max(), span);
   } else if (IsFloat8Type(dtype)) {
     // according to https://arxiv.org/pdf/2209.05433.pdf
     if (dtype.code() == DLDataTypeCode::kDLFloat8_e5m2) {
-      return FloatImm(value_ty, 57344.0, span);
+      return prim::FloatImm(value_ty, 57344.0, span);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e5m2fnuz) {
-      return FloatImm(value_ty, 57344.0, span);
+      return prim::FloatImm(value_ty, 57344.0, span);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e4m3fn) {
-      return FloatImm(value_ty, 448.0, span);
+      return prim::FloatImm(value_ty, 448.0, span);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e4m3fnuz ||
                dtype.code() == DLDataTypeCode::kDLFloat8_e4m3) {
-      return FloatImm(value_ty, 448.0, span);
+      return prim::FloatImm(value_ty, 448.0, span);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e4m3b11fnuz) {
-      return FloatImm(value_ty, 30.0, span);
+      return prim::FloatImm(value_ty, 30.0, span);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e3m4) {
-      return FloatImm(value_ty, 31.0, span);
+      return prim::FloatImm(value_ty, 31.0, span);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e8m0fnu) {
-      return FloatImm(value_ty, 3.4028236692093846e+38, span);
+      return prim::FloatImm(value_ty, 3.4028236692093846e+38, span);
     }
   } else if (IsFloat6Type(dtype)) {
     if (dtype.code() == DLDataTypeCode::kDLFloat6_e2m3fn) {
-      return FloatImm(value_ty, 7.5, span);
+      return prim::FloatImm(value_ty, 7.5, span);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat6_e3m2fn) {
-      return FloatImm(value_ty, 28.0, span);
+      return prim::FloatImm(value_ty, 28.0, span);
     }
   } else if (IsFloat4Type(dtype)) {
-    return FloatImm(value_ty, 6.0, span);
+    return prim::FloatImm(value_ty, 6.0, span);
   }
   TVM_FFI_THROW(InternalError) << "Cannot decide max_value for type" << dtype;
 }
@@ -218,51 +218,51 @@ PrimExpr min_value(PrimType value_ty, Span span) {
   TVM_FFI_ICHECK_EQ(dtype.lanes(), 1);
   if (dtype.MatchesCode(DLDataTypeCode::kDLInt)) {
     if (dtype.bits() == 64) {
-      return IntImm(value_ty, std::numeric_limits<int64_t>::lowest(), span);
+      return prim::IntImm(value_ty, std::numeric_limits<int64_t>::lowest(), span);
     } else if (dtype.bits() < 64) {
       int64_t val = 1;
       val = -(val << (dtype.bits() - 1));
-      return IntImm(value_ty, val, span);
+      return prim::IntImm(value_ty, val, span);
     }
   } else if (dtype.MatchesCode(DLDataTypeCode::kDLUInt)) {
-    return IntImm(value_ty, 0, span);
+    return prim::IntImm(value_ty, 0, span);
   } else if (IsFloatType(dtype)) {
     if (dtype.bits() == 64) {
-      return FloatImm(value_ty, std::numeric_limits<double>::lowest(), span);
+      return prim::FloatImm(value_ty, std::numeric_limits<double>::lowest(), span);
     } else if (dtype.bits() == 32) {
-      return FloatImm(value_ty, std::numeric_limits<float>::lowest(), span);
+      return prim::FloatImm(value_ty, std::numeric_limits<float>::lowest(), span);
     } else if (dtype.bits() == 16) {
-      return FloatImm(value_ty, -65504.0, span);
+      return prim::FloatImm(value_ty, -65504.0, span);
     }
   } else if (IsBFloat16Type(dtype)) {
-    return FloatImm(value_ty, std::numeric_limits<float>::lowest(), span);
+    return prim::FloatImm(value_ty, std::numeric_limits<float>::lowest(), span);
   } else if (IsFloat8Type(dtype)) {
     // according to https://arxiv.org/pdf/2209.05433.pdf
     if (dtype.code() == DLDataTypeCode::kDLFloat8_e5m2) {
-      return FloatImm(value_ty, -57344.0, span);
+      return prim::FloatImm(value_ty, -57344.0, span);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e5m2fnuz) {
-      return FloatImm(value_ty, 0.0, span);
+      return prim::FloatImm(value_ty, 0.0, span);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e4m3fn) {
-      return FloatImm(value_ty, -448.0, span);
+      return prim::FloatImm(value_ty, -448.0, span);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e4m3fnuz) {
-      return FloatImm(value_ty, 0.0, span);
+      return prim::FloatImm(value_ty, 0.0, span);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e4m3) {
-      return FloatImm(value_ty, -448.0, span);
+      return prim::FloatImm(value_ty, -448.0, span);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e4m3b11fnuz) {
-      return FloatImm(value_ty, 0.0, span);
+      return prim::FloatImm(value_ty, 0.0, span);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e3m4) {
-      return FloatImm(value_ty, -31.0, span);
+      return prim::FloatImm(value_ty, -31.0, span);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e8m0fnu) {
-      return FloatImm(value_ty, 0.0, span);
+      return prim::FloatImm(value_ty, 0.0, span);
     }
   } else if (IsFloat6Type(dtype)) {
     if (dtype.code() == DLDataTypeCode::kDLFloat6_e2m3fn) {
-      return FloatImm(value_ty, -7.5, span);
+      return prim::FloatImm(value_ty, -7.5, span);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat6_e3m2fn) {
-      return FloatImm(value_ty, -28.0, span);
+      return prim::FloatImm(value_ty, -28.0, span);
     }
   } else if (IsFloat4Type(dtype)) {
-    return FloatImm(value_ty, -6.0, span);
+    return prim::FloatImm(value_ty, -6.0, span);
   }
   TVM_FFI_THROW(InternalError) << "Cannot decide min_value for type" << dtype;
 }
@@ -274,9 +274,9 @@ PrimExpr cast(PrimType t, PrimExpr value, Span span) {
       << "Cannot cast an expression with the void sentinel type";
   // const fold IntImm as they are used in index computations
   if (dtype.IsScalar()) {
-    if (const IntImmNode* op = value.as<IntImmNode>()) {
+    if (const prim::IntImmNode* op = value.as<prim::IntImmNode>()) {
       return MakeConst(dtype, op->value, op->span);
-    } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
+    } else if (const prim::FloatImmNode* op = value.as<prim::FloatImmNode>()) {
       return MakeConst(dtype, op->value, op->span);
     }
     return prim::Cast(std::move(t), value, span);
@@ -285,9 +285,9 @@ PrimExpr cast(PrimType t, PrimExpr value, Span span) {
     if (!value.ty().IsScalableVector() && !value.ty().IsFixedLengthVector()) {
       // manually unroll cast
       if (value.ty() != elem_ty) {
-        if (const IntImmNode* op = value.as<IntImmNode>()) {
+        if (const prim::IntImmNode* op = value.as<prim::IntImmNode>()) {
           value = MakeConst(elem_ty, op->value, op->span);
-        } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
+        } else if (const prim::FloatImmNode* op = value.as<prim::FloatImmNode>()) {
           value = MakeConst(elem_ty, op->value, op->span);
         } else {
           value = prim::Cast(elem_ty, value, span);
@@ -345,7 +345,7 @@ inline bool ConstPowerHelper(ValueType val, int* shift) {
 }
 
 bool is_const_power_of_two_integer(const PrimExpr& x, int* shift) {
-  if (const auto* op = x.as<IntImmNode>()) {
+  if (const auto* op = x.as<prim::IntImmNode>()) {
     return ConstPowerHelper(op->value, shift);
   } else {
     return false;
@@ -366,16 +366,16 @@ PrimExpr add(PrimExpr a, PrimExpr b, Span span) {
 PrimExpr operator-(PrimExpr a) { return neg(a); }
 
 PrimExpr neg(PrimExpr a, Span span) {
-  const IntImmNode* pa = a.as<IntImmNode>();
-  const FloatImmNode* fa = a.as<FloatImmNode>();
+  const prim::IntImmNode* pa = a.as<prim::IntImmNode>();
+  const prim::FloatImmNode* fa = a.as<prim::FloatImmNode>();
   if (pa) {
     ffi::BigInt value = -pa->value;
     if (a.ty().MatchesCode(DLDataTypeCode::kDLInt) && a.ty().bits() >= 64) {
       value = prim::detail::GetFoldResult(std::move(value), a.ty());
     }
-    return IntImm(a.ty(), std::move(value), span);
+    return prim::IntImm(a.ty(), std::move(value), span);
   }
-  if (fa) return FloatImm(a.ty(), -fa->value, span);
+  if (fa) return prim::FloatImm(a.ty(), -fa->value, span);
   return MakeConst(a.ty(), 0, span) - a;
 }
 
@@ -478,7 +478,7 @@ PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value, 
   TVM_FFI_ICHECK(cond.ty().MatchesCode(DLDataTypeCode::kDLBool))
       << "if_then_else only accept the condition to be boolean type.";
   BinaryOpMatchTypes(true_value, false_value, span);
-  if (const IntImmNode* op = cond.as<IntImmNode>()) {
+  if (const prim::IntImmNode* op = cond.as<prim::IntImmNode>()) {
     if (op->value != 0) {
       return true_value;
     } else {
@@ -576,7 +576,7 @@ PrimExpr right_shift(PrimExpr a, PrimExpr b, Span span) {
           << "Shift amount must be non-negative and less than " << result_ty.bits() << " for type "
           << result_ty;
     if (pa && pb) {
-      return IntImm(result_ty, (pa->value >> pb->value), span);
+      return prim::IntImm(result_ty, (pa->value >> pb->value), span);
     }
     if (pb) {
       if (pb->value == 0) return a;
@@ -600,7 +600,7 @@ PrimExpr left_shift(PrimExpr a, PrimExpr b, Span span) {
     if (pa && pb) {
       ffi::BigInt value = pa->value << pb->value;
       if (result_ty.bits() >= 64) value = prim::detail::GetFoldResult(std::move(value), result_ty);
-      return IntImm(result_ty, std::move(value), span);
+      return prim::IntImm(result_ty, std::move(value), span);
     }
     if (pb) {
       if (pb->value == 0) return a;
@@ -616,7 +616,7 @@ PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
-    if (pa && pb) return IntImm(result_ty, (pa->value & pb->value), span);
+    if (pa && pb) return prim::IntImm(result_ty, (pa->value & pb->value), span);
   });
   return Call(a.ty(), prim::builtin::bitwise_and(), {a, b}, {}, {}, span).as_or_throw<PrimExpr>();
 }
@@ -628,7 +628,7 @@ PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
-    if (pa && pb) return IntImm(result_ty, (pa->value | pb->value), span);
+    if (pa && pb) return prim::IntImm(result_ty, (pa->value | pb->value), span);
   });
   return Call(a.ty(), prim::builtin::bitwise_or(), {a, b}, {}, {}, span).as_or_throw<PrimExpr>();
 }
@@ -640,7 +640,7 @@ PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
-    if (pa && pb) return IntImm(result_ty, (pa->value ^ pb->value), span);
+    if (pa && pb) return prim::IntImm(result_ty, (pa->value ^ pb->value), span);
   });
   return Call(a.ty(), prim::builtin::bitwise_xor(), {a, b}, {}, {}, span).as_or_throw<PrimExpr>();
 }
@@ -661,10 +661,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 PrimExpr prim::IntegerAbs(PrimExpr x, Span span) {
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
-    if (const IntImmNode* px = x.as<IntImmNode>()) {
+    if (const prim::IntImmNode* px = x.as<prim::IntImmNode>()) {
       ffi::BigInt value = px->value < 0 ? -px->value : px->value;
       if (x.ty().bits() >= 64) value = prim::detail::GetFoldResult(std::move(value), x.ty());
-      return IntImm(x.ty(), std::move(value), px->span);
+      return prim::IntImm(x.ty(), std::move(value), px->span);
     }
     return Select(x >= MakeConst(x.ty(), 0), x, -x, span);
   }
@@ -731,8 +731,8 @@ PrimExpr ceil(PrimExpr x, Span span) {
                          DLDataTypeCode::kDLBool)) {
     return x;
   }
-  const FloatImmNode* fx = x.as<FloatImmNode>();
-  if (fx) return FloatImm(x.ty(), std::ceil(fx->value), fx->span);
+  const prim::FloatImmNode* fx = x.as<prim::FloatImmNode>();
+  if (fx) return prim::FloatImm(x.ty(), std::ceil(fx->value), fx->span);
   return Call(x.ty(), prim::builtin::ceil(), {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 

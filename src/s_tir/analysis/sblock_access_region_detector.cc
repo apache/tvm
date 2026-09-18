@@ -25,6 +25,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/analyzer.h>
@@ -292,7 +293,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op)
         data && data->op.same_as(tirx::builtin::buffer_data())) {
       buffer_var = data->args[0].as<VarNode>();
     }
-    const IntImmNode* access_mask = op->args[4].as<IntImmNode>();
+    const prim::IntImmNode* access_mask = op->args[4].as<prim::IntImmNode>();
     if (buffer_var && access_mask) {
       auto it = buffer_var_map_.find(ffi::GetRef<Var>(buffer_var));
       if (it != buffer_var_map_.end()) {

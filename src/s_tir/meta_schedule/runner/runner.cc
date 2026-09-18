@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include "../utils.h"
 
@@ -33,7 +34,7 @@ RunnerInput::RunnerInput(ffi::String artifact_path, ffi::String device_type,
   this->data_ = n;
 }
 
-RunnerResult::RunnerResult(ffi::Optional<ffi::Array<FloatImm>> run_secs,
+RunnerResult::RunnerResult(ffi::Optional<ffi::Array<prim::FloatImm>> run_secs,
                            ffi::Optional<ffi::String> error_msg) {
   ffi::ObjectPtr<RunnerResultNode> n = ffi::make_object<RunnerResultNode>();
   n->run_secs = run_secs;
@@ -71,8 +72,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::String artifact_path, ffi::String device_type, ffi::Array<ArgInfo> args_info)
                -> RunnerInput { return RunnerInput(artifact_path, device_type, args_info); })
       .def("s_tir.meta_schedule.RunnerResult",
-           [](ffi::Optional<ffi::Array<FloatImm>> run_secs, ffi::Optional<ffi::String> error_msg)
-               -> RunnerResult { return RunnerResult(run_secs, error_msg); })
+           [](ffi::Optional<ffi::Array<prim::FloatImm>> run_secs,
+              ffi::Optional<ffi::String> error_msg) -> RunnerResult {
+             return RunnerResult(run_secs, error_msg);
+           })
       .def("s_tir.meta_schedule.RunnerFuture",
            [](RunnerFuture::FDone f_done, RunnerFuture::FResult f_result) -> RunnerFuture {
              return RunnerFuture(f_done, f_result);

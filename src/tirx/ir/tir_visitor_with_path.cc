@@ -24,6 +24,7 @@
 #include "tir_visitor_with_path.h"
 
 #include <tvm/ffi/reflection/access_path.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <algorithm>
 #include <optional>
@@ -355,8 +356,8 @@ DEFINE_BINOP_VISIT_(prim::OrNode);
 
 #undef DEFINE_BINOP_VISIT_
 
-void TIRVisitorWithPath::Dispatch_(const IntImmNode* op, AccessPath path) {}
-void TIRVisitorWithPath::Dispatch_(const FloatImmNode* op, AccessPath path) {}
+void TIRVisitorWithPath::Dispatch_(const prim::IntImmNode* op, AccessPath path) {}
+void TIRVisitorWithPath::Dispatch_(const prim::FloatImmNode* op, AccessPath path) {}
 void TIRVisitorWithPath::Dispatch_(const prim::StringImmNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::Dispatch_(const prim::CastNode* op, AccessPath path) {

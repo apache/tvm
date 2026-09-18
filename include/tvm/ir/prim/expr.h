@@ -25,6 +25,7 @@
 #ifndef TVM_IR_PRIM_EXPR_H_
 #define TVM_IR_PRIM_EXPR_H_
 
+#include <tvm/ffi/big_int.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/dtype.h>
@@ -46,8 +47,119 @@
 namespace tvm {
 namespace prim {
 
-using IntImmNode = tvm::IntImmNode;
-using FloatImmNode = tvm::FloatImmNode;
+/*!
+ * \brief Constant integer literals in the program.
+ * \sa IntImm
+ */
+class IntImmNode : public ExprNode {
+ public:
+  /*! \brief the Internal value. */
+  ffi::BigInt value;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IntImmNode>().def_ro("value", &IntImmNode::value);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("prim.IntImm", IntImmNode, ExprNode);
+};
+
+/*!
+ * \brief Managed reference class to IntImmNode.
+ *
+ * \sa IntImmNode
+ */
+class IntImm : public PrimExpr {
+ public:
+  /*!
+   * \brief Constructor.
+   * \param value_ty The primitive type of the value.
+   * \param value The internal value.
+   * \param span The location of this object in the source code.
+   */
+  TVM_DLL IntImm(PrimType value_ty, ffi::BigInt value, Span span = Span());
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
+  IntImm(PrimType value_ty, Enum value, Span span = Span())
+      : IntImm(std::move(value_ty), ffi::BigInt(static_cast<std::underlying_type_t<Enum>>(value)),
+               std::move(span)) {}
+
+  /*!
+   * \brief Construct a scalar boolean constant.
+   * \param value The boolean value.
+   * \param span The location of this object in the source code.
+   */
+  static IntImm Bool(bool value, Span span = Span()) {
+    return IntImm(PrimType::Bool(), value, span);
+  }
+
+  /*!
+   * \brief Construct a scalar int32 constant.
+   * \param value The integer value.
+   * \param span The location of this object in the source code.
+   */
+  static IntImm Int32(ffi::BigInt value, Span span = Span()) {
+    return IntImm(PrimType::Int(32), std::move(value), span);
+  }
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
+  static IntImm Int32(Enum value, Span span = Span()) {
+    return IntImm(PrimType::Int(32), value, std::move(span));
+  }
+
+  /*!
+   * \brief Construct a scalar int64 constant.
+   * \param value The integer value.
+   * \param span The location of this object in the source code.
+   */
+  static IntImm Int64(ffi::BigInt value, Span span = Span()) {
+    return IntImm(PrimType::Int(64), std::move(value), span);
+  }
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
+  static IntImm Int64(Enum value, Span span = Span()) {
+    return IntImm(PrimType::Int(64), value, std::move(span));
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntImm, PrimExpr, IntImmNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IntImmNode);
+};
+
+/*!
+ * \brief Constant floating point literals in the program.
+ * \sa FloatImm
+ */
+class FloatImmNode : public ExprNode {
+ public:
+  /*! \brief The constant value content. */
+  double value;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FloatImmNode>().def_ro("value", &FloatImmNode::value);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("prim.FloatImm", FloatImmNode, ExprNode);
+};
+
+/*!
+ * \brief Managed reference class to FloatImmNode.
+ *
+ * \sa FloatImmNode
+ */
+class FloatImm : public PrimExpr {
+ public:
+  /*!
+   * \brief Constructor.
+   * \param value_ty The primitive type of the value.
+   * \param value The internal value.
+   * \param span The location in the source code.
+   */
+  TVM_DLL FloatImm(PrimType value_ty, double value, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FloatImm, PrimExpr, FloatImmNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(FloatImmNode);
+};
 
 /*! \brief ffi::String constants, only used in asserts. */
 class StringImmNode : public ExprNode {
@@ -604,6 +716,35 @@ struct ExprDeepEqual {
 }  // namespace prim
 
 namespace ffi {
+
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, prim::IntImmNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, prim::FloatImmNode> = true;
+// Type traits to enable automatic numeric conversion through the FFI
+template <>
+inline constexpr bool use_default_type_traits_v<prim::IntImm> = false;
+
+template <>
+struct TypeTraits<prim::IntImm> : public ObjectRefWithFallbackTraitsBase<prim::IntImm, int64_t> {
+  TVM_FFI_INLINE static prim::IntImm ConvertFallbackValue(int64_t value) {
+    auto value_ty =
+        (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min())
+            ? PrimType::Int(64)
+            : PrimType::Int(32);
+    return prim::IntImm(value_ty, value);
+  }
+};
+
+template <>
+inline constexpr bool use_default_type_traits_v<prim::FloatImm> = false;
+
+template <>
+struct TypeTraits<prim::FloatImm> : public ObjectRefWithFallbackTraitsBase<prim::FloatImm, double> {
+  TVM_FFI_INLINE static prim::FloatImm ConvertFallbackValue(double value) {
+    return prim::FloatImm(PrimType::Float(32), value);
+  }
+};
 
 template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, prim::StringImmNode> = true;

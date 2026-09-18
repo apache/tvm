@@ -40,7 +40,7 @@ PrimExpr CallGLSLIntrin(PrimExpr e, const ffi::Array<PrimExpr>& args) {
   TVM_FFI_ICHECK(call != nullptr);
   ffi::Array<PrimExpr> cargs;
   // intrin id.
-  cargs.push_back(IntImm(PrimType::UInt(32), id));
+  cargs.push_back(prim::IntImm(PrimType::UInt(32), id));
 
   for (PrimExpr arg : args) {
     cargs.push_back(arg);

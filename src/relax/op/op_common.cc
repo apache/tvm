@@ -21,6 +21,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <algorithm>
 #include <sstream>
@@ -121,8 +122,8 @@ BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(sym::AnalyzerObj* anal
   for (; i <= std::min(x1_ndim, x2_ndim); ++i) {
     const PrimExpr& dim0 = x1_shape[x1_ndim - i];
     const PrimExpr& dim1 = x2_shape[x2_ndim - i];
-    const auto* int_dim0 = dim0.as<IntImmNode>();
-    const auto* int_dim1 = dim1.as<IntImmNode>();
+    const auto* int_dim0 = dim0.as<prim::IntImmNode>();
+    const auto* int_dim1 = dim1.as<prim::IntImmNode>();
     if (int_dim0 != nullptr && int_dim0->value == 1) {
       output_shape.push_back(dim1);
     } else if (int_dim1 != nullptr && int_dim1->value == 1) {

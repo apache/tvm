@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
@@ -64,18 +65,18 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
     // Parallelization
     if (max_jobs_per_core != -1) {
       sch->Annotate(root_rv, s_tir::attr::meta_schedule_parallel,
-                    IntImm::Int32(this->max_parallel_extent_));
+                    prim::IntImm::Int32(this->max_parallel_extent_));
     }
     // Vectorization
     if (max_vectorize_extent != -1) {
       sch->Annotate(root_rv, s_tir::attr::meta_schedule_vectorize,
-                    IntImm::Int32(max_vectorize_extent));
+                    prim::IntImm::Int32(max_vectorize_extent));
     }
     // Unroll
     if (!unroll_max_steps.empty() && !s_tir::CheckSpatialPrimFunc(sch, root_rv)) {
       int n = unroll_max_steps.size();
       double prob = 1.0 / n;
-      ffi::Array<FloatImm> probs(n, FloatImm(PrimType::Float(32), prob));
+      ffi::Array<prim::FloatImm> probs(n, prim::FloatImm(PrimType::Float(32), prob));
       PrimExpr max_step = sch->SampleCategorical(unroll_max_steps, probs);
       if (unroll_explicit) {
         sch->Annotate(root_rv, s_tir::attr::meta_schedule_unroll_explicit, max_step);

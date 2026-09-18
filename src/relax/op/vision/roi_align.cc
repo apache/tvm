@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <utility>
 
@@ -103,7 +104,7 @@ Type InferTypeROIAlign(const Call& call, const BlockBuilder& ctx) {
 
   const auto* rois_shape = rois_ty->shape.as<ShapeExprNode>();
   if (rois_shape != nullptr) {
-    const auto* last_dim = rois_shape->values[1].as<IntImmNode>();
+    const auto* last_dim = rois_shape->values[1].as<prim::IntImmNode>();
     if (last_dim != nullptr && last_dim->value != 5) {
       TVM_FFI_VISIT_THROW(ValueError, call)
           << "ROIAlign expects rois to have shape (num_roi, 5), but got last "
@@ -119,11 +120,11 @@ Type InferTypeROIAlign(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<PrimExpr> data_shape = data_ty->shape.as<ShapeExprNode>()->values;
   ffi::Array<PrimExpr> out_shape;
   if (attrs->layout == "NCHW") {
-    out_shape = {rois_shape->values[0], data_shape[1], IntImm::Int32(attrs->pooled_size[0]),
-                 IntImm::Int32(attrs->pooled_size[1])};
+    out_shape = {rois_shape->values[0], data_shape[1], prim::IntImm::Int32(attrs->pooled_size[0]),
+                 prim::IntImm::Int32(attrs->pooled_size[1])};
   } else {
-    out_shape = {rois_shape->values[0], IntImm::Int32(attrs->pooled_size[0]),
-                 IntImm::Int32(attrs->pooled_size[1]), data_shape[3]};
+    out_shape = {rois_shape->values[0], prim::IntImm::Int32(attrs->pooled_size[0]),
+                 prim::IntImm::Int32(attrs->pooled_size[1]), data_shape[3]};
   }
   return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
 }

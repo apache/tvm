@@ -26,6 +26,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/transform.h>
@@ -364,14 +365,14 @@ void CodeGenMetal::Dispatch_(const AllocBufferNode* op) {
   size_t constant_size = 1;
   sym::Analyzer analyzer;
   for (const auto& dim : op->buffer->shape) {
-    const auto* dim_imm = dim.as<IntImmNode>();
+    const auto* dim_imm = dim.as<prim::IntImmNode>();
     int64_t dim_size =
         dim_imm ? static_cast<int64_t>(dim_imm->value) : analyzer->const_int_bound(dim)->max_value;
     if (dim_imm == nullptr) {
       // An integer dtype's intrinsic maximum is not a program-derived allocation bound.
       TVM_FFI_ICHECK(dim_size != sym::ConstIntBound::kPosInf)
           << "Metal allocation extent requires a finite compile-time upper bound, but got " << dim;
-      if (const auto* dtype_max = max_value(dim.ty()).as<IntImmNode>()) {
+      if (const auto* dtype_max = max_value(dim.ty()).as<prim::IntImmNode>()) {
         TVM_FFI_ICHECK_LT(dim_size, dtype_max->value)
             << "Metal allocation extent requires a finite compile-time upper bound, but got "
             << dim;
@@ -436,10 +437,10 @@ void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
       << "CodegenMetal does not support inter-function calls, "
       << "but expression " << ffi::GetRef<Call>(op) << " calls PrimFunc " << op->op;
   auto f_check_simdgroup_shape = [](PrimExpr col, PrimExpr row) {
-    TVM_FFI_ICHECK(col->IsInstance<IntImmNode>() && row->IsInstance<IntImmNode>())
+    TVM_FFI_ICHECK(col->IsInstance<prim::IntImmNode>() && row->IsInstance<prim::IntImmNode>())
         << "Only constant shape is supported for simdgroup matrix, but got " << col << "x" << row;
-    int col_val = col.as<IntImmNode>()->value.as<int>().value();
-    int row_val = row.as<IntImmNode>()->value.as<int>().value();
+    int col_val = col.as<prim::IntImmNode>()->value.as<int>().value();
+    int row_val = row.as<prim::IntImmNode>()->value.as<int>().value();
     TVM_FFI_ICHECK(col_val == 8 && row_val == 8)
         << "Only 8x8 matrix is supported, but got " << col_val << "x" << row_val;
   };
@@ -525,7 +526,7 @@ void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
   }
 }
 
-void CodeGenMetal::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenMetal::Dispatch_(const prim::FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   std::ostringstream temp;
   if (std::isinf(op->value)) {
     if (op->value < 0) {

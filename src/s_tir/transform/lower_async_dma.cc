@@ -23,6 +23,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
@@ -110,7 +111,7 @@ class AsyncDMALowerer : public s_tir::IRMutatorWithAnalyzer {
     // )
     if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
       // get queue ID
-      auto queue_id_node = op->value.as<IntImmNode>();
+      auto queue_id_node = op->value.as<prim::IntImmNode>();
       TVM_FFI_ICHECK(queue_id_node);
       int queue_id = queue_id_node->value.as<int>().value();
 
@@ -158,7 +159,7 @@ class AsyncDMALowerer : public s_tir::IRMutatorWithAnalyzer {
       // )
     } else if (op->attr_key == s_tir::attr::async_commit_queue_scope) {
       // get queue ID
-      auto queue_id_node = op->value.as<IntImmNode>();
+      auto queue_id_node = op->value.as<prim::IntImmNode>();
       TVM_FFI_ICHECK(queue_id_node);
       async_queue_id_ = queue_id_node->value.as<int>().value();
       auto result = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)

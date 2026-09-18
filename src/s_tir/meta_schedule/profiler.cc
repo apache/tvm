@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <algorithm>
 #include <chrono>
@@ -29,10 +30,10 @@ namespace meta_schedule {
 
 /**************** Profiler ****************/
 
-ffi::Map<ffi::String, FloatImm> ProfilerNode::Get() const {
-  ffi::Map<ffi::String, FloatImm> ret;
+ffi::Map<ffi::String, prim::FloatImm> ProfilerNode::Get() const {
+  ffi::Map<ffi::String, prim::FloatImm> ret;
   for (const auto& kv : stats_sec) {
-    ret.Set(kv.first, FloatImm(PrimType::Float(64), kv.second));
+    ret.Set(kv.first, prim::FloatImm(PrimType::Float(64), kv.second));
   }
   return ret;
 }

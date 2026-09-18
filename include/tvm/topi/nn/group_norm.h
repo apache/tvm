@@ -24,6 +24,7 @@
 #ifndef TVM_TOPI_NN_GROUP_NORM_H_
 #define TVM_TOPI_NN_GROUP_NORM_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
 
 #include <algorithm>
@@ -127,7 +128,7 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
 
   auto temp_x = temp_x_x2[0];
   auto temp_x2 = temp_x_x2[1];
-  PrimExpr reduce_extent = FloatImm(PrimType::Float(32), 1);
+  PrimExpr reduce_extent = prim::FloatImm(PrimType::Float(32), 1);
   for (auto axis : new_axes) {
     reduce_extent *= data_reshaped->shape[axis];
   }

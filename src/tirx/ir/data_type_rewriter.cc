@@ -27,6 +27,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
@@ -602,11 +603,11 @@ bool IndexDataTypeNormalizer::CanRewriteDType(PrimType dtype) const {
   return dtype.code() == DLDataTypeCode::kDLInt && dtype.bits() >= 32;
 }
 
-UnchangedOr<PrimExpr> IndexDataTypeNormalizer::Mutate_(const IntImmNode* op,
+UnchangedOr<PrimExpr> IndexDataTypeNormalizer::Mutate_(const prim::IntImmNode* op,
                                                        InplaceMode inplace_mode) {
   if (is_enabled_ && CanRewriteDType(op->ty.as_or_throw<PrimType>())) {
-    TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<IntImm>()->value);
-    return prim::cast(target_data_type_, ffi::GetRef<IntImm>(op));
+    TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<prim::IntImm>()->value);
+    return prim::cast(target_data_type_, ffi::GetRef<prim::IntImm>(op));
   }
   return ffi::Unchanged();
 }

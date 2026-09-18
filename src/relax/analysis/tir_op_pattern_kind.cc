@@ -21,6 +21,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/s_tir/stmt.h>
@@ -465,7 +466,7 @@ bool HasReshapePattern(const PrimFunc& func) {
         return sym::IterMapSimplify(
             /*indices=*/{idx},
             /*input_iters=*/var_range,
-            /*input_pred=*/IntImm::Bool(true),
+            /*input_pred=*/prim::IntImm::Bool(true),
             /*check_level=*/sym::IterMapLevel::Surjective,
             /*analyzer=*/ana_,
             /*simplify_trivial_iterators=*/true)[0];
@@ -479,7 +480,7 @@ bool HasReshapePattern(const PrimFunc& func) {
         for (int i = 0; i < static_cast<int>(block->iter_vars.size()); ++i) {
           if (!(indices[i].same_as(block->iter_vars[i]->var) &&
                 this->ana_->CanProveEqual(block->iter_vars[i]->dom->min,
-                                          IntImm::Int64(/*value=*/0)) &&
+                                          prim::IntImm::Int64(/*value=*/0)) &&
                 this->ana_->CanProveEqual(buffer->shape[i], block->iter_vars[i]->dom->extent))) {
             return false;
           }
@@ -507,7 +508,7 @@ bool HasReshapePattern(const PrimFunc& func) {
             !block->iter_vars.empty() ? block->iter_vars[0]->var.ty() : PrimType::Int(64);
         PrimVar fused_var("fused", dtype);
         ffi::Map<tirx::Var, PrimExpr> inverse_indices_map;
-        PrimExpr stride = IntImm(dtype, /*value=*/1);
+        PrimExpr stride = prim::IntImm(dtype, /*value=*/1);
         for (int i = static_cast<int>(block->iter_vars.size()) - 1; i >= 0; --i) {
           inverse_indices_map.Set(block->iter_vars[i]->var,
                                   floormod(floordiv(fused_var.as_or_throw<PrimExpr>(), stride),
@@ -527,8 +528,8 @@ bool HasReshapePattern(const PrimFunc& func) {
         ffi::Array<PrimExpr> simplify_res = sym::IterMapSimplify(
             /*indices=*/{flattened_idx},
             /*input_iters=*/
-            ffi::Map<PrimVar, Range>{{fused_var, Range(IntImm(dtype, /*value=*/0), stride)}},
-            /*input_pred=*/IntImm::Bool(true),
+            ffi::Map<PrimVar, Range>{{fused_var, Range(prim::IntImm(dtype, /*value=*/0), stride)}},
+            /*input_pred=*/prim::IntImm::Bool(true),
             /*check_level=*/sym::IterMapLevel::Surjective,
             /*analyzer=*/this->ana_,
             /*simplify_trivial_iterators=*/true);

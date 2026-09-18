@@ -25,6 +25,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
@@ -297,9 +298,9 @@ class ComputeLegalizer : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const FloatImmNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloatImmNode* op, InplaceMode inplace_mode) final {
     if (MatchType(op->ty.as_or_throw<PrimType>())) {
-      return FloatImm(promote_dtype_, op->value);
+      return prim::FloatImm(promote_dtype_, op->value);
     }
     return ffi::Unchanged();
   }

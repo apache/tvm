@@ -24,6 +24,7 @@
 #ifndef TVM_TOPI_NN_POOLING_H_
 #define TVM_TOPI_NN_POOLING_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/topi/detail/pad_utils.h>
 #include <tvm/topi/nn.h>
@@ -100,10 +101,10 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);
 
-  const auto* padding_h0 = pad_top.as<IntImmNode>();
-  const auto* padding_w0 = pad_left.as<IntImmNode>();
-  const auto* padding_h1 = pad_bottom.as<IntImmNode>();
-  const auto* padding_w1 = pad_right.as<IntImmNode>();
+  const auto* padding_h0 = pad_top.as<prim::IntImmNode>();
+  const auto* padding_w0 = pad_left.as<prim::IntImmNode>();
+  const auto* padding_h1 = pad_bottom.as<prim::IntImmNode>();
+  const auto* padding_w1 = pad_right.as<prim::IntImmNode>();
   const bool do_pad =
       ((padding_h0 && padding_h0->value != 0) || (padding_w0 && padding_w0->value != 0)) ||
       ((padding_h1 && padding_h1->value != 0) || (padding_w1 && padding_w1->value != 0));
@@ -152,10 +153,10 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           out_idx.Set(width_axis, (inds[width_axis] + pad_left) / stride_width - windoww);
 
           PrimExpr out_idx_lower_h = prim::Select(
-              pad_inds[height_axis] < kernel_height, IntImm(pad_inds[height_axis].ty(), 0),
+              pad_inds[height_axis] < kernel_height, prim::IntImm(pad_inds[height_axis].ty(), 0),
               (pad_inds[height_axis] - kernel_height) / stride_height + 1);
           PrimExpr out_idx_lower_w = prim::Select(
-              pad_inds[width_axis] < kernel_width, IntImm(pad_inds[width_axis].ty(), 0),
+              pad_inds[width_axis] < kernel_width, prim::IntImm(pad_inds[width_axis].ty(), 0),
               (pad_inds[width_axis] - kernel_width) / stride_width + 1);
 
           return tvm::prim::sum(
@@ -184,10 +185,10 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           out_idx.Set(width_axis, (pad_w_idx / stride_width - windoww));
 
           PrimExpr out_idx_lower_h =
-              prim::Select(pad_h_idx < kernel_height, IntImm(pad_h_idx.ty(), 0),
+              prim::Select(pad_h_idx < kernel_height, prim::IntImm(pad_h_idx.ty(), 0),
                            (pad_h_idx - kernel_height) / stride_height + 1);
           PrimExpr out_idx_lower_w =
-              prim::Select(pad_w_idx < kernel_width, IntImm(pad_w_idx.ty(), 0),
+              prim::Select(pad_w_idx < kernel_width, prim::IntImm(pad_w_idx.ty(), 0),
                            (pad_w_idx - kernel_width) / stride_width + 1);
 
           PrimExpr divide_factor;  // number of pooled elements
@@ -199,9 +200,9 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
 
             PrimExpr h_end = min(h_start + kernel_height, height);
             PrimExpr w_end = min(w_start + kernel_width, width);
-            h_start = max(h_start, IntImm(h_start.ty(), 0));
-            w_start = max(w_start, IntImm(w_start.ty(), 0));
-            divide_factor = max((h_end - h_start) * (w_end - w_start), IntImm(h_end.ty(), 1));
+            h_start = max(h_start, prim::IntImm(h_start.ty(), 0));
+            w_start = max(w_start, prim::IntImm(w_start.ty(), 0));
+            divide_factor = max((h_end - h_start) * (w_end - w_start), prim::IntImm(h_end.ty(), 1));
           }
           return tvm::prim::sum(
               tvm::if_then_else(prim::And(prim::And(out_idx[height_axis] >= out_idx_lower_h,
@@ -563,8 +564,8 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
       pad_tail[i] += offset[i];
     }
 
-    const auto* padding0 = pad_head[i].as<IntImmNode>();
-    const auto* padding1 = pad_tail[i].as<IntImmNode>();
+    const auto* padding0 = pad_head[i].as<prim::IntImmNode>();
+    const auto* padding1 = pad_tail[i].as<prim::IntImmNode>();
     do_pad = do_pad || (padding0 && padding0->value != 0) || (padding1 && padding1->value != 0);
 
     daxis.push_back(tvm::te::reduce_axis(Range(0, kernel[i]), "rv" + std::to_string(i)));
@@ -638,7 +639,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
           if (count_include_pad) {
             std::vector<PrimExpr> start(k_size);
             std::vector<PrimExpr> end(k_size);
-            auto num_el = IntImm::Int32(1);
+            auto num_el = prim::IntImm::Int32(1);
             for (int i = 0; i < k_size; i++) {
               int ii = axis[i];
               start[i] = output[ii] * stride[i] - pad_head[i];
@@ -654,7 +655,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
           } else {
             std::vector<PrimExpr> start(k_size);
             std::vector<PrimExpr> end(k_size);
-            auto num_el = IntImm::Int32(1);
+            auto num_el = prim::IntImm::Int32(1);
             for (int i = 0; i < k_size; i++) {
               int ii = axis[i];
 
@@ -669,13 +670,13 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
               // number that represents the number of steps along the dilated kernel to reach a
               // non-padded value. Otherwise this should be 0.
               PrimExpr jumps_to_non_pad = (dilation[i] - 1 - start[i]) / dilation[i];
-              jumps_to_non_pad = max(jumps_to_non_pad, IntImm(jumps_to_non_pad.ty(), 0));
+              jumps_to_non_pad = max(jumps_to_non_pad, prim::IntImm(jumps_to_non_pad.ty(), 0));
 
               end[i] = min(end[i], data_shape[ii] - 1);
               num_el *= (end[i] - (start[i] + dilation[i] * jumps_to_non_pad)) / dilation[i] + 1;
             }
 
-            PrimExpr divide_factor = max(num_el, IntImm::Int32(1));
+            PrimExpr divide_factor = max(num_el, prim::IntImm::Int32(1));
             return div(pool_sum(indices), divide_factor);
           }
         },

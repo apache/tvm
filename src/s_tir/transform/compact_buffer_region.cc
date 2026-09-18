@@ -25,6 +25,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -353,7 +354,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       ancestor_iters_.push_back(iter);
       Range dom = iter->dom;
       if (!dom.defined()) {  // dom is empty for legacy te schedule
-        dom = Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value);
+        dom = Range::FromMinExtent(prim::IntImm(op->value.ty(), 0), op->value);
       }
       dom_analyzer_->Bind(iter->var, dom);
       dom_map_.emplace(iter->var.get(), sym::IntSet::FromRange(dom));
@@ -400,13 +401,14 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       auto normalize_pred = [](const PrimExpr& pred) {
         PrimType pred_ty = pred.ty();
         if (pred_ty.MatchesCode(DLDataTypeCode::kDLBool)) return pred;
-        return pred != IntImm(pred.ty(), 0);
+        return pred != prim::IntImm(pred.ty(), 0);
       };
-      PrimExpr predicate = dom_analyzer_->Simplify(std::accumulate(
-          pending_conditions_.begin(), pending_conditions_.end(), PrimExpr(IntImm::Bool(true)),
-          [normalize_pred](const PrimExpr& x, const PrimExpr& y) {
-            return normalize_pred(x) && normalize_pred(y);
-          }));
+      PrimExpr predicate = dom_analyzer_->Simplify(
+          std::accumulate(pending_conditions_.begin(), pending_conditions_.end(),
+                          PrimExpr(prim::IntImm::Bool(true)),
+                          [normalize_pred](const PrimExpr& x, const PrimExpr& y) {
+                            return normalize_pred(x) && normalize_pred(y);
+                          }));
       NDIntSet nd_int_set =
           NDIntSetEval(buffer_region->region, predicate, dom_map_, dom_analyzer_.get());
 
@@ -471,7 +473,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     for (size_t i = 0; i < nd_int_set.size(); ++i) {
       const sym::IntSet& int_set = nd_int_set[i];
       Range original =
-          Range(/*begin=*/IntImm(original_shape[i].ty(), 0), /*end=*/original_shape[i]);
+          Range(/*begin=*/prim::IntImm(original_shape[i].ty(), 0), /*end=*/original_shape[i]);
       Range range = int_set.CoverRange(original);
       PrimExpr min, extent;
       if (collect_inbound_) {
@@ -506,7 +508,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         // try estimate a constant upperbound on region's extent
         int64_t upperbound = dom_analyzer_->const_int_bound(extent)->max_value;
         if (upperbound != sym::ConstIntBound::kPosInf) {
-          extent = IntImm(extent.ty(), upperbound);
+          extent = prim::IntImm(extent.ty(), upperbound);
         } else {
           result_region.Set(i, original);
           continue;
@@ -754,15 +756,15 @@ ffi::Array<PrimExpr> CalcStrides(const BufferAllocInfo& alloc_info,
   if (alloc_info.dim_aligns.size()) {
     TVM_FFI_ICHECK(alloc_info.dim_aligns.size() == shape.size());
     strides.resize(shape.size());
-    PrimExpr stride = IntImm(shape[0].ty(), 1);
+    PrimExpr stride = prim::IntImm(shape[0].ty(), 1);
     for (size_t i = shape.size(); i != 0; --i) {
       size_t dim = i - 1;
       DimAlignInfo info = alloc_info.dim_aligns[dim];
       int align_factor = info.align_factor;
       int align_offset = info.align_offset;
       if (align_factor != 0) {
-        PrimExpr factor = IntImm(stride.ty(), align_factor);
-        PrimExpr offset = IntImm(stride.ty(), align_offset);
+        PrimExpr factor = prim::IntImm(stride.ty(), align_factor);
+        PrimExpr offset = prim::IntImm(stride.ty(), align_offset);
         stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
       }
       strides[dim] = stride;

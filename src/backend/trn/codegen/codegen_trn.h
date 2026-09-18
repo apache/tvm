@@ -24,6 +24,7 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_TRN_H_
 #define TVM_TARGET_SOURCE_CODEGEN_TRN_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/codegen.h>
 
 #include <string>
@@ -66,7 +67,7 @@ class CodeGenTrainium final : public CodeGenC {
   std::string PrintIndices(const ffi::Array<PrimExpr>& indices);         // NOLINT(*)
   void Dispatch_(const TensorLoadNode* op, std::ostream& os) final;      // NOLINT(*)
   void Dispatch_(const CallNode* op, std::ostream& os) final;            // NOLINT(*)
-  void Dispatch_(const FloatImmNode* op, std::ostream& os) final;        // NOLINT(*)
+  void Dispatch_(const prim::FloatImmNode* op, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const prim::CastNode* op, std::ostream& os) final;      // NOLINT(*)
   void Dispatch_(const prim::FloorDivNode* op, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const prim::FloorModNode* op, std::ostream& os) final;  // NOLINT(*)

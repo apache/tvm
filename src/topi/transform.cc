@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/topi/einsum.h>
 #include <tvm/topi/transform.h>
 #include <tvm/topi/utils.h>
@@ -237,11 +238,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             bool assume_inbound = args[6].cast<bool>();
             if (IsConstIntArray(begin) && IsConstIntArray(end) && IsConstIntArray(strides) &&
                 IsConstIntArray(x->shape)) {
-              ffi::Array<ffi::Optional<IntImm>> begin_static =
-                  args[1].cast<ffi::Array<ffi::Optional<IntImm>>>();
-              ffi::Array<ffi::Optional<IntImm>> end_static =
-                  args[2].cast<ffi::Array<ffi::Optional<IntImm>>>();
-              ffi::Array<IntImm> strides_static = args[3].cast<ffi::Array<IntImm>>();
+              ffi::Array<ffi::Optional<prim::IntImm>> begin_static =
+                  args[1].cast<ffi::Array<ffi::Optional<prim::IntImm>>>();
+              ffi::Array<ffi::Optional<prim::IntImm>> end_static =
+                  args[2].cast<ffi::Array<ffi::Optional<prim::IntImm>>>();
+              ffi::Array<prim::IntImm> strides_static = args[3].cast<ffi::Array<prim::IntImm>>();
               auto slice_mode = args[5].cast<std::string>();
               if (axes.size()) {
                 *rv = strided_slice_with_axes(x, begin_static, end_static, strides_static, axes,

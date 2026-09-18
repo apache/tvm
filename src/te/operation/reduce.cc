@@ -24,6 +24,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -126,7 +127,7 @@ Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<Ite
         << "Can only take axis created by reduce_axis";
   }
   if (!condition.defined()) {
-    condition = IntImm::Bool(true);
+    condition = prim::IntImm::Bool(true);
   }
   auto n = ffi::make_object<ReduceNode>();
   TVM_FFI_ICHECK(source.defined());
@@ -140,7 +141,8 @@ Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<Ite
       if (te::IsTensorLoad(init[i])) {
         te::GetTensorFromLoad(init[i].as_or_throw<Call>());
       } else {
-        TVM_FFI_ICHECK(init[i]->IsInstance<IntImmNode>() || init[i]->IsInstance<FloatImmNode>())
+        TVM_FFI_ICHECK(init[i]->IsInstance<prim::IntImmNode>() ||
+                       init[i]->IsInstance<prim::FloatImmNode>())
             << "init can only be an IntImm, FloatImm or Tensor-load Call, "
             << "but received " << init[i] << " of type " << init[i]->GetTypeKey();
       }

@@ -50,8 +50,9 @@ inline int64_t CanonicalizeIndex(int64_t index, int64_t extent, int64_t stride) 
 }
 
 inline std::tuple<std::vector<int64_t>, std::vector<int64_t>, std::vector<int64_t>> ConvertToVec(
-    const ffi::Array<ffi::Optional<IntImm>>& begin, const ffi::Array<ffi::Optional<IntImm>>& end,
-    const ffi::Array<IntImm>& strides, std::string slice_mode) {
+    const ffi::Array<ffi::Optional<prim::IntImm>>& begin,
+    const ffi::Array<ffi::Optional<prim::IntImm>>& end, const ffi::Array<prim::IntImm>& strides,
+    std::string slice_mode) {
   std::vector<int64_t> stride_vec(strides.size(), 1);
   if (slice_mode == "end") {
     for (size_t i = 0; i < strides.size(); ++i) {
@@ -97,7 +98,7 @@ inline ffi::Array<PrimExpr> StridedSliceCanonicalizeBegin(const ffi::Array<PrimE
   ffi::Array<PrimExpr> begin_expr;
   for (size_t i = 0; i < axes.size(); ++i) {
     int64_t ax = axes[i];
-    if (ishape[ax]->IsInstance<tvm::IntImmNode>()) {
+    if (ishape[ax]->IsInstance<tvm::prim::IntImmNode>()) {
       int64_t dim_i = GetConstInt(ishape[ax]);
       int64_t begin_i = CanonicalizeIndex(begin[i], dim_i, strides[i]);
       begin_expr.push_back(MakeConst(dtype, begin_i));
@@ -131,9 +132,9 @@ inline ffi::Array<PrimExpr> StridedSliceOutputShape(
 
   for (size_t i = 0; i < axes.size(); ++i) {
     int64_t ax = axes[i];
-    if (ishape[ax]->IsInstance<tvm::IntImmNode>()) {
+    if (ishape[ax]->IsInstance<tvm::prim::IntImmNode>()) {
       const int64_t dim_i = GetConstInt(ishape[ax]);
-      TVM_FFI_ICHECK(begin_canonicalized[i]->IsInstance<tvm::IntImmNode>());
+      TVM_FFI_ICHECK(begin_canonicalized[i]->IsInstance<tvm::prim::IntImmNode>());
       int64_t begin_i = GetConstInt(begin_canonicalized[i]);
       int64_t end_i = CanonicalizeIndex(end[i], dim_i, strides[i]);
       int interval = std::abs(end_i - begin_i);

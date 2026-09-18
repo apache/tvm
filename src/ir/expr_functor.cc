@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ir/expr_functor.h>
+#include <tvm/ir/prim/expr.h>
 
 namespace tvm {
 
@@ -30,8 +31,8 @@ void ExprVisitor::InitVTable(VTable* vtable) {
   SetDispatch<ExprVisitor, VarNode>(vtable);
   SetDispatch<ExprVisitor, GlobalVarNode>(vtable);
   SetDispatch<ExprVisitor, CallNode>(vtable);
-  SetDispatch<ExprVisitor, IntImmNode>(vtable);
-  SetDispatch<ExprVisitor, FloatImmNode>(vtable);
+  SetDispatch<ExprVisitor, prim::IntImmNode>(vtable);
+  SetDispatch<ExprVisitor, prim::FloatImmNode>(vtable);
   SetDispatch<ExprVisitor, OpNode>(vtable);
   SetDispatch<ExprVisitor, prim::StringImmNode>(vtable);
   SetDispatch<ExprVisitor, prim::CastNode>(vtable);
@@ -127,9 +128,13 @@ ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const CallNode* node) {
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const IntImmNode* node) { return std::nullopt; }
+ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const prim::IntImmNode* node) {
+  return std::nullopt;
+}
 
-ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const FloatImmNode* node) { return std::nullopt; }
+ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const prim::FloatImmNode* node) {
+  return std::nullopt;
+}
 
 ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const OpNode* node) { return std::nullopt; }
 
@@ -293,8 +298,8 @@ void ExprMutator::InitVTable(VTable* vtable) {
   SetDispatch<ExprMutator, VarNode>(vtable);
   SetDispatch<ExprMutator, GlobalVarNode>(vtable);
   SetDispatch<ExprMutator, CallNode>(vtable);
-  SetDispatch<ExprMutator, IntImmNode>(vtable);
-  SetDispatch<ExprMutator, FloatImmNode>(vtable);
+  SetDispatch<ExprMutator, prim::IntImmNode>(vtable);
+  SetDispatch<ExprMutator, prim::FloatImmNode>(vtable);
   SetDispatch<ExprMutator, OpNode>(vtable);
   SetDispatch<ExprMutator, prim::StringImmNode>(vtable);
   SetDispatch<ExprMutator, prim::CastNode>(vtable);
@@ -451,12 +456,13 @@ UnchangedOr<Expr> ExprMutator::Mutate_(const CallNode* node, InplaceMode inplace
   return Expr(std::move(copy));
 }
 
-UnchangedOr<PrimExpr> ExprMutator::Mutate_(const IntImmNode* node, InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::IntImmNode* node, InplaceMode inplace_mode) {
   // Registry atoms and constant leaves do not descend into metadata or types.
   return ffi::Unchanged();
 }
 
-UnchangedOr<PrimExpr> ExprMutator::Mutate_(const FloatImmNode* node, InplaceMode inplace_mode) {
+UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::FloatImmNode* node,
+                                           InplaceMode inplace_mode) {
   // Registry atoms and constant leaves do not descend into metadata or types.
   return ffi::Unchanged();
 }

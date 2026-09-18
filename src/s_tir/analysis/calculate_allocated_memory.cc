@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -72,7 +73,7 @@ class AllocBufferCalculator : public StmtExprVisitor {
     }
     int64_t size = 1;
     for (const PrimExpr& e : op->buffer->shape) {
-      if (auto* imm = e.as<IntImmNode>()) {
+      if (auto* imm = e.as<prim::IntImmNode>()) {
         size = static_cast<int64_t>(size * imm->value);
       } else {
         size = 0;

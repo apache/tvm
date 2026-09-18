@@ -129,7 +129,7 @@ class LaunchBoundsAttrExtractor : public StmtExprMutator {
  private:
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == tirx::attr::kLaunchBoundsMinBlocksPerSM) {
-      const auto* min_blocks_per_sm = op->value.as<IntImmNode>();
+      const auto* min_blocks_per_sm = op->value.as<prim::IntImmNode>();
       TVM_FFI_ICHECK(min_blocks_per_sm)
           << tirx::attr::kLaunchBoundsMinBlocksPerSM << " expects an integer value";
       TVM_FFI_ICHECK_GT(min_blocks_per_sm->value, 0)
@@ -141,7 +141,7 @@ class LaunchBoundsAttrExtractor : public StmtExprMutator {
       min_blocks_per_sm_ = static_cast<int64_t>(min_blocks_per_sm->value);
       return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else if (op->attr_key == tirx::attr::kLaunchBoundsMaxBlocksPerCluster) {
-      const auto* max_blocks_per_cluster = op->value.as<IntImmNode>();
+      const auto* max_blocks_per_cluster = op->value.as<prim::IntImmNode>();
       TVM_FFI_ICHECK(max_blocks_per_cluster)
           << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " expects an integer value";
       TVM_FFI_ICHECK_GT(max_blocks_per_cluster->value, 0)
@@ -153,7 +153,7 @@ class LaunchBoundsAttrExtractor : public StmtExprMutator {
       max_blocks_per_cluster_ = static_cast<int64_t>(max_blocks_per_cluster->value);
       return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else if (op->attr_key == tirx::attr::kMaxRegisters) {
-      const auto* max_registers = op->value.as<IntImmNode>();
+      const auto* max_registers = op->value.as<prim::IntImmNode>();
       TVM_FFI_ICHECK(max_registers) << tirx::attr::kMaxRegisters << " expects an integer value";
       TVM_FFI_ICHECK_GT(max_registers->value, 0)
           << tirx::attr::kMaxRegisters << " must be positive";
@@ -164,7 +164,7 @@ class LaunchBoundsAttrExtractor : public StmtExprMutator {
       max_registers_ = static_cast<int64_t>(max_registers->value);
       return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else if (op->attr_key == tirx::attr::kRequiredBlockSize) {
-      const auto* required_block_size = op->value.as<IntImmNode>();
+      const auto* required_block_size = op->value.as<prim::IntImmNode>();
       TVM_FFI_ICHECK(required_block_size)
           << tirx::attr::kRequiredBlockSize << " expects an integer value";
       TVM_FFI_ICHECK_EQ(required_block_size->value, 1)
@@ -270,7 +270,7 @@ class HostDeviceSplitter : public StmtExprMutator {
       auto kind = device_target->GetTargetDeviceType();
       return kind == kDLCPU || kind == kDLExtDev || kind == kDLHexagon;
     }();
-    IntImm success(PrimType::Int(32), 0);
+    prim::IntImm success(PrimType::Int(32), 0);
     Type kernel_ret_type = Type::Missing();
     if (can_propagate_errors) {
       kernel_ret_type = PrimType::Int(32);
@@ -434,7 +434,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
     // A zero-extent allocation is a pool-style extern placeholder, so having
     // neither a declaration nor a usable extent is an authoring error.
     if (!collector->dyn_shmem_size.has_value() && collector->inferred_shmem_size_.has_value()) {
-      const auto* inferred = collector->inferred_shmem_size_.value().as<IntImmNode>();
+      const auto* inferred = collector->inferred_shmem_size_.value().as<prim::IntImmNode>();
       TVM_FFI_ICHECK(!(inferred && inferred->value == 0))
           << "PrimFunc " << gvar->name_hint
           << " allocates dynamic shared memory with a placeholder extent but does not declare "
@@ -507,7 +507,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
       // attribute is the single source of truth for the launch parameter.
       TVM_FFI_ICHECK(!dyn_shmem_size.has_value())
           << "Only one tirx.dyn_smem_bytes declaration is allowed per kernel.";
-      TVM_FFI_ICHECK(op->value.as<IntImmNode>()) << "tirx.dyn_smem_bytes must be an IntImm";
+      TVM_FFI_ICHECK(op->value.as<prim::IntImmNode>()) << "tirx.dyn_smem_bytes must be an IntImm";
       dyn_shmem_size = op->value;
     }
     if (op->attr_key == attr::thread_extent) {
@@ -556,11 +556,11 @@ class DeviceInfoCollector : public StmtExprVisitor {
       // allocate shared.dyn with a concrete extent). A zero extent is a
       // pool-style extern placeholder and carries no size information.
       TVM_FFI_ICHECK_GT(op->buffer->shape.size(), 0);
-      PrimExpr dyn_size = IntImm::Int32(1);
+      PrimExpr dyn_size = prim::IntImm::Int32(1);
       for (const auto& extent : op->buffer->shape) {
         dyn_size *= extent;
       }
-      dyn_size *= IntImm::Int64(static_cast<int64_t>(op->buffer->dtype.StorageBytes()));
+      dyn_size *= prim::IntImm::Int64(static_cast<int64_t>(op->buffer->dtype.StorageBytes()));
       if (bind_map_.size()) {
         auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
           if (auto repl = bind_map_.Get(var)) return ffi::Any(*std::move(repl));
@@ -609,7 +609,7 @@ class ReturnRemover : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const ReturnNode* op, InplaceMode inplace_mode) override {
-    auto as_int = op->value.as<IntImmNode>();
+    auto as_int = op->value.as<prim::IntImmNode>();
     TVM_FFI_ICHECK(as_int && as_int->value == 0)
         << "Device kernel may only contain a successful return, return 0";
     return remove_ ? Evaluate(0) : ffi::GetRef<Stmt>(op);

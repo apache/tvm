@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr_functor.h>
@@ -186,8 +187,8 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   void Dispatch_(const prim::RampNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::BroadcastNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::ShuffleNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const IntImmNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const FloatImmNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::IntImmNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::FloatImmNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::StringImmNode* op, ffi::reflection::AccessPath path) override;
 
   // Utility to call EnterDef/ExitDef.  Used in the implementation of

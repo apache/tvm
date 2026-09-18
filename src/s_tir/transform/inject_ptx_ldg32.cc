@@ -20,6 +20,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -98,15 +99,15 @@ class PTXRewriter : public StmtExprMutator {
         EnsureBuffers();
         needs_buffer = true;
         local_addr = store->indices[0];
-        BufferStore addr_store(addr_buffer, global_addr, {IntImm::Int32(0)});
-        BufferStore local_addr_store(addr_buffer, local_addr, {IntImm::Int32(1)});
-        BufferStore predicate_store(predicate_buffer, predicate, {IntImm::Int32(0)});
+        BufferStore addr_store(addr_buffer, global_addr, {prim::IntImm::Int32(0)});
+        BufferStore local_addr_store(addr_buffer, local_addr, {prim::IntImm::Int32(1)});
+        BufferStore predicate_store(predicate_buffer, predicate, {prim::IntImm::Int32(0)});
         PrimExpr new_lhs, new_rhs, new_predicate, new_indice;
         new_lhs = BufferLoad(load->source.as_or_throw<tvm::tirx::BufferVar>(),
-                             {BufferLoad(addr_buffer, {IntImm::Int32(0)})});
-        new_rhs = IntImm::Int32(0);
-        new_predicate = BufferLoad(predicate_buffer, {IntImm::Int32(0)});
-        new_indice = BufferLoad(addr_buffer, {IntImm::Int32(1)});
+                             {BufferLoad(addr_buffer, {prim::IntImm::Int32(0)})});
+        new_rhs = prim::IntImm::Int32(0);
+        new_predicate = BufferLoad(predicate_buffer, {prim::IntImm::Int32(0)});
+        new_indice = BufferLoad(addr_buffer, {prim::IntImm::Int32(1)});
         BufferStore value_store(store->buffer, imm_value, {new_indice});
         static const Op& ptx_ldg32_op = Op::Get("tirx.s_tir.ldg32");
         Evaluate ptx_load(Call(store->buffer->dtype, ptx_ldg32_op,
@@ -127,8 +128,9 @@ class PTXRewriter : public StmtExprMutator {
     }
     has_buffer_1 = true;
     // addr[0] -> global_addr /  addr[1] -> local_addr
-    addr_buffer = decl_buffer({IntImm::Int32(2)}, PrimType::Int(32), "addr", "local");
-    predicate_buffer = decl_buffer({IntImm::Int32(1)}, PrimType::Bool(), "predicate", "local");
+    addr_buffer = decl_buffer({prim::IntImm::Int32(2)}, PrimType::Int(32), "addr", "local");
+    predicate_buffer =
+        decl_buffer({prim::IntImm::Int32(1)}, PrimType::Bool(), "predicate", "local");
   }
 
   bool has_buffer_1 = false, has_buffer_2 = false;

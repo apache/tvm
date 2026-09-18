@@ -279,7 +279,7 @@ class PartitionFinder : public StmtExprVisitor {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       TVM_FFI_ICHECK(thread_axis);
       const VarNode* var = thread_axis->var.get();
-      IntSet dom = IntSet::FromRange(Range(IntImm(op->value.ty(), 0), op->value));
+      IntSet dom = IntSet::FromRange(Range(prim::IntImm(op->value.ty(), 0), op->value));
       hint_map_.insert({var, dom});
       relax_map_.insert({var, dom});
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
@@ -400,7 +400,7 @@ class ConditionEliminator : public StmtExprMutator {
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
     if (auto expr = value.as<PrimExpr>()) {
       if (ps_.count(*expr)) {
-        return ffi::Any(IntImm::Bool(cond_value_));
+        return ffi::Any(prim::IntImm::Bool(cond_value_));
       }
     }
     return StmtExprMutator::Mutate(value, inplace_mode);
@@ -509,13 +509,15 @@ class LoopPartitioner : public StmtExprMutator {
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.
       relax_map_.insert(
-          {var.get(), IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), op->value - 1)});
+          {var.get(),
+           IntSet::Interval(prim::IntImm(var->ty.as_or_throw<PrimType>(), 0), op->value - 1)});
       res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                 .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       relax_map_.erase(var.get());
     } else {
       hint_map_.insert(
-          {var.get(), IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), op->value - 1)});
+          {var.get(),
+           IntSet::Interval(prim::IntImm(var->ty.as_or_throw<PrimType>(), 0), op->value - 1)});
       res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                 .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       hint_map_.erase(var.get());
@@ -834,7 +836,7 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
     }
     s = SeqStmt::Flatten(pre_stmt, mid_stmt, post_stmt);
   } else {
-    PrimExpr cond = IntImm::Bool(true);
+    PrimExpr cond = prim::IntImm::Bool(true);
     if (!analyzer_->CanProve(body_begin == min)) {
       cond = cond && (var.as_or_throw<PrimExpr>() >= body_begin);
     }
@@ -852,19 +854,19 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
   const ForNode* for_node = static_cast<const ForNode*>(node);
   TVM_FFI_ICHECK(for_node);
 
-  if (analyzer_->CanProve(extent == IntImm::Int32(1)) && !no_unroll_loop_with_extent_one_ &&
+  if (analyzer_->CanProve(extent == prim::IntImm::Int32(1)) && !no_unroll_loop_with_extent_one_ &&
       for_node->annotations.empty()) {
     // If the loop extent is 1, do not create the loop anymore
     auto f_substitute = [loop_var = for_node->loop_var](
                             const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-      if (var.same_as(loop_var)) return ffi::Any(IntImm::Int32(0));
+      if (var.same_as(loop_var)) return ffi::Any(prim::IntImm::Int32(0));
       return ffi::Unchanged();
     };
     return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, f_substitute).as_or_throw<Stmt>();
   } else {
     TVM_FFI_ICHECK(for_node->kind != ForKind::kThreadBinding);
     auto new_loop = ffi::make_object<ForNode>(*for_node);
-    new_loop->min = IntImm(for_node->min.ty(), 0);
+    new_loop->min = prim::IntImm(for_node->min.ty(), 0);
     new_loop->extent = extent;
     new_loop->body = body;
     return For(new_loop);

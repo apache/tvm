@@ -26,6 +26,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
@@ -258,9 +259,9 @@ void ExprVisitor::VisitExpr_(const prim::ShuffleNode* op) {
   VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
-void ExprVisitor::VisitExpr_(const tvm::IntImmNode* op) { this->VisitSpan(op->span); }
+void ExprVisitor::VisitExpr_(const tvm::prim::IntImmNode* op) { this->VisitSpan(op->span); }
 
-void ExprVisitor::VisitExpr_(const tvm::FloatImmNode* op) { this->VisitSpan(op->span); }
+void ExprVisitor::VisitExpr_(const tvm::prim::FloatImmNode* op) { this->VisitSpan(op->span); }
 
 void ExprVisitor::VisitExpr_(const prim::StringImmNode* op) { this->VisitSpan(op->span); }
 
@@ -623,9 +624,11 @@ Expr ExprMutatorBase::VisitExpr_(const prim::ShuffleNode* op) {
   return prim::Shuffle(vectors, indices, op->span);
 }
 
-Expr ExprMutatorBase::VisitExpr_(const tvm::IntImmNode* op) { return ffi::GetRef<Expr>(op); }
+Expr ExprMutatorBase::VisitExpr_(const tvm::prim::IntImmNode* op) { return ffi::GetRef<Expr>(op); }
 
-Expr ExprMutatorBase::VisitExpr_(const tvm::FloatImmNode* op) { return ffi::GetRef<Expr>(op); }
+Expr ExprMutatorBase::VisitExpr_(const tvm::prim::FloatImmNode* op) {
+  return ffi::GetRef<Expr>(op);
+}
 
 Expr ExprMutatorBase::VisitExpr_(const prim::StringImmNode* op) { return ffi::GetRef<Expr>(op); }
 
@@ -987,7 +990,7 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<V
   TVM_FFI_ICHECK(expr->IsInstance<SeqExprNode>())
       << "Normal form requires all new scope is stored as SeqExpr";
 
-  PrimExpr constraint = IntImm::Bool(true);
+  PrimExpr constraint = prim::IntImm::Bool(true);
   if (params.has_value()) {
     auto non_negative_expressions =
         CollectNonNegativeExpressions(TupleType(params.value().Map(GetType)));

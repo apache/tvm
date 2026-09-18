@@ -20,6 +20,7 @@
 #define TVM_TIRX_SCRIPT_BUILDER_UTILS_H_
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/script/builder/frame.h>
@@ -134,7 +135,7 @@ inline IfFrame FindIfFrame(const ffi::String& method) {
 inline tvm::TensorRegion BufferRegionFromLoad(tvm::TensorLoad buffer_load) {
   ffi::Array<Range> ranges;
   for (const PrimExpr& index : buffer_load->indices) {
-    ranges.push_back(Range::FromMinExtent(index, IntImm(index.ty(), 1)));
+    ranges.push_back(Range::FromMinExtent(index, prim::IntImm(index.ty(), 1)));
   }
   return tvm::tirx::BufferRegion(buffer_load->source.as_or_throw<tvm::tirx::BufferVar>(), ranges);
 }

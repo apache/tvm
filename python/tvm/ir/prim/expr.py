@@ -18,7 +18,6 @@
 
 import tvm_ffi
 
-from .. import _ffi_api as _ir_ffi_api
 from ..base import Span
 from ..expr import Expr, ExprWithOp, Var
 from ..type import PrimType
@@ -43,7 +42,7 @@ class LogicalExpr(ExprWithOp):
     pass
 
 
-@tvm_ffi.register_object("ir.FloatImm")
+@tvm_ffi.register_object("prim.FloatImm")
 class FloatImm(ConstExpr):
     """Float constant.
 
@@ -65,7 +64,7 @@ class FloatImm(ConstExpr):
         if isinstance(dtype, PrimType):
             dtype = dtype.dtype
         self.__init_handle_by_constructor__(
-            _ir_ffi_api.FloatImm,
+            _prim_ffi_api.FloatImm,
             dtype,
             value,
             span,  # type: ignore
@@ -75,7 +74,7 @@ class FloatImm(ConstExpr):
         return self.value
 
 
-@tvm_ffi.register_object("ir.IntImm")
+@tvm_ffi.register_object("prim.IntImm")
 class IntImm(ConstExpr):
     """Int constant.
 
@@ -97,7 +96,7 @@ class IntImm(ConstExpr):
         if isinstance(dtype, PrimType):
             dtype = dtype.dtype
         self.__init_handle_by_constructor__(
-            _ir_ffi_api.IntImm,
+            _prim_ffi_api.IntImm,
             dtype,
             value,
             span,  # type: ignore

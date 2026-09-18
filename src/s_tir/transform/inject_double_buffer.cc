@@ -25,6 +25,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -223,8 +224,8 @@ class DoubleBufferInjector : public StmtExprMutator {
             << "It is better to split with multiple of 2";
         TVM_FFI_ICHECK(is_zero(old_loop->min));
         PrimExpr zero = old_loop->min;
-        PrimExpr new_ext = old_loop->extent - IntImm(old_loop->loop_var.ty(), 1);
-        PrimExpr factor = IntImm(new_ext.ty(), split_loop_);
+        PrimExpr new_ext = old_loop->extent - prim::IntImm(old_loop->loop_var.ty(), 1);
+        PrimExpr factor = prim::IntImm(new_ext.ty(), split_loop_);
         PrimExpr outer_ext = new_ext / factor;
         PrimExpr tail_base = outer_ext * factor;
         Var outer_var(old_loop->loop_var->name + ".outer", old_loop->loop_var.ty());
@@ -236,7 +237,7 @@ class DoubleBufferInjector : public StmtExprMutator {
         std::vector<Stmt> loop_seq;
         for (int32_t i = 0; i < split_loop_; ++i) {
           vmap[old_loop->loop_var.get()] =
-              outer_var.as_or_throw<PrimExpr>() * factor + IntImm(factor.ty(), i);
+              outer_var.as_or_throw<PrimExpr>() * factor + prim::IntImm(factor.ty(), i);
           loop_seq.emplace_back(
               ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(old_loop->body, map_var)
                   .as_or_throw<Stmt>());
@@ -249,7 +250,7 @@ class DoubleBufferInjector : public StmtExprMutator {
                              ->Mutate(old_loop->body)
                              .ValueOrUnchanged(old_loop->body);
         for (int32_t i = 0; i < split_loop_; ++i) {
-          PrimExpr idx = tail_base + IntImm(tail_base.ty(), i);
+          PrimExpr idx = tail_base + prim::IntImm(tail_base.ty(), i);
           vmap[old_loop->loop_var.get()] = idx;
           tail_seq.emplace_back(
               IfThenElse(idx < old_loop->extent,
@@ -371,9 +372,9 @@ class DoubleBufferInjector : public StmtExprMutator {
     }
     StorageEntry& e = it->second;
     e.loop = loop_nest_.back();
-    PrimExpr zero = IntImm(e.loop->loop_var.ty(), 0);
-    PrimExpr one = IntImm(e.loop->loop_var.ty(), 1);
-    PrimExpr two = IntImm(e.loop->loop_var.ty(), 2);
+    PrimExpr zero = prim::IntImm(e.loop->loop_var.ty(), 0);
+    PrimExpr one = prim::IntImm(e.loop->loop_var.ty(), 1);
+    PrimExpr two = prim::IntImm(e.loop->loop_var.ty(), 2);
     PrimExpr loop_shift = e.loop->loop_var + one;
     e.switch_write_var = Var(e.loop->loop_var->name + ".db", e.loop->loop_var.ty());
     e.switch_read_var = indexmod(e.loop->loop_var, two);

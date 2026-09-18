@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include "../utils.h"
 
@@ -52,29 +53,33 @@ Mutator Mutator::PyMutator(
   return Mutator(n);
 }
 
-ffi::Map<Mutator, FloatImm> Mutator::DefaultLLVM() {
-  return ffi::Map<Mutator, FloatImm>{
-      {Mutator::MutateTileSize(), FloatImm(PrimType::Float(64), 0.9)},
-      {Mutator::MutateComputeLocation(), FloatImm(PrimType::Float(64), 0.05)},
-      {Mutator::MutateUnroll(), FloatImm(PrimType::Float(64), 0.03)},
-      {Mutator::MutateParallel(/*max_jobs_per_core=*/16), FloatImm(PrimType::Float(64), 0.02)}};
+ffi::Map<Mutator, prim::FloatImm> Mutator::DefaultLLVM() {
+  return ffi::Map<Mutator, prim::FloatImm>{
+      {Mutator::MutateTileSize(), prim::FloatImm(PrimType::Float(64), 0.9)},
+      {Mutator::MutateComputeLocation(), prim::FloatImm(PrimType::Float(64), 0.05)},
+      {Mutator::MutateUnroll(), prim::FloatImm(PrimType::Float(64), 0.03)},
+      {Mutator::MutateParallel(/*max_jobs_per_core=*/16),
+       prim::FloatImm(PrimType::Float(64), 0.02)}};
 }
 
-ffi::Map<Mutator, FloatImm> Mutator::DefaultCUDA() {
-  return ffi::Map<Mutator, FloatImm>{
-      {Mutator::MutateTileSize(), FloatImm(PrimType::Float(64), 0.9)},
-      {Mutator::MutateUnroll(), FloatImm(PrimType::Float(64), 0.08)},
-      {Mutator::MutateThreadBinding(), FloatImm(PrimType::Float(64), 0.02)}};
+ffi::Map<Mutator, prim::FloatImm> Mutator::DefaultCUDA() {
+  return ffi::Map<Mutator, prim::FloatImm>{
+      {Mutator::MutateTileSize(), prim::FloatImm(PrimType::Float(64), 0.9)},
+      {Mutator::MutateUnroll(), prim::FloatImm(PrimType::Float(64), 0.08)},
+      {Mutator::MutateThreadBinding(), prim::FloatImm(PrimType::Float(64), 0.02)}};
 }
 
-ffi::Map<Mutator, FloatImm> Mutator::DefaultCUDATensorCore() { return Mutator::DefaultCUDA(); }
+ffi::Map<Mutator, prim::FloatImm> Mutator::DefaultCUDATensorCore() {
+  return Mutator::DefaultCUDA();
+}
 
-ffi::Map<Mutator, FloatImm> Mutator::DefaultHexagon() {
-  return ffi::Map<Mutator, FloatImm>{
-      {Mutator::MutateTileSize(), FloatImm(PrimType::Float(64), 0.9)},
-      {Mutator::MutateComputeLocation(), FloatImm(PrimType::Float(64), 0.05)},
-      {Mutator::MutateUnroll(), FloatImm(PrimType::Float(64), 0.03)},
-      {Mutator::MutateParallel(/*max_jobs_per_core=*/16), FloatImm(PrimType::Float(64), 0.02)}};
+ffi::Map<Mutator, prim::FloatImm> Mutator::DefaultHexagon() {
+  return ffi::Map<Mutator, prim::FloatImm>{
+      {Mutator::MutateTileSize(), prim::FloatImm(PrimType::Float(64), 0.9)},
+      {Mutator::MutateComputeLocation(), prim::FloatImm(PrimType::Float(64), 0.05)},
+      {Mutator::MutateUnroll(), prim::FloatImm(PrimType::Float(64), 0.03)},
+      {Mutator::MutateParallel(/*max_jobs_per_core=*/16),
+       prim::FloatImm(PrimType::Float(64), 0.02)}};
 }
 
 // Pattern A (RM): auto-default repr from reflection.

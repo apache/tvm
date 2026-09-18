@@ -138,7 +138,7 @@ class BoundChecker : public StmtExprMutator {
     TVM_FFI_ICHECK_GE(lanes, 0);
     new_shape.MutateByApply([&](const PrimExpr& dim) {
       // Cast to uint64 to avoid potential overflow.
-      return IntImm(PrimType::UInt(64), lanes) * dim;
+      return prim::IntImm(PrimType::UInt(64), lanes) * dim;
     });
     mem_to_shape_[buffer_var.get()] = new_shape;
   }
@@ -173,11 +173,11 @@ class BoundChecker : public StmtExprMutator {
         if (!IsValidScalar(ramp_index->stride)) {
           return false;
         }
-        bool lanes_int = ramp_index->lanes->IsInstance<IntImmNode>();
+        bool lanes_int = ramp_index->lanes->IsInstance<prim::IntImmNode>();
         if (!lanes_int) {
           return false;
         }
-        int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
+        int lanes = ramp_index->lanes.as_or_throw<prim::IntImm>()->value.as<int>().value();
         if (lanes <= 0) {
           return false;
         }
@@ -227,7 +227,7 @@ class BoundChecker : public StmtExprMutator {
         upper_bound = Cast(PrimType::Int(64), upper_bound);
 
         // Looks like a lower bound should always be zero after normalization.
-        PrimExpr lower_bound = IntImm::Int64(0);
+        PrimExpr lower_bound = prim::IntImm::Int64(0);
 
         PrimExpr current_condition = And(GE(index, lower_bound), LT(index, upper_bound));
         condition = condition.defined() ? And(condition, current_condition) : current_condition;

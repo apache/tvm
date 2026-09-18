@@ -68,9 +68,9 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
       const VarNode* buffer_var = GetBufferVarFromData(op->args[0]);
       TVM_FFI_ICHECK(buffer_var);
       // Get shape
-      const IntImmNode* m = op->args[1].as<IntImmNode>();
-      const IntImmNode* n = op->args[2].as<IntImmNode>();
-      const IntImmNode* k = op->args[3].as<IntImmNode>();
+      const prim::IntImmNode* m = op->args[1].as<prim::IntImmNode>();
+      const prim::IntImmNode* n = op->args[2].as<prim::IntImmNode>();
+      const prim::IntImmNode* k = op->args[3].as<prim::IntImmNode>();
       const prim::StringImmNode* layout = op->args[7].as<prim::StringImmNode>();
       TVM_FFI_ICHECK(m);
       TVM_FFI_ICHECK(n);
@@ -105,9 +105,9 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
       const VarNode* buffer_var = GetBufferVarFromData(op->args[0]);
       TVM_FFI_ICHECK(buffer_var);
       // Get shape
-      const IntImmNode* m = op->args[1].as<IntImmNode>();
-      const IntImmNode* n = op->args[2].as<IntImmNode>();
-      const IntImmNode* k = op->args[3].as<IntImmNode>();
+      const prim::IntImmNode* m = op->args[1].as<prim::IntImmNode>();
+      const prim::IntImmNode* n = op->args[2].as<prim::IntImmNode>();
+      const prim::IntImmNode* k = op->args[3].as<prim::IntImmNode>();
       TVM_FFI_ICHECK(m);
       TVM_FFI_ICHECK(n);
       TVM_FFI_ICHECK(k);

@@ -24,6 +24,7 @@
 #ifndef TVM_TIR_IR_DATA_TYPE_REWRITER_H_
 #define TVM_TIR_IR_DATA_TYPE_REWRITER_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
@@ -146,7 +147,7 @@ class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
   IndexDataTypeNormalizer(PrimType target_data_type, const VTable* vtable);
   using Parent = IndexDataTypeRewriter;
 
-  UnchangedOr<PrimExpr> Mutate_(const IntImmNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::IntImmNode* op, InplaceMode inplace_mode) override;
 
   UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* op, InplaceMode inplace_mode) override;
 

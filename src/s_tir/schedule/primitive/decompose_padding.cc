@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../../../tirx/transform/ir_utils.h"
@@ -152,7 +153,7 @@ class PaddingInfoAnalyzer {
 
   /*! \brief Rewrite predicate to left recursive conjunction, drop likely annotation. */
   PrimExpr RewritePredicate(const PrimExpr& predicate) {
-    PrimExpr res = IntImm::Bool(true);
+    PrimExpr res = prim::IntImm::Bool(true);
     std::function<void(PrimExpr)> update = [&res, &update](PrimExpr e) {
       sym::PVar<PrimExpr> a, b;
       if ((a && b).Match(e)) {
@@ -186,7 +187,8 @@ class PaddingInfoAnalyzer {
     }
     for (const sym::IterSumExpr& sum : res->indices) {
       if (sum->args.empty()) {
-        region.push_back(Range::FromMinExtent(sum->base, IntImm(sum->base.ty(), /* value */ 1)));
+        region.push_back(
+            Range::FromMinExtent(sum->base, prim::IntImm(sum->base.ty(), /* value */ 1)));
       } else {
         TVM_FFI_ICHECK_EQ(sum->args.size(), 1U);
         if (!analyzer_->CanProveEqual(sum->args[0]->scale, 1)) {
@@ -311,7 +313,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
     const IterVar& origin_itervar = block->iter_vars[i];
     PrimVar new_var = origin_itervar->var.CopyWithSuffix("");
     Range new_range =
-        Range::FromMinExtent(IntImm(new_var.ty(), 0), info.in_bound_region[i]->extent);
+        Range::FromMinExtent(prim::IntImm(new_var.ty(), 0), info.in_bound_region[i]->extent);
     new_iter_vars.push_back(IterVar(new_range, new_var, IterVarType::kDataPar));
     repl_dict.Set(origin_itervar->var, new_var + info.in_bound_region[i]->min);
 

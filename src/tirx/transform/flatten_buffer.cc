@@ -23,6 +23,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/type.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
@@ -153,7 +154,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     }
     type->layout = std::nullopt;
     if (type->elem_offset.defined() && !is_zero(type->elem_offset)) {
-      type->elem_offset = IntImm(type->elem_offset.ty().as_or_throw<PrimType>(), 0);
+      type->elem_offset = prim::IntImm(type->elem_offset.ty().as_or_throw<PrimType>(), 0);
     }
     // Body-local buffers keep their identity when flattening changes nothing.
     // PrimFunc-parameter buffers always rebuild: the epilogue aliases the

@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include "../utils.h"
 
@@ -149,8 +150,8 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     // SampleCategorical decision is Optional<int64_t> after the Integer phase-out.
     int decision = trace->decisions[ffi::GetRef<Instruction>(sample_inst)].cast<int64_t>();
 
-    std::vector<double> probs = support::AsVector<FloatImm, double>(
-        sample_inst->attrs[1].as_or_throw<ffi::Array<FloatImm>>());
+    std::vector<double> probs = support::AsVector<prim::FloatImm, double>(
+        sample_inst->attrs[1].as_or_throw<ffi::Array<prim::FloatImm>>());
 
     candidates.emplace_back(ffi::GetRef<Instruction>(sample_inst), probs, decision);
   }

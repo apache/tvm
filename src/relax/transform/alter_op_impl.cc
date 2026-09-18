@@ -27,6 +27,7 @@
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/expr_functor.h>
@@ -45,7 +46,7 @@ static constexpr const char* kOperatorName = "operator_name";
 
 /*! \brief Construct ranges from shape dimensions */
 static ffi::Array<Range> ConstructRangeFromShape(const ffi::Array<PrimExpr>& shape) {
-  return shape.Map([](const PrimExpr& dim) { return Range(IntImm(dim.ty(), 0), dim); });
+  return shape.Map([](const PrimExpr& dim) { return Range(prim::IntImm(dim.ty(), 0), dim); });
 }
 
 static ffi::Array<PrimExpr> GetShapeFromTensorType(const TensorType& tensor_ty) {

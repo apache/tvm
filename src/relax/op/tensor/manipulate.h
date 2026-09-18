@@ -25,6 +25,7 @@
 #define TVM_RELAX_OP_TENSOR_MANIPULATE_H_
 
 #include <tvm/ffi/container/variant.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/attrs/manipulate.h>
 
 #include "../op_common.h"
@@ -102,7 +103,8 @@ Expr reshape(Expr x, ffi::Variant<Expr, ffi::Array<PrimExpr>> shape);
  * \param axis The axis over which to split.
  * \return The computed result.
  */
-Expr split(Expr x, ffi::Variant<IntImm, ffi::Array<IntImm>> indices_or_sections, int axis);
+Expr split(Expr x, ffi::Variant<prim::IntImm, ffi::Array<prim::IntImm>> indices_or_sections,
+           int axis);
 
 /*!
  * \brief Squeeze axes in the array.
