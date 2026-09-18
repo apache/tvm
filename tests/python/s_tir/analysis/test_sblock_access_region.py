@@ -364,7 +364,7 @@ def test_access_of_padding_pattern():
 
     def do_compare_buffer_region(region, expect):
         assert region.source == expect.source
-        analyzer = tvm.arith.Analyzer()
+        analyzer = tvm.sym.Analyzer()
         for observed_range, expected_range in zip(region.region, expect.region):
             analyzer.can_prove_equal(observed_range.min, expected_range.min)
             analyzer.can_prove_equal(observed_range.extent, expected_range.extent)
@@ -459,7 +459,7 @@ def test_buffer_access_with_nested_let_binding():
 
 @pytest.mark.parametrize("case", ["coupled", "equal", "nonlinear", "empty", "unbounded", "rounded"])
 def test_conditional_inequality_access_regions(case):
-    # Retain the live cases from the former arith inequality solver tests through
+    # Retain the live cases from the former sym inequality solver tests through
     # the block-access consumer, including its conservative unresolved fallback.
     tirx = tvm.tirx
     x, y, z = [tirx.Var(name, "int32") for name in ("x", "y", "z")]

@@ -22,9 +22,9 @@ from functools import reduce
 
 import tvm
 from tvm import DataType
-from tvm.arith import Analyzer
 from tvm.relax import transform
 from tvm.relax.transform import PatternCheckContext
+from tvm.sym import Analyzer
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import (

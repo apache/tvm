@@ -21,7 +21,6 @@
  *  Lower allreduce to device implementable ir.
  * \file lower_thread_allreduce.cc
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
@@ -29,6 +28,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
@@ -881,7 +881,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   // The load remap
   std::unordered_map<const VarNode*, PrimExpr> load_remap_;
   // Internal analyzer
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 
  public:
   const VarNode* GetAllocationKey(const VarNode* buffer) const {

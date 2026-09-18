@@ -22,7 +22,6 @@
  * \brief The pass for lowering match_buffer.
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -30,6 +29,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 
@@ -313,7 +313,7 @@ class MatchBufferLower : public StmtExprMutator {
   /*! \brief BufferVar region mapping. */
   ffi::Map<BufferVar, TensorRegion> match_buffers_;
   /*! \brief The analyzer */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 namespace transform {

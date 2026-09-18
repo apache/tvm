@@ -21,7 +21,6 @@
  * \file src/lang/data_layout.cc
  * \brief Data SLayout expression.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
@@ -32,6 +31,7 @@
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/data_layout.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/var.h>
 
@@ -372,7 +372,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
     }
   }
 
-  arith::Analyzer ana;
+  sym::Analyzer ana;
 
   for (size_t i = 0; i < dst_layout.ndim(); i++) {
     const auto dst_unpacked_axes = SLayout::UnpackIterVar(dst_layout.PackedAxisAt(i));
@@ -447,7 +447,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
 inline ffi::Array<PrimExpr> TransformIndex(const ffi::Array<PrimExpr>& src_index,
                                            const ffi::Array<IterVar>& src_axis,
                                            const ffi::Array<PrimExpr>& transform_rule) {
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   ffi::Array<PrimExpr> result;
   std::unordered_map<const tirx::VarNode*, PrimExpr> bind_map;
   for (size_t i = 0; i < src_index.size(); ++i) {
@@ -486,7 +486,7 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
                                            const ffi::Array<IterVar>& src_axis,
                                            const ffi::Array<IterVar>& target_axis,
                                            const ffi::Array<PrimExpr>& transform_rule) {
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   TVM_FFI_ICHECK_EQ(src_shape.size(), src_axis.size())
       << "Input shape size " << src_shape.size() << " mismatch with the expected shape size "
       << src_axis.size();

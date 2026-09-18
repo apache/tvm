@@ -24,11 +24,11 @@
 
 #include "./script_complete.h"
 
-#include <tvm/arith/int_set.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/int_set.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
 

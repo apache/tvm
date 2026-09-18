@@ -735,7 +735,7 @@ bool AutoTensorizeComparator::Dispatch_(const SBlockNode* op, const Stmt& other)
       return false;
     }
     for (const IterVar& block_iter : op->iter_vars) {
-      inner_iter_dom_map_.Set(block_iter->var, arith::IntSet::FromRange(block_iter->dom));
+      inner_iter_dom_map_.Set(block_iter->var, sym::IntSet::FromRange(block_iter->dom));
     }
   } else {
     auto collect_iter = [&](const SBlockNode* op, std::vector<IterVar>& iters) -> bool {

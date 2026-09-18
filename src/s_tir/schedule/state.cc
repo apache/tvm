@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/arith/int_set.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/sym/int_set.h>
 
 #include "./utils.h"
 namespace tvm {
@@ -43,17 +43,17 @@ using SMap = std::unordered_map<K, V, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
  * \param dom_high_exclusive The highest node in the sref tree path
  * \return An n-dimensional integer set
  */
-ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const TensorRegion& region,          //
-                                                  const PrimExpr& predicate,           //
-                                                  const StmtSRef& dom_low_inclusive,   //
-                                                  const StmtSRef& dom_high_exclusive,  //
-                                                  arith::AnalyzerObj* analyzer) {
+ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(const TensorRegion& region,          //
+                                                const PrimExpr& predicate,           //
+                                                const StmtSRef& dom_low_inclusive,   //
+                                                const StmtSRef& dom_high_exclusive,  //
+                                                sym::AnalyzerObj* analyzer) {
   ffi::Map<Var, Range> var_dom = LoopDomainOfSRefTreePath(
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
       /*extra_relax_scope=*/
       runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::BufferVar>().scope()));
-  arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
+  sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
   return EstimateRegionUpperBound(
       /*region=*/region->region,
       /*var_dom=*/var_dom,
@@ -70,25 +70,25 @@ ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const TensorRegion& region,   
  * \param analyzer The analyzer
  * \return An n-dimensional integer set
  */
-ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const TensorRegion& region,          //
-                                                  const PrimExpr& predicate,           //
-                                                  const StmtSRef& dom_low_inclusive,   //
-                                                  const StmtSRef& dom_high_exclusive,  //
-                                                  arith::AnalyzerObj* analyzer) {
+ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(const TensorRegion& region,          //
+                                                const PrimExpr& predicate,           //
+                                                const StmtSRef& dom_low_inclusive,   //
+                                                const StmtSRef& dom_high_exclusive,  //
+                                                sym::AnalyzerObj* analyzer) {
   ffi::Map<Var, Range> var_dom = LoopDomainOfSRefTreePath(
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
       /*extra_relax_scope=*/
       runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::BufferVar>().scope()));
-  arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
-  if (ffi::Optional<ffi::Array<arith::IntSet>> result = EstimateRegionLowerBound(
+  sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
+  if (ffi::Optional<ffi::Array<sym::IntSet>> result = EstimateRegionLowerBound(
           /*region=*/region->region,
           /*var_dom=*/var_dom,
           /*predicate=*/predicate, /*analyzer=*/analyzer_ref)) {
     return result.value();
   }
-  return ffi::Array<arith::IntSet>(region->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size(),
-                                   arith::IntSet::Nothing());
+  return ffi::Array<sym::IntSet>(region->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size(),
+                                 sym::IntSet::Nothing());
 }
 
 /*!
@@ -100,33 +100,33 @@ ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const TensorRegion& region,   
  * \return A boolean indicating if the produced region could cover the consumed region
  */
 bool ProducerCoversConsumer(const ffi::Array<PrimExpr>& buffer_shape,
-                            const ffi::Array<arith::IntSet>& produced_region,
-                            const ffi::Array<arith::IntSet>& consumed_region,
-                            arith::AnalyzerObj* analyzer) {
+                            const ffi::Array<sym::IntSet>& produced_region,
+                            const ffi::Array<sym::IntSet>& consumed_region,
+                            sym::AnalyzerObj* analyzer) {
   TVM_FFI_ICHECK_EQ(buffer_shape.size(), consumed_region.size());
   TVM_FFI_ICHECK_EQ(produced_region.size(), consumed_region.size());
   int ndim = produced_region.size();
   for (int i = 0; i < ndim; ++i) {
-    arith::IntSet buffer_size = arith::IntSet::FromMinExtent(0, buffer_shape[i]);
+    sym::IntSet buffer_size = sym::IntSet::FromMinExtent(0, buffer_shape[i]);
     if (produced_region[i].IsNothing()) {
       return false;
     }
     if (consumed_region[i].IsNothing()) {
       continue;
     }
-    arith::IntSet produced =
-        arith::IntSet::Interval(analyzer->canonical_simplify(produced_region[i].min()),
-                                analyzer->canonical_simplify(produced_region[i].max()));
-    arith::IntSet consumed =
-        arith::IntSet::Interval(analyzer->canonical_simplify(consumed_region[i].min()),
-                                analyzer->canonical_simplify(consumed_region[i].max()));
-    produced = arith::Intersect({produced, buffer_size});
-    consumed = arith::Intersect({consumed, buffer_size});
+    sym::IntSet produced =
+        sym::IntSet::Interval(analyzer->canonical_simplify(produced_region[i].min()),
+                              analyzer->canonical_simplify(produced_region[i].max()));
+    sym::IntSet consumed =
+        sym::IntSet::Interval(analyzer->canonical_simplify(consumed_region[i].min()),
+                              analyzer->canonical_simplify(consumed_region[i].max()));
+    produced = sym::Intersect({produced, buffer_size});
+    consumed = sym::Intersect({consumed, buffer_size});
 
-    produced = arith::IntSet::Interval(analyzer->Simplify(produced.min()),
-                                       analyzer->Simplify(produced.max()));
-    consumed = arith::IntSet::Interval(analyzer->Simplify(consumed.min()),
-                                       analyzer->Simplify(consumed.max()));
+    produced = sym::IntSet::Interval(analyzer->Simplify(produced.min()),
+                                     analyzer->Simplify(produced.max()));
+    consumed = sym::IntSet::Interval(analyzer->Simplify(consumed.min()),
+                                     analyzer->Simplify(consumed.max()));
 
     if (!analyzer->CanProve((analyzer->canonical_simplify(produced.min() - consumed.min()) <= 0) &&
                             (analyzer->canonical_simplify(consumed.max() - produced.max()) <= 0))) {
@@ -306,7 +306,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
           continue;
         }
         // For each buffer, record the regions generated under this loop
-        std::unordered_map<BufferVar, std::vector<ffi::Array<arith::IntSet>>, ffi::ObjectPtrHash,
+        std::unordered_map<BufferVar, std::vector<ffi::Array<sym::IntSet>>, ffi::ObjectPtrHash,
                            ffi::ObjectPtrEqual>
             touched_regions;
         // Step 2.3.1. Find all the regions read by the consumer that we care about
@@ -323,7 +323,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
             auto it = touched_regions.find(buffer);
             // Skip the regions that is not read by the consumer
             if (it != touched_regions.end()) {
-              std::vector<ffi::Array<arith::IntSet>>& touched_region = it->second;
+              std::vector<ffi::Array<sym::IntSet>>& touched_region = it->second;
               // The analysis here is trying to be conservation to rule out false positive cases,
               // and to make sure region cover property must be satisfied once the flag is on
               // Therefore, we use lower-bound analysis for producers and upper-bound analysis for
@@ -342,12 +342,11 @@ class SBlockInfoCollector : public StmtExprVisitor {
           StmtSRef parent_sref = ffi::GetRef<StmtSRef>(consumer_block_sref->parent);
           for (const TensorRegion& region : block_reads_unbound.at(consumer_block_sref.get())) {
             BufferVar buffer = region->source.as_or_throw<tvm::tirx::BufferVar>();
-            const std::vector<ffi::Array<arith::IntSet>>& touched_region =
-                touched_regions.at(buffer);
+            const std::vector<ffi::Array<sym::IntSet>>& touched_region = touched_regions.at(buffer);
             if (!touched_region.empty()) {
-              ffi::Array<arith::IntSet> produced_region =
-                  arith::UnionRegionLowerBound({touched_region.begin(), touched_region.end()});
-              ffi::Array<arith::IntSet> consumed_region = AnalyzeRegionUpperBound(
+              ffi::Array<sym::IntSet> produced_region =
+                  sym::UnionRegionLowerBound({touched_region.begin(), touched_region.end()});
+              ffi::Array<sym::IntSet> consumed_region = AnalyzeRegionUpperBound(
                   /*region=*/region,
                   /*predicate=*/consumer_realize->predicate,
                   /*dom_low_inclusive=*/parent_sref,
@@ -408,7 +407,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
   /*! \brief The stack frames of blocks in the DFS visit. */
   std::vector<ffi::Array<StmtSRef>> block_frames_;
   /*! \brief The auxiliary analyzer */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 /**************** Constructor ****************/

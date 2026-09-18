@@ -236,7 +236,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
   using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
   // constructor
-  VTInjector(arith::AnalyzerObj* analyzer, Var var, int num_threads,
+  VTInjector(sym::AnalyzerObj* analyzer, Var var, int num_threads,
              const std::unordered_set<const VarNode*>& touched_var, bool allow_share)
       : IRMutatorWithAnalyzer(analyzer),
         var_(var),
@@ -717,7 +717,7 @@ Pass InjectVirtualThread() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
 
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
 
     n->body = ffi::make_object<VirtualThreadInjector>(analyzer)
                   ->Mutate(n->body, InplaceMode::kAllow)

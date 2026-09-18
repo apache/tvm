@@ -24,10 +24,10 @@
 #ifndef TVM_S_TIR_TRANSFORM_STORAGE_ACCESS_H_
 #define TVM_S_TIR_TRANSFORM_STORAGE_ACCESS_H_
 
-#include <tvm/arith/int_set.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/int_set.h>
 
 #include <unordered_map>
 #include <vector>
@@ -68,7 +68,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
      *
      * Has one IntSet for each index in the buffer being accessed.
      */
-    ffi::Array<arith::IntSet> touched;
+    ffi::Array<sym::IntSet> touched;
     /*! \brief The type of access */
     AccessType type;
     /*! \brief The storage scope */

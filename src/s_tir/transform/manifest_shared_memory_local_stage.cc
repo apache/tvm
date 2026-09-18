@@ -26,7 +26,6 @@
  * memory. This is similar to the schedule primitive cache_read, but it bypasses the limitation
  * of requiring buffer access to be contiguous in each dimension.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -34,6 +33,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 
 #include <unordered_set>

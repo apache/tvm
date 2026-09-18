@@ -106,7 +106,7 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   int n = factors.size();
   std::vector<PrimVar> new_loop_vars;
   new_loop_vars.reserve(n);
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   for (int i = 0; i < n; i++) {
     const PrimExpr& factor = factors[i];
     PrimVar var = loop->loop_var.CopyWithSuffix("_" + std::to_string(i));
@@ -175,7 +175,7 @@ ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constrain
       write_region->region.size() == write_index.size() &&
       write_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buf_store->buffer));
   ffi::Array<PrimExpr> result;
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   for (int i = 0; i < static_cast<int>(write_region->region.size()); i++) {
     PrimExpr pattern = analyzer->Simplify(write_index[i] - write_region->region[i]->min);
     if (!is_zero(pattern)) {
@@ -198,12 +198,11 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
     body = loop->body;
   }
   // Step 2. Get Inverse mapping
-  arith::Analyzer analyzer;
-  auto iter_map = arith::DetectIterMap(mapping_pattern, var_range, IntImm::Bool(true),
-                                       arith::Bijective, analyzer);
+  sym::Analyzer analyzer;
+  auto iter_map =
+      sym::DetectIterMap(mapping_pattern, var_range, IntImm::Bool(true), sym::Bijective, analyzer);
   TVM_FFI_ICHECK_EQ(iter_map->indices.size(), loop_vars.size());
-  ffi::Map<Var, PrimExpr> inverse_mapping =
-      arith::InverseAffineIterMap(iter_map->indices, loop_vars);
+  ffi::Map<Var, PrimExpr> inverse_mapping = sym::InverseAffineIterMap(iter_map->indices, loop_vars);
   // Step 3. Generate new body
   TensorRegion read_region = constraints.read_region;
   TensorRegion write_region = constraints.write_region;

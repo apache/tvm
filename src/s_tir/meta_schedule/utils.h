@@ -19,7 +19,6 @@
 #ifndef TVM_S_TIR_META_SCHEDULE_UTILS_H_
 #define TVM_S_TIR_META_SCHEDULE_UTILS_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
@@ -44,6 +43,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>

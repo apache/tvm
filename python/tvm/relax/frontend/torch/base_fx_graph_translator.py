@@ -3132,7 +3132,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         shape = self.shape_of(x)
         dtype = x.ty.dtype
-        analyzer = tvm.arith.Analyzer()
+        analyzer = tvm.sym.Analyzer()
         has_single_element = shape is not None and all(
             analyzer.can_prove_equal(dim, 1) for dim in shape
         )

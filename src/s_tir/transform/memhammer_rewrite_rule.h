@@ -19,11 +19,11 @@
 #ifndef TVM_S_TIR_TRANSFORM_MEMHAMMER_REWRITE_RULE_H_
 #define TVM_S_TIR_TRANSFORM_MEMHAMMER_REWRITE_RULE_H_
 
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/op.h>
 

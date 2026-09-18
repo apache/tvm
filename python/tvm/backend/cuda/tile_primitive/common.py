@@ -22,10 +22,10 @@ import operator
 import re
 from enum import Enum
 
-from tvm.arith.analyzer import Analyzer
 from tvm.ir import TensorRegion
 from tvm.runtime import DataType
 from tvm.script import tirx as T
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.tile_primitive import TilePrimitiveCall

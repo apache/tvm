@@ -43,10 +43,10 @@
 
 namespace tvm {
 
-namespace arith {
+namespace sym {
 class AnalyzerObj;
 class Analyzer;
-}  // namespace arith
+}  // namespace sym
 
 namespace relax {
 

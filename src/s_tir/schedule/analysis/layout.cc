@@ -80,11 +80,11 @@ class SplitExprCollector {
   static std::vector<SplitExpr> Collect(const PrimExpr& index,
                                         const ffi::Map<PrimVar, Range>& input_iters,  //
                                         const PrimExpr& predicate,                    //
-                                        arith::IterMapLevel check_level,              //
-                                        arith::AnalyzerObj* analyzer) {
-    arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
-    arith::IterMapResult res = arith::DetectIterMap({analyzer->Simplify(index)}, input_iters,
-                                                    predicate, check_level, analyzer_ref);
+                                        sym::IterMapLevel check_level,                //
+                                        sym::AnalyzerObj* analyzer) {
+    sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
+    sym::IterMapResult res = sym::DetectIterMap({analyzer->Simplify(index)}, input_iters, predicate,
+                                                check_level, analyzer_ref);
     const auto& iter_sum_exprs = res->indices;
     if (iter_sum_exprs.empty()) {
       return {};
@@ -102,7 +102,7 @@ class SplitExprCollector {
   }
 
  private:
-  void Visit(const arith::IterSplitExpr& expr) {
+  void Visit(const sym::IterSplitExpr& expr) {
     if (auto var = expr->source->source.as<PrimVar>()) {
       const auto* lower_factor_imm = expr->lower_factor.as<IntImmNode>();
       auto lower_factor = lower_factor_imm ? lower_factor_imm->value.as<int64_t>() : std::nullopt;
@@ -113,15 +113,15 @@ class SplitExprCollector {
         return;
       }
       exprs_.push_back(SplitExpr{var.value(), *lower_factor, *extent});
-    } else if (auto iter_sum_expr = expr->source->source.as<arith::IterSumExpr>()) {
+    } else if (auto iter_sum_expr = expr->source->source.as<sym::IterSumExpr>()) {
       Visit(iter_sum_expr.value());
     } else {
       TVM_FFI_ICHECK(false) << "Unexpected type: " << expr->source->source->GetTypeKey();
     }
   }
 
-  void Visit(const arith::IterSumExpr& expr) {
-    for (const arith::IterSplitExpr& arg : expr->args) {
+  void Visit(const sym::IterSumExpr& expr) {
+    for (const sym::IterSplitExpr& arg : expr->args) {
       Visit(arg);
     }
   }
@@ -135,7 +135,7 @@ class SplitExprCollector {
 ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
                                         const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
-                                        arith::AnalyzerObj* analyzer) {
+                                        sym::AnalyzerObj* analyzer) {
   int ndim = buffer->shape.size();
   int n_loops = loops.size();
   // Step 1. Collect the domains and indices of loop variables
@@ -159,7 +159,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
   // Step 3. Detect the IterSplitExpr of the indexing pattern
   std::vector<SplitExprCollector::SplitExpr> split_exprs = SplitExprCollector::Collect(
       /*index=*/f_flatten_index(indices), input_iters, predicate,
-      /*check_level=*/arith::IterMapLevel::Surjective, analyzer);
+      /*check_level=*/sym::IterMapLevel::Surjective, analyzer);
   if (split_exprs.empty()) {
     return std::nullopt;
   }
@@ -254,7 +254,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("s_tir.schedule.SuggestIndexMap",
                         [](BufferVar buffer, ffi::Array<PrimExpr> indices, ffi::Array<For> loops,
                            PrimExpr predicate) {
-                          arith::Analyzer analyzer;
+                          sym::Analyzer analyzer;
                           return SuggestIndexMap(buffer, indices, loops, predicate, analyzer.get());
                         });
 }

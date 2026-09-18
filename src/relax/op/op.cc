@@ -52,7 +52,7 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
   if (const auto* pdiff = diff.as<IntImmNode>()) {
     return pdiff->value == 0;
   }
-  tvm::arith::Analyzer ana;
+  tvm::sym::Analyzer ana;
   diff = ana->Simplify(diff);
   if (const auto* pdiff = diff.as<IntImmNode>()) {
     return pdiff->value == 0;

@@ -30,9 +30,9 @@ vectorized copy loop. Direction-symmetric: covers R2S / S2R / R2G / G2R.
 import tvm_ffi
 
 import tvm
-from tvm.arith import Analyzer, ConstIntBound
 from tvm.runtime import DataType
 from tvm.script import tirx as T
+from tvm.sym import Analyzer, ConstIntBound
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx import Var as _TirVar
 from tvm.tirx.expr import IntImm as _IntImm

@@ -23,12 +23,12 @@
  */
 #include "conditional_bounds.h"
 
-#include <tvm/arith/analyzer.h>
-#include <tvm/arith/pattern.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/s_tir/analysis.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/sym/pattern.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
 
@@ -36,21 +36,21 @@
 #include <functional>
 #include <utility>
 
-#include "../../arith/int_operator.h"
+#include "../../sym/int_operator.h"
 
 namespace tvm {
 namespace s_tir {
 using namespace tvm::prim;
 
 using namespace tvm::tirx;
-using arith::Analyzer;
-using arith::AnalyzerObj;
-using arith::EvalSet;
-using arith::IntSet;
+using sym::Analyzer;
+using sym::AnalyzerObj;
+using sym::EvalSet;
+using sym::IntSet;
 
 namespace {
-using arith::ExtendedEuclidean;
-using arith::LeastCommonMultiple;
+using sym::ExtendedEuclidean;
+using sym::LeastCommonMultiple;
 
 // The solver's intermediate representations remain local to this analysis.
 struct IntGroupBounds {
@@ -268,7 +268,7 @@ class NormalizeComparisons : public tvm::ExprMutator {
     }
     return T(analyzer_->Simplify(a - b), IntImm(a.ty(), 0));
   }
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 void AddInequality(std::vector<PrimExpr>* inequality_set, const PrimExpr& new_ineq,
@@ -306,7 +306,7 @@ void ClassifyByPolarity(const PrimVar& var, const std::vector<PrimExpr>& current
   // and store to coef_pos and coef_neg respectively.
   for (const PrimExpr& ineq : current_ineq_set) {
     if (const prim::LENode* le = ineq.as<prim::LENode>()) {
-      ffi::Array<PrimExpr> coef = arith::DetectLinearEquation(le->a, {var});
+      ffi::Array<PrimExpr> coef = sym::DetectLinearEquation(le->a, {var});
       const auto* imm = !coef.empty() ? coef[0].as<IntImmNode>() : nullptr;
       if (auto value = imm ? imm->value.as<int64_t>() : std::nullopt; value.has_value()) {
         int64_t coef0 = *value;
@@ -321,7 +321,7 @@ void ClassifyByPolarity(const PrimVar& var, const std::vector<PrimExpr>& current
         continue;
       }
     } else if (const prim::EQNode* eq = ineq.as<prim::EQNode>()) {
-      ffi::Array<PrimExpr> coef = arith::DetectLinearEquation(eq->a, {var});
+      ffi::Array<PrimExpr> coef = sym::DetectLinearEquation(eq->a, {var});
       const auto* imm = !coef.empty() ? coef[0].as<IntImmNode>() : nullptr;
       if (auto value = imm ? imm->value.as<int64_t>() : std::nullopt; value.has_value()) {
         int64_t coef0 = *value;
@@ -362,7 +362,7 @@ void MoveEquality(std::vector<PrimExpr>* upper_bounds, std::vector<PrimExpr>* lo
 }
 
 PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_to_solve) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   analyzer->Bind(system_to_solve.ranges);
 
   // The algorithm consists in doing the following things for each variable v
@@ -560,7 +560,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
   // We process variables in the reverse direction to start with the most independent one.
   // This order is needed to compute new ranges.
   for (auto it = inequalities.variables.rbegin(); it != inequalities.variables.rend(); ++it) {
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     analyzer->Bind(vranges);
 
     const PrimVar& var = *it;
@@ -596,7 +596,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
   }
 
   // Add the original conditions to the resulting conditions
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   analyzer->Bind(vranges);
   for (const PrimExpr& old_cond :
        AsConditions(inequalities.variables, solved_bounds, solved_other_relations)) {
@@ -619,7 +619,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
 ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition() {
   // extract equations and related vars from condition expression.
   // currently only extract simple integral equations which could be solvable.
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   PrimExpr condition = analyzer->Simplify(condition_);
   if (is_const_int(condition)) {
     return std::nullopt;
@@ -676,7 +676,7 @@ ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition(
   // build dom ranges for related vars
   ffi::Map<Var, Range> ranges;
   for (const Var& v : vars) {
-    arith::IntSet dom;
+    sym::IntSet dom;
     auto relax_it = relax_map_->find(v.get());
     if (relax_it != relax_map_->end()) {
       dom = relax_it->second;
@@ -700,8 +700,8 @@ ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition(
 }
 
 ConditionalBoundsContext::ConditionalBoundsContext(
-    const PrimExpr& condition, std::unordered_map<const VarNode*, arith::IntSet>* relax_map,
-    std::unordered_map<const VarNode*, arith::IntSet>* hint_map,
+    const PrimExpr& condition, std::unordered_map<const VarNode*, sym::IntSet>* relax_map,
+    std::unordered_map<const VarNode*, sym::IntSet>* hint_map,
     std::vector<PrimExpr>* pending_conditions)
     : condition_(condition),
       relax_map_(relax_map),
@@ -719,20 +719,20 @@ void ConditionalBoundsContext::EnterWithScope() {
   // update solved var ranges
   for (const auto& kv : constraints.value()) {
     const VarNode* var = kv.first.get();
-    arith::IntSet new_dom = arith::IntSet::FromRange(kv.second);
+    sym::IntSet new_dom = sym::IntSet::FromRange(kv.second);
     auto relax_it = relax_map_->find(var);
     if (relax_it != relax_map_->end()) {
       // this is a bound for relaxed var
       origin_map_.emplace(var, relax_it->second);
-      relax_it->second = arith::Intersect({relax_it->second, new_dom});
+      relax_it->second = sym::Intersect({relax_it->second, new_dom});
     } else {
       // this is a bound for free var
       auto hint_it = hint_map_->find(var);
       if (hint_it != hint_map_->end()) {
         origin_map_.emplace(var, hint_it->second);
-        hint_it->second = arith::Intersect({hint_it->second, new_dom});
+        hint_it->second = sym::Intersect({hint_it->second, new_dom});
       } else {
-        origin_map_.emplace(var, arith::IntSet::Nothing());
+        origin_map_.emplace(var, sym::IntSet::Nothing());
         hint_map_->insert(hint_it, {var, new_dom});
       }
     }

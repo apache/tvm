@@ -17,19 +17,19 @@
  * under the License.
  */
 
-#include "../src/arith/pattern_match.h"
+#include "../src/sym/pattern_match.h"
 
 #include <gtest/gtest.h>
 #include <tvm/ir/prim/expr.h>
 
 TEST(Pattern, Basic) {
   using namespace tvm;
-  using namespace tvm::arith;
+  using namespace tvm::sym;
   tvm::PrimVar x("x"), y("y"), z("z");
   PrimExpr scalable_lanes = prim::Mul(Call(PrimType::Int(32), prim::builtin::vscale(), {}), 4);
-  arith::PVar<PrimExpr> px, py, pz;
-  arith::PVar<DLDataType> pt;
-  arith::PVar<PrimExpr> planes;
+  sym::PVar<PrimExpr> px, py, pz;
+  sym::PVar<DLDataType> pt;
+  sym::PVar<PrimExpr> planes;
 
   // arithmetics
   auto r = 1 + (y + 1);
@@ -130,8 +130,8 @@ TEST(Pattern, Basic) {
 TEST(Pattern, IntImm) {
   using namespace tvm;
   PrimVar tx("tx"), ty("ty");
-  arith::PVar<IntImm> c;
-  arith::PVar<Var> v;
+  sym::PVar<IntImm> c;
+  sym::PVar<Var> v;
   {
     // We can match integer and Var, both of which are
     // special case container of Expr
@@ -148,7 +148,7 @@ TEST(Pattern, IntImm) {
 TEST(Pattern, MatchWithType) {
   using namespace tvm;
   // match expr with specified dtype
-  arith::PVarWithDataType<PrimExpr, arith::PConst<DLDataType>> pat(DLDataType{kDLFloat, 32, 1});
+  sym::PVarWithDataType<PrimExpr, sym::PConst<DLDataType>> pat(DLDataType{kDLFloat, 32, 1});
   PrimVar x("x", PrimType::Float(32));
   PrimVar y("y", PrimType::Float(32));
   PrimVar x_int("x", PrimType::Int(32));
@@ -157,8 +157,8 @@ TEST(Pattern, MatchWithType) {
   TVM_FFI_ICHECK(!pat.Match(x_int + y_int * 2));
 
   // match vectorized expr with specified element dtype
-  arith::PVecDataType vec_ty(DLDataType{kDLFloat, 32, 1});
-  arith::PVarWithDataType<PrimExpr, arith::PVecDataType> vpat(vec_ty);
+  sym::PVecDataType vec_ty(DLDataType{kDLFloat, 32, 1});
+  sym::PVarWithDataType<PrimExpr, sym::PVecDataType> vpat(vec_ty);
   PrimVar vx("x", PrimType::Float(32, 8));
   PrimVar vy("y", PrimType::Float(32, 8));
   PrimVar vx_int("x", PrimType::Int(32, 8));

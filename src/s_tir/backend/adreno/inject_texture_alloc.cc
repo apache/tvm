@@ -21,10 +21,10 @@
  * \file inject_texture_alloc.cc
  */
 
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 
 #include "../../../backend/opencl/runtime/texture.h"
@@ -49,7 +49,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
   using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
   static PrimFunc Inject(PrimFunc func) {
-    arith::Analyzer ana;
+    sym::Analyzer ana;
     auto pass = ffi::make_object<TextureAllocInjector>(ana);
     auto writer = func.CopyOnWrite();
     pass->MarkBufferParamShapes(func);
@@ -57,7 +57,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
     return func;
   }
 
-  explicit TextureAllocInjector(const arith::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
+  explicit TextureAllocInjector(const sym::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
 
  private:
   UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {

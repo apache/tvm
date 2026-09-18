@@ -303,7 +303,7 @@ class IndexMap(Object):
 
             The IndexMap to which the comparison should be made.
 
-        analyzer : Optional[tvm.arith.Analyzer]
+        analyzer : Optional[tvm.sym.Analyzer]
 
             The analyzer to use while comparing the mapped indices.  When
             provided, its accumulated bindings and constraints are reused so
@@ -323,7 +323,7 @@ class IndexMap(Object):
             return False
 
         if analyzer is None:
-            analyzer = tvm.arith.Analyzer()
+            analyzer = tvm.sym.Analyzer()
 
         mapped_other_final_indices = other_map.map_indices(self.initial_indices, analyzer=analyzer)
         for self_index, other_index in zip(self.final_indices, mapped_other_final_indices):
@@ -339,7 +339,7 @@ class IndexMap(Object):
         ----------
         indices : List[Expr]
             The indices to be mapped
-        analyzer : Optional[tvm.arith.Analyzer]
+        analyzer : Optional[tvm.sym.Analyzer]
             The analyzer to use while simplifying mapped indices.
 
         Returns
@@ -356,7 +356,7 @@ class IndexMap(Object):
         ----------
         shape : List[Expr]
             The buffer shape to be mapped
-        analyzer : Optional[tvm.arith.Analyzer]
+        analyzer : Optional[tvm.sym.Analyzer]
             The analyzer to use while simplifying mapped shape expressions.
 
         Returns
@@ -393,7 +393,7 @@ class IndexMap(Object):
             The region over which the inverse should be determined.
             Used for validating that the mapping is bijective over
             this range.
-        analyzer : Optional[tvm.arith.Analyzer]
+        analyzer : Optional[tvm.sym.Analyzer]
             The analyzer to use while deriving and validating the inverse.
 
         Returns
@@ -419,7 +419,7 @@ class IndexMap(Object):
 
             The region over which the inverse should be determined.
             Used for determining the predicate.
-        analyzer : Optional[tvm.arith.Analyzer]
+        analyzer : Optional[tvm.sym.Analyzer]
             The analyzer to use while deriving the inverse and padding predicate.
 
         Returns

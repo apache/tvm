@@ -23,11 +23,11 @@
  * declarations and emits launch params).
  */
 
-#include <tvm/arith/analyzer.h>
-#include <tvm/arith/pattern.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/sym/pattern.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_context.h>
@@ -877,14 +877,14 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
   struct ScopeIdRange {
     ScopeIdTarget target;
-    int64_t lo = arith::ConstIntBound::kNegInf;
-    int64_t hi = arith::ConstIntBound::kPosInf;
+    int64_t lo = sym::ConstIntBound::kNegInf;
+    int64_t hi = sym::ConstIntBound::kPosInf;
   };
 
   struct PendingRangeGroup {
     ScopeIdTarget target;
-    int64_t lo = arith::ConstIntBound::kNegInf;
-    int64_t hi = arith::ConstIntBound::kPosInf;
+    int64_t lo = sym::ConstIntBound::kNegInf;
+    int64_t hi = sym::ConstIntBound::kPosInf;
     std::vector<size_t> indices;
   };
 
@@ -1073,7 +1073,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
                                  int64_t* base) {
     PrimExpr simplified = analyzer_->Simplify(diff);
     for (const auto& [var, candidate] : ScopeIdTargets()) {
-      ffi::Array<PrimExpr> linear = arith::DetectLinearEquation(simplified, {var});
+      ffi::Array<PrimExpr> linear = sym::DetectLinearEquation(simplified, {var});
       if (linear.size() != 2) continue;
       int64_t c = 0;
       int64_t b = 0;
@@ -1098,8 +1098,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     if (!TryExtractLinearScopeDiff(lhs - rhs, &target, &coeff, &base)) return false;
 
     // Interpret `coeff * v + base <op> 0` where coeff is +/- 1.
-    int64_t lo = arith::ConstIntBound::kNegInf;
-    int64_t hi = arith::ConstIntBound::kPosInf;
+    int64_t lo = sym::ConstIntBound::kNegInf;
+    int64_t hi = sym::ConstIntBound::kPosInf;
     if (lhs_less_rhs) {
       if (coeff == 1) {
         // v + base < 0  -> v < -base
@@ -1517,7 +1517,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   }
 
   ffi::Map<Var, Range> var_range_map_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   const Target& target_;
   // List of ScopeIdDefs visible at each nesting level (one entry for the
   // device-entry body itself, plus one per ScopeIdDefStmt-bearing region).

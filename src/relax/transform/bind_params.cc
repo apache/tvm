@@ -91,7 +91,7 @@ ffi::Map<Var, Expr> NormalizeBindings(const Function& func,
     relax_var_remap.Set(normalize_key(key), normalize_value(value));
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return InferSymbolicVarMap(relax_var_remap, analyzer);
 }
 

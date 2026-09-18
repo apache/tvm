@@ -112,7 +112,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
   /*! \brief Loop stack for calculating IndexMap. */
   ffi::Array<For> loop_stack_;
   /*! \brief Arithmetic analyzer. */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   /*! \brief Current BlockRealize scope, used in recursive visit */
   SBlockRealize cur_realize_;
 };

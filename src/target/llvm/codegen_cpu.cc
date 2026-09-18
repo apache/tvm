@@ -534,7 +534,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     llvm::DISubprogram* di_subprogram_{nullptr};
     std::unordered_map<const VarNode*, llvm::Value*> var_map_;
     std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>> loop_frame_jump_tgts_;
-    arith::Analyzer analyzer_{arith::Analyzer()};
+    sym::Analyzer analyzer_{sym::Analyzer()};
     CodeGenCPU* parent_;
   };
 
@@ -685,7 +685,7 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
       builder_->CreateInBoundsGEP(t_tvm_parallel_group_env_, penv, {ConstInt32(0), ConstInt32(1)}),
       "num_task");
   par_env.penv = penv;
-  auto new_analyzer = arith::Analyzer();
+  auto new_analyzer = sym::Analyzer();
   std::swap(function_, f);
   std::swap(parallel_env_, par_env);
   std::swap(analyzer_, new_analyzer);

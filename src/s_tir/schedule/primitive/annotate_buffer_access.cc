@@ -96,7 +96,7 @@ void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int bu
   BufferVar buffer =
       GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index, buffer_index_type);
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   ffi::Array<PrimExpr> block_iter_vars;
   for (const IterVar& iter_var : block->iter_vars) {
     block_iter_vars.push_back(iter_var->var);

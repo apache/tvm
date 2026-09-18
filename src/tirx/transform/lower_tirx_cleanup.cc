@@ -22,8 +22,8 @@
  * \brief Final cleanup stage for TIRx lowering.
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
@@ -50,7 +50,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::Mutate_;
   static std::pair<Stmt, ffi::Array<Var>> Flatten(const Stmt& stmt, const ffi::Array<Var>& params,
                                                   const Target& target) {
-    arith::Analyzer ana;
+    sym::Analyzer ana;
     auto storage_lower = ffi::make_object<LayoutApplier>(ana, target);
     ffi::Array<Var> new_params;
     new_params.reserve(params.size());
@@ -81,7 +81,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   }
 
  public:
-  explicit LayoutApplier(const arith::Analyzer& analyzer, const Target& target)
+  explicit LayoutApplier(const sym::Analyzer& analyzer, const Target& target)
       : IRMutatorWithAnalyzer(analyzer), target_(target) {}
 
  protected:
@@ -173,7 +173,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
       if (auto tile_layout = buf->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
         // Logical alloc_buffer with thread axes: physical shape = memory-axis span
-        arith::Analyzer ana;
+        sym::Analyzer ana;
         PrimExpr mem_span = IntImm::Int32(1);
         for (const auto& iter : tile_layout->shard) {
           if (iter->axis->IsMemoryAxis()) {

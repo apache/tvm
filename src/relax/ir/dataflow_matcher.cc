@@ -24,7 +24,6 @@
 
 #include "dataflow_matcher.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/relax/analysis.h>
@@ -34,6 +33,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 
 #include <array>
@@ -48,15 +48,15 @@
 #include <utility>
 #include <vector>
 
-#include "../../arith/constraint_extract.h"
+#include "../../sym/constraint_extract.h"
 #include "../transform/utils.h"
 
 namespace tvm {
 namespace relax {
 using namespace tvm::prim;
 
-using tvm::arith::Analyzer;
-using tvm::arith::AnalyzerObj;
+using tvm::sym::Analyzer;
+using tvm::sym::AnalyzerObj;
 
 /*!
  * \brief Match the attributes of an object.
@@ -456,7 +456,7 @@ PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
     return condition;
   }
 
-  std::vector<PrimExpr> constraints = arith::ExtractConstraints(condition, false);
+  std::vector<PrimExpr> constraints = sym::ExtractConstraints(condition, false);
   if (constraints.size() == 1) {
     return condition;
   }

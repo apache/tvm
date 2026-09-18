@@ -48,14 +48,14 @@
 
 #include <unordered_map>
 
-#include "../../arith/constraint_extract.h"
 #include "../../s_tir/ir/ir_mutator_with_analyzer.h"
+#include "../../sym/constraint_extract.h"
 #include "tvm/ir/expr.h"
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-using namespace arith;
+using namespace sym;
 
 class AssumeChecker : public StmtExprVisitor {
  public:
@@ -167,7 +167,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     }
 
     ParseAssumeAndOvercompute* self{nullptr};
-    With<arith::ConstraintContext> analyzer_context;
+    With<sym::ConstraintContext> analyzer_context;
     size_t old_num_constraints{0};
     size_t new_num_constraints{0};
     ffi::Optional<PrimExpr> assume{std::nullopt};
@@ -302,7 +302,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   }
 
   void Assume(PrimExpr assumption) {
-    for (const auto& expr : arith::ExtractConstraints(assumption, false)) {
+    for (const auto& expr : sym::ExtractConstraints(assumption, false)) {
       AssumeConstraintComponent(expr);
     }
   }
@@ -312,7 +312,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     assume_struct buf_data;
 
     std::vector<PrimExpr> buffer_exprs;
-    for (const auto& expr : arith::ExtractComponents(assumption)) {
+    for (const auto& expr : sym::ExtractComponents(assumption)) {
       auto side_effect = SideEffect(expr);
       if (side_effect <= CallEffectKind::kPure) {
         // Pulling out portions of the assumption that do not depend
@@ -389,7 +389,7 @@ namespace transform {
 Pass UseAssumeToReduceBranches() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
 
     // The pass runs & eliminates pad branch with overcompute only if,
     // the primfunc has op_pattern defined and is an elementwise op.

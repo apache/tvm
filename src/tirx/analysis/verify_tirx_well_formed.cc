@@ -22,9 +22,9 @@
  * \brief Check if the TIRX program is well-formed.
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/op.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/op_attr_types.h>
@@ -114,7 +114,7 @@ class ScopeIdVerifier : public Verifier<ScopeIdVerifier> {
   }
 
   Array<ScopeIdDef> scope_id_def_;
-  arith::Analyzer ana_;
+  sym::Analyzer ana_;
 };
 
 class LayoutVerifier : public Verifier<LayoutVerifier> {

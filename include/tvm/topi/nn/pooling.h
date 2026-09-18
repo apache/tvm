@@ -24,7 +24,7 @@
 #ifndef TVM_TOPI_NN_POOLING_H_
 #define TVM_TOPI_NN_POOLING_H_
 
-#include <tvm/arith/analyzer.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/topi/detail/pad_utils.h>
 #include <tvm/topi/nn.h>
 #include <tvm/topi/reduction.h>
@@ -86,7 +86,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   ffi::Array<PrimExpr> pad_after(std::vector<PrimExpr>(x->shape.size(), 0));
   pad_after.Set(height_axis, pad_bottom);
   pad_after.Set(width_axis, pad_right);
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   auto out_height =
       analyzer->Simplify((height - kernel_height + pad_top + pad_bottom) / stride_height + 1);
   auto out_width =
@@ -572,7 +572,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
     pad_before.Set(ii, pad_head[i]);
     pad_after.Set(ii, pad_tail[i]);
 
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
 
     PrimExpr numerator =
         data_shape[ii] - (kernel[i] - 1) * dilation[i] - 1 + pad_head[i] + pad_tail[i];

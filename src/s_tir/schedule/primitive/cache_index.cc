@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/arith/int_set.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/sym/int_set.h>
 
 #include "../../../tirx/transform/replace_selected_expr.h"
 #include "../utils.h"
@@ -61,8 +61,8 @@ struct IndexInfo {
  * \param range The range of the integer.
  * \returns A data type that covers the input range.
  */
-PrimType DeterminePrimType(const arith::IntSet& range) {
-  arith::Analyzer ana;
+PrimType DeterminePrimType(const sym::IntSet& range) {
+  sym::Analyzer ana;
   if (ana->CanProve(range.min() >= INT32_MIN && range.max() <= INT32_MAX)) {
     return PrimType::Int(32);
   } else {
@@ -280,7 +280,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     ffi::Array<PrimExpr> buffer_shape;
     for (const Var& it : info->origin_block_vars[expr_index]) {
       buffer_shape.push_back(
-          arith::EvalSet(info->var_binding.at(it), arith::AsIntSet(info->range_map)).max() + 1);
+          sym::EvalSet(info->var_binding.at(it), sym::AsIntSet(info->range_map)).max() + 1);
     }
     info->cache_buffer.push_back(BufferVar(
         index_buffer_name, BufferType(storage_scope, data_ty, buffer_shape, {1}, {0}, 0, 0)));
@@ -289,7 +289,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     std::vector<PrimVar> loop_vars;
     ffi::Map<Var, Var> replace_table;
     for (const Var& it : iter_vars) {
-      PrimType data_ty = DeterminePrimType(arith::IntSet::FromRange(info->range_map.at(it)));
+      PrimType data_ty = DeterminePrimType(sym::IntSet::FromRange(info->range_map.at(it)));
       PrimVar loop_var("ax" + std::to_string(replace_table.size()), data_ty);
       loop_vars.push_back(loop_var);
       replace_table.Set(it, loop_var);
@@ -513,7 +513,7 @@ ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
     if (result_block_sref->parent == nullptr) {
       affine_binding = true;
     } else {
-      arith::Analyzer analyzer;
+      sym::Analyzer analyzer;
       StmtSRef parent_sref = ffi::GetRef<StmtSRef>(result_block_sref->parent);
       affine_binding = IsAffineBinding(/*realize=*/GetSBlockRealize(self, result_block_sref),
                                        /*loop_var_ranges=*/LoopDomainOfSRefTreePath(parent_sref),

@@ -22,16 +22,16 @@
  */
 #include "codegen_c.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/unique_name_supply.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/type.h>
 
 #include <cctype>
 #include <iomanip>
 #include <limits>
 
-#include "../../arith/pattern_match.h"
+#include "../../sym/pattern_match.h"
 #include "../../tirx/ir/buffer_common.h"
 #include "codegen_params.h"
 
@@ -997,11 +997,11 @@ void CodeGenC::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // NOLIN
     }
   } else {
     bool can_vector_load = false;
-    arith::PVar<PrimExpr> base;
-    if (arith::ramp(base, 1, value_ty.lanes()).Match(index)) {
+    sym::PVar<PrimExpr> base;
+    if (sym::ramp(base, 1, value_ty.lanes()).Match(index)) {
       const prim::RampNode* ramp = index.as<prim::RampNode>();
       TVM_FFI_ICHECK(ramp);
-      arith::ModularSet me = arith::Analyzer()->modular_set(ramp->base);
+      sym::ModularSet me = sym::Analyzer()->modular_set(ramp->base);
       // The condition: {k * coeff + base} divisible by the alignment for any k
       if (me->coeff % value_ty.lanes() == 0 && me->base % value_ty.lanes() == 0) {
         can_vector_load = true;
@@ -1062,9 +1062,9 @@ void CodeGenC::Dispatch_(const BufferStoreNode* op) {
     this->PrintIndent();
     stream << ref << " = " << value << ";\n";
   } else {
-    arith::PVar<PrimExpr> base;
+    sym::PVar<PrimExpr> base;
 
-    if (arith::ramp(base, 1, value_ty.lanes()).Match(index_expr) &&
+    if (sym::ramp(base, 1, value_ty.lanes()).Match(index_expr) &&
         value_ty.code() != DLDataTypeCode::kDLFloat4_e2m1fn) {
       std::string value = this->PrintExpr(op->value);
       this->PrintVecStore(op->buffer.get(), value_ty, base.Eval(), value);
@@ -1379,7 +1379,7 @@ void CodeGenC::Dispatch_(const AssertStmtNode* op) {
 
 void CodeGenC::Dispatch_(const ForNode* op) {
   std::string begin_str = PrintExpr(op->min);
-  PrimExpr end = is_zero(op->min) ? op->extent : arith::Analyzer()->Simplify(op->min + op->extent);
+  PrimExpr end = is_zero(op->min) ? op->extent : sym::Analyzer()->Simplify(op->min + op->extent);
   std::string end_str = PrintExpr(end);
   std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
   PrintIndent();

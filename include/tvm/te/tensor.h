@@ -24,9 +24,9 @@
 #ifndef TVM_TE_TENSOR_H_
 #define TVM_TE_TENSOR_H_
 
-#include <tvm/arith/bound.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/bound.h>
 #include <tvm/tirx/op.h>
 
 #include <string>
@@ -36,7 +36,7 @@
 
 namespace tvm {
 namespace te {
-using arith::IntSet;
+using sym::IntSet;
 using namespace tvm::tirx;
 
 // internal node container for Operation

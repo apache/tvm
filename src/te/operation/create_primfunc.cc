@@ -19,7 +19,6 @@
 
 #include "create_primfunc.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
@@ -28,6 +27,7 @@
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
@@ -246,7 +246,7 @@ class LayoutFreePlaceholdersNormalizer : public s_tir::StmtExprMutator {
 using NestedIterLevels = std::vector<std::vector<IterVar>>;
 
 NestedIterLevels GenerateNestedIterLevels(const ffi::Array<IterVar>& axes,
-                                          arith::AnalyzerObj* analyzer) {
+                                          sym::AnalyzerObj* analyzer) {
   int global_max_depth = 0;
   std::unordered_map<Var, int> depth;
   std::unordered_map<Var, IterVar> var2iter;
@@ -424,7 +424,7 @@ Stmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
  **/
 Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<BufferVar>& buffers,
                       const ffi::Map<Var, PrimExpr>& var_map, PrimExpr expr_body,
-                      CreateFuncInfo* info, arith::AnalyzerObj* analyzer) {
+                      CreateFuncInfo* info, sym::AnalyzerObj* analyzer) {
   auto f_substitute = [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto repl = var_map.Get(var)) return ffi::Any(*std::move(repl));
     return ffi::Unchanged();
@@ -542,7 +542,7 @@ struct NestedScopeInfo {
 };
 
 Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* info,
-                             arith::AnalyzerObj* analyzer) {
+                             sym::AnalyzerObj* analyzer) {
   // Step 1. Collect all iter axes in original TE compute op
   ffi::Array<IterVar> axes = compute_op->axis;
   axes.insert(axes.end(), compute_op->reduce_axis.begin(), compute_op->reduce_axis.end());
@@ -801,7 +801,7 @@ void InitializeBufferBinds(const ffi::Array<te::Operation>& ordered_ops, CreateF
 }
 
 void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
-                         ffi::Array<Stmt>* root_stmts, arith::AnalyzerObj* analyzer) {
+                         ffi::Array<Stmt>* root_stmts, sym::AnalyzerObj* analyzer) {
   if (const auto* placeholder = op.as<te::PlaceholderOpNode>()) {
     // Case 1. PlaceholderOp (te.placeholder)
     TVM_FFI_ICHECK_EQ(op->num_outputs(), 1);
@@ -858,7 +858,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
   // Root body stmts.
   ffi::Array<Stmt> root_stmts;
   // Analyzer
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
 
   // Step 1. Create ordered array of operations and validate they are supported.
   ffi::Array<te::Operation> order = CollectOrderedOps(arg_list);
@@ -936,7 +936,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_list,
   // Root body stmts.
   ffi::Array<Stmt> root_stmts;
   // Analyzer
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
 
   // Step 1. Create ordered array of operations and validate they are supported.
   ffi::Array<te::Operation> order = CollectOrderedOps(tensor_arg_list);

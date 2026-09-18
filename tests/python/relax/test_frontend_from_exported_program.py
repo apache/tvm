@@ -5580,7 +5580,7 @@ def test_derived_input_dimension_without_exported_program_decomposition():
 
     x_shape = mod["main"].params[0].ty.shape.values
     y_shape = mod["main"].params[1].ty.shape.values
-    assert tvm.arith.Analyzer().can_prove_equal(y_shape[1], x_shape[1] * 2)
+    assert tvm.sym.Analyzer().can_prove_equal(y_shape[1], x_shape[1] * 2)
 
 
 def test_expand_with_new_leading_dimension():
@@ -5598,9 +5598,9 @@ def test_expand_with_new_leading_dimension():
 
     input_shape = mod["main"].params[0].ty.shape.values
     output_shape = mod["main"].ret_ty.fields[0].shape.values
-    assert tvm.arith.Analyzer().can_prove_equal(output_shape[0], 2)
-    assert tvm.arith.Analyzer().can_prove_equal(output_shape[1], input_shape[0])
-    assert tvm.arith.Analyzer().can_prove_equal(output_shape[2], input_shape[1])
+    assert tvm.sym.Analyzer().can_prove_equal(output_shape[0], 2)
+    assert tvm.sym.Analyzer().can_prove_equal(output_shape[1], input_shape[0])
+    assert tvm.sym.Analyzer().can_prove_equal(output_shape[2], input_shape[1])
 
 
 def test_dynamic_scalar_item_in_shape_operations():

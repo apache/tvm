@@ -21,10 +21,10 @@
  * \file flatten_buffer.cc
  */
 
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/type.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -63,7 +63,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::Mutate;
   using IRMutatorWithAnalyzer::Mutate_;
   static PrimFunc Flatten(PrimFunc func) {
-    arith::Analyzer ana;
+    sym::Analyzer ana;
     auto pass = ffi::make_object<BufferFlattener>(ana);
     pass->MarkBufferParamShapes(func);
     for (const Var& param : func->params) {
@@ -98,7 +98,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
   }
 
  public:
-  explicit BufferFlattener(const arith::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
+  explicit BufferFlattener(const sym::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
 
  private:
   struct FlatInfo {

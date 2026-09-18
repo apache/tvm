@@ -93,9 +93,9 @@ struct AsyncStridedMemCopyFinder : public StmtExprVisitor {
         ffi::Array<PrimExpr> store_index = bufferstorenode->indices;
 
         // Use DetectIterMap to detect whether store index is non-contiguous.
-        arith::Analyzer analyzer;
+        sym::Analyzer analyzer;
         auto store_iter_map = DetectIterMap(store_index, input_iters, 1,
-                                            arith::IterMapLevel::Surjective, analyzer, false);
+                                            sym::IterMapLevel::Surjective, analyzer, false);
         if (!store_iter_map->errors.empty()) {
           found_ = true;
         }
@@ -105,7 +105,7 @@ struct AsyncStridedMemCopyFinder : public StmtExprVisitor {
 
         // Use DetectIterMap to detect whether load index is non-contiguous.
         auto load_iter_map = DetectIterMap(load_index, input_iters, 1,
-                                           arith::IterMapLevel::Surjective, analyzer, false);
+                                           sym::IterMapLevel::Surjective, analyzer, false);
         if (!load_iter_map->errors.empty()) {
           found_ = true;
         }

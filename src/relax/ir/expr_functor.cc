@@ -999,7 +999,7 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<V
   builder_->BeginScope(params);
   // Outer scope only includes TIR variables that can be inferred from
   // the function parameters.
-  With<arith::ConstraintContext> context(builder_->GetAnalyzer(), constraint);
+  With<sym::ConstraintContext> context(builder_->GetAnalyzer(), constraint);
   builder_->BeginInnerScope();
   // Inner scope also includes any TIR variables that are defined by
   // MatchCast nodes, and are internal to the scope.

@@ -19,9 +19,9 @@
 
 from enum import Enum
 
-from tvm.arith.analyzer import Analyzer
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import TensorRegion
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx import FloatImm
 from tvm.tirx.operator.tile_primitive.common import MapOpType
 

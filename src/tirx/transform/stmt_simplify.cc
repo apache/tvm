@@ -24,13 +24,13 @@
 
 #include "stmt_simplify.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
@@ -59,19 +59,19 @@ void StmtSimplifyConfigNode::RegisterReflection() {
               refl::DefaultValue(false));
 }
 
-arith::RewriteSimplifier::Extension StmtSimplifyConfigNode::GetEnabledExtensions() const {
-  arith::RewriteSimplifier::Extension flags = arith::RewriteSimplifier::kNone;
+sym::RewriteSimplifier::Extension StmtSimplifyConfigNode::GetEnabledExtensions() const {
+  sym::RewriteSimplifier::Extension flags = sym::RewriteSimplifier::kNone;
   if (transitively_prove_inequalities) {
-    flags = arith::RewriteSimplifier::Extension(
-        flags | arith::RewriteSimplifier::kTransitivelyProveInequalities);
+    flags = sym::RewriteSimplifier::Extension(
+        flags | sym::RewriteSimplifier::kTransitivelyProveInequalities);
   }
   if (convert_boolean_to_and_of_ors) {
-    flags = arith::RewriteSimplifier::Extension(
-        flags | arith::RewriteSimplifier::kConvertBooleanToAndOfOrs);
+    flags = sym::RewriteSimplifier::Extension(flags |
+                                              sym::RewriteSimplifier::kConvertBooleanToAndOfOrs);
   }
   if (apply_constraints_to_boolean_branches) {
-    flags = arith::RewriteSimplifier::Extension(
-        flags | arith::RewriteSimplifier::kApplyConstraintsToBooleanBranches);
+    flags = sym::RewriteSimplifier::Extension(
+        flags | sym::RewriteSimplifier::kApplyConstraintsToBooleanBranches);
   }
   return flags;
 }
@@ -84,7 +84,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { StmtSimplifyConfigNode::RegisterReflection(); }
 
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.StmtSimplify", StmtSimplifyConfig);
 
-PrimFunc StmtSimplifier::Apply(PrimFunc func, const arith::Analyzer& analyzer,
+PrimFunc StmtSimplifier::Apply(PrimFunc func, const sym::Analyzer& analyzer,
                                ffi::Optional<StmtSimplifyConfig> config_opt) {
   auto config = config_opt.value_or(MakeDefaultStmtSimplifyConfig());
 
@@ -114,9 +114,9 @@ UnchangedOr<ffi::Any> StmtSimplifier::Mutate(ffi::AnyView input, InplaceMode inp
 
 UnchangedOr<Stmt> StmtSimplifier::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
   analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-  With<arith::ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
-  With<arith::ConstraintContext> ctx2(analyzer_,
-                                      static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
+  With<sym::ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
+  With<sym::ConstraintContext> ctx2(analyzer_,
+                                    static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
   return Parent::Mutate_(op, inplace_mode);
 }
 
@@ -215,7 +215,7 @@ ffi::Optional<bool> StmtSimplifier::ProveCondition(PrimExpr condition) const {
   }
 }
 
-PrimFunc StmtSimplify(PrimFunc func, const arith::Analyzer& analyzer) {
+PrimFunc StmtSimplify(PrimFunc func, const sym::Analyzer& analyzer) {
   return StmtSimplifier::Apply(std::move(func), analyzer);
 }
 
@@ -223,7 +223,7 @@ namespace transform {
 
 Pass StmtSimplify() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     auto cfg = ctx->GetConfig<StmtSimplifyConfig>("tirx.StmtSimplify");
 
     return StmtSimplifier::Apply(f, analyzer, cfg);

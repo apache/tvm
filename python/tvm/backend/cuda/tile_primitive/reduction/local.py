@@ -61,9 +61,9 @@ import functools
 import operator
 from typing import Any
 
-from tvm.arith.analyzer import Analyzer
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx import PrimFunc
 from tvm.tirx.layout import TileLayout, laneid
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail

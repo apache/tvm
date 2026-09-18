@@ -19,8 +19,8 @@
 
 from dataclasses import dataclass
 
-from tvm.arith.analyzer import Analyzer
 from tvm.script import tirx as T
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx import PrimFunc
 from tvm.tirx.layout import TileLayout
 from tvm.tirx.operator.tile_primitive import (

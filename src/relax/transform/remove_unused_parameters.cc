@@ -129,7 +129,7 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
       for (size_t i = 0; i < old_relax_params.size(); i++) {
         old_binding.Set(old_relax_params[i], old_args[i]);
       }
-      arith::Analyzer analyzer;
+      sym::Analyzer analyzer;
       auto tir_binding = InferSymbolicVarMap(old_binding, analyzer);
 
       for (const auto& tir_var : free_tir_vars) {

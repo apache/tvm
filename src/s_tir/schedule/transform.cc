@@ -389,7 +389,7 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
     }
   }
   // Split the loops
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   std::unordered_set<const tirx::StmtSRefNode*> inner_loops;
   std::vector<LoopRV> reorder_suffix;
   reorder_suffix.resize(info->loop_map.size());

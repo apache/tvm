@@ -161,7 +161,7 @@ struct BufferPadding {
     return result;
   }
 
-  Stmt MakeCopyBlock(bool is_read, ffi::Array<SBlock>* blocks, arith::AnalyzerObj* analyzer) {
+  Stmt MakeCopyBlock(bool is_read, ffi::Array<SBlock>* blocks, sym::AnalyzerObj* analyzer) {
     ffi::Array<Var> loop_vars;
     ffi::Array<Range> loop_doms;
     ffi::Array<IterVar> iter_vars;
@@ -392,7 +392,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
 };
 
 void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<int64_t>& padding) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   // Step 1: Input checking and error handling
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   SBlockRealize realize = GetSBlockRealize(self, block_sref);

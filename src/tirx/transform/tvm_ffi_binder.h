@@ -28,9 +28,9 @@
 #ifndef TVM_TIR_TRANSFORM_TVM_FFI_BINDER_H_
 #define TVM_TIR_TRANSFORM_TVM_FFI_BINDER_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/stmt.h>
 
@@ -394,7 +394,7 @@ class TVMFFIABIBuilder {
   /*! \brief Deferred constant-expression assertions for display-var substitution. */
   std::vector<PendingConstAssert> pending_const_asserts_;
   /*! \brief internal analyzer. */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 
   // Function metadata
   /*! \brief function name for error messages. */

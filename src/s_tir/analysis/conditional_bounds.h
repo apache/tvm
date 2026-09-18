@@ -24,9 +24,9 @@
 #ifndef TVM_S_TIR_ANALYSIS_CONDITIONAL_BOUNDS_H_
 #define TVM_S_TIR_ANALYSIS_CONDITIONAL_BOUNDS_H_
 
-#include <tvm/arith/int_set.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/with_context.h>
+#include <tvm/sym/int_set.h>
 
 #include <unordered_map>
 #include <vector>
@@ -53,8 +53,8 @@ class ConditionalBoundsContext {
    * \param pending_conditions The stack of unresolved constraints.
    */
   ConditionalBoundsContext(const PrimExpr& condition,
-                           std::unordered_map<const VarNode*, arith::IntSet>* relax_map,
-                           std::unordered_map<const VarNode*, arith::IntSet>* hint_map,
+                           std::unordered_map<const VarNode*, sym::IntSet>* relax_map,
+                           std::unordered_map<const VarNode*, sym::IntSet>* hint_map,
                            std::vector<PrimExpr>* pending_constraints);
   void EnterWithScope();
   void ExitWithScope();
@@ -65,13 +65,13 @@ class ConditionalBoundsContext {
   /*! \brief the condition holds on true branch. */
   const PrimExpr& condition_;
   /*! \brief domain map for relaxed vars to update */
-  std::unordered_map<const VarNode*, arith::IntSet>* relax_map_;
+  std::unordered_map<const VarNode*, sym::IntSet>* relax_map_;
   /*! \brief domain map for free vars to update */
-  std::unordered_map<const VarNode*, arith::IntSet>* hint_map_;
+  std::unordered_map<const VarNode*, sym::IntSet>* hint_map_;
   /*! \brief unresolved condition stack */
   std::vector<PrimExpr>* pending_conditions_;
   /*! \brief used to record and restore original var bounds */
-  std::unordered_map<const VarNode*, arith::IntSet> origin_map_;
+  std::unordered_map<const VarNode*, sym::IntSet> origin_map_;
   /*! \brief used to record unresolved conditions num. */
   size_t origin_pending_conditions_num_;
 };

@@ -24,8 +24,8 @@
 #ifndef TVM_TARGET_VULKAN_CODEGEN_SPIRV_H_
 #define TVM_TARGET_VULKAN_CODEGEN_SPIRV_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
@@ -226,7 +226,7 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   std::unordered_map<const VarNode*, spirv::Value> var_map_;
 
   // The analyzer.
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 
   // deep comparison of PrimExpr
   prim::ExprDeepEqual deep_equal_;

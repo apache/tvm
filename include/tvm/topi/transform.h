@@ -24,9 +24,9 @@
 #ifndef TVM_TOPI_TRANSFORM_H_
 #define TVM_TOPI_TRANSFORM_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/data_layout.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/topi/broadcast.h>
@@ -492,7 +492,7 @@ inline Tensor concatenate(const ffi::Array<Tensor>& inputs, int axis = 0,
   for (auto t : inputs) {
     axis_sizes.push_back(t->shape[axis]);
   }
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   PrimExpr join_size = axis_sizes[0];
   for (size_t i = 1; i < axis_sizes.size(); ++i) {
     join_size += axis_sizes[i];
@@ -725,7 +725,7 @@ inline te::Tensor dynamic_strided_slice_with_axes(
     TVM_FFI_ICHECK_LT(axis, src_tensor_dim);
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
 
   ffi::Array<PrimExpr> out_shape = x->shape;
   for (size_t i = 0; i < begin.size(); i++) {
@@ -785,7 +785,7 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const ffi::Array<PrimExpr>&
   const size_t num_slice_axes = begin.size();
   ffi::Array<PrimExpr> out_shape;
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   for (size_t i = 0; i < num_slice_axes; ++i) {
     // Dynamic scalar tensor loads cannot be simplified while inferring shape.
     if (!te::IsTensorLoad(begin[i]) && !te::IsTensorLoad(end[i]) && !te::IsTensorLoad(strides[i])) {
@@ -1762,7 +1762,7 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, ffi::Array<Pr
 
 inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr& step,
                      PrimType dtype, std::string name = "T_arange", std::string tag = kInjective) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   PrimExpr num_elem;
   PrimType start_ty = start.ty();
   PrimType stop_ty = stop.ty();
@@ -1988,7 +1988,7 @@ inline Tensor auto_scheduler_layout_transform(
 inline Tensor meta_schedule_layout_transform(
     const Tensor& src, const tirx::IndexMap& index_map,
     const ffi::String name = "T_meta_schedule_layout_trans", const ffi::String tag = kInjective) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   ffi::Array<Range> iter_domain;
   iter_domain.reserve(src->shape.size());
   for (const PrimExpr& e : src->shape) {

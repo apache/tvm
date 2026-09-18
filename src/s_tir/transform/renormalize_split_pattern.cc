@@ -30,14 +30,14 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 
-#include "../../arith/pattern_match.h"
 #include "../../s_tir/ir/ir_mutator_with_analyzer.h"
+#include "../../sym/pattern_match.h"
 
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-using namespace arith;
+using namespace sym;
 
 // macro for doing simple rewrite
 #define TRY_REWRITE(SrcExpr, ResExpr) \
@@ -218,7 +218,7 @@ namespace transform {
 Pass RenormalizeSplitPattern() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     n->body = ffi::make_object<SplitPatternReNormalizer>(analyzer)
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(std::move(n->body));

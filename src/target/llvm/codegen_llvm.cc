@@ -92,7 +92,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../arith/pattern_match.h"
+#include "../../sym/pattern_match.h"
 #include "../build_common.h"
 #include "codegen_params.h"
 #include "llvm_instance.h"
@@ -247,7 +247,7 @@ void CodeGenLLVM::InitFuncState() {
   alias_var_set_.clear();
   alloc_storage_info_.clear();
   volatile_buf_.clear();
-  analyzer_ = arith::Analyzer();
+  analyzer_ = sym::Analyzer();
 }
 
 std::tuple<std::string, llvm::Function::LinkageTypes> CodeGenLLVM::GetLinkage(
@@ -679,12 +679,12 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_va
   }
 
   int64_t base = 0, width = 0;
-  arith::PVar<IntImm> pbase, pstride;
-  arith::PVar<IntImm> planes;
+  sym::PVar<IntImm> pbase, pstride;
+  sym::PVar<IntImm> planes;
   // create meta-data for alias analysis
   // Use a group of binary tree ranges of memory banks.
   int64_t xwith = 0;
-  if (arith::ramp(pbase, pstride, planes).Match(index)) {
+  if (sym::ramp(pbase, pstride, planes).Match(index)) {
     if (auto b = pbase.Eval()->value.as<int64_t>(),
         w = (planes.Eval()->value * pstride.Eval()->value).as<int64_t>();
         b.has_value() && w.has_value()) {
@@ -751,7 +751,7 @@ void CodeGenLLVM::GetAlignment(PrimType t, const VarNode* buf_var, const PrimExp
     *p_native_bits = native_vector_bits_;
   }
 
-  arith::ModularSet me = analyzer_->modular_set(index);
+  sym::ModularSet me = analyzer_->modular_set(index);
   int64_t base = me->base;
   int64_t coeff = me->coeff;
 

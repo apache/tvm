@@ -149,7 +149,7 @@ Type InferTypeRtoS(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
 
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   auto input_shape = input_ty->GetShape();
   TVM_FFI_ICHECK(input_shape.has_value())
       << "input tensor of redistribute_replica_to_shard should have defined shape.";
@@ -177,7 +177,7 @@ Type InferDistTypeRtoS(const Call& call, const BlockBuilder& ctx) {
   TensorType tensor_ty = input_dtensor_ty->tensor_ty;
   const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   auto input_shape = tensor_ty->GetShape();
   TVM_FFI_ICHECK(input_shape.has_value())
       << "input tensor of redistribute_replica_to_shard should have defined shape.";

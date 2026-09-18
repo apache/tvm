@@ -26,10 +26,10 @@ from operator import mul
 import tvm_ffi
 
 import tvm
-from tvm.arith.analyzer import Analyzer
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import Range, TensorRegion
 from tvm.script import tirx as T
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx import BufferRegion, Expr, Var, is_buffer_var
 from tvm.tirx.layout import Iter
 

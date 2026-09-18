@@ -429,8 +429,8 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
       PrimExpr output_dim =
           topi::GetLength(begin, end, strides_tuple[i], input_dim, attrs->assume_inbound);
 
-      arith::Analyzer analyzer = ctx->GetAnalyzer();
-      std::optional<With<arith::ConstraintContext>> context;
+      sym::Analyzer analyzer = ctx->GetAnalyzer();
+      std::optional<With<sym::ConstraintContext>> context;
       if (attrs->assume_inbound) {
         context.emplace(analyzer, 0 <= begin && begin <= input_dim && 0 <= end && end <= input_dim);
       }

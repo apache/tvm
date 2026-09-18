@@ -20,7 +20,6 @@
  * \file src/relax/transform/to_non_dataflow.cc
  * \brief Transform all dataflow structure to non-dataflow version.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
@@ -32,6 +31,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
@@ -385,7 +385,7 @@ class ForMatcher : public TensorizeComparator {
     return true;
   }
 
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   std::vector<For> loop_stack_lhs_, loop_stack_rhs_;
   tirx::PrimFunc pattern_;
   std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> pattern_vars_;

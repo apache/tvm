@@ -22,12 +22,12 @@
  */
 #include "codegen_webgpu.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/support/io.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/transform.h>
 
@@ -40,11 +40,11 @@
 #include <utility>
 #include <vector>
 
-#include "../../../arith/pattern_match.h"
 #include "../../../runtime/file_utils.h"
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/thread_storage_scope.h"
 #include "../../../support/bytes_io.h"
+#include "../../../sym/pattern_match.h"
 #include "../../../target/build_common.h"
 #include "webgpu_fallback_module.h"
 
@@ -622,8 +622,8 @@ void CodeGenWebGPU::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // 
     TVM_FFI_ICHECK_EQ(element_ty.lanes(), 1) << "Can only vector load scalar array";
     TVM_FFI_ICHECK(value_ty.WithLanes(1) == element_ty)
         << "WebGPU vector loading requires base type to match";
-    arith::PVar<PrimExpr> base;
-    if (arith::ramp(base, 1, value_ty.lanes()).Match(index)) {
+    sym::PVar<PrimExpr> base;
+    if (sym::ramp(base, 1, value_ty.lanes()).Match(index)) {
       // vec3<f32>(buf[base + 0], buf[base + 1], buf[base + 2]);
       std::string base_vid = SSAGetID(PrintExpr(base.Eval()), base.Eval().ty());
       PrintType(element_ty.WithLanes(value_ty.lanes()), os);
@@ -699,8 +699,8 @@ void CodeGenWebGPU::Dispatch_(const BufferStoreNode* op) {
     TVM_FFI_ICHECK(value_ty.WithLanes(1) == element_ty)
         << "WebGPU vector stire requires base type to match";
     std::string value_vid = PrintExpr(op->value);
-    arith::PVar<PrimExpr> base;
-    if (arith::ramp(base, 1, value_ty.lanes()).Match(index)) {
+    sym::PVar<PrimExpr> base;
+    if (sym::ramp(base, 1, value_ty.lanes()).Match(index)) {
       // buf[base + 0] = value[0]
       // buf[base + 1] = value[1]
       std::string base_vid = SSAGetID(PrintExpr(base.Eval()), base.Eval().ty());
@@ -726,7 +726,7 @@ void CodeGenWebGPU::Dispatch_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
   std::string vid = AllocVarID(op->buffer.get());
   size_t constant_size = 1;
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   for (const auto& dim : op->buffer->shape) {
     const auto* dim_imm = dim.as<IntImmNode>();
     int64_t dim_size =
@@ -787,7 +787,7 @@ void CodeGenWebGPU::Dispatch_(const AllocBufferNode* op) {
 
 void CodeGenWebGPU::Dispatch_(const ForNode* op) {
   std::string begin_str = PrintExpr(op->min);
-  PrimExpr end = is_zero(op->min) ? op->extent : arith::Analyzer()->Simplify(op->min + op->extent);
+  PrimExpr end = is_zero(op->min) ? op->extent : sym::Analyzer()->Simplify(op->min + op->extent);
   std::string end_str = PrintExpr(end);
   std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
   std::string vid = AllocVarID(op->loop_var.get());

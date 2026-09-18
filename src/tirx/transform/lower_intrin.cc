@@ -37,7 +37,7 @@
 #include <limits>
 #include <unordered_set>
 
-#include "../../arith/pattern_match.h"
+#include "../../sym/pattern_match.h"
 #include "../ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
@@ -132,7 +132,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
 
   using FLowerGeneral = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
-  IntrinInjecter(const arith::Analyzer& analyzer, const Target& tgt, bool enable_fast_math)
+  IntrinInjecter(const sym::Analyzer& analyzer, const Target& tgt, bool enable_fast_math)
       : IRMutatorWithAnalyzer(analyzer) {
     std::string target = tgt->kind->name;
     ffi::String mtriple = tgt->GetAttr<ffi::String>("mtriple").value_or("");
@@ -348,7 +348,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::MaxNode* op, InplaceMode inplace_mode) final {
-    using namespace arith;
+    using namespace sym;
     PVar<PrimExpr> x, y;
     PVar<IntImm> c;
     auto e = ffi::GetRef<PrimExpr>(op);
@@ -361,7 +361,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* op, InplaceMode inplace_mode) final {
-    using namespace arith;
+    using namespace sym;
     PVar<PrimExpr> x, y;
     auto e = ffi::GetRef<PrimExpr>(op);
     if ((floormod(x, y) == 0).Match(e)) {
@@ -372,7 +372,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::NENode* op, InplaceMode inplace_mode) final {
-    using namespace arith;
+    using namespace sym;
     PVar<PrimExpr> x, y;
     auto e = ffi::GetRef<PrimExpr>(op);
     if ((floormod(x, y) != 0).Match(e)) {
@@ -455,7 +455,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     // NOTE: we need to be very careful in the checks below, to make sure
     // all the intermediate calculations in both compiler checks and runtime checks
     // do not overflow
-    arith::ConstIntBound const_int_bound_a = analyzer_->const_int_bound(a);
+    sym::ConstIntBound const_int_bound_a = analyzer_->const_int_bound(a);
     if (const_int_bound_a->min_value >= 0) {
       return std::nullopt;
     }
@@ -495,7 +495,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
 };
 
 Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   bool enable_fast_math =
       transform::PassContext::Current()->GetConfig<bool>("tirx.enable_fast_math", false).value();
   return ffi::make_object<IntrinInjecter>(analyzer, Target(ffi::String(target)), enable_fast_math)
@@ -510,7 +510,7 @@ Pass LowerIntrin() {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     TVM_FFI_ICHECK(target.has_value()) << "LowerIntrin: Require the target attribute";
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     bool enable_fast_math = ctx->GetConfig<bool>("tirx.enable_fast_math", false).value();
     n->body = ffi::make_object<IntrinInjecter>(analyzer, target.value(), enable_fast_math)
                   ->Mutate(n->body, InplaceMode::kAllow)

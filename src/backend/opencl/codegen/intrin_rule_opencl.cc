@@ -21,7 +21,7 @@
  * \file intrin_rule_opencl.cc
  * \brief OpenCL intrinsic rules.
  */
-#include <tvm/arith/analyzer.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op_attr_types.h>
 
 #include "../../../target/intrin_rule.h"
@@ -37,7 +37,7 @@ static PrimExpr DispatchIntelShuffle(const PrimExpr& e) {
   const CallNode* call = e.as<CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
   TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   TVM_FFI_ICHECK(analyzer->CanProve(call->args[3].as_or_throw<PrimExpr>() ==
                                     call->args[4].as_or_throw<PrimExpr>()))
       << "Intel warp shuffle dose not support width != warp_size";
