@@ -450,7 +450,7 @@ def clml_pattern_table():
         }
 
         for param in params.values():
-            if not isinstance(param, relax.expr.Constant):
+            if not isinstance(param, tvm.ir.GenericConst):
                 return False
 
         base_shape = None

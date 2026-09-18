@@ -424,7 +424,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     auto value_result = this->Mutate(op->value, inplace_mode);
     bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
-    PrimExpr value = std::move(value_result).ValueOrUnchanged(op->value);
+    Expr value = std::move(value_result).ValueOrUnchanged(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     } else {

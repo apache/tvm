@@ -211,7 +211,7 @@ void ExecBuilderNode::CheckExecutable() {
     auto check_const_defined = [&](Instruction::Arg arg) {
       if (arg.kind() != Instruction::ArgKind::kConstIdx) return;
       TVM_FFI_ICHECK_LT(arg.value(), exec_->constants.size())
-          << "Constant index " << arg.value() << " exceed size of constant pool. Dump:\n"
+          << "GenericConst index " << arg.value() << " exceed size of constant pool. Dump:\n"
           << exec_->AsText();
     };
 

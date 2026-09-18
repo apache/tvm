@@ -73,6 +73,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<StringType>(
+      "", [](StringType ty, AccessPath p, IRDocsifier d) -> Doc {
+        return IR(d, "StringType")->Call({});
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<PointerType>(
       "", [](PointerType ty, AccessPath ty_p, IRDocsifier d) -> Doc {
         ExprDoc element_type{ffi::UnsafeInit()};

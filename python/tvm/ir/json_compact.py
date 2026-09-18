@@ -38,7 +38,6 @@ _PRIM_TYPE_KEY_RENAMES = {
     "tirx.SBlockRealize": "s_tir.SBlockRealize",
     "tirx.MatchBufferRegion": "s_tir.MatchBufferRegion",
     "tirx.TensorIntrin": "s_tir.TensorIntrin",
-    "tirx.StringImm": "ir.prim.StringImm",
     "tirx.Cast": "ir.prim.Cast",
     "tirx.Add": "ir.prim.Add",
     "tirx.Sub": "ir.prim.Sub",

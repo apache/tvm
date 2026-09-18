@@ -97,27 +97,6 @@ TVMFFIAny BinaryMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
-TVMFFIAny StringImmVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  // skips: PrimExpr types are always PrimType and remain unchanged in normal mutation.
-  // value is a constant: reflected for StructuralEqual/Hash,
-  // not traversed by the visitor/mutator contract.
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
-}
-
-TVMFFIAny StringImmMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  // skips: PrimExpr types are always PrimType and remain unchanged in normal mutation.
-  // value is a constant: reflected for StructuralEqual/Hash,
-  // not traversed by the visitor/mutator contract.
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
-TVMFFIAny StringImmMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  // skips: PrimExpr types are always PrimType and remain unchanged in normal mutation.
-  // value is a constant: reflected for StructuralEqual/Hash,
-  // not traversed by the visitor/mutator contract.
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
 TVMFFIAny CastVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   // skips: PrimExpr types are always PrimType and remain unchanged in normal mutation.
   const CastNode* self =
@@ -358,28 +337,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](ffi::Variant<PrimExpr, ffi::Array<PrimExpr>> expr) { return expr; });
   // Note: kRepr for VarNode is registered via TVM_REGISTER_SCRIPT_AS_REPR in
   // src/script/printer/tirx/expr.cc (-> ReprPrintTIR which delegates to TVMScriptPrinter).
-}
-
-// StringImm
-StringImm::StringImm(ffi::String value, Span span) {
-  ffi::ObjectPtr<StringImmNode> node = ffi::make_object<StringImmNode>();
-  node->ExprNode::ty = PrimType::Void();
-  node->value = std::move(value);
-  node->span = std::move(span);
-  data_ = std::move(node);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  StringImmNode::RegisterReflection();
-  refl::TypeAttrDef<StringImmNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&StringImmVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&StringImmMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&StringImmMaybeInplaceMutate));
-
-  refl::GlobalDef().def("prim.StringImm",
-                        [](ffi::String value, Span span) { return StringImm(value, span); });
 }
 
 // Cast

@@ -4277,9 +4277,9 @@ def test_get_attr_scalar_tensor_constant(torch_dtype, expected_dtype):
     bindings = mod["main"].body.blocks[0].bindings
     assert len(bindings) == 1
     value = bindings[0].value
-    assert isinstance(value, relax.Constant)
-    assert value.data.shape == ()
-    assert value.data.dtype == expected_dtype
+    assert isinstance(value, tvm.ir.GenericConst)
+    assert value.value.shape == ()
+    assert value.value.dtype == expected_dtype
 
 
 def test_new_ones():

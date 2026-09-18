@@ -568,7 +568,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
   TVM_FFI_ICHECK(f.has_value()) << "tvm.contrib.hexagon.link_shared does not to exist, "
                                    "do import tvm.contrib.hexagon";
 
-  ffi::Array<PrimExpr> o_names = {prim::StringImm(o_name)};
+  ffi::Array<Expr> o_names = {StringImm(o_name)};
   ffi::Map<ffi::String, ffi::String> extra_args;
   if (target->attrs.count("mcpu")) {
     std::string mcpu = target->attrs.at("mcpu").as_or_throw<ffi::String>();

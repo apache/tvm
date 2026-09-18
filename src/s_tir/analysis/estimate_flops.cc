@@ -201,7 +201,7 @@ class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
   TResult Dispatch_(const VarNode* op) override { return TResult(); }
   TResult Dispatch_(const IntImmNode* op) override { return TResult(); }
   TResult Dispatch_(const FloatImmNode* op) override { return TResult(); }
-  TResult Dispatch_(const prim::StringImmNode* op) override { return TResult(); }
+  TResult Dispatch_(const StringImmNode* op) override { return TResult(); }
   TResult Dispatch_(const prim::CastNode* op) override { return Dispatch(op->value); }
   TResult Dispatch_(const AllocBufferNode* op) override { return TResult(); }
   TResult Dispatch_(const DeclBufferNode* op) override { return TResult(); }

@@ -1735,7 +1735,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             else node.kwargs.get("assert_msg", "Assertion Failed")
         )
         return self.block_builder.emit(
-            relax.op.assert_op(condition, [relax.StringImm(message)], format="{}")
+            relax.op.assert_op(condition, [tvm.ir.StringImm(message)], format="{}")
         )
 
     def create_convert_map(

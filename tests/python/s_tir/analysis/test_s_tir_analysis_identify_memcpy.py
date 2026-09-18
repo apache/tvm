@@ -22,10 +22,9 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.ir import TensorRegion
+from tvm.ir import StringImm, TensorRegion
 from tvm.script import ir as I
 from tvm.script import tirx as T
-from tvm.tirx import StringImm
 
 identify_memcpy = tvm.s_tir.analysis._ffi_api._identify_memcpy
 

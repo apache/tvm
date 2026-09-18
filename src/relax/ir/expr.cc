@@ -32,7 +32,6 @@ namespace relax {
 namespace {
 
 // Traverses only ExprNode::ty.  The per-node payload is an intentional constant leaf:
-// ConstantNode::data is tensor data; StringImmNode::value and DataTypeImmNode::value are scalars;
 // ExternFuncNode::global_symbol is scalar and BaseFuncNode::attrs is metadata.
 template <typename TNode>
 TVMFFIAny TypeOnlyExprVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
@@ -465,87 +464,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         });
 }
 
-Constant::Constant(runtime::Tensor data, ffi::Optional<Type> ty_annotation, Span span) {
-  ffi::ObjectPtr<ConstantNode> n = ffi::make_object<ConstantNode>();
-  n->data = std::move(data);
-  n->span = std::move(span);
-
-  // set type.
-  ffi::Array<PrimExpr> values;
-  auto shape_tuple = n->data.Shape();
-  for (size_t dim = 0; dim < shape_tuple.size(); ++dim) {
-    values.push_back(IntImm::Int64(shape_tuple[dim]));
-  }
+GenericConst MakeTensorConst(runtime::Tensor data, ffi::Optional<Type> ty_annotation, Span span) {
   if (ty_annotation.has_value()) {
-    n->ty = ty_annotation.value();
-  } else {
-    TensorType tinfo(ShapeExpr(values), PrimType(n->data.DataType()), VDevice(), span);
-    n->ty = tinfo;
+    return GenericConst(std::move(data), ty_annotation.value(), std::move(span));
   }
-
-  data_ = std::move(n);
+  ffi::Array<PrimExpr> shape;
+  for (int64_t dim : data.Shape()) {
+    shape.push_back(IntImm::Int64(dim));
+  }
+  TensorType ty(ShapeExpr(shape), PrimType(data.DataType()), VDevice(), span);
+  return GenericConst(std::move(data), std::move(ty), std::move(span));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  ConstantNode::RegisterReflection();
-  refl::TypeAttrDef<ConstantNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            reinterpret_cast<void*>(&TypeOnlyExprVisit<ConstantNode>))
-      .attr(refl::type_attr::kStructuralMutate,
-            reinterpret_cast<void*>(&TypeOnlyExprMutate<ConstantNode>))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TypeOnlyExprMaybeInplaceMutate<ConstantNode>));
-
-  refl::GlobalDef().def("relax.Constant",
-                        [](runtime::Tensor data, ffi::Optional<Type> ty_annotation = std::nullopt,
-                           Span span = Span()) { return Constant(data, ty_annotation, span); });
-}
-
-StringImm::StringImm(ffi::String value, Span span) {
-  ffi::ObjectPtr<StringImmNode> n = ffi::make_object<StringImmNode>();
-  n->value = std::move(value);
-  n->span = std::move(span);
-  n->ty = AnyType();
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  StringImmNode::RegisterReflection();
-  refl::TypeAttrDef<StringImmNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            reinterpret_cast<void*>(&TypeOnlyExprVisit<StringImmNode>))
-      .attr(refl::type_attr::kStructuralMutate,
-            reinterpret_cast<void*>(&TypeOnlyExprMutate<StringImmNode>))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TypeOnlyExprMaybeInplaceMutate<StringImmNode>));
-
-  refl::GlobalDef().def("relax.StringImm",
-                        [](ffi::String value, Span span) { return StringImm(value, span); });
-}
-
-DataTypeImm::DataTypeImm(DLDataType value, Span span) {
-  ffi::ObjectPtr<DataTypeImmNode> n = ffi::make_object<DataTypeImmNode>();
-  n->value = value;
-  n->span = std::move(span);
-  n->ty = AnyType();
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  DataTypeImmNode::RegisterReflection();
-  refl::TypeAttrDef<DataTypeImmNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            reinterpret_cast<void*>(&TypeOnlyExprVisit<DataTypeImmNode>))
-      .attr(refl::type_attr::kStructuralMutate,
-            reinterpret_cast<void*>(&TypeOnlyExprMutate<DataTypeImmNode>))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TypeOnlyExprMaybeInplaceMutate<DataTypeImmNode>));
-
-  refl::GlobalDef().def("relax.DataTypeImm",
-                        [](DLDataType value, Span span) { return DataTypeImm(value, span); });
+  ffi::reflection::GlobalDef().def("relax.MakeTensorConst", MakeTensorConst);
 }
 
 MatchCast::MatchCast(Var var, Expr value, Type ty, Span span) {

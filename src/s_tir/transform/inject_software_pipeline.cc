@@ -807,7 +807,7 @@ class PipelineRewriter : public StmtExprMutator {
           auto& block = new_blocks[i].block;
           SBlockNode* n = block.CopyOnWrite();
           n->body =
-              AttrStmt(0, s_tir::attr::async_wait_queue_scope, stage_id,
+              AttrStmt(0, s_tir::attr::async_wait_queue_scope, IntImm::Int32(stage_id),
                        AttrStmt(0, s_tir::attr::async_wait_inflight_count, wait_count, n->body));
         };
 
@@ -852,7 +852,7 @@ class PipelineRewriter : public StmtExprMutator {
 
         for (auto body : group_bodies) {
           auto commit_queue_scope =
-              AttrStmt(0, s_tir::attr::async_commit_queue_scope, stage_id, body);
+              AttrStmt(0, s_tir::attr::async_commit_queue_scope, IntImm::Int32(stage_id), body);
           auto new_block = MakeSBlock(commit_queue_scope, buffer_data_to_buffer_);
           stmts.push_back(SBlockRealize({}, predicate, new_block));
         }
@@ -991,7 +991,7 @@ class PipelineRewriter : public StmtExprMutator {
         }
 
         SBlockNode* n = new_block.CopyOnWrite();
-        n->body = AttrStmt(0, s_tir::attr::async_scope, 1, n->body);
+        n->body = AttrStmt(0, s_tir::attr::async_scope, IntImm::Int32(1), n->body);
       }
 
       new_blocks.push_back(

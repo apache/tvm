@@ -224,7 +224,7 @@ struct Axis {
 
   Axis(const ExprNode* tensor, int dim, int tuple_index = 0)
       : tensor(tensor), dim(dim), tuple_index(tuple_index) {
-    TVM_FFI_ICHECK(tensor->IsInstance<ConstantNode>() || tensor->IsInstance<VarNode>());
+    TVM_FFI_ICHECK(tensor->IsInstance<GenericConstNode>() || tensor->IsInstance<VarNode>());
   }
 
   bool operator==(const Axis& other) const {

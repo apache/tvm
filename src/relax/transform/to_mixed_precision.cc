@@ -153,8 +153,8 @@ class DTypeDecisionCollector : public ExprVisitor {
       auto fvisitleaf = [&](const Expr& expr, NType to) {
         if (const auto* var = expr.as<VarNode>()) {
           UpdateVarDTypeMap(ffi::GetRef<Var>(var), to);
-        } else if (expr->IsInstance<ConstantNode>()) {
-          // Constant can be casted anyway, so we don't need to do anything here
+        } else if (expr->IsInstance<GenericConstNode>()) {
+          // GenericConst can be casted anyway, so we don't need to do anything here
           return;
         } else {
           TVM_FFI_THROW(InternalError) << "Unsupported argument type: " << expr->GetTypeKey();
@@ -355,8 +355,8 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       return false;
     };
 
-    auto is_in_fp16_range = [this](const ConstantNode* constant) {
-      const auto& data = constant->data;
+    auto is_in_fp16_range = [this](const GenericConstNode* constant) {
+      const auto& data = constant->value.cast<runtime::Tensor>();
       if (data->dtype.lanes > 1) {
         // Skip vectorized types for now.
         return false;
@@ -393,7 +393,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
 
     for (const Expr& arg : args) {
       auto ty = GetType(arg);
-      auto constant = arg.as<ConstantNode>();
+      auto constant = arg.as<GenericConstNode>();
       auto tuple = arg.as<TupleNode>();
 
       if (!IsNestedTensor(arg) || is_fp16(ty) || (constant && is_in_fp16_range(constant)) ||

@@ -176,7 +176,7 @@ class CallTIRMutator : public ExprMutator {
 
     return builder_->Emit(Call(Type::Missing(), alloc_tensor_op,
                                {tensor_ty->shape.value().as_or_throw<ShapeExpr>(),
-                                DataTypeImm(tensor_ty->dtype.value()->dtype),
+                                GenericConst(tensor_ty->dtype.value()->dtype, AnyType()),
                                 IntImm::Int64(dev_index), StringImm(scope)},
                                Attrs(), {tensor_ty}),
                           "alloc");

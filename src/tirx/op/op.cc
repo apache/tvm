@@ -210,7 +210,7 @@ PrimExpr reinterpret(PrimType t, PrimExpr value, Span span) {
 }
 
 Expr reinterpret(Type target_ty, Expr value, Span span) {
-  if (value.as<prim::StringImmNode>()) {
+  if (value->ty.as<StringTypeNode>()) {
     TVM_FFI_CHECK(target_ty.as<PointerTypeNode>(), TypeError)
         << "String reinterpret requires a pointer target, but got " << target_ty;
     return Call(std::move(target_ty), tirx::builtin::reinterpret(), {std::move(value)}, {}, {},
@@ -656,7 +656,7 @@ PrimExpr PrintOpPacked(Expr data, DLDataType dtype, bool is_string, bool is_scal
   PrimType u32_ty = PrimType::UInt(32);
   ffi::Array<Expr> args;
   args.push_back(data);
-  args.push_back(prim::StringImm(ffi::DLDataTypeToString(dtype)));
+  args.push_back(StringImm(ffi::DLDataTypeToString(dtype)));
   args.push_back(IntImm::Bool(is_string));
   args.push_back(IntImm::Bool(is_scalar));
   args.push_back(IntImm(u32_ty, dim_num));

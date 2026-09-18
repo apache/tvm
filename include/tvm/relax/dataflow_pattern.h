@@ -441,7 +441,7 @@ class GlobalVarPattern : public DFPattern {
 };
 
 /*!
- * \brief A Pattern to Match a Relax Constant.
+ * \brief A Pattern to Match a Relax GenericConst.
  * \sa ConstantPattern
  */
 class ConstantPatternNode : public DFPatternNode {

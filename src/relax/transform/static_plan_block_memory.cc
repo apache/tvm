@@ -653,7 +653,8 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     const auto* shape = ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK_NOTNULL(shape);
     TVM_FFI_ICHECK(!ty->IsUnknownDtype());
-    TVM_FFI_ICHECK(ty->dtype.value()->dtype == call->args[1].as_or_throw<DataTypeImm>()->value);
+    TVM_FFI_ICHECK(ty->dtype.value()->dtype ==
+                   call->args[1].as_or_throw<GenericConst>()->value.cast<DLDataType>());
     TVM_FFI_ICHECK(!token_map_.count(call));
 
     // Use the upper bounds of TIR vars as their values. The upper bound shape can still be dynamic
@@ -959,7 +960,7 @@ class StorageAllocationRewriter : public ExprMutator {
         DLDataType dtype = token->dtype;
         Call alloc_storage(Type::Missing(), mem_alloc_storage,
                            {std::move(size), virtual_device_index, StringImm(token->storage_scope),
-                            DataTypeImm(dtype)},
+                            GenericConst(dtype, AnyType())},
                            Attrs());
         storage_var = builder_->Emit(alloc_storage, "storage");
         token2storage_var_[token.get()] = storage_var;
@@ -970,9 +971,10 @@ class StorageAllocationRewriter : public ExprMutator {
       // And always create a `memory.alloc_tensor` for the old `builtin.alloc_tensor`.
       PrimExpr offset = IntImm::Int64(0);
       DLDataType dtype = ty->dtype.value()->dtype;
-      return Call(Type::Missing(), mem_alloc_tensor,
-                  {storage_var, offset, ty->shape.value(), DataTypeImm(dtype), call->args[2]},
-                  Attrs());
+      return Call(
+          Type::Missing(), mem_alloc_tensor,
+          {storage_var, offset, ty->shape.value(), GenericConst(dtype, AnyType()), call->args[2]},
+          Attrs());
     } else if (plan_dynamic_output_ && call->op.same_as(alloc_tensor_op)) {
       // Case 2. For a `alloc_tensor` that is not planned for memory reuse,
       // we would still like to allocate **static** memory for the tensor.
@@ -989,7 +991,7 @@ class StorageAllocationRewriter : public ExprMutator {
       if (!IsStaticShape(shape->values)) {
         TVM_FFI_ICHECK(!ty->IsUnknownDtype());
         TVM_FFI_ICHECK_EQ(ty->dtype.value()->dtype,
-                          call->args[1].as_or_throw<DataTypeImm>()->value);
+                          call->args[1].as_or_throw<GenericConst>()->value.cast<DLDataType>());
         PrimExpr bytes = upper_bounded_shape[0];
         for (int i = 1; i < static_cast<int>(upper_bounded_shape.size()); ++i) {
           bytes *= upper_bounded_shape[i];
@@ -1003,13 +1005,13 @@ class StorageAllocationRewriter : public ExprMutator {
                            {/*size=*/ShapeExpr({bytes}),
                             /*virtual_device_index=*/call->args[2].as_or_throw<PrimExpr>(),
                             /*storage_scope=*/call->args[3].as_or_throw<StringImm>(),  //
-                            /*dtype=*/DataTypeImm(dtype)});
+                            /*dtype=*/GenericConst(dtype, AnyType())});
         Var storage = builder_->Emit(alloc_storage, "storage");
         return Call(Type::Missing(), mem_alloc_tensor,
                     {storage,  //
                      /*offset=*/IntImm::Int64(0),
                      /*shape=*/ffi::GetRef<ShapeExpr>(shape),  //
-                     /*dtype=*/DataTypeImm(dtype),
+                     /*dtype=*/GenericConst(dtype, AnyType()),
                      /*vdevice_index=*/call->args[2]});
       }
     }

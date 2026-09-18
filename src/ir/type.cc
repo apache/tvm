@@ -340,6 +340,19 @@ PrimType PrimType::ScalableVector(DLDataTypeCode code, int bits, int lanes) {
   return PrimType(ScalableVectorDType(code, bits, lanes));
 }
 
+StringType::StringType() : Type(ffi::UnsafeInit{}) { data_ = ffi::make_object<StringTypeNode>(); }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  StringTypeNode::RegisterReflection();
+  refl::TypeAttrDef<StringTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TypeVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TypeMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&TypeMaybeInplaceMutate));
+  refl::GlobalDef().def("ir.StringType", []() { return StringType(); });
+}
+
 // PointerType
 PointerType::PointerType(Type element_type, ffi::String storage_scope) : Type(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(!element_type.IsMissing()) << "PointerType element_type cannot be Type::Missing()";

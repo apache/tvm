@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 """Relax memory primitives."""
 
-from tvm.ir import Call
+import tvm
+from tvm.ir import Call, GenericConst, StringImm
 
-from ...expr import DataTypeImm, Expr, StringImm, prim_value
+from ...expr import Expr, prim_value
 from ...utils import convert_to_expr
 from . import _ffi_api
 
@@ -53,7 +54,7 @@ def alloc_storage(
     """
     size = convert_to_expr(size)
     if isinstance(dtype, str):
-        dtype = DataTypeImm(dtype)
+        dtype = GenericConst(tvm.DataType(dtype), tvm.relax.AnyType())
     if isinstance(storage_scope, str):
         storage_scope = StringImm(storage_scope)
     if isinstance(virtual_device_index, int):
@@ -97,7 +98,7 @@ def alloc_tensor(
         offset = prim_value(offset)
     shape = convert_to_expr(shape)
     if isinstance(dtype, str):
-        dtype = DataTypeImm(dtype)
+        dtype = GenericConst(tvm.DataType(dtype), tvm.relax.AnyType())
     if isinstance(runtime_device_ind, int):
         runtime_device_ind = prim_value(runtime_device_ind)
     return _ffi_api.alloc_tensor(storage, offset, shape, dtype, runtime_device_ind)  # type: ignore

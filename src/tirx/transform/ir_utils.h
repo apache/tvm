@@ -216,7 +216,7 @@ inline PrimExpr ConstInt32(size_t index) {
  * \return Call representing the allocated pointer
  */
 inline Call StackAlloca(Type ret_type, std::string type, size_t num) {
-  ffi::Array<PrimExpr> args = {prim::StringImm(type), ConstInt32(num)};
+  ffi::Array<Expr> args = {StringImm(type), ConstInt32(num)};
   return Call(std::move(ret_type), builtin::tvm_stack_alloca(), args);
 }
 

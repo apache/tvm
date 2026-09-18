@@ -64,6 +64,8 @@ tvm::Type InferType(const PrimFunc& prim_func) {
   tvm::Type ret = [&]() -> tvm::Type {
     if (const auto* prim = prim_func->ret_type.as<PrimTypeNode>()) {
       return tvm::PrimType(prim->dtype);
+    } else if (prim_func->ret_type.as<StringTypeNode>()) {
+      return StringType();
     } else if (IsVoidType(prim_func->ret_type)) {
       return relax::TupleType(ffi::Array<tvm::Type>{});
     } else {

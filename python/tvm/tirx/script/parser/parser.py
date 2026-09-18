@@ -192,7 +192,7 @@ def _convert_tuple_literal(self: Parser, node: doc.expr, value: Any) -> Any:
         if isinstance(field, Expr):
             return field
         if isinstance(field, str):
-            return tvm.tirx.StringImm(field)
+            return tvm.ir.StringImm(field)
         if isinstance(field, bool | int | float):
             return tvm.tirx.const(field)
         self.report_error(
@@ -284,7 +284,7 @@ def bind_assign_value(
         if not tvm.ir.is_prim_expr(value) and not isinstance(value, Expr):
             # Python scalar (int/float/bool) -> const prim expr
             value = tvm.tirx.const(value)
-        if isinstance(value, tvm.tirx.StringImm) or not tvm.ir.is_prim_expr(value):
+        if isinstance(value, tvm.ir.StringImm) or not tvm.ir.is_prim_expr(value):
             # StringImm or non-prim-expr (e.g. pointer Call): immutable Bind var
             ann_var = tvm.tirx.Var(var_name, value.ty)
             IRBuilder.name(var_name, ann_var)
@@ -803,7 +803,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
         rhs = _convert_tuple_literal(self, node.value, rhs)
         if not isinstance(rhs, Expr):
             if isinstance(rhs, str):
-                rhs = tvm.tirx.StringImm(rhs)
+                rhs = tvm.ir.StringImm(rhs)
             else:
                 rhs = tvm.tirx.const(rhs)
         if raw_ann.type_spec is not None:
@@ -1127,7 +1127,7 @@ def visit_assert(self: Parser, node: doc.Assert) -> None:
                 f"got {len(msg)} elements",
             )
         kind_str, parts = msg
-        if isinstance(kind_str, tvm.tirx.StringImm):
+        if isinstance(kind_str, tvm.ir.StringImm):
             kind_str = kind_str.value
         if not isinstance(kind_str, str):
             self.report_error(
@@ -1139,7 +1139,7 @@ def visit_assert(self: Parser, node: doc.Assert) -> None:
         message = parts
 
     if isinstance(message, list | tuple):
-        message = [p.value if isinstance(p, tvm.tirx.StringImm) else str(p) for p in message]
+        message = [p.value if isinstance(p, tvm.ir.StringImm) else str(p) for p in message]
 
     frame = T.Assert(cond, message, error_kind=kind)
     frame.add_callback(partial(frame.__exit__, None, None, None))

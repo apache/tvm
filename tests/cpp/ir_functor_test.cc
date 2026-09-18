@@ -315,7 +315,7 @@ TEST(IRF, StmtExprMutator) {
 
   {
     auto body = Evaluate(
-        Call(PrimType::Int(32), tirx::builtin::call_extern(), {prim::StringImm("xyz"), x + 1}));
+        Call(PrimType::Int(32), tirx::builtin::call_extern(), {::tvm::StringImm("xyz"), x + 1}));
     auto res = v->Mutate(body).ValueOrUnchanged(std::move(body));
     TVM_FFI_ICHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[1].same_as(x));
   }

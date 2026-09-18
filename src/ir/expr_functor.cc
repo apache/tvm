@@ -30,10 +30,11 @@ void ExprVisitor::InitVTable(VTable* vtable) {
   SetDispatch<ExprVisitor, VarNode>(vtable);
   SetDispatch<ExprVisitor, GlobalVarNode>(vtable);
   SetDispatch<ExprVisitor, CallNode>(vtable);
+  SetDispatch<ExprVisitor, GenericConstNode>(vtable);
   SetDispatch<ExprVisitor, IntImmNode>(vtable);
   SetDispatch<ExprVisitor, FloatImmNode>(vtable);
   SetDispatch<ExprVisitor, OpNode>(vtable);
-  SetDispatch<ExprVisitor, prim::StringImmNode>(vtable);
+  SetDispatch<ExprVisitor, StringImmNode>(vtable);
   SetDispatch<ExprVisitor, prim::CastNode>(vtable);
   SetDispatch<ExprVisitor, prim::AddNode>(vtable);
   SetDispatch<ExprVisitor, prim::SubNode>(vtable);
@@ -127,13 +128,17 @@ ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const CallNode* node) {
   return std::nullopt;
 }
 
+ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const GenericConstNode* node) {
+  return this->Visit(node->ty);
+}
+
 ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const IntImmNode* node) { return std::nullopt; }
 
 ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const FloatImmNode* node) { return std::nullopt; }
 
 ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const OpNode* node) { return std::nullopt; }
 
-ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const prim::StringImmNode* node) {
+ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const StringImmNode* node) {
   return std::nullopt;
 }
 
@@ -293,10 +298,11 @@ void ExprMutator::InitVTable(VTable* vtable) {
   SetDispatch<ExprMutator, VarNode>(vtable);
   SetDispatch<ExprMutator, GlobalVarNode>(vtable);
   SetDispatch<ExprMutator, CallNode>(vtable);
+  SetDispatch<ExprMutator, GenericConstNode>(vtable);
   SetDispatch<ExprMutator, IntImmNode>(vtable);
   SetDispatch<ExprMutator, FloatImmNode>(vtable);
   SetDispatch<ExprMutator, OpNode>(vtable);
-  SetDispatch<ExprMutator, prim::StringImmNode>(vtable);
+  SetDispatch<ExprMutator, StringImmNode>(vtable);
   SetDispatch<ExprMutator, prim::CastNode>(vtable);
   SetDispatch<ExprMutator, prim::AddNode>(vtable);
   SetDispatch<ExprMutator, prim::SubNode>(vtable);
@@ -451,6 +457,18 @@ UnchangedOr<Expr> ExprMutator::Mutate_(const CallNode* node, InplaceMode inplace
   return Expr(std::move(copy));
 }
 
+UnchangedOr<Expr> ExprMutator::Mutate_(const GenericConstNode* node, InplaceMode inplace_mode) {
+  auto ty = Mutate(node->ty, inplace_mode).as_or_throw<UnchangedOr<Type>>();
+  if (ty.UnchangedOrSameAs(node->ty)) return ffi::Unchanged();
+  if (inplace_mode == InplaceMode::kAllow) {
+    const_cast<GenericConstNode*>(node)->ty = std::move(ty).ValueUnchecked();
+    return ffi::Unchanged();
+  }
+  auto copy = ffi::make_object<GenericConstNode>(*node);
+  copy->ty = std::move(ty).ValueUnchecked();
+  return Expr(std::move(copy));
+}
+
 UnchangedOr<PrimExpr> ExprMutator::Mutate_(const IntImmNode* node, InplaceMode inplace_mode) {
   // Registry atoms and constant leaves do not descend into metadata or types.
   return ffi::Unchanged();
@@ -466,8 +484,7 @@ UnchangedOr<Expr> ExprMutator::Mutate_(const OpNode* node, InplaceMode inplace_m
   return ffi::Unchanged();
 }
 
-UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::StringImmNode* node,
-                                           InplaceMode inplace_mode) {
+UnchangedOr<Expr> ExprMutator::Mutate_(const StringImmNode* node, InplaceMode inplace_mode) {
   // Registry atoms and constant leaves do not descend into metadata or types.
   return ffi::Unchanged();
 }

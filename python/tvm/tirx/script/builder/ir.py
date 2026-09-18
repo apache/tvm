@@ -25,6 +25,7 @@ from functools import partial
 from numbers import Integral
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, Union
 
+from tvm.ir import StringImm as _StringImm
 from tvm.ir import TensorRegion
 
 # isort: off
@@ -83,7 +84,6 @@ from tvm.tirx.expr import (
     Reduce,
     Select,
     Shuffle,
-    StringImm,
     Sub,
 )
 from tvm.tirx.layout import (
@@ -408,7 +408,7 @@ def prim_func(
     return _ffi_api.PrimFunc(is_private, s_tir, persistent)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def arg(name: str, obj: Var | Buffer) -> Var | Buffer:
+def arg(name: str, obj: Var | Buffer | ir.StringType) -> Var | Buffer:
     """The PrimFunc arguments adding function.
 
     Parameters
@@ -424,6 +424,8 @@ def arg(name: str, obj: Var | Buffer) -> Var | Buffer:
     res : Union[Var, Buffer]
         The argument.
     """
+    if isinstance(obj, ir.StringType):
+        obj = Var(name, obj)
     return _ffi_api.Arg(name, obj)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
@@ -2407,7 +2409,7 @@ def evaluate(value: Expr) -> None:
         The input expression to evaluate.
     """
     if isinstance(value, str):
-        value = StringImm(value)
+        value = _StringImm(value)
     if isinstance(value, bool):
         value = IntImm("bool", value)
     if isinstance(value, TensorRegion):
@@ -3574,7 +3576,6 @@ __all__ = [
     "Reduce",
     "FloatImm",
     "IntImm",
-    "StringImm",
     "Cast",
     "Add",
     "Sub",

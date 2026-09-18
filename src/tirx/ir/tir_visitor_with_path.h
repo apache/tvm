@@ -64,6 +64,8 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   virtual inline void Visit(const Expr& obj, ffi::reflection::AccessPath path) {
     if (auto prim = obj.as<PrimExpr>()) {
       Visit(prim.value(), path);
+    } else if (auto* str = obj.as<StringImmNode>()) {
+      Dispatch_(str, path);
     } else if (auto* var = obj.as<VarNode>()) {
       Dispatch_(var, path);
     } else if (auto* call = obj.as<CallNode>()) {
@@ -188,7 +190,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   void Dispatch_(const prim::ShuffleNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const IntImmNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const FloatImmNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const prim::StringImmNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const StringImmNode* op, ffi::reflection::AccessPath path) override;
 
   // Utility to call EnterDef/ExitDef.  Used in the implementation of
   // WithDef.

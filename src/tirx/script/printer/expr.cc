@@ -49,6 +49,10 @@ ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IR
   ffi::Array<ffi::String> kwargs_keys;
   ffi::Array<ExprDoc> kwargs_values;
 
+  if (type.as<StringTypeNode>()) {
+    return TIR(d, "Var")->Call(
+        {LiteralDoc::Str(var->name, var_p->Attr("name")), d->AsDoc<ExprDoc>(type, type_p)});
+  }
   if (const auto* ptr_type = type.as<PointerTypeNode>()) {
     if (const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
       rhs = TIR(d, "handle");
@@ -125,7 +129,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           }
           TVM_FFI_THROW(IndexError) << "BufferVar is not defined in the environment: " << buffer;
         }
-        if (var->ty.as<PrimTypeNode>() || var->ty.as<PointerTypeNode>()) {
+        if (var->ty.as<PrimTypeNode>() || var->ty.as<PointerTypeNode>() ||
+            var->ty.as<StringTypeNode>()) {
           return PrintVar(var, p, d);
         }
         if (!d->IsVarDefined(var)) {
@@ -163,8 +168,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<prim::StringImm>(
-      "", [](prim::StringImm s, AccessPath p, IRDocsifier d) -> Doc {
+  IRDocsifier::vtable().set_dispatch<StringImm>(
+      "", [](StringImm s, AccessPath p, IRDocsifier d) -> Doc {
         if (HasMultipleLines(s->value)) {
           return d->AddMetadata(s);
         } else {
@@ -332,6 +337,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     if (call_prim_type.has_value()) {
       return LiteralDoc::DataType(call_prim_type.value()->dtype, type_p);
     }
+    if (call->ty.as<StringTypeNode>()) return d->AsDoc<ExprDoc>(call->ty, type_p);
     if (const auto* pointer_type = call->ty.as<PointerTypeNode>()) {
       ExprDoc pointer_type_doc = d->AsDoc<ExprDoc>(call->ty, type_p);
       if (const auto* element_type = pointer_type->element_type.as<PrimTypeNode>();
@@ -353,7 +359,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     if (call->ty.IsMissing()) {
       return IdDoc("tvm")->Attr("ir")->Attr("Type")->Attr("missing")->Call({});
     }
-    if (call_prim_type || call->ty.as<PointerTypeNode>()) {
+    if (call_prim_type || call->ty.as<PointerTypeNode>() || call->ty.as<StringTypeNode>()) {
       return get_call_type_doc(call_p->Attr("ty"));
     }
     // Annotation spellings such as None for an empty tuple are not type values.
@@ -429,7 +435,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
       // storing multiline source code in metadata (which can't be reparsed).
       ffi::Array<ffi::String> kw_keys;
       ffi::Array<ExprDoc> kw_vals;
-      const auto* src_str = call->args[n_args - 1].as<prim::StringImmNode>();
+      const auto* src_str = call->args[n_args - 1].as<StringImmNode>();
       TVM_FFI_ICHECK(src_str) << "cuda_func_call: last arg (source_code) must be StringImm";
       ExprDoc src = LiteralDoc::Str(src_str->value, call_p->Attr("args")->ArrayItem(n_args - 1));
       kw_keys.push_back("source_code");
@@ -547,7 +553,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 #undef TVM_SCRIPT_PRINTER_DEF_BINARY
 
 TVM_SCRIPT_REPR(tirx::IterVarNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(prim::StringImmNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(StringImmNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::CastNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::AddNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::SubNode, ReprPrintTIR);

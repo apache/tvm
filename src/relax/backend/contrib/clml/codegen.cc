@@ -81,7 +81,7 @@ class CollectCLMLFromCompositeFunctionBody : public ExprVisitor {
   explicit CollectCLMLFromCompositeFunctionBody(OpenCLMLJSONSerializer* serializer)
       : serializer_(serializer), node_(std::make_shared<JSONGraphNode>()) {}
 
-  void VisitExpr_(const ConstantNode* constant_node) final;
+  void VisitExpr_(const GenericConstNode* constant_node) final;
   void VisitExpr_(const CallNode* call_node) final;
 
   void SetGenericAttributes(const CallNode* call_node) {
@@ -111,7 +111,7 @@ class CollectCLMLFromCompositeFunctionBody : public ExprVisitor {
  */
 class OpenCLMLJSONSerializer : public JSONSerializer {
  public:
-  explicit OpenCLMLJSONSerializer(ffi::Map<Constant, ffi::String> constant_names,
+  explicit OpenCLMLJSONSerializer(ffi::Map<GenericConst, ffi::String> constant_names,
                                   ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
@@ -277,8 +277,8 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
   ffi::Map<Var, Expr> bindings_;
 };
 
-void CollectCLMLFromCompositeFunctionBody::VisitExpr_(const ConstantNode* constant_node) {
-  for (const auto& entry : serializer_->VisitExpr(ffi::GetRef<Constant>(constant_node))) {
+void CollectCLMLFromCompositeFunctionBody::VisitExpr_(const GenericConstNode* constant_node) {
+  for (const auto& entry : serializer_->VisitExpr(ffi::GetRef<GenericConst>(constant_node))) {
     args_.emplace_back(entry);
   }
 }
@@ -295,7 +295,7 @@ void CollectCLMLFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node)
  */
 ffi::Array<ffi::Module> OpenCLMLCompiler(ffi::Array<Function> functions,
                                          ffi::Map<ffi::String, Any> /*unused*/,
-                                         ffi::Map<Constant, ffi::String> constant_names) {
+                                         ffi::Map<GenericConst, ffi::String> constant_names) {
   ffi::Array<ffi::Module> compiled_functions;
   for (const auto& func : functions) {
     VLOG(1) << "OpenCLML partition:" << std::endl << func;

@@ -92,7 +92,7 @@ TVM_DLL bool IsBoolType(const Type& ty, bool permit_unknown_rank = true,
 /*!
  * \brief Check if the given expression is a "leaf" node or tuple node for normalization purposes.
  *
- *    The following expressions are defined as leaf nodes: Var, Constant, ShapeExpr,
+ *    The following expressions are defined as leaf nodes: Var, GenericConst, ShapeExpr,
  *    GlobalVar, Op, ExternFunc.
  *
  *    Tuples are included in this list mainly for convenience in grouping operator arguments.

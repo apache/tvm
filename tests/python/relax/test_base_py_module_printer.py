@@ -20,6 +20,7 @@
 import pytest
 
 import tvm
+from tvm.ir import StringImm
 from tvm.relax.base_py_module import BasePyModule
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -718,7 +719,6 @@ def test_call_py_func_with_base_py_module():
     import torch
 
     from tvm.relax import TensorType, Var
-    from tvm.relax.expr import StringImm
     from tvm.relax.op import call_py_func
 
     # Test 1: Operator creation and basic properties

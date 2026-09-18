@@ -43,7 +43,7 @@
  *    10. The IR is in ANF:
  *       (a) Expressions cannot contain nested complex expressions.
  *           Here are the expressions that may be nested inside other expressions:
- *           Var, DataflowVar, GlobalVar, Constant, ShapeExpr,
+ *           Var, DataflowVar, GlobalVar, GenericConst, ShapeExpr,
  *           Op, Tuple (we call these "leaf" expressions).
  *       (b) The right-hand side of a binding may contain a non-leaf expression
  *           (where all expressions nested in it are leaf expressions),

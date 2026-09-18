@@ -71,7 +71,7 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
       const IntImmNode* m = op->args[1].as<IntImmNode>();
       const IntImmNode* n = op->args[2].as<IntImmNode>();
       const IntImmNode* k = op->args[3].as<IntImmNode>();
-      const prim::StringImmNode* layout = op->args[7].as<prim::StringImmNode>();
+      const StringImmNode* layout = op->args[7].as<StringImmNode>();
       TVM_FFI_ICHECK(m);
       TVM_FFI_ICHECK(n);
       TVM_FFI_ICHECK(k);
@@ -214,11 +214,11 @@ class InferFragmenter : public s_tir::StmtExprMutator {
 
       std::string shape =
           std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k);
-      PrimExpr shape_expr = prim::StringImm(shape);
+      Expr shape_expr = StringImm(shape);
       Stmt shape_attr = AttrStmt(op->buffer.var(), s_tir::attr::fragment_shape, shape_expr, stmt);
       if (info.layout != "") {
         Stmt layout_attr = AttrStmt(op->buffer.var(), s_tir::attr::fragment_layout,
-                                    prim::StringImm(info.layout), shape_attr);
+                                    StringImm(info.layout), shape_attr);
         return layout_attr;
       } else {
         return shape_attr;

@@ -256,7 +256,7 @@ class GraphCreator : public ExprVisitor {
     SetNodePattern(binding_var_node, OpPatternKind::kOpaque);
 
     auto visit_leaves = [this, &binding_var_node](const Expr& e) {
-      if (e->IsInstance<VarNode>() || e->IsInstance<ConstantNode>()) {
+      if (e->IsInstance<VarNode>() || e->IsInstance<GenericConstNode>()) {
         VisitLeaf(e, binding_var_node, OpPatternKind::kOpaque);
       }
     };
@@ -278,8 +278,8 @@ class GraphCreator : public ExprVisitor {
     }
 
     if (!leaf_expr.as<ShapeExprNode>() && !leaf_expr.as<VarNode>() &&
-        !leaf_expr.as<ConstantNode>() && !leaf_expr.as<PrimExpr>() &&
-        !leaf_expr.as<StringImmNode>() && !leaf_expr.as<DataTypeImmNode>()) {
+        !leaf_expr.as<GenericConstNode>() && !leaf_expr.as<PrimExpr>() &&
+        !leaf_expr.as<StringImmNode>()) {
       // Skip GlobalVar, ExternFunc, OpNode.
       return;
     }
@@ -683,7 +683,7 @@ class FunctionCreator : public ExprMutator {
       }
     }
     if ((var == nullptr || defined_vars_.count(var) == 0) &&
-        (lift_constant_ || !expr->IsInstance<ConstantNode>())) {
+        (lift_constant_ || !expr->IsInstance<GenericConstNode>())) {
       ffi::String name =
           var != nullptr ? var->name : ffi::String("param_" + std::to_string(n_param_for_const_++));
       Type param_ty = GetType(expr);
@@ -1212,7 +1212,7 @@ class PatternBasedPartitioner : ExprVisitor {
     ExprVisitor::VisitBinding_(binding);
   }
 
-  void VisitExpr_(const ConstantNode* op) final { group_map_[op] = arena_->make<Group>(); }
+  void VisitExpr_(const GenericConstNode* op) final { group_map_[op] = arena_->make<Group>(); }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
     VisitVarDef(binding->var);

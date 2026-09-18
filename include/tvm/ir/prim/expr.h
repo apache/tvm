@@ -49,30 +49,6 @@ namespace prim {
 using IntImmNode = tvm::IntImmNode;
 using FloatImmNode = tvm::FloatImmNode;
 
-/*! \brief ffi::String constants, only used in asserts. */
-class StringImmNode : public ExprNode {
- public:
-  /*! \brief The constant value content. */
-  ffi::String value;
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("prim.StringImm", StringImmNode, ExprNode);
-};
-
-/*!
- * \brief Managed reference to StringImmNode.
- * \sa StringImmNode
- */
-class StringImm : public PrimExpr {
- public:
-  TVM_DLL StringImm(ffi::String value, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StringImm, PrimExpr, StringImmNode);
-  static constexpr bool _type_container_is_exact = true;
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
-};
-
 /*!
  * \brief Cast value from one data type to another.
  * \note The lanes of value should keep fixed.
@@ -606,8 +582,6 @@ struct ExprDeepEqual {
 namespace ffi {
 
 template <>
-inline constexpr bool object_ref_contains_v<PrimExpr, prim::StringImmNode> = true;
-template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, prim::CastNode> = true;
 template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, prim::AddNode> = true;
@@ -655,16 +629,6 @@ template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, prim::LetNode> = true;
 template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, prim::ShuffleNode> = true;
-template <>
-inline constexpr bool use_default_type_traits_v<tvm::prim::StringImm> = false;
-
-template <>
-struct TypeTraits<tvm::prim::StringImm>
-    : public ObjectRefWithFallbackTraitsBase<tvm::prim::StringImm, ffi::String> {
-  TVM_FFI_INLINE static tvm::prim::StringImm ConvertFallbackValue(ffi::String value) {
-    return tvm::prim::StringImm(value);
-  }
-};
 }  // namespace ffi
 }  // namespace tvm
 
