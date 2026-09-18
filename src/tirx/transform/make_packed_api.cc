@@ -32,7 +32,6 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -80,11 +79,6 @@ class ReturnRewriter : public StmtExprMutator {
     ConvertedInfo info;
 
     // convert val's data type to FFI data type, return type code
-    if (val->ty.as<StringTypeNode>()) {
-      info.type_index = ffi::TypeIndex::kTVMFFIRawStr;
-      info.expr = prim::reinterpret(PointerType::VoidPointerTy(), val);
-      return info;
-    }
     if (val->ty.as<PointerTypeNode>()) {
       info.type_index = ffi::TypeIndex::kTVMFFIOpaquePtr;
       info.expr = val;
@@ -114,41 +108,23 @@ class ReturnRewriter : public StmtExprMutator {
 
   Stmt WriteToOut(Expr val) {
     auto info = ConvertForFFI(val);
-    ffi::Array<Stmt> stmts;
-    Var out = ret_var_;
-    if (info.type_index == ffi::TypeIndex::kTVMFFIRawStr) {
-      // PrimFunc strings are C strings, but a packed return must own its value.
-      out = Var("ret_string_view", PointerType::VoidPointerTy());
-      stmts.push_back(Bind(out, StackAlloca(out->ty, "tvm_ffi_any", 1)));
-    }
     Stmt store_tindex = tirx::Evaluate(
         Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
-             {out, IntImm::Int32(0), IntImm::Int32(tirx::builtin::kTVMFFIAnyTypeIndex),
+             {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::builtin::kTVMFFIAnyTypeIndex),
               IntImm::Int32(info.type_index)})
             .as_or_throw<PrimExpr>());
     Stmt store_zero_padding =
         tirx::Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
-                            {out, IntImm::Int32(0),
+                            {ret_var_, IntImm::Int32(0),
                              IntImm::Int32(tirx::builtin::kTVMFFIAnyZeroPadding), IntImm::Int32(0)})
                            .as_or_throw<PrimExpr>());
-    Stmt store_val = tirx::Evaluate(
-        Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
-             {out, IntImm::Int32(0), IntImm::Int32(tirx::builtin::kTVMFFIAnyUnionValue), info.expr})
-            .as_or_throw<PrimExpr>());
-    stmts.push_back(store_tindex);
-    stmts.push_back(store_zero_padding);
-    stmts.push_back(store_val);
-    if (info.type_index == ffi::TypeIndex::kTVMFFIRawStr) {
-      PrimExpr status = Call(PrimType::Int(32), builtin::call_extern(),
-                             {StringImm("TVMFFIAnyViewToOwnedAny"), out, ret_var_})
-                            .as_or_throw<PrimExpr>();
-      stmts.push_back(
-          IfThenElse(status != IntImm::Int32(0),
-                     Evaluate(Call(PrimType::Int(32), builtin::tvm_throw_last_error(), {})
-                                  .as_or_throw<PrimExpr>())));
-    }
-    stmts.push_back(Return(IntImm::Int32(0)));
-    return SeqStmt(stmts);
+    Stmt store_val =
+        tirx::Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
+                            {ret_var_, IntImm::Int32(0),
+                             IntImm::Int32(tirx::builtin::kTVMFFIAnyUnionValue), info.expr})
+                           .as_or_throw<PrimExpr>());
+    Stmt ret_zero = Return(IntImm::Int32(0));
+    return SeqStmt({store_tindex, store_zero_padding, store_val, ret_zero});
   }
 
   Var ret_var_;

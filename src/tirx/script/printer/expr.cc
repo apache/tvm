@@ -49,10 +49,6 @@ ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IR
   ffi::Array<ffi::String> kwargs_keys;
   ffi::Array<ExprDoc> kwargs_values;
 
-  if (type.as<StringTypeNode>()) {
-    return TIR(d, "Var")->Call(
-        {LiteralDoc::Str(var->name, var_p->Attr("name")), d->AsDoc<ExprDoc>(type, type_p)});
-  }
   if (const auto* ptr_type = type.as<PointerTypeNode>()) {
     if (const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
       rhs = TIR(d, "handle");
@@ -129,8 +125,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           }
           TVM_FFI_THROW(IndexError) << "BufferVar is not defined in the environment: " << buffer;
         }
-        if (var->ty.as<PrimTypeNode>() || var->ty.as<PointerTypeNode>() ||
-            var->ty.as<StringTypeNode>()) {
+        if (var->ty.as<PrimTypeNode>() || var->ty.as<PointerTypeNode>()) {
           return PrintVar(var, p, d);
         }
         if (!d->IsVarDefined(var)) {
@@ -337,7 +332,6 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     if (call_prim_type.has_value()) {
       return LiteralDoc::DataType(call_prim_type.value()->dtype, type_p);
     }
-    if (call->ty.as<StringTypeNode>()) return d->AsDoc<ExprDoc>(call->ty, type_p);
     if (const auto* pointer_type = call->ty.as<PointerTypeNode>()) {
       ExprDoc pointer_type_doc = d->AsDoc<ExprDoc>(call->ty, type_p);
       if (const auto* element_type = pointer_type->element_type.as<PrimTypeNode>();
@@ -359,7 +353,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     if (call->ty.IsMissing()) {
       return IdDoc("tvm")->Attr("ir")->Attr("Type")->Attr("missing")->Call({});
     }
-    if (call_prim_type || call->ty.as<PointerTypeNode>() || call->ty.as<StringTypeNode>()) {
+    if (call_prim_type || call->ty.as<PointerTypeNode>()) {
       return get_call_type_doc(call_p->Attr("ty"));
     }
     // Annotation spellings such as None for an empty tuple are not type values.

@@ -408,7 +408,7 @@ def prim_func(
     return _ffi_api.PrimFunc(is_private, s_tir, persistent)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def arg(name: str, obj: Var | Buffer | ir.StringType) -> Var | Buffer:
+def arg(name: str, obj: Var | Buffer) -> Var | Buffer:
     """The PrimFunc arguments adding function.
 
     Parameters
@@ -424,8 +424,6 @@ def arg(name: str, obj: Var | Buffer | ir.StringType) -> Var | Buffer:
     res : Union[Var, Buffer]
         The argument.
     """
-    if isinstance(obj, ir.StringType):
-        obj = Var(name, obj)
     return _ffi_api.Arg(name, obj)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 

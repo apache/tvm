@@ -153,8 +153,6 @@ void CodeGenSourceBase::PrintType(const PrimType& type, std::ostream& os) {  // 
 void CodeGenSourceBase::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*)
   if (auto* ptr = type.as<PrimTypeNode>()) {
     return PrintType(ffi::GetRef<PrimType>(ptr), os);
-  } else if (type.as<StringTypeNode>()) {
-    os << "const char*";
   } else if (auto* ptr = type.as<PointerTypeNode>()) {
     PrintType(ptr->element_type, os);
     os << '*';

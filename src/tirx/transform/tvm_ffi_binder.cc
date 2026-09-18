@@ -487,8 +487,8 @@ Expr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int par
     }
     return res;
   }
-  TVM_FFI_CHECK(arg_type.as<PointerTypeNode>() || arg_type.as<StringTypeNode>(), TypeError)
-      << "Packed union values must have primitive, pointer, or string type, but got " << arg_type;
+  TVM_FFI_CHECK(arg_type.as<PointerTypeNode>(), TypeError)
+      << "Packed union values must have primitive or pointer type, but got " << arg_type;
   return Call(std::move(arg_type), builtin::tvm_struct_get(), call_args);
 }
 
@@ -570,18 +570,6 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
     Expr handle_value = DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
     BindPointer(handle, handle_value, param_path, true);
     buffer_handles_.emplace(param.get(), handle);
-    return;
-  }
-
-  if (param->ty.as<StringTypeNode>()) {
-    PrimExpr index = type_index.as_or_throw<PrimExpr>();
-    EmitTypeIndexCheck(param_index,
-                       index == ffi::TypeIndex::kTVMFFIRawStr ||
-                           index == ffi::TypeIndex::kTVMFFISmallStr ||
-                           index == ffi::TypeIndex::kTVMFFIStr,
-                       "str");
-    BindPointer(param, LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, StringType()),
-                param_path, true);
     return;
   }
 

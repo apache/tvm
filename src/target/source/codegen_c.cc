@@ -828,18 +828,8 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       }
     } else if (op->op.same_as(tirx::builtin::tvm_struct_get())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
-      if (op->ty.as<StringTypeNode>()) {
-        TVM_FFI_ICHECK_EQ(op->args[2].as<IntImmNode>()->value, tirx::builtin::kTVMFFIAnyUnionValue);
-        std::string slot =
-            "((TVMFFIAny*)" + PrintExpr(op->args[0]) + ")[" + PrintExpr(op->args[1]) + "]";
-        os << "(" << slot << ".type_index == kTVMFFIStr ? "
-           << "((TVMFFIByteArray*)((char*)" << slot
-           << ".v_obj + sizeof(TVMFFIObject)))->data : " << slot
-           << ".type_index == kTVMFFISmallStr ? " << slot << ".v_bytes : " << slot << ".v_c_str)";
-      } else {
-        os << GetStructRef(op->ty, op->args[0], op->args[1].as_or_throw<PrimExpr>(),
-                           op->args[2].as<IntImmNode>()->value.as<int>().value());
-      }
+      os << GetStructRef(op->ty, op->args[0], op->args[1].as_or_throw<PrimExpr>(),
+                         op->args[2].as<IntImmNode>()->value.as<int>().value());
     } else if (op->op.same_as(tirx::builtin::isnullptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
       os << "(";

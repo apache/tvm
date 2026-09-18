@@ -637,8 +637,6 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const PrimType& dtype) const {
 llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
   if (auto* ptr = type.as<PrimTypeNode>()) {
     return DTypeToLLVMType(PrimType(ptr->dtype));
-  } else if (type.as<StringTypeNode>()) {
-    return t_void_p_;
   } else if (auto* ptr = type.as<PointerTypeNode>()) {
     // LLVM IR doesn't allow void*, so pointer element types that do not
     // have an LLVM scalar equivalent need explicit handling.
@@ -2512,9 +2510,6 @@ llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm)
     return nullptr;
 
   } else if (ty_llvm->isPointerTy()) {
-    if (ty_tir.as<StringTypeNode>()) {
-      return GetDebugType(PointerType(PrimType::Int(8)), ty_llvm);
-    }
     auto* ptr_type = ty_tir.as<PointerTypeNode>();
     TVM_FFI_ICHECK(ptr_type != nullptr)
         << "Got LLVM pointer type from non-pointer IR type: " << ty_tir;

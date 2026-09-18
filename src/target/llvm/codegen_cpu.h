@@ -75,8 +75,6 @@ class CodeGenCPU : public CodeGenLLVM {
   void Dispatch_(const AttrStmtNode* op) override;
   void Dispatch_(const ForNode* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
-  llvm::Value* LoadCString(llvm::Value* value);
-
   llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
                                 const ffi::Array<Expr>& args, bool skip_first_arg) override;
 

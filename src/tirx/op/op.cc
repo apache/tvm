@@ -210,7 +210,7 @@ PrimExpr reinterpret(PrimType t, PrimExpr value, Span span) {
 }
 
 Expr reinterpret(Type target_ty, Expr value, Span span) {
-  if (value->ty.as<StringTypeNode>()) {
+  if (value.as<StringImmNode>()) {
     TVM_FFI_CHECK(target_ty.as<PointerTypeNode>(), TypeError)
         << "String reinterpret requires a pointer target, but got " << target_ty;
     return Call(std::move(target_ty), tirx::builtin::reinterpret(), {std::move(value)}, {}, {},

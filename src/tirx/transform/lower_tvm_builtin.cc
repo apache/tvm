@@ -580,7 +580,7 @@ class BuiltinLower : public StmtExprMutator {
           {call_pattern->args[0], call_pattern->args[1], args_stack, ConstInt32(stack_offset)})));
     } else {
       int arg_type_index;
-      if (arg->ty.as<StringTypeNode>()) {
+      if (arg.as<StringImmNode>()) {
         arg_type_index = ffi::TypeIndex::kTVMFFIRawStr;
         arg = reinterpret(PointerType::VoidPointerTy(), std::move(arg));
       } else if (arg->ty.as<PointerTypeNode>()) {
@@ -675,9 +675,8 @@ class BuiltinLower : public StmtExprMutator {
 
     for (size_t i = 0; i < num_args; ++i) {
       const Expr& arg = op->args[args_begin + i];
-      TVM_FFI_CHECK(
-          arg.as<PrimExpr>() || arg->ty.as<PointerTypeNode>() || arg->ty.as<StringTypeNode>(),
-          TypeError)
+      TVM_FFI_CHECK(arg.as<PrimExpr>() || arg->ty.as<PointerTypeNode>() || arg.as<StringImmNode>(),
+                    TypeError)
           << "Packed call argument must have a primitive, pointer, or string type, but got "
           << arg->ty;
       this->SetPackedArg(arg, scope.stack_ffi_any, arg_stack_begin + i, &prep_seq);
