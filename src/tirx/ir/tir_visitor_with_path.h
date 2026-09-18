@@ -161,8 +161,10 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   void Dispatch_(const OpaqueExprNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const TupleNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const TupleGetItemNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const prim::LetNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const CallNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const IntImmNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const FloatImmNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::LetNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::AddNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::SubNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::MulNode* op, ffi::reflection::AccessPath path) override;
@@ -186,8 +188,6 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   void Dispatch_(const prim::RampNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::BroadcastNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::ShuffleNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const IntImmNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const FloatImmNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::StringImmNode* op, ffi::reflection::AccessPath path) override;
 
   // Utility to call EnterDef/ExitDef.  Used in the implementation of

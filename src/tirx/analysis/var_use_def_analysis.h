@@ -62,9 +62,9 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final;
 
-  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) final;
-
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final;
+
+  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) final;
 
   void HandleDef(const Var& v);
   void HandleUse(const Var& v);

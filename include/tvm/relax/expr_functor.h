@@ -156,6 +156,14 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const FunctionNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const CallNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TensorLoadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tvm::IntImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tvm::FloatImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const SeqExprNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const IfNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const OpNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const TupleGetItemNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const StringImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const DataTypeImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const prim::LetNode* op, Args...) EXPR_FUNCTOR_DISABLED;
   virtual R VisitExpr_(const prim::AddNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const prim::SubNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -180,16 +188,8 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const prim::RampNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const prim::BroadcastNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const prim::ShuffleNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const tvm::IntImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const tvm::FloatImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const prim::StringImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const SeqExprNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const IfNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const OpNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const TupleGetItemNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExprFallback_(const ExprNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const StringImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const DataTypeImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExprDefault_(const ffi::Object* op, Args...) {
     TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     throw;
@@ -270,6 +270,14 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   void VisitExpr_(const FunctionNode* op) override;
   void VisitExpr_(const CallNode* op) override;
   void VisitExpr_(const TensorLoadNode* op) override;
+  void VisitExpr_(const tvm::IntImmNode* op) override;
+  void VisitExpr_(const tvm::FloatImmNode* op) override;
+  void VisitExpr_(const SeqExprNode* op) override;
+  void VisitExpr_(const IfNode* op) override;
+  void VisitExpr_(const OpNode* op) override;
+  void VisitExpr_(const TupleGetItemNode* op) override;
+  void VisitExpr_(const StringImmNode* op) override;
+  void VisitExpr_(const DataTypeImmNode* op) override;
   void VisitExpr_(const prim::AddNode* op) override;
   void VisitExpr_(const prim::SubNode* op) override;
   void VisitExpr_(const prim::MulNode* op) override;
@@ -293,16 +301,8 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   void VisitExpr_(const prim::RampNode* op) override;
   void VisitExpr_(const prim::BroadcastNode* op) override;
   void VisitExpr_(const prim::ShuffleNode* op) override;
-  void VisitExpr_(const tvm::IntImmNode* op) override;
-  void VisitExpr_(const tvm::FloatImmNode* op) override;
   void VisitExpr_(const prim::StringImmNode* op) override;
-  void VisitExpr_(const SeqExprNode* op) override;
-  void VisitExpr_(const IfNode* op) override;
-  void VisitExpr_(const OpNode* op) override;
-  void VisitExpr_(const TupleGetItemNode* op) override;
   void VisitExprFallback_(const ExprNode* op) override;
-  void VisitExpr_(const StringImmNode* op) override;
-  void VisitExpr_(const DataTypeImmNode* op) override;
 
   /*!
    * \brief Generic dispatcher for bindings.
@@ -425,6 +425,14 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
   Expr VisitExpr_(const FunctionNode* op) override;
   Expr VisitExpr_(const CallNode* op) override;
   Expr VisitExpr_(const TensorLoadNode* op) override;
+  Expr VisitExpr_(const tvm::IntImmNode* op) override;
+  Expr VisitExpr_(const tvm::FloatImmNode* op) override;
+  Expr VisitExpr_(const SeqExprNode* op) override;
+  Expr VisitExpr_(const IfNode* op) override;
+  Expr VisitExpr_(const OpNode* op) override;
+  Expr VisitExpr_(const TupleGetItemNode* op) override;
+  Expr VisitExpr_(const StringImmNode* op) override;
+  Expr VisitExpr_(const DataTypeImmNode* op) override;
   Expr VisitExpr_(const prim::AddNode* op) override;
   Expr VisitExpr_(const prim::SubNode* op) override;
   Expr VisitExpr_(const prim::MulNode* op) override;
@@ -448,16 +456,8 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
   Expr VisitExpr_(const prim::RampNode* op) override;
   Expr VisitExpr_(const prim::BroadcastNode* op) override;
   Expr VisitExpr_(const prim::ShuffleNode* op) override;
-  Expr VisitExpr_(const tvm::IntImmNode* op) override;
-  Expr VisitExpr_(const tvm::FloatImmNode* op) override;
   Expr VisitExpr_(const prim::StringImmNode* op) override;
-  Expr VisitExpr_(const SeqExprNode* op) override;
-  Expr VisitExpr_(const IfNode* op) override;
-  Expr VisitExpr_(const OpNode* op) override;
-  Expr VisitExpr_(const TupleGetItemNode* op) override;
   Expr VisitExprFallback_(const ExprNode* op) override;
-  Expr VisitExpr_(const StringImmNode* op) override;
-  Expr VisitExpr_(const DataTypeImmNode* op) override;
 
   /*!
    * \brief Mutate BindingBlock.

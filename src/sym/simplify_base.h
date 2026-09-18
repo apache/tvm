@@ -59,9 +59,9 @@ class SimplifierBase : public tvm::ExprMutator {
   UnchangedOr<Expr> Mutate_(const TupleNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Expr> Mutate_(const TupleGetItemNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
 
  protected:
   AnalyzerObj* analyzer_;
