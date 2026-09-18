@@ -713,11 +713,16 @@ void CodeGenCUDA::PrintMinMaxNanPreservingImpl(const T* op, const char* opstr,
   }
   if (op_ty.lanes() == 1) {
     // Bind both operands once (SSA), then reference the temporaries: the
-    // expressions must not be re-evaluated per clause.
+    // expressions must not be re-evaluated per clause. The bindings live in
+    // their own scope so a later statement that prints the same text (e.g.
+    // `red_buf[0] = max(red_buf[0], shuffle_down(...))` repeated by warp
+    // reduction) does not hit the cache and read the pre-write value.
+    int ssa_scope = BeginScope();
     std::string va = this->SSAGetID(this->PrintExpr(op->a), op->a.ty());
     std::string vb = this->SSAGetID(this->PrintExpr(op->b), op->b.ty());
     os << "(((" << va << ' ' << cmp << ' ' << vb << ") || (" << va << " != " << va << ")) ? " << va
        << " : " << vb << ")";
+    EndScope(ssa_scope);
   } else {
     this->PrintVecBinaryOpNanPreserving(std::string(opstr), op_ty, op->a, op->b, cmp, os);
   }

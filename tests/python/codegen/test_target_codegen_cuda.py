@@ -894,6 +894,48 @@ def test_min_max_nan_preserving_composite_cuda():
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_min_max_chained_statements_cuda():
+    # Two consecutive min/max statements in the same block: the second one
+    # reads C, which the first one just wrote. The scalar SSA binding must not
+    # cache the read across statements (this broke warp allreduce, where
+    # red_buf[0] = max(red_buf[0], shuffle_down(...)) is emitted repeatedly).
+    n = 8
+    a_np = np.array([3, -5, 7, 0, -1, 9, 2, -8], dtype="float32")
+    b_np = np.array([1, 9, -2, 4, -3, 9, 5, -8], dtype="float32")
+    d_np = np.array([5, 2, 6, 1, -2, 7, 3, -6], dtype="float32")
+
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((n,), "float32"),
+            B: T.Buffer((n,), "float32"),
+            D: T.Buffer((n,), "float32"),
+            C: T.Buffer((n,), "float32"),
+        ):
+            T.func_attr({"tirx.noalias": True})
+            for i in T.thread_binding(n, thread="threadIdx.x"):
+                with T.sblock("C"):
+                    v_i = T.axis.spatial(n, i)
+                    C[v_i] = T.max(A[v_i], B[v_i])
+                    C[v_i] = T.max(C[v_i], D[v_i])
+
+    mod = tvm.compile(Module, target="cuda")
+    a = tvm.runtime.tensor(a_np, tvm.cuda(0))
+    b = tvm.runtime.tensor(b_np, tvm.cuda(0))
+    d = tvm.runtime.tensor(d_np, tvm.cuda(0))
+    c = tvm.runtime.empty((n,), "float32", tvm.cuda(0))
+
+    def run_and_check():
+        mod(a, b, d, c)
+        expected = np.maximum(np.maximum(a_np, b_np), d_np)
+        np.testing.assert_array_equal(c.numpy(), expected)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op", ["min", "max"])
 def test_min_max_int_vector_cuda(op):
     # Integer min/max keeps the base codegen path, including the per-lane
