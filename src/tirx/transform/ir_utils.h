@@ -239,7 +239,6 @@ class IRConvertSSA : public StmtExprMutator {
  protected:
   explicit IRConvertSSA(const VTable* table) : StmtExprMutator(table) {}
   UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final;
@@ -255,6 +254,7 @@ class IRConvertSSA : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final;
   static bool BufferDependsOnVar(const BufferVar& buffer, const VarNode* var);
   static Var MakeNewVar(const Var& old_var);
   void PushVarRemap(const Var& old_var, const Var& new_var);

@@ -221,8 +221,8 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const OpaqueExprNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const TupleNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const TupleGetItemNode* op) override;
-  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const prim::RampNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const prim::BroadcastNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const prim::ShuffleNode* op) override;
