@@ -65,7 +65,7 @@ from . import te
 from .driver import build, compile
 
 # others
-from . import arith
+from . import sym
 
 # support infra
 from . import support

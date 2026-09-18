@@ -23,11 +23,11 @@
  */
 #include "ir_utils.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/scope_stack.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -654,8 +654,8 @@ ffi::Array<PrimExpr> GetBufferAllocationShape(const BufferVar& buffer) {
   if (buffer->strides.size()) {
     TVM_FFI_ICHECK_EQ(buffer->shape.size(), buffer->strides.size());
     for (size_t i = buffer->strides.size() - 1; i > 0; --i) {
-      TVM_FFI_ICHECK(arith::Analyzer()->CanProveEqual(
-          floormod(buffer->strides[i - 1], buffer->strides[i]), 0));
+      TVM_FFI_ICHECK(
+          sym::Analyzer()->CanProveEqual(floormod(buffer->strides[i - 1], buffer->strides[i]), 0));
       alloc_shape.Set(i, buffer->strides[i - 1] / buffer->strides[i]);
     }
   }

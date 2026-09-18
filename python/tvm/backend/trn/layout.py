@@ -41,7 +41,7 @@ def is_trainium_layout(layout: Layout | None) -> bool:
 
 def trainium_layout(annotation: str, shape: tuple[Expr], is_psum: bool = False) -> TileLayout:
     """Create a Trainium tile layout from a PF annotation string and logical shape."""
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
     assert re.fullmatch(r"[PF]*", annotation), (
         f"annotation {annotation} must be a string of 'P' and 'F'"
     )
@@ -97,7 +97,7 @@ def trainium_layout(annotation: str, shape: tuple[Expr], is_psum: bool = False) 
 
 def to_psum_layout(layout: TileLayout) -> TileLayout:
     """Convert a Trainium sbuf layout to its psum physical-bank layout."""
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
     shard = []
     for iter in layout.shard:
         if iter.axis.name == "F":

@@ -195,7 +195,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 bool TileLayoutNode::CompatibleWithShape(const Array<PrimExpr>& shape) const { return true; }
 
 bool VerifyCompactness(const std::vector<Iter>& iters) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   PrimExpr stride_to_find = 1;
   for (size_t i = 0; i < iters.size(); ++i) {
     auto iter = std::find_if(iters.begin(), iters.end(), [&](const Iter& iter) {
@@ -251,7 +251,7 @@ PrimExpr TileLayoutNode::GetSize(ffi::Optional<ffi::String> axis_name) const {
 }
 
 PrimExpr TileLayoutNode::GetSpan(ffi::Optional<ffi::String> axis_name) const {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   PrimExpr result = 1;
   auto filter = [&](const Axis& axis) { return AxisMatchesFilter(axis, axis_name); };
 
@@ -281,7 +281,7 @@ ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(const ffi::Array<PrimExpr>
   // ``coord[d]`` against just that sub-range's *local* extents keeps the
   // symbolic form small (local mod/divs) and avoids the cross-dim noise of the
   // flatten+split-against-shard-shape round-trip. Equivalent numerical output,
-  // much friendlier for arith.Analyzer downstream.
+  // much friendlier for sym.Analyzer downstream.
   if (auto grouped_opt = TryGroup(ffi::GetRef<TileLayout>(this), shape); grouped_opt.has_value()) {
     auto& [grouped, seps] = *grouped_opt;
     ffi::Array<PrimExpr> per_shard_coords;
@@ -309,7 +309,7 @@ ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(const ffi::Array<PrimExpr>
 }
 
 ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(Array<PrimExpr> coord) const {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   TVM_FFI_ICHECK_EQ(coord.size(), shard.size())
       << "Coordinate size must match the number of shard axes";
   std::unordered_map<ffi::String, PrimExpr> result;

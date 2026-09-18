@@ -40,9 +40,9 @@
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Support/Casting.h>
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
@@ -569,7 +569,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   // Whether current function is restricted
   bool is_restricted_{true};
   // The analyzer information
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   // set of var that are not restricted(can alias)
   std::unordered_set<const VarNode*> alias_var_set_;
   // set of volatile buffer.

@@ -20,13 +20,13 @@
 /*!
  * \file tvm/tirx/stmt.cc
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
@@ -684,7 +684,7 @@ ffi::ObjectRef RealizeBufferRegionSubscript(Expr value, SubscriptSlice slice, Sp
     return BufferLoad(source->source.as_or_throw<BufferVar>(), indices, span);
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   ffi::Array<Range> region;
   region.reserve(source->region.size());
   for (size_t i = 0; i < slice.size(); ++i) {

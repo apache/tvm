@@ -19,6 +19,20 @@
 import json
 
 _PRIM_TYPE_KEY_RENAMES = {
+    "arith.Analyzer": "sym.Analyzer",
+    "arith.CanonicalExpr": "sym.CanonicalExpr",
+    "arith.ConstIntBound": "sym.ConstIntBound",
+    "arith.IntervalSet": "sym.IntervalSet",
+    "arith.IterMapExpr": "sym.IterMapExpr",
+    "arith.IterMapResult": "sym.IterMapResult",
+    "arith.IterMark": "sym.IterMark",
+    "arith.IterSplitExpr": "sym.IterSplitExpr",
+    "arith.IterSumExpr": "sym.IterSumExpr",
+    "arith.ModularSet": "sym.ModularSet",
+    "arith.PresburgerSet": "sym.PresburgerSet",
+    "arith.RewriteSimplifierStats": "sym.RewriteSimplifierStats",
+    "arith.SplitExpr": "sym.SplitExpr",
+    "arith.SumExpr": "sym.SumExpr",
     "tirx.BufferRegion": "ir.TensorRegion",
     "tirx.SBlock": "s_tir.SBlock",
     "tirx.SBlockRealize": "s_tir.SBlockRealize",

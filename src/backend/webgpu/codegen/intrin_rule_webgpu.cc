@@ -21,7 +21,7 @@
  * \file intrin_rule_webgpu.cc
  * \brief WebGPU intrinsic rules.
  */
-#include <tvm/arith/analyzer.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op_attr_types.h>
 
 #include "../../../target/intrin_rule.h"

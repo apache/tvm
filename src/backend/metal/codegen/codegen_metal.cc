@@ -22,12 +22,12 @@
  */
 #include "codegen_metal.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -362,14 +362,14 @@ void CodeGenMetal::Dispatch_(const AllocBufferNode* op) {
   this->PrintIndent();
   // Compute a compile-time upper bound on the number of buffer elements.
   size_t constant_size = 1;
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   for (const auto& dim : op->buffer->shape) {
     const auto* dim_imm = dim.as<IntImmNode>();
     int64_t dim_size =
         dim_imm ? static_cast<int64_t>(dim_imm->value) : analyzer->const_int_bound(dim)->max_value;
     if (dim_imm == nullptr) {
       // An integer dtype's intrinsic maximum is not a program-derived allocation bound.
-      TVM_FFI_ICHECK(dim_size != arith::ConstIntBound::kPosInf)
+      TVM_FFI_ICHECK(dim_size != sym::ConstIntBound::kPosInf)
           << "Metal allocation extent requires a finite compile-time upper bound, but got " << dim;
       if (const auto* dtype_max = max_value(dim.ty()).as<IntImmNode>()) {
         TVM_FFI_ICHECK_LT(dim_size, dtype_max->value)

@@ -1903,7 +1903,7 @@ def test_buffer_sub_multi_iter_dim_ir():
     bufs = _collect_buffers(func)
     a_buf, b_buf = bufs["A"], bufs["B"]
     # 5 -> (5 // 4, 5 % 4) = (1, 1) -> 1 * 1024 + 1 * 64
-    assert int(tvm.arith.Analyzer().simplify(b_buf.elem_offset - a_buf.elem_offset)) == 1088
+    assert int(tvm.sym.Analyzer().simplify(b_buf.elem_offset - a_buf.elem_offset)) == 1088
     assert [int(s) for s in b_buf.shape] == [16]
     assert_structural_equal(b_buf.layout, tvm.tirx.layout.TileLayout(T.S[(16,) : (1,)]))
 
@@ -1941,11 +1941,11 @@ def test_buffer_sub_ir():
     a_buf, b_buf, c_buf = bufs["A"], bufs["B"], bufs["C"]
     # sub[1, 2:6]: drop dim 0 at 1 (1 * 256) then narrow dim 1 to [2, 6) (2 * 16)
     assert [int(s) for s in b_buf.shape] == [4, 16]
-    assert int(tvm.arith.Analyzer().simplify(b_buf.elem_offset - a_buf.elem_offset)) == 288
+    assert int(tvm.sym.Analyzer().simplify(b_buf.elem_offset - a_buf.elem_offset)) == 288
     assert_structural_equal(b_buf.layout, tvm.tirx.layout.TileLayout(T.S[(4, 16) : (16, 1)]))
     # sub[:, 1::2]: keep dim 0, split dim 1 into (4, 2) and fix the remainder at 1
     assert [int(s) for s in c_buf.shape] == [4, 4, 16]
-    assert int(tvm.arith.Analyzer().simplify(c_buf.elem_offset - a_buf.elem_offset)) == 16
+    assert int(tvm.sym.Analyzer().simplify(c_buf.elem_offset - a_buf.elem_offset)) == 16
     assert_structural_equal(
         c_buf.layout, tvm.tirx.layout.TileLayout(T.S[(4, 4, 16) : (256, 32, 1)])
     )
@@ -1993,14 +1993,14 @@ def test_buffer_sub_swizzle_commutation():
     placements must be address-equivalent to the parent layout."""
 
     def addr(buf, base, *coords):
-        analyzer = tvm.arith.Analyzer()
+        analyzer = tvm.sym.Analyzer()
         if len(coords) == 1:
             rel = buf.layout.apply(coords[0])["m"]
         else:
             rel = buf.layout.apply(*coords, shape=[int(s) for s in buf.shape])["m"]
         return int(analyzer.simplify((buf.elem_offset - base) + rel))
 
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
     compose = T.ComposeLayout(
         3, 3, 3, T.TileLayout(T.S[(4, 1024) : (1024, 1)])
     )  # period = 2^(3+3+3) = 512 elements
