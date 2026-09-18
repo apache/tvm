@@ -105,6 +105,14 @@ class PrimType(Type):
         return self.dtype.lanes == 1
 
 
+@tvm_ffi.register_object("ir.StringType")
+class StringType(Type):
+    """Semantic string type, independent of the function's calling convention."""
+
+    def __init__(self) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.StringType)
+
+
 @tvm_ffi.register_object("ir.PointerType")
 class PointerType(Type):
     """PointerType used in the low-level TIR.

@@ -1601,9 +1601,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const FloatImmNode* op) {
                                op->value);
 }
 
-llvm::Value* CodeGenLLVM::Dispatch_(const prim::StringImmNode* op) {
-  return GetConstString(op->value);
-}
+llvm::Value* CodeGenLLVM::Dispatch_(const StringImmNode* op) { return GetConstString(op->value); }
 
 #define DEFINE_CODEGEN_BINARY_OP(Op)                                                     \
   llvm::Value* CodeGenLLVM::Create##Op(PrimType t, llvm::Value* a, llvm::Value* b) {     \
@@ -1992,7 +1990,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const CallNode* op) {
     if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       // call extern intrinsic
       TVM_FFI_ICHECK_GE(args.size(), 1U);
-      auto global_symbol = args[0].as_or_throw<prim::StringImm>();
+      auto global_symbol = args[0].as_or_throw<StringImm>();
       return this->CreateCallExtern(op->ty, global_symbol->value, args, true);
     } else if (op_attr_global_symbol_.count(call_op)) {
       // call extern if the op itself have a global symbol.
@@ -2260,7 +2258,7 @@ void CodeGenLLVM::Dispatch_(const AttrStmtNode* op) {
     if (iv->thread_tag.length() != 0) {
       if (!var_map_.count(iv->var.get())) {
         var_map_[iv->var.get()] = GetThreadIndex(iv);
-        analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
+        analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value.as_or_throw<PrimExpr>()));
       }
     }
   } else if (op->attr_key == tirx::attr::storage_alignment) {

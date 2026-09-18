@@ -310,8 +310,8 @@ def test_ir_builder_tir_assert():
         [
             tirx.AssertStmt(
                 T.int32() == 0,
-                tirx.StringImm("RuntimeError"),
-                [tirx.StringImm("a is 0")],
+                tvm.ir.StringImm("RuntimeError"),
+                [tvm.ir.StringImm("a is 0")],
             ),
             tirx.Evaluate(0),
         ]

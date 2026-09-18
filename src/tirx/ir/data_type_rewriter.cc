@@ -96,7 +96,8 @@ UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const AttrStmtNode* op, InplaceMode
       }
       ivmap_[iv] = IterVar(dom, var, iv->iter_type, iv->thread_tag);
     }
-    return AttrStmt(ivmap_[iv], op->attr_key, prim::cast(var.ty(), op->value), op->body);
+    return AttrStmt(ivmap_[iv], op->attr_key,
+                    prim::cast(var.ty(), op->value.as_or_throw<PrimExpr>()), op->body);
   }
   return StmtExprMutator::Mutate_(op, inplace_mode);
 }

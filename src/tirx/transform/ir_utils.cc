@@ -667,7 +667,7 @@ std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op) {
   TVM_FFI_ICHECK(op && op->attr_key == tvm::tirx::attr::async_wait_queue_scope);
   auto inner = op->body.as<AttrStmtNode>();
   TVM_FFI_ICHECK(inner && inner->attr_key == tvm::tirx::attr::async_wait_inflight_count);
-  return std::make_pair(op->value, inner->value);
+  return std::make_pair(op->value.as_or_throw<PrimExpr>(), inner->value.as_or_throw<PrimExpr>());
 }
 
 int Stoi(const std::string& str) {

@@ -195,7 +195,7 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
   void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) override;  // NOLINT(*)
   void Dispatch_(const IntImmNode* op, std::ostream& os) override;           // NOLINT(*)
   void Dispatch_(const FloatImmNode* op, std::ostream& os) override;         // NOLINT(*)
-  void Dispatch_(const prim::StringImmNode* op, std::ostream& os) override;  // NOLINT(*)
+  void Dispatch_(const StringImmNode* op, std::ostream& os) override;        // NOLINT(*)
   // statment
   void Dispatch_(const BindNode* op) override;
   void Dispatch_(const BufferStoreNode* op) override;

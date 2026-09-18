@@ -189,6 +189,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
     if (auto prim = e.as<PrimExpr>()) return MakeValue(prim.value());
     if (const auto* var = e.as<VarNode>()) return GetVarValue(var);
     if (const auto* call = e.as<CallNode>()) return Dispatch_(call);
+    if (const auto* str = e.as<StringImmNode>()) return Dispatch_(str);
     TVM_FFI_THROW(TypeError) << "Cannot lower non-primitive expression " << e->GetTypeKey();
     TVM_FFI_UNREACHABLE();
   }
@@ -205,7 +206,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   llvm::Value* Dispatch_(const prim::CastNode* op) override;
   llvm::Value* Dispatch_(const IntImmNode* op) override;
   llvm::Value* Dispatch_(const FloatImmNode* op) override;
-  llvm::Value* Dispatch_(const prim::StringImmNode* op) override;
+  llvm::Value* Dispatch_(const StringImmNode* op) override;
   llvm::Value* Dispatch_(const prim::AddNode* op) override;
   llvm::Value* Dispatch_(const prim::SubNode* op) override;
   llvm::Value* Dispatch_(const prim::MulNode* op) override;

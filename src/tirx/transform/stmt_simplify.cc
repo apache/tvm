@@ -96,6 +96,24 @@ PrimFunc StmtSimplifier::Run(PrimFunc func) {
   analyzer_->rewrite_simplify.SetEnabledExtensions(config_->GetEnabledExtensions());
   MarkBufferParamShapes(func);
   auto* n = func.CopyOnWrite();
+  // Shared string literals no longer enter the primitive analyzer.  Inline their
+  // SSA bindings so existing literal arguments remain constants during lowering.
+  ffi::Map<Var, StringImm> string_bindings;
+  n->body = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+                std::move(n->body),
+                [&](const Bind& bind) -> ffi::UnchangedOr<ffi::Any> {
+                  if (!bind.defined()) return ffi::Unchanged();
+                  if (auto value = bind->value.as<StringImm>()) {
+                    string_bindings.Set(bind->var, *value);
+                    return ffi::Any(Evaluate(0));
+                  }
+                  return ffi::Unchanged();
+                },
+                [&](const Var& var) -> ffi::UnchangedOr<ffi::Any> {
+                  if (auto value = string_bindings.Get(var)) return ffi::Any(*value);
+                  return ffi::Unchanged();
+                })
+                .as_or_throw<Stmt>();
   n->body = Mutate(n->body, InplaceMode::kAllow).ValueOrUnchanged(n->body);
   return func;
 }

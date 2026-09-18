@@ -135,7 +135,7 @@ TVMFFIAny AttrStmtMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value)
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const AttrStmtNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Any>, mapped_node,
                                     mutator->MutateExpected(self->node));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_value,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_value,
                                     mutator->MutateExpected(self->value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
                                     mutator->MutateExpected(self->body));
@@ -157,7 +157,7 @@ TVMFFIAny AttrStmtMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const AttrStmtNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Any>, mapped_node,
                                     mutator->MutateExpected(self->node, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_value,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_value,
                                     mutator->MutateExpected(self->value, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
                                     mutator->MutateExpected(self->body, ffi::InplaceMode::kAllow));
@@ -785,7 +785,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // AttrStmt
-AttrStmt::AttrStmt(ffi::Any node, ffi::String attr_key, PrimExpr value, Stmt body, Span span) {
+AttrStmt::AttrStmt(ffi::Any node, ffi::String attr_key, Expr value, Stmt body, Span span) {
   auto n = ffi::make_object<AttrStmtNode>();
   n->node = node;
   n->attr_key = std::move(attr_key);
@@ -805,14 +805,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             reinterpret_cast<void*>(&AttrStmtMaybeInplaceMutate));
 
   refl::GlobalDef().def("tirx.AttrStmt",
-                        [](Any node, ffi::String attr_key, PrimExpr value, Stmt body, Span span) {
+                        [](Any node, ffi::String attr_key, Expr value, Stmt body, Span span) {
                           return AttrStmt(node, attr_key, value, body, span);
                         });
 }
 
 // AssertStmt
-AssertStmt::AssertStmt(PrimExpr condition, prim::StringImm error_kind,
-                       ffi::Array<prim::StringImm> message_parts, Span span) {
+AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
+                       ffi::Array<StringImm> message_parts, Span span) {
   TVM_FFI_ICHECK(condition.defined());
   PrimType condition_ty = condition.ty();
   TVM_FFI_ICHECK(condition_ty.MatchesCode(DLDataTypeCode::kDLBool))
@@ -840,10 +840,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "tirx.AssertStmt",
-      [](PrimExpr condition, prim::StringImm error_kind, ffi::Array<prim::StringImm> message_parts,
-         Span span) { return AssertStmt(condition, error_kind, message_parts, span); });
+  refl::GlobalDef().def("tirx.AssertStmt", [](PrimExpr condition, StringImm error_kind,
+                                              ffi::Array<StringImm> message_parts, Span span) {
+    return AssertStmt(condition, error_kind, message_parts, span);
+  });
 }
 
 // For

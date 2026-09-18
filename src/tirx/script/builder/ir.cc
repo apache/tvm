@@ -639,10 +639,10 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
                    ffi::Array<ffi::String> message_parts) {
   ffi::ObjectPtr<AssertFrameNode> n = ffi::make_object<AssertFrameNode>();
   n->condition = condition;
-  n->error_kind = tvm::prim::StringImm(error_kind);
-  ffi::Array<tvm::prim::StringImm> parts;
+  n->error_kind = tvm::StringImm(error_kind);
+  ffi::Array<tvm::StringImm> parts;
   for (const auto& p : message_parts) {
-    parts.push_back(tvm::prim::StringImm(p));
+    parts.push_back(tvm::StringImm(p));
   }
   n->message_parts = parts;
   return AssertFrame(n);
@@ -695,7 +695,7 @@ LaunchThreadFrame LaunchThread(ffi::String thread_tag, PrimExpr extent) {
   return LaunchThread(EnvThread(thread_tag, extent.ty()), extent);
 }
 
-AttrFrame Attr(ffi::Any node, ffi::String attr_key, PrimExpr value) {
+AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value) {
   ffi::ObjectPtr<AttrFrameNode> n = ffi::make_object<AttrFrameNode>();
   n->node = std::move(node);
   n->attr_key = attr_key;

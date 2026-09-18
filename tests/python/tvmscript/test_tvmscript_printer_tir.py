@@ -533,7 +533,7 @@ T.iter_var(a, T.Range(0, 8), "DataPar", "")
 
 
 def test_string_imm():
-    s = tirx.StringImm("str")
+    s = tvm.ir.StringImm("str")
     _assert_print(s, '"str"')
 
 

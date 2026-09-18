@@ -53,8 +53,8 @@ const FloatImmNode* AsFloatImmNode(const Expr& expr) {
   return node;
 }
 
-const prim::StringImmNode* AsStringImmNode(const Expr& expr) {
-  const prim::StringImmNode* node = expr.as<prim::StringImmNode>();
+const StringImmNode* AsStringImmNode(const Expr& expr) {
+  const StringImmNode* node = expr.as<StringImmNode>();
   TVM_FFI_ICHECK(node);
   return node;
 }
@@ -185,7 +185,7 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(const IterVar& iv, const PrimExpr& ext
 }
 
 spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
-  const std::string& sync = op->args[0].as<prim::StringImmNode>()->value;
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
   spirv::Value value;
 
   uint32_t vulkan_api_version = spirv_support_.vulkan_api_version;
@@ -255,7 +255,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const FloatImmNode* op) {
   return builder_->FloatImm(builder_->GetSType(op->ty.as_or_throw<PrimType>()), op->value);
 }
 
-spirv::Value CodeGenSPIRV::Dispatch_(const prim::StringImmNode* op) {
+spirv::Value CodeGenSPIRV::Dispatch_(const StringImmNode* op) {
   TVM_FFI_THROW(InternalError) << "StringImm is not supported in Device code";
   return spirv::Value();
 }
@@ -439,7 +439,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
                                MakeValue(op->args[0]));
   } else if (op->op.same_as(tirx::builtin::call_pure_extern())) {
     TVM_FFI_ICHECK_GE(op->args.size(), 1U);
-    const std::string& func_name = op->args[0].as<prim::StringImmNode>()->value;
+    const std::string& func_name = op->args[0].as<StringImmNode>()->value;
     if (func_name == "__dp4a") {
       std::vector<spirv::Value> values;
       for (size_t i = 1; i < op->args.size(); ++i) {
@@ -495,7 +495,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     int stride = AsIntImmNode(op->args[6])->value.as<int>().value();
     auto type_int = builder_->GetSType(PrimType::Int(32));
     spirv::Value stride_val = builder_->IntImm(type_int, stride);
-    std::string layout = (op->args[7].as<prim::StringImmNode>())->value;
+    std::string layout = (op->args[7].as<StringImmNode>())->value;
     spirv::SType dst_ptr_type =
         builder_->GetPointerType(fragment_type, fragment_info_[buffer_node].sclass);
     spirv::Value dst_ptr =
@@ -556,7 +556,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     int stride = AsIntImmNode(op->args[6])->value.as<int>().value();
     auto type_int = builder_->GetSType(PrimType::Int(32));
     spirv::Value stride_val = builder_->IntImm(type_int, stride);
-    std::string layout = (op->args[7].as<prim::StringImmNode>())->value;
+    std::string layout = (op->args[7].as<StringImmNode>())->value;
     spirv::Value dst_ptr = MakeValue(op->args[5]);
     spirv::SType& fragment_type = fragment_info_[buffer_node].stype;
     spv::StorageClass storage = fragment_info_[buffer_node].sclass;
@@ -971,14 +971,14 @@ void CodeGenSPIRV::Dispatch_(const AttrStmtNode* op) {
     IterVar iv = iv_opt.value();
     if (iv->thread_tag.length() != 0) {
       // Will throw error if rebinding same local variable to a different extent.
-      analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
+      analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value.as_or_throw<PrimExpr>()));
       if (!var_map_.count(iv->var.get())) {
-        var_map_[iv->var.get()] = GetThreadIndex(iv, op->value);
+        var_map_[iv->var.get()] = GetThreadIndex(iv, op->value.as_or_throw<PrimExpr>());
       }
     }
   } else if (op->attr_key == s_tir::attr::fragment_shape) {
     const VarNode* buffer = op->node.as<VarNode>();
-    const prim::StringImmNode* shape_str = op->value.as<prim::StringImmNode>();
+    const StringImmNode* shape_str = op->value.as<StringImmNode>();
     fragment_info_[buffer] = {shape_str->value};
   }
   this->Dispatch(op->body);

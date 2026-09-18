@@ -286,7 +286,7 @@ class CSEPlanner : public StmtExprVisitor {
    * \return true if the expression can participate in CSE.
    */
   static bool IsEligible(const PrimExpr& expr) {
-    if (expr.as<IntImmNode>() || expr.as<FloatImmNode>() || expr.as<prim::StringImmNode>() ||
+    if (expr.as<IntImmNode>() || expr.as<FloatImmNode>() || expr.as<StringImmNode>() ||
         expr.as<VarNode>()) {
       return false;
     }

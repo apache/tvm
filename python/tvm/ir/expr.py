@@ -447,6 +447,40 @@ class TensorLoad(_CallableExprWithOp):
         )
 
 
+@tvm_ffi.register_object("ir.Constant")
+class Constant(ExprWithOp):
+    """Base class of literal constants."""
+
+
+@tvm_ffi.register_object("ir.GenericConst")
+class GenericConst(_ExprCallable, Constant):
+    """A literal payload with an explicit expression type."""
+
+    def __init__(self, value, ty: "tvm.ir.Type", span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.GenericConst, value, ty, span)
+
+    def __bool__(self) -> bool:
+        return True
+
+
+@tvm_ffi.register_object("ir.StringImm")
+class StringImm(Constant):
+    """A string literal with StringType."""
+
+    value: str
+
+    def __init__(self, value: str, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.StringImm, value, span)
+
+    def __eq__(self, other) -> bool:
+        return self.value == (other.value if isinstance(other, StringImm) else other)
+
+    def __ne__(self, other) -> bool:
+        return not self.__eq__(other)
+
+    __hash__ = Expr.__hash__
+
+
 @tvm_ffi.register_object("ir.Call")
 class Call(_CallableExprWithOp):
     """Core function call node.

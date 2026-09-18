@@ -48,7 +48,7 @@ std::string tvm_qhl_ahf_pow = "tvm_vect_qhmath_hvx_pow_ahf";
 std::string tvm_qhl_ahf_sqrt = "tvm_vect_qhmath_hvx_sqrt_ahf";
 
 inline PrimExpr TVMExternCall(const CallNode* call, const std::string& fname) {
-  ffi::Array<PrimExpr> new_args = {prim::StringImm(fname)};
+  ffi::Array<Expr> new_args = {StringImm(fname)};
   for (PrimExpr arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
     new_args.push_back(arg);
   }

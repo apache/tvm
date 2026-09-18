@@ -97,7 +97,7 @@ void CodeGenAArch64::Dispatch_(const AttrStmtNode* op) {
     return;
   }
 
-  const auto* attr_value = op->value.as<prim::StringImmNode>();
+  const auto* attr_value = op->value.as<StringImmNode>();
   TVM_FFI_ICHECK(attr_value) << "Expect " << attr_key << " to have a ffi::String value but was "
                              << op->value->GetTypeKey();
 

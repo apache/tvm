@@ -219,6 +219,8 @@ void CodeGenC::PrintExpr(const Expr& n, std::ostream& os) {  // NOLINT(*)
     PrintExpr(prim.value(), os);
   } else if (auto* var = n.as<VarNode>()) {
     Dispatch_(var, os);
+  } else if (auto* str = n.as<StringImmNode>()) {
+    Dispatch_(str, os);
   } else if (auto* call = n.as<CallNode>()) {
     Dispatch_(call, os);
   } else {
@@ -547,7 +549,7 @@ void CodeGenC::Dispatch_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
 void CodeGenC::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
-void CodeGenC::Dispatch_(const prim::StringImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::Dispatch_(const StringImmNode* op, std::ostream& os) {  // NOLINT(*)
   os << "\"" << op->value << "\"";
 }
 
@@ -707,7 +709,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << "break;";
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       TVM_FFI_ICHECK_GE(op->args.size(), 1U);
-      auto func = op->args[0].as_or_throw<prim::StringImm>();
+      auto func = op->args[0].as_or_throw<StringImm>();
       ffi::Array<Expr> args = op->args;
       this->PrintCallExtern(op->ty, func->value, args, true, os);
 
@@ -896,7 +898,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << ")";
     } else if (op->op.same_as(tirx::builtin::lookup_param())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
-      const prim::StringImmNode* str = op->args[0].as<prim::StringImmNode>();
+      const StringImmNode* str = op->args[0].as<StringImmNode>();
       TVM_FFI_ICHECK(str != nullptr);
       os << "__tvm_param__" << str->value;
     } else if (op->op.same_as(tirx::builtin::tvm_thread_invariant())) {
@@ -1294,7 +1296,7 @@ void CodeGenC::Dispatch_(const AttrStmtNode* op) {
       }
     }
   } else if (op->attr_key == tirx::attr::pragma_import_c) {
-    const prim::StringImmNode* value = op->value.as<prim::StringImmNode>();
+    const StringImmNode* value = op->value.as<StringImmNode>();
     TVM_FFI_ICHECK(value != nullptr);
     decl_stream << value->value;
   }

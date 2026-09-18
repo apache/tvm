@@ -65,7 +65,7 @@ class DeviceRegionAnnotater : public StmtExprMutator {
       // These attributes are only allowed in device-side code, so
       // they should be annotated with the function's default target.
       Stmt body = ffi::GetRef<Stmt>(op);
-      return AttrStmt(device_target_, tvm::attr::kTarget, 0, body);
+      return AttrStmt(device_target_, tvm::attr::kTarget, IntImm::Int32(0), body);
     } else {
       // All other annotations are ignored.
       return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -331,8 +331,8 @@ class HostDeviceSplitter : public StmtExprMutator {
       Var kernel_error_code("kernel_error_code", success.ty());
       Call kernel_call(success.ty(), kernel_symbol_global, call_args);
       AssertStmt assert_success(kernel_error_code.as_or_throw<PrimExpr>() == success,
-                                prim::StringImm("RuntimeError"),
-                                {prim::StringImm("Error executing compute kernel")});
+                                StringImm("RuntimeError"),
+                                {StringImm("Error executing compute kernel")});
       return SeqStmt(ffi::Array<Stmt>{Bind(kernel_error_code, kernel_call.as_or_throw<PrimExpr>()),
                                       assert_success});
 
@@ -508,7 +508,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
       TVM_FFI_ICHECK(!dyn_shmem_size.has_value())
           << "Only one tirx.dyn_smem_bytes declaration is allowed per kernel.";
       TVM_FFI_ICHECK(op->value.as<IntImmNode>()) << "tirx.dyn_smem_bytes must be an IntImm";
-      dyn_shmem_size = op->value;
+      dyn_shmem_size = op->value.as_or_throw<PrimExpr>();
     }
     if (op->attr_key == attr::thread_extent) {
       ffi::String thread_tag;
@@ -536,7 +536,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
         PrimExpr value = bind_map_.size() ? ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
                                                 op->value, f_substitute)
                                                 .as_or_throw<PrimExpr>()
-                                          : op->value;
+                                          : op->value.as_or_throw<PrimExpr>();
         thread_extent.Set(thread_tag, value);
       }
     }
@@ -806,7 +806,7 @@ class DeviceKernelMutator : public StmtExprMutator {
         // launch, but need to be replaced with call_extern.
         extern_function_call_.insert(gvar);
         ffi::Array<Expr> args;
-        args.push_back(prim::StringImm(gvar->name_hint));
+        args.push_back(StringImm(gvar->name_hint));
         for (const Expr& arg : node->args) {
           args.push_back(arg);
         }
@@ -843,7 +843,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     device_kernel_launch_.insert(gvar);
 
     ffi::Array<Expr> call_args;
-    call_args.push_back(prim::StringImm(dev_info.global_symbol));
+    call_args.push_back(StringImm(dev_info.global_symbol));
     for (const Expr& arg : args) {
       call_args.push_back(arg);
     }

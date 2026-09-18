@@ -33,13 +33,13 @@ from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import Expr, Range, Span, TensorRegion, Type
+from tvm.ir import Expr, Range, Span, StringImm, TensorRegion, Type
 from tvm.runtime import Object, Scriptable
 
 from . import _ffi_api
 from .buffer import Buffer
 from .exec_scope import ScopeIdDef
-from .expr import IterVar, StringImm, Var
+from .expr import IterVar, Var
 
 
 @tvm_ffi.register_object("tirx.Stmt")

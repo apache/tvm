@@ -230,7 +230,7 @@ def test_eq_ops():
         assert a != None
     with pytest.raises(ValueError):
         assert not a == None
-    b = tirx.StringImm("abc")
+    b = tvm.ir.StringImm("abc")
     assert b != None
     assert not b == None
 

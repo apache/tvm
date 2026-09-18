@@ -389,7 +389,7 @@ void CodeGenOpenCL::PrintVecElemLoadExpr(const PrimType& t, int i, const std::st
 }
 
 void CodeGenOpenCL::PrintStorageSync(const CallNode* op) {
-  const std::string& sync = op->args[0].as<prim::StringImmNode>()->value;
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
     this->PrintIndent();
     this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";
@@ -568,7 +568,7 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
       os << "]";
     }
   } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
-    auto func = op->args[0].as_or_throw<prim::StringImm>();
+    auto func = op->args[0].as_or_throw<StringImm>();
     // Enable atomics extension if used.
     if (func->value == "atomic_add" &&
         op->ty.as_or_throw<PrimType>().code() == DLDataTypeCode::kDLFloat) {
