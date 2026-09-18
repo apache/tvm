@@ -24,12 +24,12 @@
 #ifndef TVM_TIR_TRANSFORM_IR_UTILS_H_
 #define TVM_TIR_TRANSFORM_IR_UTILS_H_
 
-#include <tvm/arith/int_set.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/sym/int_set.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>

@@ -23,10 +23,10 @@
 
 #include "codegen_cuda.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -240,7 +240,7 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
 void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
   auto extractor = ffi::make_object<ThreadIdxExtractor>();
   extractor->Visit(f->body);
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   PrimExpr threadIdx_ext = analyzer->Simplify(
       extractor->threadIdx_x_ext * extractor->threadIdx_y_ext * extractor->threadIdx_z_ext);
   PrimExpr cluster_cta_yz_ext =
@@ -343,7 +343,7 @@ void CodeGenCUDA::Dispatch_(const tirx::ForNode* op) {
   // those declarations are printed between the pragma and the for statement,
   // nvcc is free to unroll the loop despite disable_unroll.
   std::string begin_str = PrintExpr(op->min);
-  PrimExpr end = is_zero(op->min) ? op->extent : arith::Analyzer()->Simplify(op->min + op->extent);
+  PrimExpr end = is_zero(op->min) ? op->extent : sym::Analyzer()->Simplify(op->min + op->extent);
   std::string end_str = PrintExpr(end);
   std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
   if (op->annotations.count("disable_unroll")) {
@@ -1165,7 +1165,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
         tvm::ffi::Function::GetGlobal("tirx.index_map.shared_16x16_to_ldmatrix_32x8_layout");
     TVM_FFI_ICHECK(index_map_func.has_value());
 
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     auto inverse_index_map =
         IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)}, analyzer);
     auto indices_16x16 = inverse_index_map->final_indices;
@@ -1274,7 +1274,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
         tvm::ffi::Function::GetGlobal("tirx.index_map.shared_16x16_to_ldmatrix_32x8_layout");
     TVM_FFI_ICHECK(index_map_func.has_value());
 
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     auto inverse_index_map =
         IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)}, analyzer);
     auto indices_16x16 = inverse_index_map->final_indices;

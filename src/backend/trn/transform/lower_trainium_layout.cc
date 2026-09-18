@@ -22,9 +22,9 @@
  * \brief Trainium-specific TIRx layout lowering.
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
@@ -55,7 +55,7 @@ static bool IsTrainiumLayout(const TileLayoutNode* layout) {
 class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
  public:
   static std::pair<Stmt, ffi::Array<Var>> Lower(const Stmt& stmt, const ffi::Array<Var>& params) {
-    arith::Analyzer ana;
+    sym::Analyzer ana;
     auto storage_lower = ffi::make_object<TrainiumLayoutApplier>(ana);
     ffi::Array<Var> new_params;
     new_params.reserve(params.size());
@@ -84,7 +84,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     return std::make_pair(new_stmt, new_params);
   }
 
-  explicit TrainiumLayoutApplier(const arith::Analyzer& analyzer)
+  explicit TrainiumLayoutApplier(const sym::Analyzer& analyzer)
       : tirx::IRMutatorWithAnalyzer(analyzer) {}
 
  protected:
@@ -153,7 +153,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     } else if (is_alloc) {
       if (auto tile_layout = buf->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
-        arith::Analyzer ana;
+        sym::Analyzer ana;
         PrimExpr mem_span = IntImm::Int32(1);
         for (const auto& iter : tile_layout->shard) {
           if (iter->axis->IsMemoryAxis()) {

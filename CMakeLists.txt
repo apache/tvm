@@ -296,7 +296,7 @@ assign_source_group("Include" ${GROUP_INCLUDE})
 # Source file lists
 tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/ir/*.cc
-    src/arith/*.cc
+    src/sym/*.cc
     src/te/*.cc
     src/tirx/*.cc
     src/s_tir/*.cc

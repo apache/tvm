@@ -163,7 +163,7 @@ void AxisRegEntry::UpdateAttr(const ffi::String& key, ffi::Any value, int plevel
 // register thread axis split/fuse helpers
 ffi::Array<Iter> SplitterGen(const Iter& iter, const Axis& axis_outer, const Axis& axis_inner,
                              const PrimExpr& e_inner) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   if (analyzer->CanProve(iter->extent * iter->stride < e_inner)) {
     return {Iter(iter->extent, iter->stride, axis_inner)};
   } else if (analyzer->CanProveEqual(floormod(e_inner, iter->stride), 0) &&
@@ -197,7 +197,7 @@ TVM_REGISTER_AXIS("tx")
       return std::nullopt;
     })
     .set_splitter([](Target target, ffi::String scope, Iter iter) -> ffi::Array<Iter> {
-      arith::Analyzer analyzer;
+      sym::Analyzer analyzer;
       if (target->kind->default_device_type == kDLCUDA) {
         if (scope == "warp") {
           // tx -> warpid, laneid
@@ -226,7 +226,7 @@ TVM_REGISTER_AXIS("warpid")
       return std::nullopt;
     })
     .set_splitter([](Target target, ffi::String scope, Iter iter) -> ffi::Array<Iter> {
-      arith::Analyzer analyzer;
+      sym::Analyzer analyzer;
       if (target->kind->default_device_type == kDLCUDA) {
         if (scope == "warp") {
           // warpid -> wgid, wid_in_wg
@@ -255,7 +255,7 @@ TVM_REGISTER_AXIS("laneid")
       return std::nullopt;
     })
     .set_splitter([](Target target, ffi::String scope, Iter iter) -> ffi::Array<Iter> {
-      arith::Analyzer analyzer;
+      sym::Analyzer analyzer;
       if (target->kind->default_device_type == kDLCUDA) {
         LOG(FATAL) << "laneid can not be split any more";
       }
@@ -279,7 +279,7 @@ TVM_REGISTER_AXIS("wgid")
       return std::nullopt;
     })
     .set_splitter([](Target target, ffi::String scope, Iter iter) -> ffi::Array<Iter> {
-      arith::Analyzer analyzer;
+      sym::Analyzer analyzer;
       if (target->kind->default_device_type == kDLCUDA) {
         LOG(FATAL) << "wgid can not be split any more";
       }
@@ -301,7 +301,7 @@ TVM_REGISTER_AXIS("tid_in_wg")
       return std::nullopt;
     })
     .set_splitter([](Target target, ffi::String scope, Iter iter) -> ffi::Array<Iter> {
-      arith::Analyzer analyzer;
+      sym::Analyzer analyzer;
       if (target->kind->default_device_type == kDLCUDA) {
         if (scope == "warp") {
           // tid_in_wg -> wid_in_wg, laneid
@@ -333,7 +333,7 @@ TVM_REGISTER_AXIS("wid_in_wg")
       return std::nullopt;
     })
     .set_splitter([](Target target, ffi::String scope, Iter iter) -> ffi::Array<Iter> {
-      arith::Analyzer analyzer;
+      sym::Analyzer analyzer;
       if (target->kind->default_device_type == kDLCUDA) {
         LOG(FATAL) << "wid_in_wg can not be split any more";
       }

@@ -84,8 +84,8 @@ import pytest
 import tvm_ffi
 
 import tvm
-import tvm.arith
 import tvm.support.utils
+import tvm.sym
 import tvm.te
 import tvm.tirx
 from tvm.contrib import cudnn
@@ -279,7 +279,7 @@ def assert_prim_expr_equal(lhs, rhs):
     rhs : tvm.tirx.Expr
         The left operand.
     """
-    ana = tvm.arith.Analyzer()
+    ana = tvm.sym.Analyzer()
     if not ana.can_prove_equal(lhs, rhs):
         raise ValueError(f"{lhs} and {rhs} are not equal")
 
@@ -330,7 +330,7 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
         counterex = [(str(v), i + r.min) for (v, r), i in zip(vranges.items(), indices)]
         counterex = sorted(counterex, key=lambda x: x[0])
         counterex = ", ".join([v + " = " + str(i) for v, i in counterex])
-        ana = tvm.arith.Analyzer()
+        ana = tvm.sym.Analyzer()
         raise AssertionError(
             f"Expression {ana.simplify(bool_expr)}\nis not true on {vranges}\n"
             f"Counterexample: {counterex}"

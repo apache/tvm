@@ -22,14 +22,14 @@
  */
 #include "ir_mutator_with_analyzer.h"
 
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/op.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
-#include "../../arith/constraint_helpers.h"
+#include "../../sym/constraint_helpers.h"
 
 namespace tvm {
 namespace tirx {
@@ -47,7 +47,7 @@ const IRMutatorWithAnalyzer::VTable* IRMutatorWithAnalyzer::GlobalVTable() {
 
 using namespace tvm::prim;
 
-using arith::detail::EnterConstraintFacts;
+using sym::detail::EnterConstraintFacts;
 
 void IRMutatorWithAnalyzer::MarkBufferParamShapes(const tirx::PrimFunc& func) {
   // Mark all symbolic buffer-parameter shape values as positive.
@@ -69,9 +69,9 @@ ffi::Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(
     pred = pred && val;
   }
   int n = indices.size();
-  arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(this->analyzer_);
-  ffi::Array<PrimExpr> simplified = arith::IterMapSimplify(
-      indices, this->iter_vars_, pred, arith::IterMapLevel::Surjective, analyzer_ref);
+  sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(this->analyzer_);
+  ffi::Array<PrimExpr> simplified = sym::IterMapSimplify(
+      indices, this->iter_vars_, pred, sym::IterMapLevel::Surjective, analyzer_ref);
   if (non_trivial_only) {
     for (int i = 0; i < n; ++i) {
       if (simplified[i]->IsInstance<IntImmNode>() && indices[i].as<PrimVar>()) {

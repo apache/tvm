@@ -22,7 +22,6 @@
  * \brief Memory access pattern analysis and optimization.
  *  Re-write data access to enable memory sharing when possible.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
@@ -32,6 +31,7 @@
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/layout.h>
@@ -43,8 +43,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../arith/int_operator.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "../../sym/int_operator.h"
 #include "../ir/buffer_common.h"
 #include "ir_utils.h"
 
@@ -1255,7 +1255,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   // Physical roots of buffer aliases, flattened by LinearAccessPatternFinder.
   ffi::Map<Var, Var> buffer_aliases_;
   // analyzer
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 /* Helper struct containing information on how a buffer is declared and used
@@ -1331,8 +1331,8 @@ struct BufferVarInfo {
           return element_dtype;
         }
       }
-      arith::Analyzer analyzer_;
-      arith::ModularSet me = analyzer_->modular_set(extent);
+      sym::Analyzer analyzer_;
+      sym::ModularSet me = analyzer_->modular_set(extent);
       if ((me->coeff % lanes == 0) && (me->base % lanes == 0)) {
         preferred_lanes = lanes;
       }
@@ -1571,7 +1571,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       if (ramp_index && is_one(ramp_index->stride)) {
         if (ramp_index->lanes->IsInstance<IntImmNode>()) {
           int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
-          arith::ModularSet me = analyzer_->modular_set(ramp_index->base);
+          sym::ModularSet me = analyzer_->modular_set(ramp_index->base);
           if ((me->coeff % lanes == 0) && (me->base % lanes == 0)) {
             lanes_used = lanes;
           }
@@ -1582,7 +1582,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     if (detect_scalar_read_patterns_ && is_buffer_load && indices.size()) {
       const PrimExpr last_dim_index = indices[indices.size() - 1];
       if (last_dim_index.ty().lanes() == 1) {
-        arith::ModularSet me = analyzer_->modular_set(last_dim_index);
+        sym::ModularSet me = analyzer_->modular_set(last_dim_index);
         // Fixed lane counts use 15 bits; retain the scalar access when the modular
         // coefficient cannot be represented by the vector type.
         if (int64_t lanes = me->coeff; lanes >= 0 && lanes <= 32767) {
@@ -1620,7 +1620,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   bool detect_scalar_read_patterns_{true};
 
   // internal analyzer
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 /* \brief Rewrites buffer/pointer variables from scalar types to vectorized
@@ -1761,7 +1761,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       }
       indices.Set(indices.size() - 1, new_index);
     } else if (last_dim_index.ty().lanes() == 1 && info.factor() > 1) {
-      arith::ModularSet me = analyzer_->modular_set(last_dim_index);
+      sym::ModularSet me = analyzer_->modular_set(last_dim_index);
       TVM_FFI_ICHECK(me->coeff == 0 || info.factor() % me->coeff == 0);
       PrimExpr new_index = last_dim_index / MakeConst(last_dim_index.ty(), info.factor());
       shuffle_index = me->base % info.factor();
@@ -1806,7 +1806,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       }
       indices.Set(indices.size() - 1, new_index);
     } else if (last_dim_index.ty().lanes() == 1 && info.factor() > 1) {
-      arith::ModularSet me = analyzer_->modular_set(last_dim_index);
+      sym::ModularSet me = analyzer_->modular_set(last_dim_index);
       TVM_FFI_ICHECK(me->coeff == 0 || info.factor() % me->coeff == 0);
       PrimExpr new_index = last_dim_index / MakeConst(last_dim_index.ty(), info.factor());
       shuffle_index = me->base % info.factor();
@@ -2096,7 +2096,7 @@ class VectorTypeRewriter : public StmtExprMutator {
   bool rewrite_indices_{true};
   std::unordered_map<const VarNode*, RewriteInfo> rewrite_map_;
   const ffi::Map<Var, Var>& buffer_aliases_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 // Rewrite allocates, pointer parameters, and buffer parameters into vectorized versions
