@@ -895,14 +895,19 @@ def test_min_max_nan_preserving_composite_cuda():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_min_max_chained_statements_cuda():
-    # Two consecutive min/max statements in the same block: the second one
-    # reads C, which the first one just wrote. The scalar SSA binding must not
-    # cache the read across statements (this broke warp allreduce, where
-    # red_buf[0] = max(red_buf[0], shuffle_down(...)) is emitted repeatedly).
+    # Two consecutive min/max statements that both read C, with a write in
+    # between: C[v] = max(C[v], A[v]); C[v] = max(C[v], B[v]). The scalar SSA
+    # binding must not cache the read across statements — SSAGetID caches by
+    # printed text, and the first statement's binding of the read of C must
+    # not be hit by the second statement after the first write. This broke
+    # warp allreduce, where red_buf[0] = max(red_buf[0], shuffle_down(...)) is
+    # emitted repeatedly. C is pre-filled with c0 so a cache hit (if present)
+    # reads a known wrong value; with c0 = 0 and a > max(c0, b), the pre-fix
+    # code computes max(c0, b) on at least one lane and fails.
     n = 8
-    a_np = np.array([3, -5, 7, 0, -1, 9, 2, -8], dtype="float32")
-    b_np = np.array([1, 9, -2, 4, -3, 9, 5, -8], dtype="float32")
-    d_np = np.array([5, 2, 6, 1, -2, 7, 3, -6], dtype="float32")
+    c0_np = np.zeros(n, dtype="float32")
+    a_np = np.array([5.0, 9.0, 3.0, 7.0, 1.0, 8.0, 4.0, 6.0], dtype="float32")
+    b_np = np.array([1.0, 2.0, 2.0, 1.0, 0.0, 3.0, 2.0, 5.0], dtype="float32")
 
     @I.ir_module(s_tir=True)
     class Module:
@@ -910,25 +915,23 @@ def test_min_max_chained_statements_cuda():
         def main(
             A: T.Buffer((n,), "float32"),
             B: T.Buffer((n,), "float32"),
-            D: T.Buffer((n,), "float32"),
             C: T.Buffer((n,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i in T.thread_binding(n, thread="threadIdx.x"):
                 with T.sblock("C"):
                     v_i = T.axis.spatial(n, i)
-                    C[v_i] = T.max(A[v_i], B[v_i])
-                    C[v_i] = T.max(C[v_i], D[v_i])
+                    C[v_i] = T.max(C[v_i], A[v_i])
+                    C[v_i] = T.max(C[v_i], B[v_i])
 
     mod = tvm.compile(Module, target="cuda")
     a = tvm.runtime.tensor(a_np, tvm.cuda(0))
     b = tvm.runtime.tensor(b_np, tvm.cuda(0))
-    d = tvm.runtime.tensor(d_np, tvm.cuda(0))
-    c = tvm.runtime.empty((n,), "float32", tvm.cuda(0))
+    c = tvm.runtime.tensor(c0_np, tvm.cuda(0))
 
     def run_and_check():
-        mod(a, b, d, c)
-        expected = np.maximum(np.maximum(a_np, b_np), d_np)
+        mod(a, b, c)
+        expected = np.maximum(np.maximum(c0_np, a_np), b_np)
         np.testing.assert_array_equal(c.numpy(), expected)
 
     tvm.testing.run_with_gpu_lock(run_and_check)
