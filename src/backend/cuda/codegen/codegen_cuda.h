@@ -77,6 +77,12 @@ class CodeGenCUDA final : public CodeGenC {
   void Dispatch_(const FloatImmNode* op, std::ostream& os) final;
   void Dispatch_(const CallNode* op, std::ostream& os) final;
   void Dispatch_(const prim::CastNode* op, std::ostream& os) final;
+  void Dispatch_(const prim::MinNode* op, std::ostream& os) final;  // NOLINT(*)
+  void Dispatch_(const prim::MaxNode* op, std::ostream& os) final;  // NOLINT(*)
+  template <typename T>
+  void PrintMinMaxNanPreservingImpl(const T* op, const char* opstr, std::ostream& os);
+  void PrintVecBinaryOpNanPreserving(const std::string& op, const PrimType& t, PrimExpr lhs,
+                                     PrimExpr rhs, const char* cmp, std::ostream& os);
   void Dispatch_(const EvaluateNode* op) final;
   void Dispatch_(const ReturnNode* op) final;
   void Dispatch_(const AllocBufferNode* op) final;

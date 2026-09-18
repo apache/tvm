@@ -782,6 +782,120 @@ def test_vectorized_intrin1():
         run_test(*func, "float16")
 
 
+def _min_max_nan_module(op, dt, n=8, vectorize=False):
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((n,), dt), B: T.Buffer((n,), dt), C: T.Buffer((n,), dt)):
+            T.func_attr({"tirx.noalias": True})
+            for i0 in T.thread_binding(2, thread="blockIdx.x"):
+                if vectorize:
+                    for i1 in T.vectorized(4):
+                        with T.sblock("C"):
+                            v_i = T.axis.spatial(n, i0 * 4 + i1)
+                            C[v_i] = T.max(A[v_i], B[v_i]) if op == "max" else T.min(A[v_i], B[v_i])
+                else:
+                    for i1 in T.thread_binding(4, thread="threadIdx.x"):
+                        with T.sblock("C"):
+                            v_i = T.axis.spatial(n, i0 * 4 + i1)
+                            C[v_i] = T.max(A[v_i], B[v_i]) if op == "max" else T.min(A[v_i], B[v_i])
+
+    return Module
+
+
+# Same data as #20054. The NaN payloads are written into the float32 bit
+# pattern; the fp16/bf16 arms use explicit NaN codes for the NaN lanes and the
+# same finite values narrowed losslessly.
+A_F32 = np.array([0.0, 1.0, 0.0, 0.0, -0.0, 3.0, 2.0, -5.0], dtype="float32")
+B_F32 = np.array([1.0, 0.0, 0.0, -0.0, 0.0, 2.0, 2.0, -4.0], dtype="float32")
+A_F32.view("uint32")[[0, 2]] = 0x7FC00011
+B_F32.view("uint32")[[1, 2]] = 0x7FC00022
+
+
+def _nan_preserving_expected(a, b, op):
+    cmp = a < b if op == "min" else a > b
+    return np.where(cmp | np.isnan(a), a, b)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("op", ["min", "max"])
+@pytest.mark.parametrize("form", ["scalar", "vec4"])
+@pytest.mark.parametrize("dt", ["float32", "float64", "float16", "bfloat16"])
+def test_min_max_nan_preserving_cuda(op, dt, form):
+    n = 8
+    vectorize = form == "vec4"
+    if dt == "float32":
+        a_np, b_np = A_F32, B_F32
+    else:
+        a_np = np.array([np.nan, 1.0, np.nan, 0.0, -0.0, 3.0, 2.0, -5.0], dtype=dt)
+        b_np = np.array([1.0, np.nan, np.nan, -0.0, 0.0, 2.0, 2.0, -4.0], dtype=dt)
+
+    mod = tvm.compile(_min_max_nan_module(op, dt, n, vectorize=vectorize), target="cuda")
+    a = tvm.runtime.tensor(a_np, tvm.cuda(0))
+    b = tvm.runtime.tensor(b_np, tvm.cuda(0))
+    c = tvm.runtime.empty((n,), dt, tvm.cuda(0))
+
+    def run_and_check():
+        mod(a, b, c)
+        got = c.numpy()
+        expected = _nan_preserving_expected(a_np, b_np, op)
+        if dt == "float64":
+            np.testing.assert_array_equal(got.view("uint64"), expected.view("uint64"))
+        elif dt == "float32":
+            np.testing.assert_array_equal(got.view("uint32"), expected.view("uint32"))
+        else:
+            np.testing.assert_array_equal(got.view("uint16"), expected.view("uint16"))
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_min_max_nan_preserving_composite_cuda():
+    # The scalar ternary must survive nesting inside a compound expression:
+    # C[i] = max(A[i], B[i]) + 1.0 without being parsed as (x + cond) ? va : vb.
+    n = 8
+    a_np = A_F32
+    b_np = B_F32
+    mod = tvm.compile(_min_max_nan_module("max", "float32", n, vectorize=False), target="cuda")
+    a = tvm.runtime.tensor(a_np, tvm.cuda(0))
+    b = tvm.runtime.tensor(b_np, tvm.cuda(0))
+    c = tvm.runtime.empty((n,), "float32", tvm.cuda(0))
+
+    def run_and_check():
+        mod(a, b, c)
+        got = c.numpy()
+        expected = _nan_preserving_expected(a_np, b_np, "max") + np.float32(1.0)
+        np.testing.assert_array_equal(got.view("uint32"), expected.view("uint32"))
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("op", ["min", "max"])
+def test_min_max_int_vector_cuda(op):
+    # Integer min/max keeps the base codegen path, including the per-lane
+    # vector expansion: lanes=4 must compile and match numpy bitwise.
+    n = 8
+    dt = "int32"
+    a_np = np.array([3, -5, 7, 0, -1, 9, 2, -8], dtype=dt)
+    b_np = np.array([1, 9, -2, 4, -3, 9, 5, -8], dtype=dt)
+
+    mod = tvm.compile(_min_max_nan_module(op, dt, n, vectorize=True), target="cuda")
+    a = tvm.runtime.tensor(a_np, tvm.cuda(0))
+    b = tvm.runtime.tensor(b_np, tvm.cuda(0))
+    c = tvm.runtime.empty((n,), dt, tvm.cuda(0))
+
+    def run_and_check():
+        mod(a, b, c)
+        expected = np.minimum(a_np, b_np) if op == "min" else np.maximum(a_np, b_np)
+        np.testing.assert_array_equal(c.numpy(), expected)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_round_ties_to_even():
