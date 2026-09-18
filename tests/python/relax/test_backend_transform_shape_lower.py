@@ -727,6 +727,77 @@ def test_check_lifted_weights():
     assert_structural_equal(after, expected)
 
 
+def test_check_weights_with_unknown_shape():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((16,), "float32"), params: R.Tuple(R.Tensor(dtype="float32", ndim=1))):
+            R.func_attr({"relax.force_pure": True, "num_input": 1})
+            return params
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((16,), "float32"), params: R.Tuple(R.Tensor(dtype="float32", ndim=1))):
+            R.func_attr({"relax.force_pure": True, "num_input": 1})
+            shape_heap: R.Any = R.null_value()
+            _: R.Tuple = R.call_packed(
+                "vm.builtin.check_tensor_info",
+                x,
+                R.prim_value(1),
+                R.dtype("float32"),
+                R.str(""),
+                ty_args=(R.Tuple,),
+            )
+            _1: R.Tuple = R.call_packed(
+                "vm.builtin.check_tuple_info",
+                params,
+                R.prim_value(1),
+                R.str(""),
+                ty_args=(R.Tuple,),
+            )
+            gv: R.Tensor(dtype="float32", ndim=1) = params[0]
+            _2: R.Tuple = R.call_packed(
+                "vm.builtin.check_tensor_info",
+                gv,
+                R.prim_value(1),
+                R.dtype("float32"),
+                R.str(""),
+                ty_args=(R.Tuple,),
+            )
+            _3: R.Tuple = R.call_packed(
+                "vm.builtin.match_shape",
+                x,
+                shape_heap,
+                R.prim_value(1),
+                MatchShapeCode.ASSERT_EQUAL_TO_IMM,
+                R.prim_value(16),
+                R.str(""),
+                ty_args=(R.Tuple,),
+            )
+            return params
+
+    after = relax.transform.VMShapeLower(emit_err_ctx=False)(Before)
+    assert_structural_equal(after, Expected)
+
+
+def test_lower_bundled_symbolic_shape():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor((32,), "float32"),
+            extent: R.Prim("int64"),
+            weight: R.Tensor(("extent",), "float32"),
+        ):
+            R.func_attr({"num_input": 1, "relax.force_pure": True})
+            return R.add(x, weight)
+
+    bundled = relax.transform.BundleModelParams()(Before)
+    lowered = relax.transform.VMShapeLower()(bundled)
+    assert isinstance(lowered, tvm.IRModule)
+
+
 def test_check_weights_with_dynamic_shape():
     MS = MatchShapeCode
 
