@@ -77,6 +77,9 @@ class ExprDeepEqualChecker : private tvm::ExprFunctor<bool(const Expr&, const Pr
       auto rhs_prim = rhs.as<PrimExpr>();
       return rhs_prim && Dispatch(lhs_prim.value(), rhs_prim.value());
     }
+    if (auto* str = lhs.as<StringImmNode>()) {
+      return str->value == rhs.as<StringImmNode>()->value;
+    }
     if (lhs.as<VarNode>()) {
       return false;
     }
@@ -202,7 +205,6 @@ class ExprDeepEqualChecker : private tvm::ExprFunctor<bool(const Expr&, const Pr
   DEFINE_DEEP_EQUAL_BIN_EXPR(prim::OrNode)
   DEFINE_DEEP_EQUAL_IMM_EXPR(IntImmNode)
   DEFINE_DEEP_EQUAL_IMM_EXPR(FloatImmNode)
-  DEFINE_DEEP_EQUAL_IMM_EXPR(prim::StringImmNode)
 };
 
 bool ExprDeepEqual::operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {

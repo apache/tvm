@@ -57,7 +57,6 @@ from tvm.ir.prim.expr import (  # noqa: F401
     Broadcast,
     Cast,
     CmpExpr,
-    ConstExpr,
     Div,
     FloatImm,
     FloorDiv,
@@ -74,7 +73,6 @@ from tvm.ir.prim.expr import (  # noqa: F401
     Ramp,
     Select,
     Shuffle,
-    StringImm,
     Sub,
 )
 from tvm.runtime import Object, ObjectConvertible, Scriptable

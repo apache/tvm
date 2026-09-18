@@ -148,10 +148,10 @@ class TVMFFIABIBuilder {
   // ── Assert helpers ────────────────────────────────────────────
 
   /*! \brief Convert various string types to StringImm for EmitAssert. */
-  static prim::StringImm ToMsgPart(prim::StringImm s) { return s; }
-  static prim::StringImm ToMsgPart(const char* s) { return prim::StringImm(s); }
-  static prim::StringImm ToMsgPart(std::string s) { return prim::StringImm(std::move(s)); }
-  static prim::StringImm ToMsgPart(ffi::String s) { return prim::StringImm(std::move(s)); }
+  static StringImm ToMsgPart(StringImm s) { return s; }
+  static StringImm ToMsgPart(const char* s) { return StringImm(s); }
+  static StringImm ToMsgPart(std::string s) { return StringImm(std::move(s)); }
+  static StringImm ToMsgPart(ffi::String s) { return StringImm(std::move(s)); }
 
   /*!
    * \brief Emit an assertion into init_nest_ with auto-converted message parts.
@@ -166,9 +166,9 @@ class TVMFFIABIBuilder {
    */
   template <typename... Args>
   void EmitAssert(const PrimExpr& cond, const char* error_kind, Args&&... args) {
-    ffi::Array<prim::StringImm> parts;
+    ffi::Array<StringImm> parts;
     (parts.push_back(ToMsgPart(std::forward<Args>(args))), ...);
-    init_nest_.emplace_back(AssertStmt(cond, prim::StringImm(error_kind), parts));
+    init_nest_.emplace_back(AssertStmt(cond, StringImm(error_kind), parts));
   }
 
   // ── Binding submethods ─────────────────────────────────────────
@@ -415,8 +415,8 @@ class TVMFFIABIBuilder {
   std::unordered_map<int, std::string> param_names_;
 
   // Pre-cached common message fragments for string sharing across assertions
-  prim::StringImm sig_imm_;  // func_signature_ (set in constructor)
-  prim::StringImm when_calling_imm_ = prim::StringImm(" when calling:\n  `");
+  StringImm sig_imm_;  // func_signature_ (set in constructor)
+  StringImm when_calling_imm_ = StringImm(" when calling:\n  `");
   /*! \brief Whether to emit data pointer alignment checks (disabled for now). */
   bool check_alignment_ = false;
 };

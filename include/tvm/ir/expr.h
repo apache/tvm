@@ -514,11 +514,65 @@ class Call : public Expr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };
 
+/*! \brief Base node for literal constants. */
+class ConstantNode : public ExprNode {
+ public:
+  static constexpr uint32_t _type_child_slots = 4;
+  static void RegisterReflection() { ffi::reflection::ObjectDef<ConstantNode>(); }
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Constant", ConstantNode, ExprNode);
+};
+
+/*! \brief Managed reference to a literal constant. */
+class Constant : public Expr {
+ public:
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Constant, Expr, ConstantNode);
+};
+
+/*! \brief A constant whose payload is separate from its expression type. */
+class GenericConstNode : public ConstantNode {
+ public:
+  ffi::Any value;
+
+  static void RegisterReflection() {
+    ffi::reflection::ObjectDef<GenericConstNode>().def_ro("value", &GenericConstNode::value);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.GenericConst", GenericConstNode, ConstantNode);
+};
+
+/*! \brief Managed reference to a generic constant. */
+class GenericConst : public Constant {
+ public:
+  TVM_DLL GenericConst(ffi::Any value, Type ty, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GenericConst, Constant, GenericConstNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(GenericConstNode);
+};
+
+/*! \brief A string literal with shared semantic StringType. */
+class StringImmNode : public ConstantNode {
+ public:
+  ffi::String value;
+
+  static void RegisterReflection() {
+    ffi::reflection::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.StringImm", StringImmNode, ConstantNode);
+};
+
+/*! \brief Managed reference to a string literal. */
+class StringImm : public Constant {
+ public:
+  TVM_DLL explicit StringImm(ffi::String value, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StringImm, Constant, StringImmNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
+};
+
 /*!
  * \brief Constant integer literals in the program.
  * \sa IntImm
  */
-class IntImmNode : public ExprNode {
+class IntImmNode : public ConstantNode {
  public:
   /*! \brief the Internal value. */
   ffi::BigInt value;
@@ -527,7 +581,7 @@ class IntImmNode : public ExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IntImmNode>().def_ro("value", &IntImmNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IntImm", IntImmNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IntImm", IntImmNode, ConstantNode);
 };
 
 /*!
@@ -596,7 +650,7 @@ class IntImm : public PrimExpr {
  * \brief Constant floating point literals in the program.
  * \sa FloatImm
  */
-class FloatImmNode : public ExprNode {
+class FloatImmNode : public ConstantNode {
  public:
   /*! \brief The constant value content. */
   double value;
@@ -605,7 +659,7 @@ class FloatImmNode : public ExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FloatImmNode>().def_ro("value", &FloatImmNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.FloatImm", FloatImmNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.FloatImm", FloatImmNode, ConstantNode);
 };
 
 /*!
@@ -797,6 +851,16 @@ template <>
 struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, double> {
   TVM_FFI_INLINE static FloatImm ConvertFallbackValue(double value) {
     return FloatImm(PrimType::Float(32), value);
+  }
+};
+template <>
+inline constexpr bool use_default_type_traits_v<tvm::StringImm> = false;
+
+template <>
+struct TypeTraits<tvm::StringImm>
+    : public ObjectRefWithFallbackTraitsBase<tvm::StringImm, ffi::String> {
+  TVM_FFI_INLINE static tvm::StringImm ConvertFallbackValue(ffi::String value) {
+    return tvm::StringImm(value);
   }
 };
 }  // namespace ffi

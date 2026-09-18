@@ -26,9 +26,9 @@ import numpy as _np  # type: ignore
 
 import tvm
 from tvm import base as _base
-from tvm.ir import Call
+from tvm.ir import Call, GenericConst
 from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
-from tvm.relax.expr import Constant, Expr, ExternFunc
+from tvm.relax.expr import Expr, ExternFunc
 from tvm.relax.expr import Tuple as RxTuple
 from tvm.relax.op.distributed import (
     annotate_sharding as _annotate_sharding,
@@ -92,7 +92,7 @@ def call_tir(
 def const(
     value: bool | int | float | _np.ndarray | tvm.runtime.Tensor,
     ty: DTensorType,
-) -> Constant:
+) -> GenericConst:
     """Create a constant value.
 
     Parameters
@@ -127,7 +127,7 @@ def const(
     if not isinstance(value, _tensor.Tensor):
         raise ValueError("value has to be scalar or Tensor")
 
-    return Constant(value, ty)
+    return GenericConst(value, ty)
 
 
 def _lookup_device_mesh(device_mesh_str: py_str) -> DeviceMesh:

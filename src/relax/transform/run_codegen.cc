@@ -94,7 +94,7 @@ class CodeGenRunner : ExprMutator {
       ffi::Map<ffi::String, runtime::Tensor> constants;
       for (const auto& [constant, name] : constant_names) {
         TVM_FFI_ICHECK(!constants.count(name)) << "More than one constant with the name " << name;
-        constants.Set(name, constant->data);
+        constants.Set(name, constant->value.cast<runtime::Tensor>());
       }
       out_mod = WithAttr(out_mod, tvm::attr::kConstNameToConstant, std::move(constants));
     }
@@ -163,11 +163,11 @@ class CodeGenRunner : ExprMutator {
       auto ext_symbol = GetExtSymbol(func);
       size_t count = 0;
       PostOrderVisit(func->body, [=, this, &count](Expr e) {
-        if (e->IsInstance<ConstantNode>()) {
+        if (auto constant = e.as<GenericConst>();
+            constant && constant.value()->value.as<runtime::Tensor>()) {
           // Make sure to pick a unique name
           auto name = ext_symbol + "_" + opt_codegen.value() + "_const_" + std::to_string(count++);
-          auto constant = e.as_or_throw<Constant>();
-          constant_names.Set(constant, name);
+          constant_names.Set(constant.value(), name);
         }
       });
       return ExternFunc(GetExtSymbol(func));
@@ -215,7 +215,7 @@ class CodeGenRunner : ExprMutator {
   }
 
   /*! \brief The names of all constants in the original module. */
-  ffi::Map<Constant, ffi::String> constant_names;
+  ffi::Map<GenericConst, ffi::String> constant_names;
   /*! \brief Extern funcs for each global variable.  */
   std::unordered_map<const GlobalVarNode*, Expr> extern_funcs_;
 };

@@ -63,8 +63,9 @@ class ThreadBindingUnifier : public StmtExprMutator {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     IterVar old_iter_var = op->node.as_or_throw<IterVar>();
+    PrimExpr extent = op->value.as_or_throw<PrimExpr>();
     return UnifyThreadBindingImpl(op, old_iter_var->var, old_iter_var,
-                                  Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value),
+                                  Range::FromMinExtent(IntImm(extent.ty(), 0), extent),
                                   inplace_mode);
   }
 

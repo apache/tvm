@@ -636,7 +636,7 @@ def make_attention_rewrite_pattern(
                 key,
                 value,
                 bias,
-                T.FloatImm(matchings[scale].data.dtype, float(matchings[scale].data.numpy())),
+                T.FloatImm(matchings[scale].value.dtype, float(matchings[scale].value.numpy())),
             ),
         )
         return out

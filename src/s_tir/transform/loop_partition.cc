@@ -162,7 +162,7 @@ class CandidateSelector final : public StmtExprVisitor {
         return std::nullopt;
       }
     } else if (op->attr_key == s_tir::attr::pragma_loop_partition_hint) {
-      if (analyzer_->CanProve(op->value)) {
+      if (analyzer_->CanProve(op->value.as_or_throw<PrimExpr>())) {
         const VarNode* var = nullptr;
         if (op->node.as<VarNode>()) {
           var = op->node.as<VarNode>();
@@ -279,7 +279,8 @@ class PartitionFinder : public StmtExprVisitor {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       TVM_FFI_ICHECK(thread_axis);
       const VarNode* var = thread_axis->var.get();
-      IntSet dom = IntSet::FromRange(Range(IntImm(op->value.ty(), 0), op->value));
+      PrimExpr extent = op->value.as_or_throw<PrimExpr>();
+      IntSet dom = IntSet::FromRange(Range(IntImm(extent.ty(), 0), extent));
       hint_map_.insert({var, dom});
       relax_map_.insert({var, dom});
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
@@ -434,7 +435,7 @@ class ThreadPartitionInserter : public StmtExprMutator {
         Stmt simplified_body =
             ffi::make_object<ConditionEliminator>(ps_)->Mutate(op->body).ValueOrUnchanged(op->body);
         Stmt body = IfThenElse(cond_, simplified_body, op->body);
-        PrimExpr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
+        Expr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
         stmt = AttrStmt(op->node, op->attr_key, value, body);
       }
       innermost_thread_scope_ = false;
@@ -497,9 +498,10 @@ class LoopPartitioner : public StmtExprMutator {
     const IterVarNode* iv = op->node.as<IterVarNode>();
     TVM_FFI_ICHECK(iv);
     Var var = iv->var;
+    PrimExpr extent = op->value.as_or_throw<PrimExpr>();
     auto as = ffi::GetRef<Stmt>(op);
     if (selector->candidates.count(as)) {
-      Stmt s = TryPartition(as, var, 0, op->value - 1, op->body, true);
+      Stmt s = TryPartition(as, var, 0, extent - 1, op->body, true);
       if (s.defined()) return s;
     }
 
@@ -509,13 +511,13 @@ class LoopPartitioner : public StmtExprMutator {
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.
       relax_map_.insert(
-          {var.get(), IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), op->value - 1)});
+          {var.get(), IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), extent - 1)});
       res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                 .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       relax_map_.erase(var.get());
     } else {
       hint_map_.insert(
-          {var.get(), IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), op->value - 1)});
+          {var.get(), IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), extent - 1)});
       res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                 .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       hint_map_.erase(var.get());

@@ -502,7 +502,7 @@ class BindVarBoundInfo : public StmtExprVisitor {
       IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       if (!var_dom_.count(iv->var.get())) {
-        Range dom = Range::FromMinExtent(0, op->value);
+        Range dom = Range::FromMinExtent(0, op->value.as_or_throw<PrimExpr>());
         var_dom_[iv->var.get()] = dom;
         analyzer_->Bind(iv->var, dom);
       }

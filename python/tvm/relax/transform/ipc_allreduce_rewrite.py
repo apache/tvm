@@ -109,7 +109,7 @@ class _Visitor(PyExprVisitor):  # pylint: disable=abstract-method
             alloc_tensor.args[0],
             alloc_tensor.args[1],
             alloc_tensor.args[2],
-            relax.StringImm("ipc_memory"),
+            tvm.ir.StringImm("ipc_memory"),
         )
 
         self.binding_replacement_map[call] = relax.Call(

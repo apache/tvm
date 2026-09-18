@@ -56,7 +56,7 @@ inline PrimExpr DispatchPureExternOCML(const PrimExpr& e) {
   PrimType call_ty = call->ty.as_or_throw<PrimType>();
   intrinsic_name << "__ocml_" << name.substr(5) << "_f" << call_ty.bits();
 
-  ffi::Array<PrimExpr> new_args = {prim::StringImm(intrinsic_name.str())};
+  ffi::Array<Expr> new_args = {StringImm(intrinsic_name.str())};
   for (PrimExpr arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
     new_args.push_back(arg);
   }
@@ -79,10 +79,10 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
   PrimExpr zero = IntImm::Int32(0);
   PrimType i32_ty = PrimType::Int(32);
   PrimExpr lo = Call(i32_ty, tirx::builtin::call_pure_extern(),
-                     ffi::Array<PrimExpr>{prim::StringImm("llvm.amdgcn.mbcnt.lo"), minus_one, zero})
+                     ffi::Array<Expr>{StringImm("llvm.amdgcn.mbcnt.lo"), minus_one, zero})
                     .as_or_throw<PrimExpr>();
   PrimExpr self = Call(i32_ty, tirx::builtin::call_pure_extern(),
-                       ffi::Array<PrimExpr>{prim::StringImm("llvm.amdgcn.mbcnt.hi"), minus_one, lo})
+                       ffi::Array<Expr>{StringImm("llvm.amdgcn.mbcnt.hi"), minus_one, lo})
                       .as_or_throw<PrimExpr>();
 
   // compute lane to get from
@@ -104,10 +104,9 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
   // reinterprete var as int32
   bool is_int32 = var_ty.MatchesElementType(DLDataTypeCode::kDLInt, 32);
   PrimExpr source = is_int32 ? var : reinterpret(PrimType::Int(32), var);
-  PrimExpr res =
-      Call(i32_ty, tirx::builtin::call_pure_extern(),
-           ffi::Array<PrimExpr>{prim::StringImm("llvm.amdgcn.ds.bpermute"), index << 2, source})
-          .as_or_throw<PrimExpr>();
+  PrimExpr res = Call(i32_ty, tirx::builtin::call_pure_extern(),
+                      ffi::Array<Expr>{StringImm("llvm.amdgcn.ds.bpermute"), index << 2, source})
+                     .as_or_throw<PrimExpr>();
   if (!is_int32) {
     res = reinterpret(var_ty, res);
   }

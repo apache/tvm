@@ -43,7 +43,7 @@ class VtcmAllocator : public StmtExprMutator {
     std::string storage_scope = op->buffer.scope();
     if (IsVtcmStorage(storage_scope)) {
       ffi::Array<Expr> args;
-      args.push_back(prim::StringImm(storage_scope));
+      args.push_back(StringImm(storage_scope));
       args.push_back(IntImm::Int64(op->buffer->shape.size()));
       args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
                           op->buffer->shape));

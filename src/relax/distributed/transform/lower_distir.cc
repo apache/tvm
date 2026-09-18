@@ -120,14 +120,15 @@ class DistIRSharder : public ExprMutator {
     if (const auto* var = input.as<VarNode>()) {
       Var new_param(var->name, new_ty);
       return new_param;
-    } else if (const auto* constant = input.as<ConstantNode>()) {
+    } else if (const auto* constant = input.as<GenericConstNode>()) {
       for (const auto& spec : old_ty.as_or_throw<DTensorType>()->placement->dim_specs) {
         TVM_FFI_ICHECK(spec->kind == PlacementSpecKind::kReplica);
       }
-      Constant new_constant(constant->data, new_ty);
+      GenericConst new_constant(constant->value.cast<runtime::Tensor>(), new_ty);
       return new_constant;
     } else {
-      TVM_FFI_THROW(InternalError) << "Cannot shard tensor which is not Var or Constant: " << input;
+      TVM_FFI_THROW(InternalError)
+          << "Cannot shard tensor which is not Var or GenericConst: " << input;
       throw;
     }
   }

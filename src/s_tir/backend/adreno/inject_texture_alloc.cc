@@ -76,7 +76,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       size_t axis = DefaultTextureLayoutSeparator(extents.size(), storage_scope);
       auto texture = ApplyTexture2DFlattening<PrimExpr>(extents, extents.size(), axis);
       ffi::Array<Expr> args;
-      args.push_back(prim::StringImm(storage_scope));
+      args.push_back(StringImm(storage_scope));
       args.push_back(IntImm::Int64(3));
       args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
                           {texture.width, texture.height, texture.depth}));

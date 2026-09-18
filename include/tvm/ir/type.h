@@ -34,6 +34,20 @@
 
 namespace tvm {
 
+/*! \brief Semantic string type; its physical representation is context dependent. */
+class StringTypeNode : public TypeNode {
+ public:
+  static void RegisterReflection() { ffi::reflection::ObjectDef<StringTypeNode>(); }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.StringType", StringTypeNode, TypeNode);
+};
+
+/*! \brief Managed reference to StringTypeNode. */
+class StringType : public Type {
+ public:
+  TVM_DLL StringType();
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StringType, Type, StringTypeNode);
+};
+
 /*!
  * \brief Low-level raw pointer type.
  *

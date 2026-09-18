@@ -81,9 +81,9 @@ class ConstantFolder : public ExprMutator {
       const ffi::Array<Expr>& args) {
     ffi::Array<runtime::Tensor> res;
     for (auto arg : args) {
-      auto* ptr = arg.as<relax::ConstantNode>();
-      if (!ptr) return std::nullopt;
-      res.push_back(ptr->data);
+      auto* ptr = arg.as<::tvm::GenericConstNode>();
+      if (!ptr || !ptr->value.as<runtime::Tensor>()) return std::nullopt;
+      res.push_back(ptr->value.cast<runtime::Tensor>());
     }
     return res;
   }
@@ -225,7 +225,7 @@ class ConstantFolder : public ExprMutator {
     ffi::Any ret;
     // invoke
     func.value().CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &ret);
-    return Constant(ret_tensor);
+    return MakeTensorConst(ret_tensor);
   }
 
   // Try constant evaluate a call_tir with tuple outputs (multiple output tensors).
@@ -266,7 +266,7 @@ class ConstantFolder : public ExprMutator {
 
     ffi::Array<Expr> fields;
     for (size_t i = 0; i < num_outputs; ++i) {
-      fields.push_back(Constant(ret_tensors[i]));
+      fields.push_back(MakeTensorConst(ret_tensors[i]));
     }
     return Tuple(fields);
   }
@@ -375,9 +375,9 @@ class ConstantFolder : public ExprMutator {
         //   decomposition map for each op in a similar way we do for legalization.
         TVM_FFI_ICHECK_EQ(post_call->args.size(), 1);
         Expr arg = post_call->args[0];
-        if (arg->IsInstance<ConstantNode>()) {
-          Constant constant = arg.as_or_throw<Constant>();
-          runtime::Tensor ndarray = constant->data;
+        if (arg->IsInstance<GenericConstNode>()) {
+          GenericConst constant = arg.as_or_throw<GenericConst>();
+          runtime::Tensor ndarray = constant->value.cast<runtime::Tensor>();
           TVM_FFI_ICHECK_EQ(ndarray->device.device_type, kDLCPU);
           TVM_FFI_ICHECK(ndarray.IsContiguous());
           TVM_FFI_ICHECK_EQ(ndarray->byte_offset, 0);
@@ -409,7 +409,7 @@ class ConstantFolder : public ExprMutator {
         if (is_known) {
           const auto func = tvm::ffi::Function::GetGlobalRequired("relax.run.shape_to_tensor");
           runtime::Tensor vals = func(arr).cast<runtime::Tensor>();
-          return Constant(vals);
+          return MakeTensorConst(vals);
         }
       }
     }
@@ -420,7 +420,7 @@ class ConstantFolder : public ExprMutator {
   Expr VisitExpr_(const VarNode* op) final {
     ffi::Optional<Expr> opt = LookupBinding(ffi::GetRef<Var>(op));
     // `as` check checks if opt is not null and is instance of constant
-    if (opt.as<relax::ConstantNode>()) {
+    if (opt.as<::tvm::GenericConstNode>()) {
       return opt.value();
     }
     return ExprMutator::VisitExpr_(op);

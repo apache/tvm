@@ -167,7 +167,9 @@ class AlterOpImplMutator : public ExprMutator {
   }
 
   bool IsScalarConstant(const Expr& expr) {
-    if (expr->IsInstance<ConstantNode>() && expr.as<ConstantNode>()->is_scalar()) {
+    if (expr->IsInstance<GenericConstNode>() &&
+        expr.as<GenericConstNode>()->value.as<runtime::Tensor>() &&
+        expr.as<GenericConstNode>()->value.cast<runtime::Tensor>()->ndim == 0) {
       return true;
     }
     return false;

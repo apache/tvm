@@ -353,7 +353,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       ancestor_iters_.push_back(iter);
       Range dom = iter->dom;
       if (!dom.defined()) {  // dom is empty for legacy te schedule
-        dom = Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value);
+        PrimExpr extent = op->value.as_or_throw<PrimExpr>();
+        dom = Range::FromMinExtent(IntImm(extent.ty(), 0), extent);
       }
       dom_analyzer_->Bind(iter->var, dom);
       dom_map_.emplace(iter->var.get(), sym::IntSet::FromRange(dom));

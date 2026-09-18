@@ -41,7 +41,7 @@ using backend::contrib::NodeEntries;
 
 class HipblasJSONSerializer : public JSONSerializer {
  public:
-  HipblasJSONSerializer(ffi::Map<Constant, ffi::String> constant_names,
+  HipblasJSONSerializer(ffi::Map<GenericConst, ffi::String> constant_names,
                         ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
@@ -90,7 +90,7 @@ class HipblasJSONSerializer : public JSONSerializer {
 
 ffi::Array<ffi::Module> HipblasCompiler(ffi::Array<Function> functions,
                                         ffi::Map<ffi::String, ffi::Any> /*unused*/,
-                                        ffi::Map<Constant, ffi::String> constant_names) {
+                                        ffi::Map<GenericConst, ffi::String> constant_names) {
   ffi::Array<ffi::Module> compiled_functions;
 
   for (const auto& func : functions) {

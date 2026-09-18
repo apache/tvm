@@ -163,8 +163,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<prim::StringImm>(
-      "", [](prim::StringImm s, AccessPath p, IRDocsifier d) -> Doc {
+  IRDocsifier::vtable().set_dispatch<StringImm>(
+      "", [](StringImm s, AccessPath p, IRDocsifier d) -> Doc {
         if (HasMultipleLines(s->value)) {
           return d->AddMetadata(s);
         } else {
@@ -429,7 +429,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
       // storing multiline source code in metadata (which can't be reparsed).
       ffi::Array<ffi::String> kw_keys;
       ffi::Array<ExprDoc> kw_vals;
-      const auto* src_str = call->args[n_args - 1].as<prim::StringImmNode>();
+      const auto* src_str = call->args[n_args - 1].as<StringImmNode>();
       TVM_FFI_ICHECK(src_str) << "cuda_func_call: last arg (source_code) must be StringImm";
       ExprDoc src = LiteralDoc::Str(src_str->value, call_p->Attr("args")->ArrayItem(n_args - 1));
       kw_keys.push_back("source_code");
@@ -547,7 +547,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 #undef TVM_SCRIPT_PRINTER_DEF_BINARY
 
 TVM_SCRIPT_REPR(tirx::IterVarNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(prim::StringImmNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(StringImmNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::CastNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::AddNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::SubNode, ReprPrintTIR);

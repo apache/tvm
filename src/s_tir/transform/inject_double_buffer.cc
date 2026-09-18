@@ -393,7 +393,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     vmap[e.switch_write_var.get()] = indexmod(loop_shift, two);
     body = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(body, map_var).as_or_throw<Stmt>();
     body = AttrStmt(GetRemappedBuffer(BufferVar(buffer), e.stride).data(),
-                    s_tir::attr::double_buffer_write, 1, body);
+                    s_tir::attr::double_buffer_write, IntImm::Int32(1), body);
     body = IfThenElse(loop_shift < e.loop->extent, body);
     return body;
   }

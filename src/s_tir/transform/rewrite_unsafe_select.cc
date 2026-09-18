@@ -107,7 +107,7 @@ class UnsafeExprDetector : public tirx::ExprFunctor<bool(const Expr& n)> {
   bool Dispatch_(const VarNode* op) final { return false; }
   bool Dispatch_(const IntImmNode* op) final { return false; }
   bool Dispatch_(const FloatImmNode* op) final { return false; }
-  bool Dispatch_(const prim::StringImmNode* op) final { return false; }
+  bool Dispatch_(const StringImmNode* op) final { return false; }
 
  private:
   template <typename T>

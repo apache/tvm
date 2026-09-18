@@ -626,8 +626,9 @@ class FusedTIRConstructor : public ExprVisitor {
     }
   }
 
-  void VisitExpr_(const ConstantNode* op) final {
-    TVM_FFI_THROW(InternalError) << "Relax.Constant is not supported in primitive functions.";
+  void VisitExpr_(const GenericConstNode* op) final {
+    if (!op->value.as<runtime::Tensor>()) return;
+    TVM_FFI_THROW(InternalError) << "Tensor constants are not supported in primitive functions.";
   }
 
   /*!

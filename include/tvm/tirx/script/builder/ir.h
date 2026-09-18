@@ -371,7 +371,7 @@ Var Bind(Expr value, ffi::Optional<Type> type_annotation = std::nullopt,
  * \param value The value of the attribute.
  * \return The result AttrFrame.
  */
-AttrFrame Attr(ffi::Any node, ffi::String attr_key, PrimExpr value);
+AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value);
 
 /*!
  * \brief Mark the device-region entry within the enclosing PrimFunc body.

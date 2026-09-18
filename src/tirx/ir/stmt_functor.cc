@@ -399,8 +399,7 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const IfThenElseNode* op, InplaceMode
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const AssertStmtNode* op, InplaceMode inplace_mode) {
   auto condition = Mutate(op->condition, inplace_mode);
-  auto error_kind =
-      Mutate(op->error_kind, inplace_mode).as_or_throw<UnchangedOr<prim::StringImm>>();
+  auto error_kind = Mutate(op->error_kind, inplace_mode).as_or_throw<UnchangedOr<StringImm>>();
   if (condition.UnchangedOrSameAs(op->condition) && error_kind.UnchangedOrSameAs(op->error_kind))
     return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {

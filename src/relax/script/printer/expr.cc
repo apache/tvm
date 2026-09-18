@@ -30,16 +30,9 @@ namespace script {
 namespace printer {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<relax::StringImm>(  //
-      "", [](relax::StringImm n, AccessPath n_p, IRDocsifier d) -> Doc {
+  IRDocsifier::vtable().set_dispatch<StringImm>(
+      "relax", [](StringImm n, AccessPath n_p, IRDocsifier d) -> Doc {
         return Relax(d, "str")->Call({LiteralDoc::Str(n->value, n_p->Attr("value"))});
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<relax::DataTypeImm>(  //
-      "", [](relax::DataTypeImm n, AccessPath n_p, IRDocsifier d) -> Doc {
-        return Relax(d, "dtype")->Call({LiteralDoc::DataType(n->value, n_p->Attr("value"))});
       });
 }
 
@@ -133,9 +126,13 @@ ffi::Optional<ExprDoc> SpecialScalar(const runtime::Tensor& n, const AccessPath&
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<relax::Constant>(  //
-      "", [](relax::Constant n, AccessPath n_p, IRDocsifier d) -> Doc {
-        if (ffi::Optional<ExprDoc> s = SpecialScalar(n->data, n_p->Attr("data"))) {
+  IRDocsifier::vtable().set_dispatch<::tvm::GenericConst>(  //
+      "", [](::tvm::GenericConst n, AccessPath n_p, IRDocsifier d) -> Doc {
+        if (auto dtype = n->value.as<DLDataType>()) {
+          return Relax(d, "dtype")->Call({LiteralDoc::DataType(*dtype, n_p->Attr("value"))});
+        }
+        auto data = n->value.cast<runtime::Tensor>();
+        if (ffi::Optional<ExprDoc> s = SpecialScalar(data, n_p->Attr("value"))) {
           if (n->ty.as<relax::distributed::DTensorTypeNode>()) {
             ExprDoc ann = d->AsDoc<ExprDoc>(n->ty, n_p->Attr("ty"));
             return Relax(d, "dist.const")->Call({s.value(), ann});
@@ -143,7 +140,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           return Relax(d, "const")
               ->Call({
                   s.value(),
-                  LiteralDoc::DataType(n->data.DataType(), n_p->Attr("data")->Attr("dtype")),
+                  LiteralDoc::DataType(data.DataType(), n_p->Attr("value")->Attr("dtype")),
               });
         }
         return d->AddMetadata(n);
@@ -173,14 +170,12 @@ std::string ReprPrintVar(const ffi::ObjectRef& obj, const PrinterConfig& cfg) {
   return ReprPrintRelax(obj, cfg);
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(relax::StringImmNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::DataTypeImmNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleGetItemNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeExprNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(VarNode, ReprPrintVar);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::DataflowVarNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::ConstantNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(::tvm::GenericConstNode, ReprPrintRelax);
 
 }  // namespace printer
 }  // namespace script

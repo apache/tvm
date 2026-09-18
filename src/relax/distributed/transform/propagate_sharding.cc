@@ -306,7 +306,7 @@ class ShardingConflictHandler : public ExprVisitor {
     }
   }
 
-  void CheckConstantNoSharding(Constant constant) {
+  void CheckConstantNoSharding(GenericConst constant) {
     const auto* tensor_ty = GetTypeAs<TensorTypeNode>(constant);
     for (int i = 0; i < tensor_ty->ndim; i++) {
       AxisShardingSpec sharding_spec;
@@ -314,15 +314,15 @@ class ShardingConflictHandler : public ExprVisitor {
       std::tie(sharding_spec, has_sharding_spec) =
           axis_group_graph_->GetAxisShardingSpec({constant.get(), i});
       TVM_FFI_ICHECK(!has_sharding_spec)
-          << "Constant is not allowed to be sharded. Please convert it into an input param.";
+          << "GenericConst is not allowed to be sharded. Please convert it into an input param.";
     }
   }
 
   void VisitExpr_(const CallNode* op) final {
     ffi::Array<Expr> args = GetCallArgs(ffi::GetRef<Call>(op));
     for (const auto& arg : args) {
-      if (arg.as<ConstantNode>()) {
-        CheckConstantNoSharding(arg.as_or_throw<Constant>());
+      if (arg.as<GenericConstNode>() && arg->ty.as<TensorTypeNode>()) {
+        CheckConstantNoSharding(arg.as_or_throw<GenericConst>());
       }
     }
     ExprVisitor::VisitExpr_(op);
@@ -402,11 +402,11 @@ class DistributedIRBuilder : public ExprMutator {
     if (const auto* var = tensor.as<VarNode>()) {
       Var new_param(var->name, new_ty);
       return new_param;
-    } else if (const auto* constant = tensor.as<ConstantNode>()) {
-      Constant new_constant(constant->data, new_ty);
+    } else if (const auto* constant = tensor.as<GenericConstNode>()) {
+      GenericConst new_constant(constant->value.cast<runtime::Tensor>(), new_ty);
       return new_constant;
     } else {
-      TVM_FFI_THROW(InternalError) << "Cannot rewrite tensor which is not a Var or Constant";
+      TVM_FFI_THROW(InternalError) << "Cannot rewrite tensor which is not a Var or GenericConst";
       throw;
     }
   }
@@ -445,7 +445,7 @@ class DistributedIRBuilder : public ExprMutator {
     Call new_call = ExprMutator::VisitExpr_(call).as_or_throw<Call>();
     ffi::Array<Expr> args = GetCallArgs(new_call);
     for (int i = 0; i < static_cast<int>(args.size()); i++) {
-      if (args[i].as<ConstantNode>()) {
+      if (args[i].as<GenericConstNode>() && args[i]->ty.as<TensorTypeNode>()) {
         args.Set(i, RewriteInputTensorAndConstant(args[i]));
       }
     }

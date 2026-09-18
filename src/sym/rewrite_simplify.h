@@ -93,6 +93,8 @@ class RewriteSimplifier::Impl : public SimplifierBase {
                                InplaceMode inplace_mode = InplaceMode::kDisallow) override;
 
   void Update(const Var& var, const PrimExpr& info, bool override_info);
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::SubNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::MulNode* op, InplaceMode inplace_mode) override;
@@ -112,8 +114,6 @@ class RewriteSimplifier::Impl : public SimplifierBase {
   UnchangedOr<PrimExpr> Mutate_(const prim::OrNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::NotNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) override;
 

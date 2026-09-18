@@ -213,7 +213,7 @@ struct CanonicalizationPlan {
   ffi::Map<Var, Var> replace_usage;
   ffi::Map<Var, Var> replace_binding;
   std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> bindings_to_remove;
-  ffi::Map<Var, Constant> inline_constant;
+  ffi::Map<Var, GenericConst> inline_constant;
 };
 
 /*! \brief Utility class to identify usage location
@@ -434,7 +434,7 @@ class CanonicalizePlanner : public ExprVisitor {
       trivial_bindings_.Set(binding->var, parent.value());
     }
 
-    if (auto constant = value.as<Constant>()) {
+    if (auto constant = value.as<GenericConst>()) {
       known_bound_to_constant_.Set(binding->var, constant.value());
     }
 
@@ -471,7 +471,7 @@ class CanonicalizePlanner : public ExprVisitor {
 
   ffi::Map<Var, Var> trivial_bindings_;
   ffi::Map<Var, Expr> known_bindings_;
-  ffi::Map<Var, Constant> known_bound_to_constant_;
+  ffi::Map<Var, GenericConst> known_bound_to_constant_;
   std::unordered_set<Var> defined_inside_dataflow_;
   // Set of vars either used outside a dataflow block altogether or outside their
   // home dataflow block (the one where they were defined)

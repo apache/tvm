@@ -41,9 +41,9 @@ static PrimExpr DispatchIntelShuffle(const PrimExpr& e) {
   TVM_FFI_ICHECK(analyzer->CanProve(call->args[3].as_or_throw<PrimExpr>() ==
                                     call->args[4].as_or_throw<PrimExpr>()))
       << "Intel warp shuffle dose not support width != warp_size";
-  ffi::Array<PrimExpr> opencl_args{prim::StringImm("intel_sub_group_shuffle"),
-                                   call->args[1].as_or_throw<PrimExpr>(),
-                                   call->args[2].as_or_throw<PrimExpr>()};
+  ffi::Array<Expr> opencl_args{StringImm("intel_sub_group_shuffle"),
+                               call->args[1].as_or_throw<PrimExpr>(),
+                               call->args[2].as_or_throw<PrimExpr>()};
   return Call(e.ty(), builtin::call_pure_extern(), opencl_args).as_or_throw<PrimExpr>();
 }
 
@@ -73,7 +73,7 @@ TVM_REGISTER_OP("tirx.round")
       // OpenCL's rint() uses ties-to-even, matching constant-folding semantics.
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      ffi::Array<PrimExpr> new_args = {prim::StringImm("rint")};
+      ffi::Array<Expr> new_args = {StringImm("rint")};
       for (const PrimExpr& arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
         new_args.push_back(arg);
       }

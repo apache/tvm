@@ -224,8 +224,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return VisitExpr_(static_cast<const VarNode*>(op));
   }
 
-  Instruction::Arg VisitExpr_(const ConstantNode* op) final {
-    auto arg = builder_->ConvertConstant(op->data);
+  Instruction::Arg VisitExpr_(const GenericConstNode* op) final {
+    auto arg = builder_->ConvertConstant(op->value);
 
     if (auto tensor_ty = op->ty.as<TensorTypeNode>()) {
       if (tensor_ty->vdevice.has_value()) {
@@ -258,10 +258,6 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   Instruction::Arg VisitExpr_(const StringImmNode* op) final {
-    return builder_->ConvertConstant(op->value);
-  }
-
-  Instruction::Arg VisitExpr_(const DataTypeImmNode* op) final {
     return builder_->ConvertConstant(op->value);
   }
 

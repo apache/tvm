@@ -987,7 +987,7 @@ def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
         The data type of pointer. If a ``PrimType`` or ``str``, it is wrapped
         via :func:`type_annotation` so that the lowering rule (which reads
         ``args[0].dtype()`` for the cast type) sees the intended dtype instead
-        of ``void`` from a raw StringImm.
+        of StringType from a string literal.
 
     data : DType*
         The data of pointer.
@@ -1335,7 +1335,7 @@ def trace(args, trace_action="tvm.default_trace_action"):
     call_args = [
         _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "trace") for x in args
     ]
-    call_args.insert(0, tvm.tirx.StringImm(trace_action))
+    call_args.insert(0, tvm.ir.StringImm(trace_action))
     tracing_value = args[-1]
     ret_ty = tracing_value.ty if isinstance(tracing_value, Expr) else tracing_value.dtype
     return tvm.ir.Call(Op.get("tirx.tvm_call_trace_packed"), call_args, ret_ty=ret_ty)

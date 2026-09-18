@@ -423,12 +423,6 @@ class PrimExpr : public TypedExpr<PrimType> {
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExpr, TypedExpr<PrimType>, ExprNode);
   static constexpr bool _type_container_is_exact = false;
-
-  /*!
-   * \brief construct from string to form a StringImm.
-   * \param value The value to be constructed.
-   */
-  TVM_DLL static PrimExpr ConvertFallbackValue(ffi::String value);  // NOLINT(*)
 };
 
 /*!
@@ -525,14 +519,14 @@ struct TypedExprWithFallbackTraitsBase
   }
 };
 
-// define automatic conversion from bool, int64_t, double, ffi::String to PrimExpr
+// define automatic conversion from bool, int64_t, double to PrimExpr
 // These functions are declared early to avoid circular dependency
 template <>
 struct TypeTraits<PrimExpr>
     : public TypedExprWithFallbackTraitsBase<PrimExpr, PrimType, StrictBool, int64_t, double,
-                                             ffi::String, PrimExprConvertible> {
+                                             PrimExprConvertible> {
   using Base = TypedExprWithFallbackTraitsBase<PrimExpr, PrimType, StrictBool, int64_t, double,
-                                               ffi::String, PrimExprConvertible>;
+                                               PrimExprConvertible>;
   using Base::CheckAnyStrict;
   using Base::CopyFromAnyViewAfterCheck;
   using Base::CopyToAnyView;
@@ -546,9 +540,6 @@ struct TypeTraits<PrimExpr>
   TVM_DLL static PrimExpr ConvertFallbackValue(StrictBool value);
   TVM_DLL static PrimExpr ConvertFallbackValue(int64_t value);
   TVM_DLL static PrimExpr ConvertFallbackValue(double value);
-  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(ffi::String value) {
-    return PrimExpr::ConvertFallbackValue(value);
-  }
   TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(PrimExprConvertible value) {
     return value->ToPrimExpr();
   }
@@ -560,8 +551,9 @@ inline constexpr bool use_default_type_traits_v<Expr> = false;
 // Allow generic Expr arguments to use the primitive-literal conversions
 // already defined by PrimExpr.
 template <>
-struct TypeTraits<Expr> : public ObjectRefWithFallbackTraitsBase<Expr, PrimExpr> {
+struct TypeTraits<Expr> : public ObjectRefWithFallbackTraitsBase<Expr, PrimExpr, ffi::String> {
   TVM_FFI_INLINE static Expr ConvertFallbackValue(PrimExpr value) { return value; }
+  TVM_DLL static Expr ConvertFallbackValue(ffi::String value);
 };
 }  // namespace ffi
 

@@ -81,6 +81,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
   // Functions that can be overriden by subclass
   virtual R VisitType_(const AnyTypeNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const PrimTypeNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const StringTypeNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const ShapeTypeNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TensorTypeNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const distributed::DTensorTypeNode* op,
@@ -99,6 +100,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
     // Set dispatch
     TVM_RELAX_TYPE_FUNCTOR_DISPATCH(AnyTypeNode);
     TVM_RELAX_TYPE_FUNCTOR_DISPATCH(PrimTypeNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(StringTypeNode);
     TVM_RELAX_TYPE_FUNCTOR_DISPATCH(ShapeTypeNode);
     TVM_RELAX_TYPE_FUNCTOR_DISPATCH(TensorTypeNode);
     TVM_RELAX_TYPE_FUNCTOR_DISPATCH(distributed::DTensorTypeNode);
@@ -118,6 +120,7 @@ class TVM_DLL TypeVisitor : public TypeFunctor<void(const Type& n)> {
  public:
   void VisitType_(const AnyTypeNode* op) override;
   void VisitType_(const PrimTypeNode* op) override;
+  void VisitType_(const StringTypeNode* op) override;
   void VisitType_(const ShapeTypeNode* op) override;
   void VisitType_(const TensorTypeNode* op) override;
   void VisitType_(const distributed::DTensorTypeNode* op) override;
@@ -137,6 +140,7 @@ class TVM_DLL TypeMutator : public TypeFunctor<Type(const Type& n)> {
  public:
   Type VisitType_(const AnyTypeNode* op) override;
   Type VisitType_(const PrimTypeNode* op) override;
+  Type VisitType_(const StringTypeNode* op) override;
   Type VisitType_(const ShapeTypeNode* op) override;
   Type VisitType_(const TensorTypeNode* op) override;
   Type VisitType_(const distributed::DTensorTypeNode* op) override;

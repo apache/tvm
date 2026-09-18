@@ -41,7 +41,8 @@ using backend::contrib::NodeEntries;
 
 class cuDNNJSONSerializer : public JSONSerializer {
  public:
-  cuDNNJSONSerializer(ffi::Map<Constant, ffi::String> constant_names, ffi::Map<Var, Expr> bindings)
+  cuDNNJSONSerializer(ffi::Map<GenericConst, ffi::String> constant_names,
+                      ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
   using JSONSerializer::VisitExpr_;
@@ -133,7 +134,7 @@ class cuDNNJSONSerializer : public JSONSerializer {
 
 ffi::Array<ffi::Module> cuDNNCompiler(ffi::Array<Function> functions,
                                       ffi::Map<ffi::String, ffi::Any> /*unused*/,
-                                      ffi::Map<Constant, ffi::String> constant_names) {
+                                      ffi::Map<GenericConst, ffi::String> constant_names) {
   ffi::Array<ffi::Module> compiled_functions;
 
   for (const auto& func : functions) {

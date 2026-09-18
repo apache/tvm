@@ -452,7 +452,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     MarkAsFuncOutput({var});
   }
 
-  void VisitBinding_(const VarBindingNode* binding, const ConstantNode* constant) final {
+  void VisitBinding_(const VarBindingNode* binding, const GenericConstNode* constant) final {
     AddStaticBinding(binding, false);
   }
 
@@ -505,8 +505,8 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
 
   bool IsStatic(const Expr& expr, std::vector<const VarNode*>* vars_collector = nullptr,
                 std::vector<PrimVar>* tir_vars_collector = nullptr) {
-    if (expr->IsInstance<ConstantNode>() || expr->IsInstance<DataTypeImmNode>() ||
-        expr->IsInstance<StringImmNode>() || expr->IsInstance<GlobalVarNode>()) {
+    if (expr->IsInstance<GenericConstNode>() || expr->IsInstance<StringImmNode>() ||
+        expr->IsInstance<GlobalVarNode>()) {
       return true;
     }
     if (const auto* var = expr.as<VarNode>();

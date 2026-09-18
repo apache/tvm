@@ -314,7 +314,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
      *     R.Tensor((1, 3, 224, 224), dtype="float32"),
      *     R.Tensor((3,), dtype="float32"),
      *     R.Tensor((3,), dtype="float32")
-     * ) = lv9, metadata["relax.expr.Constant"][4], metadata["relax.expr.Constant"][5]
+     * ) = lv9, metadata["ir.GenericConst"][4], metadata["ir.GenericConst"][5]
      * lv1_1: R.Tensor((1, 3, 224, 224), dtype="float32") = lv[0]
      * lv4: R.Tensor((1, 64, 112, 112), dtype="float32") = R.nn.conv2d(lv1_1, .....
      *
@@ -716,7 +716,7 @@ class DefineVDevice : ExprMutator {
   }
 
   Expr HintArg(const Expr& arg, ffi::String scope) {
-    if (arg->IsInstance<ConstantNode>()) {
+    if (arg->IsInstance<GenericConstNode>()) {
       if (auto tensor_ty = arg->ty.as<TensorTypeNode>()) {
         if (!tensor_ty->vdevice.has_value()) {
           const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, scope));

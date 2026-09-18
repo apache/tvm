@@ -311,7 +311,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         if (auto* ptr = std::get_if<MemCpyDetails>(&result)) {
           output->push_back(ffi::Array{ptr->source, ptr->dest});
         } else if (auto* ptr = std::get_if<std::string>(&result)) {
-          output->push_back(prim::StringImm(*ptr));
+          output->push_back(StringImm(*ptr));
         } else {
           TVM_FFI_THROW(InternalError) << "Internal error, unhandled std::variant type";
         }

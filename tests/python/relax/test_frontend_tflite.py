@@ -11069,14 +11069,14 @@ def test_tensor_quantization_parameters_are_parsed():
     )
     per_tensor_wrapper, per_axis_wrapper = converter.get_tensors([0, 1])
 
-    np.testing.assert_allclose(per_tensor_wrapper.qnn_params["scale"].data.numpy(), 0.5)
-    np.testing.assert_equal(per_tensor_wrapper.qnn_params["zero_point"].data.numpy(), 3)
+    np.testing.assert_allclose(per_tensor_wrapper.qnn_params["scale"].value.numpy(), 0.5)
+    np.testing.assert_equal(per_tensor_wrapper.qnn_params["zero_point"].value.numpy(), 3)
     assert per_tensor_wrapper.qnn_params["axis"] == 0
 
     np.testing.assert_allclose(
-        per_axis_wrapper.qnn_params["scale"].data.numpy(), np.array([0.25, 0.75])
+        per_axis_wrapper.qnn_params["scale"].value.numpy(), np.array([0.25, 0.75])
     )
-    np.testing.assert_equal(per_axis_wrapper.qnn_params["zero_point"].data.numpy(), 0)
+    np.testing.assert_equal(per_axis_wrapper.qnn_params["zero_point"].value.numpy(), 0)
     assert per_axis_wrapper.qnn_params["axis"] == 3
 
     mod = from_tflite(tflite_model)

@@ -41,7 +41,7 @@
 #define RELAX_VAR_BINDING_DISPATCH_IMPL(Type)                                           \
   Type::VisitBindingVTable Type::InitVisitBindingVTable() {                             \
     VisitBindingVTable vtable;                                                          \
-    RELAX_VISIT_BINDING_DISPATCH(ConstantNode);                                         \
+    RELAX_VISIT_BINDING_DISPATCH(GenericConstNode);                                     \
     RELAX_VISIT_BINDING_DISPATCH(TupleNode);                                            \
     RELAX_VISIT_BINDING_DISPATCH(VarNode);                                              \
     RELAX_VISIT_BINDING_DISPATCH(DataflowVarNode);                                      \
@@ -55,7 +55,6 @@
     RELAX_VISIT_BINDING_DISPATCH(OpNode);                                               \
     RELAX_VISIT_BINDING_DISPATCH(TupleGetItemNode);                                     \
     RELAX_VISIT_BINDING_DISPATCH(StringImmNode);                                        \
-    RELAX_VISIT_BINDING_DISPATCH(DataTypeImmNode);                                      \
     return vtable;                                                                      \
   }                                                                                     \
   void Type::VisitBinding_(const VarBindingNode* binding) {                             \
@@ -122,9 +121,9 @@ void VisitExprDepTypeFieldIfNeeded(ExprVisitor* visitor, const Type& ty) {
 
 void ExprVisitor::VisitExpr(const Expr& expr) { ExprFunctor::VisitExpr(expr); }
 
-void ExprVisitor::VisitExpr_(const ConstantNode* op) {
+void ExprVisitor::VisitExpr_(const GenericConstNode* op) {
   this->VisitSpan(op->span);
-  // Constant's Type does not depend on Expr.
+  // GenericConst's Type does not depend on Expr.
 }
 
 void ExprVisitor::VisitExpr_(const GlobalVarNode* op) {
@@ -262,8 +261,6 @@ void ExprVisitor::VisitExpr_(const tvm::IntImmNode* op) { this->VisitSpan(op->sp
 
 void ExprVisitor::VisitExpr_(const tvm::FloatImmNode* op) { this->VisitSpan(op->span); }
 
-void ExprVisitor::VisitExpr_(const prim::StringImmNode* op) { this->VisitSpan(op->span); }
-
 void ExprVisitor::VisitExpr_(const IfNode* op) {
   this->VisitSpan(op->span);
   this->VisitExpr(op->cond);
@@ -313,15 +310,13 @@ void ExprVisitor::VisitExprFallback_(const ExprNode* op) {
 
 void ExprVisitor::VisitExpr_(const StringImmNode* op) { this->VisitSpan(op->span); }
 
-void ExprVisitor::VisitExpr_(const DataTypeImmNode* op) { this->VisitSpan(op->span); }
-
 void ExprVisitor::VisitSpan(const Span& span) {}
 
 void ExprVisitor::VisitTypePrimExprField(const PrimExpr& expr) { this->VisitExpr(expr); }
 
 // implementations of binding visitor dispatch
 RELAX_VAR_BINDING_DISPATCH_IMPL(ExprVisitor);
-RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(ConstantNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(GenericConstNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(TupleNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(VarNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(DataflowVarNode);
@@ -336,7 +331,6 @@ RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(OpNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(TupleGetItemNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(ExprNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(StringImmNode);
-RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(DataTypeImmNode);
 
 void ExprVisitor::VisitBinding_(const MatchCastNode* binding) {
   this->VisitExpr(binding->value);
@@ -444,8 +438,8 @@ Type ExprMutatorBase::DefaultTypeFieldMutator::VisitType_(const FuncTypeNode* op
 
 Expr ExprMutatorBase::VisitExpr(const Expr& expr) { return ExprFunctor::VisitExpr(expr); }
 
-Expr ExprMutatorBase::VisitExpr_(const ConstantNode* op) {
-  // Constant' type won't be affected by Expr/PrimExpr change.
+Expr ExprMutatorBase::VisitExpr_(const GenericConstNode* op) {
+  // GenericConst' type won't be affected by Expr/PrimExpr change.
   return ffi::GetRef<Expr>(op);
 }
 
@@ -627,8 +621,6 @@ Expr ExprMutatorBase::VisitExpr_(const tvm::IntImmNode* op) { return ffi::GetRef
 
 Expr ExprMutatorBase::VisitExpr_(const tvm::FloatImmNode* op) { return ffi::GetRef<Expr>(op); }
 
-Expr ExprMutatorBase::VisitExpr_(const prim::StringImmNode* op) { return ffi::GetRef<Expr>(op); }
-
 Expr ExprMutatorBase::VisitExpr_(const IfNode* op) {
   Expr guard = this->VisitExpr(op->cond);
   Expr true_b = this->VisitExpr(op->true_branch);
@@ -662,8 +654,6 @@ Expr ExprMutatorBase::VisitExprFallback_(const ExprNode* op) {
 }
 
 Expr ExprMutatorBase::VisitExpr_(const StringImmNode* op) { return ffi::GetRef<Expr>(op); }
-
-Expr ExprMutatorBase::VisitExpr_(const DataTypeImmNode* op) { return ffi::GetRef<Expr>(op); }
 
 Expr ExprMutatorBase::VisitExpr_(const ShapeExprNode* op) {
   auto values = op->values.Map(
@@ -833,7 +823,7 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
 }
 
 RELAX_VAR_BINDING_DISPATCH_IMPL(ExprMutator);
-RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(ConstantNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(GenericConstNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(TupleNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(VarNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(DataflowVarNode);
@@ -848,7 +838,6 @@ RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(OpNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(TupleGetItemNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(ExprNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(StringImmNode);
-RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(DataTypeImmNode);
 
 void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
   Var new_var = this->VisitVarDef(binding->var);

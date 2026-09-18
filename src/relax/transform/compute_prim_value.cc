@@ -88,7 +88,6 @@ class PrimExprComputeInjector : public ExprMutator {
   RELAX_LIFT_PRIM_EXPR(prim::ShuffleNode);
   RELAX_LIFT_PRIM_EXPR(tvm::IntImmNode);
   RELAX_LIFT_PRIM_EXPR(tvm::FloatImmNode);
-  RELAX_LIFT_PRIM_EXPR(prim::StringImmNode);
 
 #undef RELAX_LIFT_PRIM_EXPR
 

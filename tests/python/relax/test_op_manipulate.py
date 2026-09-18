@@ -2847,7 +2847,7 @@ def test_repeat_infer_ty_wrong_input_type():
     x1 = relax.Var("x", relax.FuncType([], R.Tensor((2, 3, 4, 5), "float32")))
     x2 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
     r1 = tirx.Var("r", "float32")
-    r2 = tirx.StringImm("abc")
+    r2 = tvm.ir.StringImm("abc")
 
     with pytest.raises(TypeError):
         bb.normalize(relax.op.repeat(x0, 2))
@@ -2970,7 +2970,7 @@ def test_tile_infer_ty_wrong_input_type():
     x1 = relax.Var("x", relax.FuncType([], R.Tensor((2, 3, 4, 5), "float32")))
     x2 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
     r1 = tirx.Var("a", "float32")
-    r2 = tirx.StringImm("abc")
+    r2 = tvm.ir.StringImm("abc")
 
     with pytest.raises(TypeError):
         bb.normalize(relax.op.tile(x0, 2))

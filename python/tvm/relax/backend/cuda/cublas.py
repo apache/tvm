@@ -62,7 +62,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
         if scale.ty.ndim != 0 or zero_point.ty.ndim != 0:
             return False
         # Only zero_point == 0.0 is supported.
-        if zero_point.data.numpy()[()].item() != 0.0:
+        if zero_point.value.numpy()[()].item() != 0.0:
             return False
 
     lhs_dtype = lhs.ty.dtype

@@ -47,6 +47,8 @@ class StaticTypeDeriver : public TypeFunctor<Type(const Type&)> {
 
   Type VisitType_(const PrimTypeNode* op) final { return tvm::PrimType(op->dtype); }
 
+  Type VisitType_(const StringTypeNode* op) final { return StringType(); }
+
   Type VisitType_(const ShapeTypeNode* op) final { return ShapeType(op->ndim, op->span); }
 
   Type VisitType_(const TensorTypeNode* op) final {
@@ -87,6 +89,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type TypeFromStaticType(const Type& type) {
   if (type.as<AnyTypeNode>()) {
     return AnyType(type->span);
+  } else if (type.as<StringTypeNode>()) {
+    return StringType();
   } else if (const PrimTypeNode* prim_type = type.as<PrimTypeNode>()) {
     return tvm::PrimType(prim_type->dtype);
   } else if (const tvm::PrimTypeNode* prim_type = type.as<tvm::PrimTypeNode>()) {
@@ -312,6 +316,11 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
   // AnyType is base of every Relax type
   BaseCheckResult VisitType_(const AnyTypeNode* lhs, const Type& other) final {
     return BaseCheckResult::kPass;
+  }
+
+  BaseCheckResult VisitType_(const StringTypeNode* lhs, const Type& other) final {
+    if (other.as<StringTypeNode>()) return BaseCheckResult::kPass;
+    return other.as<AnyTypeNode>() ? BaseCheckResult::kFailL1 : BaseCheckResult::kFailL0;
   }
 
   BaseCheckResult VisitType_(const PrimTypeNode* lhs, const Type& other) final {
@@ -633,6 +642,10 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
 
   PrimExpr VisitType_(const AnyTypeNode* lhs, const Type& other) final {
     return IntImm::Bool(true);
+  }
+
+  PrimExpr VisitType_(const StringTypeNode* lhs, const Type& other) final {
+    return IntImm::Bool(other.as<StringTypeNode>() != nullptr);
   }
 
   PrimExpr VisitType_(const PrimTypeNode* lhs, const Type& other) final {
@@ -988,6 +1001,10 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
   // AnyType is base of every Relax type, unify to Any.
   Type VisitType_(const AnyTypeNode* lhs, const Type& other) final {
     return ffi::GetRef<Type>(lhs);
+  }
+
+  Type VisitType_(const StringTypeNode* lhs, const Type& other) final {
+    return other.as<StringTypeNode>() ? ffi::GetRef<Type>(lhs) : AnyType(lhs->span);
   }
 
   Type VisitType_(const PrimTypeNode* lhs, const Type& other) final {

@@ -93,7 +93,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     }
 
     PostOrderVisit(func, [this](const Expr& expr) {
-      if (expr->IsInstance<ConstantNode>() || expr->IsInstance<ShapeExprNode>() ||
+      if (expr->IsInstance<GenericConstNode>() || expr->IsInstance<ShapeExprNode>() ||
           (!expr->IsInstance<CallNode>() && !expr->IsInstance<VarNode>() && expr.as<PrimExpr>())) {
         memo_[expr] = arena_->make<Group>();
       }

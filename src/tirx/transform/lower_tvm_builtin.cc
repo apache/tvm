@@ -313,7 +313,7 @@ class BuiltinLower : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == attr::device_id) {
       auto cache = device_id_;
-      device_id_ = op->value;
+      device_id_ = op->value.as_or_throw<PrimExpr>();
       Stmt out = scope_.WithNewScope([&]() -> Stmt {
         Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
         return AppendPendingFrees(body);
@@ -322,7 +322,7 @@ class BuiltinLower : public StmtExprMutator {
       return out;
     } else if (op->attr_key == attr::device_type) {
       auto cache = device_type_;
-      device_type_ = op->value;
+      device_type_ = op->value.as_or_throw<PrimExpr>();
       Stmt out = scope_.WithNewScope([&]() -> Stmt {
         Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
         return AppendPendingFrees(body);
@@ -437,7 +437,7 @@ class BuiltinLower : public StmtExprMutator {
     }
   }
 
-  prim::StringImm GetDeviceMethodName(const char* method_name) const {
+  StringImm GetDeviceMethodName(const char* method_name) const {
     TVM_FFI_ICHECK(device_type_) << "Method " << method_name << " requires the device type, "
                                  << "but occurred outside of a \"device_type\" annotation";
 
@@ -448,7 +448,7 @@ class BuiltinLower : public StmtExprMutator {
                            << device_type_.value()->GetTypeKey();
 
     ffi::String device_name = runtime::DLDeviceType2Str(as_int->value.as<int>().value());
-    return prim::StringImm("device_api." + device_name + "." + method_name);
+    return StringImm("device_api." + device_name + "." + method_name);
   }
 
   PrimExpr MakeDMACopy(const CallNode* op) {
@@ -580,7 +580,7 @@ class BuiltinLower : public StmtExprMutator {
           {call_pattern->args[0], call_pattern->args[1], args_stack, ConstInt32(stack_offset)})));
     } else {
       int arg_type_index;
-      if (arg.as<prim::StringImmNode>()) {
+      if (arg.as<StringImmNode>()) {
         arg_type_index = ffi::TypeIndex::kTVMFFIRawStr;
         arg = reinterpret(PointerType::VoidPointerTy(), std::move(arg));
       } else if (arg->ty.as<PointerTypeNode>()) {
@@ -675,8 +675,10 @@ class BuiltinLower : public StmtExprMutator {
 
     for (size_t i = 0; i < num_args; ++i) {
       const Expr& arg = op->args[args_begin + i];
-      TVM_FFI_CHECK(arg.as<PrimExpr>() || arg->ty.as<PointerTypeNode>(), TypeError)
-          << "Packed call argument must have a primitive or pointer type, but got " << arg->ty;
+      TVM_FFI_CHECK(arg.as<PrimExpr>() || arg->ty.as<PointerTypeNode>() || arg.as<StringImmNode>(),
+                    TypeError)
+          << "Packed call argument must have a primitive, pointer, or string type, but got "
+          << arg->ty;
       this->SetPackedArg(arg, scope.stack_ffi_any, arg_stack_begin + i, &prep_seq);
     }
     // explicitly set return value to None to avoid bad state interpretation
@@ -733,7 +735,7 @@ class BuiltinLower : public StmtExprMutator {
 
     // Construct free_nd call and register in current scope.
     // The free will be emitted on scope exit, matching the old LetStmt body semantics.
-    PrimExpr storage_scope = call->args[0].as_or_throw<PrimExpr>();
+    Expr storage_scope = call->args[0];
     Call free_op = Call(PrimType::Int(32), builtin::tvm_call_packed(),
                         {GetDeviceMethodName("free_nd"), device_type_.value(), device_id_.value(),
                          storage_scope, let->var});

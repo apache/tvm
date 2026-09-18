@@ -662,9 +662,9 @@ def BindParams(
     for k, v in params.items():
         if isinstance(v, np.ndarray):
             v = tvm.runtime.tensor(v)
-        assert isinstance(v, tvm.runtime.Tensor | tvm.relax.Constant), (
+        assert isinstance(v, tvm.runtime.Tensor | tvm.ir.GenericConst), (
             f"param values are expected to be TVM.Tensor,"
-            f"numpy.ndarray or tvm.relax.Constant, but got {type(v)}"
+            f"numpy.ndarray or tvm.ir.GenericConst, but got {type(v)}"
         )
         tvm_params[k] = v
 
