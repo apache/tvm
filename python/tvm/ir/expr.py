@@ -448,12 +448,12 @@ class TensorLoad(_CallableExprWithOp):
 
 
 @tvm_ffi.register_object("ir.Constant")
-class Constant(_CallableExprWithOp):
+class Constant(ExprWithOp):
     """Base class of literal constants."""
 
 
 @tvm_ffi.register_object("ir.GenericConst")
-class GenericConst(Constant):
+class GenericConst(_ExprCallable, Constant):
     """A literal payload with an explicit expression type."""
 
     def __init__(self, value, ty: "tvm.ir.Type", span: Span | None = None) -> None:

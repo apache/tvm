@@ -734,7 +734,7 @@ def test_call_py_func_with_base_py_module():
     # Test 2: Compilation validation
     try:
         call_py_func(
-            "invalid",
+            123,
             (Var("x", TensorType((5,), "float32")),),
             out_ty=R.Tensor((5,), "float32"),
         )
