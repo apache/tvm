@@ -736,7 +736,7 @@ class BuiltinLower : public StmtExprMutator {
 
     // Construct free_nd call and register in current scope.
     // The free will be emitted on scope exit, matching the old LetStmt body semantics.
-    PrimExpr storage_scope = call->args[0].as_or_throw<PrimExpr>();
+    Expr storage_scope = call->args[0];
     Call free_op = Call(PrimType::Int(32), builtin::tvm_call_packed(),
                         {GetDeviceMethodName("free_nd"), device_type_.value(), device_id_.value(),
                          storage_scope, let->var});
