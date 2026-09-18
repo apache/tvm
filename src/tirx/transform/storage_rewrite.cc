@@ -1058,12 +1058,15 @@ class StoragePlanRewriter : public StmtExprMutator {
                     !alloc->buffer->dtype.IsScalableVector() &&
                     src_entry->elem_type == alloc->buffer->dtype.WithLanes(1) &&
                     visitor->Check(s.stmt, var, src)) {
-                  int64_t const_size = AllocBuffer(ffi::GetRef<AllocBuffer>(alloc))
-                                           .ConstantAllocationSize()
-                                           .value_or(0);
-                  uint64_t const_nbits = static_cast<uint64_t>(const_size) *
-                                         alloc->buffer->dtype.bits() * alloc->buffer->dtype.lanes();
-                  if (src_entry->const_nbits == const_nbits && !inplace_found) {
+                  uint64_t elem_bits = static_cast<uint64_t>(alloc->buffer->dtype.bits()) *
+                                       alloc->buffer->dtype.lanes();
+                  uint64_t const_nbits = 0;
+                  ConstantSizeKind size_kind =
+                      GetConstantAllocationSize(alloc->buffer->shape, elem_bits, &const_nbits);
+                  // A size that does not fit in uint64_t cannot be compared against
+                  // the source entry; FindAlloc below rejects such a buffer.
+                  if (size_kind != ConstantSizeKind::kUnrepresentable &&
+                      src_entry->const_nbits == const_nbits && !inplace_found) {
                     // successfully inplace
                     dst_entry = src_entry;
                     inplace_flag.insert(src);
@@ -1141,10 +1144,20 @@ class StoragePlanRewriter : public StmtExprMutator {
     bool is_scalable_vector = op->buffer->dtype.IsScalableVector();
     uint64_t op_elem_bits =
         is_scalable_vector ? 0 : op->buffer->dtype.bits() * op->buffer->dtype.lanes();
-    int64_t const_size =
-        AllocBuffer(ffi::GetRef<AllocBuffer>(op)).ConstantAllocationSize().value_or(0);
-    uint64_t const_nbits =
-        is_scalable_vector ? 0 : static_cast<uint64_t>(const_size * op_elem_bits);
+    // A size that is not known at compile time leaves const_nbits at zero, so the
+    // buffer gets an allocation of its own below. A constant size that does not
+    // fit in uint64_t is rejected rather than planned with the wrapped value.
+    uint64_t const_nbits = 0;
+    if (!is_scalable_vector) {
+      ConstantSizeKind size_kind =
+          GetConstantAllocationSize(op->buffer->shape, op_elem_bits, &const_nbits);
+      if (size_kind == ConstantSizeKind::kUnrepresentable) {
+        TVM_FFI_THROW(ValueError) << "Cannot plan storage for buffer " << op->buffer.name()
+                                  << " with shape " << op->buffer->shape << " and dtype "
+                                  << op->buffer->dtype
+                                  << ": its size in bits does not fit in 64 bits";
+      }
+    }
 
     // If the size of the array isn't known at compile-time, it must
     // have its own allocation with size determined at runtime.
@@ -1168,7 +1181,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       // constant allocation.
       auto begin = const_free_map_.lower_bound(const_nbits / match_range);
       auto mid = const_free_map_.lower_bound(const_nbits);
-      auto end = const_free_map_.upper_bound(const_nbits * match_range);
+      auto end = const_free_map_.upper_bound(SaturatingMul(const_nbits, match_range));
       // start looking at the buffer that is bigger than the required size first
       for (auto it = mid; it != end; ++it) {
         StorageEntry* e = it->second;

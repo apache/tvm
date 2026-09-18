@@ -319,5 +319,36 @@ def test_lower_cpu_alloc_with_function_attr():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+def _global_alloc_func(shape, dtype="int8"):
+    """A CPU function holding a single global allocation of the given shape."""
+    buf = tvm.tirx.decl_buffer(shape, dtype=dtype, scope="global")
+    body = tvm.tirx.AttrStmt(
+        tvm.tirx.Var("dev", "int32"),
+        "device_id",
+        tvm.tirx.IntImm("int32", 0),
+        tvm.tirx.AllocBuffer(buf),
+    )
+    attrs = tvm.ir.DictAttrs({"target": tvm.target.Target("llvm")})
+    return tvm.tirx.PrimFunc([], body, attrs=attrs)
+
+
+@pytest.mark.parametrize("shape", [(2**32, 2**32), (2**62, 4), (2**62, 5)])
+def test_workspace_size_that_does_not_fit_is_rejected(shape):
+    """An int8 allocation of 2**64 bytes or more must not wrap around.
+
+    Folding the byte count in uint64 turns the first two shapes into a request
+    for 0 bytes and the third into a request for 2**62 instead of 5 * 2**62.
+    """
+    mod = tvm.IRModule({"main": _global_alloc_func(shape)})
+    with pytest.raises(ValueError, match="does not fit"):
+        tvm.tirx.transform.LowerTVMBuiltin()(mod)
+
+
+def test_workspace_size_that_fits_is_unchanged():
+    mod = tvm.IRModule({"main": _global_alloc_func((2**31, 4))})
+    lowered = tvm.tirx.transform.LowerTVMBuiltin()(mod)
+    assert str(2**31 * 4) in str(lowered["main"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

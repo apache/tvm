@@ -528,5 +528,58 @@ def test_no_orphaned_decl_buffer():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+def test_allocation_size_that_does_not_fit_is_rejected():
+    """A buffer whose size in bits wraps around must not be planned as a small one.
+
+    8 bits * (2**61 + 128) is 2**64 + 1024, which wraps to 1024 bits: exactly the
+    size of A, so the planner used to place B inside A's 128-byte allocation.
+    """
+    huge = 2**61 + 128
+
+    @T.prim_func(s_tir=True)
+    def func():
+        for j in range(128):
+            A = T.alloc_buffer((128,), "int8")
+            A[j] = T.int8(1)
+        for j in range(128):
+            B = T.alloc_buffer((huge,), "int8")
+            B[j] = T.int8(2)
+
+    mod = tvm.IRModule.from_expr(func)
+    with pytest.raises(ValueError, match="does not fit"):
+        tvm.tirx.transform.StorageRewrite()(mod)
+
+
+def test_reuse_search_range_does_not_wrap():
+    """The free-list search range of a large buffer must not wrap around.
+
+    The upper bound of the search is const_nbits * 16. For B that product is
+    2**65, which wraps to 0, so the range ended before it started and the search
+    walked past the end of the free list.
+    """
+    big = 2**58
+
+    @T.prim_func(s_tir=True)
+    def func():
+        for j in range(128):
+            A = T.alloc_buffer((128,), "int8")
+            A[j] = T.int8(1)
+        for j in range(128):
+            B = T.alloc_buffer((big,), "int8")
+            B[j] = T.int8(2)
+
+    mod = tvm.IRModule.from_expr(func)
+    body = tvm.tirx.transform.StorageRewrite()(mod)["func"].body
+
+    sizes = []
+
+    def collect(n):
+        if isinstance(n, tvm.tirx.AllocBuffer):
+            sizes.append(n.buffer.ty.shape[0].value)
+
+    tvm_ffi.structural_walk(body, collect)
+    assert sorted(sizes) == [128, big]
+
+
 if __name__ == "__main__":
     tvm.testing.main()

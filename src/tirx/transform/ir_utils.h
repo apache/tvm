@@ -24,6 +24,7 @@
 #ifndef TVM_TIR_TRANSFORM_IR_UTILS_H_
 #define TVM_TIR_TRANSFORM_IR_UTILS_H_
 
+#include <tvm/ffi/big_int.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/scope_stack.h>
@@ -196,6 +197,55 @@ inline int GetTempAllocaAlignment(const PrimType& type, int64_t const_size) {
     }
   }
   return align;
+}
+
+/*! \brief Outcome of computing the constant size of an allocation. */
+enum class ConstantSizeKind : int {
+  /*! \brief At least one extent is not known at compile time. */
+  kDynamic = 0,
+  /*! \brief The size is known at compile time and fits in uint64_t. */
+  kConstant = 1,
+  /*! \brief The extents are constant, but the size is not representable. */
+  kUnrepresentable = 2,
+};
+
+/*!
+ * \brief Compute the constant size of an allocation, in units of \p unit_size.
+ *
+ * The product of the extents and \p unit_size is formed exactly, so a shape
+ * whose size does not fit in uint64_t is reported instead of wrapping around.
+ * A negative extent is reported the same way, so that it is never converted
+ * into a very large unsigned size.
+ *
+ * \param shape The allocation shape.
+ * \param unit_size The size of one element, in the unit the caller works in.
+ * \param out Set to the size when the result is kConstant, left untouched otherwise.
+ * \return Whether the size is dynamic, constant, or not representable.
+ */
+inline ConstantSizeKind GetConstantAllocationSize(const ffi::Array<PrimExpr>& shape,
+                                                  uint64_t unit_size, uint64_t* out) {
+  ffi::BigInt size(unit_size);
+  for (const PrimExpr& extent : shape) {
+    const auto* imm = extent.as<IntImmNode>();
+    if (imm == nullptr) return ConstantSizeKind::kDynamic;
+    size *= imm->value;
+  }
+  std::optional<uint64_t> fits = size.as<uint64_t>();
+  if (!fits.has_value()) return ConstantSizeKind::kUnrepresentable;
+  *out = *fits;
+  return ConstantSizeKind::kConstant;
+}
+
+/*!
+ * \brief Multiply two sizes, saturating instead of wrapping around.
+ * \param a The left operand.
+ * \param b The right operand.
+ * \return The product, or the largest uint64_t if the product does not fit.
+ */
+inline uint64_t SaturatingMul(uint64_t a, uint64_t b) {
+  constexpr uint64_t kMaxSize = std::numeric_limits<uint64_t>::max();
+  if (a == 0 || b == 0) return 0;
+  return a > kMaxSize / b ? kMaxSize : a * b;
 }
 
 /*!

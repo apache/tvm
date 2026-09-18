@@ -33,6 +33,9 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/stmt.h>
 
+#include <algorithm>
+#include <limits>
+
 #include "../../runtime/thread_storage_scope.h"
 #include "../../tirx/transform/ir_utils.h"
 
@@ -71,22 +74,22 @@ class GPUCodeVerifier : public StmtExprVisitor {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     auto scope = op->buffer.scope();
     runtime::StorageScope storage_scope = runtime::StorageScope::Create(scope);
-    int64_t const_size = 1;
-    for (const PrimExpr& e : op->buffer->shape) {
-      if (auto* imm = e.as<IntImmNode>()) {
-        const_size = static_cast<int64_t>(const_size * imm->value);
-      } else {
-        const_size = 0;
-        break;
-      }
-    }
     PrimType dtype_ty = op->buffer->dtype;
     TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
         << "Cannot verify GPU memory usage for scalable vector dtype " << dtype_ty;
-    if (storage_scope.rank == runtime::StorageRank::kLocal) {
-      local_memory_per_block_ += static_cast<size_t>(const_size) * ElementBytes(dtype_ty);
+    // A dynamic shape leaves const_nbytes at zero and is not accounted for, as before.
+    uint64_t const_nbytes = 0;
+    ConstantSizeKind size_kind =
+        GetConstantAllocationSize(op->buffer->shape, ElementBytes(dtype_ty), &const_nbytes);
+    if (size_kind == ConstantSizeKind::kUnrepresentable) {
+      std::stringstream s;
+      s << "Size of buffer " << op->buffer.name() << " with shape " << op->buffer->shape
+        << " and dtype " << dtype_ty << " does not fit in a 64-bit byte count";
+      errors_.push_back(s.str());
+    } else if (storage_scope.rank == runtime::StorageRank::kLocal) {
+      AccumulateBytes(&local_memory_per_block_, const_nbytes);
     } else if (storage_scope.rank == runtime::StorageRank::kShared) {
-      shared_memory_per_block_ += static_cast<size_t>(const_size) * ElementBytes(dtype_ty);
+      AccumulateBytes(&shared_memory_per_block_, const_nbytes);
     }
     if (dtype_ty.IsFixedLengthVector()) {
       if (ElementBytes(dtype_ty) > max_vector_bytes_) {
@@ -287,6 +290,18 @@ class GPUCodeVerifier : public StmtExprVisitor {
   std::vector<ffi::String> errors_;
 
   static size_t ElementBytes(const PrimType& ty) { return ty.StorageBytes(); }
+
+  /*!
+   * \brief Add to a memory total, saturating instead of wrapping around.
+   *
+   * The totals are only ever compared against a maximum, so saturating keeps an
+   * oversized kernel detectable.
+   */
+  static void AccumulateBytes(size_t* total, uint64_t nbytes) {
+    constexpr size_t kMaxTotal = std::numeric_limits<size_t>::max();
+    size_t value = static_cast<size_t>(std::min<uint64_t>(nbytes, kMaxTotal));
+    *total = *total > kMaxTotal - value ? kMaxTotal : *total + value;
+  }
 
   void Reset_() {
     local_memory_per_block_ = 0;

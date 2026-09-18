@@ -265,13 +265,23 @@ class BuiltinLower : public StmtExprMutator {
       return stmt;
     }
     int64_t nbytes = GetVectorBytes(op->buffer->dtype);
+    uint64_t const_nbytes = 0;
+    ConstantSizeKind size_kind =
+        GetConstantAllocationSize(op->buffer->shape, static_cast<uint64_t>(nbytes), &const_nbytes);
+    if (size_kind == ConstantSizeKind::kUnrepresentable) {
+      // total_bytes below would fold to a wrapped constant, so the workspace
+      // request would be smaller than the buffer it is meant to hold.
+      TVM_FFI_THROW(ValueError) << "Cannot allocate buffer " << op->buffer.name() << " with shape "
+                                << op->buffer->shape << " and dtype " << op->buffer->dtype
+                                << ": its size in bytes does not fit in the 64-bit byte count "
+                                   "passed to TVMBackendAllocWorkspace";
+    }
     if (const auto* dev_type = device_type_.as<IntImmNode>();
         dev_type && dev_type->value == kDLCPU) {
       auto storage_scope = op->buffer->storage_scope;
       if (storage_scope == "global") {
-        auto constant_size = stmt.as_or_throw<AllocBuffer>().ConstantAllocationSize();
-        if (constant_size.has_value() && constant_size.value() > 0 &&
-            static_cast<size_t>(constant_size.value()) * nbytes < runtime::kMaxStackAlloca) {
+        if (size_kind == ConstantSizeKind::kConstant && const_nbytes > 0 &&
+            const_nbytes < runtime::kMaxStackAlloca) {
           return stmt;
         }
       }

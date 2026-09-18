@@ -86,24 +86,6 @@ bool IsStaticSharedMemory(const BufferVar& buffer) {
 }
 
 /*!
- * \brief Compute constant allocation size from buffer's allocation shape.
- * \return Product of extents if all constant, 0 otherwise.
- */
-static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents) {
-  int64_t result = 1;
-  for (size_t i = 0; i < extents.size(); ++i) {
-    if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
-      auto product = (result * int_size->value).as<int64_t>();
-      if (!product.has_value()) return 0;
-      result = *product;
-    } else {
-      return 0;
-    }
-  }
-  return result;
-}
-
-/*!
  * \brief collect the mapping from the buffer var to its BufferVar within a subtree
  */
 class AllocateCollector : public StmtExprVisitor {
@@ -861,8 +843,16 @@ class SharedMemoryRewriter : public StmtExprMutator {
     ffi::Array<PrimExpr> alloc_shape = GetBufferAllocationShape(buf);
     DLDataType dtype = buf->dtype->dtype;
     uint64_t op_elem_bits = static_cast<uint64_t>(dtype.bits) * dtype.lanes;
-    uint64_t const_nbits =
-        static_cast<uint64_t>(ConstantAllocationSize(alloc_shape) * op_elem_bits);
+    // A size that is not known at compile time leaves const_nbits at zero. A
+    // constant size that does not fit in uint64_t is rejected rather than
+    // planned with the wrapped value.
+    uint64_t const_nbits = 0;
+    if (tirx::GetConstantAllocationSize(alloc_shape, op_elem_bits, &const_nbits) ==
+        tirx::ConstantSizeKind::kUnrepresentable) {
+      TVM_FFI_THROW(ValueError) << "Cannot plan shared memory for buffer " << buf.name()
+                                << " with shape " << alloc_shape << " and dtype " << buf->dtype
+                                << ": its size in bits does not fit in 64 bits";
+    }
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
     if (const_nbits > 0 && const_nbits <= 32) {
@@ -873,7 +863,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       // constant allocation.
       auto begin = scope.const_free_map.lower_bound(0);
       auto mid = scope.const_free_map.lower_bound(const_nbits);
-      auto end = scope.const_free_map.upper_bound(const_nbits * match_range);
+      auto end = scope.const_free_map.upper_bound(tirx::SaturatingMul(const_nbits, match_range));
       // Start looking at the buffer that is bigger than the required size first.
       // If we find one, directly allocate the buffer in its location and remove its entry in the
       // free list
