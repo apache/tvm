@@ -2512,7 +2512,9 @@ llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm)
     return nullptr;
 
   } else if (ty_llvm->isPointerTy()) {
-    if (ty_tir.as<StringTypeNode>()) return nullptr;
+    if (ty_tir.as<StringTypeNode>()) {
+      return GetDebugType(PointerType(PrimType::Int(8)), ty_llvm);
+    }
     auto* ptr_type = ty_tir.as<PointerTypeNode>();
     TVM_FFI_ICHECK(ptr_type != nullptr)
         << "Got LLVM pointer type from non-pointer IR type: " << ty_tir;

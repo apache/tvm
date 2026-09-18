@@ -316,6 +316,10 @@ void CodeGenCHost::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
   } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
     this->PrintIndent();
     this->stream << "return -1;\n";
+  } else if (op->op.same_as(builtin::call_extern()) &&
+             op->args[0].as<StringImmNode>()->value == "TVMFFIAnyViewToOwnedAny") {
+    os << "TVMFFIAnyViewToOwnedAny((const TVMFFIAny*)" << PrintExpr(op->args[1]) << ", (TVMFFIAny*)"
+       << PrintExpr(op->args[2]) << ")";
   } else {
     CodeGenC::Dispatch_(op, os);
   }
