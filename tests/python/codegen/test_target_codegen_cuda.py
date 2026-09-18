@@ -782,14 +782,27 @@ def test_vectorized_intrin1():
         run_test(*func, "float16")
 
 
-def _min_max_nan_module(op, dt, n=8, vectorize=False):
+def _min_max_nan_module(op, dt, n=8, vectorize=False, composite=False):
     @I.ir_module(s_tir=True)
     class Module:
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer((n,), dt), B: T.Buffer((n,), dt), C: T.Buffer((n,), dt)):
             T.func_attr({"tirx.noalias": True})
             for i0 in T.thread_binding(2, thread="blockIdx.x"):
-                if vectorize:
+                if composite:
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(n, i0 * 4 + 0)
+                        C[v_i] = T.max(A[v_i], B[v_i]) + T.float32(1.0)
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(n, i0 * 4 + 1)
+                        C[v_i] = T.max(A[v_i], B[v_i]) + T.float32(1.0)
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(n, i0 * 4 + 2)
+                        C[v_i] = T.max(A[v_i], B[v_i]) + T.float32(1.0)
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(n, i0 * 4 + 3)
+                        C[v_i] = T.max(A[v_i], B[v_i]) + T.float32(1.0)
+                elif vectorize:
                     for i1 in T.vectorized(4):
                         with T.sblock("C"):
                             v_i = T.axis.spatial(n, i0 * 4 + i1)
@@ -855,10 +868,15 @@ def test_min_max_nan_preserving_cuda(op, dt, form):
 def test_min_max_nan_preserving_composite_cuda():
     # The scalar ternary must survive nesting inside a compound expression:
     # C[i] = max(A[i], B[i]) + 1.0 without being parsed as (x + cond) ? va : vb.
+    # NaN lanes cannot be compared bitwise (CUDA float add normalizes the NaN
+    # payload), so lanes 0-2 assert NaN and the finite lanes assert bitwise.
     n = 8
     a_np = A_F32
     b_np = B_F32
-    mod = tvm.compile(_min_max_nan_module("max", "float32", n, vectorize=False), target="cuda")
+    mod = tvm.compile(
+        _min_max_nan_module("max", "float32", n, vectorize=False, composite=True),
+        target="cuda",
+    )
     a = tvm.runtime.tensor(a_np, tvm.cuda(0))
     b = tvm.runtime.tensor(b_np, tvm.cuda(0))
     c = tvm.runtime.empty((n,), "float32", tvm.cuda(0))
@@ -867,7 +885,9 @@ def test_min_max_nan_preserving_composite_cuda():
         mod(a, b, c)
         got = c.numpy()
         expected = _nan_preserving_expected(a_np, b_np, "max") + np.float32(1.0)
-        np.testing.assert_array_equal(got.view("uint32"), expected.view("uint32"))
+        assert np.isnan(got[[0, 1, 2]]).all(), "NaN lanes must stay NaN after + 1.0"
+        finite = [3, 4, 5, 6, 7]
+        np.testing.assert_array_equal(got.view("uint32")[finite], expected.view("uint32")[finite])
 
     tvm.testing.run_with_gpu_lock(run_and_check)
 
