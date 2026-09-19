@@ -104,6 +104,48 @@ def test_bound_symbolic_allocation(scope, bounded):
             _build_webgpu(Module)
 
 
+@pytest.mark.parametrize("scope", ["local", "shared"])
+@pytest.mark.parametrize("bounded", [True, False])
+def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
+    @I.ir_module
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main():
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "main",
+                    "target": T.target("webgpu"),
+                    "tirx.is_global_func": True,
+                }
+            )
+            state = T.alloc_buffer((1,), "int32", scope="local")
+            state[0] = 0
+            snapshot: T.let[T.int32] = state[0]
+            state[0] = 32
+            difference: T.let[T.int32] = state[0] - snapshot
+            # The snapshot is immutable, but the buffer it read has changed.
+            # Substituting the load would incorrectly reduce this extent to 1.
+            scratch = T.alloc_buffer(
+                (T.min(T.max(difference, 1), 32 if bounded else 2147483647),),
+                "float32",
+                scope=scope,
+            )
+            scratch[31] = 1.0
+
+    if bounded:
+        source = _build_webgpu(Module).inspect_source()
+        declaration = r"var<workgroup>" if scope == "shared" else r"\bvar"
+        assert re.search(declaration + r"\s+scratch\s*:\s*array<f32,\s*32>;", source)
+        assert "scratch[31" in source
+    else:
+        with pytest.raises(
+            tvm.error.InternalError,
+            match="WebGPU allocation extent requires a finite compile-time upper bound",
+        ):
+            _build_webgpu(Module)
+
+
 @pytest.mark.parametrize("target_limit", [512, 496])
 def test_bound_symbolic_workgroup_allocation_respects_target_limit(target_limit):
     @I.ir_module

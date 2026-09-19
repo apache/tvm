@@ -28,6 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/support/io.h>
+#include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/transform.h>
 
@@ -644,7 +645,9 @@ void CodeGenWebGPU::VisitExpr_(const TensorLoadNode* op, std::ostream& os) {  //
 }
 
 void CodeGenWebGPU::VisitStmt_(const BindNode* op) {
-  if (auto prim_value = op->value.as<PrimExpr>()) {
+  // Stateful reads cannot be substituted after the underlying state changes.
+  if (auto prim_value = op->value.as<PrimExpr>();
+      prim_value && SideEffect(prim_value.value()) <= CallEffectKind::kPure) {
     analyzer_->Bind(op->var, prim_value.value());
   }
   // use ssa form.
