@@ -50,7 +50,7 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-  "apache-tvm-ffi>=0.1.13.post2",
+  "apache-tvm-ffi>=0.1.14.post0",
   "ml_dtypes",
   "numpy",
   "typing_extensions",
@@ -159,7 +159,7 @@ BUILD_TESTING = "OFF"
 version_file = "python/tvm/_version.py"
 version_scheme = "guess-next-dev"
 local_scheme = "no-local-version"
-fallback_version = "0.26.dev0"
+fallback_version = "0.27.0"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
