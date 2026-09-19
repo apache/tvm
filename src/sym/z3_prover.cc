@@ -741,7 +741,11 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
     if (memo_.count(e)) {
       return false;
     }
-    return e->IsInstance<CallNode>() || e->IsInstance<TensorLoadNode>() ||
+    // Keep the conservative shortcut used when bitwise operations were calls.
+    return e->IsInstance<CallNode>() || e->IsInstance<prim::LShiftNode>() ||
+           e->IsInstance<prim::RShiftNode>() || e->IsInstance<prim::BitwiseAndNode>() ||
+           e->IsInstance<prim::BitwiseOrNode>() || e->IsInstance<prim::BitwiseXorNode>() ||
+           e->IsInstance<prim::BitwiseNotNode>() || e->IsInstance<TensorLoadNode>() ||
            (e->IsInstance<prim::CastNode>() &&
             !IsZ3SupportedExpr(e.as_or_throw<prim::Cast>()->value.get()));
   }
@@ -884,23 +888,25 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
   }
   z3::expr Dispatch_(const IntImmNode* op) override { return IntegerValue(*ctx, op->value); }
 
-  // Bitwise operations
+  z3::expr Dispatch_(const prim::BitwiseAndNode* op) override {
+    return VisitBitwiseOp(z3::operator&, op, op->a, op->b);
+  }
+  z3::expr Dispatch_(const prim::BitwiseOrNode* op) override {
+    return VisitBitwiseOp(z3::operator|, op, op->a, op->b);
+  }
+  z3::expr Dispatch_(const prim::BitwiseXorNode* op) override {
+    return VisitBitwiseOp(z3::operator^, op, op->a, op->b);
+  }
+  z3::expr Dispatch_(const prim::LShiftNode* op) override {
+    return VisitShiftOp(z3::shl, op, op->a, op->b);
+  }
+  z3::expr Dispatch_(const prim::RShiftNode* op) override {
+    return VisitShiftOp(z3::ashr, op, op->a, op->b);
+  }
+
   z3::expr Dispatch_(const CallNode* op) override {
-    // Check if this is a bitwise operation
-    if (op->op.same_as(prim::builtin::bitwise_and())) {
-      return VisitBitwiseOp(z3::operator&, op);
-    } else if (op->op.same_as(prim::builtin::bitwise_or())) {
-      return VisitBitwiseOp(z3::operator|, op);
-    } else if (op->op.same_as(prim::builtin::bitwise_xor())) {
-      return VisitBitwiseOp(z3::operator^, op);
-    } else if (op->op.same_as(prim::builtin::bitwise_not())) {
-      return VisitBitwiseNotOp(op);
-    } else if (op->op.same_as(prim::builtin::shift_left())) {
-      return VisitShiftOp(z3::shl, op);
-    } else if (op->op.same_as(prim::builtin::shift_right())) {
-      return VisitShiftOp(z3::ashr, op);
-    } else if (op->op.same_as(prim::builtin::if_then_else()) && op->args.size() == 3 &&
-               IsZ3SupportedExpr(op->args[1].get()) && IsZ3SupportedExpr(op->args[2].get())) {
+    if (op->op.same_as(prim::builtin::if_then_else()) && op->args.size() == 3 &&
+        IsZ3SupportedExpr(op->args[1].get()) && IsZ3SupportedExpr(op->args[2].get())) {
       // tir.if_then_else(cond, a, b) is a select-like ternary.
       return z3::ite(VisitBool(op->args[0].as_or_throw<PrimExpr>()),
                      VisitInt(op->args[1].as_or_throw<PrimExpr>()),
@@ -912,15 +918,8 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
   }
 
   /// @brief Helper function to visit binary bitwise operations
-  z3::expr VisitBitwiseOp(z3::expr (*op_func)(const z3::expr&, const z3::expr&),
-                          const CallNode* op) {
-    if (op->args.size() != 2) {
-      LOG(FATAL) << "Binary bitwise operation expects 2 arguments, got " << op->args.size();
-      TVM_FFI_UNREACHABLE();
-    }
-
-    PrimExpr a = op->args[0].as_or_throw<PrimExpr>();
-    PrimExpr b = op->args[1].as_or_throw<PrimExpr>();
+  z3::expr VisitBitwiseOp(z3::expr (*op_func)(const z3::expr&, const z3::expr&), const ExprNode* op,
+                          const PrimExpr& a, const PrimExpr& b) {
     unsigned bit_width = std::max(a.ty().bits(), b.ty().bits());
 
     if (IsZ3SupportedExpr(a.get()) && IsZ3SupportedExpr(b.get())) {
@@ -932,13 +931,8 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
   }
 
   /// @brief Helper function to visit unary bitwise not operation
-  z3::expr VisitBitwiseNotOp(const CallNode* op) {
-    if (op->args.size() != 1) {
-      LOG(FATAL) << "Bitwise not operation expects 1 argument, got " << op->args.size();
-      TVM_FFI_UNREACHABLE();
-    }
-
-    PrimExpr a = op->args[0].as_or_throw<PrimExpr>();
+  z3::expr Dispatch_(const prim::BitwiseNotNode* op) override {
+    const PrimExpr& a = op->a;
 
     if (IsZ3SupportedExpr(a.get())) {
       // Cast integer to bit-vector, apply bitwise not, then cast back.
@@ -952,15 +946,8 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
   }
 
   /// @brief Helper function to visit shift operations
-  z3::expr VisitShiftOp(z3::expr (*op_func)(const z3::expr&, const z3::expr&), const CallNode* op) {
-    if (op->args.size() != 2) {
-      LOG(FATAL) << "Shift operation expects 2 arguments, got " << op->args.size();
-      TVM_FFI_UNREACHABLE();
-    }
-
-    PrimExpr a = op->args[0].as_or_throw<PrimExpr>();
-    PrimExpr b = op->args[1].as_or_throw<PrimExpr>();
-
+  z3::expr VisitShiftOp(z3::expr (*op_func)(const z3::expr&, const z3::expr&), const ExprNode* op,
+                        const PrimExpr& a, const PrimExpr& b) {
     // Shift operations require integer types for both operands
     if (IsZ3SupportedExpr(a.get()) && IsZ3SupportedExpr(b.get())) {
       z3::expr a_expr = VisitInt(a);

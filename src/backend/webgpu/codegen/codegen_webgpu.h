@@ -70,6 +70,8 @@ class CodeGenWebGPU final : public CodeGenC {
   void Dispatch_(const CallNode* op, std::ostream& os) final;             // NOLINT(*)
   void Dispatch_(const TensorLoadNode* op, std::ostream& os) final;       // NOLINT(*)
   void Dispatch_(const prim::CastNode* op, std::ostream& os) final;       // NOLINT(*)
+  void Dispatch_(const prim::LShiftNode* op, std::ostream& os) final;     // NOLINT(*)
+  void Dispatch_(const prim::RShiftNode* op, std::ostream& os) final;     // NOLINT(*)
   void Dispatch_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
   void Dispatch_(const prim::LetNode* op, std::ostream& os) final;        // NOLINT(*)
   void Dispatch_(const FloatImmNode* op, std::ostream& os) final;         // NOLINT(*)

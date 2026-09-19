@@ -337,6 +337,45 @@ spirv::Value CodeGenSPIRV::Dispatch_(const prim::NotNode* op) {
   return builder_->MakeValue(spv::OpLogicalNot, a.stype, a);
 }
 
+spirv::Value CodeGenSPIRV::Dispatch_(const prim::LShiftNode* op) {
+  spirv::Value a = MakeValue(op->a);
+  spirv::Value b = MakeValue(op->b);
+  return builder_->MakeValue(spv::OpShiftLeftLogical, a.stype, a, b);
+}
+
+spirv::Value CodeGenSPIRV::Dispatch_(const prim::BitwiseAndNode* op) {
+  spirv::Value a = MakeValue(op->a);
+  spirv::Value b = MakeValue(op->b);
+  return builder_->MakeValue(spv::OpBitwiseAnd, a.stype, a, b);
+}
+
+spirv::Value CodeGenSPIRV::Dispatch_(const prim::BitwiseOrNode* op) {
+  spirv::Value a = MakeValue(op->a);
+  spirv::Value b = MakeValue(op->b);
+  return builder_->MakeValue(spv::OpBitwiseOr, a.stype, a, b);
+}
+
+spirv::Value CodeGenSPIRV::Dispatch_(const prim::BitwiseXorNode* op) {
+  spirv::Value a = MakeValue(op->a);
+  spirv::Value b = MakeValue(op->b);
+  return builder_->MakeValue(spv::OpBitwiseXor, a.stype, a, b);
+}
+
+spirv::Value CodeGenSPIRV::Dispatch_(const prim::RShiftNode* op) {
+  spirv::Value a = MakeValue(op->a);
+  spirv::Value b = MakeValue(op->b);
+  if (op->a.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
+    return builder_->MakeValue(spv::OpShiftRightArithmetic, a.stype, a, b);
+  } else {
+    return builder_->MakeValue(spv::OpShiftRightLogical, a.stype, a, b);
+  }
+}
+
+spirv::Value CodeGenSPIRV::Dispatch_(const prim::BitwiseNotNode* op) {
+  spirv::Value a = MakeValue(op->a);
+  return builder_->MakeValue(spv::OpNot, a.stype, a);
+}
+
 spirv::Value CodeGenSPIRV::Dispatch_(const prim::SelectNode* op) {
   return builder_->Select(MakeValue(op->condition), MakeValue(op->true_value),
                           MakeValue(op->false_value));
@@ -372,39 +411,6 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     }
     return builder_->CallGLSL450(builder_->GetSType(op->ty.as_or_throw<PrimType>()), inst_id,
                                  values);
-  } else if (op->op.same_as(prim::builtin::bitwise_and())) {
-    TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
-    spirv::Value a = MakeValue(op->args[0]);
-    spirv::Value b = MakeValue(op->args[1]);
-    return builder_->MakeValue(spv::OpBitwiseAnd, a.stype, a, b);
-  } else if (op->op.same_as(prim::builtin::bitwise_xor())) {
-    TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
-    spirv::Value a = MakeValue(op->args[0]);
-    spirv::Value b = MakeValue(op->args[1]);
-    return builder_->MakeValue(spv::OpBitwiseXor, a.stype, a, b);
-  } else if (op->op.same_as(prim::builtin::bitwise_or())) {
-    TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
-    spirv::Value a = MakeValue(op->args[0]);
-    spirv::Value b = MakeValue(op->args[1]);
-    return builder_->MakeValue(spv::OpBitwiseOr, a.stype, a, b);
-  } else if (op->op.same_as(prim::builtin::bitwise_not())) {
-    TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
-    spirv::Value a = MakeValue(op->args[0]);
-    return builder_->MakeValue(spv::OpNot, a.stype, a);
-  } else if (op->op.same_as(prim::builtin::shift_left())) {
-    TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
-    spirv::Value a = MakeValue(op->args[0]);
-    spirv::Value b = MakeValue(op->args[1]);
-    return builder_->MakeValue(spv::OpShiftLeftLogical, a.stype, a, b);
-  } else if (op->op.same_as(prim::builtin::shift_right())) {
-    TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
-    spirv::Value a = MakeValue(op->args[0]);
-    spirv::Value b = MakeValue(op->args[1]);
-    if (op->args[0].as_or_throw<PrimExpr>().ty().MatchesCode(DLDataTypeCode::kDLInt)) {
-      return builder_->MakeValue(spv::OpShiftRightArithmetic, a.stype, a, b);
-    } else {
-      return builder_->MakeValue(spv::OpShiftRightLogical, a.stype, a, b);
-    }
   } else if (op->op.same_as(tirx::builtin::reinterpret())) {
     return builder_->MakeValue(spv::OpBitcast, builder_->GetSType(op->ty.as_or_throw<PrimType>()),
                                MakeValue(op->args[0]));

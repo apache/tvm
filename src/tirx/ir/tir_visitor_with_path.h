@@ -186,6 +186,12 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   void Dispatch_(const prim::AndNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::OrNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::CastNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::LShiftNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::RShiftNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::BitwiseAndNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::BitwiseOrNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::BitwiseXorNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::BitwiseNotNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::NotNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::SelectNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::RampNode* op, ffi::reflection::AccessPath path) override;

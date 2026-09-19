@@ -269,27 +269,27 @@ def test_tir_op_shift_left():
     x = tirx.Var("x", ty="int32")
     y = tirx.Var("x", ty="int32")
     expr = tirx.shift_left(x, y)
-    assert expr.op.name == "prim.shift_left"
+    assert isinstance(expr, tirx.LShift)
 
 
 def test_tir_op_shift_right():
     x = tirx.Var("x", ty="int32")
     y = tirx.Var("x", ty="int32")
     expr = tirx.shift_right(x, y)
-    assert expr.op.name == "prim.shift_right"
+    assert isinstance(expr, tirx.RShift)
 
 
 def test_tir_op_bitwise():
     x = tirx.Var("x", ty="int32")
     y = tirx.Var("y", ty="int32")
     expr = tirx.bitwise_and(x, y)
-    assert expr.op.name == "prim.bitwise_and"
+    assert isinstance(expr, tirx.BitwiseAnd)
     expr = tirx.bitwise_or(x, y)
-    assert expr.op.name == "prim.bitwise_or"
+    assert isinstance(expr, tirx.BitwiseOr)
     expr = tirx.bitwise_not(x)
-    assert expr.op.name == "prim.bitwise_not"
+    assert isinstance(expr, tirx.BitwiseNot)
     expr = tirx.bitwise_xor(x, y)
-    assert expr.op.name == "prim.bitwise_xor"
+    assert isinstance(expr, tirx.BitwiseXor)
 
 
 def test_tir_op_TVMBackendAllocWorkspace():

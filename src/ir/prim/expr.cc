@@ -167,6 +167,42 @@ TVMFFIAny NotMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
+TVMFFIAny BitwiseNotVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  // skips: PrimExpr types are always PrimType and remain unchanged in normal mutation.
+  const BitwiseNotNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BitwiseNotNode>(value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->a));
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny BitwiseNotMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // skips: PrimExpr types are always PrimType and remain unchanged in normal mutation.
+  const BitwiseNotNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BitwiseNotNode>(value);
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_a_u,
+                                    mutator->MutateExpected(self->a));
+  if (mapped_a_u.UnchangedOrSameAs(self->a)) {
+    return ffi::Unchanged().CopyToTVMFFIAny();
+  }
+  ffi::ObjectPtr<BitwiseNotNode> copy = ffi::make_object<BitwiseNotNode>(*self);
+  if (!mapped_a_u.IsUnchanged()) copy->a = std::move(mapped_a_u).ValueUnchecked();
+  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+}
+
+TVMFFIAny BitwiseNotMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                       ffi::AnyView value) noexcept {
+  // skips: PrimExpr types are always PrimType and remain unchanged in normal mutation.
+  BitwiseNotNode* self = const_cast<BitwiseNotNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BitwiseNotNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_a_u,
+                                    mutator->MutateExpected(self->a, ffi::InplaceMode::kAllow));
+  if (mapped_a_u.UnchangedOrSameAs(self->a)) {
+    return ffi::Unchanged().CopyToTVMFFIAny();
+  }
+  if (!mapped_a_u.IsUnchanged()) self->a = std::move(mapped_a_u).ValueUnchecked();
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
 TVMFFIAny SelectVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   // skips: PrimExpr types are always PrimType and remain unchanged in normal mutation.
   const SelectNode* self =
@@ -314,6 +350,27 @@ TVMFFIAny LetMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
     data_ = std::move(node);                                                      \
   }
 
+#define TVM_DEFINE_BITWISE_CONSTRUCTOR(Name, AllowBool)                                     \
+  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                           \
+    using T = Name::ContainerType;                                                          \
+    TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined\n";                           \
+    TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined\n";                           \
+    const PrimTypeNode* a_ty = GetPrimTypeNode(a);                                          \
+    const PrimTypeNode* b_ty = GetPrimTypeNode(b);                                          \
+    TVM_FFI_CHECK(a_ty->dtype == b_ty->dtype, TypeError)                                    \
+        << "mismatched types. " << a_ty->dtype << " vs. " << b_ty->dtype << "\n";           \
+    TVM_FFI_CHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) ||    \
+                      (AllowBool && a.ty().MatchesCode(DLDataTypeCode::kDLBool)),           \
+                  TypeError)                                                                \
+        << #Name << " requires integer" << (AllowBool ? " or boolean" : "") << " operands"; \
+    ffi::ObjectPtr<T> node = ffi::make_object<T>();                                         \
+    node->ExprNode::ty = a.get()->ExprNode::ty;                                             \
+    node->a = std::move(a);                                                                 \
+    node->b = std::move(b);                                                                 \
+    node->span = std::move(span);                                                           \
+    data_ = std::move(node);                                                                \
+  }
+
 #define TVM_DEFINE_CMPOP_CONSTRUCTOR(Name)                                        \
   Name::Name(PrimExpr a, PrimExpr b, Span span) {                                 \
     using T = Name::ContainerType;                                                \
@@ -378,6 +435,86 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BinaryMutate<AddNode>))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&BinaryMaybeInplaceMutate<AddNode>));
+}
+
+// LShift
+TVM_DEFINE_BITWISE_CONSTRUCTOR(LShift, false);
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  LShiftNode::RegisterReflection();
+  refl::GlobalDef().def("prim.LShift",
+                        [](PrimExpr a, PrimExpr b, Span span) { return LShift(a, b, span); });
+  refl::TypeAttrDef<LShiftNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<LShiftNode>))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BinaryMutate<LShiftNode>))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&BinaryMaybeInplaceMutate<LShiftNode>));
+}
+
+// RShift
+TVM_DEFINE_BITWISE_CONSTRUCTOR(RShift, false);
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  RShiftNode::RegisterReflection();
+  refl::GlobalDef().def("prim.RShift",
+                        [](PrimExpr a, PrimExpr b, Span span) { return RShift(a, b, span); });
+  refl::TypeAttrDef<RShiftNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<RShiftNode>))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BinaryMutate<RShiftNode>))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&BinaryMaybeInplaceMutate<RShiftNode>));
+}
+
+// BitwiseAnd
+TVM_DEFINE_BITWISE_CONSTRUCTOR(BitwiseAnd, true);
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  BitwiseAndNode::RegisterReflection();
+  refl::GlobalDef().def("prim.BitwiseAnd",
+                        [](PrimExpr a, PrimExpr b, Span span) { return BitwiseAnd(a, b, span); });
+  refl::TypeAttrDef<BitwiseAndNode>()
+      .attr(refl::type_attr::kStructuralVisit,
+            reinterpret_cast<void*>(&BinaryVisit<BitwiseAndNode>))
+      .attr(refl::type_attr::kStructuralMutate,
+            reinterpret_cast<void*>(&BinaryMutate<BitwiseAndNode>))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&BinaryMaybeInplaceMutate<BitwiseAndNode>));
+}
+
+// BitwiseOr
+TVM_DEFINE_BITWISE_CONSTRUCTOR(BitwiseOr, true);
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  BitwiseOrNode::RegisterReflection();
+  refl::GlobalDef().def("prim.BitwiseOr",
+                        [](PrimExpr a, PrimExpr b, Span span) { return BitwiseOr(a, b, span); });
+  refl::TypeAttrDef<BitwiseOrNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BinaryVisit<BitwiseOrNode>))
+      .attr(refl::type_attr::kStructuralMutate,
+            reinterpret_cast<void*>(&BinaryMutate<BitwiseOrNode>))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&BinaryMaybeInplaceMutate<BitwiseOrNode>));
+}
+
+// BitwiseXor
+TVM_DEFINE_BITWISE_CONSTRUCTOR(BitwiseXor, true);
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  BitwiseXorNode::RegisterReflection();
+  refl::GlobalDef().def("prim.BitwiseXor",
+                        [](PrimExpr a, PrimExpr b, Span span) { return BitwiseXor(a, b, span); });
+  refl::TypeAttrDef<BitwiseXorNode>()
+      .attr(refl::type_attr::kStructuralVisit,
+            reinterpret_cast<void*>(&BinaryVisit<BitwiseXorNode>))
+      .attr(refl::type_attr::kStructuralMutate,
+            reinterpret_cast<void*>(&BinaryMutate<BitwiseXorNode>))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&BinaryMaybeInplaceMutate<BitwiseXorNode>));
 }
 
 // Sub
@@ -675,6 +812,35 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             reinterpret_cast<void*>(&NotMaybeInplaceMutate));
 
   refl::GlobalDef().def("prim.Not", [](PrimExpr a, Span span) { return Not(a, span); });
+}
+
+// BitwiseNot
+BitwiseNot::BitwiseNot(PrimExpr a, Span span) {
+  TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
+  PrimType a_ty = a.ty();
+  TVM_FFI_CHECK(a_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) ||
+                    a_ty.MatchesCode(DLDataTypeCode::kDLBool),
+                TypeError)
+      << "BitwiseNot requires an integer or boolean operand";
+
+  ffi::ObjectPtr<BitwiseNotNode> node = ffi::make_object<BitwiseNotNode>();
+  node->ExprNode::ty = a_ty;
+  node->a = std::move(a);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  BitwiseNotNode::RegisterReflection();
+  refl::TypeAttrDef<BitwiseNotNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BitwiseNotVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BitwiseNotMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&BitwiseNotMaybeInplaceMutate));
+
+  refl::GlobalDef().def("prim.BitwiseNot",
+                        [](PrimExpr a, Span span) { return BitwiseNot(a, span); });
 }
 
 // Select

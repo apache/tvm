@@ -100,6 +100,12 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   spirv::Value Dispatch_(const prim::AndNode* op) override;
   spirv::Value Dispatch_(const prim::OrNode* op) override;
   spirv::Value Dispatch_(const prim::NotNode* op) override;
+  spirv::Value Dispatch_(const prim::LShiftNode* op) override;
+  spirv::Value Dispatch_(const prim::RShiftNode* op) override;
+  spirv::Value Dispatch_(const prim::BitwiseAndNode* op) override;
+  spirv::Value Dispatch_(const prim::BitwiseOrNode* op) override;
+  spirv::Value Dispatch_(const prim::BitwiseXorNode* op) override;
+  spirv::Value Dispatch_(const prim::BitwiseNotNode* op) override;
   spirv::Value Dispatch_(const prim::SelectNode* op) override;
   spirv::Value Dispatch_(const prim::LetNode* op) override;
   spirv::Value Dispatch_(const CallNode* op) override;

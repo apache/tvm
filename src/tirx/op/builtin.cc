@@ -40,12 +40,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), 1)
 
   PRIM_SCRIPT_BUILTIN(likely);
-  PRIM_SCRIPT_BUILTIN(bitwise_and);
-  PRIM_SCRIPT_BUILTIN(bitwise_or);
-  PRIM_SCRIPT_BUILTIN(bitwise_xor);
-  PRIM_SCRIPT_BUILTIN(bitwise_not);
-  PRIM_SCRIPT_BUILTIN(shift_left);
-  PRIM_SCRIPT_BUILTIN(shift_right);
   PRIM_SCRIPT_BUILTIN(if_then_else);
   PRIM_SCRIPT_BUILTIN(vscale);
   PRIM_SCRIPT_BUILTIN(ceil);

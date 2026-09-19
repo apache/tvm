@@ -578,6 +578,12 @@ Feature::ArithOps::ArithOps(const BufferStoreNode* store, int64_t prod_loop_exte
     TVM_FEATURE_SIMPLE(OrNode, bool_op);
     TVM_FEATURE_SIMPLE(NotNode, bool_op);
     TVM_FEATURE_SIMPLE(SelectNode, select_op);
+    TVM_FEATURE_SIMPLE(prim::LShiftNode, int_math_func);
+    TVM_FEATURE_SIMPLE(prim::RShiftNode, int_math_func);
+    TVM_FEATURE_SIMPLE(prim::BitwiseAndNode, int_math_func);
+    TVM_FEATURE_SIMPLE(prim::BitwiseOrNode, int_math_func);
+    TVM_FEATURE_SIMPLE(prim::BitwiseXorNode, int_math_func);
+    TVM_FEATURE_SIMPLE(prim::BitwiseNotNode, int_math_func);
     TVM_FEATURE_BINARY(AddNode, float_add_sub, int_add_sub);
     TVM_FEATURE_BINARY(SubNode, float_add_sub, int_add_sub);
     TVM_FEATURE_BINARY(MulNode, float_mul, int_mul);

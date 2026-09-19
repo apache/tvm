@@ -577,22 +577,6 @@ inline void PrintBinaryExpr(const T* op, const char* opstr,
   }
 }
 
-inline void PrintBinaryIntrinsic(const CallNode* op, const char* opstr,
-                                 std::ostream& os,  // NOLINT(*)
-                                 CodeGenC* p) {
-  PrimType op_ty = op->ty.as_or_throw<PrimType>();
-  if (op_ty.lanes() == 1) {
-    TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
-    os << '(';
-    p->PrintExpr(op->args[0], os);
-    os << opstr;
-    p->PrintExpr(op->args[1], os);
-    os << ')';
-  } else {
-    p->PrintVecBinaryOp(opstr, op_ty, op->args[0].as_or_throw<PrimExpr>(),
-                        op->args[1].as_or_throw<PrimExpr>(), os);
-  }
-}
 void CodeGenC::Dispatch_(const prim::CastNode* op, std::ostream& os) {  // NOLINT(*)
   std::stringstream value;
   this->PrintExpr(op->value, value);
@@ -667,6 +651,27 @@ void CodeGenC::Dispatch_(const prim::NotNode* op, std::ostream& os) {  // NOLINT
   PrintExpr(op->a, os);
 }
 
+void CodeGenC::Dispatch_(const prim::LShiftNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "<<", os, this);
+}
+void CodeGenC::Dispatch_(const prim::RShiftNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, ">>", os, this);
+}
+void CodeGenC::Dispatch_(const prim::BitwiseAndNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "&", os, this);
+}
+void CodeGenC::Dispatch_(const prim::BitwiseOrNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "|", os, this);
+}
+void CodeGenC::Dispatch_(const prim::BitwiseXorNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "^", os, this);
+}
+void CodeGenC::Dispatch_(const prim::BitwiseNotNode* op, std::ostream& os) {  // NOLINT(*)
+  os << "(~";
+  PrintExpr(op->a, os);
+  os << ')';
+}
+
 void CodeGenC::PrintCallExtern(Type ret_type, ffi::String global_symbol,
                                const ffi::Array<Expr>& args, bool skip_first_arg,
                                std::ostream& os) {  // NOLINT(*)
@@ -733,21 +738,6 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       // call extern if the op itself have a global symbol.
       ffi::Array<Expr> args = op->args;
       this->PrintCallExtern(op->ty, op_attr_global_symbol_[call_op], args, false, os);
-    } else if (op->op.same_as(prim::builtin::bitwise_and())) {
-      PrintBinaryIntrinsic(op, " & ", os, this);
-    } else if (op->op.same_as(prim::builtin::bitwise_xor())) {
-      PrintBinaryIntrinsic(op, " ^ ", os, this);
-    } else if (op->op.same_as(prim::builtin::bitwise_or())) {
-      PrintBinaryIntrinsic(op, " | ", os, this);
-    } else if (op->op.same_as(prim::builtin::bitwise_not())) {
-      TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
-      os << "(~";
-      this->PrintExpr(op->args[0], os);
-      os << ')';
-    } else if (op->op.same_as(prim::builtin::shift_left())) {
-      PrintBinaryIntrinsic(op, " << ", os, this);
-    } else if (op->op.same_as(prim::builtin::shift_right())) {
-      PrintBinaryIntrinsic(op, " >> ", os, this);
     } else if (op->op.same_as(prim::builtin::if_then_else())) {
       // conditional that skips eval if cond evals to false
       std::string result = name_supply_->FreshName("condval");

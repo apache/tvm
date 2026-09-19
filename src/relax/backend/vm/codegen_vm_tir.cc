@@ -305,6 +305,12 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
 
   VM_TIR_PRIM_EXPR(TensorLoadNode);
   VM_TIR_PRIM_EXPR(prim::AddNode);
+  VM_TIR_PRIM_EXPR(prim::LShiftNode);
+  VM_TIR_PRIM_EXPR(prim::RShiftNode);
+  VM_TIR_PRIM_EXPR(prim::BitwiseAndNode);
+  VM_TIR_PRIM_EXPR(prim::BitwiseOrNode);
+  VM_TIR_PRIM_EXPR(prim::BitwiseXorNode);
+  VM_TIR_PRIM_EXPR(prim::BitwiseNotNode);
   VM_TIR_PRIM_EXPR(prim::SubNode);
   VM_TIR_PRIM_EXPR(prim::MulNode);
   VM_TIR_PRIM_EXPR(prim::DivNode);

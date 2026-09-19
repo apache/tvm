@@ -57,6 +57,12 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool Dispatch_(const SBlockRealizeNode* op, const Stmt& other) override;
   bool Dispatch_(const SBlockNode* op, const Stmt& other) override;
 
+  bool Dispatch_(const prim::LShiftNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const prim::RShiftNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const prim::BitwiseAndNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const prim::BitwiseOrNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const prim::BitwiseXorNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const prim::BitwiseNotNode* op, const PrimExpr& other) override;
   bool Dispatch_(const AddNode* op, const PrimExpr& other) override;
   bool Dispatch_(const SubNode* op, const PrimExpr& other) override;
   bool Dispatch_(const MulNode* op, const PrimExpr& other) override;
