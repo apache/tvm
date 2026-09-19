@@ -24,11 +24,12 @@
 #ifndef TVM_RELAX_ANALYSIS_H_
 #define TVM_RELAX_ANALYSIS_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/index_map.h>
 
@@ -54,7 +55,7 @@ namespace relax {
  *       two shapes equals to each other during runtime.
  */
 TVM_DLL bool CanProveShapeEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimExpr>& rhs,
-                                const arith::Analyzer& ana);
+                                const sym::Analyzer& ana);
 
 /*!
  * \brief Can prove the two symbolic shape expressions equals to each other.
@@ -67,7 +68,7 @@ TVM_DLL bool CanProveShapeEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Arra
  *       if result is false, there is still possibility that
  *       two shapes equals to each other during runtime.
  */
-TVM_DLL bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs, const arith::Analyzer& ana);
+TVM_DLL bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs, const sym::Analyzer& ana);
 
 //-----------------------------------
 // Foundational Type analysis
@@ -105,7 +106,7 @@ TVM_DLL Type DeriveCallRetType(const FuncType& finfo, const Call& call, const Bl
  * \return The derived type of the call.
  */
 TVM_DLL Type DeriveCallRetType(const FuncType& finfo, const Call& call, const BlockBuilder& ctx,
-                               const arith::Analyzer& ana);
+                               const sym::Analyzer& ana);
 
 /*!
  * \brief Erase the info to a corresponding more coarse grained
@@ -172,7 +173,7 @@ TVM_DLL Type EraseToWellDefined(
  */
 TVM_DLL Type EraseToWellDefined(const Type& info,
                                 std::function<ffi::Optional<Expr>(const Var& var)> f_var_map,
-                                const arith::Analyzer& ana);
+                                const sym::Analyzer& ana);
 
 /*!
  * \brief EraseToWellDefined variant with map.
@@ -194,7 +195,7 @@ TVM_DLL Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map);
  * \return the corresponding erased type.
  */
 TVM_DLL Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map,
-                                const arith::Analyzer& ana);
+                                const sym::Analyzer& ana);
 
 /*!
  * \brief Fine grained result of base check.
@@ -265,7 +266,7 @@ TVM_DLL BaseCheckResult TypeBaseCheck(const Type& base, const Type& derived);
  * \sa BaseCheckResult
  */
 TVM_DLL BaseCheckResult TypeBaseCheck(const Type& base, const Type& derived,
-                                      const arith::Analyzer& ana);
+                                      const sym::Analyzer& ana);
 
 /*!
  * \brief Check the relation of two type to see if one subsumes another one.
@@ -282,7 +283,7 @@ TVM_DLL bool IsBaseOf(const Type& base, const Type& derived);
  * \param ana Context analyzer to prove symbolic expression equality.
  * \return Whether the relation holds.
  */
-TVM_DLL bool IsBaseOf(const Type& base, const Type& derived, const arith::Analyzer& ana);
+TVM_DLL bool IsBaseOf(const Type& base, const Type& derived, const sym::Analyzer& ana);
 
 /*!
  * \brief Return the condition for which base is a superset of derived
@@ -321,7 +322,7 @@ TVM_DLL Type TypeLCA(const Type& lhs, const Type& rhs);
  * \param ana Context analyzer to prove symbolic expression equality.
  * \return The unified information.
  */
-TVM_DLL Type TypeLCA(const Type& lhs, const Type& rhs, const arith::Analyzer& ana);
+TVM_DLL Type TypeLCA(const Type& lhs, const Type& rhs, const sym::Analyzer& ana);
 
 /*!
  * \brief Get the TIR variables that appear in the input type.
@@ -646,7 +647,7 @@ TVM_DLL bool CheckWellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty
  * from the object (block or buffer) to it's index map transformation.
  */
 
-TVM_DLL ffi::Map<tirx::SBlock, ffi::Map<ffi::ObjectRef, tirx::IndexMap>> SuggestLayoutTransforms(
+TVM_DLL ffi::Map<s_tir::SBlock, ffi::Map<ffi::ObjectRef, tirx::IndexMap>> SuggestLayoutTransforms(
     const Function& fn, ffi::Array<tirx::IndexMap> write_buffer_transformations);
 
 /* \brief Collect variables whose value can be computed at compile-time

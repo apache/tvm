@@ -21,10 +21,10 @@
  * \file flatten_buffer.cc
  */
 
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/type.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -32,11 +32,12 @@
 
 #include <unordered_set>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
+#include "../ir/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 /*!
  * \brief Flatten each n-d buffer ``buf`` into a 1-d storage view ``buf'``,
@@ -57,48 +58,49 @@ namespace tirx {
  *  Every use site then only looks the pair up; a use before its definition is
  *  a hard error instead of a silently stale reference.
  */
-class BufferFlattener : public arith::IRMutatorWithAnalyzer {
+class BufferFlattener : public IRMutatorWithAnalyzer {
  public:
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
   static PrimFunc Flatten(PrimFunc func) {
-    arith::Analyzer ana;
-    auto pass = BufferFlattener(ana);
-    pass.MarkBufferParamShapes(func);
+    sym::Analyzer ana;
+    auto pass = ffi::make_object<BufferFlattener>(ana);
+    pass->MarkBufferParamShapes(func);
     for (const Var& param : func->params) {
       if (auto buffer = param.as<BufferVar>()) {
-        pass.extern_buffers_.insert(buffer.value());
-        pass.Define(buffer.value());
+        pass->extern_buffers_.insert(buffer.value());
+        pass->Define(buffer.value());
       }
     }
-    auto body = pass.VisitStmt(func->body);
+    auto body_result = pass->Mutate(func->body, InplaceMode::kDisallow);
+    bool body_unchanged = body_result.UnchangedOrSameAs(func->body);
+    auto body = std::move(body_result).ValueOrUnchanged(func->body);
 
     // Buffer parameters are deliberately left unflattened, as they are used
     // for validation of user-provided arguments.  The flattened buffers used
     // in the updated function body alias the argument buffers.
     for (size_t i = func->params.size(); i > 0; i--) {
       if (auto old_buf = func->params[i - 1].as<BufferVar>()) {
-        if (pass.buffers_used_.count(old_buf.value())) {
-          auto new_buf = pass.Lookup(old_buf.value()).flattened;
+        if (pass->buffers_used_.count(old_buf.value())) {
+          auto new_buf = pass->Lookup(old_buf.value()).flattened;
           if (!old_buf.value().same_as(new_buf)) {
             body = SeqStmt::Flatten(DeclBuffer(new_buf, old_buf.value().data()), std::move(body));
+            body_unchanged = false;
           }
         }
       }
     }
 
-    if (!body.same_as(func->body)) {
+    if (!body_unchanged) {
       func.CopyOnWrite()->body = std::move(body);
     }
     return func;
   }
 
+ public:
+  explicit BufferFlattener(const sym::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
+
  private:
-  using IRMutatorWithAnalyzer::VisitExpr;
-  using IRMutatorWithAnalyzer::VisitExpr_;
-  using IRMutatorWithAnalyzer::VisitStmt;
-  using IRMutatorWithAnalyzer::VisitStmt_;
-
-  explicit BufferFlattener(const arith::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
-
   struct FlatInfo {
     /*! \brief Original geometry with rewritten expression fields; the source
      *   of ``f``. Only used to fold indices, never emitted into the IR. */
@@ -116,19 +118,19 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
 
     // Fold view: rewrite the geometry's expression leaves.
     auto view_type = CopyBufferType(buf);
-    for (size_t i = 0; i < view_type->shape.size(); ++i) {
-      view_type->shape.Set(i, this->VisitPrimExpr(view_type->shape[i]));
-    }
-    for (size_t i = 0; i < view_type->strides.size(); ++i) {
-      view_type->strides.Set(i, this->VisitPrimExpr(view_type->strides[i]));
-    }
+    auto mutate_expr = [this](const PrimExpr& expr) { return Mutate(expr).ValueOrUnchanged(expr); };
+    view_type->shape = view_type->shape.Map(mutate_expr);
+    view_type->strides = view_type->strides.Map(mutate_expr);
     if (view_type->elem_offset.defined()) {
-      view_type->elem_offset = this->VisitPrimExpr(view_type->elem_offset);
+      view_type->elem_offset = this->Mutate(view_type->elem_offset, InplaceMode::kDisallow)
+                                   .ValueOrUnchanged(view_type->elem_offset);
     }
     if (auto tile = view_type->layout.as<TileLayoutNode>()) {
       auto remap_iter = [this](const Iter& iter) {
-        PrimExpr extent = this->VisitPrimExpr(iter->extent);
-        PrimExpr stride = this->VisitPrimExpr(iter->stride);
+        PrimExpr extent =
+            this->Mutate(iter->extent, InplaceMode::kDisallow).ValueOrUnchanged(iter->extent);
+        PrimExpr stride =
+            this->Mutate(iter->stride, InplaceMode::kDisallow).ValueOrUnchanged(iter->stride);
         if (extent.same_as(iter->extent) && stride.same_as(iter->stride)) {
           return iter;
         }
@@ -163,7 +165,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
             : RebuildBufferVar(buf, std::move(type));
 
     // Feed the base mutator's remap so stray buffer-var expressions follow.
-    buffer_remap_.Set(buf, flattened);
+    VarRemapSet(buf, flattened);
     auto [it, inserted] = flat_map_.emplace(buf.var(), FlatInfo{fold_view, flattened});
     return it->second;
   }
@@ -176,45 +178,22 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     return it->second;
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
-    TVM_FFI_ICHECK_EQ(op->match_buffers.size(), 0)
-        << "Unexpected MatchBufferRegion found during tirx.transform.FlattenBuffer.  "
-        << "All MatchBufferRegion should be removed in tirx.transform.LowerMatchBuffer.";
-
-    SBlock block = ffi::GetRef<SBlock>(op);
-
-    ffi::Array<BufferVar> alloc_buffers = op->alloc_buffers;
-    alloc_buffers.MutateByApply([this](BufferVar buf) { return Define(buf).flattened; });
-    if (!alloc_buffers.same_as(op->alloc_buffers)) {
-      block.CopyOnWrite()->alloc_buffers = alloc_buffers;
-    }
-
-    ffi::Array<BufferRegion> reads = op->reads;
-    reads.MutateByApply([this](BufferRegion region) { return MutateBufferRegion(region); });
-    if (!reads.same_as(op->reads)) {
-      block.CopyOnWrite()->reads = reads;
-    }
-
-    ffi::Array<BufferRegion> writes = op->writes;
-    writes.MutateByApply([this](BufferRegion region) { return MutateBufferRegion(region); });
-    if (!writes.same_as(op->writes)) {
-      block.CopyOnWrite()->writes = writes;
-    }
-
-    return StmtExprMutator::VisitStmt_(block.get());
-  }
-
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     const FlatInfo& info = Define(op->buffer);
     if (info.flattened.same_as(op->buffer)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     }
-    auto n = CopyOnWrite(op);
+    if (inplace_mode == InplaceMode::kAllow) {
+      auto* n = const_cast<AllocBufferNode*>(op);
+      n->buffer = info.flattened;
+      return ffi::Unchanged();
+    }
+    auto n = ffi::make_object<AllocBufferNode>(*op);
     n->buffer = info.flattened;
     return Stmt(n);
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
     Expr data = op->data;
     bool is_extern_buffer_source = false;
     if (const auto* call = op->data.as<CallNode>();
@@ -224,46 +203,57 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
       }
     }
     if (!is_extern_buffer_source) {
-      data = VisitExpr(op->data);
+      data = Mutate(op->data, inplace_mode).ValueOrUnchanged(op->data);
     }
     const FlatInfo& info = Define(op->buffer);
     if (info.flattened.same_as(op->buffer) && data.same_as(op->data)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     }
     return DeclBuffer(info.flattened, std::move(data), op->span);
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferVar original_buffer = op->buffer;
-    BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
-    store = VisitBufferAccess(store, original_buffer);
-    return store;
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    // The buffer and its indices must be flattened together by VisitBufferAccess.
+    auto value = Mutate(op->value, inplace_mode);
+    auto indices =
+        Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
+    BufferStore store = ffi::GetRef<BufferStore>(op);
+    if (!value.UnchangedOrSameAs(op->value) || !indices.UnchangedOrSameAs(op->indices)) {
+      auto* n = store.CopyOnWrite();
+      n->value = std::move(value).ValueOrUnchanged(op->value);
+      n->indices = std::move(indices).ValueOrUnchanged(op->indices);
+    }
+    return VisitBufferAccess(std::move(store), op->buffer);
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    BufferVar original_buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
-    // Mutate the indices while keeping the original source opaque.  The base
-    // statement mutator remaps buffer sources immediately, but this pass also
-    // changes their rank, so reconstruction must wait until after FoldIndices.
-    TensorLoad load = ExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
-    load = VisitBufferAccess(load, original_buffer);
-    return load;
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    auto indices =
+        Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
+    TensorLoad load = ffi::GetRef<TensorLoad>(op);
+    if (!indices.UnchangedOrSameAs(op->indices)) {
+      load.CopyOnWrite()->indices = std::move(indices).ValueUnchecked();
+    }
+    return VisitBufferAccess(std::move(load), op->source.as_or_throw<BufferVar>());
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
       bool is_load = op->op.same_as(builtin::masked_load());
       BufferVar original(op->args[0].as_or_throw<Var>());
       ffi::Array<PrimExpr> indices;
       for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
-        indices.push_back(this->VisitPrimExpr(op->args[i].as_or_throw<PrimExpr>()));
+        indices.push_back(
+            this->Mutate(op->args[i]).ValueOrUnchanged(op->args[i]).as_or_throw<PrimExpr>());
       }
       buffers_used_.insert(original);
       const FlatInfo& info = Lookup(original);
       ffi::Array<Expr> args{info.flattened.var()};
-      if (!is_load) args.push_back(this->VisitExpr(op->args[1]));
+      if (!is_load)
+        args.push_back(this->Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<Expr>());
       for (const PrimExpr& index : FoldIndices(info, indices)) args.push_back(index);
-      args.push_back(this->VisitExpr(op->args.back()));
+      args.push_back(this->Mutate(op->args[op->args.size() - 1])
+                         .ValueOrUnchanged(op->args[op->args.size() - 1])
+                         .as_or_throw<Expr>());
       return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
     }
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
@@ -275,7 +265,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
         }
       }
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   ffi::Array<PrimExpr> FoldIndices(const FlatInfo& info, const ffi::Array<PrimExpr>& indices) {
@@ -300,31 +290,6 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     buffers_used_.insert(original_buffer);
     const FlatInfo& info = Lookup(original_buffer);
     return BufferLoad(info.flattened, FoldIndices(info, node->indices), node->span);
-  }
-
-  BufferRegion MutateBufferRegion(BufferRegion region) {
-    const FlatInfo& info = Lookup(region->buffer);
-    if (info.flattened.same_as(region->buffer)) {
-      return region;
-    }
-
-    ffi::Array<PrimExpr> min_values;
-    ffi::Array<PrimExpr> max_values;
-    for (const auto& range : region->region) {
-      min_values.push_back(range->min);
-      max_values.push_back(range->min + range->extent - 1);
-    }
-
-    ffi::Array<PrimExpr> flattened_min = FoldIndices(info, min_values);
-    ffi::Array<PrimExpr> flattened_max = FoldIndices(info, max_values);
-
-    ffi::Array<Range> flattened_ranges;
-    TVM_FFI_ICHECK_EQ(flattened_min.size(), flattened_max.size());
-    for (size_t i = 0; i < flattened_min.size(); i++) {
-      flattened_ranges.push_back(Range(flattened_min[i], flattened_max[i] + 1));
-    }
-
-    return BufferRegion(info.flattened, flattened_ranges);
   }
 
   /*! \brief Set of buffers accessed during visitation (used to emit DeclBuffer for param buffers).

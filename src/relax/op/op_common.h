@@ -25,11 +25,11 @@
 #ifndef TVM_RELAX_OP_OP_COMMON_H_
 #define TVM_RELAX_OP_OP_COMMON_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/s_tir/data_layout.h>
+#include <tvm/sym/analyzer.h>
 
 #include <optional>
 #include <tuple>
@@ -42,6 +42,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 /************ Op input type getter ************/
 
@@ -412,7 +413,7 @@ struct BinaryBroadcastShapeInferResult {
  * \param x2_shape The shape of the second operand.
  * \return Inference status and broadcasted shape, or a conflict message.
  */
-BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(arith::AnalyzerObj* analyzer,
+BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(sym::AnalyzerObj* analyzer,
                                                           const ffi::Array<PrimExpr>& x1_shape,
                                                           const ffi::Array<PrimExpr>& x2_shape);
 
@@ -605,12 +606,12 @@ inline ffi::Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call,
   return std::nullopt;
 }
 
-Expr MakeVMAllocStorage(Expr size, PrimExpr runtime_device_index, DataTypeImm dtype,
+Expr MakeVMAllocStorage(Expr size, PrimExpr runtime_device_index, GenericConst dtype,
                         StringImm storage_scope = StringImm("global"));
-Expr MakeVMAllocTensor(Expr storage, PrimExpr offset, Expr shape, DataTypeImm dtype,
+Expr MakeVMAllocTensor(Expr storage, PrimExpr offset, Expr shape, GenericConst dtype,
                        PrimExpr runtime_device_index);
 
-Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimExpr runtime_device_index,
+Expr MakeAllocTensor(Expr shape, GenericConst dtype, PrimExpr runtime_device_index,
                      StringImm storage_scope = StringImm("global"));
 
 /**

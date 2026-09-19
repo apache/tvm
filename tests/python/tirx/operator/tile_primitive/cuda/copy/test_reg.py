@@ -838,13 +838,13 @@ def _eval_const_layout_expr(expr, values):
     if node_type == "Call":
         args = [_eval_const_layout_expr(arg, values) for arg in expr.args]
         op_name = str(expr.op.name)
-        if op_name == "ir.prim.bitwise_xor":
+        if op_name == "prim.bitwise_xor":
             return args[0] ^ args[1]
-        if op_name == "ir.prim.bitwise_and":
+        if op_name == "prim.bitwise_and":
             return args[0] & args[1]
-        if op_name == "ir.prim.shift_left":
+        if op_name == "prim.shift_left":
             return args[0] << args[1]
-        if op_name == "ir.prim.shift_right":
+        if op_name == "prim.shift_right":
             return args[0] >> args[1]
         raise AssertionError(f"Cannot evaluate call {op_name}")
     raise AssertionError(f"Cannot evaluate node type {node_type}")
@@ -852,7 +852,6 @@ def _eval_const_layout_expr(expr, values):
 
 @pytest.mark.parametrize("case", ["wg", "wg_slice", "tcgen05"])
 def test_reg_synthetic_tile_matches_thread_base_plus_outer_delta(case):
-    from tvm.arith import Analyzer
     from tvm.backend.cuda.tile_primitive.copy.vec_auto_reg import (
         _build_atoms,
         _build_s_apply_layout,
@@ -864,6 +863,7 @@ def test_reg_synthetic_tile_matches_thread_base_plus_outer_delta(case):
         _split_thread_loop,
         align_layouts_raw,
     )
+    from tvm.sym import Analyzer
     from tvm.tirx.exec_scope import ExecScope
     from tvm.tirx.layout import ComposeLayout, wg_local_layout
     from tvm.tirx.operator.tile_primitive import DispatchContext

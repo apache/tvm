@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <utility>
 
@@ -24,6 +25,7 @@
 
 namespace tvm {
 namespace script {
+
 namespace printer {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -160,21 +162,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           }
         }
         // Step 3. Handle `func->body`
-        ffi::Optional<tirx::SBlock> implicit_root_block = [&]() -> ffi::Optional<tirx::SBlock> {
-          const tirx::SBlockRealizeNode* root_block_realize =
-              func->body.as<tirx::SBlockRealizeNode>();
+        ffi::Optional<s_tir::SBlock> implicit_root_block = [&]() -> ffi::Optional<s_tir::SBlock> {
+          const s_tir::SBlockRealizeNode* root_block_realize =
+              func->body.as<s_tir::SBlockRealizeNode>();
           if (root_block_realize && !root_block_realize->iter_values.size() &&
-              tirx::is_one(root_block_realize->predicate)) {
-            tirx::SBlock root_block = root_block_realize->block;
+              tvm::prim::is_one(root_block_realize->predicate)) {
+            s_tir::SBlock root_block = root_block_realize->block;
             if (!root_block->annotations.size() && !root_block->match_buffers.size() &&
                 !root_block->reads.size() && !root_block->writes.size() &&
                 !root_block->init.has_value()) {
-              const tirx::SBlockRealizeNode* block_realize =
-                  root_block->body.as<tirx::SBlockRealizeNode>();
+              const s_tir::SBlockRealizeNode* block_realize =
+                  root_block->body.as<s_tir::SBlockRealizeNode>();
               if (root_block->alloc_buffers.size() ||
                   (block_realize && block_realize->block->iter_vars.size()) ||
                   (!block_realize &&
-                   tirx::ContainsNode<tirx::SBlockRealizeNode>(root_block->body))) {
+                   tirx::ContainsNode<s_tir::SBlockRealizeNode>(root_block->body))) {
                 return root_block;
               }
             }
@@ -182,7 +184,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           return std::nullopt;
         }();
         if (d->cfg->syntax_sugar && implicit_root_block) {
-          tirx::SBlock root_block = implicit_root_block.value();
+          s_tir::SBlock root_block = implicit_root_block.value();
           AccessPath root_block_p = p->Attr("body")->Attr("block");
           (*f)->stmts.push_back(CommentDoc("with T.sblock(\"root\"):"));
           // Handle root block `alloc_buffer`

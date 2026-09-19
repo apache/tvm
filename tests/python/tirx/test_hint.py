@@ -21,7 +21,7 @@ import tvm_ffi
 import tvm
 import tvm.script
 import tvm.testing
-from tvm.ir import assert_structural_equal
+from tvm.ir import TensorRegion, assert_structural_equal
 from tvm.script import tirx as T
 from tvm.tirx import AttrStmt
 
@@ -217,9 +217,8 @@ def test_hint_no_message():
             # Should have "access" key but no "message" key
             assert "access" in stmt.node
             assert "message" not in stmt.node
-            from tvm.tirx import BufferRegion
 
-            assert isinstance(stmt.node["access"], BufferRegion)
+            assert isinstance(stmt.node["access"], TensorRegion)
             found[0] = True
 
     tvm_ffi.structural_walk(func.body, visit)
@@ -245,11 +244,10 @@ def test_hint_access_buffer_region():
             assert isinstance(stmt.node, tvm.ir.Map)
             assert str(stmt.node["message"]) == "partition"
             assert "access" in stmt.node
-            from tvm.tirx import BufferRegion
 
-            assert isinstance(stmt.node["access"], BufferRegion)
+            assert isinstance(stmt.node["access"], TensorRegion)
             br = stmt.node["access"]
-            assert br.buffer.name == "A"
+            assert br.source.name == "A"
             assert len(br.region) == 2
             found[0] = True
 

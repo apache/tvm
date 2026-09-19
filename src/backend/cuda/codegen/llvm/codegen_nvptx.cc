@@ -78,7 +78,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
                    llvm::ValueAsMetadata::get(ConstInt32(1))}));
   }
 
-  void VisitStmt_(const AllocBufferNode* op) final {
+  void Dispatch_(const AllocBufferNode* op) final {
     llvm::Value* buf = nullptr;
     StorageInfo& info = alloc_storage_info_[op->buffer.get()];
     // maximum necessary alignment in the NV devices
@@ -96,7 +96,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
       // Compute constant_size from buffer shape
       const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
       TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
-      size_t constant_size = static_cast<size_t>(dim_imm->value);
+      size_t constant_size = dim_imm->value.as<size_t>().value();
       TVM_FFI_ICHECK_GT(constant_size, 0)
           << "Can only handle constant size stack allocation in GPU";
 
@@ -173,7 +173,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
   }
 
   llvm::Value* CreateStorageSync(const CallNode* op) final {
-    const std::string& sync = op->args[0].as<prim::StringImmNode>()->value;
+    const std::string& sync = op->args[0].as<StringImmNode>()->value;
     if (sync == "warp") {
       // TODO(tqchen) warp sync in CUDA9
       return nullptr;

@@ -411,6 +411,73 @@ def test_dispatch_topk_gpu():
     assert_structural_equal(mod, expected_mod)
 
 
+@pytest.mark.gpu
+@pytest.mark.parametrize("size", [300, 600])
+def test_dispatch_sort_cuda_large_batch(size):
+    target = "cuda"
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor(("m", "n"), "float32")):
+            with R.dataflow():
+                gv = R.sort(x, axis=-1, descending=False)
+                R.output(gv)
+            return gv
+
+    batch = 65600  # > CUDA's 65535 gridDim.y/z limit
+    np_data = np.random.uniform(size=(batch, size)).astype("float32")
+    np_sorted = np.sort(np_data, axis=-1)
+
+    with tvm.target.Target(target):
+        mod = DispatchSortScan()(Module)
+        ex = tvm.compile(mod, target)
+
+    def run_and_check():
+        dev = tvm.device_from_target(target)
+        vm = tvm.relax.VirtualMachine(ex, dev)
+        tvm_data = tvm.runtime.tensor(np_data, dev)
+        sorted_data = vm["main"](tvm_data)
+        tvm.testing.assert_allclose(sorted_data.numpy(), np_sorted)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+def test_dispatch_topk_cuda_large_batch():
+    target = "cuda"
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor(("m", "n"), "float32")):
+            with R.dataflow():
+                gv = R.topk(x, k=1, axis=-1, ret_type="values", largest=True)
+                R.output(gv)
+            return gv
+
+    batch, size = 65600, 300
+    np_data = np.random.uniform(size=(batch, size)).astype("float32")
+    np_values = np.sort(np_data, axis=-1)[:, -1:]
+
+    with tvm.target.Target(target):
+        mod = DispatchSortScan()(Module)
+        ex = tvm.compile(mod, target)
+
+    def run_and_check():
+        dev = tvm.device_from_target(target)
+        vm = tvm.relax.VirtualMachine(ex, dev)
+        tvm_data = tvm.runtime.tensor(np_data, dev)
+        values = vm["main"](tvm_data)
+        tvm.testing.assert_allclose(values.numpy(), np_values)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
 @pytest.mark.parametrize(
     "target",
     [
@@ -500,7 +567,7 @@ def test_dispatch_cumsum_webgpu_axes_and_dtypes(
 ):
     """WebGPU dispatch collapses arbitrary-rank scans to the appropriate kernel."""
 
-    vdevice = tvm.ir.VDevice("webgpu", 0)
+    vdevice = tvm.relax.VDevice("webgpu", 0)
     x = relax.Var("x", relax.TensorType(shape, in_dtype, vdevice=vdevice))
     bb = relax.BlockBuilder()
     with bb.function("main", (x,)):

@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/target/target.h>
+#include <tvm/tirx/type.h>
 
 #include "./utils.h"
 
@@ -31,13 +32,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "", [](IntImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
         DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
         if (dtype == d->cfg->int_dtype) {
-          return LiteralDoc::Int(imm->value, imm_p->Attr("value"));
+          return LiteralDoc::Int(imm, imm_p->Attr("value"));
         } else if (dtype == DLDataType{kDLBool, 8, 1}) {
           return TIR(d, DType2Str(dtype))
-              ->Call({LiteralDoc::Boolean(imm->value, imm_p->Attr("value"))});
+              ->Call({LiteralDoc::Boolean(static_cast<bool>(imm->value), imm_p->Attr("value"))});
         } else {
-          return TIR(d, DType2Str(dtype))
-              ->Call({LiteralDoc::Int(imm->value, imm_p->Attr("value"))});
+          return TIR(d, DType2Str(dtype))->Call({LiteralDoc::Int(imm, imm_p->Attr("value"))});
         }
       });
 }
@@ -73,6 +73,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<StringType>(
+      "", [](StringType ty, AccessPath p, IRDocsifier d) -> Doc {
+        return IR(d, "StringType")->Call({});
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<PointerType>(
       "", [](PointerType ty, AccessPath ty_p, IRDocsifier d) -> Doc {
         ExprDoc element_type{ffi::UnsafeInit()};
@@ -89,7 +96,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           }
           element_type = LiteralDoc::DataType(prim_type->dtype,  //
                                               ty_p->Attr("element_type")->Attr("dtype"));
-        } else if (ty->element_type.as<TensorMapTypeNode>()) {
+        } else if (ty->element_type.as<tirx::TensorMapTypeNode>()) {
           return TIR(d, "TensorMap")->Call({});
         } else {
           element_type = d->AsDoc<ExprDoc>(ty->element_type, ty_p->Attr("element_type"));

@@ -62,7 +62,7 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
        axis is declared once
    * - 3
      - ``StmtSimplify``
-     - statement-level arithmetic simplification (the arith analyzer)
+     - statement-level arithmetic simplification (the sym analyzer)
    * - 4
      - ``LowerTIRxOpaque``
      - lowers remaining opaque constructs to lower-level TIRx forms

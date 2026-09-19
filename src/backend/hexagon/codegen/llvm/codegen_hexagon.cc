@@ -79,8 +79,8 @@ class CodeGenHexagon final : public CodeGenCPU {
             bool target_c_runtime) override;
   void InitTarget() final;
 
-  using CodeGenCPU::VisitStmt_;
-  llvm::Value* VisitExpr_(const TensorLoadNode* op) override;
+  using CodeGenCPU::Dispatch_;
+  llvm::Value* Dispatch_(const TensorLoadNode* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
 
   llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
@@ -199,7 +199,7 @@ llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, ffi::String global_
   return CodeGenCPU::CreateCallExtern(ret_type, global_symbol, args, skip_first_arg);
 }
 
-llvm::Value* CodeGenHexagon::VisitExpr_(const TensorLoadNode* op) {
+llvm::Value* CodeGenHexagon::Dispatch_(const TensorLoadNode* op) {
   // Check if we can generate a vector lookup.
   if (!op->indices[0].as<prim::RampNode>()) {
     if (auto* vlut = VectorLookupLoad(op->source.as_or_throw<tvm::tirx::BufferVar>(),
@@ -207,7 +207,7 @@ llvm::Value* CodeGenHexagon::VisitExpr_(const TensorLoadNode* op) {
       return vlut;
     }
   }
-  return CodeGenCPU::VisitExpr_(op);
+  return CodeGenCPU::Dispatch_(op);
 }
 
 llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
@@ -337,7 +337,8 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(BufferVar buffer, PrimType buffer_
 
   if (buffer_type.bits() != 8) return nullptr;
 
-  int table_elem_count = arith::Analyzer()->Simplify(buffer->shape[0]).as<IntImmNode>()->value;
+  int table_elem_count =
+      sym::Analyzer()->Simplify(buffer->shape[0]).as<IntImmNode>()->value.as<int>().value();
   if (table_elem_count <= 0 || table_elem_count > 256) return nullptr;
 
   auto int32 = PrimType::Int(32);
@@ -567,7 +568,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
   TVM_FFI_ICHECK(f.has_value()) << "tvm.contrib.hexagon.link_shared does not to exist, "
                                    "do import tvm.contrib.hexagon";
 
-  ffi::Array<PrimExpr> o_names = {prim::StringImm(o_name)};
+  ffi::Array<Expr> o_names = {StringImm(o_name)};
   ffi::Map<ffi::String, ffi::String> extra_args;
   if (target->attrs.count("mcpu")) {
     std::string mcpu = target->attrs.at("mcpu").as_or_throw<ffi::String>();

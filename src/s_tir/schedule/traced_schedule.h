@@ -20,12 +20,12 @@
 #define TVM_S_TIR_SCHEDULE_TRACED_SCHEDULE_H_
 
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "./concrete_schedule.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 class TracedScheduleNode : public ConcreteScheduleNode {

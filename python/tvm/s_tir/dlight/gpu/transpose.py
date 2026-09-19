@@ -16,7 +16,7 @@
 # under the License.
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 
-from tvm import arith, s_tir, tirx
+from tvm import s_tir, sym, tirx
 from tvm.ir import TensorLoad
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
@@ -91,7 +91,7 @@ class Transpose(GPUScheduleRule):
         c_factor = 1
         if prologue is not None:
             block_stmt = sch.get(prologue)
-            result = arith.normalize_to_iter_sum(
+            result = sym.normalize_to_iter_sum(
                 detect_dominant_read(block_stmt),
                 input_iters={i.var: i.dom for i in block_stmt.iter_vars},
             )

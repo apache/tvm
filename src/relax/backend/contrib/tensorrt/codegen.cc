@@ -50,6 +50,8 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
+
 namespace contrib {
 
 /*! \brief Attributes to store the compiler options for TensorRT. */
@@ -179,7 +181,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     for (const PrimExpr& expr : exprs) {
       const auto* imm = expr.as<IntImmNode>();
       if (imm == nullptr) return;
-      values.push_back(imm->value);
+      values.push_back(static_cast<int64_t>(imm->value));
     }
     node_->SetAttr(key, std::move(values));
   }
@@ -197,7 +199,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     if (initial.size() != final_indices.size()) return true;
     ffi::Array<int64_t> permutation;
     for (const PrimExpr& expr : final_indices) {
-      auto var = expr.as<tirx::PrimVar>();
+      auto var = expr.as<PrimVar>();
       if (!var.has_value()) return true;
       int64_t pos = -1;
       for (size_t j = 0; j < initial.size(); ++j) {
@@ -229,7 +231,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
  */
 class TensorRTJSONSerializer : public JSONSerializer {
  public:
-  explicit TensorRTJSONSerializer(ffi::Map<Constant, ffi::String> constant_names,
+  explicit TensorRTJSONSerializer(ffi::Map<GenericConst, ffi::String> constant_names,
                                   ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
@@ -338,14 +340,14 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
  */
 ffi::Array<ffi::Module> TensorRTCompiler(ffi::Array<Function> functions,
                                          ffi::Map<ffi::String, ffi::Any> /*unused*/,
-                                         ffi::Map<Constant, ffi::String> constant_names) {
+                                         ffi::Map<GenericConst, ffi::String> constant_names) {
   auto cfg = transform::PassContext::Current()->GetConfig<TensorRTCompilerConfig>(
       "relax.ext.tensorrt.options");
   bool build_at_compile_time = cfg.has_value() && cfg.value()->build_at_compile_time;
   ffi::Map<ffi::String, runtime::Tensor> constant_tensors;
   if (build_at_compile_time) {
     for (const auto& entry : constant_names) {
-      constant_tensors.Set(entry.second, entry.first->data);
+      constant_tensors.Set(entry.second, entry.first->value.cast<runtime::Tensor>());
     }
   }
 

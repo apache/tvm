@@ -28,11 +28,10 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 Stmt DecorateDeviceScopeImpl(Stmt&& stmt) {
-  Stmt body = AttrStmt(0, tirx::attr::device_scope, 0, stmt);
+  Stmt body = AttrStmt(0, tirx::attr::device_scope, IntImm::Int32(0), stmt);
   return body;
 }
 

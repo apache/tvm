@@ -35,8 +35,9 @@ from .buffer import (
     decl_buffer,
     is_buffer_var,
 )
+from .type import TensorMapType
 from .expr import convert
-from .expr import Var, Reduce, FloatImm, IntImm, StringImm, Cast
+from .expr import Var, Reduce, FloatImm, IntImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
 from .expr import Select, BufferLoad, Ramp, Broadcast, Shuffle
@@ -51,13 +52,13 @@ from .stmt import BufferStore, AllocBuffer, AttrStmt, DeclBuffer
 
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
-from .stmt import BufferRegion, BufferRegionType, MatchBufferRegion, SBlock, SBlockRealize
+from .stmt import BufferRegion, BufferRegionType
 from .stmt import ScopeIdDefStmt
 from .tile_primitive import DispatchContext, LambdaExpr, TilePrimitiveCall
 
-from .function import PrimFunc, TensorIntrin, IndexMap
+from .function import PrimFunc, IndexMap
 
-from .op import call_packed_lowered, call_cpacked_lowered, call_tir
+from .op import call_packed_lowered, call_cpacked_lowered, register_intrin_lowering
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
 from .op import call_llvm_intrin, call_llvm_pure_intrin, all, any, min_value, max_value, trace
 from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array

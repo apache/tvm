@@ -22,6 +22,9 @@ from tvm.runtime import vm
 from tvm.runtime.vm import VirtualMachine, VMInstrumentReturnKind
 from tvm.ir import Call
 
+# Global information
+from .global_info import DummyGlobalInfo, VDevice
+
 # Expr
 from .expr import (
     Expr,
@@ -41,9 +44,6 @@ from .expr import (
     Function,
     ExternFunc,
     If,
-    Constant,
-    DataTypeImm,
-    StringImm,
     prim_value,
 )
 

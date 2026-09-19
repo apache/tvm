@@ -32,7 +32,7 @@ def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
     iters_2 = map2.final_indices
     assert len(iters_1) == len(iters_2)
 
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
     for iter1, iter2 in zip(iters_1, iters_2):
         assert analyzer.can_prove_equal(iter1, iter2)
 
@@ -50,7 +50,7 @@ def test_index_mapping():
 def test_map_indices_accepts_external_analyzer():
     tile = tvm.tirx.Var("tile", "int32")
     index_map = IndexMap.from_func(lambda i: [i // tile], index_dtype="int32")
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
 
     unsimplified = index_map.map_indices([T.int32(32)])[0]
     analyzer.bind(tile, T.int32(16))
@@ -63,7 +63,7 @@ def test_map_indices_accepts_external_analyzer():
 def test_map_shape_accepts_external_analyzer():
     tile = tvm.tirx.Var("tile", "int32")
     index_map = IndexMap.from_func(lambda i: [i // tile, i % tile], index_dtype="int32")
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
 
     analyzer.bind(tile, T.int32(16))
     mapped_shape = index_map.map_shape([T.int32(32)], analyzer=analyzer)
@@ -79,7 +79,7 @@ def test_is_equivalent_to_accepts_external_analyzer():
     # Without binding `tile`, the symbolic map cannot be proven equivalent.
     assert not concrete.is_equivalent_to(symbolic)
 
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
     analyzer.bind(tile, T.int32(4))
     assert concrete.is_equivalent_to(symbolic, analyzer=analyzer)
 
@@ -111,7 +111,7 @@ def test_inverse_preserves_passthrough_var_names():
 def test_inverse_accepts_external_analyzer():
     tile = tvm.tirx.Var("tile", "int32")
     index_map = IndexMap.from_func(lambda i: [i // tile, i % tile], index_dtype="int32")
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
 
     analyzer.bind(tile, T.int32(16))
     inverse = index_map.inverse([T.int32(32)], analyzer=analyzer)
@@ -248,7 +248,7 @@ def test_nonsurjective_inverse(padding_test_case):
 
     # Can't use analyzer.can_prove_equal, because it can't simplify
     # expressions like `(4*i+j >= 14) - (4*i+j >= 14)`.
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
     expected_predicate = analyzer.simplify(expected_predicate)
     padding_predicate = analyzer.simplify(padding_predicate)
     tvm.ir.assert_structural_equal(padding_predicate, expected_predicate)
@@ -257,7 +257,7 @@ def test_nonsurjective_inverse(padding_test_case):
 def test_non_surjective_inverse_accepts_external_analyzer():
     tile = tvm.tirx.Var("tile", "int32")
     index_map = IndexMap.from_func(lambda i: [i // tile, i % tile], index_dtype="int32")
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
 
     analyzer.bind(tile, T.int32(16))
     inverse, padding_predicate = index_map.non_surjective_inverse([T.int32(31)], analyzer=analyzer)
@@ -290,7 +290,7 @@ def test_non_surjective_inverse_accepts_external_analyzer():
 def test_non_surjective_inverse_does_not_bind_output_vars_to_external_analyzer():
     tile = tvm.tirx.Var("tile", "int32")
     index_map = IndexMap.from_func(lambda i: [i // tile, i % tile], index_dtype="int32")
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
 
     analyzer.bind(tile, T.int32(16))
     inverse, _ = index_map.non_surjective_inverse([T.int32(31)], analyzer=analyzer)

@@ -796,14 +796,14 @@ def test_vm_to_device(exec_mode):
         def foo1(
             x: R.Tensor((2, 3), "float32"),
         ) -> R.Tensor((2, 3), "float32"):
-            copied = R.to_vdevice(x, tvm.ir.VDevice("cuda", 0, "global"))
+            copied = R.to_vdevice(x, tvm.relax.VDevice("cuda", 0, "global"))
             return copied
 
         @R.function
         def foo2(
             x: R.Tensor((2, 3), "float32"),
         ) -> R.Tensor((2, 3), "float32"):
-            copied = R.to_vdevice(x, tvm.ir.VDevice("llvm", 0, "global"))
+            copied = R.to_vdevice(x, tvm.relax.VDevice("llvm", 0, "global"))
             return copied
 
     mod = TestToVDevice

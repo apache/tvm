@@ -117,7 +117,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     if (dst_anylist_slot >= 0) {
       all_args = {reg_anylist_handle_, ConstInt32(dst_anylist_slot)};
     }
-    all_args.push_back(prim::StringImm(name));
+    all_args.push_back(StringImm(name));
     for (Expr arg : args) {
       all_args.push_back(arg);
     }
@@ -141,7 +141,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     if (dst_anylist_slot >= 0) {
       all_args = {reg_anylist_handle_, ConstInt32(dst_anylist_slot)};
     }
-    all_args.push_back(prim::StringImm(gsymbol.value()));
+    all_args.push_back(StringImm(gsymbol.value()));
     for (Expr arg : args) {
       all_args.push_back(arg);
     }
@@ -274,7 +274,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     Expr cond_value = this->VisitExpr(op->cond).value();
 
     PrimExpr condition = tvm::Call(tvm::PrimType::Bool(), tirx::builtin::tvm_call_packed(),
-                                   {prim::StringImm("vm.builtin.read_if_cond"), cond_value})
+                                   {StringImm("vm.builtin.read_if_cond"), cond_value})
                              .as_or_throw<PrimExpr>();
 
     tirx::Stmt true_branch = WithNewScope([&]() {
@@ -329,19 +329,18 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
   VM_TIR_PRIM_EXPR(prim::ShuffleNode);
   VM_TIR_PRIM_EXPR(tvm::IntImmNode);
   VM_TIR_PRIM_EXPR(tvm::FloatImmNode);
-  VM_TIR_PRIM_EXPR(prim::StringImmNode);
 
 #undef VM_TIR_PRIM_EXPR
 
-  ffi::Optional<Expr> VisitExpr_(const ConstantNode* op) final {
-    return ConstListGet(builder_->ConvertConstant(op->data).value());
+  ffi::Optional<Expr> VisitExpr_(const GenericConstNode* op) final {
+    return ConstListGet(builder_->ConvertConstant(op->value).value());
   }
 
   ffi::Optional<Expr> VisitExpr_(const ShapeExprNode* op) final {
     std::vector<int64_t> shape;
     for (PrimExpr e : op->values) {
       if (auto* int_value = e.as<IntImmNode>()) {
-        shape.push_back(int_value->value);
+        shape.push_back(static_cast<int64_t>(int_value->value));
       } else {
         TVM_FFI_THROW(InternalError)
             << "Should only use constant shape after shape lowering: " << op->values;
@@ -351,10 +350,6 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
   }
 
   ffi::Optional<Expr> VisitExpr_(const StringImmNode* op) final {
-    return ConstListGet(builder_->ConvertConstant(op->value).value());
-  }
-
-  ffi::Optional<Expr> VisitExpr_(const DataTypeImmNode* op) final {
     return ConstListGet(builder_->ConvertConstant(op->value).value());
   }
 
@@ -460,12 +455,12 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     }
     int64_t vdevice_index = -1;
     if (const auto* int_imm = call_node->args[4].as<IntImmNode>()) {
-      vdevice_index = int_imm->value;
+      vdevice_index = int_imm->value.as<int>().value();
     }
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
     if (vdevice.has_value()) {
-      args.push_back(prim::StringImm(vdevice.value()->memory_scope));
+      args.push_back(StringImm(vdevice.value()->memory_scope));
     }
 
     this->EmitCallPacked("vm.builtin.alloc_tensor", args, dst_reg);
@@ -486,7 +481,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     TVM_FFI_ICHECK(
         p_dst_reg->ty.as_or_throw<PrimType>().MatchesElementType(DLDataTypeCode::kDLInt, 32));
 
-    int64_t dst_reg = p_dst_reg->value;
+    int64_t dst_reg = static_cast<int64_t>(p_dst_reg->value);
     this->EmitCallPacked("vm.builtin.null_value", {}, dst_reg);
     return dst_reg;
   }

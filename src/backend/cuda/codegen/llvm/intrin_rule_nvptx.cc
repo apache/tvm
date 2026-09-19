@@ -46,13 +46,14 @@ inline PrimExpr DispatchPureExternLibDevice(const PrimExpr& e) {
   const OpNode* op = call->op.as<OpNode>();
   TVM_FFI_ICHECK(op != nullptr);
   std::string name = op->name;
-  TVM_FFI_ICHECK_EQ(name.substr(0, 5), "tirx.");
+  TVM_FFI_ICHECK(name.substr(0, 5) == "tirx." || name == "prim.ceil" || name == "prim.log2")
+      << "Unexpected intrinsic name: " << name;
 
   std::ostringstream intrinsic_name;
   intrinsic_name << "__nv_" << name.substr(5);
   if (call_ty.bits() == 32) intrinsic_name << "f";
 
-  ffi::Array<Expr> new_args = {prim::StringImm(intrinsic_name.str())};
+  ffi::Array<Expr> new_args = {StringImm(intrinsic_name.str())};
   new_args.insert(new_args.end(), call->args.begin(), call->args.end());
   return Call(call_ty, builtin::call_pure_extern(), new_args).as_or_throw<PrimExpr>();
 }
@@ -63,7 +64,7 @@ using tirx::FLowerIntrinsic;
 TVM_REGISTER_OP("tirx.floor")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
-TVM_REGISTER_OP("tirx.ceil")
+TVM_REGISTER_OP("prim.ceil")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tirx.round")
@@ -105,7 +106,7 @@ TVM_REGISTER_OP("tirx.fma")
 TVM_REGISTER_OP("tirx.log")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
-TVM_REGISTER_OP("tirx.log2")
+TVM_REGISTER_OP("prim.log2")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tirx.log10")

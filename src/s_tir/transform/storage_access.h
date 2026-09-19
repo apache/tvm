@@ -24,10 +24,10 @@
 #ifndef TVM_S_TIR_TRANSFORM_STORAGE_ACCESS_H_
 #define TVM_S_TIR_TRANSFORM_STORAGE_ACCESS_H_
 
-#include <tvm/arith/int_set.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/stmt_functor.h>
+#include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/int_set.h>
 
 #include <unordered_map>
 #include <vector>
@@ -36,7 +36,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tirx;
 
 using runtime::StorageRank;
@@ -46,6 +45,8 @@ using runtime::StorageScope;
  */
 class StorageAccessVisitor : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   /*! \brief Storage access type */
   enum AccessType {
     kRead,
@@ -67,7 +68,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
      *
      * Has one IntSet for each index in the buffer being accessed.
      */
-    ffi::Array<arith::IntSet> touched;
+    ffi::Array<sym::IntSet> touched;
     /*! \brief The type of access */
     AccessType type;
     /*! \brief The storage scope */
@@ -83,16 +84,16 @@ class StorageAccessVisitor : public StmtExprVisitor {
     std::vector<AccessEntry> access;
   };
   // override visitor pattern
-  void VisitExpr_(const TensorLoadNode* op) final;
-  void VisitStmt_(const BufferStoreNode* op) final;
-  void VisitStmt_(const DeclBufferNode* op) final;
-  void VisitStmt_(const EvaluateNode* op) final;
-  void VisitStmt_(const BindNode* op) final;
-  void VisitStmt_(const AttrStmtNode* op) final;
-  void VisitStmt_(const ForNode* op) final;
-  void VisitStmt_(const IfThenElseNode* op) final;
-  void VisitStmt_(const WhileNode* op) final;
-  void VisitExpr_(const CallNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final;
 
  protected:
   StorageAccessVisitor() { scope_.push_back(std::vector<StmtEntry>()); }

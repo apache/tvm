@@ -43,8 +43,8 @@ def test_pass_simple():
                 # It's a opaque block , so it can use outside variables
                 C[i, j] = B[i, j] * 2.0
 
-    assert tvm.tirx.analysis.verify_well_formed(element_wise)
-    assert tvm.tirx.analysis.verify_well_formed(tvm.IRModule.from_expr(element_wise))
+    assert tvm.s_tir.analysis.verify_well_formed(element_wise)
+    assert tvm.s_tir.analysis.verify_well_formed(tvm.IRModule.from_expr(element_wise))
 
 
 def test_buffer_region_bounds_are_visited():
@@ -54,9 +54,9 @@ def test_buffer_region_bounds_are_visited():
     buffer = tvm.tirx.decl_buffer([4], "int32", data=data)
     undefined = tvm.tirx.Var("undefined", "int32")
     region = tvm.tirx.BufferRegion(buffer, [tvm.ir.Range.from_min_extent(undefined, 4)])
-    block = tvm.tirx.SBlock([], [region], [], "region", tvm.tirx.Evaluate(0))
+    block = tvm.s_tir.SBlock([], [region], [], "region", tvm.tirx.Evaluate(0))
     func = tvm.tirx.PrimFunc([buffer], block)
-    assert not tvm.tirx.analysis.verify_well_formed(func, assert_mode=False)
+    assert not tvm.s_tir.analysis.verify_well_formed(func, assert_mode=False)
 
 
 def test_fail_use_out_loop_var():
@@ -71,7 +71,7 @@ def test_fail_use_out_loop_var():
                 # we cannot use `i` since it's defined outside the block
                 B[vi, vj] = A[i, vj] * 2.0
 
-    assert not tvm.tirx.analysis.verify_well_formed(element_wise, assert_mode=False)
+    assert not tvm.s_tir.analysis.verify_well_formed(element_wise, assert_mode=False)
 
 
 def test_error_for_out_of_scope_usage():
@@ -276,7 +276,7 @@ def test_block_match_buffer_defines_buffer_obj():
                     )
                     B[i, j] = 0.0
 
-    tvm.tirx.analysis.verify_well_formed(mod)
+    tvm.s_tir.analysis.verify_well_formed(mod)
 
 
 def test_block_match_buffer_defines_symbolic_variables():
@@ -299,7 +299,7 @@ def test_block_match_buffer_defines_symbolic_variables():
 
                     B[i, j] = elem_offset
 
-    tvm.tirx.analysis.verify_well_formed(mod)
+    tvm.s_tir.analysis.verify_well_formed(mod)
 
 
 def test_error_message_without_previous_definition_location():
@@ -428,7 +428,7 @@ def test_alloc_buffer_in_block_is_well_formed():
                         vi = T.axis.remap("S", [i])
                         B[vi] = A[vi] * 2.0
 
-    tvm.tirx.analysis.verify_well_formed(mod)
+    tvm.s_tir.analysis.verify_well_formed(mod)
 
 
 def test_match_buffer_in_block_is_well_formed():
@@ -447,7 +447,7 @@ def test_match_buffer_in_block_is_well_formed():
                     )
                     A_tile[i, j] = A_tile[i, j] * 2.0
 
-    tvm.tirx.analysis.verify_well_formed(mod)
+    tvm.s_tir.analysis.verify_well_formed(mod)
 
 
 def test_error_undeclared_buffer_in_schedulable_tir():
@@ -465,14 +465,14 @@ def test_error_undeclared_buffer_in_schedulable_tir():
 
     # Build a block that writes to B without any declaration of B.
     bi = tvm.tirx.Var("bi", "int32")
-    block = tvm.tirx.SBlock(
+    block = tvm.s_tir.SBlock(
         iter_vars=[tvm.tirx.IterVar(tvm.ir.Range(0, n), bi, 0)],  # 0 = kDataPar
         reads=[tvm.tirx.BufferRegion(A, [tvm.ir.Range(bi, bi + 1)])],
         writes=[tvm.tirx.BufferRegion(B, [tvm.ir.Range(bi, bi + 1)])],
         body=tvm.tirx.BufferStore(B, tvm.tirx.BufferLoad(A, [bi]), [bi]),
         name_hint="write_B",
     )
-    block_realize = tvm.tirx.SBlockRealize(
+    block_realize = tvm.s_tir.SBlockRealize(
         iter_values=[i],
         predicate=tvm.tirx.const(True),
         block=block,
@@ -489,7 +489,7 @@ def test_error_undeclared_buffer_in_schedulable_tir():
     with pytest.raises(
         (ValueError, tvm.error.InternalError), match="buffer B.*without a prior DeclBuffer"
     ):
-        tvm.tirx.analysis.verify_well_formed(prim_func)
+        tvm.s_tir.analysis.verify_well_formed(prim_func)
 
 
 def test_tensor_load_asserted_type_matches_source_and_indices():

@@ -24,7 +24,7 @@ import pytest
 import tvm
 import tvm.runtime
 import tvm.testing
-from tvm import tirx
+from tvm import s_tir, tirx
 from tvm.ir.base import SourceName, Span, assert_structural_equal
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tirx as T
@@ -108,7 +108,7 @@ def test_ir_builder_tir_block_base():
     block_realize_actual = ib.get()
 
     # the expected block
-    block_expected = tirx.SBlock(
+    block_expected = s_tir.SBlock(
         iter_vars=[],
         reads=[],
         writes=[],
@@ -118,7 +118,7 @@ def test_ir_builder_tir_block_base():
         match_buffers=None,
         annotations={"tirx.script_parsing_detect_access": tirx.IntImm("int64", 3)},
     )
-    block_realize_expected = tirx.SBlockRealize(
+    block_realize_expected = s_tir.SBlockRealize(
         iter_values=[],
         predicate=True,
         block=block_expected,
@@ -156,7 +156,7 @@ def test_ir_builder_tir_block_complete():
     var_d = tirx.Var("d", "int32")
     buffer_e = tirx.decl_buffer((128, 128), "float32", name="c")
     var_f = tirx.Var("f", "int32")
-    block_expected = tirx.SBlock(
+    block_expected = s_tir.SBlock(
         iter_vars=[tirx.IterVar((0, 128), tirx.Var("", "int32"), iter_type=tirx.IterVar.DataPar)],
         reads=[buffer_b[0:16, 0:16]],
         writes=[buffer_c[var_d:128, var_d:128]],
@@ -164,11 +164,11 @@ def test_ir_builder_tir_block_complete():
         body=tirx.Evaluate(0),
         alloc_buffers=[tirx.decl_buffer((128, 128), "float32")],
         match_buffers=[
-            tirx.MatchBufferRegion(tirx.decl_buffer((32, 32), "float32"), buffer_e[0:32, 0:32])
+            s_tir.MatchBufferRegion(tirx.decl_buffer((32, 32), "float32"), buffer_e[0:32, 0:32])
         ],
         annotations={"key": "value"},
     )
-    block_realize_expected = tirx.SBlockRealize(
+    block_realize_expected = s_tir.SBlockRealize(
         iter_values=[var_f],
         predicate=var_a > 1,
         block=block_expected,
@@ -199,7 +199,7 @@ def test_ir_builder_tir_axis():
     var_b = tirx.Var("b", "int32")
     var_c = tirx.Var("c", "int32")
     var_d = tirx.Var("d", "int32")
-    block_expected = tirx.SBlock(
+    block_expected = s_tir.SBlock(
         iter_vars=[
             tirx.IterVar((0, 8), tirx.Var("", "int32"), iter_type=tirx.IterVar.DataPar),
             tirx.IterVar((0, 16), tirx.Var("", "int32"), iter_type=tirx.IterVar.CommReduce),
@@ -212,7 +212,7 @@ def test_ir_builder_tir_axis():
         body=tirx.Evaluate(0),
         annotations={"tirx.script_parsing_detect_access": tirx.IntImm("int64", 3)},
     )
-    block_realize_expected = tirx.SBlockRealize(
+    block_realize_expected = s_tir.SBlockRealize(
         iter_values=[var_a, var_b, var_c, var_d],
         predicate=True,
         block=block_expected,
@@ -310,8 +310,8 @@ def test_ir_builder_tir_assert():
         [
             tirx.AssertStmt(
                 T.int32() == 0,
-                tirx.StringImm("RuntimeError"),
-                [tirx.StringImm("a is 0")],
+                tvm.ir.StringImm("RuntimeError"),
+                [tvm.ir.StringImm("a is 0")],
             ),
             tirx.Evaluate(0),
         ]

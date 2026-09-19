@@ -22,12 +22,12 @@ import operator
 import pytest
 
 import tvm
-from tvm.arith import Analyzer
 from tvm.ir import assert_structural_equal
 from tvm.ir.type import PointerType, PrimType
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tirx as Tx_builder
+from tvm.sym import Analyzer
 from tvm.tirx import Var
 from tvm.tirx.cuda.tile_primitive.tma_utils import (
     SwizzleMode,
@@ -1796,13 +1796,13 @@ def _evaluate_layout_expr(expr, values):
     if node_type == "Call":
         args = [_evaluate_layout_expr(arg, values) for arg in expr.args]
         op_name = str(expr.op.name)
-        if op_name == "ir.prim.bitwise_xor":
+        if op_name == "prim.bitwise_xor":
             return args[0] ^ args[1]
-        if op_name == "ir.prim.bitwise_and":
+        if op_name == "prim.bitwise_and":
             return args[0] & args[1]
-        if op_name == "ir.prim.shift_left":
+        if op_name == "prim.shift_left":
             return args[0] << args[1]
-        if op_name == "ir.prim.shift_right":
+        if op_name == "prim.shift_right":
             return args[0] >> args[1]
         raise AssertionError(f"Cannot evaluate call {op_name}")
     raise AssertionError(f"Cannot evaluate node type {node_type}")

@@ -2415,7 +2415,7 @@ def test_primitive_scalar_parameter_preserves_identity():
 
     after = relax.transform.FuseTIR()(Before)
     assert relax.analysis.check_well_formed(after)
-    assert tvm.tirx.analysis.verify_well_formed(after["fused"])
+    assert tvm.s_tir.analysis.verify_well_formed(after["fused"])
 
 
 def test_inplace_argument_after_primitive_scalar():
@@ -2448,7 +2448,7 @@ def test_inplace_argument_after_primitive_scalar():
 
     after = relax.transform.FuseTIR()(Before)
     assert relax.analysis.check_well_formed(after)
-    assert tvm.tirx.analysis.verify_well_formed(after["fused"])
+    assert tvm.s_tir.analysis.verify_well_formed(after["fused"])
 
 
 if __name__ == "__main__":

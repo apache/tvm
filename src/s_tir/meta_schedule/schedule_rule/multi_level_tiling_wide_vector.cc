@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../../schedule/analysis.h"
 #include "../../schedule/transform.h"
@@ -26,7 +27,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 using s_tir::LoopRV;
@@ -68,11 +68,11 @@ MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv
                                           int n_tiles) const {
   const tirx::ForNode* loop = TVM_SREF_TO_FOR(sch->GetSRef(loop_rv));
   const tirx::StmtSRef block_sref = sch->GetSRef(block_rv);
-  const tirx::SBlockNode* block_node = block_sref->StmtAs<tirx::SBlockNode>();
-  const tirx::SBlockRealize block_realize = s_tir::GetSBlockRealize(sch->state(), block_sref);
+  const s_tir::SBlockNode* block_node = block_sref->StmtAs<s_tir::SBlockNode>();
+  const s_tir::SBlockRealize block_realize = s_tir::GetSBlockRealize(sch->state(), block_sref);
   TVM_FFI_ICHECK(block_node && block_node->writes.size() == 1);
 
-  const auto out_dtype = block_node->writes[0]->buffer->dtype;
+  const auto out_dtype = block_node->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>()->dtype;
   const int vec_len = vector_length_in_bits / out_dtype.bits();
 
   // Determine if this loop is over the innermost axis of the output buffer.
@@ -96,13 +96,14 @@ MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv
   const size_t innermost_axis = block_node->writes[0]->region.size() - 1;
   const PrimExpr innermost_iter_value = block_realize->iter_values[innermost_axis];
 
-  if (!arith::Analyzer()->CanProve(static_cast<PrimExpr>(loop->loop_var) == innermost_iter_value)) {
+  if (!sym::Analyzer()->CanProve(static_cast<PrimExpr>(loop->loop_var) == innermost_iter_value)) {
     // If this is not the innermost spatial loop, split the loop in the normal way.
     return MultiLevelTilingNode::SplitLoop(sch, block_rv, loop_rv, n_tiles);
   } else {
     // We split the innermost spatial loop in a way that always uses the maximum vector length.
-    const int64_t* extent_int = s_tir::GetLoopIntExtent(loop);
-    if (extent_int && *extent_int > vec_len) {
+    const auto* extent_int_imm = loop->extent.as<IntImmNode>();
+    auto extent_int = extent_int_imm ? extent_int_imm->value.as<int64_t>() : std::nullopt;
+    if (extent_int.has_value() && *extent_int > vec_len) {
       ffi::Array<s_tir::LoopRV> inner_splits =
           sch->Split(/*loop=*/loop_rv,
                      /*factors=*/{std::nullopt, PrimExpr(vec_len)});

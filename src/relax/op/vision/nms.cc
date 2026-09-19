@@ -18,7 +18,6 @@
  */
 #include "nms.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -28,6 +27,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/relax/attrs/vision.h>
 #include <tvm/relax/type.h>
+#include <tvm/sym/analyzer.h>
 
 #include <utility>
 #include <vector>
@@ -266,7 +266,7 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
   const auto* valid_count_shape = valid_count_ty->shape.as<ShapeExprNode>();
   const auto* indices_shape = indices_ty->shape.as<ShapeExprNode>();
   if (data_shape != nullptr) {
-    arith::Analyzer analyzer = ctx->GetAnalyzer();
+    sym::Analyzer analyzer = ctx->GetAnalyzer();
     PrimExpr batch = data_shape->values[0];
     PrimExpr num_anchors = data_shape->values[1];
     if (valid_count_shape != nullptr &&
@@ -293,7 +293,7 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
   if (data_shape != nullptr) {
     const auto* elem_length_imm = data_shape->values[2].as<IntImmNode>();
     if (elem_length_imm != nullptr) {
-      int64_t elem_length = elem_length_imm->value;
+      const ffi::BigInt& elem_length = elem_length_imm->value;
       if (attrs->score_index < 0 || attrs->score_index >= elem_length) {
         TVM_FFI_VISIT_THROW(ValueError, call)
             << "non_max_suppression expects score_index to be in range [0, " << elem_length

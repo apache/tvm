@@ -217,11 +217,11 @@ def test_base_check():
     shape3 = rx.ShapeType([1, 2, 3])
     shape4 = rx.ShapeType([1, n, 3])
 
-    vdevice0 = ir.VDevice()
-    vdevice1 = ir.VDevice("llvm")
-    vdevice2 = ir.VDevice("cuda", 0)
-    vdevice3 = ir.VDevice("cuda", 2)
-    vdevice4 = ir.VDevice("cuda", 0, "")
+    vdevice0 = rx.VDevice()
+    vdevice1 = rx.VDevice("llvm")
+    vdevice2 = rx.VDevice("cuda", 0)
+    vdevice3 = rx.VDevice("cuda", 2)
+    vdevice4 = rx.VDevice("cuda", 0, "")
 
     tensor0 = rx.TensorType(ndim=-1, dtype="int32")
     tensor1 = rx.TensorType(ndim=-1, dtype="float32")
@@ -414,7 +414,7 @@ def test_derive_call_ret_type():
             _check_derive(bb, func0(2), [obj0], obj0)
 
         # Tensor with vdevice
-        vdev = ir.VDevice("llvm")
+        vdev = rx.VDevice("llvm")
 
         def func1(c):
             n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
@@ -520,8 +520,8 @@ def test_type_lca():
     prim0 = tvm.ir.PrimType("int32")
     prim1 = tvm.ir.PrimType("float32")
 
-    vdevice0 = ir.VDevice("llvm")
-    vdevice1 = ir.VDevice("cuda", 0)
+    vdevice0 = rx.VDevice("llvm")
+    vdevice1 = rx.VDevice("cuda", 0)
 
     shape0 = rx.ShapeType(ndim=-1)
     shape1 = rx.ShapeType(ndim=2)

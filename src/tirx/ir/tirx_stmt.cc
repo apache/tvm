@@ -43,6 +43,14 @@ TilePrimitiveCall::TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
   static const auto& category_map = Op::GetAttrMap<TIRxOpCategory>("TIRxOpCategory");
   TVM_FFI_ICHECK(category_map.get(op, ffi::String("")) == "tile_primitive")
       << "Only tile primitive ops can be used in tirx::TilePrimitiveCall";
+  ffi::StructuralVisit(args,
+                       [](const TensorRegionNode* region,
+                          ffi::StructuralVisitorObj*) -> ffi::Optional<ffi::VisitInterrupt> {
+                         const auto buffer = region->source.as_or_throw<BufferVar>();
+                         TVM_FFI_ICHECK_EQ(buffer->shape.size(), region->region.size())
+                             << "Tile region must match its buffer rank";
+                         return std::nullopt;
+                       });
   ffi::ObjectPtr<TilePrimitiveCallNode> n = ffi::make_object<TilePrimitiveCallNode>(
       std::move(op), std::move(args), std::move(workspace), std::move(config), std::move(dispatch),
       std::move(scope));
@@ -96,14 +104,16 @@ TVMFFIAny TilePrimitiveCallMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TilePrimitiveCallNode>(
           value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<ffi::Any>>, mapped_args,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->args));
+                                    mutator->MutateExpected(self->args, ffi::InplaceMode::kAllow));
 
   using WorkspaceMap = ffi::Map<ffi::String, BufferVar>;
   using ConfigMap = ffi::Map<ffi::String, ffi::Any>;
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<WorkspaceMap>, mapped_workspace,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->workspace));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ConfigMap>, mapped_config,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->config));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<WorkspaceMap>, mapped_workspace,
+      mutator->MutateExpected(self->workspace, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ConfigMap>, mapped_config,
+      mutator->MutateExpected(self->config, ffi::InplaceMode::kAllow));
 
   if (mapped_args.UnchangedOrSameAs(self->args) &&
       mapped_workspace.UnchangedOrSameAs(self->workspace) &&

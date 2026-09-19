@@ -42,6 +42,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 namespace {
 
@@ -84,7 +85,7 @@ bool IsLastTwoDimsSwap(const Expr& expr) {
 }
 
 ffi::Optional<ffi::Array<PrimExpr>> InferBatchedMatmulBroadcastPrefix(
-    arith::AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& x1, const ffi::Array<PrimExpr>& x2) {
+    sym::AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& x1, const ffi::Array<PrimExpr>& x2) {
   auto infer_result = InferBinaryBroadcastShape(analyzer, x1, x2);
   if (infer_result.status == BinaryBroadcastShapeInferResult::Status::kSuccess) {
     return infer_result.shape;
@@ -275,7 +276,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     PrimExpr size_M = shape_c[shape_c.size() - 2];  // row of C and col of B
     PrimExpr size_B = shape_c[shape_c.size() - 1];  // col of C
 
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     auto prefix_a = GetBatchPrefix(shape_a);
     auto prefix_b = GetBatchPrefix(shape_b);
     auto prefix_c = GetBatchPrefix(shape_c);
@@ -311,12 +312,11 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     PrimExpr ops_with_rhs_first =
         batch_bc * size_R * size_M * size_B + batch_outer_rhs * size_N * size_R * size_B;
 
-    analyzer->rewrite_simplify.SetEnabledExtensions(
-        static_cast<arith::RewriteSimplifier::Extension>(
-            analyzer->rewrite_simplify.GetEnabledExtensions() |
-            arith::RewriteSimplifier::Extension::kComparisonOfProductAndSum));
-    With<arith::ConstraintContext> func_attr_constraint(analyzer, symbolic_var_constraints);
-    With<arith::ConstraintContext> analyzer_constraint(
+    analyzer->rewrite_simplify.SetEnabledExtensions(static_cast<sym::RewriteSimplifier::Extension>(
+        analyzer->rewrite_simplify.GetEnabledExtensions() |
+        sym::RewriteSimplifier::Extension::kComparisonOfProductAndSum));
+    With<sym::ConstraintContext> func_attr_constraint(analyzer, symbolic_var_constraints);
+    With<sym::ConstraintContext> analyzer_constraint(
         analyzer, batch_ab > 0 && batch_bc > 0 && batch_outer_lhs > 0 && batch_outer_rhs > 0 &&
                       size_N > 0 && size_R > 0 && size_M > 0 && size_B > 0);
 

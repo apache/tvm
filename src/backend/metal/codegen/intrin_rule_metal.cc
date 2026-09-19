@@ -58,13 +58,13 @@ static PrimExpr DispatchMetalShuffle(const PrimExpr& e) {
 
 void RegisterMetalIntrinRules() {
   // clang-format off
-TVM_REGISTER_OP("tirx.clz")
+TVM_REGISTER_OP("prim.clz")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tirx.floor")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.ceil")
+TVM_REGISTER_OP("prim.ceil")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tirx.trunc")
@@ -78,7 +78,7 @@ TVM_REGISTER_OP("tirx.round")
       // Metal's rint() uses ties-to-even, matching constant-folding semantics.
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      ffi::Array<PrimExpr> new_args = {prim::StringImm("rint")};
+      ffi::Array<Expr> new_args = {StringImm("rint")};
       for (const PrimExpr& arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
         new_args.push_back(arg);
       }
@@ -100,7 +100,7 @@ TVM_REGISTER_OP("tirx.exp10")
 TVM_REGISTER_OP("tirx.log")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.log2")
+TVM_REGISTER_OP("prim.log2")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tirx.log10")

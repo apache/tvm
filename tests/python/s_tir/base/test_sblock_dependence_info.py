@@ -90,10 +90,10 @@ def get_sblocks(func: PrimFunc):
     blocks = {}
 
     def update_blocks(node):
-        if isinstance(node, tvm.tirx.SBlock):
+        if isinstance(node, tvm.s_tir.SBlock):
             blocks[node.name_hint] = node
 
-    # post_order_visit(func.body, lambda node: blocks[node.name_hint] = node if isinstance(node, tvm.tirx.SBlock) else None)
+    # post_order_visit(func.body, lambda node: blocks[node.name_hint] = node if isinstance(node, tvm.s_tir.SBlock) else None)
     structural_walk(func.body, update_blocks, order="post")
     return blocks
 

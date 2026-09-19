@@ -25,7 +25,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -38,8 +37,10 @@ inline bool HasAnnOrBinding(const ForNode* loop) {
 }
 
 /*! \brief The visitor for extracting the stride of a var in a PrimExpr. */
-class StrideExtractor : public ExprVisitor {
+class StrideExtractor : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   /*!
    * \brief Extracting the stride of a var in a PrimExpr.
    *        e.g the stride of `x` in `(x * 2 + 1) * 3 + 1` is 6
@@ -48,30 +49,31 @@ class StrideExtractor : public ExprVisitor {
    * \return The stride of the var.
    */
   static int64_t Extract(const PrimExpr& expr, const Var& var) {
-    StrideExtractor extractor(var);
-    extractor.VisitExpr(expr);
-    return extractor.strides_[expr.get()];
+    auto extractor = ffi::make_object<StrideExtractor>(var);
+    extractor->Visit(expr);
+    return extractor->strides_[expr.get()];
   }
 
- private:
   explicit StrideExtractor(const Var& var) : var_(var) {}
 
-  void VisitExpr_(const MulNode* node) final {
-    ExprVisitor::VisitExpr_(node);
+ private:
+  ffi::Optional<VisitInterrupt> Visit_(const MulNode* node) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
 
     if (const auto* a = node->a.as<IntImmNode>()) {
       if (strides_.count(node->b.get())) {
-        strides_[node] = strides_[node->b.get()] * a->value;
+        strides_[node] = static_cast<int64_t>(strides_[node->b.get()] * a->value);
       }
     } else if (const auto* b = node->b.as<IntImmNode>()) {
       if (strides_.count(node->a.get())) {
-        strides_[node] = strides_[node->a.get()] * b->value;
+        strides_[node] = static_cast<int64_t>(strides_[node->a.get()] * b->value);
       }
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const AddNode* node) final {
-    ExprVisitor::VisitExpr_(node);
+  ffi::Optional<VisitInterrupt> Visit_(const AddNode* node) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
     int64_t stride_a, stride_b;
     if (strides_.count(node->a.get())) {
       stride_a = strides_[node->a.get()];
@@ -86,12 +88,14 @@ class StrideExtractor : public ExprVisitor {
     if (stride_a != INT64_MAX || stride_b != INT64_MAX) {
       strides_[node] = std::min(stride_a, stride_b);
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const VarNode* node) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* node) final {
     if (node == var_.get()) {
       strides_[node] = 1;
     }
+    return std::nullopt;
   }
 
   const Var& var_;
@@ -114,22 +118,22 @@ bool ParseAnnotation(const SBlock& block, ParsedAnnotation* parsed) {
     if (ann.first == s_tir::attr::meta_schedule_parallel) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
-        parsed->max_parallel_extent = (*opt_int_imm)->value;
+        parsed->max_parallel_extent = (*opt_int_imm)->value.as<int>().value();
       }
     } else if (ann.first == s_tir::attr::meta_schedule_vectorize) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
-        parsed->max_vectorize_extent = (*opt_int_imm)->value;
+        parsed->max_vectorize_extent = (*opt_int_imm)->value.as<int>().value();
       }
     } else if (ann.first == s_tir::attr::meta_schedule_unroll_explicit) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
-        parsed->unroll_explicit = (*opt_int_imm)->value;
+        parsed->unroll_explicit = (*opt_int_imm)->value.as<int>().value();
       }
     } else if (ann.first == s_tir::attr::meta_schedule_unroll_implicit) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
-        parsed->unroll_implicit = (*opt_int_imm)->value;
+        parsed->unroll_implicit = (*opt_int_imm)->value.as<int>().value();
       }
     }
   }
@@ -171,7 +175,8 @@ int CalculateNumRewritableLoops(const ffi::Array<StmtSRef>& loop_srefs,
       continue;
     }
     // Check if the loop extent is valid
-    if (GetLoopIntExtent(loop_sref) == nullptr) {
+    if (const auto* extent = loop->extent.as<IntImmNode>();
+        !extent || !extent->value.as<int64_t>().has_value()) {
       continue;
     }
     ++rw_loops_num;
@@ -204,7 +209,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
   }
   // check the maximal number of axes that are vectorizable (contiguous memory access)
   SBlockRealize realize = GetSBlockRealize(sch->state(), block_sref);
-  ffi::Array<BufferRegion> buffer_access(realize->block->reads);
+  ffi::Array<TensorRegion> buffer_access(realize->block->reads);
   buffer_access.insert(buffer_access.end(), realize->block->writes.begin(),
                        realize->block->writes.end());
   std::unordered_map<const VarNode*, PrimExpr> binding_map;
@@ -220,7 +225,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
   int max_fusible = INT32_MAX;
   // for each block read/write, get the strides of the loop vars and find the fusible
   // (vectorizable) axes
-  for (const BufferRegion& access : buffer_access) {
+  for (const TensorRegion& access : buffer_access) {
     int fusible = 0;
     bool can_analyze_contiguous_access = true;
     std::vector<int64_t> strides;
@@ -228,7 +233,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
     for (const StmtSRef& loop_sref : loop_srefs) {
       int64_t stride = 0, buffer_stride = 1;
       const auto* var = loop_sref->StmtAs<ForNode>();
-      arith::Analyzer analyzer;
+      sym::Analyzer analyzer;
       for (int i = access->region.size() - 1; i >= 0; i--) {
         PrimExpr idx = analyzer->Simplify(
             ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(access->region[i]->min, f_substitute)
@@ -238,12 +243,13 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
           stride = coef * buffer_stride;
           break;
         }
-        const auto* shape = access->buffer->shape[i].as<IntImmNode>();
+        const auto* shape =
+            access->source.as_or_throw<tvm::tirx::BufferVar>()->shape[i].as<IntImmNode>();
         if (shape == nullptr) {
           can_analyze_contiguous_access = false;
           break;
         }
-        buffer_stride *= shape->value;
+        buffer_stride = static_cast<int64_t>(buffer_stride * shape->value);
       }
       if (!can_analyze_contiguous_access) {
         break;
@@ -270,8 +276,12 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         prev_used_iter = i;
       } else {
         // contiguous memory access
-        const int64_t* prev_used_iter_extent = GetLoopIntExtent(loop_srefs[prev_used_iter]);
-        if (prev_used_iter_extent == nullptr) {
+        const auto* prev_used_iter_extent_imm =
+            TVM_SREF_TO_FOR(loop_srefs[prev_used_iter])->extent.as<IntImmNode>();
+        auto prev_used_iter_extent = prev_used_iter_extent_imm
+                                         ? prev_used_iter_extent_imm->value.as<int64_t>()
+                                         : std::nullopt;
+        if (!prev_used_iter_extent.has_value()) {
           break;
         }
         if (strides[i] == strides[prev_used_iter] * (*prev_used_iter_extent)) {
@@ -300,8 +310,9 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         break;
       }
       // Check if the loop extent is valid
-      const int64_t* extent = GetLoopIntExtent(loop_sref);
-      if (extent == nullptr) {
+      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+      if (!extent.has_value()) {
         break;
       }
       // Then we can fuse it in
@@ -337,8 +348,9 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         break;
       }
       // Check if the loop extent is valid
-      const int64_t* extent = GetLoopIntExtent(loop_sref);
-      if (extent == nullptr) {
+      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+      if (!extent.has_value()) {
         break;
       }
       // Check if the extent is still in a good range
@@ -435,7 +447,6 @@ void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const
 }  // namespace s_tir
 
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 using s_tir::Schedule;
@@ -477,7 +488,10 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
             int max_step = parsed.unroll_explicit + parsed.unroll_implicit + 1;
             s_tir::RewriteUnroll(sch, unroll_explicit, max_step, block_rv, loop_rvs[0]);
           }
-        } catch (const s_tir::ScheduleError& e) {
+        } catch (const ffi::Error& e) {
+          if (s_tir::GetScheduleErrorContext(e) == nullptr) {
+            throw;
+          }
           DLOG(WARNING) << "Failed to apply parallelization/vectorization: " << e.what();
           return false;
         }

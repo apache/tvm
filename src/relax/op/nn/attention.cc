@@ -90,7 +90,7 @@ Type InferTypeAttention(const Call& call, const BlockBuilder& ctx) {
   PrimExpr head_dim = q_shape->values[3];
   PrimExpr num_keys = k_shape->values[1];
   PrimExpr head_dim_value = v_shape->values[3];
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   auto diag_equal = [&](PrimExpr v1, PrimExpr v2, ffi::String m1, ffi::String m2, ffi::String dim) {
     if (analyzer->CanProve(v1 != v2)) {
       TVM_FFI_VISIT_THROW(ValueError, call)
@@ -126,7 +126,7 @@ Type InferTypeAttention(const Call& call, const BlockBuilder& ctx) {
     }
     auto diag_equal_or_broadcast = [&](PrimExpr v1, PrimExpr v2, ffi::String m1, ffi::String m2,
                                        ffi::String dim) {
-      if (analyzer->CanProve(v1 != v2) && !tirx::is_one(v2)) {
+      if (analyzer->CanProve(v1 != v2) && !tvm::prim::is_one(v2)) {
         TVM_FFI_VISIT_THROW(ValueError, call)
             << "The " << m1 << " " << dim << " and the " << m2 << " " << dim
             << " should be the same or broadcastable. However, the " << dim << " of " << m1

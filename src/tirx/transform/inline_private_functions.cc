@@ -48,22 +48,23 @@ PMap<GlobalVar, PSet<GlobalVar>> CollectCallMap(const IRModule& mod) {
     GlobalVar current;
     PMap<GlobalVar, PSet<GlobalVar>> caller_lookup;
 
-    void VisitExpr_(const CallNode* op) {
+    ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
       if (auto gvar = op->op.as<GlobalVar>()) {
         caller_lookup[gvar.value()].insert(current);
       }
-      StmtExprVisitor::VisitExpr_(op);
+      return StmtExprVisitor::Visit_(op);
     }
-  } visitor;
+  };
+  auto visitor = ffi::make_object<Visitor>();
 
   for (const auto& [gvar, base_func] : mod->functions) {
     if (auto prim_func = base_func.as<PrimFuncNode>()) {
-      visitor.current = gvar;
-      visitor(prim_func->body);
+      visitor->current = gvar;
+      visitor->Visit(prim_func->body);
     }
   }
 
-  return visitor.caller_lookup;
+  return visitor->caller_lookup;
 }
 
 PSet<GlobalVar> CollectRecursiveFunctions(const IRModule& mod) {
@@ -120,12 +121,19 @@ bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
     if (param->ty.as<BufferTypeNode>()) return false;
   }
 
-  // We do not currently support inlining of schedulable TIR
-  // functions.  To support this use case, repeated names in
-  // `tirx::SBlock` nodes resulting from multiple calls to the same
-  // inlined function will need to be de-duplicated.
-  bool has_block_node = prim_func->body.as<SBlockRealizeNode>();
-  if (has_block_node) return false;
+  // Generalize the old SBlockRealize exclusion to all non-native statement roots:
+  // they may introduce binder or naming rules that this pass cannot preserve.
+  // Only inline roots supported by native TIRX traversal.
+  struct NativeStmtTable : StmtExprVisitor {
+    static VTable Make() {
+      VTable table;
+      InitVTable(&table);
+      table.Finalize();
+      return table;
+    }
+  };
+  static const auto native_stmts = NativeStmtTable::Make();
+  if (!native_stmts.CanDispatch(prim_func->body.get())) return false;
 
   return true;
 }
@@ -146,8 +154,10 @@ ffi::Map<GlobalVar, PrimFunc> CollectInlinablePrimFuncs(const IRModule& mod) {
   return output;
 }
 
-class PrimFuncInliner : StmtExprMutator {
+class PrimFuncInliner : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   explicit PrimFuncInliner(ffi::Map<GlobalVar, PrimFunc> inlinable_funcs)
       : inlinable_funcs_(inlinable_funcs) {
     for (const auto& [gvar, callee] : inlinable_funcs_) {
@@ -157,10 +167,12 @@ class PrimFuncInliner : StmtExprMutator {
 
   PrimFunc VisitFunc(PrimFunc func) {
     current_target_ = func->GetAttr<Target>(tvm::attr::kTarget);
-    auto new_body = VisitStmt(func->body);
+    auto new_body_result = Mutate(func->body, InplaceMode::kDisallow);
+    bool new_body_unchanged = new_body_result.UnchangedOrSameAs(func->body);
+    auto new_body = std::move(new_body_result).ValueOrUnchanged(func->body);
     current_target_ = std::nullopt;
 
-    if (!new_body.same_as(func->body)) {
+    if (!new_body_unchanged) {
       func.CopyOnWrite()->body = new_body;
     }
 
@@ -170,11 +182,11 @@ class PrimFuncInliner : StmtExprMutator {
   PSet<GlobalVar> GetRemovableFunctions() const { return removable_funcs_; }
 
  private:
-  Stmt VisitStmt_(const EvaluateNode* eval) override {
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* eval, InplaceMode inplace_mode) override {
     if (auto inlined = GetInlinedFunction(eval)) {
       return inlined.value();
     } else {
-      return StmtExprMutator::VisitStmt_(eval);
+      return StmtExprMutator::Mutate_(eval, inplace_mode);
     }
   }
 
@@ -200,10 +212,10 @@ class PrimFuncInliner : StmtExprMutator {
     if (!is_same_target) return std::nullopt;
 
     Stmt inlined = InlineArguments(gvar.value(), callee, call->args);
-    return VisitStmt(inlined);
+    return Mutate(inlined, InplaceMode::kDisallow).ValueOrUnchanged(inlined);
   }
 
-  Expr VisitExpr_(const CallNode* call) override {
+  UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) override {
     // Because the current implementation inlines a subroutine inserts
     // the `tirx::Stmt` body at the point of use, replacement must
     // occur in a context where a `tirx::Stmt` can be returned. Support
@@ -221,7 +233,7 @@ class PrimFuncInliner : StmtExprMutator {
     if (auto gvar = call->op.as<GlobalVar>()) {
       removable_funcs_.erase(gvar.value());
     }
-    return StmtExprMutator::VisitExpr_(call);
+    return StmtExprMutator::Mutate_(call, inplace_mode);
   }
 
   Stmt InlineArguments(const GlobalVar& gvar, PrimFunc callee, const ffi::Array<Expr>& args) const {
@@ -271,12 +283,12 @@ Pass InlinePrivateFunctions() {
       return mod;
     }
 
-    PrimFuncInliner mutator(std::move(inlinable_prim_funcs));
+    auto mutator = ffi::make_object<PrimFuncInliner>(std::move(inlinable_prim_funcs));
     IRModule updates;
 
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<PrimFunc>()) {
-        auto updated = mutator.VisitFunc(opt.value());
+        auto updated = mutator->VisitFunc(opt.value());
         if (!updated.same_as(base_func)) {
           updates->Add(gvar, updated);
         }
@@ -286,7 +298,7 @@ Pass InlinePrivateFunctions() {
     if (updates->functions.size()) {
       auto write_ptr = mod.CopyOnWrite();
       write_ptr->Update(updates);
-      for (const auto& gvar : mutator.GetRemovableFunctions()) {
+      for (const auto& gvar : mutator->GetRemovableFunctions()) {
         write_ptr->Remove(gvar);
       }
       mod = ConvertSSA()(mod);

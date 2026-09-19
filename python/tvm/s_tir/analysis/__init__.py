@@ -21,9 +21,9 @@
 from typing import Optional, Union
 
 import tvm
-from tvm.ir import IRModule
+from tvm.ir import IRModule, TensorRegion
 from tvm.tirx.expr import Var
-from tvm.tirx.stmt import SBlock, BufferRegion
+from tvm.s_tir import SBlock
 
 from tvm.tirx import Buffer, Stmt
 from tvm.tirx.function import PrimFunc
@@ -32,13 +32,13 @@ from . import _ffi_api
 
 def get_sblock_access_region(
     block: SBlock, buffer_var_map: dict[Var, Buffer]
-) -> list[list[BufferRegion]]:
+) -> list[list[TensorRegion]]:
     """Detect which regions of tensors in this block are read or written to.
        Regions are sorted by order of appearance in the AST.
 
     Parameters
     ----------
-    block: tvm.tirx.SBlock
+    block: tvm.s_tir.SBlock
         The block in which we are detecting read/write regions.
 
     buffer_var_map : Dict[Var, Buffer]
@@ -46,8 +46,8 @@ def get_sblock_access_region(
 
     Returns
     -------
-    result : List[List[BufferRegion]]
-        Array of access regions. There are three arrays of BufferRegion:
+    result : List[List[TensorRegion]]
+        Array of access regions. There are three arrays of TensorRegion:
             - first: read regions
             - second: write regions
             - third: opaque regions
@@ -57,13 +57,13 @@ def get_sblock_access_region(
 
 def get_sblock_read_write_region(
     block: SBlock, buffer_var_map: dict[Var, Buffer]
-) -> list[list[BufferRegion]]:
+) -> list[list[TensorRegion]]:
     """Auto detect the block read/write region according to its body stmt.
        An opaque access will be counted as both a read and a write access
 
     Parameters
     ----------
-    block: tvm.tirx.SBlock
+    block: tvm.s_tir.SBlock
         The block in which we are detecting read/write regions.
 
     buffer_var_map : Dict[Var, Buffer]
@@ -71,7 +71,7 @@ def get_sblock_read_write_region(
 
     Returns
     -------
-    result : List[List[BufferRegion]]
+    result : List[List[TensorRegion]]
         An array only consisting of the read regions and write regions of the input block
     """
     return _ffi_api.GetSBlockReadWriteRegion(block, buffer_var_map)  # type: ignore
@@ -214,3 +214,13 @@ def is_pure_function(func: PrimFunc) -> bool:
 def assert_pure_function(func: PrimFunc) -> bool:
     """Asserts that the function is a pure function"""
     return _ffi_api.is_pure_function(func, True)  # type: ignore # pylint: disable=no-member
+
+
+def verify_well_formed(obj: PrimFunc | IRModule, assert_mode: bool = True) -> bool:
+    """Verify definitions, buffer loads and S-TIR block boundaries.
+
+    Modules may contain both S-TIR and ordinary PrimFuncs.  Shared variable
+    identities are checked across function boundaries.  Use the TIRX-specific
+    verifier separately for execution-scope restrictions on ordinary PrimFuncs.
+    """
+    return _ffi_api.VerifyWellFormed(obj, assert_mode)

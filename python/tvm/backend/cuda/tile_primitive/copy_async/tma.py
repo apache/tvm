@@ -33,8 +33,8 @@ from enum import Enum
 from itertools import pairwise
 
 import tvm
-from tvm.arith import Analyzer
 from tvm.script import tirx as T
+from tvm.sym import Analyzer
 from tvm.tirx import Buffer, IntImm, PrimFunc, is_buffer_var
 from tvm.tirx.layout import Layout, TileLayout
 from tvm.tirx.operator.tile_primitive import (
@@ -1620,8 +1620,8 @@ def _runtime_config(op_call, sctx, direction: str, *, explicit: bool):
 def _copy_direction(op_call):
     op_call = TilePrimitiveCall.downcast(op_call)
     dst_region, src_region = op_call.dst, op_call.src
-    src_scope = src_region.buffer.scope()
-    dst_scope = dst_region.buffer.scope()
+    src_scope = src_region.source.scope()
+    dst_scope = dst_region.source.scope()
     if src_scope == "global" and dst_scope.startswith("shared"):
         return "g2s", dst_region, src_region
     if src_scope.startswith("shared") and dst_scope == "global":
@@ -1631,8 +1631,8 @@ def _copy_direction(op_call):
 
 def _build_auto_plan(op_call: TilePrimitiveCall, sctx: DispatchContext) -> TMAPlan:
     direction, shared_region, global_region = _copy_direction(op_call)
-    s_buf = shared_region.buffer
-    g_buf = global_region.buffer
+    s_buf = shared_region.source
+    g_buf = global_region.source
     if str(s_buf.dtype) != str(g_buf.dtype):
         _auto_fail(
             "dtype",
@@ -1953,8 +1953,8 @@ def _selector_compatibility(main: TensorMapSpec, candidate: TensorMapSpec, index
 
 def _build_explicit_plan(op_call: TilePrimitiveCall, sctx: DispatchContext):
     direction, shared_region, global_region = _copy_direction(op_call)
-    s_buf = shared_region.buffer
-    g_buf = global_region.buffer
+    s_buf = shared_region.source
+    g_buf = global_region.source
     runtime = _runtime_config(op_call, sctx, direction, explicit=True)
     gather4 = _normalize_gather4(op_call.config.get("gather4"))
     selectors = _normalize_src_selector(op_call.config.get("src_selector"))
@@ -2244,8 +2244,8 @@ def copy_tma_explicit_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) ->
 
 def _validate_tma_copy_op(op_call: TilePrimitiveCall, _sctx: DispatchContext) -> bool:
     dst_region, src_region = op_call.args[:2]
-    src = src_region.buffer
-    dst = dst_region.buffer
+    src = src_region.source
+    dst = dst_region.source
     if src.layout is None or dst.layout is None:
         return False
     src_scope, dst_scope = src.scope(), dst.scope()

@@ -25,8 +25,10 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/arena.h"
@@ -42,13 +44,15 @@ namespace tirx {
  * global memory will have its buffer access LCA outside all launch sites of `blockIdx`, in order to
  * prevent conflicts between buffer memory scopes and CUDA hierarchy.
  */
-class LCADetector : public StmtExprVisitor {
+class LCADetector : public s_tir::StmtExprVisitor {
  public:
+  using s_tir::StmtExprVisitor::Visit_;
+
   static ffi::Map<BufferVar, ffi::Optional<Stmt>> Detect(const PrimFunc& func) {
-    LCADetector detector;
+    auto detector = ffi::make_object<LCADetector>();
     for (const Var& param : func->params) {
       if (auto buffer = param.as<BufferVar>()) {
-        detector.buffer_var_map_.emplace(buffer.value().get(), buffer.value().get());
+        detector->buffer_var_map_.emplace(buffer.value().get(), buffer.value().get());
       }
     }
 
@@ -57,14 +61,14 @@ class LCADetector : public StmtExprVisitor {
     // node, as that is also used to represent a scope that hasn't
     // been observed before.
     ScopeInfo root(nullptr, nullptr, 0);
-    detector.ancestor_scopes_.push_back(&root);
+    detector->ancestor_scopes_.push_back(&root);
 
-    detector(func->body);
-    detector.UpdateWithBlockidx();
+    detector->Visit(func->body);
+    detector->UpdateWithBlockidx();
 
     // Prepare the return
     ffi::Map<BufferVar, ffi::Optional<Stmt>> buffer_lca;
-    for (const auto& kv : detector.buffer_lca_) {
+    for (const auto& kv : detector->buffer_lca_) {
       BufferVar buffer(ffi::GetRef<Var>(kv.first));
       const ffi::Optional<Stmt> stmt =
           kv.second ? ffi::Optional<Stmt>(ffi::GetRef<Stmt>(kv.second->stmt)) : std::nullopt;
@@ -90,7 +94,7 @@ class LCADetector : public StmtExprVisitor {
         : parent_scope_info(parent_info), stmt(stmt), depth(depth) {}
   };
 
-  void VisitStmt_(const ForNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     int n = ancestor_scopes_.size();
     const ScopeInfo* parent_scope = ancestor_scopes_.back();
     auto* current_scope = arena_.make<ScopeInfo>(parent_scope, op, n);
@@ -105,13 +109,14 @@ class LCADetector : public StmtExprVisitor {
 
     ancestor_scopes_.push_back(current_scope);
     loop_scope_map_.insert({op->loop_var.get(), current_scope});
-    StmtExprVisitor::VisitStmt_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     ancestor_scopes_.pop_back();
     loop_scope_map_.erase(op->loop_var.get());
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SBlockRealizeNode* op) final {
-    const SBlockNode* block = op->block.get();
+  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockRealizeNode* op) final {
+    const s_tir::SBlockNode* block = op->block.get();
     int n = ancestor_scopes_.size();
     for (const BufferVar& buf : block->alloc_buffers) {
       buffer_var_map_.emplace(buf.get(), buf.get());
@@ -131,16 +136,18 @@ class LCADetector : public StmtExprVisitor {
     UpdateDominateScopeOfNonDataParIter(op);
 
     // Update match_buffers
-    for (const MatchBufferRegion& match_buffer : block->match_buffers) {
-      UpdateBufferLCA(match_buffer->source->buffer.get(), ancestor_scopes_.back());
+    for (const s_tir::MatchBufferRegion& match_buffer : block->match_buffers) {
+      UpdateBufferLCA(match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>().get(),
+                      ancestor_scopes_.back());
       match_buffers_.insert(match_buffer->buffer.get());
     }
 
-    StmtExprVisitor::VisitStmt_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     ancestor_scopes_.pop_back();
+    return std::nullopt;
   }
 
-  void UpdateDominateScopeOfNonDataParIter(const SBlockRealizeNode* block_realize) {
+  void UpdateDominateScopeOfNonDataParIter(const s_tir::SBlockRealizeNode* block_realize) {
     // map iter var to the scope which dominate all loop carried dependencies.
     std::unordered_map<const VarNode*, const ScopeInfo*> opaque_var_scope;
     // maintain highest scope which dominate all reduce loop iters. null denotes non-reduce block.
@@ -174,7 +181,7 @@ class LCADetector : public StmtExprVisitor {
     // collect non-data-parallel block iteration's dominate scope.
     // for reduction iter type, we maintain the highest dominate scope for all reduce iters.
     // for other iter type, we maintain the dict for each individual iter.
-    const SBlock& block = block_realize->block;
+    const s_tir::SBlock& block = block_realize->block;
     bool is_reduce_block = false;
     for (size_t i = 0; i < block_realize->iter_values.size(); ++i) {
       const IterVar& iter_var = block->iter_vars[i];
@@ -189,7 +196,7 @@ class LCADetector : public StmtExprVisitor {
         } else {
           opaque_var_scope[iter_var->var.get()] = scope;
           for (const auto& write : block->writes) {
-            UpdateBufferLCA(write->buffer.get(), scope);
+            UpdateBufferLCA(write->source.as_or_throw<tvm::tirx::BufferVar>().get(), scope);
           }
         }
       }
@@ -198,9 +205,9 @@ class LCADetector : public StmtExprVisitor {
     // function to update lca scope of the buffer with loop carried dependent buffer accesses.
     // the result scope should be above all loop scopes the accessed opaque block iter vars
     // relate to, which is record in `itervar_to_dom_scope`.
-    auto do_update = [this, &opaque_var_scope, highest_reduce_scope](const BufferRegion& region,
+    auto do_update = [this, &opaque_var_scope, highest_reduce_scope](const TensorRegion& region,
                                                                      bool is_reduce_write = false) {
-      const BufferVar& buffer = region->buffer;
+      const BufferVar& buffer = region->source.as_or_throw<tvm::tirx::BufferVar>();
       const ScopeInfo* scope = ancestor_scopes_.back();
 
       auto handle_itervar = [&opaque_var_scope,
@@ -249,7 +256,7 @@ class LCADetector : public StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       const auto* iter = op->node.as<IterVarNode>();
       TVM_FFI_ICHECK_NOTNULL(iter);
@@ -258,21 +265,42 @@ class LCADetector : public StmtExprVisitor {
         blockidx_scopes_.push_back(ancestor_scopes_.back());
       }
     }
-    StmtExprVisitor::VisitStmt_(op);
+    return s_tir::StmtExprVisitor::Visit_(op);
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
+  // Declared regions carry bounds, not opaque runtime accesses.
+  ffi::Optional<VisitInterrupt> Visit_(const TensorRegionNode* op) final {
+    if (!op->source.as<BufferVar>()) return s_tir::StmtExprVisitor::Visit_(op);
+    for (const Range& range : op->region) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
+    }
+    return std::nullopt;
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     UpdateBufferLCA(op->source.as_or_throw<tvm::tirx::BufferVar>().get(), ancestor_scopes_.back());
-    StmtExprVisitor::VisitExpr_(op);
+    for (const auto& index : op->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
     UpdateBufferLCA(op->buffer.get(), ancestor_scopes_.back());
-    StmtExprVisitor::VisitStmt_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
+    for (const auto& index : op->indices) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+    }
+    return std::nullopt;
   }
 
   // Works for Load/Store and opaque access.
-  void VisitExpr_(const VarNode* op) final { VisitBufferVar(op); }
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+    VisitBufferVar(op);
+    return std::nullopt;
+  }
 
   void VisitBufferVar(const VarNode* op) {
     auto it = buffer_var_map_.find(op);
@@ -328,7 +356,7 @@ class LCADetector : public StmtExprVisitor {
     return lhs;
   }
 
-  /*! \brief The ancestor scope stacks info (SBlock and For).  The
+  /*! \brief The ancestor scope stacks info (s_tir::SBlock and For).  The
    *  first element is initialized in LCADetector::Detect to represent
    *  the root scope.
    */

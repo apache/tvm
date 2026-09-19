@@ -113,7 +113,7 @@ def test_complete_matmul():
     A, B, C = [x for x in func.params if tvm.tirx.is_buffer_var(x)]
 
     block = func.body.block.body.body.body.body.block
-    assert isinstance(block, tvm.tirx.SBlock)
+    assert isinstance(block, tvm.s_tir.SBlock)
     vi, vj, vk = [x.var for x in block.iter_vars]
     access_A = tvm.tirx.BufferRegion(
         A, [Range.from_min_extent(vi, 1), Range.from_min_extent(vk, 1)]
@@ -133,7 +133,7 @@ def test_complete_matmul_original():
     A, B, C = [x for x in func.params if tvm.tirx.is_buffer_var(x)]
 
     block1 = func.body.block.body.body.body[0].block
-    assert isinstance(block1, tvm.tirx.SBlock)
+    assert isinstance(block1, tvm.s_tir.SBlock)
     vi, vj = [x.var for x in block1.iter_vars]
     access_C = tvm.tirx.BufferRegion(
         C, [Range.from_min_extent(vi * 4, 4), Range.from_min_extent(vj * 4, 4)]
@@ -142,7 +142,7 @@ def test_complete_matmul_original():
     tvm.ir.assert_structural_equal(block1.writes, [access_C])
 
     block2 = func.body.block.body.body.body[1].body.block
-    assert isinstance(block2, tvm.tirx.SBlock)
+    assert isinstance(block2, tvm.s_tir.SBlock)
     vi, vj, vk = [x.var for x in block2.iter_vars]
     access_A = tvm.tirx.BufferRegion(
         A, [Range.from_min_extent(vi * 4, 4), Range.from_min_extent(vk * 4, 4)]
@@ -165,7 +165,7 @@ def _check_elementwise(func):
     assert len(root_block.writes) == 0
 
     block1 = func.body.block.body[0].body.body.block
-    assert isinstance(block1, tvm.tirx.SBlock)
+    assert isinstance(block1, tvm.s_tir.SBlock)
     vi, vj = [x.var for x in block1.iter_vars]
 
     tvm.ir.assert_structural_equal(
@@ -178,7 +178,7 @@ def _check_elementwise(func):
     )
 
     block2 = func.body.block.body[1].body.body.block
-    assert isinstance(block2, tvm.tirx.SBlock)
+    assert isinstance(block2, tvm.s_tir.SBlock)
     vi, vj = [x.var for x in block2.iter_vars]
     tvm.ir.assert_structural_equal(
         block2.reads,

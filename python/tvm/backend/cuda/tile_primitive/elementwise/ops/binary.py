@@ -33,8 +33,9 @@ import functools
 import operator
 from typing import Any
 
+from tvm.ir import TensorRegion
 from tvm.script import tirx as Tx
-from tvm.tirx import BufferRegion, TilePrimitiveCall
+from tvm.tirx import TilePrimitiveCall
 
 from ..vec_emit.binary_f32x2 import BINARY_F32X2_IMPLS
 from . import OpSpec, Plan, SrcSpec
@@ -46,12 +47,12 @@ def _parse_binary_for(op_name: str):
     """Build a ``parse(op_call) -> (Plan, msg)`` for a specific binary op."""
 
     def parse(op: TilePrimitiveCall) -> tuple[Plan | None, str | None]:
-        _dst: BufferRegion = op.args[0]
+        _dst: TensorRegion = op.args[0]
         _src1 = op.args[1]
         _src2 = op.args[2]
 
-        s1_scalar = not isinstance(_src1, BufferRegion)
-        s2_scalar = not isinstance(_src2, BufferRegion)
+        s1_scalar = not isinstance(_src1, TensorRegion)
+        s2_scalar = not isinstance(_src2, TensorRegion)
         if s1_scalar and s2_scalar:
             return None, "both inputs are constants"
 

@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/sym/analyzer.h>
+
 #include <algorithm>
 
 #include "../../../tirx/transform/ir_utils.h"  // For `GetPtrStorageScope`
@@ -121,10 +123,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           // and args[0]/args[1] refer to the same buffer region, collapse to 1 arg
           bool inplace_unary = false;
           if (n_args == 2) {
-            auto dst_opt = op_call->args[0].as<tirx::BufferRegion>();
-            auto src_opt = op_call->args[1].as<tirx::BufferRegion>();
+            auto dst_opt = op_call->args[0].as<tvm::TensorRegion>();
+            auto src_opt = op_call->args[1].as<tvm::TensorRegion>();
             if (dst_opt.has_value() && src_opt.has_value() &&
-                dst_opt.value()->buffer.same_as(src_opt.value()->buffer) &&
+                dst_opt.value()->source.same_as(src_opt.value()->source) &&
                 StructuralEqual()(dst_opt.value()->region, src_opt.value()->region)) {
               inplace_unary = true;
             }
@@ -313,7 +315,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
   if (!parent_doc.has_value()) return std::nullopt;
   ExprDoc pdoc = parent_doc.value();
 
-  tirx::ExprDeepEqual expr_equal;
+  prim::ExprDeepEqual expr_equal;
 
   // Check elem_offset equality
   bool same_elem_offset = expr_equal(child->elem_offset, parent->elem_offset);
@@ -344,7 +346,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
 
   // NOTE: an earlier sugar printed rank-preserving aliases with a different
   // elem_offset as ``parent[slices]``. That print is not roundtrippable: it
-  // reparses as a BufferRegion, not a Buffer, so any later Buffer use of the
+  // reparses as a TensorRegion, not a Buffer, so any later Buffer use of the
   // alias (stores, views) breaks. Such aliases now print as plain
   // T.decl_buffer, which reparses exactly.
 
@@ -396,7 +398,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
         for (const PrimExpr& dim : child->shape) {
           child_total = child_total * dim;
         }
-        arith::Analyzer analyzer;
+        sym::Analyzer analyzer;
         bool default_physical =
             child_is_default && analyzer->CanProveEqual(child_total, storage_span);
         bool child_has_thread_axis = false;
@@ -558,7 +560,12 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
     for (int i = static_cast<int>(ndim) - 1; i >= 0; --i) {
       parent_rm_strides[i] = stride;
       if (auto* s = parent->shape[i].as<IntImmNode>()) {
-        stride *= s->value;
+        auto product = (stride * s->value).as<int64_t>();
+        if (!product.has_value()) {
+          all_const = false;
+          break;
+        }
+        stride = *product;
       } else {
         all_const = false;
         break;
@@ -802,7 +809,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         ffi::Optional<tirx::Var> define_var = std::nullopt;
         tirx::Stmt body = stmt->body;
         AccessPath body_p = stmt_p->Attr("body");
-        if (stmt->attr_key == "thread_extent" || stmt->attr_key == "virtual_thread") {
+        if (stmt->attr_key == "thread_extent" ||
+            stmt->attr_key == tvm::tirx::attr::virtual_thread) {
           if (stmt->node.as<tirx::IterVarNode>()) {
             rhs = DocsifyLaunchThread(stmt, stmt_p, &define_var, d);
           }

@@ -253,28 +253,28 @@ class TilePrimitiveCall : public Stmt {
 /*!
  * \brief See pesudo code below:
  *
- * Tx.cast(BufferRegion dst, BufferRegion src)
+ * Tx.cast(TensorRegion dst, TensorRegion src)
  */
 TVM_DLL const Op& cast();
 
 /*!
  * \brief See pesudo code below:
  *
- * Tx.copy(BufferRegion dst, BufferRegion src)
+ * Tx.copy(TensorRegion dst, TensorRegion src)
  */
 TVM_DLL const Op& copy();
 
 /*!
  * \brief See pesudo code below:
  *
- * Tx.Async.copy(BufferRegion dst, BufferRegion src)
+ * Tx.Async.copy(TensorRegion dst, TensorRegion src)
  */
 TVM_DLL const Op& copy_async();
 
 /*!
  * \brief See pesudo code below:
  *
- *  Tx.fill(BufferRegion dst, PrimExpr value)
+ *  Tx.fill(TensorRegion dst, PrimExpr value)
  */
 TVM_DLL const Op& fill();
 
@@ -288,7 +288,7 @@ TVM_DLL const Op& gemm();
 /*!
  * \brief See pesudo code below:
  *
- * Tx.gemm_async(BufferRegion C, BufferRegion A, BufferRegion B, bool transA, bool transB,
+ * Tx.gemm_async(TensorRegion C, TensorRegion A, TensorRegion B, bool transA, bool transB,
  * bool accum)
  */
 TVM_DLL const Op& gemm_async();

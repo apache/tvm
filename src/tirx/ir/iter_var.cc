@@ -68,10 +68,11 @@ TVMFFIAny IterVarMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   IterVarNode* self = const_cast<IterVarNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterVarNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Range>, mapped_dom,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->dom));
+                                    mutator->MutateExpected(self->dom, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimVar>, mapped_var,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
-                                      return mutator->MaybeInplaceMutateIfUniqueExpected(self->var);
+                                      return mutator->MutateExpected(self->var,
+                                                                     ffi::InplaceMode::kAllow);
                                     }));
   if (mapped_dom.UnchangedOrSameAs(self->dom) && mapped_var.UnchangedOrSameAs(self->var)) {
     return ffi::Unchanged().CopyToTVMFFIAny();

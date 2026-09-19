@@ -61,14 +61,15 @@ inline tvm::te::Tensor dense(const tvm::te::Tensor& data, const tvm::te::Tensor&
   auto matmul = tvm::te::compute(
       {batch, out_dim},
       [&](PrimVar i, PrimVar j) {
-        return tvm::sum(tvm::cast(out_dtype, data(i, k)) * tvm::cast(out_dtype, weight(j, k)), {k});
+        return tvm::prim::sum(
+            tvm::prim::cast(out_dtype, data(i, k)) * tvm::prim::cast(out_dtype, weight(j, k)), {k});
       },
       "tensor", "dense");
 
   if (bias.defined()) {
     matmul = tvm::te::compute(
         {batch, out_dim},
-        [&](PrimVar i, PrimVar j) { return matmul(i, j) + tvm::cast(out_dtype, bias(j)); },
+        [&](PrimVar i, PrimVar j) { return matmul(i, j) + tvm::prim::cast(out_dtype, bias(j)); },
         "tensor", kBroadcast);
   }
 

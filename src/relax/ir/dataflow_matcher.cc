@@ -24,7 +24,6 @@
 
 #include "dataflow_matcher.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/relax/analysis.h>
@@ -34,6 +33,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 
 #include <array>
@@ -48,14 +48,15 @@
 #include <utility>
 #include <vector>
 
-#include "../../arith/constraint_extract.h"
+#include "../../sym/constraint_extract.h"
 #include "../transform/utils.h"
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
-using tvm::arith::Analyzer;
-using tvm::arith::AnalyzerObj;
+using tvm::sym::Analyzer;
+using tvm::sym::AnalyzerObj;
 
 /*!
  * \brief Match the attributes of an object.
@@ -438,13 +439,13 @@ bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& ex
 
   PrimExpr new_constraint = TypeBaseCheckPrecondition(op->ty, expr_ty);
   if (auto* as_int = new_constraint.as<IntImmNode>()) {
-    return as_int->value;
+    return static_cast<bool>(as_int->value);
   }
 
   symbolic_expr_condition_ = SimplifyCondition(symbolic_expr_condition_ && new_constraint);
 
   if (auto* as_int = symbolic_expr_condition_.as<IntImmNode>()) {
-    return as_int->value;
+    return static_cast<bool>(as_int->value);
   } else {
     return true;
   }
@@ -455,14 +456,14 @@ PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
     return condition;
   }
 
-  std::vector<PrimExpr> constraints = arith::ExtractConstraints(condition, false);
+  std::vector<PrimExpr> constraints = sym::ExtractConstraints(condition, false);
   if (constraints.size() == 1) {
     return condition;
   }
 
   auto sort_key = [](PrimExpr expr) -> ffi::String {
     if (const auto* equal = expr.as<prim::EQNode>()) {
-      if (auto var = equal->a.as<tirx::PrimVar>()) {
+      if (auto var = equal->a.as<PrimVar>()) {
         return var.value()->name;
       }
     }
@@ -484,7 +485,7 @@ static bool ShapeEqual(AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& lhs,
                        const ffi::Array<PrimExpr>& rhs) {
   if (lhs.size() != rhs.size()) return false;
   for (size_t i = 0; i < lhs.size(); ++i)
-    if (!tirx::is_one(analyzer->Simplify(lhs[i] == rhs[i]))) return false;
+    if (!tvm::prim::is_one(analyzer->Simplify(lhs[i] == rhs[i]))) return false;
   return true;
 }
 
@@ -598,7 +599,8 @@ bool DFPatternMatcher::VisitDFPattern_(const ExternFuncPatternNode* op, const Ex
 bool DFPatternMatcher::VisitDFPattern_(const ConstantPatternNode* op, const Expr& expr0) {
   // constants can be binded to relax.Var as well.
   auto expr = UnwrapBindings(expr0, var2val_);
-  return expr.as<ConstantNode>() != nullptr;
+  auto* constant = expr.as<GenericConstNode>();
+  return constant && constant->value.as<runtime::Tensor>().has_value();
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const DataflowVarPatternNode* op, const Expr& expr) {

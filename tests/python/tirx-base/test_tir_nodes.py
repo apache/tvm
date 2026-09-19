@@ -103,8 +103,10 @@ def test_cast():
     assert isinstance(z, tvm.tirx.Broadcast)
     assert z.lanes == 4
 
-    s = tvm.tirx.StringImm("s")
-    with pytest.raises(TypeError, match="Cannot cast an expression with the void sentinel type"):
+    s = tvm.ir.StringImm("s")
+    with pytest.raises(
+        TypeError, match="Operator overloading is not supported for expression type"
+    ):
         s.astype("int")
 
 
@@ -296,7 +298,7 @@ def test_equality():
 
 def test_equality_string_imm():
     x = "a"
-    y = tvm.tirx.StringImm(x)
+    y = tvm.ir.StringImm(x)
     x == y.value
     x == y
 

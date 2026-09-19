@@ -32,9 +32,12 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 class Int32DTypeNarrower : public IndexDataTypeNormalizer {
  public:
+  using IndexDataTypeNormalizer::Mutate;
+  using IndexDataTypeNormalizer::Mutate_;
   static PrimFunc RewriteDataType(PrimFunc func) {
     // Check if the integer parameter buffers have dtype other than int32.
     for (const Var& param : func->params) {
@@ -46,36 +49,42 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
       }
     }
 
-    Int32DTypeNarrower narrower(func);
-    return narrower.Rewrite(func);
+    auto narrower = ffi::make_object<Int32DTypeNarrower>(func);
+    return narrower->Rewrite(func);
   }
 
- private:
+ public:
   explicit Int32DTypeNarrower(PrimFunc func)
       : IndexDataTypeNormalizer(PrimType::Int(32)), func_(std::move(func)) {}
 
+ private:
   bool ShouldClampShiftAmounts() const final { return true; }
 
-  Expr VisitExpr_(const IntImmNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const IntImmNode* op, InplaceMode inplace_mode) final {
     // ignore the enabled condition and always rewrite i64
     if (op->ty.as_or_throw<PrimType>() == PrimType::Int(64)) {
       TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<IntImm>()->value);
       return IntImm::Int32(op->value);
     }
-    return ffi::GetRef<IntImm>(op);
+    return ffi::Unchanged();
   }
 
-  Stmt VisitStmt_(const SBlockNode* block) final {
-    SBlock block_ = IndexDataTypeNormalizer::VisitStmt_(block).as_or_throw<SBlock>();
-    // Check if the allocated integer buffers have dtype other than int32.
-    for (const BufferVar& buf : block_->alloc_buffers) {
-      if (buf->dtype.MatchesCode(DLDataTypeCode::kDLInt) && buf->dtype.bits() > 32) {
-        TVM_FFI_THROW(InternalError)
-            << "The buffer " << buf << " allocated in the function has dtype " << buf->dtype
-            << ". The function is " << func_;
-      }
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    auto result = IndexDataTypeNormalizer::Mutate_(op, inplace_mode);
+    auto alloc =
+        std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<AllocBuffer>();
+    const BufferVar& buf = alloc->buffer;
+    // Scalar assignments in TVMScript use local scalar storage.  Keep its explicit
+    // dtype (e.g. an int64 opaque call result) and cast at narrowed index uses.
+    // IsScalar checks the scalar layout contract, not merely the allocation size.
+    bool is_local_scalar = buf.scope() == "local" && buf.IsScalar();
+    if (!is_local_scalar && buf->dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
+        buf->dtype.bits() > 32) {
+      TVM_FFI_THROW(InternalError)
+          << "The buffer " << buf << " allocated in the function has dtype " << buf->dtype
+          << ". The function is " << func_;
     }
-    return block_;
+    return alloc;
   }
 
   PrimFunc func_;

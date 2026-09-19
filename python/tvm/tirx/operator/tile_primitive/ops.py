@@ -169,7 +169,7 @@ class FMA(TilePrimitiveCall):
 
     fma(output, input, scale, bias)
 
-    scale and bias can each be either a BufferRegion or a Expr scalar.
+    scale and bias can each be either a TensorRegion or an Expr scalar.
     """
 
     op = get_tirx_op("fma")
