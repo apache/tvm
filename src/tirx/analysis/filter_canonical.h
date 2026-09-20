@@ -134,7 +134,7 @@ using ScopeIdPredicate = std::function<bool(const Var&)>;
  *
  * Implementation notes:
  *   - Conjunction is recognized via both `tir::And` nodes and
- *     `tirx.bitwise_and` calls (matching existing FlattenConjuncts behavior
+ *     `prim.BitwiseAnd` nodes (matching existing FlattenConjuncts behavior
  *     in tile_primitive_dispatch.cc).
  *   - Comparison atoms with `const <op> var` are mirrored so the
  *     `scopeid_var` is on the LHS of the returned atom.

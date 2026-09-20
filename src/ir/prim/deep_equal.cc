@@ -158,6 +158,12 @@ class ExprDeepEqualChecker : private tvm::ExprFunctor<bool(const Expr&, const Pr
            Dispatch(plhs->a, prhs->a);
   }
 
+  bool Dispatch_(const prim::BitwiseNotNode* plhs, const PrimExpr& rhs) final {
+    const auto* prhs = rhs.as<prim::BitwiseNotNode>();
+    return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
+           Dispatch(plhs->a, prhs->a);
+  }
+
   bool Dispatch_(const prim::SelectNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<prim::SelectNode>();
     return plhs->ty.as_or_throw<PrimType>() == prhs->ty.as_or_throw<PrimType>() &&
@@ -187,6 +193,11 @@ class ExprDeepEqualChecker : private tvm::ExprFunctor<bool(const Expr&, const Pr
   }
 
   DEFINE_DEEP_EQUAL_BIN_EXPR(prim::AddNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::LShiftNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::RShiftNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::BitwiseAndNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::BitwiseOrNode)
+  DEFINE_DEEP_EQUAL_BIN_EXPR(prim::BitwiseXorNode)
   DEFINE_DEEP_EQUAL_BIN_EXPR(prim::SubNode)
   DEFINE_DEEP_EQUAL_BIN_EXPR(prim::MulNode)
   DEFINE_DEEP_EQUAL_BIN_EXPR(prim::DivNode)

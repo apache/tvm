@@ -252,11 +252,60 @@ TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::LTNode, operator<);  // NOLINT
 TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::GTNode, operator>);  // NOLINT(*)
 TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::GENode, operator>=);
 
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::BitwiseAndNode, bitwise_and);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::BitwiseOrNode, bitwise_or);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::BitwiseXorNode, bitwise_xor);
+
 #undef TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH
+
+UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::LShiftNode* op,
+                                                 InplaceMode inplace_mode) {
+  PrimType before_dtype = op->a.ty();
+  // Preserve the original operands while computing the narrowed shift.
+  PrimExpr lhs = Mutate(op->a, InplaceMode::kDisallow).ValueOrUnchanged(op->a);
+  PrimExpr rhs = Mutate(op->b, InplaceMode::kDisallow).ValueOrUnchanged(op->b);
+  PrimType after_dtype = lhs.ty();
+  if (ShouldClampShiftAmounts() && before_dtype.code() == DLDataTypeCode::kDLInt &&
+      after_dtype.code() == DLDataTypeCode::kDLInt && before_dtype.bits() > after_dtype.bits()) {
+    // Values fit in the narrowed dtype.  Clamp lane-wise to keep dynamic and
+    // vector shift amounts below its width, preserving representable results.
+    rhs = min(rhs, MakeConst(rhs.ty(), after_dtype.bits() - 1, op->span), op->span);
+  }
+  if (lhs.same_as(op->a) && rhs.same_as(op->b) && lhs.ty() == rhs.ty()) {
+    return ffi::Unchanged();
+  }
+  return left_shift(lhs, rhs, op->span);
+}
+
+UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::RShiftNode* op,
+                                                 InplaceMode inplace_mode) {
+  PrimType before_dtype = op->a.ty();
+  // Preserve the original operands while computing the narrowed shift.
+  PrimExpr lhs = Mutate(op->a, InplaceMode::kDisallow).ValueOrUnchanged(op->a);
+  PrimExpr rhs = Mutate(op->b, InplaceMode::kDisallow).ValueOrUnchanged(op->b);
+  PrimType after_dtype = lhs.ty();
+  if (ShouldClampShiftAmounts() && before_dtype.code() == DLDataTypeCode::kDLInt &&
+      after_dtype.code() == DLDataTypeCode::kDLInt && before_dtype.bits() > after_dtype.bits()) {
+    // Values fit in the narrowed dtype.  Clamp lane-wise to keep dynamic and
+    // vector shift amounts below its width, preserving representable results.
+    rhs = min(rhs, MakeConst(rhs.ty(), after_dtype.bits() - 1, op->span), op->span);
+  }
+  if (lhs.same_as(op->a) && rhs.same_as(op->b) && lhs.ty() == rhs.ty()) {
+    return ffi::Unchanged();
+  }
+  return right_shift(lhs, rhs, op->span);
+}
+
+UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::BitwiseNotNode* op,
+                                                 InplaceMode inplace_mode) {
+  auto a = Mutate(op->a, inplace_mode);
+  if (a.UnchangedOrSameAs(op->a)) return ffi::Unchanged();
+  return prim::BitwiseNot(std::move(a).ValueOrUnchanged(op->a), op->span);
+}
 
 UnchangedOr<Expr> DataTypeLegalizer::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   Call before = ffi::GetRef<Call>(op);
-  // Keep the original argument dtypes available for shift and clz correction below.
+  // Keep the original argument dtype available for clz correction below.
   Expr e =
       StmtExprMutator::Mutate_(op, InplaceMode::kDisallow).ValueOrUnchanged(ffi::GetRef<Expr>(op));
   op = e.as<CallNode>();
@@ -266,40 +315,6 @@ UnchangedOr<Expr> DataTypeLegalizer::Mutate_(const CallNode* op, InplaceMode inp
     return e;
   }
   PrimExpr prim_e = e.as_or_throw<PrimExpr>();
-  if (op->op.same_as(prim::builtin::shift_right())) {
-    PrimExpr lhs = op->args[0].as_or_throw<PrimExpr>();
-    PrimExpr rhs = op->args[1].as_or_throw<PrimExpr>();
-    PrimType before_dtype = before->args[0].as_or_throw<PrimExpr>().ty();
-    PrimType after_dtype = lhs.ty();
-    if (ShouldClampShiftAmounts() && before_dtype.code() == DLDataTypeCode::kDLInt &&
-        after_dtype.code() == DLDataTypeCode::kDLInt && before_dtype.bits() > after_dtype.bits()) {
-      // Values are assumed to fit in the narrowed dtype.  An arithmetic right
-      // shift at or beyond its sign bit therefore has the same value as a shift
-      // by the new sign-bit position.  Clamp lane-wise so dynamic and vector
-      // shift amounts remain valid for the narrowed dtype.
-      rhs = min(rhs, MakeConst(rhs.ty(), after_dtype.bits() - 1, op->span), op->span);
-    }
-    return lhs >> rhs;
-  } else if (op->op.same_as(prim::builtin::shift_left())) {
-    PrimExpr lhs = op->args[0].as_or_throw<PrimExpr>();
-    PrimExpr rhs = op->args[1].as_or_throw<PrimExpr>();
-    PrimType before_dtype = before->args[0].as_or_throw<PrimExpr>().ty();
-    PrimType after_dtype = lhs.ty();
-    if (ShouldClampShiftAmounts() && before_dtype.code() == DLDataTypeCode::kDLInt &&
-        after_dtype.code() == DLDataTypeCode::kDLInt && before_dtype.bits() > after_dtype.bits()) {
-      // Keep dynamic and vector shift amounts valid for the narrowed dtype.  Under the pass's
-      // representability precondition, a left shift at or beyond the narrowed width can only
-      // produce a representable result when lhs is zero, so clamping does not alter valid cases.
-      rhs = min(rhs, MakeConst(rhs.ty(), after_dtype.bits() - 1, op->span), op->span);
-    }
-    return lhs << rhs;
-  } else if (op->op.same_as(prim::builtin::bitwise_and())) {
-    return op->args[0].as_or_throw<PrimExpr>() & op->args[1].as_or_throw<PrimExpr>();
-  } else if (op->op.same_as(prim::builtin::bitwise_or())) {
-    return op->args[0].as_or_throw<PrimExpr>() | op->args[1].as_or_throw<PrimExpr>();
-  } else if (op->op.same_as(prim::builtin::bitwise_xor())) {
-    return op->args[0].as_or_throw<PrimExpr>() ^ op->args[1].as_or_throw<PrimExpr>();
-  }
   static const Op& pow_op = Op::Get("tirx.pow");
   static const Op& clz_op = prim::builtin::clz();
   if (op->op.same_as(pow_op)) {

@@ -583,7 +583,7 @@ PrimExpr right_shift(PrimExpr a, PrimExpr b, Span span) {
     }
   });
 
-  return Call(a.ty(), prim::builtin::shift_right(), {a, b}, {}, {}, span).as_or_throw<PrimExpr>();
+  return prim::RShift(a, b, span);
 }
 
 // shift left
@@ -606,7 +606,7 @@ PrimExpr left_shift(PrimExpr a, PrimExpr b, Span span) {
       if (pb->value == 0) return a;
     }
   });
-  return Call(a.ty(), prim::builtin::shift_left(), {a, b}, {}, {}, span).as_or_throw<PrimExpr>();
+  return prim::LShift(a, b, span);
 }
 
 // bitwise and
@@ -618,7 +618,7 @@ PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Span span) {
     PrimType result_ty = a.ty();
     if (pa && pb) return IntImm(result_ty, (pa->value & pb->value), span);
   });
-  return Call(a.ty(), prim::builtin::bitwise_and(), {a, b}, {}, {}, span).as_or_throw<PrimExpr>();
+  return prim::BitwiseAnd(a, b, span);
 }
 
 // bitwise_or
@@ -630,7 +630,7 @@ PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Span span) {
     PrimType result_ty = a.ty();
     if (pa && pb) return IntImm(result_ty, (pa->value | pb->value), span);
   });
-  return Call(a.ty(), prim::builtin::bitwise_or(), {a, b}, {}, {}, span).as_or_throw<PrimExpr>();
+  return prim::BitwiseOr(a, b, span);
 }
 
 // bitwise_xor
@@ -642,7 +642,7 @@ PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Span span) {
     PrimType result_ty = a.ty();
     if (pa && pb) return IntImm(result_ty, (pa->value ^ pb->value), span);
   });
-  return Call(a.ty(), prim::builtin::bitwise_xor(), {a, b}, {}, {}, span).as_or_throw<PrimExpr>();
+  return prim::BitwiseXor(a, b, span);
 }
 
 // bitwise_not
@@ -650,7 +650,7 @@ PrimExpr operator~(PrimExpr a) { return bitwise_neg(a); }
 
 PrimExpr bitwise_neg(PrimExpr a, Span span) {
   type_check_int_or_bool_args(a, "~ operator (bitwise NOT)");
-  return Call(a.ty(), prim::builtin::bitwise_not(), {a}, {}, {}, span).as_or_throw<PrimExpr>();
+  return prim::BitwiseNot(a, span);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

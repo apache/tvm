@@ -64,7 +64,7 @@ inline bool IsParam(const PrimFunc& func, const Var& param) {
     if (a_unchanged && b_unchanged) {                                                   \
       return ffi::Unchanged();                                                          \
     } else {                                                                            \
-      return BinaryFunc(a, b);                                                          \
+      return BinaryFunc(a, b, op->span);                                                \
     }                                                                                   \
   }
 #define DEFINE_SPECIALIZER_UNARY_OP_MUTATE(UnaryNode, UnaryFunc)                       \
@@ -75,7 +75,7 @@ inline bool IsParam(const PrimFunc& func, const Var& param) {
     if (a_unchanged) {                                                                 \
       return ffi::Unchanged();                                                         \
     } else {                                                                           \
-      return UnaryFunc(a);                                                             \
+      return UnaryFunc(a, op->span);                                                   \
     }                                                                                  \
   }
 
@@ -244,6 +244,12 @@ class PrimFuncSpecializer : public StmtExprMutator {
   DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::AndNode, logical_and);
   DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::OrNode, logical_or);
   DEFINE_SPECIALIZER_UNARY_OP_MUTATE(prim::NotNode, logical_not);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::LShiftNode, left_shift);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::RShiftNode, right_shift);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::BitwiseAndNode, bitwise_and);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::BitwiseOrNode, bitwise_or);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::BitwiseXorNode, bitwise_xor);
+  DEFINE_SPECIALIZER_UNARY_OP_MUTATE(prim::BitwiseNotNode, prim::BitwiseNot);
   BufferVar MutateBuffer(const BufferVar& buffer) {
     ffi::Any mapped = VarRemapGet(buffer);
     if (mapped.type_index() != ffi::TypeIndex::kTVMFFINone) {
