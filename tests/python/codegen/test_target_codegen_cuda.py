@@ -56,6 +56,57 @@ def setup_cuda_compile_mode(request):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_cuda_host_bundle(tmp_path):
+    from shutil import which
+
+    from tvm_ffi import libinfo
+
+    from tvm.backend.cuda import bundle_cuda_host_device
+    from tvm.support import cc
+
+    if which("nvcc") is None:
+        pytest.skip("CUDA-host compilation requires NVCC")
+
+    @T.prim_func(s_tir=True)
+    def add_one(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float32")):
+        for tx in T.thread_binding(32, "threadIdx.x"):
+            B[tx] = A[tx] + T.float32(1)
+
+    target = tvm.target.Target("cuda", host="cuda_host")
+    built = tvm.tirx.build(add_one, target=target)
+    source = bundle_cuda_host_device(built)
+    assert source.index("__global__") < source.index("<<<")
+    cuda_file = tmp_path / "add_one.cu"
+    cuda_file.write_text(source)
+    library = tmp_path / "add_one.so"
+    cc.create_shared(
+        str(library),
+        [str(cuda_file)],
+        cc="nvcc",
+        options=[
+            "-std=c++17",
+            "-Xcompiler=-fPIC",
+            f"-arch={target.arch}",
+            f"-I{tvm.libinfo.find_include_path()}",
+            f"-I{libinfo.find_include_path()}",
+            f"-I{libinfo.find_dlpack_include_path()}",
+        ],
+    )
+    loaded = tvm.runtime.load_module(str(library))
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        values = np.arange(32, dtype="float32")
+        a = tvm.runtime.tensor(values, dev)
+        b = tvm.runtime.empty((32,), "float32", dev)
+        loaded["add_one"](a, b)
+        tvm.testing.assert_allclose(b.numpy(), values + 1)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_vectorize_add():
     num_thread = 8
 
