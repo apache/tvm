@@ -165,6 +165,18 @@ class ExprFunctor:
             ret = self.visit_floor_div_(expr)
         elif isinstance(expr, _tirx.FloorMod):
             ret = self.visit_floor_mod_(expr)
+        elif isinstance(expr, _tirx.LShift):
+            ret = self.visit_lshift_(expr)
+        elif isinstance(expr, _tirx.RShift):
+            ret = self.visit_rshift_(expr)
+        elif isinstance(expr, _tirx.BitwiseAnd):
+            ret = self.visit_bitwise_and_(expr)
+        elif isinstance(expr, _tirx.BitwiseOr):
+            ret = self.visit_bitwise_or_(expr)
+        elif isinstance(expr, _tirx.BitwiseXor):
+            ret = self.visit_bitwise_xor_(expr)
+        elif isinstance(expr, _tirx.BitwiseNot):
+            ret = self.visit_bitwise_not_(expr)
         elif isinstance(expr, _tirx.Min):
             ret = self.visit_min_(expr)
         elif isinstance(expr, _tirx.Max):
@@ -271,6 +283,24 @@ class ExprFunctor:
         return self.visit_expr_fallback_(op)
 
     def visit_floor_mod_(self, op: _tirx.FloorMod):
+        return self.visit_expr_fallback_(op)
+
+    def visit_lshift_(self, op: _tirx.LShift):
+        return self.visit_expr_fallback_(op)
+
+    def visit_rshift_(self, op: _tirx.RShift):
+        return self.visit_expr_fallback_(op)
+
+    def visit_bitwise_and_(self, op: _tirx.BitwiseAnd):
+        return self.visit_expr_fallback_(op)
+
+    def visit_bitwise_or_(self, op: _tirx.BitwiseOr):
+        return self.visit_expr_fallback_(op)
+
+    def visit_bitwise_xor_(self, op: _tirx.BitwiseXor):
+        return self.visit_expr_fallback_(op)
+
+    def visit_bitwise_not_(self, op: _tirx.BitwiseNot):
         return self.visit_expr_fallback_(op)
 
     def visit_min_(self, op: _tirx.Min):

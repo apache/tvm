@@ -127,6 +127,32 @@ class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
     }
   }
 
+  TResult Dispatch_(const prim::LShiftNode* op) final {
+    TResult result = Dispatch(op->a);
+    result += Dispatch(op->b);
+    return result;
+  }
+  TResult Dispatch_(const prim::RShiftNode* op) final {
+    TResult result = Dispatch(op->a);
+    result += Dispatch(op->b);
+    return result;
+  }
+  TResult Dispatch_(const prim::BitwiseAndNode* op) final {
+    TResult result = Dispatch(op->a);
+    result += Dispatch(op->b);
+    return result;
+  }
+  TResult Dispatch_(const prim::BitwiseOrNode* op) final {
+    TResult result = Dispatch(op->a);
+    result += Dispatch(op->b);
+    return result;
+  }
+  TResult Dispatch_(const prim::BitwiseXorNode* op) final {
+    TResult result = Dispatch(op->a);
+    result += Dispatch(op->b);
+    return result;
+  }
+  TResult Dispatch_(const prim::BitwiseNotNode* op) final { return Dispatch(op->a); }
   TResult Dispatch_(const prim::NotNode* op) override { return Dispatch(op->a); }
   TResult Dispatch_(const prim::AndNode* op) final {
     TResult result = Dispatch(op->a);

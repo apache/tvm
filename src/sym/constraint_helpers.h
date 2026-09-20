@@ -109,16 +109,12 @@ inline void CollectDerivedConstraintFacts(const PrimExpr& condition, std::vector
     CollectDerivedConstraintFacts(and_node->b, out);
     return;
   }
-  if (const auto* call = condition.as<CallNode>()) {
-    if (call->op.same_as(prim::builtin::bitwise_and()) && call->args.size() == 2) {
-      PrimExpr lhs = call->args[0].as_or_throw<PrimExpr>();
-      PrimExpr rhs = call->args[1].as_or_throw<PrimExpr>();
-      if (lhs.ty().MatchesElementType(DLDataTypeCode::kDLBool, 8) &&
-          rhs.ty().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
-        CollectDerivedConstraintFacts(lhs, out);
-        CollectDerivedConstraintFacts(rhs, out);
-        return;
-      }
+  if (const auto* and_node = condition.as<prim::BitwiseAndNode>()) {
+    if (and_node->a.ty().MatchesElementType(DLDataTypeCode::kDLBool, 8) &&
+        and_node->b.ty().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
+      CollectDerivedConstraintFacts(and_node->a, out);
+      CollectDerivedConstraintFacts(and_node->b, out);
+      return;
     }
   }
   if (const auto* eq = condition.as<prim::EQNode>()) {

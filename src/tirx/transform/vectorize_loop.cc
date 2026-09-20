@@ -597,6 +597,28 @@ class Vectorizer : public StmtExprMutator {
     return BinaryVec<prim::Or>(op, inplace_mode);
   }
 
+  UnchangedOr<PrimExpr> Mutate_(const prim::LShiftNode* op, InplaceMode inplace_mode) final {
+    return BinaryVec<prim::LShift>(op, inplace_mode);
+  }
+  UnchangedOr<PrimExpr> Mutate_(const prim::RShiftNode* op, InplaceMode inplace_mode) final {
+    return BinaryVec<prim::RShift>(op, inplace_mode);
+  }
+  UnchangedOr<PrimExpr> Mutate_(const prim::BitwiseAndNode* op, InplaceMode inplace_mode) final {
+    return BinaryVec<prim::BitwiseAnd>(op, inplace_mode);
+  }
+  UnchangedOr<PrimExpr> Mutate_(const prim::BitwiseOrNode* op, InplaceMode inplace_mode) final {
+    return BinaryVec<prim::BitwiseOr>(op, inplace_mode);
+  }
+  UnchangedOr<PrimExpr> Mutate_(const prim::BitwiseXorNode* op, InplaceMode inplace_mode) final {
+    return BinaryVec<prim::BitwiseXor>(op, inplace_mode);
+  }
+
+  UnchangedOr<PrimExpr> Mutate_(const prim::BitwiseNotNode* op, InplaceMode inplace_mode) final {
+    auto a = this->Mutate(op->a, inplace_mode);
+    if (a.UnchangedOrSameAs(op->a)) return ffi::Unchanged();
+    return prim::BitwiseNot(std::move(a).ValueOrUnchanged(op->a), op->span);
+  }
+
   UnchangedOr<PrimExpr> Mutate_(const prim::NotNode* op, InplaceMode inplace_mode) final {
     auto a_update = this->Mutate(op->a, inplace_mode);
     bool a_unchanged = a_update.UnchangedOrSameAs(op->a);
@@ -1235,7 +1257,7 @@ class Vectorizer : public StmtExprMutator {
       int b_lanes = GetLanesOrVScaleFactor(b.ty());
       int lanes = std::max(a_lanes, b_lanes);
       bool is_scalable = a.ty().IsScalableVector() || b.ty().IsScalableVector();
-      return TOp(BroadcastTo(a, lanes, is_scalable), BroadcastTo(b, lanes, is_scalable));
+      return TOp(BroadcastTo(a, lanes, is_scalable), BroadcastTo(b, lanes, is_scalable), op->span);
     }
   }
   template <typename T, typename FCompute>

@@ -192,6 +192,11 @@ void ExprVisitor::VisitExpr_(const TensorLoadNode* op) {
   }
 
 RELAX_VISIT_TIRX_BINOP(AddNode);
+RELAX_VISIT_TIRX_BINOP(LShiftNode);
+RELAX_VISIT_TIRX_BINOP(RShiftNode);
+RELAX_VISIT_TIRX_BINOP(BitwiseAndNode);
+RELAX_VISIT_TIRX_BINOP(BitwiseOrNode);
+RELAX_VISIT_TIRX_BINOP(BitwiseXorNode);
 RELAX_VISIT_TIRX_BINOP(SubNode);
 RELAX_VISIT_TIRX_BINOP(MulNode);
 RELAX_VISIT_TIRX_BINOP(DivNode);
@@ -218,6 +223,12 @@ void ExprVisitor::VisitExpr_(const prim::CastNode* op) {
 }
 
 void ExprVisitor::VisitExpr_(const prim::NotNode* op) {
+  this->VisitSpan(op->span);
+  this->VisitExpr(op->a);
+  VisitExprDepTypeFieldIfNeeded(this, op->ty);
+}
+
+void ExprVisitor::VisitExpr_(const prim::BitwiseNotNode* op) {
   this->VisitSpan(op->span);
   this->VisitExpr(op->a);
   VisitExprDepTypeFieldIfNeeded(this, op->ty);
@@ -545,6 +556,11 @@ Expr ExprMutatorBase::VisitExpr_(const TensorLoadNode* op) {
   }
 
 RELAX_MUTATE_TIRX_BINOP(Add);
+RELAX_MUTATE_TIRX_BINOP(LShift);
+RELAX_MUTATE_TIRX_BINOP(RShift);
+RELAX_MUTATE_TIRX_BINOP(BitwiseAnd);
+RELAX_MUTATE_TIRX_BINOP(BitwiseOr);
+RELAX_MUTATE_TIRX_BINOP(BitwiseXor);
 RELAX_MUTATE_TIRX_BINOP(Sub);
 RELAX_MUTATE_TIRX_BINOP(Mul);
 RELAX_MUTATE_TIRX_BINOP(Div);
@@ -574,6 +590,11 @@ Expr ExprMutatorBase::VisitExpr_(const prim::CastNode* op) {
 Expr ExprMutatorBase::VisitExpr_(const prim::NotNode* op) {
   PrimExpr a = this->VisitExpr(op->a).as_or_throw<PrimExpr>();
   return a.same_as(op->a) ? ffi::GetRef<Expr>(op) : Expr(prim::Not(a, op->span));
+}
+
+Expr ExprMutatorBase::VisitExpr_(const prim::BitwiseNotNode* op) {
+  PrimExpr a = this->VisitExpr(op->a).as_or_throw<PrimExpr>();
+  return a.same_as(op->a) ? ffi::GetRef<Expr>(op) : Expr(prim::BitwiseNot(a, op->span));
 }
 
 Expr ExprMutatorBase::VisitExpr_(const prim::SelectNode* op) {

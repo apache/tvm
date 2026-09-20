@@ -1398,22 +1398,6 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       }
     }
     return builder_->CreateCall(f, arg_value);
-  } else if (op->op.same_as(prim::builtin::bitwise_and())) {
-    return builder_->CreateAnd(MakeValue(args[0]), MakeValue(args[1]));
-  } else if (op->op.same_as(prim::builtin::bitwise_or())) {
-    return builder_->CreateOr(MakeValue(args[0]), MakeValue(args[1]));
-  } else if (op->op.same_as(prim::builtin::bitwise_not())) {
-    return builder_->CreateNot(MakeValue(args[0]));
-  } else if (op->op.same_as(prim::builtin::bitwise_xor())) {
-    return builder_->CreateXor(MakeValue(args[0]), MakeValue(args[1]));
-  } else if (op->op.same_as(prim::builtin::shift_left())) {
-    return builder_->CreateShl(MakeValue(args[0]), MakeValue(args[1]));
-  } else if (op->op.same_as(prim::builtin::shift_right())) {
-    if (args[0].as_or_throw<PrimExpr>().ty().MatchesCode(DLDataTypeCode::kDLInt)) {
-      return builder_->CreateAShr(MakeValue(args[0]), MakeValue(args[1]));
-    } else {
-      return builder_->CreateLShr(MakeValue(args[0]), MakeValue(args[1]));
-    }
   } else if (op->op.same_as(tirx::builtin::tvm_storage_sync())) {
     return CreateStorageSync(op);
   } else if (op->op.same_as(tirx::builtin::address_of())) {
@@ -1722,6 +1706,34 @@ llvm::Value* CodeGenLLVM::Dispatch_(const prim::OrNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::Dispatch_(const prim::NotNode* op) {
+  return builder_->CreateNot(MakeValue(op->a));
+}
+
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::LShiftNode* op) {
+  return builder_->CreateShl(MakeValue(op->a), MakeValue(op->b));
+}
+
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::BitwiseAndNode* op) {
+  return builder_->CreateAnd(MakeValue(op->a), MakeValue(op->b));
+}
+
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::BitwiseOrNode* op) {
+  return builder_->CreateOr(MakeValue(op->a), MakeValue(op->b));
+}
+
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::BitwiseXorNode* op) {
+  return builder_->CreateXor(MakeValue(op->a), MakeValue(op->b));
+}
+
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::RShiftNode* op) {
+  if (op->a.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
+    return builder_->CreateAShr(MakeValue(op->a), MakeValue(op->b));
+  } else {
+    return builder_->CreateLShr(MakeValue(op->a), MakeValue(op->b));
+  }
+}
+
+llvm::Value* CodeGenLLVM::Dispatch_(const prim::BitwiseNotNode* op) {
   return builder_->CreateNot(MakeValue(op->a));
 }
 

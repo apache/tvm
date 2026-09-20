@@ -261,20 +261,6 @@ class ModularSetAnalyzer::Impl : public tvm::ExprFunctor<ModularSetAnalyzer::Ent
     return Everything();
   }
 
-  Entry Dispatch_(const CallNode* op) final {
-    // only special handle >> which can be
-    // used for index calculation.
-    if (op->op.same_as(prim::builtin::shift_right())) {
-      return VisitRightShift(op);
-    } else if (op->op.same_as(prim::builtin::bitwise_and())) {
-      return VisitBitwiseAnd(op);
-    } else if (op->op.same_as(prim::builtin::shift_left())) {
-      return VisitLeftShift(op);
-    } else {
-      return Everything();
-    }
-  }
-
   Entry Dispatch_(const VarNode* op) final {
     Var v = ffi::GetRef<Var>(op);
     auto it = var_map_.find(v);
@@ -285,32 +271,30 @@ class ModularSetAnalyzer::Impl : public tvm::ExprFunctor<ModularSetAnalyzer::Ent
     }
   }
 
-  Entry VisitLeftShift(const CallNode* op) {
-    Entry a = Dispatch(op->args[0].as_or_throw<PrimExpr>());
-    Entry b = Dispatch(op->args[1].as_or_throw<PrimExpr>());
+  Entry Dispatch_(const prim::LShiftNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = Dispatch(op->b);
     if (b.is_const()) {
       return Entry(a.coeff << b.base, a.base << b.base);
     }
     return Everything();
   }
 
-  Entry VisitRightShift(const CallNode* op) {
-    Entry b = Dispatch(op->args[1].as_or_throw<PrimExpr>());
+  Entry Dispatch_(const prim::RShiftNode* op) final {
+    Entry b = Dispatch(op->b);
     // a c x  / c -> a x
     if (b.is_const()) {
-      return DivByConst(op->args[0].as_or_throw<PrimExpr>(), static_cast<int64_t>(1) << b.base,
-                        true);
+      return DivByConst(op->a, static_cast<int64_t>(1) << b.base, true);
     }
     return Everything();
   }
 
-  Entry VisitBitwiseAnd(const CallNode* op) {
-    Entry b = Dispatch(op->args[1].as_or_throw<PrimExpr>());
+  Entry Dispatch_(const prim::BitwiseAndNode* op) final {
+    Entry b = Dispatch(op->b);
     if (b.is_const()) {
       int shift;
       if (is_const_power_of_two_integer(IntImm::Int32(b.base + 1), &shift)) {
-        return ModByConst(op->args[0].as_or_throw<PrimExpr>(), static_cast<int64_t>(1) << shift,
-                          true);
+        return ModByConst(op->a, static_cast<int64_t>(1) << shift, true);
       }
     }
     return Everything();

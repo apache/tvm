@@ -152,6 +152,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<prim::BitwiseNot>(
+      "", [](prim::BitwiseNot node, AccessPath p, IRDocsifier d) -> Doc {
+        ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
+        if (a->IsInstance<LiteralDocNode>()) {
+          return TIR(d, "BitwiseNot")->Call({a});
+        }
+        return OperationDoc(OperationDocNode::Kind::kInvert, {a});
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<prim::Not>(
       "", [](prim::Not node, AccessPath p, IRDocsifier d) -> Doc {
         ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
@@ -529,6 +540,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                            kFloorDiv);
   TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorMod, prim::FloorModNode, floormod, "FloorMod",
                                            kMod);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LShift, prim::LShiftNode, left_shift, "LShift", kLShift);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(RShift, prim::RShiftNode, right_shift, "RShift",
+                                           kRShift);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(BitwiseAnd, prim::BitwiseAndNode, bitwise_and,
+                                           "BitwiseAnd", kBitAnd);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(BitwiseOr, prim::BitwiseOrNode, bitwise_or, "BitwiseOr",
+                                           kBitOr);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(BitwiseXor, prim::BitwiseXorNode, bitwise_xor,
+                                           "BitwiseXor", kBitXor);
   TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LT, prim::LTNode, less, "LT", kLt);
   TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LE, prim::LENode, less_equal, "LE", kLtE);
   TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(EQ, prim::EQNode, equal, "EQ", kEq);
@@ -556,6 +576,12 @@ TVM_SCRIPT_REPR(prim::DivNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::ModNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::FloorDivNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::FloorModNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::LShiftNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::RShiftNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::BitwiseAndNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::BitwiseOrNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::BitwiseXorNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::BitwiseNotNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::MinNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::MaxNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::LTNode, ReprPrintTIR);

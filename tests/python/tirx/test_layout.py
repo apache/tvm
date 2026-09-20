@@ -1793,18 +1793,16 @@ def _evaluate_layout_expr(expr, values):
         return lhs % rhs
     if node_type == "Cast":
         return _evaluate_layout_expr(expr.value, values)
-    if node_type == "Call":
-        args = [_evaluate_layout_expr(arg, values) for arg in expr.args]
-        op_name = str(expr.op.name)
-        if op_name == "prim.bitwise_xor":
-            return args[0] ^ args[1]
-        if op_name == "prim.bitwise_and":
-            return args[0] & args[1]
-        if op_name == "prim.shift_left":
-            return args[0] << args[1]
-        if op_name == "prim.shift_right":
-            return args[0] >> args[1]
-        raise AssertionError(f"Cannot evaluate call {op_name}")
+    if node_type in ("BitwiseXor", "BitwiseAnd", "LShift", "RShift"):
+        lhs = _evaluate_layout_expr(expr.a, values)
+        rhs = _evaluate_layout_expr(expr.b, values)
+        if node_type == "BitwiseXor":
+            return lhs ^ rhs
+        if node_type == "BitwiseAnd":
+            return lhs & rhs
+        if node_type == "LShift":
+            return lhs << rhs
+        return lhs >> rhs
     raise AssertionError(f"Cannot evaluate node type {node_type}")
 
 
