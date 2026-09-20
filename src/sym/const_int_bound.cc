@@ -473,21 +473,6 @@ class ConstIntBoundAnalyzer::Impl
     return Union(a, b);
   }
 
-  Entry Dispatch_(const CallNode* op) final {
-    // only special handle >> and & which can be
-    // used for index calculation.
-
-    if (op->op.same_as(prim::builtin::shift_right())) {
-      return VisitRightShift(op);
-    } else if (op->op.same_as(prim::builtin::shift_left())) {
-      return VisitLeftShift(op);
-    } else if (op->op.same_as(prim::builtin::bitwise_and())) {
-      return VisitBitwiseAnd(op);
-    } else {
-      return Everything(op->ty.as_or_throw<PrimType>());
-    }
-  }
-
   Entry Dispatch_(const VarNode* op) final {
     Var v = ffi::GetRef<Var>(op);
     auto it = var_map_.find(v);
@@ -498,9 +483,9 @@ class ConstIntBoundAnalyzer::Impl
     }
   }
 
-  Entry VisitLeftShift(const CallNode* op) {
-    Entry a = Dispatch(op->args[0].as_or_throw<PrimExpr>());
-    Entry b = Dispatch(op->args[1].as_or_throw<PrimExpr>());
+  Entry Dispatch_(const prim::LShiftNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = Dispatch(op->b);
 
     if (a.min_value < 0 || b.min_value < 0) {
       // If either operand can negative, we may run into undefined
@@ -512,15 +497,15 @@ class ConstIntBoundAnalyzer::Impl
     return BinaryOpBoundary(a, b, InfAwareLeftShift);
   }
 
-  Entry VisitRightShift(const CallNode* op) {
-    Entry a = Dispatch(op->args[0].as_or_throw<PrimExpr>());
-    Entry b = Dispatch(op->args[1].as_or_throw<PrimExpr>());
+  Entry Dispatch_(const prim::RShiftNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = Dispatch(op->b);
     return BinaryOpBoundary(a, b, InfAwareRightShift);
   }
 
-  Entry VisitBitwiseAnd(const CallNode* op) {
-    Entry a = Dispatch(op->args[0].as_or_throw<PrimExpr>());
-    Entry b = Dispatch(op->args[1].as_or_throw<PrimExpr>());
+  Entry Dispatch_(const prim::BitwiseAndNode* op) final {
+    Entry a = Dispatch(op->a);
+    Entry b = Dispatch(op->b);
     // handle positive index case.
     if (a.min_value >= 0 && b.min_value >= 0) {
       return MakeBound(0, std::min(a.max_value, b.max_value));

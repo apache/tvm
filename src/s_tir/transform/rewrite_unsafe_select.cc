@@ -89,6 +89,12 @@ class UnsafeExprDetector : public tirx::ExprFunctor<bool(const Expr& n)> {
   bool Dispatch_(const prim::GENode* op) final { return BinaryOp(op); }
   bool Dispatch_(const prim::AndNode* op) final { return BinaryOp(op); }
   bool Dispatch_(const prim::OrNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const prim::LShiftNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const prim::RShiftNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const prim::BitwiseAndNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const prim::BitwiseOrNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const prim::BitwiseXorNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const prim::BitwiseNotNode* op) final { return Dispatch(op->a); }
   bool Dispatch_(const prim::NotNode* op) final { return Dispatch(op->a); }
   bool Dispatch_(const prim::LetNode* op) final {
     return Dispatch(op->body) || Dispatch(op->value);

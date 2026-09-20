@@ -339,6 +339,17 @@ TVM_DECLARE_TENSORIZE_COMPARATOR_BINOP(MaxNode);
 TVM_DECLARE_TENSORIZE_COMPARATOR_BINOP(FloorDivNode);
 TVM_DECLARE_TENSORIZE_COMPARATOR_BINOP(FloorModNode);
 
+TVM_DECLARE_TENSORIZE_COMPARATOR_BINOP(prim::LShiftNode);
+TVM_DECLARE_TENSORIZE_COMPARATOR_BINOP(prim::RShiftNode);
+TVM_DECLARE_TENSORIZE_COMPARATOR_BINOP(prim::BitwiseAndNode);
+TVM_DECLARE_TENSORIZE_COMPARATOR_BINOP(prim::BitwiseOrNode);
+TVM_DECLARE_TENSORIZE_COMPARATOR_BINOP(prim::BitwiseXorNode);
+
+bool TensorizeComparator::Dispatch_(const prim::BitwiseNotNode* op, const PrimExpr& other) {
+  const auto* rhs = other.as<prim::BitwiseNotNode>();
+  return Dispatch(op->a, rhs->a);
+}
+
 bool TensorizeComparator::Dispatch_(const IntImmNode* op, const PrimExpr& other) {
   const auto* rhs = other.as<IntImmNode>();
   if (op->value != rhs->value) {

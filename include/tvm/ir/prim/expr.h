@@ -114,6 +114,96 @@ class Add : public PrimExpr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AddNode);
 };
 
+/*! \brief a << b */
+class LShiftNode : public BinaryOpNode<LShiftNode> {
+ public:
+  static constexpr const char* _type_key = "prim.LShift";
+};
+
+/*!
+ * \brief Managed reference to LShiftNode
+ * \sa LShiftNode
+ */
+class LShift : public PrimExpr {
+ public:
+  TVM_DLL LShift(PrimExpr a, PrimExpr b, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LShift, PrimExpr, LShiftNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(LShiftNode);
+};
+
+/*! \brief a >> b */
+class RShiftNode : public BinaryOpNode<RShiftNode> {
+ public:
+  static constexpr const char* _type_key = "prim.RShift";
+};
+
+/*!
+ * \brief Managed reference to RShiftNode
+ * \sa RShiftNode
+ */
+class RShift : public PrimExpr {
+ public:
+  TVM_DLL RShift(PrimExpr a, PrimExpr b, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RShift, PrimExpr, RShiftNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(RShiftNode);
+};
+
+/*! \brief a & b */
+class BitwiseAndNode : public BinaryOpNode<BitwiseAndNode> {
+ public:
+  static constexpr const char* _type_key = "prim.BitwiseAnd";
+};
+
+/*!
+ * \brief Managed reference to BitwiseAndNode
+ * \sa BitwiseAndNode
+ */
+class BitwiseAnd : public PrimExpr {
+ public:
+  TVM_DLL BitwiseAnd(PrimExpr a, PrimExpr b, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BitwiseAnd, PrimExpr, BitwiseAndNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BitwiseAndNode);
+};
+
+/*! \brief a | b */
+class BitwiseOrNode : public BinaryOpNode<BitwiseOrNode> {
+ public:
+  static constexpr const char* _type_key = "prim.BitwiseOr";
+};
+
+/*!
+ * \brief Managed reference to BitwiseOrNode
+ * \sa BitwiseOrNode
+ */
+class BitwiseOr : public PrimExpr {
+ public:
+  TVM_DLL BitwiseOr(PrimExpr a, PrimExpr b, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BitwiseOr, PrimExpr, BitwiseOrNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BitwiseOrNode);
+};
+
+/*! \brief a ^ b */
+class BitwiseXorNode : public BinaryOpNode<BitwiseXorNode> {
+ public:
+  static constexpr const char* _type_key = "prim.BitwiseXor";
+};
+
+/*!
+ * \brief Managed reference to BitwiseXorNode
+ * \sa BitwiseXorNode
+ */
+class BitwiseXor : public PrimExpr {
+ public:
+  TVM_DLL BitwiseXor(PrimExpr a, PrimExpr b, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BitwiseXor, PrimExpr, BitwiseXorNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BitwiseXorNode);
+};
+
 /*! \brief a - b */
 class SubNode : public BinaryOpNode<SubNode> {
  public:
@@ -469,6 +559,30 @@ class Not : public PrimExpr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(NotNode);
 };
 
+/*! \brief ~a */
+class BitwiseNotNode : public ExprNode {
+ public:
+  /*! \brief The input operand. */
+  PrimExpr a;
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BitwiseNotNode>().def_ro("a", &BitwiseNotNode::a);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("prim.BitwiseNot", BitwiseNotNode, ExprNode);
+};
+
+/*!
+ * \brief Managed reference to BitwiseNotNode
+ * \sa BitwiseNotNode
+ */
+class BitwiseNot : public PrimExpr {
+ public:
+  TVM_DLL BitwiseNot(PrimExpr a, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BitwiseNot, PrimExpr, BitwiseNotNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BitwiseNotNode);
+};
+
 /*!
  * \brief return true_value if condition is true, otherwise return false_value.
  * \note Both true_value and false_value could be evaluated
@@ -585,6 +699,18 @@ template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, prim::CastNode> = true;
 template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, prim::AddNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, prim::BitwiseNotNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, prim::BitwiseXorNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, prim::BitwiseOrNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, prim::BitwiseAndNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, prim::RShiftNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, prim::LShiftNode> = true;
 template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, prim::SubNode> = true;
 template <>

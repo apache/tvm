@@ -353,6 +353,12 @@ DEFINE_BINOP_VISIT_(prim::GENode);
 DEFINE_BINOP_VISIT_(prim::AndNode);
 DEFINE_BINOP_VISIT_(prim::OrNode);
 
+DEFINE_BINOP_VISIT_(prim::LShiftNode);
+DEFINE_BINOP_VISIT_(prim::RShiftNode);
+DEFINE_BINOP_VISIT_(prim::BitwiseAndNode);
+DEFINE_BINOP_VISIT_(prim::BitwiseOrNode);
+DEFINE_BINOP_VISIT_(prim::BitwiseXorNode);
+
 #undef DEFINE_BINOP_VISIT_
 
 void TIRVisitorWithPath::Dispatch_(const IntImmNode* op, AccessPath path) {}
@@ -361,6 +367,10 @@ void TIRVisitorWithPath::Dispatch_(const StringImmNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::Dispatch_(const prim::CastNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
+}
+
+void TIRVisitorWithPath::Dispatch_(const prim::BitwiseNotNode* op, AccessPath path) {
+  Visit(op->a, path->Attr("a"));
 }
 
 void TIRVisitorWithPath::Dispatch_(const prim::NotNode* op, AccessPath path) {

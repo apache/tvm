@@ -456,6 +456,24 @@ PrimExpr CodeGenWebGPU::EnforceU32(PrimExpr value) {
   return cast(PrimType::UInt(32, value.ty().lanes()), value);
 }
 
+void CodeGenWebGPU::Dispatch_(const prim::LShiftNode* op, std::ostream& os) {  // NOLINT(*)
+  os << '(';
+  this->PrintExpr(op->a, os);
+  os << "<<";
+  // WebGPU requires shift bits to be u32.
+  this->PrintExpr(EnforceU32(op->b), os);
+  os << ')';
+}
+
+void CodeGenWebGPU::Dispatch_(const prim::RShiftNode* op, std::ostream& os) {  // NOLINT(*)
+  os << '(';
+  this->PrintExpr(op->a, os);
+  os << ">>";
+  // WebGPU requires shift bits to be u32.
+  this->PrintExpr(EnforceU32(op->b), os);
+  os << ')';
+}
+
 void CodeGenWebGPU::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK(!op->op.same_as(tirx::builtin::masked_load()))
       << "Predicated buffer load is not supported.";
@@ -468,20 +486,6 @@ void CodeGenWebGPU::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT
     os << ">(";
     this->PrintExpr(op->args[0], os);
     os << ")";
-  } else if (op->op.same_as(prim::builtin::shift_right())) {
-    os << '(';
-    this->PrintExpr(op->args[0], os);
-    os << ">>";
-    // WebGPU requires shift bits to be u32.
-    this->PrintExpr(EnforceU32(op->args[1].as_or_throw<PrimExpr>()), os);
-    os << ')';
-  } else if (op->op.same_as(prim::builtin::shift_left())) {
-    os << '(';
-    this->PrintExpr(op->args[0], os);
-    os << "<<";
-    // WebGPU requires shift bits to be u32.
-    this->PrintExpr(EnforceU32(op->args[1].as_or_throw<PrimExpr>()), os);
-    os << ')';
   } else if (op->op.same_as(prim::builtin::if_then_else())) {
     // conditional that skips eval if cond evals to false
     std::string result = name_supply_->FreshName("condval");
