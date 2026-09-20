@@ -57,10 +57,13 @@ using namespace tirx;
  * and OpenCL-C. You might find some odd variant features, e.g., type `int3` for
  * a vector of 3 `int`s. For native C code generator, see `CodeGenLLVM`.
  */
-class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
+class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
                  public StmtFunctor<void(const Stmt&)>,
                  public CodeGenSourceBase {
  public:
+  using tirx::ExprFunctor<void(const Expr&, std::ostream&)>::Dispatch;
+  using StmtFunctor::Dispatch;
+
   /*!
    * \brief Initialize the code generator.
    * \param output_ssa Whether output SSA.
@@ -102,7 +105,7 @@ class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
    * \brief Print the Stmt n to CodeGenC->stream
    * \param n The statement to be printed.
    */
-  void PrintStmt(const Stmt& n) { VisitStmt(n); }
+  void PrintStmt(const Stmt& n) { Dispatch(n); }
   /*!
    * \brief Print the expression n(or its ssa id if in ssa mode) into os
    * \param n The expression to be printed.
@@ -165,49 +168,55 @@ class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
    */
   virtual void InitFuncState(const PrimFunc& f);
   // expression
-  void VisitExpr_(const VarNode* op, std::ostream& os) override;              // NOLINT(*)
-  void VisitExpr_(const TensorLoadNode* op, std::ostream& os) override;       // NOLINT(*)
-  void VisitExpr_(const prim::LetNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os) override;             // NOLINT(*)
-  void VisitExpr_(const prim::AddNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const prim::SubNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const prim::MulNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const prim::DivNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const prim::ModNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const prim::MinNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const prim::MaxNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const prim::EQNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const prim::NENode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const prim::LTNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const prim::LENode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const prim::GTNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const prim::GENode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const prim::AndNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const prim::OrNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const prim::CastNode* op, std::ostream& os) override;       // NOLINT(*)
-  void VisitExpr_(const prim::NotNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const prim::SelectNode* op, std::ostream& os) override;     // NOLINT(*)
-  void VisitExpr_(const prim::RampNode* op, std::ostream& os) override;       // NOLINT(*)
-  void VisitExpr_(const prim::ShuffleNode* op, std::ostream& os) override;    // NOLINT(*)
-  void VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const IntImmNode* op, std::ostream& os) override;           // NOLINT(*)
-  void VisitExpr_(const FloatImmNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const prim::StringImmNode* op, std::ostream& os) override;  // NOLINT(*)
+  void Dispatch_(const VarNode* op, std::ostream& os) override;               // NOLINT(*)
+  void Dispatch_(const TensorLoadNode* op, std::ostream& os) override;        // NOLINT(*)
+  void Dispatch_(const prim::LetNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const CallNode* op, std::ostream& os) override;              // NOLINT(*)
+  void Dispatch_(const prim::AddNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::SubNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::MulNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::DivNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::ModNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::MinNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::MaxNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::EQNode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const prim::NENode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const prim::LTNode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const prim::LENode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const prim::GTNode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const prim::GENode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const prim::AndNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::OrNode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const prim::CastNode* op, std::ostream& os) override;        // NOLINT(*)
+  void Dispatch_(const prim::NotNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::LShiftNode* op, std::ostream& os) override;      // NOLINT(*)
+  void Dispatch_(const prim::RShiftNode* op, std::ostream& os) override;      // NOLINT(*)
+  void Dispatch_(const prim::BitwiseAndNode* op, std::ostream& os) override;  // NOLINT(*)
+  void Dispatch_(const prim::BitwiseOrNode* op, std::ostream& os) override;   // NOLINT(*)
+  void Dispatch_(const prim::BitwiseXorNode* op, std::ostream& os) override;  // NOLINT(*)
+  void Dispatch_(const prim::BitwiseNotNode* op, std::ostream& os) override;  // NOLINT(*)
+  void Dispatch_(const prim::SelectNode* op, std::ostream& os) override;      // NOLINT(*)
+  void Dispatch_(const prim::RampNode* op, std::ostream& os) override;        // NOLINT(*)
+  void Dispatch_(const prim::ShuffleNode* op, std::ostream& os) override;     // NOLINT(*)
+  void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) override;   // NOLINT(*)
+  void Dispatch_(const IntImmNode* op, std::ostream& os) override;            // NOLINT(*)
+  void Dispatch_(const FloatImmNode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const StringImmNode* op, std::ostream& os) override;         // NOLINT(*)
   // statment
-  void VisitStmt_(const BindNode* op) override;
-  void VisitStmt_(const BufferStoreNode* op) override;
-  void VisitStmt_(const ForNode* op) override;
-  void VisitStmt_(const WhileNode* op) override;
-  void VisitStmt_(const ReturnNode* op) override;
-  void VisitStmt_(const BreakNode* op) override;
-  void VisitStmt_(const ContinueNode* op) override;
-  void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const AllocBufferNode* op) override;
-  void VisitStmt_(const AttrStmtNode* op) override;
-  void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const EvaluateNode* op) override;
-  void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const DeclBufferNode* op) override;
+  void Dispatch_(const BindNode* op) override;
+  void Dispatch_(const BufferStoreNode* op) override;
+  void Dispatch_(const ForNode* op) override;
+  void Dispatch_(const WhileNode* op) override;
+  void Dispatch_(const ReturnNode* op) override;
+  void Dispatch_(const BreakNode* op) override;
+  void Dispatch_(const ContinueNode* op) override;
+  void Dispatch_(const IfThenElseNode* op) override;
+  void Dispatch_(const AllocBufferNode* op) override;
+  void Dispatch_(const AttrStmtNode* op) override;
+  void Dispatch_(const AssertStmtNode* op) override;
+  void Dispatch_(const EvaluateNode* op) override;
+  void Dispatch_(const SeqStmtNode* op) override;
+  void Dispatch_(const DeclBufferNode* op) override;
 
   /*!
    * \brief Print expr representing the thread tag
@@ -353,7 +362,7 @@ class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
   std::unordered_set<const VarNode*> volatile_buf_;
 
   // deep comparison of PrimExpr
-  ExprDeepEqual deep_equal_;
+  prim::ExprDeepEqual deep_equal_;
 
   // binding of let variables. Enables duplicate var defs that map to same value
   std::unordered_map<Var, const prim::LetNode*> let_binding_;

@@ -24,6 +24,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 Layout TileLayoutNode::DirectSum(const TileLayout& left_in, const Array<PrimExpr>& left_shape,
                                  const Array<PrimExpr>& right_shape) const {
@@ -55,7 +56,7 @@ Layout TileLayoutNode::DirectSum(const TileLayout& left_in, const Array<PrimExpr
   sum_rep.insert(sum_rep.end(), right->replica.begin(), right->replica.end());
 
   // Offsets add: O^A + O^B per-axis
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   ffi::Map<Axis, PrimExpr> sum_off;
   for (const auto& [axis, off] : left->offset) sum_off.Set(axis, off);
   for (const auto& [axis, off] : right->offset) {
@@ -70,7 +71,7 @@ Layout TileLayoutNode::DirectSum(const TileLayout& left_in, const Array<PrimExpr
   return TileLayout(sum_shard, sum_rep, sum_off)->Canonicalize();
 }
 
-static bool IterEqualRelaxUnit(const Iter& a, const Iter& b, arith::AnalyzerObj* analyzer) {
+static bool IterEqualRelaxUnit(const Iter& a, const Iter& b, sym::AnalyzerObj* analyzer) {
   if (!(*analyzer).CanProveEqual(a->extent, b->extent)) return false;
   if (!is_one(a->extent)) {
     if (!(*analyzer).CanProveEqual(a->stride, b->stride)) return false;
@@ -82,7 +83,7 @@ static bool IterEqualRelaxUnit(const Iter& a, const Iter& b, arith::AnalyzerObj*
 // Helper to subtract offsets: left = sum - right
 static ffi::Map<Axis, PrimExpr> SubtractOffsets(const ffi::Map<Axis, PrimExpr>& sum,
                                                 const ffi::Map<Axis, PrimExpr>& rhs) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   ffi::Map<Axis, PrimExpr> res;
   for (const auto& [axis, off] : sum) res.Set(axis, off);
   for (const auto& [axis, off] : rhs) {
@@ -102,7 +103,7 @@ ffi::Optional<TileLayout> TileLayoutNode::IsDirectSumRight(
   auto maybe_sum = sum_layout_in.as<TileLayout>();
   if (!maybe_sum) return std::nullopt;
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   TileLayout sum_layout = maybe_sum.value()->Canonicalize().as<TileLayout>().value();
   TileLayout right = ffi::GetRef<TileLayout>(this)->Canonicalize().as<TileLayout>().value();
 
@@ -153,7 +154,7 @@ ffi::Optional<Layout> TileLayoutNode::IsDirectSumLeft(
   auto maybe_sum = sum_layout_in.as<TileLayout>();
   if (!maybe_sum) return std::nullopt;
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   TileLayout sum_layout = maybe_sum.value()->Canonicalize().as<TileLayout>().value();
   TileLayout left = ffi::GetRef<TileLayout>(this)->Canonicalize().as<TileLayout>().value();
 

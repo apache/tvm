@@ -31,6 +31,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 namespace {
 
@@ -216,7 +217,7 @@ ShapeType::ShapeType(ffi::Array<PrimExpr> values, Span span) : Type(ffi::UnsafeI
   n->ndim = static_cast<int>(values.size());
   n->values = values.Map([](PrimExpr value) {
     if (value->IsInstance<IntImmNode>()) {
-      return tvm::cast(PrimType::Int(64), value);
+      return tvm::prim::cast(PrimType::Int(64), value);
     }
     TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
         << "the value in ShapeType can only have dtype of int64";
@@ -312,7 +313,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              const auto* imm = index.value().as<IntImmNode>();
              TVM_FFI_CHECK(imm != nullptr, TypeError)
                  << "A Relax expression requires a constant integer index";
-             return TupleGetItem(value, static_cast<int>(imm->value), span);
+             return TupleGetItem(value, imm->value.as<int>().value(), span);
            });
 }
 

@@ -23,29 +23,33 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 class AnnotateRegionRewriter : public StmtExprMutator {
  public:
-  AnnotateRegionRewriter(BufferVar buffer, int buffer_index, BufferRegion new_region,
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
+  AnnotateRegionRewriter(BufferVar buffer, int buffer_index, TensorRegion new_region,
                          BufferIndexType buffer_index_type)
       : buffer_(buffer),
         buffer_index_(buffer_index),
         new_region_(new_region),
         buffer_index_type_(buffer_index_type) {}
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                       .as_or_throw<SBlock>();
 
-    ffi::Array<BufferRegion> regions =
+    ffi::Array<TensorRegion> regions =
         buffer_index_type_ == BufferIndexType::kWrite ? block->writes : block->reads;
     TVM_FFI_ICHECK_GE(buffer_index_, 0) << "Buffer index must be non-negative";
     TVM_FFI_ICHECK_LT(buffer_index_, static_cast<int>(regions.size()))
         << "Buffer index out of range";
     regions.Set(buffer_index_, new_region_);
 
-    ffi::ObjectPtr<SBlockNode> n = CopyOnWrite(block.get());
+    SBlockNode* n = block.CopyOnWrite();
     if (buffer_index_type_ == BufferIndexType::kWrite) {
       n->writes = std::move(regions);
     } else {
@@ -76,13 +80,13 @@ class AnnotateRegionRewriter : public StmtExprMutator {
     }
     n->annotations = std::move(new_annotations);
 
-    return SBlock(n);
+    return block;
   }
 
  private:
   BufferVar buffer_;
   int buffer_index_;
-  BufferRegion new_region_;
+  TensorRegion new_region_;
   BufferIndexType buffer_index_type_;
 };
 
@@ -92,7 +96,7 @@ void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int bu
   BufferVar buffer =
       GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index, buffer_index_type);
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   ffi::Array<PrimExpr> block_iter_vars;
   for (const IterVar& iter_var : block->iter_vars) {
     block_iter_vars.push_back(iter_var->var);
@@ -106,10 +110,12 @@ void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int bu
         new_indices[i], analyzer->Simplify(new_indices[i + 1] - new_indices[i])));
   }
 
-  BufferRegion new_region(buffer, new_ranges);
+  TensorRegion new_region = BufferRegion(buffer, new_ranges);
 
-  AnnotateRegionRewriter mutator(buffer, buffer_index, new_region, buffer_index_type);
-  Stmt new_stmt = mutator(ffi::GetRef<Stmt>(block_sref->stmt));
+  auto mutator =
+      ffi::make_object<AnnotateRegionRewriter>(buffer, buffer_index, new_region, buffer_index_type);
+  Stmt new_stmt = mutator->Mutate(ffi::GetRef<Stmt>(block_sref->stmt))
+                      .ValueOrUnchanged(ffi::GetRef<Stmt>(block_sref->stmt));
 
   self->Replace(block_sref, new_stmt,
                 {{ffi::GetRef<SBlock>(block), new_stmt.as_or_throw<SBlock>()}});
@@ -126,9 +132,9 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm buffer_index,
                                       IntImm buffer_index_type, IndexMap index_map) {
-    return sch->AnnotateBufferAccess(block, buffer_index->value,
-                                     static_cast<BufferIndexType>(buffer_index_type->value),
-                                     index_map);
+    return sch->AnnotateBufferAccess(
+        block, buffer_index->value.as<int>().value(),
+        static_cast<BufferIndexType>(buffer_index_type->value.as<int>().value()), index_map);
   }
 
   static ffi::String IndexMap2GenNewRangesLambda(const IndexMap& index_map) {
@@ -167,10 +173,12 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
                                       IndexMap index_map) {
     PythonAPICall py("annotate_buffer_access");
     py.Input("block", block);
-    py.Input("buffer_index", buffer_index->value);
+    py.Input("buffer_index", buffer_index->value.as<int>().value());
 
     std::ostringstream os;
-    os << "\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
+    os << "\""
+       << BufferIndexType2Str(
+              static_cast<BufferIndexType>(buffer_index_type->value.as<int>().value()))
        << "\"";
     py.Input("buf_type", ffi::String(os.str()));
 

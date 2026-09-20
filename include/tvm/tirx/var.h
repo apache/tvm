@@ -37,37 +37,6 @@ namespace tirx {
 using VarNode = tvm::VarNode;
 using Var = tvm::Var;
 
-/*!
- * \brief Checked scalar view over a VarNode.
- *
- * PrimVar is a zero-state reference view over the same VarNode as Var.  It additionally
- * guarantees that the inherited ExprNode::ty is PrimType.
- */
-class PrimVar : public PrimExpr {
- public:
-  /*! \brief Construct a scalar variable directly from a primitive type. */
-  explicit PrimVar(ffi::String name, PrimType dtype = PrimType::Int(32), Span span = Span())
-      : PrimExpr(Var(std::move(name), std::move(dtype), std::move(span)).as_or_throw<PrimExpr>()) {}
-
-  /*! \brief Construct a scalar variable directly from a checked type annotation. */
-  explicit PrimVar(ffi::String name, Type type_annotation, Span span = Span())
-      : PrimExpr(Var(std::move(name), std::move(type_annotation), std::move(span))
-                     .as_or_throw<PrimExpr>()) {}
-
-  /*! \brief Safe widening to a general Var view over the same node. */
-  operator Var() const { return this->as_or_throw<Var>(); }
-
-  PrimVar CopyWithSuffix(const ffi::String& suffix) const {
-    return this->as_or_throw<Var>().CopyWithSuffix(suffix).as_or_throw<PrimVar>();
-  }
-  PrimVar CopyWithDType(PrimType dtype) const {
-    return this->as_or_throw<Var>().CopyWithDType(dtype).as_or_throw<PrimVar>();
-  }
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimVar, PrimExpr, VarNode);
-  static constexpr bool _type_container_is_exact = false;
-};
-
 using Region = ffi::Array<Range>;
 
 /*!
@@ -233,48 +202,6 @@ inline const char* IterVarType2String(IterVarType t) {
 }  // namespace tirx
 
 }  // namespace tvm
-
-namespace tvm::ffi {
-
-template <>
-inline constexpr bool use_default_type_traits_v<tirx::PrimVar> = false;
-
-template <>
-struct TypeTraits<tirx::PrimVar> : public ObjectRefTypeTraitsBase<tirx::PrimVar> {
-  using Base = ObjectRefTypeTraitsBase<tirx::PrimVar>;
-  using Base::CopyFromAnyViewAfterCheck;
-  using Base::CopyToAnyView;
-  using Base::GetMismatchTypeInfo;
-  using Base::MoveFromAnyAfterCheck;
-  using Base::MoveToAny;
-  using Base::TypeSchema;
-  using Base::TypeStr;
-
-  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFINone) {
-      return tirx::PrimVar::_type_is_nullable;
-    }
-    if (src->type_index != tirx::VarNode::RuntimeTypeIndex()) {
-      return false;
-    }
-    const auto* var = static_cast<const tirx::VarNode*>(
-        details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj).get());
-    return details::AnyUnsafe::CheckAnyStrict<PrimType>(var->ExprNode::ty);
-  }
-
-  TVM_FFI_INLINE static std::optional<tirx::PrimVar> TryCastFromAnyView(const TVMFFIAny* src) {
-    if (CheckAnyStrict(src)) {
-      if (src->type_index == TypeIndex::kTVMFFINone) {
-        return details::ObjectUnsafe::ObjectRefFromObjectPtr<tirx::PrimVar>(nullptr);
-      }
-      return details::ObjectUnsafe::ObjectRefFromObjectPtr<tirx::PrimVar>(
-          details::ObjectUnsafe::ObjectPtrFromUnowned<tirx::VarNode>(src->v_obj));
-    }
-    return std::nullopt;
-  }
-};
-
-}  // namespace tvm::ffi
 
 namespace std {
 template <>

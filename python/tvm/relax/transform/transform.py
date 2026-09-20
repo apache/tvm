@@ -36,6 +36,7 @@ from tvm.runtime import Object, Tensor
 from tvm.tirx import IndexMap, PrimFunc
 
 from ..expr import Var
+from ..global_info import VDevice
 from . import _ffi_api
 from .legalize_ops.common import LegalizeFunc
 
@@ -483,12 +484,12 @@ def EliminateCommonSubexpr(call_only=False) -> FunctionPass:
     return _ffi_api.EliminateCommonSubexpr(call_only)  # type: ignore
 
 
-def UpdateVDevice(new_vdevice: tvm.ir.VDevice, index: int) -> tvm.ir.transform.Pass:
+def UpdateVDevice(new_vdevice: VDevice, index: int) -> tvm.ir.transform.Pass:
     """Update virtual device.
 
     Parameters
     ----------
-    new_vdevice : tvm.ir.VDevice
+    new_vdevice : tvm.relax.VDevice
         The new virtual device.
     index : int
         The device index indicates the device on which the update will be performed.
@@ -661,9 +662,9 @@ def BindParams(
     for k, v in params.items():
         if isinstance(v, np.ndarray):
             v = tvm.runtime.tensor(v)
-        assert isinstance(v, tvm.runtime.Tensor | tvm.relax.Constant), (
+        assert isinstance(v, tvm.runtime.Tensor | tvm.ir.GenericConst), (
             f"param values are expected to be TVM.Tensor,"
-            f"numpy.ndarray or tvm.relax.Constant, but got {type(v)}"
+            f"numpy.ndarray or tvm.ir.GenericConst, but got {type(v)}"
         )
         tvm_params[k] = v
 

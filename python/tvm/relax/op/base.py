@@ -23,10 +23,10 @@ import tvm_ffi
 
 import tvm
 import tvm.runtime
-from tvm.ir import Call
+from tvm.ir import Call, StringImm
 from tvm.runtime import Object, ObjectConvertible
 
-from ..expr import Expr, ExternFunc, GlobalVar, StringImm, Var
+from ..expr import Expr, ExternFunc, GlobalVar, Var
 from ..type import TensorType, Type
 from ..utils import convert_to_expr
 from . import _ffi_api

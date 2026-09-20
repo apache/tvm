@@ -48,7 +48,7 @@ def get_padded_shape(data, pad_before, pad_after=None):
     if len(pad_after) != n:
         raise ValueError(f"pad_after length {len(pad_after)} != input dims {n}")
 
-    ana = tvm.arith.Analyzer()
+    ana = tvm.sym.Analyzer()
     out_shape = tuple(ana.simplify(data.shape[i] + pad_before[i] + pad_after[i]) for i in range(n))
 
     return out_shape
@@ -86,7 +86,7 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput", attrs=
         raise ValueError(f"Input dimension and pad_before dismatch : {n} vs {len(pad_before)}")
     if len(pad_after) != n:
         raise ValueError(f"Input dimension and pad_after dismatch : {n} vs {len(pad_after)}")
-    ana = tvm.arith.Analyzer()
+    ana = tvm.sym.Analyzer()
     dshape = []
     for dim in data.shape:
         dshape.append(dim)
@@ -145,7 +145,7 @@ def mirror_pad(data, pad_before, pad_after=None, mode="SYMMETRIC", name="MirrorP
         raise ValueError(f"Input dimension and pad_before dismatch : {n} vs {len(pad_before)}")
     if len(pad_after) != n:
         raise ValueError(f"Input dimension and pad_after dismatch : {n} vs {len(pad_after)}")
-    ana = tvm.arith.Analyzer()
+    ana = tvm.sym.Analyzer()
     out_shape = tuple(ana.simplify(data.shape[i] + pad_before[i] + pad_after[i]) for i in range(n))
     assert mode in ("SYMMETRIC", "REFLECT")
     mode = int(mode == "SYMMETRIC")

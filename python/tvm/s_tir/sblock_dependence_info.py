@@ -21,7 +21,8 @@ from tvm_ffi import register_object
 
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
-from tvm.tirx import PrimFunc, SBlock
+from tvm.s_tir import SBlock
+from tvm.tirx import PrimFunc
 
 from . import _ffi_api
 from .sblock_scope import SBlockScope, StmtSRef

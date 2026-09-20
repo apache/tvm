@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/transform.h>
 
@@ -66,17 +67,17 @@ namespace utils {
  * \param analyzer The analyzer
  * \return The shape of the buffer
  */
-std::vector<int64_t> GetBufferShape(const BufferVar& buffer, arith::AnalyzerObj* analyzer) {
+std::vector<int64_t> GetBufferShape(const BufferVar& buffer, sym::AnalyzerObj* analyzer) {
   int ndim = buffer->shape.size();
   std::vector<int64_t> result;
   result.reserve(ndim);
   for (const PrimExpr& i : buffer->shape) {
     if (const IntImmNode* int_imm = i.as<IntImmNode>()) {
-      result.push_back(int_imm->value);
+      result.push_back(static_cast<int64_t>(int_imm->value));
       continue;
     }
-    arith::ConstIntBound bound = analyzer->const_int_bound(i);
-    if (0 <= bound->max_value && bound->max_value < arith::ConstIntBound::kPosInf) {
+    sym::ConstIntBound bound = analyzer->const_int_bound(i);
+    if (0 <= bound->max_value && bound->max_value < sym::ConstIntBound::kPosInf) {
       result.push_back(bound->max_value);
     } else {
       result.push_back(1);
@@ -93,7 +94,7 @@ std::vector<int64_t> GetBufferShape(const BufferVar& buffer, arith::AnalyzerObj*
 int64_t GetPragmaAutoUnroll(const ForNode* loop) {
   if (ffi::Optional<IntImm> auto_unroll =
           GetAnn<IntImm>(loop, tirx::attr::pragma_auto_unroll_max_step)) {
-    return auto_unroll.value()->value;
+    return static_cast<int64_t>(auto_unroll.value()->value);
   }
   return -1;
 }
@@ -109,7 +110,9 @@ int64_t GetPragmaAutoUnroll(const ForNode* loop) {
  */
 int64_t FirstLoopExtent(const ForVec& loops, int64_t default_value) {
   if (!loops.empty()) {
-    if (const int64_t* extent = GetLoopIntExtent(loops[0])) {
+    const auto* extent_imm = loops[0]->extent.as<IntImmNode>();
+    if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+        extent.has_value()) {
       return *extent;
     }
   }
@@ -125,7 +128,7 @@ int64_t FirstLoopExtent(const ForVec& loops, int64_t default_value) {
  * \return The relaxed and unioned region
  */
 IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_t* numel,
-                     arith::AnalyzerObj* analyzer) {
+                     sym::AnalyzerObj* analyzer) {
   *numel = 1;
   if (multi_indices.empty()) {
     return {};
@@ -134,10 +137,10 @@ IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_t* nume
   int ndim = multi_indices[0].size();
   IntVec access_shape(ndim, 0);
   for (int i = 0; i < ndim; ++i) {
-    int64_t minimum = arith::ConstIntBound::kPosInf;
-    int64_t maximum = arith::ConstIntBound::kNegInf;
+    int64_t minimum = sym::ConstIntBound::kPosInf;
+    int64_t maximum = sym::ConstIntBound::kNegInf;
     for (int j = 0; j < n_indices; ++j) {
-      arith::ConstIntBound bound = analyzer->const_int_bound(multi_indices[j][i]);
+      sym::ConstIntBound bound = analyzer->const_int_bound(multi_indices[j][i]);
       minimum = std::min(minimum, bound->min_value);
       maximum = std::max(maximum, bound->max_value);
     }
@@ -156,46 +159,51 @@ IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_t* nume
  */
 int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices, const IntVec& buffer_stride,
                      const Var& var) {
-  class CoefficientExtractor : private ExprVisitor {
+  class CoefficientExtractor : public StmtExprVisitor {
    public:
+    using StmtExprVisitor::Visit_;
+
     static int64_t Extract(const PrimExpr& expr, const Var& var) {
-      CoefficientExtractor extractor(var);
-      extractor.VisitExpr(expr);
-      return (extractor.visited_var && !extractor.visited_mul && !extractor.visited_add)
+      auto extractor = ffi::make_object<CoefficientExtractor>(var);
+      extractor->Visit(expr);
+      return (extractor->visited_var && !extractor->visited_mul && !extractor->visited_add)
                  ? 1
-                 : (extractor.visited_var ? extractor.stride : 0);
+                 : (extractor->visited_var ? extractor->stride : 0);
     }
 
-   private:
     explicit CoefficientExtractor(const Var& var)
         : var(var), stride(0), visited_var(false), visited_add(false), visited_mul(false) {}
 
-    void VisitExpr_(const MulNode* node) override {
-      ExprVisitor::VisitExpr_(node);
+   private:
+    ffi::Optional<VisitInterrupt> Visit_(const MulNode* node) override {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
       if (visited_var && !visited_add) {
         if (const auto* a = node->a.as<IntImmNode>()) {
           visited_mul = true;
-          stride = a->value;
+          stride = static_cast<int64_t>(a->value);
         } else if (const auto* b = node->b.as<IntImmNode>()) {
           visited_mul = true;
-          stride = b->value;
+          stride = static_cast<int64_t>(b->value);
         }
       }
+      return std::nullopt;
     }
 
-    void VisitExpr_(const AddNode* node) override {
-      ExprVisitor::VisitExpr_(node);
+    ffi::Optional<VisitInterrupt> Visit_(const AddNode* node) override {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
       if (visited_var && !visited_mul) {
         visited_add = true;
         stride = 1;
       }
+      return std::nullopt;
     }
 
-    void VisitExpr_(const VarNode* node) override {
+    ffi::Optional<VisitInterrupt> Visit_(const VarNode* node) override {
       if (node == var.get()) {
         visited_var = true;
         stride = 2;
       }
+      return std::nullopt;
     }
 
     const Var& var;
@@ -257,9 +265,16 @@ namespace transform {
  * \return The pass created
  */
 Pass SimplifyForFeatureExtraction() {
-  class Simplifier : private StmtExprMutator {
+  class Simplifier : public StmtExprMutator {
    public:
-    static Stmt Run(Stmt stmt) { return Simplifier()(std::move(stmt)); }
+    using StmtExprMutator::Mutate;
+    using StmtExprMutator::Mutate_;
+
+    static Stmt Run(Stmt stmt) {
+      return ffi::make_object<Simplifier>()
+          ->Mutate(stmt, InplaceMode::kAllow)
+          .ValueOrUnchanged(std::move(stmt));
+    }
 
    private:
     static bool HasBufferLoad(const PrimExpr& expr) {
@@ -270,35 +285,26 @@ Pass SimplifyForFeatureExtraction() {
       return result.has_value() ? result.value()->value.cast<bool>() : false;
     }
 
-    Expr VisitExpr_(const SelectNode* node) final {
+    UnchangedOr<PrimExpr> Mutate_(const SelectNode* node, InplaceMode inplace_mode) final {
       if (HasBufferLoad(node->true_value) || HasBufferLoad(node->false_value) ||
           HasBufferLoad(node->condition)) {
-        return ffi::GetRef<Select>(node);
+        return ffi::Unchanged();
       }
-      return MakeConst(node->ty.as_or_throw<PrimType>(), 1.0);
+      return prim::MakeConst(node->ty.as_or_throw<PrimType>(), 1.0);
     }
 
-    Expr VisitExpr_(const VarNode* var) final {
-      if (unit_vars_.count(ffi::GetRef<Var>(var))) {
-        return MakeConst(var->ty.as_or_throw<PrimType>(), 0.0);
-      }
-      return ffi::GetRef<Var>(var);
-    }
-
-    Stmt VisitStmt_(const ForNode* loop) final {
+    UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
       if (is_zero(loop->extent)) {
         return Evaluate(0);
       }
       if (is_zero(loop->min) && is_one(loop->extent) && loop->kind == ForKind::kSerial &&
           loop->annotations.empty()) {
-        unit_vars_.insert(loop->loop_var);
-        return VisitStmt(loop->body);
+        VarRemapSet(loop->loop_var, MakeConst(loop->loop_var.ty(), 0.0));
+        return Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
       } else {
-        return StmtExprMutator::VisitStmt_(loop);
+        return StmtExprMutator::Mutate_(loop, inplace_mode);
       }
     }
-
-    std::unordered_set<Var> unit_vars_;
   };
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     PrimFuncNode* n = f.CopyOnWrite();
@@ -321,11 +327,11 @@ tvm::transform::Sequential PassListForPerStoreFeature() {
       s_tir::transform::PlanAndUpdateBufferAllocationLocation(),
       s_tir::transform::ConvertBlocksToOpaque(),
       s_tir::transform::CompactBufferAllocation(),
-      tirx::transform::StmtSimplify(),
+      s_tir::transform::StmtSimplify(),
       s_tir::transform::LowerAutoCopy(),
       s_tir::transform::UnifyThreadBinding(),
       s_tir::transform::LowerMatchBuffer(),
-      tirx::transform::StmtSimplify(),
+      s_tir::transform::StmtSimplify(),
   });
 }
 
@@ -354,7 +360,9 @@ struct LoopNest {
    * \return A list of for loops that the loop is bound to
    */
   ForVec* Push(const ForNode* loop, int64_t* auto_unroll_attr) {
-    if (const int64_t* extent = GetLoopIntExtent(loop)) {
+    const auto* extent_imm = loop->extent.as<IntImmNode>();
+    if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+        extent.has_value()) {
       this->prod *= *extent;
     }
     this->loops.push_back(loop);
@@ -407,7 +415,9 @@ struct LoopNest {
     if (auto_unroll_attr > 0) {
       this->auto_unroll.pop_back();
     }
-    if (const int64_t* extent = GetLoopIntExtent(loop)) {
+    const auto* extent_imm = loop->extent.as<IntImmNode>();
+    if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+        extent.has_value()) {
       this->prod /= *extent;
     }
     this->loops.pop_back();
@@ -546,26 +556,34 @@ struct Feature {
 };
 
 Feature::ArithOps::ArithOps(const BufferStoreNode* store, int64_t prod_loop_extent) {
-  class ArithOpCounter : public ExprVisitor {
+  class ArithOpCounter : public StmtExprVisitor {
    public:
-#define TVM_FEATURE_SIMPLE(Type, Counter)       \
-  void VisitExpr_(const Type* op) final {       \
-    result_.Counter += this->prod_loop_extent_; \
-    ExprVisitor::VisitExpr_(op);                \
+    using StmtExprVisitor::Visit_;
+
+#define TVM_FEATURE_SIMPLE(Type, Counter)                      \
+  ffi::Optional<VisitInterrupt> Visit_(const Type* op) final { \
+    result_.Counter += this->prod_loop_extent_;                \
+    return StmtExprVisitor::Visit_(op);                        \
   }
 #define TVM_FEATURE_BINARY(Type, FloatCounter, IntCounter)                      \
-  void VisitExpr_(const Type* op) final {                                       \
+  ffi::Optional<VisitInterrupt> Visit_(const Type* op) final {                  \
     if (op->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLFloat)) { \
       result_.FloatCounter += this->prod_loop_extent_;                          \
     } else {                                                                    \
       result_.IntCounter += this->prod_loop_extent_;                            \
     }                                                                           \
-    ExprVisitor::VisitExpr_(op);                                                \
+    return StmtExprVisitor::Visit_(op);                                         \
   }
     TVM_FEATURE_SIMPLE(AndNode, bool_op);
     TVM_FEATURE_SIMPLE(OrNode, bool_op);
     TVM_FEATURE_SIMPLE(NotNode, bool_op);
     TVM_FEATURE_SIMPLE(SelectNode, select_op);
+    TVM_FEATURE_SIMPLE(prim::LShiftNode, int_math_func);
+    TVM_FEATURE_SIMPLE(prim::RShiftNode, int_math_func);
+    TVM_FEATURE_SIMPLE(prim::BitwiseAndNode, int_math_func);
+    TVM_FEATURE_SIMPLE(prim::BitwiseOrNode, int_math_func);
+    TVM_FEATURE_SIMPLE(prim::BitwiseXorNode, int_math_func);
+    TVM_FEATURE_SIMPLE(prim::BitwiseNotNode, int_math_func);
     TVM_FEATURE_BINARY(AddNode, float_add_sub, int_add_sub);
     TVM_FEATURE_BINARY(SubNode, float_add_sub, int_add_sub);
     TVM_FEATURE_BINARY(MulNode, float_mul, int_mul);
@@ -584,11 +602,10 @@ Feature::ArithOps::ArithOps(const BufferStoreNode* store, int64_t prod_loop_exte
 #undef TVM_FEATURE_BINARY
 #undef TVM_FEATURE_SIMPLE
 
-    void VisitExpr_(const CallNode* op) final {
+    ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
       auto result_type = op->ty.as<PrimType>();
       if (!result_type) {
-        ExprVisitor::VisitExpr_(op);
-        return;
+        return StmtExprVisitor::Visit_(op);
       }
       static auto op_call_effect_ = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
       CallEffectKind effect_kind =
@@ -608,16 +625,16 @@ Feature::ArithOps::ArithOps(const BufferStoreNode* store, int64_t prod_loop_exte
           result_.int_other_func += prod_loop_extent_;
         }
       }
-      ExprVisitor::VisitExpr_(op);
+      return StmtExprVisitor::Visit_(op);
     }
 
     int64_t prod_loop_extent_;
     ArithOps result_;
   };
-  ArithOpCounter counter;
-  counter.prod_loop_extent_ = prod_loop_extent;
-  counter(store->value);
-  *this = counter.result_;
+  auto counter = ffi::make_object<ArithOpCounter>();
+  counter->prod_loop_extent_ = prod_loop_extent;
+  counter->Visit(store->value);
+  *this = counter->result_;
 }
 
 Feature::ForKindFeature::ForKindFeature(const ForVec& loops) {
@@ -627,13 +644,17 @@ Feature::ForKindFeature::ForKindFeature(const ForVec& loops) {
     this->len = 0;
     this->pos = ForKindFeature::Pos::kPosNone;
   } else {
-    const int64_t* last_loop_extent = GetLoopIntExtent(loops.back());
+    const auto* last_loop_extent_imm = loops.back()->extent.as<IntImmNode>();
+    auto last_loop_extent =
+        last_loop_extent_imm ? last_loop_extent_imm->value.as<int64_t>() : std::nullopt;
     this->num = loops.size();
-    this->len = last_loop_extent ? *last_loop_extent : 1;
+    this->len = last_loop_extent.has_value() ? *last_loop_extent : 1;
     this->pos = ForKindFeature::Pos::kPosMixed;
     int64_t& prod = this->prod = 1;
     for (const ForNode* loop : loops) {
-      if (const int64_t* extent = GetLoopIntExtent(loop)) {
+      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+          extent.has_value()) {
         prod *= *extent;
       }
     }
@@ -745,7 +766,7 @@ struct Feature {
 
     static void Pad(std::vector<double>* v) { v->insert(v->end(), 18, 0.0); }
 
-    void SetStride(const LoopNest& loop_nest, arith::AnalyzerObj* analyzer);
+    void SetStride(const LoopNest& loop_nest, sym::AnalyzerObj* analyzer);
 
     void SetReuse(const LoopNest& loop_nest,     //
                   int64_t top_loop_touch_bytes,  //
@@ -774,14 +795,14 @@ struct Feature {
 
   explicit Feature(const BufferStoreNode* store, const LoopNest& loop_nest,
                    int64_t cache_line_bytes, IntVec* for_touched_bytes,
-                   ForBufferMap<IntVec>* buffer_touched_under_loop, arith::AnalyzerObj* analyzer);
+                   ForBufferMap<IntVec>* buffer_touched_under_loop, sym::AnalyzerObj* analyzer);
 
   void Init(const BufferStoreNode* store, int n_loops);
 
   void SetRegion(const LoopNest& loop_nest,                        //
                  IntVec* for_touched_bytes,                        //
                  ForBufferMap<IntVec>* buffer_touched_under_loop,  //
-                 arith::AnalyzerObj* analyzer);
+                 sym::AnalyzerObj* analyzer);
 
   std::vector<SubFeature> sub_features;
 };
@@ -828,7 +849,7 @@ void Feature::Init(const BufferStoreNode* store, int n_loops) {
 
 void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
                         ForBufferMap<IntVec>* buffer_touched_under_loop,
-                        arith::AnalyzerObj* analyzer) {
+                        sym::AnalyzerObj* analyzer) {
   int n_loops = loop_nest.loops.size();
   const std::vector<const ForNode*>& loops = loop_nest.loops;
   // Step 1. Initialize and bind all the loop variables to a constant
@@ -866,7 +887,7 @@ void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
   }
 }
 
-void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::AnalyzerObj* analyzer) {
+void Feature::SubFeature::SetStride(const LoopNest& loop_nest, sym::AnalyzerObj* analyzer) {
   int n_loops = loop_nest.loops.size();
   const std::vector<const ForNode*>& loops = loop_nest.loops;
   // For each buffer, we find the loop stride on it
@@ -908,7 +929,9 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::AnalyzerOb
   // Calculate this->prod
   int64_t& prod = this->prod_non_strided_loop_extent = 1;
   for (int j = n_loops - 1; j > i; --j) {
-    if (const int64_t* extent = GetLoopIntExtent(loops[j])) {
+    const auto* extent_imm = loops[j]->extent.as<IntImmNode>();
+    if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+        extent.has_value()) {
       prod *= *extent;
     }
   }
@@ -944,14 +967,18 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
     // Case 1. Find an invariant loop, i.e. reuse with kLoopMultipleRead
     if (!region_vars.count(loop->loop_var.get())) {
       reuse_type = ReuseType::kLoopMultipleRead;
-      if (const int64_t* extent = GetLoopIntExtent(loop)) {
+      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+          extent.has_value()) {
         reuse_ct = *extent;
       } else {
         reuse_ct = 1;
       }
       reuse_dis_iter = 1;
       for (int j = n_loops - 1; j > i; --j) {
-        if (const int64_t* extent = GetLoopIntExtent(loops[j])) {
+        const auto* extent_imm = loops[j]->extent.as<IntImmNode>();
+        if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+            extent.has_value()) {
           reuse_dis_iter *= *extent;
         }
       }
@@ -972,7 +999,8 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
     const IntVec& touched = buffer_touched_under_loop.at(loop).at(buffer);
     if (touched.size() >= 2) {
       int64_t extent = 1;
-      if (const int64_t* ext = GetLoopIntExtent(loop)) {
+      const auto* ext_imm = loop->extent.as<IntImmNode>();
+      if (auto ext = ext_imm ? ext_imm->value.as<int64_t>() : std::nullopt; ext.has_value()) {
         extent = *ext;
       }
       reuse_type = ReuseType::kSerialMultipleReadWrite;
@@ -1019,7 +1047,7 @@ void Feature::SubFeature::SetFeature(const LoopNest& loop_nest, int64_t cache_li
 
 Feature::Feature(const BufferStoreNode* store, const LoopNest& loop_nest, int64_t cache_line_bytes,
                  IntVec* for_touched_bytes, ForBufferMap<IntVec>* buffer_touched_under_loop,
-                 arith::AnalyzerObj* analyzer) {
+                 sym::AnalyzerObj* analyzer) {
   int n_loops = loop_nest.loops.size();
   // Step 0. Initialize data structures
   this->Init(store, n_loops);
@@ -1104,7 +1132,9 @@ struct Feature {
                                arith_ops.float_math_func + arith_ops.float_other_func;
     total_compute_ops /= loop_nest.prod;
     for (int i = n_loops - 1; i >= 0; --i) {
-      if (const int64_t* extent = GetLoopIntExtent(loops[i])) {
+      const auto* extent_imm = loops[i]->extent.as<IntImmNode>();
+      if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+          extent.has_value()) {
         total_compute_ops *= *extent;
       }
       compute_ops.push_back(total_compute_ops);
@@ -1165,8 +1195,7 @@ struct Feature {
 
   Feature() = default;
 
-  explicit Feature(const LoopNest& loop_nest, const BufferVar& buffer,
-                   arith::AnalyzerObj* analyzer) {
+  explicit Feature(const LoopNest& loop_nest, const BufferVar& buffer, sym::AnalyzerObj* analyzer) {
     std::vector<int64_t> shape = utils::GetBufferShape(buffer, analyzer);
     int64_t numel = 1;
     for (int64_t x : shape) {
@@ -1211,21 +1240,28 @@ struct Feature {
 namespace group6 {
 
 /*! \brief The auxiliary feature extractor for workloads */
-class WorkloadEmbeddingExtractor : private StmtVisitor {
+class WorkloadEmbeddingExtractor : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
   static std::vector<double> Extract(const IRModule& mod) {
-    WorkloadEmbeddingExtractor self;
+    auto self = ffi::make_object<WorkloadEmbeddingExtractor>();
     for (const auto& kv : mod->functions) {
       if (const PrimFuncNode* func = kv.second.as<PrimFuncNode>()) {
-        self(func->body);
+        self->Visit(func->body);
       }
     }
-    return self.embedding;
+    return self->embedding;
   }
 
  private:
-  void VisitStmt_(const SBlockNode* block) final {
-    StmtVisitor::VisitStmt_(block);
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
     std::string name = block->name_hint;
     std::for_each(name.begin(), name.end(), [](char& c) { c = ::tolower(c); });
     if (name.find("softmax") != std::string::npos) {
@@ -1245,6 +1281,7 @@ class WorkloadEmbeddingExtractor : private StmtVisitor {
     } else if (name.find("conv2d") != std::string::npos) {
       embedding[7] = 1.0;
     }
+    return std::nullopt;
   }
 
   std::vector<double> embedding = std::vector<double>(8, 0.0);
@@ -1281,25 +1318,33 @@ struct Feature {
 };
 
 /*! \brief The main feature extractor */
-class PerStoreFeatureCollector : private StmtVisitor {
+class PerStoreFeatureCollector : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
   static std::vector<Feature> Collect(bool is_gpu, int64_t cache_line_bytes,
                                       int64_t arith_intensity_curve_num_samples,
                                       const IRModule& mod) {
-    PerStoreFeatureCollector collector(is_gpu, cache_line_bytes, arith_intensity_curve_num_samples);
+    auto collector = ffi::make_object<PerStoreFeatureCollector>(is_gpu, cache_line_bytes,
+                                                                arith_intensity_curve_num_samples);
     for (const auto& kv : mod->functions) {
       if (const PrimFuncNode* func = kv.second.as<PrimFuncNode>()) {
-        collector(func->body);
+        collector->Visit(func->body);
         for (const Var& param : func->params) {
           if (auto buffer = param.as<BufferVar>()) {
-            collector.HandleBufferAlloc(buffer.value());
+            collector->HandleBufferAlloc(buffer.value());
           }
         }
       }
     }
     std::vector<Feature> result;
-    result.reserve(collector.buffer_features_.size());
-    for (auto& it : collector.buffer_features_) {
+    result.reserve(collector->buffer_features_.size());
+    for (auto& it : collector->buffer_features_) {
       Feature& feature = it.second;
       if (feature.buffer != nullptr) {
         TVM_FFI_ICHECK(feature.group1);
@@ -1317,16 +1362,17 @@ class PerStoreFeatureCollector : private StmtVisitor {
   }
 
  private:
-  void VisitStmt_(const ForNode* loop) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
     int64_t auto_unroll;
     ForVec* for_vec = loop_nest_.Push(loop, &auto_unroll);
-    StmtVisitor::VisitStmt_(loop);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     loop_nest_.Pop(loop, for_vec, auto_unroll);
+    return std::nullopt;
   }
 
-  void VisitStmt_(const BufferStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
     if (store->value->IsInstance<IntImmNode>() || store->value->IsInstance<FloatImmNode>()) {
-      return;
+      return std::nullopt;
     }
     const VarNode* buffer = store->buffer.get();
     Feature& feature = buffer_features_[buffer];
@@ -1342,13 +1388,15 @@ class PerStoreFeatureCollector : private StmtVisitor {
         std::make_unique<group3::Feature>(arith_intensity_curve_num_samples_, loop_nest_,
                                           for_touched_bytes_, feature.group1->arith_ops);
     feature.group5 = std::make_unique<group5::Feature>(loop_nest_);
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SBlockNode* block) final {
-    StmtVisitor::VisitStmt_(block);
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
     for (const BufferVar& buffer : block->alloc_buffers) {
       HandleBufferAlloc(buffer);
     }
+    return std::nullopt;
   }
 
   void HandleBufferAlloc(const BufferVar& buffer) {
@@ -1356,16 +1404,18 @@ class PerStoreFeatureCollector : private StmtVisitor {
     feature.group4 = std::make_unique<group4::Feature>(loop_nest_, buffer, analyzer_.get());
   }
 
+ public:
   explicit PerStoreFeatureCollector(bool is_gpu, int64_t cache_line_bytes,
                                     int64_t arith_intensity_curve_num_samples)
       : is_gpu_(is_gpu),
         cache_line_bytes_(cache_line_bytes),
         arith_intensity_curve_num_samples_(arith_intensity_curve_num_samples) {}
 
+ private:
   bool is_gpu_;
   int64_t cache_line_bytes_;
   int64_t arith_intensity_curve_num_samples_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   LoopNest loop_nest_ = {};
   IntVec for_touched_bytes_ = {};
   ForBufferMap<IntVec> buffer_touched_under_loop_ = {};
@@ -1377,7 +1427,6 @@ class PerStoreFeatureCollector : private StmtVisitor {
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 class PerStoreFeatureNode : public FeatureExtractorNode {

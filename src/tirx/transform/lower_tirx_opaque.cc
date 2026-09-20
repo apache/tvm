@@ -35,6 +35,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 /*!
  * \brief Lower opaque constructs for TIRX: AllocBuffer, thread bindings, unit loops.
@@ -44,23 +45,29 @@ namespace tirx {
  */
 class TIRxOpaqueLower : public StmtExprMutator {
  public:
-  static Stmt Rewrite(Stmt body) { return TIRxOpaqueLower()(std::move(body)); }
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  static Stmt Rewrite(Stmt body) {
+    return ffi::make_object<TIRxOpaqueLower>()
+        ->Mutate(body, InplaceMode::kAllow)
+        .ValueOrUnchanged(body);
+  }
 
  private:
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Step 1. Update unit loop info.
-    PrimExpr min = this->VisitPrimExpr(op->min);
-    PrimExpr extent = this->VisitPrimExpr(op->extent);
+    PrimExpr min = this->Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
+    PrimExpr extent = this->Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
     if (is_one(extent) && op->annotations.empty()) {
       // handling unit loop
-      unit_loop_vars_[op->loop_var] = min;
+      VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
     }
 
     // Step 2. Visit recursively
-    Stmt body = this->VisitStmt(op->body);
+    Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
 
     // Step 3. Handle annotations
-    std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
+    std::vector<std::pair<std::string, Expr>> pragma_attrs;
     ffi::Map<ffi::String, ffi::Any> new_annotations =
         HandleAnnotations(op->annotations, &pragma_attrs);
     // Step 4. Create new For loop accordingly
@@ -85,23 +92,6 @@ class TIRxOpaqueLower : public StmtExprMutator {
     return body;
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
-    Var var = ffi::GetRef<Var>(op);
-    auto it = unit_loop_vars_.find(var);
-    if (it == unit_loop_vars_.end()) {
-      // Fall through to the base visitor so buffer-variable remapping from
-      // any rebuild in this pass reaches remaining use sites.
-      return StmtExprMutator::VisitExpr_(op);
-    } else {
-      PrimExpr expr = it->second;
-      PrimType var_ty = var->ty.as_or_throw<PrimType>();
-      if (expr.ty() != var_ty) {
-        expr = tvm::cast(var_ty, std::move(expr));
-      }
-      return expr;
-    }
-  }
-
   static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, ffi::String thread_tag,
                                Stmt body) {
     IterVar iter_var(/*dom=*/Range::FromMinExtent(min, extent),
@@ -110,7 +100,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
                      /*thread_tag=*/thread_tag);
     ffi::String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||
                             thread_tag == "vthread.y" || thread_tag == "vthread.z")
-                               ? s_tir::attr::virtual_thread
+                               ? tvm::tirx::attr::virtual_thread
                                : tirx::attr::thread_extent;
     return AttrStmt(/*node=*/std::move(iter_var),
                     /*attr_key=*/std::move(attr_key),
@@ -118,16 +108,16 @@ class TIRxOpaqueLower : public StmtExprMutator {
                     /*body=*/std::move(body));
   }
 
-  /*! \brief Convert attr value from annotation map into PrimExpr. */
-  PrimExpr ConvertAttrValue(const ffi::String& key, const Any& obj) {
-    if (auto expr = obj.try_cast<PrimExpr>()) {
+  /*! \brief Convert attr value from annotation map into Expr. */
+  Expr ConvertAttrValue(const ffi::String& key, const Any& obj) {
+    if (auto expr = obj.try_cast<Expr>()) {
       return expr.value();
     } else if (auto str = obj.try_cast<ffi::String>()) {
-      return std::move(prim::StringImm(str.value()));
+      return std::move(StringImm(str.value()));
     } else {
       LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj.GetTypeKey()
                  << " not supported";
-      return PrimExpr();
+      return Expr();
     }
   }
 
@@ -141,7 +131,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
    */
   ffi::Map<ffi::String, ffi::Any> HandleAnnotations(
       const ffi::Map<ffi::String, ffi::Any>& annotations,
-      std::vector<std::pair<std::string, PrimExpr>>* pragma_attrs) {
+      std::vector<std::pair<std::string, Expr>>* pragma_attrs) {
     ffi::Map<ffi::String, ffi::Any> preserved_annotations;
     pragma_attrs->clear();
     for (const auto& kv : annotations) {
@@ -167,7 +157,6 @@ class TIRxOpaqueLower : public StmtExprMutator {
   }
 
   /*! \brief Record the loop_var and loop start value of unit loops, whose extent is one. */
-  std::unordered_map<Var, PrimExpr> unit_loop_vars_;
 };
 
 namespace transform {

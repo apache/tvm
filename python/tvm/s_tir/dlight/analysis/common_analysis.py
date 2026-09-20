@@ -27,6 +27,7 @@ import tvm_ffi
 from tvm_ffi import get_global_func
 
 from tvm import ir, s_tir, tirx
+from tvm.ir import TensorRegion
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
 from tvm.target.target import Target
@@ -79,7 +80,7 @@ BufIndex = list[Index | RemIndex | DivIndex | MergeIndex | None]
 class BufferInfo:
     "Information about Buffer. Provides useful analysis"
 
-    buf_region: tirx.BufferRegion
+    buf_region: TensorRegion
     shape: tuple[int]
     assoc_lps: list[s_tir.schedule.LoopRV | None]
     assoc_lps_info: list[tirx.For | None]
@@ -88,7 +89,7 @@ class BufferInfo:
         self,
         sch: s_tir.Schedule,
         block_rv: s_tir.schedule.SBlockRV,
-        buf_region: tirx.BufferRegion,
+        buf_region: TensorRegion,
         lps: list[s_tir.schedule.LoopRV] | None,
     ):
         block = sch.get(block_rv)
@@ -100,7 +101,7 @@ class BufferInfo:
         lpvar_lp = dict([loop.loop_var, lp] for loop, lp in zip(loops, lps))
         var_lp = dict(zip(iter_vars, [lpvar_lp.get(val, None) for val in iter_values]))
 
-        def extract_index_types(buf: tirx.BufferRegion) -> BufIndex:
+        def extract_index_types(buf: TensorRegion) -> BufIndex:
             buf_index = []
             for expr in buf.region:
                 expr = expr.min
@@ -145,10 +146,10 @@ class BufferInfo:
         self.buf_region = buf_region
         self.assoc_lps = assoc_lps
         self.assoc_lps_info = [(sch.get(lp) if lp is not None else None) for lp in assoc_lps]
-        self.shape = buf_region.buffer.shape
+        self.shape = buf_region.source.shape
 
     def get_scope(self) -> str:
-        return self.buf_region.buffer.scope()
+        return self.buf_region.source.scope()
 
     def get_vecsize(self, buf_index: int = 0, vbits: int = 128):
         if self.assoc_lps_info[-1] is None:
@@ -159,7 +160,7 @@ class BufferInfo:
         )
         vbuf_extent = int(self.shape[-1]) & ~(int(self.shape[-1]) - 1)
 
-        return min(vlp_extent, vbuf_extent, vbits // self.buf_region.buffer.dtype.bits)
+        return min(vlp_extent, vbuf_extent, vbits // self.buf_region.source.dtype.bits)
 
     def __str__(self) -> str:
         return f"BufferInfo({self.buf_region})"
@@ -405,7 +406,7 @@ def get_root_block(sch: Schedule, func_name: str = "main") -> SBlockRV:
 
 
 def collect_block_iter_vars_used_in_access_region(
-    block: tirx.SBlock, region: list[ir.Range]
+    block: s_tir.SBlock, region: list[ir.Range]
 ) -> set[tirx.Var]:
     """Collect the block iter variables used in the access region of a buffer region."""
     tir_vars = set()
@@ -427,7 +428,7 @@ def collect_vars_used_in_prim_expr(expr: tirx.Expr) -> set[tirx.Var]:
     return tir_vars
 
 
-def detect_dominant_read(block: tirx.SBlock) -> tirx.Expr:
+def detect_dominant_read(block: s_tir.SBlock) -> tirx.Expr:
     """Detect the dominant read indices in the block."""
     dominant_read = None
     num_read_iters = -1
@@ -437,7 +438,7 @@ def detect_dominant_read(block: tirx.SBlock) -> tirx.Expr:
             num_read_iters = len(tir_vars)
             dominant_read = buffer_region
     assert dominant_read is not None
-    (result,) = dominant_read.buffer.offset_of([e.min for e in dominant_read.region])
+    (result,) = dominant_read.source.offset_of([e.min for e in dominant_read.region])
     return result
 
 
@@ -447,10 +448,10 @@ def is_broadcast_epilogue(
     epilogue: s_tir.schedule.SBlockRV,
 ) -> bool:
     """Check if the epilogue block is a broadcast pattern"""
-    write_buffers = {r.buffer for r in sch.get(block).writes}
+    write_buffers = {r.source for r in sch.get(block).writes}
     epilogue_iters = {i.var: i for i in sch.get(epilogue).iter_vars if i.dom != 1}
     for buffer_region in sch.get(epilogue).reads:
-        if buffer_region.buffer not in write_buffers:
+        if buffer_region.source not in write_buffers:
             continue
         tir_vars = collect_block_iter_vars_used_in_access_region(
             sch.get(epilogue), buffer_region.region

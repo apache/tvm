@@ -18,7 +18,7 @@
 # ruff: noqa: RUF005
 """Default legalization function for ccl operators."""
 
-from tvm import arith, tirx, topi
+from tvm import sym, tirx, topi
 from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
@@ -91,7 +91,7 @@ def _transpose_for_ccl(_bb: BlockBuilder, expr: Expr, axis: int, num_workers: in
     new_shape = []
     for i, shape_value in enumerate(arg_shape.values):
         if i == axis:
-            modulo = arith.Analyzer().simplify(shape_value % num_workers)
+            modulo = sym.Analyzer().simplify(shape_value % num_workers)
             assert modulo == 0, (
                 f"scatter_from_worker0 expects the size of axis {axis} of input tensor "
                 "to be divisible by num_workers. However, the axis 0 of input tensor "

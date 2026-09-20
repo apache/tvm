@@ -48,12 +48,12 @@ def _scalar_dtype(scalar) -> str:
 def alloc_const_bias_trn(
     op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
-    bias = op.bias if op.bias is not None else FloatImm(op.dsts[0].buffer.ty.dtype, 0.0)
+    bias = op.bias if op.bias is not None else FloatImm(op.dsts[0].source.ty.dtype, 0.0)
     if "const_bias" in op.workspace:
         return {}
     if not isinstance(bias, (FloatImm)):
         return {}
-    par_size = op.dsts[0].buffer.ty.layout.size("P")
+    par_size = op.dsts[0].source.ty.layout.size("P")
     max_inst_size = op.config.get("max_inst_size", 512)
     if ("const_bias", bias.value) in buffer_dict:
         bias_buffer, bias_init_stmt = buffer_dict[("const_bias", bias.value)]
@@ -67,7 +67,8 @@ def alloc_const_bias_trn(
         new_shape, dtype=_scalar_dtype(bias), scope="trn.sbuf", buffer_name="const_bias"
     )
 
-    @T.prim_func
+    # This fragment captures buffers and indices from its insertion scope.
+    @T.prim_func(check_well_formed=False)
     def const_bias_init():
         with T.attr(0, "tensorized_nki_instruction", 1):
             for p_loop in T.serial(0, par_size, annotations={"nki_dim": "P"}):
@@ -104,7 +105,7 @@ def alloc_identity_trn(
 ) -> dict[str, Any]:
     if "identity" in op.workspace:
         return {}
-    par_size = op.srcs[0].buffer.ty.layout.size("P")
+    par_size = op.srcs[0].source.ty.layout.size("P")
     if "identity" in buffer_dict:
         identity_buffer, identity_init_stmt = buffer_dict["identity"]
         old_shape = identity_buffer.ty.shape
@@ -114,10 +115,11 @@ def alloc_identity_trn(
     else:
         new_shape = (par_size, par_size)
     new_buffer = T.buffer(
-        new_shape, dtype=op.srcs[0].buffer.ty.dtype, scope="trn.sbuf", buffer_name="identity"
+        new_shape, dtype=op.srcs[0].source.ty.dtype, scope="trn.sbuf", buffer_name="identity"
     )
 
-    @T.prim_func
+    # This fragment captures buffers and indices from its insertion scope.
+    @T.prim_func(check_well_formed=False)
     def identity_init():
         with T.attr(0, "tensorized_nki_instruction", 1):
             for p_loop in T.serial(0, par_size, annotations={nki_dim: "P"}):
@@ -132,9 +134,9 @@ def alloc_identity_trn(
 def alloc_acc_psum_trn(
     op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
-    if "acc_psum" in op.workspace or op.dsts[0].buffer.scope() == "trn.psum":
+    if "acc_psum" in op.workspace or op.dsts[0].source.scope() == "trn.psum":
         return {}
-    par_size = op.dsts[0].buffer.ty.layout.size("P")
+    par_size = op.dsts[0].source.ty.layout.size("P")
     acc_psum = T.buffer(
         (8, par_size, 512),
         "float32",

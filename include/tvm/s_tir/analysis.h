@@ -27,6 +27,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
@@ -35,7 +36,6 @@
 
 namespace tvm {
 namespace tirx {
-
 /*!
  * \brief Auto detect the block access region according to its body stmt
  *        It will detect the access region as an array in order of appearance in AST
@@ -43,13 +43,13 @@ namespace tirx {
  * \param buffer_var_map The outside buffers which may be accessed the block.
  *                       It is a map from buffer var to the buffer.
  * \return Array of access regions.
- *         There are three arrays of BufferRegion:
+ *         There are three arrays of TensorRegion:
  *           - first: read regions
  *           - second: write regions
  *           - third: opaque regions
  */
-TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
-    const SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
+TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockAccessRegion(
+    const s_tir::SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
 
 /*!
  * \brief Auto detect the block read/write region according to its body stmt. An opaque access will
@@ -59,8 +59,8 @@ TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
  *                       It is a map from buffer var to the buffer
  * \return An array only consisting of the read regions and write regions of the input block
  */
-TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockReadWriteRegion(
-    const SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
+TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockReadWriteRegion(
+    const s_tir::SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
 
 /*!
  * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
@@ -86,19 +86,22 @@ TVM_DLL ffi::Map<BufferVar, ffi::Optional<Stmt>> DetectBufferAccessLCA(const Pri
  * \param mod The input TIR module.
  * \return The anchor block if found, nullptr otherwise.
  */
-const tirx::SBlockNode* FindAnchorBlock(const IRModule& mod);
+const s_tir::SBlockNode* FindAnchorBlock(const IRModule& mod);
 
 }  // namespace tirx
 
-namespace arith {
+namespace sym {
 class AnalyzerObj;
 class Analyzer;
-}  // namespace arith
+}  // namespace sym
 
 namespace s_tir {
-using namespace tvm::prim;
-
 using namespace tvm::tirx;
+
+/*! \brief Verify variable/buffer definitions, load types and schedulable block boundaries. */
+TVM_DLL bool VerifyWellFormed(const tirx::PrimFunc& func, bool assert_mode = true);
+/*! \brief Verify S-TIR or mixed modules, including definitions shared across functions. */
+TVM_DLL bool VerifyWellFormed(const IRModule& mod, bool assert_mode = true);
 
 /*!
  * \brief Estimate the FLOPs of a TIR fragment.
@@ -132,8 +135,8 @@ TVM_DLL bool VerifyGPUCode(const PrimFunc& func, ffi::Map<ffi::String, PrimExpr>
 
 /*! \brief Helper struct for return value of IdentifyMemCpy */
 struct MemCpyDetails {
-  BufferRegion source;
-  BufferRegion dest;
+  TensorRegion source;
+  TensorRegion dest;
 };
 
 /*! \brief Identify whether a For loop is semantically equivalent to MemCpy
@@ -141,8 +144,7 @@ struct MemCpyDetails {
  * \param analyzer The analyzer with which to check any algebraic expressions
  * \returns The source and destination regions being copied, if the loop is equivalent to memcpy.
  */
-TVM_DLL std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop,
-                                                    const arith::Analyzer& analyzer);
+TVM_DLL std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, const sym::Analyzer& analyzer);
 
 /*!
  * \brief Infer the domain touched by buffer accesses within a statement.

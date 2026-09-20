@@ -28,6 +28,8 @@
 
 namespace tvm {
 namespace te {
+using namespace tvm::prim;
+
 using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() { ScanOpNode::RegisterReflection(); }
@@ -53,7 +55,7 @@ ScanOp::ScanOp(std::string name, std::string tag,
   auto n = ffi::make_object<ScanOpNode>();
   TVM_FFI_ICHECK_EQ(init.size(), update.size());
   TVM_FFI_ICHECK_EQ(init.size(), state_placeholder.size());
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   auto prove_equal = [&](PrimExpr lhs, PrimExpr rhs) {
     return is_zero(analyzer->Simplify(lhs - rhs));
   };

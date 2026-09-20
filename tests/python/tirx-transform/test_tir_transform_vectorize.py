@@ -667,10 +667,7 @@ def test_vectorize_nested_predicates_preserve_both_masks():
 
     tvm_ffi.structural_walk(after.body, (tvm.ir.Call, collect_predicates))
     assert len(predicates) == 2
-    assert any(
-        isinstance(predicate, tvm.ir.Call) and predicate.op.name == "ir.prim.bitwise_and"
-        for predicate in predicates
-    )
+    assert any(isinstance(predicate, tvm.tirx.BitwiseAnd) for predicate in predicates)
 
 
 def test_vectorize_and_predicate_invalid_conditions():

@@ -23,7 +23,7 @@ from functools import partial
 from typing import Any, TypeVar
 
 import tvm
-from tvm.ir import Expr, GlobalVar, PointerType, PrimType, TensorLoad
+from tvm.ir import Expr, GlobalVar, PointerType, PrimType, TensorLoad, TensorRegion
 from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.base import IRBuilderFrame as Frame
@@ -31,22 +31,35 @@ from tvm.script.parser._core import Parser, collect_signature_type_vars, dispatc
 from tvm.script.parser.core.doc import from_doc
 from tvm.tirx import Buffer, IterVar, Layout, buffer_data, is_buffer_var
 from tvm.tirx.script import builder as T
-from tvm.tirx.script.builder.ir import name_meta_class_value
-from tvm.tirx.stmt import BufferRegion
+from tvm.tirx.script.builder.ir import _call_global, name_meta_class_value
 
 from .entry import _OptionalAnnotation, inline
 from .entry import constexpr as _constexpr_sentinel
 
 
-def slice_buffer_from_region(br: BufferRegion) -> Buffer:
-    """Create a matched DeclBuffer from a BufferRegion.
+@dispatch.register(token="tirx", type_name="enter_token")
+def enter_token(self: Parser) -> dict[str, Any]:
+    context = {"GlobalVar.__call__": GlobalVar.__call__}
+    GlobalVar.__call__ = _call_global
+    return context
+
+
+@dispatch.register(token="tirx", type_name="exit_token")
+def exit_token(self: Parser, context: dict[str, Any]) -> None:
+    GlobalVar.__call__ = context["GlobalVar.__call__"]
+
+
+def slice_buffer_from_region(br: TensorRegion) -> Buffer:
+    """Create a matched DeclBuffer from a TensorRegion.
 
     Slices the layout (if present) or computes elem_offset for the sub-region,
     producing a DeclBuffer that views the same underlying data.
     """
     import functools  # pylint: disable=import-outside-toplevel
 
-    buf = br.buffer
+    if not is_buffer_var(br.source):
+        raise TypeError("A matched buffer region requires a BufferVar source")
+    buf = br.source
     region = br.region
     new_shape = [r.extent for r in region]
     sliced_layout = None
@@ -179,7 +192,7 @@ def _convert_tuple_literal(self: Parser, node: doc.expr, value: Any) -> Any:
         if isinstance(field, Expr):
             return field
         if isinstance(field, str):
-            return tvm.tirx.StringImm(field)
+            return tvm.ir.StringImm(field)
         if isinstance(field, bool | int | float):
             return tvm.tirx.const(field)
         self.report_error(
@@ -244,7 +257,7 @@ def bind_assign_value(
         for i, v in enumerate(value):
             bind_assign_value(self, node, f"{var_name}_{i}", v)
         return value
-    elif isinstance(value, BufferRegion):
+    elif isinstance(value, TensorRegion):
         return value
     elif isinstance(value, Frame):
         value.add_callback(partial(value.__exit__, None, None, None))
@@ -271,7 +284,7 @@ def bind_assign_value(
         if not tvm.ir.is_prim_expr(value) and not isinstance(value, Expr):
             # Python scalar (int/float/bool) -> const prim expr
             value = tvm.tirx.const(value)
-        if isinstance(value, tvm.tirx.StringImm) or not tvm.ir.is_prim_expr(value):
+        if isinstance(value, tvm.ir.StringImm) or not tvm.ir.is_prim_expr(value):
             # StringImm or non-prim-expr (e.g. pointer Call): immutable Bind var
             ann_var = tvm.tirx.Var(var_name, value.ty)
             IRBuilder.name(var_name, ann_var)
@@ -790,7 +803,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
         rhs = _convert_tuple_literal(self, node.value, rhs)
         if not isinstance(rhs, Expr):
             if isinstance(rhs, str):
-                rhs = tvm.tirx.StringImm(rhs)
+                rhs = tvm.ir.StringImm(rhs)
             else:
                 rhs = tvm.tirx.const(rhs)
         if raw_ann.type_spec is not None:
@@ -1032,14 +1045,8 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     elif isinstance(res, int | bool):
         T.evaluate(tvm.tirx.const(res))
     elif isinstance(res, tvm.ir.Call) and not tvm.ir.is_prim_expr(res):
-        if isinstance(res.op, tvm.ir.GlobalVar) and res.ty.is_missing():
-            # GlobalVar calls with a missing return type are ambiguous, as each IR has a
-            # different function Call representation. Convert to the TIR representation.
-            T.evaluate(tvm.tirx.call_tir(res.op, *res.args))
-        else:
-            # Pointer-valued TIR calls are general Expr rather than Expr,
-            # but are still valid standalone Evaluate statements.
-            T.evaluate(res)
+        # Non-primitive calls are still valid standalone Evaluate statements.
+        T.evaluate(res)
     elif isinstance(res, str):
         # Ignore docstrings
         pass
@@ -1120,7 +1127,7 @@ def visit_assert(self: Parser, node: doc.Assert) -> None:
                 f"got {len(msg)} elements",
             )
         kind_str, parts = msg
-        if isinstance(kind_str, tvm.tirx.StringImm):
+        if isinstance(kind_str, tvm.ir.StringImm):
             kind_str = kind_str.value
         if not isinstance(kind_str, str):
             self.report_error(
@@ -1132,7 +1139,7 @@ def visit_assert(self: Parser, node: doc.Assert) -> None:
         message = parts
 
     if isinstance(message, list | tuple):
-        message = [p.value if isinstance(p, tvm.tirx.StringImm) else str(p) for p in message]
+        message = [p.value if isinstance(p, tvm.ir.StringImm) else str(p) for p in message]
 
     frame = T.Assert(cond, message, error_kind=kind)
     frame.add_callback(partial(frame.__exit__, None, None, None))

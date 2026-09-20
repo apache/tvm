@@ -23,6 +23,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/backend.h>
 #include <tvm/relax/expr_functor.h>
@@ -39,6 +40,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 /*! \brief A slot used in PrimExpr lowering. */
 struct PrimExprSlot {
@@ -74,7 +76,7 @@ struct MatchShapeTodoItem {
 
 /*! \brief Slot map used for shape lowering. */
 using PrimExprSlotMap =
-    std::unordered_map<PrimExpr, PrimExprSlot*, ffi::StructuralHash, tirx::ExprDeepEqual>;
+    std::unordered_map<PrimExpr, PrimExprSlot*, ffi::StructuralHash, prim::ExprDeepEqual>;
 
 using LiveVarSet = std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
@@ -136,7 +138,7 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
   void VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     if (collect_scalar_ && !var.as<DataflowVarNode>()) {
-      if (auto prim_var = var.as<tirx::PrimVar>();
+      if (auto prim_var = var.as<PrimVar>();
           prim_var && prim_var.value().ty()->dtype == DLDataType{kDLInt, 64, 1}) {
         HandlePrimExpr(prim_var.value());
       }
@@ -301,7 +303,7 @@ class VMShapeLowerMutator
   Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     if (!var.as<DataflowVarNode>()) {
-      if (auto prim_var = var.as<tirx::PrimVar>(); prim_var && slot_map_.count(*prim_var)) {
+      if (auto prim_var = var.as<PrimVar>(); prim_var && slot_map_.count(*prim_var)) {
         return RewritePrimValue(*prim_var);
       }
     }
@@ -419,7 +421,7 @@ class VMShapeLowerMutator
 
   PrimExprSlot* GetPrimValueSlot(const Var& var) const {
     if (var.as<DataflowVarNode>()) return nullptr;
-    auto prim_var = var.as<tirx::PrimVar>();
+    auto prim_var = var.as<PrimVar>();
     if (!prim_var) return nullptr;
     auto it = slot_map_.find(PrimExpr(*prim_var));
     return it == slot_map_.end() ? nullptr : it->second;
@@ -787,13 +789,23 @@ class VMShapeLowerMutator
   void VisitType_(const AnyTypeNode* op, Expr value, bool always_check, bool dynamic_only,
                   const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {}
 
+  void VisitType_(const StringTypeNode* op, Expr value, bool always_check, bool dynamic_only,
+                  const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
+    if (always_check || !IsBaseOf(StringType(), GetType(value))) {
+      builder_->Emit(Call(Type::Missing(), ExternFunc("vm.builtin.check_string_info"),
+                          {value, GetErrContext(err_ctx)}, Attrs(), {void_ty_}),
+                     "_");
+    }
+  }
+
   void VisitType_(const PrimTypeNode* op, Expr value, bool always_check, bool dynamic_only,
                   const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     // emit runtime check of shape
     if (always_check || !IsBaseOf(PrimType(op->dtype), GetType(value))) {
       // check_shape_info(value, ndim, err_ctx)
       Call call(Type::Missing(), builtin_check_prim_value_info_,
-                {value, DataTypeImm(op->dtype), GetErrContext(err_ctx)}, Attrs(), {void_ty_});
+                {value, GenericConst(op->dtype, AnyType()), GetErrContext(err_ctx)}, Attrs(),
+                {void_ty_});
       builder_->Emit(call, "_");
     }
   }
@@ -828,8 +840,9 @@ class VMShapeLowerMutator
     }
     if (always_check || !IsBaseOf(TensorType(op->dtype, op->ndim), GetType(value))) {
       // check_tensor_info(value, ndim, dtype, err_ctx)
-      Expr dtype_arg = op->IsUnknownDtype() ? Expr(Call(Type::Missing(), null_value_op_, {}))
-                                            : Expr(DataTypeImm(op->dtype.value()->dtype));
+      Expr dtype_arg = op->IsUnknownDtype()
+                           ? Expr(Call(Type::Missing(), null_value_op_, {}))
+                           : Expr(GenericConst(op->dtype.value()->dtype, AnyType()));
       Call call(Type::Missing(), builtin_check_tensor_info_,
                 {value, IntImm::Int64(op->ndim), dtype_arg, GetErrContext(err_ctx)}, Attrs(),
                 {void_ty_});

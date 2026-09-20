@@ -22,7 +22,7 @@ import re
 import pytest
 
 import tvm.testing
-from tvm import ir, tirx
+from tvm import ir, s_tir, tirx
 from tvm.ir import Range
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tirx as T
@@ -208,7 +208,7 @@ with T.sblock("block", no_realize=True):
 def test_match_buffer_region():
     src = tirx.decl_buffer((128, 128), "float32", name="src")
     tgt = tirx.decl_buffer((64, 64), "float32", name="tgt")
-    obj = tirx.MatchBufferRegion(
+    obj = s_tir.MatchBufferRegion(
         tgt,
         tirx.BufferRegion(
             src,
@@ -533,7 +533,7 @@ T.iter_var(a, T.Range(0, 8), "DataPar", "")
 
 
 def test_string_imm():
-    s = tirx.StringImm("str")
+    s = tvm.ir.StringImm("str")
     _assert_print(s, '"str"')
 
 

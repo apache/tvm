@@ -43,8 +43,9 @@ def test_tensor():
     assert d[T] == 1
     load = T[0][0][0].asobject()
     assert isinstance(load, tvm.ir.Call)
-    assert load.op.same_as(T)
-    assert list(load.args) == [0, 0, 0]
+    assert load.op.same_as(tvm.ir.Op.get("te.tensor_load"))
+    assert load.args[0].same_as(T)
+    assert list(load.args[1:]) == [0, 0, 0]
     assert load.ty == T.dtype
     assert load.astype("float16").ty == tvm.ir.PrimType("float16")
 

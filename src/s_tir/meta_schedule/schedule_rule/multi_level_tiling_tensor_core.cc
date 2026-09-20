@@ -20,6 +20,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/meta_schedule/schedule_rule.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/tensor_intrin.h>
 #include <tvm/tirx/op.h>
 
 #include <algorithm>
@@ -31,7 +32,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 using s_tir::GetSBlockVarTypes;
@@ -66,7 +66,7 @@ TensorCoreIntrinGroup TensorCoreIntrinGroup::FromConfig(
     TVM_FFI_CHECK(config.count(key_name), ValueError) << key_name << " is not set.";
     *intrin_name = config.at(key_name);
     // Check the existence of the intrin
-    tirx::TensorIntrin::Get(*intrin_name);
+    TensorIntrin::Get(*intrin_name);
   };
   TensorCoreIntrinGroup intrin_group;
   f_initialize_intrin("init", &intrin_group.init_intrin);
@@ -227,7 +227,7 @@ ffi::Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
     ffi::Optional<s_tir::AutoTensorizeMappingInfo> mapping_info =
         s_tir::GetAutoTensorizeMappingInfo(
             sch->state(), sch->GetSRef(block_rv),
-            tirx::TensorIntrin::Get(intrin_groups[i].compute_intrin).value()->desc);
+            TensorIntrin::Get(intrin_groups[i].compute_intrin).value()->desc);
     if (mapping_info.has_value()) {
       intrin_group_to_mapping_info.emplace(i, mapping_info.value());
     }
@@ -375,7 +375,9 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMATileLoopNest(TensorCoreSta
     if (iter_types[i] == IterVarType::kDataPar) {
       idx = &s_indices_;
       if (spatial_loop_product != -1) {
-        if (const int64_t* extent = s_tir::GetLoopIntExtent(sch->Get(loop).get())) {
+        const auto* extent_imm = sch->Get(loop)->extent.as<IntImmNode>();
+        if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+            extent.has_value()) {
           spatial_loop_product *= *extent;
         } else {
           spatial_loop_product = -1;
@@ -446,10 +448,10 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
 
   // Get the shape of the wmma accumulator
   auto [frag_shape_m, frag_shape_n] = [&]() {
-    tirx::SBlock intrin_block = tirx::TensorIntrin::Get(state->intrin_group.init_intrin)
-                                    .value()
-                                    ->desc->body.as_or_throw<tirx::SBlockRealize>()
-                                    ->block;
+    s_tir::SBlock intrin_block = TensorIntrin::Get(state->intrin_group.init_intrin)
+                                     .value()
+                                     ->desc->body.as_or_throw<s_tir::SBlockRealize>()
+                                     ->block;
     tirx::For loop_m = intrin_block->body.as_or_throw<tirx::For>();
     tirx::For loop_n = loop_m->body.as_or_throw<tirx::For>();
     return std::make_tuple(loop_m->extent, loop_n->extent);
@@ -490,7 +492,10 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
   auto warp_num_frag_n = f_get_inner_tile_product(-1);
 
   Schedule& sch = state->sch;
-  int buffer_ndim = static_cast<int>(sch->Get(state->block_rv)->writes[0]->buffer->shape.size());
+  int buffer_ndim = static_cast<int>(sch->Get(state->block_rv)
+                                         ->writes[0]
+                                         ->source.as_or_throw<tvm::tirx::BufferVar>()
+                                         ->shape.size());
   // The dimension of the buffer should be larger or same as that of the tensor intrin.
   TVM_FFI_ICHECK_GE(buffer_ndim, 2);
   int num_higher_dims = buffer_ndim - 2;
@@ -623,9 +628,10 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
     const s_tir::SBlockRV cache_read = state->read_reuse.at(i);
     // Inline the reindex / padding block
     sch->ComputeInline(sch->GetProducers(cache_read)[0]);
-    const tirx::SBlockNode* cache_read_block = sch->GetSRef(cache_read)->StmtAs<tirx::SBlockNode>();
+    const s_tir::SBlockNode* cache_read_block =
+        sch->GetSRef(cache_read)->StmtAs<s_tir::SBlockNode>();
     tirx::BufferVar cache_read_buffer =
-        s_tir::GetNthAccessBuffer(sch->state(), ffi::GetRef<tirx::SBlock>(cache_read_block), 0,
+        s_tir::GetNthAccessBuffer(sch->state(), ffi::GetRef<s_tir::SBlock>(cache_read_block), 0,
                                   s_tir::BufferIndexType::kWrite);
     const DLDataType dtype = cache_read_buffer->dtype->dtype;
     // Storage alignment is chosen from element storage width; this schedule rule uses scalar
@@ -654,7 +660,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
 
   Schedule& sch = state->sch;
   // Check reduction length after blockize.
-  int64_t reduction_length = 1;
+  ffi::BigInt reduction_length = 1;
   for (int r_index : r_indices_) {
     const ffi::Array<LoopRV>& tiles = state->tiles[r_index];
     for (const LoopRV& tile : tiles) {
@@ -778,9 +784,9 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   tirx::StmtSRef block_sref = state->sch->GetSRef(state->block_rv);
 
   // Add reindex stages
-  const tirx::SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+  const s_tir::SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   // Hold the reference of the block before reindex
-  const tirx::SBlock block_before_reindex = ffi::GetRef<tirx::SBlock>(block);
+  const s_tir::SBlock block_before_reindex = ffi::GetRef<s_tir::SBlock>(block);
   if (block->reads.size() != 2 || block->writes.size() != 1) {
     // only matmul-like computation is allowed
     return std::nullopt;
@@ -799,11 +805,11 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   const tirx::IndexMap& index_map = mapping_info->mappings[0];
 
   // Find the correspondence between block iters and the iters in the index map.
-  std::unordered_map<tirx::PrimVar, tirx::PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<PrimVar, PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       lhs_to_index_map_src;
-  std::unordered_map<tirx::PrimVar, PrimExpr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<PrimVar, PrimExpr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       rhs_to_index_map_tgt;
-  std::unordered_set<tirx::PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> unmapped_index_map_src;
+  std::unordered_set<PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> unmapped_index_map_src;
   TVM_FFI_ICHECK_EQ(mapping_info->lhs_iters.size(), index_map->initial_indices.size());
   for (int i = 0; i < static_cast<int>(mapping_info->lhs_iters.size()); ++i) {
     lhs_to_index_map_src[mapping_info->lhs_iters[i]->var] = index_map->initial_indices[i];
@@ -817,7 +823,7 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
                static_cast<int>(mapping_info->rhs_iters.size());
   TVM_FFI_ICHECK_GE(offset, 0);
   for (int i = 0; i < offset; ++i) {
-    auto var = index_map->final_indices[i].as<tirx::PrimVar>();
+    auto var = index_map->final_indices[i].as<PrimVar>();
     TVM_FFI_ICHECK(var.has_value());
     unmapped_index_map_src.insert(var.value());
   }
@@ -827,21 +833,21 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
 
   auto f_get_sub_index_map = [&](const tirx::BufferVar& lhs_buffer,
                                  const ffi::Array<Range>& lhs_region) {
-    std::vector<tirx::PrimVar> sub_index_map_src;
+    std::vector<PrimVar> sub_index_map_src;
     std::vector<PrimExpr> sub_index_map_tgt;
     const tirx::BufferVar& rhs_buffer = mapping_info->lhs_buffer_map[lhs_buffer];
     for (const Range& range : lhs_region) {
-      TVM_FFI_ICHECK(tirx::is_one(range->extent));
-      auto var = range->min.as<tirx::PrimVar>();
+      TVM_FFI_ICHECK(tvm::prim::is_one(range->extent));
+      auto var = range->min.as<PrimVar>();
       TVM_FFI_ICHECK(var.has_value());
-      const tirx::PrimVar& lhs_representer = lhs_to_index_map_src[var.value()];
+      const PrimVar& lhs_representer = lhs_to_index_map_src[var.value()];
       sub_index_map_src.push_back(lhs_representer);
       if (unmapped_index_map_src.count(lhs_representer)) {
         sub_index_map_tgt.push_back(lhs_representer);
       }
     }
     for (size_t i = 0; i < mapping_info->rhs_buffer_indices[rhs_buffer].size(); ++i) {
-      auto var = mapping_info->rhs_buffer_indices[rhs_buffer][i].as<tirx::PrimVar>();
+      auto var = mapping_info->rhs_buffer_indices[rhs_buffer][i].as<PrimVar>();
       TVM_FFI_ICHECK(var.has_value());
       sub_index_map_tgt.push_back(rhs_to_index_map_tgt[var.value()]);
     }
@@ -862,8 +868,8 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     visited_buffers.insert(lhs_buffer);
     // Refresh block pointer (block sref is not invalidated)
     block = TVM_SREF_TO_SBLOCK(block_sref);
-    const tirx::BufferRegion& reindexed_buffer_region = s_tir::GetNthAccessBufferRegion(
-        state->sch->state(), ffi::GetRef<tirx::SBlock>(block), buffer_index, index_type);
+    const tvm::TensorRegion& reindexed_buffer_region = s_tir::GetNthAccessBufferRegion(
+        state->sch->state(), ffi::GetRef<s_tir::SBlock>(block), buffer_index, index_type);
     auto sub_index_map = f_get_sub_index_map(lhs_buffer, reindexed_buffer_region->region);
     buffer_sub_index_map.Set(lhs_buffer, sub_index_map);
     state->sch->TransformLayout(state->block_rv, buffer_index, index_type, sub_index_map,

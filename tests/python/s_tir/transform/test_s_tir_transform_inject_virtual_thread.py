@@ -241,7 +241,7 @@ def test_vthread_rewrites_masked_accesses():
     tvm_ffi.structural_walk(after.body, visitor)
     assert len(masked_calls) == 4
     assert all(list(call.args[0].ty.shape) == [8] for call in masked_calls)
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
     assert sorted(int(analyzer.simplify(call.args[-2].base)) for call in masked_calls) == [
         0,
         0,

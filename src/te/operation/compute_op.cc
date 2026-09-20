@@ -22,12 +22,12 @@
  * \file compute_op.cc
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
@@ -205,13 +205,23 @@ namespace {
  *      must be Reduce as well; and their inputs should have the
  *      same attribute except value_index.
  */
-class ComputeVerifier final : protected tirx::ExprVisitor {
+class ComputeVerifier final : public tirx::StmtExprVisitor {
  public:
   /// Special member functions
   //@{
   explicit ComputeVerifier(const ComputeOpNode* compute)
-      : compute_(compute), reduce_(compute->body[0].as<te::ReduceNode>()) {}
-  virtual ~ComputeVerifier() = default;
+      : tirx::StmtExprVisitor([] {
+          static const VTable table = [] {
+            VTable table;
+            ComputeVerifier::InitVTable(&table);
+            table.Finalize();
+            return table;
+          }();
+          return &table;
+        }()),
+        compute_(compute),
+        reduce_(compute->body[0].as<te::ReduceNode>()) {}
+  ~ComputeVerifier() = default;
   ComputeVerifier(const ComputeVerifier&) = delete;
   ComputeVerifier(ComputeVerifier&&) = delete;
   ComputeVerifier& operator=(const ComputeVerifier&) = delete;
@@ -232,36 +242,42 @@ class ComputeVerifier final : protected tirx::ExprVisitor {
       }
 
       level_ = 0;
-      ExprVisitor::VisitExpr(e);
+      tirx::StmtExprVisitor::Visit(e);
     }
+  }
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
+    if (!value.as<tvm::ExprNode>()) return tirx::StmtExprVisitor::Visit(value);
+    ++level_;
+    auto interrupt = tirx::StmtExprVisitor::Visit(value);
+    --level_;
+    return interrupt;
+  }
+
+  using tirx::StmtExprVisitor::Visit_;
+  ffi::Optional<VisitInterrupt> Visit_(const te::ReduceNode* reduce) {
+    TVM_FFI_ICHECK(0 == level_) << "Reductions are only allowed at the top level of compute. "
+                                << "Please create another tensor for further composition.";
+    for (const PrimExpr& expr : reduce->combiner->result) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(expr));
+    }
+    for (const PrimExpr& expr : reduce->combiner->identity_element) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(expr));
+    }
+    for (const PrimExpr& expr : reduce->source) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(expr));
+    }
+    for (const PrimExpr& expr : reduce->init) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(expr));
+    }
+    return Visit(reduce->condition);
   }
 
  protected:
-  /// Visitor implementation
-  //@{
-  void VisitExpr(const Expr& n) final {
-    ++level_;
-    ExprVisitor::VisitExpr(n);
-    --level_;
+  static void InitVTable(VTable* table) {
+    tirx::StmtExprVisitor::InitVTable(table);
+    SetDispatch<ComputeVerifier, te::ReduceNode>(table);
   }
-
-  void VisitExpr_(const OpaqueExprNode* op) final {
-    const auto* reduce =
-        op->IsInstance<te::ReduceNode>() ? static_cast<const te::ReduceNode*>(op) : nullptr;
-    if (reduce == nullptr) {
-      ExprVisitor::VisitExpr_(op);
-      return;
-    }
-
-    TVM_FFI_ICHECK(0 == level_) << "Reductions are only allowed at the top level of compute. "
-                                << "Please create another tensor for further composition.";
-    for (const PrimExpr& expr : reduce->combiner->result) this->VisitExpr(expr);
-    for (const PrimExpr& expr : reduce->combiner->identity_element) this->VisitExpr(expr);
-    for (const PrimExpr& expr : reduce->source) this->VisitExpr(expr);
-    for (const PrimExpr& expr : reduce->init) this->VisitExpr(expr);
-    this->VisitExpr(reduce->condition);
-  }
-  //@}
 
  private:
   const ComputeOpNode* compute_{nullptr};  ///< ComputeOpNode to verify
@@ -272,8 +288,7 @@ class ComputeVerifier final : protected tirx::ExprVisitor {
 
 /// Verify if ComputeOp is valid with respect to Reduce operations.
 static void VerifyComputeOp(const ComputeOpNode* op) {
-  ComputeVerifier v(op);
-  v.Run();
+  ffi::make_object<ComputeVerifier>(op)->Run();
 }
 
 }  // namespace te

@@ -24,11 +24,11 @@
 #ifndef TVM_RELAX_BLOCK_BUILDER_H_
 #define TVM_RELAX_BLOCK_BUILDER_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/base.h>
+#include <tvm/sym/analyzer.h>
 
 namespace tvm {
 namespace relax {
@@ -248,7 +248,7 @@ class BlockBuilderNode : public ffi::Object {
    * \brief Get the analyzer of the BlockBuilder.
    * \return The BlockBuilder's arithmetic analyzer.
    */
-  virtual arith::Analyzer GetAnalyzer() = 0;
+  virtual sym::Analyzer GetAnalyzer() = 0;
 
   static constexpr const bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO("relax.BlockBuilder", BlockBuilderNode, ffi::Object);

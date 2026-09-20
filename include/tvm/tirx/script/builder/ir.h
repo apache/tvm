@@ -28,6 +28,7 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/script/builder/frame.h>
 #include <tvm/tirx/tile_primitive.h>
+#include <tvm/tirx/type.h>
 
 namespace tvm {
 namespace script {
@@ -124,7 +125,7 @@ BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
 /*!
  * \brief The block declaration statement.
  * \param name The name of the block.
- * \param no_realize The flag whether to construct SBlockRealize or SBlock.
+ * \param no_realize The flag whether to construct s_tir::SBlockRealize or s_tir::SBlock.
  * \return The SBlockFrame.
  */
 SBlockFrame Block(ffi::String name, bool no_realize = false, ffi::String exec_scope = "");
@@ -370,7 +371,7 @@ Var Bind(Expr value, ffi::Optional<Type> type_annotation = std::nullopt,
  * \param value The value of the attribute.
  * \return The result AttrFrame.
  */
-AttrFrame Attr(ffi::Any node, ffi::String attr_key, PrimExpr value);
+AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value);
 
 /*!
  * \brief Mark the device-region entry within the enclosing PrimFunc body.
@@ -524,12 +525,12 @@ inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
   return tvm::tirx::Var("", type_annotation);
 }
 
-inline Var TensorMap() { return tvm::tirx::Var("", PointerType(TensorMapType())); }
+inline Var TensorMap() { return tvm::tirx::Var("", PointerType(tvm::tirx::TensorMapType())); }
 
 #define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                      \
   inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {        \
     PrimType dtype = DType;                                                      \
-    return expr.has_value() ? tvm::cast(dtype, expr.value())                     \
+    return expr.has_value() ? tvm::prim::cast(dtype, expr.value())               \
                             : tvm::tirx::Var("", dtype).as_or_throw<PrimExpr>(); \
   }
 

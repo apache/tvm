@@ -125,62 +125,6 @@ class PrimFunc : public BaseFunc {
 };
 
 /*!
- * \brief Tensor intrinsics for tensorization
- */
-class TensorIntrinNode : public ffi::Object {
- public:
-  /*! \brief The function to describe the computation. */
-  PrimFunc desc;
-  /*! \brief The function of the implementation for the execution. */
-  PrimFunc impl;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TensorIntrinNode>()
-        .def_ro("desc", &TensorIntrinNode::desc)
-        .def_ro("impl", &TensorIntrinNode::impl);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TensorIntrin", TensorIntrinNode, ffi::Object);
-};
-
-/*!
- * \brief Managed reference to TensorIntrinNode.
- */
-class TensorIntrin : public ffi::ObjectRef {
- public:
-  /*!
-   * \brief Constructor
-   * \param desc The function to describe the computation.
-   * \param impl The function of the implementation for the execution.
-   */
-  TVM_DLL explicit TensorIntrin(PrimFunc desc, PrimFunc impl);
-
-  /*!
-   * \brief Create and register a TensorIntrin. After registration, the TensorIntrin can be looked
-   * up with its name.
-   * \param name The name of the TensorIntrin to register
-   * \param intrin The TensorIntrin to register.
-   * \param override Whether override existing intrinsic.
-   * \throws This method throws an exception if the TensorIntrin with the specified name already
-   *         exists.
-   */
-  TVM_DLL static void Register(ffi::String name, TensorIntrin intrin, bool override = false);
-
-  /*!
-   * \brief Look up TensorIntrin by name. Raises an exception if not found.
-   * \param name The name of the TensorIntrin.
-   * \param allow_missing Whether to allow missing tensor intrin. If false, an exception is raised
-   *    if the tensor intrin is not found.
-   * \return The TensorIntrin with the specified name.
-   * \throws This method throws an exception if the TensorIntrin does not exist and allow_missing is
-   * false.
-   */
-  TVM_DLL static ffi::Optional<TensorIntrin> Get(ffi::String name, bool allow_missing = false);
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorIntrin, ffi::ObjectRef, TensorIntrinNode);
-};
-
-/*!
  * \brief Specialize parameters of PrimFunc.
  * \param func The PrimFunc to be specialized.
  * \param param_map The mapping from function params to the instance.

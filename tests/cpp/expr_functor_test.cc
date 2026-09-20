@@ -52,8 +52,8 @@ class Collect : public ExprVisitor {
  public:
   using ExprVisitor::Visit_;
   std::vector<int64_t> values;
-  Expected<ffi::Optional<VisitInterrupt>> Visit_(const IntImmNode* node) override {
-    values.push_back(node->value);
+  ffi::Optional<VisitInterrupt> Visit_(const IntImmNode* node) override {
+    values.push_back(node->value.as<int64_t>().value());
     return std::nullopt;
   }
 };
@@ -72,9 +72,8 @@ TEST(ExprVisitor, StructuralFallback) {
 class Rewrite : public ExprMutator {
  public:
   using ExprMutator::Mutate_;
-  Expected<UnchangedOr<ffi::Any>> Mutate_(const IntImmNode* node,
-                                          InplaceMode inplace_mode) override {
-    return ffi::Any(IntImm::Int32(node->value + 1));
+  UnchangedOr<PrimExpr> Mutate_(const IntImmNode* node, InplaceMode inplace_mode) override {
+    return IntImm::Int32(node->value + 1);
   }
 };
 
@@ -90,6 +89,29 @@ TEST(ExprMutator, StructuralFallback) {
   EXPECT_EQ(changed->right.as<IntImmNode>()->value, 3);
   EXPECT_EQ(pair->left.as<IntImmNode>()->value, 1);
   EXPECT_EQ(pair->right.as<IntImmNode>()->value, 2);
+}
+
+class ThrowNativeError : public ExprMutator {
+ public:
+  using ExprMutator::Mutate_;
+  ffi::Error error{"ValueError", "native mutation error", ""};
+  UnchangedOr<PrimExpr> Mutate_(const IntImmNode*, InplaceMode) override { throw error; }
+};
+
+TEST(ExprMutator, NativeErrorContextThroughStructuralFallback) {
+  auto mutator = ffi::make_object<ThrowNativeError>();
+  PrimExpr sum = prim::Add(IntImm::Int32(1), IntImm::Int32(2));
+  PairExpr pair(sum, IntImm::Int32(3));
+  auto result = mutator->MutateExpected(pair);
+  ASSERT_TRUE(result.is_err());
+  EXPECT_TRUE(result.error().same_as(mutator->error));
+  auto context = ffi::VisitErrorContext::TryGetFromError(result.error());
+  ASSERT_TRUE(context.has_value());
+  const auto& pattern = context.value()->reverse_visit_pattern;
+  ASSERT_EQ(pattern.size(), 3);
+  EXPECT_TRUE(pattern[0].same_as(sum.as<prim::AddNode>()->a));
+  EXPECT_TRUE(pattern[1].same_as(sum));
+  EXPECT_TRUE(pattern[2].same_as(pair));
 }
 
 }  // namespace

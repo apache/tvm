@@ -140,7 +140,7 @@ def test_multiply():
 @requires_coreml_runtime
 def test_matmul():
     x = relax.Var("x", relax.TensorType([8, 10], "float32"))
-    y = relax.Constant(tvm.runtime.tensor(np.random.rand(10, 8).astype("float32"), dev))
+    y = relax.const(tvm.runtime.tensor(np.random.rand(10, 8).astype("float32"), dev))
     bb = relax.BlockBuilder()
     with bb.function("main", [x]):
         with bb.dataflow():

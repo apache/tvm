@@ -97,7 +97,7 @@ def test_tir_op_call_undef():
 def test_tir_op_call_likely():
     x = tirx.Var("x", ty="int32")
     expr = tirx.likely(cond=x)
-    assert expr.op.name == "ir.prim.likely"
+    assert expr.op.name == "prim.likely"
 
 
 def test_tir_op_tvm_thread_allreduce():
@@ -232,7 +232,7 @@ def test_op_ptx_cp_async():
         assert access_ptr.op.name == "tirx.tvm_access_ptr"
         assert access_ptr.args[1].op.name == "tirx.buffer_data"
         assert isinstance(access_ptr.args[1].args[0], tirx.Var)
-        simplified_offset = tvm.arith.Analyzer().simplify(access_ptr.args[2])
+        simplified_offset = tvm.sym.Analyzer().simplify(access_ptr.args[2])
         assert int(simplified_offset) == expected_offset
 
 
@@ -269,27 +269,27 @@ def test_tir_op_shift_left():
     x = tirx.Var("x", ty="int32")
     y = tirx.Var("x", ty="int32")
     expr = tirx.shift_left(x, y)
-    assert expr.op.name == "ir.prim.shift_left"
+    assert isinstance(expr, tirx.LShift)
 
 
 def test_tir_op_shift_right():
     x = tirx.Var("x", ty="int32")
     y = tirx.Var("x", ty="int32")
     expr = tirx.shift_right(x, y)
-    assert expr.op.name == "ir.prim.shift_right"
+    assert isinstance(expr, tirx.RShift)
 
 
 def test_tir_op_bitwise():
     x = tirx.Var("x", ty="int32")
     y = tirx.Var("y", ty="int32")
     expr = tirx.bitwise_and(x, y)
-    assert expr.op.name == "ir.prim.bitwise_and"
+    assert isinstance(expr, tirx.BitwiseAnd)
     expr = tirx.bitwise_or(x, y)
-    assert expr.op.name == "ir.prim.bitwise_or"
+    assert isinstance(expr, tirx.BitwiseOr)
     expr = tirx.bitwise_not(x)
-    assert expr.op.name == "ir.prim.bitwise_not"
+    assert isinstance(expr, tirx.BitwiseNot)
     expr = tirx.bitwise_xor(x, y)
-    assert expr.op.name == "ir.prim.bitwise_xor"
+    assert isinstance(expr, tirx.BitwiseXor)
 
 
 def test_tir_op_TVMBackendAllocWorkspace():

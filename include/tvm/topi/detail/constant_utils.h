@@ -24,11 +24,10 @@
 #ifndef TVM_TOPI_DETAIL_CONSTANT_UTILS_H_
 #define TVM_TOPI_DETAIL_CONSTANT_UTILS_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/analysis.h>
 
 #include <string>
 #include <vector>
@@ -74,7 +73,7 @@ inline bool IsConstIntArray(ffi::Array<PrimExpr> array) {
  */
 inline int64_t GetConstInt(PrimExpr expr) {
   if (expr->IsInstance<tvm::IntImmNode>()) {
-    return expr.as<tvm::IntImmNode>()->value;
+    return static_cast<int64_t>(expr.as<tvm::IntImmNode>()->value);
   }
   LOG(ERROR) << "expr must be a constant integer";
   return -1;
@@ -130,10 +129,10 @@ inline std::vector<int64_t> GetConstInt64Values(ffi::Array<PrimExpr> exprs,
  * \return result True if both expressions are equal, else false
  */
 inline bool EqualCheck(PrimExpr lhs, PrimExpr rhs) {
-  tvm::tirx::ExprDeepEqual expr_equal;
+  tvm::prim::ExprDeepEqual expr_equal;
   bool result = expr_equal(lhs, rhs);
   if (!result) {
-    PrimExpr t = tvm::arith::Analyzer()->Simplify(lhs - rhs);
+    PrimExpr t = tvm::sym::Analyzer()->Simplify(lhs - rhs);
     if (const IntImmNode* i = t.as<IntImmNode>()) {
       result = i->value == 0;
     }

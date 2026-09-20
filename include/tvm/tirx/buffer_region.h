@@ -45,34 +45,12 @@ class BufferRegionType : public Type {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BufferRegionType, Type, BufferRegionTypeNode);
 };
 
-/*! \brief Representing a region of multi-dimensional buffer access. */
-class BufferRegionNode : public ExprNode {
- public:
-  BufferVar buffer;
-  ffi::Array<Range> region;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BufferRegionNode>()
-        .def_ro("buffer", &BufferRegionNode::buffer, refl::AttachFieldFlag::SEqHashDefPattern())
-        .def_ro("region", &BufferRegionNode::region);
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferRegion", BufferRegionNode, ExprNode);
-};
-
-/*! \brief Managed reference to BufferRegionNode. */
-class BufferRegion : public Expr {
- public:
-  TVM_DLL explicit BufferRegion(BufferVar buffer, ffi::Array<Range> region, Span span = Span());
-
-  TVM_DLL static BufferRegion FullRegion(BufferVar buffer);
-  TVM_DLL static BufferRegion FromPoint(BufferVar buffer, ffi::Array<PrimExpr> indices);
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferRegion, Expr, BufferRegionNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRegionNode);
-};
+/*! \brief Construct a region with buffer rank validation and BufferRegionType. */
+TVM_DLL TensorRegion BufferRegion(BufferVar buffer, ffi::Array<Range> region, Span span = Span());
+/*! \brief Select the entire buffer. */
+TVM_DLL TensorRegion FullBufferRegion(BufferVar buffer);
+/*! \brief Construct unit or vector-lane ranges from point indices. */
+TVM_DLL TensorRegion BufferRegionFromPoint(BufferVar buffer, ffi::Array<PrimExpr> indices);
 
 }  // namespace tirx
 }  // namespace tvm

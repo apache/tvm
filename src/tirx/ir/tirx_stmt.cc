@@ -43,6 +43,14 @@ TilePrimitiveCall::TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
   static const auto& category_map = Op::GetAttrMap<TIRxOpCategory>("TIRxOpCategory");
   TVM_FFI_ICHECK(category_map.get(op, ffi::String("")) == "tile_primitive")
       << "Only tile primitive ops can be used in tirx::TilePrimitiveCall";
+  ffi::StructuralVisit(args,
+                       [](const TensorRegionNode* region,
+                          ffi::StructuralVisitorObj*) -> ffi::Optional<ffi::VisitInterrupt> {
+                         const auto buffer = region->source.as_or_throw<BufferVar>();
+                         TVM_FFI_ICHECK_EQ(buffer->shape.size(), region->region.size())
+                             << "Tile region must match its buffer rank";
+                         return std::nullopt;
+                       });
   ffi::ObjectPtr<TilePrimitiveCallNode> n = ffi::make_object<TilePrimitiveCallNode>(
       std::move(op), std::move(args), std::move(workspace), std::move(config), std::move(dispatch),
       std::move(scope));

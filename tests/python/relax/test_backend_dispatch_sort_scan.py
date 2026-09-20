@@ -567,7 +567,7 @@ def test_dispatch_cumsum_webgpu_axes_and_dtypes(
 ):
     """WebGPU dispatch collapses arbitrary-rank scans to the appropriate kernel."""
 
-    vdevice = tvm.ir.VDevice("webgpu", 0)
+    vdevice = tvm.relax.VDevice("webgpu", 0)
     x = relax.Var("x", relax.TensorType(shape, in_dtype, vdevice=vdevice))
     bb = relax.BlockBuilder()
     with bb.function("main", (x,)):

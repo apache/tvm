@@ -25,7 +25,8 @@ from tvm_ffi import register_object as _register_object
 from tvm.error import register_error
 from tvm.ir import Expr, GlobalVar, IRModule, is_prim_expr
 from tvm.runtime import DataTypeCode, Object
-from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, SBlock, is_buffer_var
+from tvm.s_tir import SBlock
+from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, is_buffer_var
 from tvm.tirx.function import IndexMap
 
 from . import _ffi_api
@@ -3043,7 +3044,7 @@ class Schedule(Object):
                         )
                     )
 
-            tirx.TensorIntrin.register("test_mma_intrin", mma_desc, mma_intrin)
+            tvm.s_tir.TensorIntrin.register("test_mma_intrin", mma_desc, mma_intrin)
 
         Create the schedule and do tensorize:
 
@@ -3252,9 +3253,9 @@ class Schedule(Object):
 
         def iter_buffers():
             for i, read in enumerate(block_obj.reads):
-                yield "read", i, read.buffer
+                yield "read", i, read.source
             for i, write in enumerate(block_obj.writes):
-                yield "write", i, write.buffer
+                yield "write", i, write.source
 
         if isinstance(buffer, int):
             buffer = (required_buffer_type, buffer)
@@ -3295,7 +3296,7 @@ class Schedule(Object):
                 f"Block {block_name} has only "
                 f"{len(buffer_list)} {buffer_index_type} buffers."
             )
-            buffer_obj = buffer_list[buffer_index].buffer
+            buffer_obj = buffer_list[buffer_index].source
 
         else:
             raise TypeError(f"Invalid type for argument 'buffer': {type(buffer)}")

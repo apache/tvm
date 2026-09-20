@@ -42,11 +42,11 @@ te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::
   // If the value is a constant, it might come as an argument of EmitTE and thus its shape and
   // checked-type might not be properly set. In this case we set the shape and dtype of the returned
   // TE tensor.
-  if (const auto* constant = value.as<ConstantNode>()) {
-    n->dtype = PrimType(constant->data->dtype);
+  if (const auto* constant = value.as<GenericConstNode>()) {
+    n->dtype = PrimType(constant->value.cast<runtime::Tensor>()->dtype);
 
-    int ndim = constant->data->ndim;
-    ffi::Shape shape_tuple = constant->data.Shape();
+    int ndim = constant->value.cast<runtime::Tensor>()->ndim;
+    ffi::Shape shape_tuple = constant->value.cast<runtime::Tensor>().Shape();
     ffi::Array<PrimExpr> shape;
     shape.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {

@@ -22,13 +22,14 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ir/module.h>
+#include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
 
 #include <memory>
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 class ModuleEqualityStructural : public ModuleEquality {
@@ -57,7 +58,7 @@ class ModuleEqualityAnchorBlock : public ModuleEquality {
   size_t Hash(IRModule mod) const {
     auto anchor_block = tirx::FindAnchorBlock(mod);
     if (anchor_block) {
-      return ffi::StructuralHash::Hash(ffi::GetRef<tirx::SBlock>(anchor_block),
+      return ffi::StructuralHash::Hash(ffi::GetRef<s_tir::SBlock>(anchor_block),
                                        /*map_free_vars=*/false,
                                        /*skip_tensor_content=*/true);
     }
@@ -67,8 +68,8 @@ class ModuleEqualityAnchorBlock : public ModuleEquality {
     auto anchor_block_lhs = tirx::FindAnchorBlock(lhs);
     auto anchor_block_rhs = tirx::FindAnchorBlock(rhs);
     if (anchor_block_lhs && anchor_block_rhs) {
-      return tvm::ffi::StructuralEqual::Equal(ffi::GetRef<tirx::SBlock>(anchor_block_lhs),
-                                              ffi::GetRef<tirx::SBlock>(anchor_block_rhs),
+      return tvm::ffi::StructuralEqual::Equal(ffi::GetRef<s_tir::SBlock>(anchor_block_lhs),
+                                              ffi::GetRef<s_tir::SBlock>(anchor_block_rhs),
                                               /*map_free_vars=*/false,
                                               /*skip_tensor_content=*/true);
     }

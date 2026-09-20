@@ -18,7 +18,8 @@
 
 import functools
 
-from tvm.tirx import BufferRegion, is_buffer_var
+from tvm.ir import TensorRegion
+from tvm.tirx import is_buffer_var
 
 from .builder import tirx as _builder
 
@@ -30,10 +31,12 @@ def _get_arg(args, kwargs, index, name):
 
 
 def _require_buffer_arg(op_name, arg_name, value):
-    if not (is_buffer_var(value) or isinstance(value, BufferRegion)):
+    if not (
+        is_buffer_var(value) or (isinstance(value, TensorRegion) and is_buffer_var(value.source))
+    ):
         raise TypeError(
             f"Tx.{op_name} is tile-only and expects `{arg_name}` to be a Buffer "
-            f"or BufferRegion; use T.{op_name} for expression/builtin calls"
+            f"or TensorRegion with a BufferVar source; use T.{op_name} for expression/builtin calls"
         )
 
 

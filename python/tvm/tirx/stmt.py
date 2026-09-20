@@ -33,13 +33,13 @@ from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import Expr, Range, Span, Type
-from tvm.runtime import Object, Scriptable, const
+from tvm.ir import Expr, Range, Span, StringImm, TensorRegion, Type
+from tvm.runtime import Object, Scriptable
 
 from . import _ffi_api
 from .buffer import Buffer
 from .exec_scope import ScopeIdDef
-from .expr import IterVar, StringImm, Var
+from .expr import IterVar, Var
 
 
 @tvm_ffi.register_object("tirx.Stmt")
@@ -608,180 +608,24 @@ class Evaluate(Stmt):
 
 @tvm_ffi.register_object("tirx.BufferRegionType")
 class BufferRegionType(Type):
-    """The structural type of a :class:`BufferRegion` expression."""
+    """The TIRX subscript type of a buffer-backed :class:`tvm.ir.TensorRegion`."""
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(_ffi_api.BufferRegionType)  # type: ignore
 
 
-@tvm_ffi.register_object("tirx.BufferRegion")
-class BufferRegion(Expr, Scriptable):
-    """BufferRegion node.
+def BufferRegion(buffer: Buffer, region: list[Range]) -> TensorRegion:
+    """Construct a buffer-backed tensor region with TIRX subscript semantics.
 
     Parameters
     ----------
     buffer : Buffer
-        The buffer of the buffer region
+        The source buffer.
 
     region : List[Range]
-        The region array of the buffer region
+        The ranges, with one entry for each buffer dimension.
     """
-
-    buffer: Buffer
-    region: list[Range]
-
-    def __init__(self, buffer: Buffer, region: list[Range]) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.BufferRegion, buffer, region)  # type: ignore
-
-
-@tvm_ffi.register_object("tirx.MatchBufferRegion")
-class MatchBufferRegion(Object, Scriptable):
-    """MatchBufferRegion node.
-
-    Parameters
-    ----------
-    buffer : Buffer
-        The target buffer
-
-    source : BufferRegion
-        The region of source buffer
-    """
-
-    buffer: Buffer
-    source: BufferRegion
-
-    def __init__(self, buffer: Buffer, source: BufferRegion) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.MatchBufferRegion,
-            buffer,
-            source,  # type: ignore
-        )
-
-
-@tvm_ffi.register_object("tirx.SBlock")
-class SBlock(Stmt):
-    """SBlock node.
-
-    Parameters
-    ----------
-    iter_vars : List[IterVar]
-        The block Variable.
-
-    reads : List[BufferRegion]
-        The read buffer regions of the block.
-
-    writes: List[BufferRegion]
-        The write buffer regions of the block.
-
-    name_hint: str
-        the name_hint of the block.
-
-    body: Stmt
-        The body of the block.
-
-    init: Optional[Stmt]
-        The init block of the reduction block
-
-    alloc_buffers: Optional[list[Buffer]]
-        The buffer allocations
-
-    match_buffers: Optional[List[MatchBufferRegion]]
-        The subregion buffer match
-
-    annotations: Optional[Mapping[str, Object]]
-        Additional annotation hints.
-
-    span : Optional[Span]
-        The location of this block in the source code.
-    """
-
-    iter_vars: list[IterVar]
-    reads: list[BufferRegion]
-    writes: list[BufferRegion]
-    name_hint: str
-    body: Stmt
-    init: Stmt | None
-    alloc_buffers: list[Buffer]
-    match_buffers: list[MatchBufferRegion]
-    annotations: Mapping[str, Object]
-    span: Span | None
-
-    def __init__(
-        self,
-        iter_vars: list[IterVar],
-        reads: list[BufferRegion],
-        writes: list[BufferRegion],
-        name_hint: str,
-        body: Stmt,
-        init: Stmt | None = None,
-        alloc_buffers: list[Buffer] | None = None,
-        match_buffers: list[MatchBufferRegion] | None = None,
-        annotations: Mapping[str, Object] | None = None,
-        span: Span | None = None,
-    ) -> None:
-        if alloc_buffers is None:
-            alloc_buffers = []
-        if match_buffers is None:
-            match_buffers = []
-        if annotations is None:
-            annotations = {}
-        body = _normalize_legacy_stmt(body)
-        init = _normalize_legacy_stmt(init)
-        self.__init_handle_by_constructor__(
-            _ffi_api.SBlock,  # type: ignore
-            iter_vars,
-            reads,
-            writes,
-            name_hint,
-            body,
-            init,
-            alloc_buffers,
-            match_buffers,
-            annotations,
-            span,
-        )  # type: ignore
-
-
-@tvm_ffi.register_object("tirx.SBlockRealize")
-class SBlockRealize(Stmt):
-    """SBlockRealize node.
-
-    Parameters
-    ----------
-    iter_values : List[Expr]
-        The binding values of the block var.
-
-    predicate : Union[Expr, bool]
-        The predicate of the block.
-
-    block : SBlock
-        The block to realize
-
-    span : Optional[Span]
-        The location of this block_realize in the source code.
-    """
-
-    iter_values: list[Expr]
-    predicate: Expr
-    block: SBlock
-    span: Span | None
-
-    def __init__(
-        self,
-        iter_values: list[Expr],
-        predicate: Expr | bool,
-        block: SBlock,
-        span: Span | None = None,
-    ) -> None:
-        if isinstance(predicate, bool):
-            predicate = const(predicate, "bool")
-        self.__init_handle_by_constructor__(
-            _ffi_api.SBlockRealize,  # type: ignore
-            iter_values,
-            predicate,
-            block,
-            span,
-        )  # type: ignore
+    return _ffi_api.BufferRegion(buffer, region)
 
 
 @tvm_ffi.register_object("tirx.ScopeIdDefStmt")

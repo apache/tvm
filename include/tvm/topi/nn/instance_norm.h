@@ -53,6 +53,7 @@ using namespace tvm::te;
 inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tensor& beta,
                             int channel_axis, const ffi::Array<int64_t>& axis, double epsilon,
                             std::string name = "T_instance_norm", std::string tag = kInjective) {
+  using namespace tvm::prim;
   const auto& data_type = data->dtype;
   const auto& gamma_type = gamma.defined() ? gamma->dtype : data_type;
   const auto& beta_type = beta.defined() ? beta->dtype : data_type;
@@ -125,7 +126,8 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tenso
     channel = indices[channel_axis];
     auto mean = temp_x(non_reduce_indices) / reduce_extent;
     auto var = temp_x2(non_reduce_indices) / reduce_extent - mean * mean;
-    auto instance_norm = (data(indices) - mean) * tvm::rsqrt(var + MakeConst(var.ty(), epsilon));
+    auto instance_norm =
+        (data(indices) - mean) * tvm::prim::rsqrt(var + MakeConst(var.ty(), epsilon));
     if (is_float16) {
       instance_norm = prim::Cast(PrimType::Float(16), instance_norm);
     }

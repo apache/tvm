@@ -49,30 +49,6 @@ namespace prim {
 using IntImmNode = tvm::IntImmNode;
 using FloatImmNode = tvm::FloatImmNode;
 
-/*! \brief ffi::String constants, only used in asserts. */
-class StringImmNode : public ExprNode {
- public:
-  /*! \brief The constant value content. */
-  ffi::String value;
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.prim.StringImm", StringImmNode, ExprNode);
-};
-
-/*!
- * \brief Managed reference to StringImmNode.
- * \sa StringImmNode
- */
-class StringImm : public PrimExpr {
- public:
-  TVM_DLL StringImm(ffi::String value, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StringImm, PrimExpr, StringImmNode);
-  static constexpr bool _type_container_is_exact = true;
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
-};
-
 /*!
  * \brief Cast value from one data type to another.
  * \note The lanes of value should keep fixed.
@@ -85,7 +61,7 @@ class CastNode : public ExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<CastNode>().def_ro("value", &CastNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.prim.Cast", CastNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("prim.Cast", CastNode, ExprNode);
 };
 
 /*!
@@ -123,7 +99,7 @@ class BinaryOpNode : public ExprNode {
 /*! \brief a + b */
 class AddNode : public BinaryOpNode<AddNode> {
  public:
-  static constexpr const char* _type_key = "ir.prim.Add";
+  static constexpr const char* _type_key = "prim.Add";
 };
 
 /*!
@@ -138,10 +114,100 @@ class Add : public PrimExpr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AddNode);
 };
 
+/*! \brief a << b */
+class LShiftNode : public BinaryOpNode<LShiftNode> {
+ public:
+  static constexpr const char* _type_key = "prim.LShift";
+};
+
+/*!
+ * \brief Managed reference to LShiftNode
+ * \sa LShiftNode
+ */
+class LShift : public PrimExpr {
+ public:
+  TVM_DLL LShift(PrimExpr a, PrimExpr b, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LShift, PrimExpr, LShiftNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(LShiftNode);
+};
+
+/*! \brief a >> b */
+class RShiftNode : public BinaryOpNode<RShiftNode> {
+ public:
+  static constexpr const char* _type_key = "prim.RShift";
+};
+
+/*!
+ * \brief Managed reference to RShiftNode
+ * \sa RShiftNode
+ */
+class RShift : public PrimExpr {
+ public:
+  TVM_DLL RShift(PrimExpr a, PrimExpr b, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RShift, PrimExpr, RShiftNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(RShiftNode);
+};
+
+/*! \brief a & b */
+class BitwiseAndNode : public BinaryOpNode<BitwiseAndNode> {
+ public:
+  static constexpr const char* _type_key = "prim.BitwiseAnd";
+};
+
+/*!
+ * \brief Managed reference to BitwiseAndNode
+ * \sa BitwiseAndNode
+ */
+class BitwiseAnd : public PrimExpr {
+ public:
+  TVM_DLL BitwiseAnd(PrimExpr a, PrimExpr b, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BitwiseAnd, PrimExpr, BitwiseAndNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BitwiseAndNode);
+};
+
+/*! \brief a | b */
+class BitwiseOrNode : public BinaryOpNode<BitwiseOrNode> {
+ public:
+  static constexpr const char* _type_key = "prim.BitwiseOr";
+};
+
+/*!
+ * \brief Managed reference to BitwiseOrNode
+ * \sa BitwiseOrNode
+ */
+class BitwiseOr : public PrimExpr {
+ public:
+  TVM_DLL BitwiseOr(PrimExpr a, PrimExpr b, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BitwiseOr, PrimExpr, BitwiseOrNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BitwiseOrNode);
+};
+
+/*! \brief a ^ b */
+class BitwiseXorNode : public BinaryOpNode<BitwiseXorNode> {
+ public:
+  static constexpr const char* _type_key = "prim.BitwiseXor";
+};
+
+/*!
+ * \brief Managed reference to BitwiseXorNode
+ * \sa BitwiseXorNode
+ */
+class BitwiseXor : public PrimExpr {
+ public:
+  TVM_DLL BitwiseXor(PrimExpr a, PrimExpr b, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BitwiseXor, PrimExpr, BitwiseXorNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BitwiseXorNode);
+};
+
 /*! \brief a - b */
 class SubNode : public BinaryOpNode<SubNode> {
  public:
-  static constexpr const char* _type_key = "ir.prim.Sub";
+  static constexpr const char* _type_key = "prim.Sub";
 };
 
 /*!
@@ -160,7 +226,7 @@ class Sub : public PrimExpr {
 /*! \brief a * b */
 class MulNode : public BinaryOpNode<MulNode> {
  public:
-  static constexpr const char* _type_key = "ir.prim.Mul";
+  static constexpr const char* _type_key = "prim.Mul";
 };
 
 /*!
@@ -181,7 +247,7 @@ class Mul : public PrimExpr {
  */
 class DivNode : public BinaryOpNode<DivNode> {
  public:
-  static constexpr const char* _type_key = "ir.prim.Div";
+  static constexpr const char* _type_key = "prim.Div";
 };
 
 /*!
@@ -202,7 +268,7 @@ class Div : public PrimExpr {
  */
 class ModNode : public BinaryOpNode<ModNode> {
  public:
-  static constexpr const char* _type_key = "ir.prim.Mod";
+  static constexpr const char* _type_key = "prim.Mod";
 };
 
 /*!
@@ -220,7 +286,7 @@ class Mod : public PrimExpr {
 /*! \brief Floor division, floor(a/b) */
 class FloorDivNode : public BinaryOpNode<FloorDivNode> {
  public:
-  static constexpr const char* _type_key = "ir.prim.FloorDiv";
+  static constexpr const char* _type_key = "prim.FloorDiv";
 };
 
 /*!
@@ -238,7 +304,7 @@ class FloorDiv : public PrimExpr {
 /*! \brief The remainder of the floordiv */
 class FloorModNode : public BinaryOpNode<FloorModNode> {
  public:
-  static constexpr const char* _type_key = "ir.prim.FloorMod";
+  static constexpr const char* _type_key = "prim.FloorMod";
 };
 
 /*!
@@ -256,7 +322,7 @@ class FloorMod : public PrimExpr {
 /*! \brief min(a, b) */
 class MinNode : public BinaryOpNode<MinNode> {
  public:
-  static constexpr const char* _type_key = "ir.prim.Min";
+  static constexpr const char* _type_key = "prim.Min";
 };
 
 /*!
@@ -274,7 +340,7 @@ class Min : public PrimExpr {
 /*! \brief max(a, b) */
 class MaxNode : public BinaryOpNode<MaxNode> {
  public:
-  static constexpr const char* _type_key = "ir.prim.Max";
+  static constexpr const char* _type_key = "prim.Max";
 };
 
 /*!
@@ -312,7 +378,7 @@ class CmpOpNode : public ExprNode {
 /*! \brief a == b */
 class EQNode : public CmpOpNode<EQNode> {
  public:
-  static constexpr const char* _type_key = "ir.prim.EQ";
+  static constexpr const char* _type_key = "prim.EQ";
 };
 
 /*!
@@ -330,7 +396,7 @@ class EQ : public PrimExpr {
 /*! \brief a != b */
 class NENode : public CmpOpNode<NENode> {
  public:
-  static constexpr const char* _type_key = "ir.prim.NE";
+  static constexpr const char* _type_key = "prim.NE";
 };
 
 /*!
@@ -348,7 +414,7 @@ class NE : public PrimExpr {
 /*! \brief a < b */
 class LTNode : public CmpOpNode<LTNode> {
  public:
-  static constexpr const char* _type_key = "ir.prim.LT";
+  static constexpr const char* _type_key = "prim.LT";
 };
 
 /*!
@@ -366,7 +432,7 @@ class LT : public PrimExpr {
 /*! \brief a <= b */
 struct LENode : public CmpOpNode<LENode> {
  public:
-  static constexpr const char* _type_key = "ir.prim.LE";
+  static constexpr const char* _type_key = "prim.LE";
 };
 
 /*!
@@ -384,7 +450,7 @@ class LE : public PrimExpr {
 /*! \brief a > b */
 class GTNode : public CmpOpNode<GTNode> {
  public:
-  static constexpr const char* _type_key = "ir.prim.GT";
+  static constexpr const char* _type_key = "prim.GT";
 };
 
 /*!
@@ -402,7 +468,7 @@ class GT : public PrimExpr {
 /*! \brief a >= b */
 class GENode : public CmpOpNode<GENode> {
  public:
-  static constexpr const char* _type_key = "ir.prim.GE";
+  static constexpr const char* _type_key = "prim.GE";
 };
 
 /*!
@@ -428,7 +494,7 @@ class AndNode : public ExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AndNode>().def_ro("a", &AndNode::a).def_ro("b", &AndNode::b);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.prim.And", AndNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("prim.And", AndNode, ExprNode);
 };
 
 /*!
@@ -454,7 +520,7 @@ class OrNode : public ExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<OrNode>().def_ro("a", &OrNode::a).def_ro("b", &OrNode::b);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.prim.Or", OrNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("prim.Or", OrNode, ExprNode);
 };
 
 /*!
@@ -478,7 +544,7 @@ class NotNode : public ExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<NotNode>().def_ro("a", &NotNode::a);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.prim.Not", NotNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("prim.Not", NotNode, ExprNode);
 };
 
 /*!
@@ -491,6 +557,30 @@ class Not : public PrimExpr {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Not, PrimExpr, NotNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(NotNode);
+};
+
+/*! \brief ~a */
+class BitwiseNotNode : public ExprNode {
+ public:
+  /*! \brief The input operand. */
+  PrimExpr a;
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BitwiseNotNode>().def_ro("a", &BitwiseNotNode::a);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("prim.BitwiseNot", BitwiseNotNode, ExprNode);
+};
+
+/*!
+ * \brief Managed reference to BitwiseNotNode
+ * \sa BitwiseNotNode
+ */
+class BitwiseNot : public PrimExpr {
+ public:
+  TVM_DLL BitwiseNot(PrimExpr a, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BitwiseNot, PrimExpr, BitwiseNotNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BitwiseNotNode);
 };
 
 /*!
@@ -515,7 +605,7 @@ class SelectNode : public ExprNode {
         .def_ro("true_value", &SelectNode::true_value)
         .def_ro("false_value", &SelectNode::false_value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.prim.Select", SelectNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("prim.Select", SelectNode, ExprNode);
 };
 
 /*!
@@ -549,7 +639,7 @@ class LetNode : public ExprNode {
         .def_ro("value", &LetNode::value)
         .def_ro("body", &LetNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.prim.Let", LetNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("prim.Let", LetNode, ExprNode);
 };
 
 /*!
@@ -580,16 +670,47 @@ inline std::unordered_map<K, V> as_unordered_map(const ffi::Map<K, V>& dmap) {
   }
   return ret;
 }
+
+/*!
+ * \brief Compare two expressions recursively and check if they are equal
+ *        to each other without var remapping.
+ *
+ *  This function does not remap variable bindings, it will not
+ *  return true for (let x = 1 in x + 1) vs (let y = 1 in y + 1), unless x.same_as(y).
+ *
+ *  Use StructuralEqual for such cases.
+ *
+ *  Due to the restriction of not remapping variables, this function can run
+ *  faster than StructuralEqual and can be used as a utility function during arithmetic
+ *  simplifications.
+ *
+ * \sa StructuralEqual
+ */
+struct ExprDeepEqual {
+ public:
+  TVM_DLL bool operator()(const PrimExpr& lhs, const PrimExpr& rhs) const;
+};
+
 }  // namespace prim
 
 namespace ffi {
 
 template <>
-inline constexpr bool object_ref_contains_v<PrimExpr, prim::StringImmNode> = true;
-template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, prim::CastNode> = true;
 template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, prim::AddNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, prim::BitwiseNotNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, prim::BitwiseXorNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, prim::BitwiseOrNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, prim::BitwiseAndNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, prim::RShiftNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, prim::LShiftNode> = true;
 template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, prim::SubNode> = true;
 template <>
@@ -634,16 +755,6 @@ template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, prim::LetNode> = true;
 template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, prim::ShuffleNode> = true;
-template <>
-inline constexpr bool use_default_type_traits_v<tvm::prim::StringImm> = false;
-
-template <>
-struct TypeTraits<tvm::prim::StringImm>
-    : public ObjectRefWithFallbackTraitsBase<tvm::prim::StringImm, ffi::String> {
-  TVM_FFI_INLINE static tvm::prim::StringImm ConvertFallbackValue(ffi::String value) {
-    return tvm::prim::StringImm(value);
-  }
-};
 }  // namespace ffi
 }  // namespace tvm
 

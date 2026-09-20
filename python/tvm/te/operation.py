@@ -23,7 +23,7 @@ from numbers import Integral as _Integral
 
 from tvm_ffi import Array
 
-import tvm.arith._ffi_api
+import tvm.sym._ffi_api
 import tvm.tirx
 import tvm.tirx._ffi_api
 from tvm.ir import is_prim_expr

@@ -21,7 +21,7 @@ from collections.abc import Mapping
 
 import tvm_ffi
 
-from tvm import arith, s_tir, tirx
+from tvm import s_tir, sym, tirx
 from tvm.target import Target
 
 from ..analysis import (
@@ -34,7 +34,7 @@ from ..base import suggest_threads_per_block, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
 
-def _get_reduction_expr(block: tirx.SBlock) -> tirx.Expr | None:
+def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     # Detect and return `Y` in `X[...] = X[...] + Y`
     buffer_store = block.body
     if not isinstance(buffer_store, tirx.BufferStore):
@@ -65,7 +65,7 @@ def _suggest_inner_spatial_tx(s_factor: int | tirx.Expr) -> int:
 
 
 def _get_spatial_domains_in_access_order(
-    block_info: SBlockInfo, access: arith.IterSumExpr
+    block_info: SBlockInfo, access: sym.IterSumExpr
 ) -> list[int | tirx.Expr] | None:
     """Return normalized spatial extents in access order."""
     iter_to_info = {info.var: info for info in block_info.iters}
@@ -151,7 +151,7 @@ class Reduction(GPUScheduleRule):
         ):
             return None
         # Step 2. Normalize the block, merge spatial and reduction iters
-        access = arith.normalize_to_iter_sum(
+        access = sym.normalize_to_iter_sum(
             detect_dominant_read(block_stmt),
             input_iters={i.var: i.dom for i in block_stmt.iter_vars},
         )
@@ -187,7 +187,7 @@ class Reduction(GPUScheduleRule):
         self,
         sch: s_tir.Schedule,
         block_info: SBlockInfo,
-        access: arith.IterSumExpr,
+        access: sym.IterSumExpr,
     ) -> tuple[bool | None, int | None, Mapping[int, int] | None, int | None]:
         if access.base != 0:
             return None, None, None, None

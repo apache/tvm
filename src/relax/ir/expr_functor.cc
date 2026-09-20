@@ -41,7 +41,7 @@
 #define RELAX_VAR_BINDING_DISPATCH_IMPL(Type)                                           \
   Type::VisitBindingVTable Type::InitVisitBindingVTable() {                             \
     VisitBindingVTable vtable;                                                          \
-    RELAX_VISIT_BINDING_DISPATCH(ConstantNode);                                         \
+    RELAX_VISIT_BINDING_DISPATCH(GenericConstNode);                                     \
     RELAX_VISIT_BINDING_DISPATCH(TupleNode);                                            \
     RELAX_VISIT_BINDING_DISPATCH(VarNode);                                              \
     RELAX_VISIT_BINDING_DISPATCH(DataflowVarNode);                                      \
@@ -55,7 +55,6 @@
     RELAX_VISIT_BINDING_DISPATCH(OpNode);                                               \
     RELAX_VISIT_BINDING_DISPATCH(TupleGetItemNode);                                     \
     RELAX_VISIT_BINDING_DISPATCH(StringImmNode);                                        \
-    RELAX_VISIT_BINDING_DISPATCH(DataTypeImmNode);                                      \
     return vtable;                                                                      \
   }                                                                                     \
   void Type::VisitBinding_(const VarBindingNode* binding) {                             \
@@ -85,6 +84,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 // ==================
 // ExprVisitor
@@ -121,9 +121,9 @@ void VisitExprDepTypeFieldIfNeeded(ExprVisitor* visitor, const Type& ty) {
 
 void ExprVisitor::VisitExpr(const Expr& expr) { ExprFunctor::VisitExpr(expr); }
 
-void ExprVisitor::VisitExpr_(const ConstantNode* op) {
+void ExprVisitor::VisitExpr_(const GenericConstNode* op) {
   this->VisitSpan(op->span);
-  // Constant's Type does not depend on Expr.
+  // GenericConst's Type does not depend on Expr.
 }
 
 void ExprVisitor::VisitExpr_(const GlobalVarNode* op) {
@@ -192,6 +192,11 @@ void ExprVisitor::VisitExpr_(const TensorLoadNode* op) {
   }
 
 RELAX_VISIT_TIRX_BINOP(AddNode);
+RELAX_VISIT_TIRX_BINOP(LShiftNode);
+RELAX_VISIT_TIRX_BINOP(RShiftNode);
+RELAX_VISIT_TIRX_BINOP(BitwiseAndNode);
+RELAX_VISIT_TIRX_BINOP(BitwiseOrNode);
+RELAX_VISIT_TIRX_BINOP(BitwiseXorNode);
 RELAX_VISIT_TIRX_BINOP(SubNode);
 RELAX_VISIT_TIRX_BINOP(MulNode);
 RELAX_VISIT_TIRX_BINOP(DivNode);
@@ -218,6 +223,12 @@ void ExprVisitor::VisitExpr_(const prim::CastNode* op) {
 }
 
 void ExprVisitor::VisitExpr_(const prim::NotNode* op) {
+  this->VisitSpan(op->span);
+  this->VisitExpr(op->a);
+  VisitExprDepTypeFieldIfNeeded(this, op->ty);
+}
+
+void ExprVisitor::VisitExpr_(const prim::BitwiseNotNode* op) {
   this->VisitSpan(op->span);
   this->VisitExpr(op->a);
   VisitExprDepTypeFieldIfNeeded(this, op->ty);
@@ -260,8 +271,6 @@ void ExprVisitor::VisitExpr_(const prim::ShuffleNode* op) {
 void ExprVisitor::VisitExpr_(const tvm::IntImmNode* op) { this->VisitSpan(op->span); }
 
 void ExprVisitor::VisitExpr_(const tvm::FloatImmNode* op) { this->VisitSpan(op->span); }
-
-void ExprVisitor::VisitExpr_(const prim::StringImmNode* op) { this->VisitSpan(op->span); }
 
 void ExprVisitor::VisitExpr_(const IfNode* op) {
   this->VisitSpan(op->span);
@@ -312,15 +321,13 @@ void ExprVisitor::VisitExprFallback_(const ExprNode* op) {
 
 void ExprVisitor::VisitExpr_(const StringImmNode* op) { this->VisitSpan(op->span); }
 
-void ExprVisitor::VisitExpr_(const DataTypeImmNode* op) { this->VisitSpan(op->span); }
-
 void ExprVisitor::VisitSpan(const Span& span) {}
 
 void ExprVisitor::VisitTypePrimExprField(const PrimExpr& expr) { this->VisitExpr(expr); }
 
 // implementations of binding visitor dispatch
 RELAX_VAR_BINDING_DISPATCH_IMPL(ExprVisitor);
-RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(ConstantNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(GenericConstNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(TupleNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(VarNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(DataflowVarNode);
@@ -335,7 +342,6 @@ RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(OpNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(TupleGetItemNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(ExprNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(StringImmNode);
-RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(DataTypeImmNode);
 
 void ExprVisitor::VisitBinding_(const MatchCastNode* binding) {
   this->VisitExpr(binding->value);
@@ -443,8 +449,8 @@ Type ExprMutatorBase::DefaultTypeFieldMutator::VisitType_(const FuncTypeNode* op
 
 Expr ExprMutatorBase::VisitExpr(const Expr& expr) { return ExprFunctor::VisitExpr(expr); }
 
-Expr ExprMutatorBase::VisitExpr_(const ConstantNode* op) {
-  // Constant' type won't be affected by Expr/PrimExpr change.
+Expr ExprMutatorBase::VisitExpr_(const GenericConstNode* op) {
+  // GenericConst' type won't be affected by Expr/PrimExpr change.
   return ffi::GetRef<Expr>(op);
 }
 
@@ -550,6 +556,11 @@ Expr ExprMutatorBase::VisitExpr_(const TensorLoadNode* op) {
   }
 
 RELAX_MUTATE_TIRX_BINOP(Add);
+RELAX_MUTATE_TIRX_BINOP(LShift);
+RELAX_MUTATE_TIRX_BINOP(RShift);
+RELAX_MUTATE_TIRX_BINOP(BitwiseAnd);
+RELAX_MUTATE_TIRX_BINOP(BitwiseOr);
+RELAX_MUTATE_TIRX_BINOP(BitwiseXor);
 RELAX_MUTATE_TIRX_BINOP(Sub);
 RELAX_MUTATE_TIRX_BINOP(Mul);
 RELAX_MUTATE_TIRX_BINOP(Div);
@@ -579,6 +590,11 @@ Expr ExprMutatorBase::VisitExpr_(const prim::CastNode* op) {
 Expr ExprMutatorBase::VisitExpr_(const prim::NotNode* op) {
   PrimExpr a = this->VisitExpr(op->a).as_or_throw<PrimExpr>();
   return a.same_as(op->a) ? ffi::GetRef<Expr>(op) : Expr(prim::Not(a, op->span));
+}
+
+Expr ExprMutatorBase::VisitExpr_(const prim::BitwiseNotNode* op) {
+  PrimExpr a = this->VisitExpr(op->a).as_or_throw<PrimExpr>();
+  return a.same_as(op->a) ? ffi::GetRef<Expr>(op) : Expr(prim::BitwiseNot(a, op->span));
 }
 
 Expr ExprMutatorBase::VisitExpr_(const prim::SelectNode* op) {
@@ -626,8 +642,6 @@ Expr ExprMutatorBase::VisitExpr_(const tvm::IntImmNode* op) { return ffi::GetRef
 
 Expr ExprMutatorBase::VisitExpr_(const tvm::FloatImmNode* op) { return ffi::GetRef<Expr>(op); }
 
-Expr ExprMutatorBase::VisitExpr_(const prim::StringImmNode* op) { return ffi::GetRef<Expr>(op); }
-
 Expr ExprMutatorBase::VisitExpr_(const IfNode* op) {
   Expr guard = this->VisitExpr(op->cond);
   Expr true_b = this->VisitExpr(op->true_branch);
@@ -661,8 +675,6 @@ Expr ExprMutatorBase::VisitExprFallback_(const ExprNode* op) {
 }
 
 Expr ExprMutatorBase::VisitExpr_(const StringImmNode* op) { return ffi::GetRef<Expr>(op); }
-
-Expr ExprMutatorBase::VisitExpr_(const DataTypeImmNode* op) { return ffi::GetRef<Expr>(op); }
 
 Expr ExprMutatorBase::VisitExpr_(const ShapeExprNode* op) {
   auto values = op->values.Map(
@@ -832,7 +844,7 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
 }
 
 RELAX_VAR_BINDING_DISPATCH_IMPL(ExprMutator);
-RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(ConstantNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(GenericConstNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(TupleNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(VarNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(DataflowVarNode);
@@ -847,7 +859,6 @@ RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(OpNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(TupleGetItemNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(ExprNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(StringImmNode);
-RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(DataTypeImmNode);
 
 void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
   Var new_var = this->VisitVarDef(binding->var);
@@ -998,7 +1009,7 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<V
   builder_->BeginScope(params);
   // Outer scope only includes TIR variables that can be inferred from
   // the function parameters.
-  With<arith::ConstraintContext> context(builder_->GetAnalyzer(), constraint);
+  With<sym::ConstraintContext> context(builder_->GetAnalyzer(), constraint);
   builder_->BeginInnerScope();
   // Inner scope also includes any TIR variables that are defined by
   // MatchCast nodes, and are internal to the scope.

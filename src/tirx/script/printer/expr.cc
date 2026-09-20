@@ -19,6 +19,7 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
+#include <tvm/tirx/type.h>
 
 #include "./utils.h"
 
@@ -72,7 +73,7 @@ ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IR
                           kwargs_keys, kwargs_values);
         }
       }
-    } else if (ptr_type->element_type->IsInstance<TensorMapTypeNode>()) {
+    } else if (ptr_type->element_type->IsInstance<tirx::TensorMapTypeNode>()) {
       rhs = TIR(d, "TensorMap")->Call({}, {}, {});
     }
   } else {
@@ -151,6 +152,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<prim::BitwiseNot>(
+      "", [](prim::BitwiseNot node, AccessPath p, IRDocsifier d) -> Doc {
+        ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
+        if (a->IsInstance<LiteralDocNode>()) {
+          return TIR(d, "BitwiseNot")->Call({a});
+        }
+        return OperationDoc(OperationDocNode::Kind::kInvert, {a});
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<prim::Not>(
       "", [](prim::Not node, AccessPath p, IRDocsifier d) -> Doc {
         ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
@@ -162,8 +174,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<prim::StringImm>(
-      "", [](prim::StringImm s, AccessPath p, IRDocsifier d) -> Doc {
+  IRDocsifier::vtable().set_dispatch<StringImm>(
+      "", [](StringImm s, AccessPath p, IRDocsifier d) -> Doc {
         if (HasMultipleLines(s->value)) {
           return d->AddMetadata(s);
         } else {
@@ -259,7 +271,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-LambdaDoc PrintIndexMap(const ffi::ObjectRef& map, const ffi::Array<tirx::PrimVar>& vs,
+LambdaDoc PrintIndexMap(const ffi::ObjectRef& map, const ffi::Array<PrimVar>& vs,
                         const AccessPath& vs_p, const ffi::Array<PrimExpr>& es,
                         const AccessPath& es_p, const IRDocsifier& d) {
   With<TIRFrame> f(d, map);
@@ -348,6 +360,16 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
                                 "types, but got "
                              << call->ty;
   };
+  auto get_call_return_type_doc = [&]() -> ExprDoc {
+    if (call->ty.IsMissing()) {
+      return IdDoc("tvm")->Attr("ir")->Attr("Type")->Attr("missing")->Call({});
+    }
+    if (call_prim_type || call->ty.as<PointerTypeNode>()) {
+      return get_call_type_doc(call_p->Attr("ty"));
+    }
+    // Annotation spellings such as None for an empty tuple are not type values.
+    return d->AddMetadata(call->ty);
+  };
   if (call->attrs.defined()) {
     ffi::Array<ExprDoc> call_args;
     int n_args = call->args.size();
@@ -358,7 +380,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     ExprDoc op_doc = call->op.as<Op>()
                          ? LiteralDoc::Str(call->op.as<Op>().value()->name, call_p->Attr("op"))
                          : d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
-    ExprDoc ret_ty_doc = get_call_type_doc(call_p->Attr("ty"));
+    ExprDoc ret_ty_doc = get_call_return_type_doc();
     return TIR(d, "Call")->Call(
         {op_doc, ListDoc(call_args)}, {"attrs", "ret_ty"},
         {d->AsDoc<ExprDoc>(call->attrs, call_p->Attr("attrs")), ret_ty_doc});
@@ -381,7 +403,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     }
     if (name == "call_llvm_pure_intrin" || name == "call_llvm_intrin") {
       int n_args = call->args.size();
-      int64_t id = call->args[0].as<IntImmNode>()->value;
+      int64_t id = static_cast<int64_t>(call->args[0].as<IntImmNode>()->value);
       auto f_llvm_lookup_intrinsic_name =
           tvm::ffi::Function::GetGlobal("target.llvm_get_intrinsic_name");
 
@@ -418,7 +440,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
       // storing multiline source code in metadata (which can't be reparsed).
       ffi::Array<ffi::String> kw_keys;
       ffi::Array<ExprDoc> kw_vals;
-      const auto* src_str = call->args[n_args - 1].as<prim::StringImmNode>();
+      const auto* src_str = call->args[n_args - 1].as<StringImmNode>();
       TVM_FFI_ICHECK(src_str) << "cuda_func_call: last arg (source_code) must be StringImm";
       ExprDoc src = LiteralDoc::Str(src_str->value, call_p->Attr("args")->ArrayItem(n_args - 1));
       kw_keys.push_back("source_code");
@@ -518,6 +540,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                            kFloorDiv);
   TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorMod, prim::FloorModNode, floormod, "FloorMod",
                                            kMod);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LShift, prim::LShiftNode, left_shift, "LShift", kLShift);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(RShift, prim::RShiftNode, right_shift, "RShift",
+                                           kRShift);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(BitwiseAnd, prim::BitwiseAndNode, bitwise_and,
+                                           "BitwiseAnd", kBitAnd);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(BitwiseOr, prim::BitwiseOrNode, bitwise_or, "BitwiseOr",
+                                           kBitOr);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(BitwiseXor, prim::BitwiseXorNode, bitwise_xor,
+                                           "BitwiseXor", kBitXor);
   TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LT, prim::LTNode, less, "LT", kLt);
   TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LE, prim::LENode, less_equal, "LE", kLtE);
   TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(EQ, prim::EQNode, equal, "EQ", kEq);
@@ -536,7 +567,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 #undef TVM_SCRIPT_PRINTER_DEF_BINARY
 
 TVM_SCRIPT_REPR(tirx::IterVarNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(prim::StringImmNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(StringImmNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::CastNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::AddNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::SubNode, ReprPrintTIR);
@@ -545,6 +576,12 @@ TVM_SCRIPT_REPR(prim::DivNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::ModNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::FloorDivNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::FloorModNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::LShiftNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::RShiftNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::BitwiseAndNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::BitwiseOrNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::BitwiseXorNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(prim::BitwiseNotNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::MinNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::MaxNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(prim::LTNode, ReprPrintTIR);

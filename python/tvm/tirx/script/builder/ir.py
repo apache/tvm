@@ -25,6 +25,9 @@ from functools import partial
 from numbers import Integral
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, Union
 
+from tvm.ir import StringImm as _StringImm
+from tvm.ir import TensorRegion
+
 # isort: off
 from typing import Literal
 
@@ -37,15 +40,16 @@ from tvm import tirx as tir
 from tvm.ir import Call, TensorLoad, Type, is_prim_expr
 from tvm.ir import register_op_attr as _register_op_attr
 from tvm.ir.base import deprecated
+from tvm.ir.prim import _ffi_api as _prim_ffi_api
 from tvm.runtime import convert
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.ir import meta_var
+from tvm.script.ir_builder.ir.frame import IRModuleFrame
 from tvm.target import Target
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-from tvm.tirx import Buffer, BufferRegion, Expr, IndexMap, is_buffer_var, type_annotation
-from tvm.tirx import _ffi_api as _tirx_ffi_api
+from tvm.tirx import Buffer, Expr, IndexMap, is_buffer_var, type_annotation
 from tvm.tirx import op as _tir_op
 from tvm.tirx.exec_scope import ExecScope, ScopeIdDef, Var
 
@@ -59,6 +63,10 @@ from tvm.tirx.expr import (
     NE,
     Add,
     And,
+    BitwiseAnd,
+    BitwiseNot,
+    BitwiseOr,
+    BitwiseXor,
     Broadcast,
     BufferLoad,
     CallEffectKind,
@@ -70,6 +78,7 @@ from tvm.tirx.expr import (
     FloorMod,
     IntImm,
     IterVar,
+    LShift,
     Max,
     Min,
     Mod,
@@ -78,9 +87,9 @@ from tvm.tirx.expr import (
     Or,
     Ramp,
     Reduce,
+    RShift,
     Select,
     Shuffle,
-    StringImm,
     Sub,
 )
 from tvm.tirx.layout import (
@@ -99,9 +108,24 @@ from .external_kernel import call_kernel
 # pylint: enable=unused-import
 
 
+def _call_global(func: ir.GlobalVar, *args: Expr) -> Call:
+    """Build a TIRX call using the declared function's exact result type."""
+    if IRBuilder.is_in_scope():
+        for module_frame in reversed(list(IRBuilder.current().frames)):
+            if isinstance(module_frame, IRModuleFrame) and func in module_frame.functions:
+                declaration = module_frame.functions[func]
+                if isinstance(declaration, tir.PrimFunc):
+                    # The Relax-facing signature may erase pointer results to Any.
+                    return Call(func, args, ret_ty=declaration.ret_type)
+                break
+    if isinstance(func.ty, ir.FuncType):
+        return Call(func, args, ret_ty=func.ty.ret_type)
+    return Call(func, args)
+
+
 def cast(value, dtype, span=None):
     """Cast an expression to the requested data type."""
-    return _tirx_ffi_api._cast(dtype, value, span)  # type: ignore[attr-defined]
+    return _prim_ffi_api._cast(dtype, value, span)  # type: ignore[attr-defined]
 
 
 def _current_s_tir() -> bool:
@@ -462,7 +486,7 @@ def Tuple(*fields: Type) -> Type:  # pylint: disable=invalid-name
 
 
 def match_buffer(
-    param: Var | TensorLoad | BufferRegion,
+    param: Var | TensorLoad | TensorRegion,
     shape: list[Expr] | tuple[Expr] | Expr | Integral = None,
     dtype: str = "float32",
     data: Var = None,
@@ -493,7 +517,7 @@ def match_buffer(
 
     Parameters
     ----------
-    param : Union[Var, TensorLoad, BufferRegion]
+    param : Union[Var, TensorLoad, TensorRegion]
         The parameter of the PrimFunc to match.
 
     shape : Union[List[Expr], Tuple[Expr], Expr, Integral]
@@ -528,9 +552,11 @@ def match_buffer(
     res : Buffer
         The matched buffer.
     """
+    if isinstance(param, TensorRegion) and not is_buffer_var(param.source):
+        raise TypeError("match_buffer requires a TensorRegion with a BufferVar source")
     if shape is None:
-        if isinstance(param, BufferRegion):
-            dtype = param.buffer.ty.dtype
+        if isinstance(param, TensorRegion):
+            dtype = param.source.ty.dtype
             shape = [region.extent for region in param.region]
         else:
             raise ValueError("Shape must be specified when binding input param")
@@ -769,12 +795,12 @@ def where(predicate: Expr | int) -> None:
     _ffi_api.Where(predicate)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def reads(*buffer_slices: list[BufferRegion | TensorLoad]) -> None:
+def reads(*buffer_slices: list[TensorRegion | TensorLoad]) -> None:
     """The block buffer region reading statement.
 
     Parameters
     ----------
-    buffer_slices : List[Union[BufferRegion, TensorLoad]]
+    buffer_slices : List[Union[TensorRegion, TensorLoad]]
         The array of buffer regions to read.
     """
     if len(buffer_slices) == 1:
@@ -789,12 +815,12 @@ def reads(*buffer_slices: list[BufferRegion | TensorLoad]) -> None:
     _ffi_api.Reads(buffer_slices)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def writes(*buffer_slices: list[BufferRegion | TensorLoad]) -> None:
+def writes(*buffer_slices: list[TensorRegion | TensorLoad]) -> None:
     """The block buffer region writing statement.
 
     Parameters
     ----------
-    buffer_slices : List[Union[BufferRegion, TensorLoad]]
+    buffer_slices : List[Union[TensorRegion, TensorLoad]]
         The array of buffer regions to write.
     """
     if len(buffer_slices) == 1:
@@ -1025,7 +1051,7 @@ def _as_range(dom: ir.Range | list[Expr]) -> ir.Range:
     if isinstance(dom, ir.Range):
         return dom
     if isinstance(dom, list | tuple):
-        from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
+        from tvm.sym import Analyzer  # pylint: disable=import-outside-toplevel
 
         extent = Analyzer().simplify(dom[1] - dom[0])
         if isinstance(extent, tir.IntImm):
@@ -1601,7 +1627,7 @@ class DtypeConstructor:
 
     def __call__(
         self,
-        expr: "None | Expr | Literal['inf', '-inf', 'nan'] | int | float" = None,
+        expr: "Expr | Literal['inf', '-inf', 'nan'] | int | float | None" = None,
     ) -> "Expr":
         if isinstance(expr, str):
             expr = float(expr)
@@ -2353,7 +2379,7 @@ def buffer_store(
         The indices location to be stored.
 
     """
-    from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
+    from tvm.sym import Analyzer  # pylint: disable=import-outside-toplevel
 
     if not isinstance(indices, list | tuple | ir.Array):
         indices = [indices]
@@ -2387,12 +2413,12 @@ def evaluate(value: Expr) -> None:
         The input expression to evaluate.
     """
     if isinstance(value, str):
-        value = StringImm(value)
+        value = _StringImm(value)
     if isinstance(value, bool):
         value = IntImm("bool", value)
-    if isinstance(value, tir.BufferRegion):
+    if isinstance(value, TensorRegion):
         raise TypeError(
-            "T.evaluate does not accept BufferRegion values; "
+            "T.evaluate does not accept TensorRegion values; "
             "construct a BufferLoad with explicit indices"
         )
     return _ffi_api.Evaluate(value)  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -3554,7 +3580,6 @@ __all__ = [
     "Reduce",
     "FloatImm",
     "IntImm",
-    "StringImm",
     "Cast",
     "Add",
     "Sub",
@@ -3563,6 +3588,12 @@ __all__ = [
     "Mod",
     "FloorDiv",
     "FloorMod",
+    "LShift",
+    "RShift",
+    "BitwiseAnd",
+    "BitwiseOr",
+    "BitwiseXor",
+    "BitwiseNot",
     "Min",
     "Max",
     "EQ",

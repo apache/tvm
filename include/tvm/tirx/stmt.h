@@ -122,7 +122,7 @@ class AttrStmtNode : public StmtNode {
   /*! \brief the type key of the attribute */
   ffi::String attr_key;
   /*! \brief The attribute value, value is well defined at current scope. */
-  PrimExpr value;
+  Expr value;
   /*! \brief The body statement to be executed */
   Stmt body;
 
@@ -143,8 +143,7 @@ class AttrStmtNode : public StmtNode {
  */
 class AttrStmt : public Stmt {
  public:
-  TVM_DLL AttrStmt(ffi::Any node, ffi::String attr_key, PrimExpr value, Stmt body,
-                   Span span = Span());
+  TVM_DLL AttrStmt(ffi::Any node, ffi::String attr_key, Expr value, Stmt body, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttrStmt, Stmt, AttrStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AttrStmtNode);
@@ -164,9 +163,9 @@ class AssertStmtNode : public StmtNode {
   /*! \brief Condition to be checked. */
   PrimExpr condition;
   /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
-  prim::StringImm error_kind;
+  StringImm error_kind;
   /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
-  ffi::Array<prim::StringImm> message_parts;
+  ffi::Array<StringImm> message_parts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -184,8 +183,8 @@ class AssertStmtNode : public StmtNode {
  */
 class AssertStmt : public Stmt {
  public:
-  TVM_DLL AssertStmt(PrimExpr condition, prim::StringImm error_kind,
-                     ffi::Array<prim::StringImm> message_parts, Span span = Span());
+  TVM_DLL AssertStmt(PrimExpr condition, StringImm error_kind, ffi::Array<StringImm> message_parts,
+                     Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AssertStmt, Stmt, AssertStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AssertStmtNode);
@@ -295,7 +294,9 @@ class AllocBuffer : public Stmt {
     int64_t result = 1;
     for (const PrimExpr& extent : (*this)->buffer->shape) {
       if (const auto* int_size = extent.as<IntImmNode>()) {
-        result *= int_size->value;
+        auto product = (result * int_size->value).as<int64_t>();
+        if (!product.has_value()) return std::nullopt;
+        result = *product;
       } else {
         return std::nullopt;
       }
@@ -768,172 +769,6 @@ class Continue : public Stmt {
 };
 
 /*!
- * \brief Match introduces a constraint that the source buffer region can be remapped to the data
- * layout specified by the buffer field. The constraint can be checked in later part of lowering (or
- * optionally during runtime).
- *
- * MatchBufferRegion provides a mechanism to represent data layout and compactness constraints in
- * low-level hardware primitives in the IR and defer the check after the sequence of
- * transformations.
- */
-class MatchBufferRegionNode : public ffi::Object {
- public:
-  /*! \brief The target buffer. */
-  BufferVar buffer;
-  /*! \brief The source buffer region. */
-  BufferRegion source;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<MatchBufferRegionNode>()
-        .def_ro("buffer", &MatchBufferRegionNode::buffer, refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("source", &MatchBufferRegionNode::source);
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.MatchBufferRegion", MatchBufferRegionNode, ffi::Object);
-};
-
-/*!
- * \brief Managed reference to MatchBufferRegionNode.
- * \sa MatchBufferRegionNode
- */
-class MatchBufferRegion : public ffi::ObjectRef {
- public:
-  TVM_DLL explicit MatchBufferRegion(BufferVar buffer, BufferRegion source);
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchBufferRegion, ffi::ObjectRef,
-                                             MatchBufferRegionNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchBufferRegionNode);
-};
-
-/*!
- * \brief A block is a basic schedule unit in TIR.
- * \note SBlock's body is parameterized by iter vars.
- * \code
- *
- *  with T.sblock(name):
- *      v0 = T.axis.S(domain, value0)
- *      v1 = T.axis.R(domain, value1)
- *      ...
- *      T.reads([buffer0[start:end, ...], ...])
- *      T.writes([buffer1[start:end, ...], ...])
- *      T.where(predicate)
- *      buffer2 = T.alloc_buffer(shape, dtype)
- *      buffer3 = T.match_buffer(source_buffer[start:end, ...])
- *      T.attr({attr_key: attr_value, ...})
- *      with T.init():
- *          // init body
- *      // body
- *
- * \endcode
- */
-class SBlockNode : public StmtNode {
- public:
-  /*! \brief The variables of the block. */
-  ffi::Array<IterVar> iter_vars;
-  /*! \brief The read buffer regions of the block. */
-  ffi::Array<BufferRegion> reads;
-  /*! \brief The write buffer regions of the block. */
-  ffi::Array<BufferRegion> writes;
-  /*! \brief The name_hint of the block. */
-  ffi::String name_hint;
-  /*! \brief The buffer allocated in the block. */
-  ffi::Array<BufferVar> alloc_buffers;
-  /*! \brief The match buffer regions. */
-  ffi::Array<MatchBufferRegion> match_buffers;
-  /*! \brief The annotation of the block. */
-  ffi::Map<ffi::String, ffi::Any> annotations;
-  /*!
-   * \brief The init statement is executed during the first iteration of reduction loops in a
-   *  reduction block. The optional init field allows us to represent initialization and
-   *  reduction update in a single block and transform them collectively.
-   *  We also provide primitives to decompose the init into a separate block during scheduling.
-   *  Init field is `std::nullopt` if there is no reduction iter_vars
-   */
-  ffi::Optional<Stmt> init;
-  /*! \brief The body of the block. */
-  Stmt body;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SBlockNode>()
-        .def_ro("iter_vars", &SBlockNode::iter_vars)
-        .def_ro("reads", &SBlockNode::reads)
-        .def_ro("writes", &SBlockNode::writes)
-        .def_ro("name_hint", &SBlockNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("alloc_buffers", &SBlockNode::alloc_buffers,
-                refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("match_buffers", &SBlockNode::match_buffers)
-        .def_ro("annotations", &SBlockNode::annotations)
-        .def_ro("init", &SBlockNode::init)
-        .def_ro("body", &SBlockNode::body);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.SBlock", SBlockNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to SBlockNode.
- * \sa SBlockNode
- */
-class SBlock : public Stmt {
- public:
-  TVM_DLL explicit SBlock(
-      ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
-      ffi::Array<BufferRegion> writes, ffi::String name_hint, Stmt body,
-      ffi::Optional<Stmt> init = std::nullopt,
-      ffi::Array<BufferVar> alloc_buffers = ffi::Array<BufferVar>(),
-      ffi::Array<MatchBufferRegion> match_buffers = ffi::Array<MatchBufferRegion>(),
-      ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
-      Span span = Span());
-
-  TVM_DLL explicit SBlock(ffi::String name_hint, Stmt body,
-                          ffi::Array<BufferVar> alloc_buffers = ffi::Array<BufferVar>(),
-                          Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SBlock, Stmt, SBlockNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockNode);
-};
-
-/*!
- * \brief A block realization node represents execution of the block at the binding values.
- */
-class SBlockRealizeNode : public StmtNode {
- public:
-  /*! \brief The corresponding values of the iter vars. */
-  ffi::Array<PrimExpr> iter_values;
-  /*!
-   * \brief The predicate of the block realization, the block will only be executed when the
-   * predicate is true.
-   */
-  PrimExpr predicate;
-  /*! \brief The block to be realized. */
-  SBlock block;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SBlockRealizeNode>()
-        .def_ro("iter_values", &SBlockRealizeNode::iter_values)
-        .def_ro("predicate", &SBlockRealizeNode::predicate)
-        .def_ro("block", &SBlockRealizeNode::block);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.SBlockRealize", SBlockRealizeNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to BlockRealizeNode
- * \sa BlockRealizeNode
- */
-class SBlockRealize : public Stmt {
- public:
-  TVM_DLL explicit SBlockRealize(ffi::Array<PrimExpr> iter_values, PrimExpr predicate, SBlock block,
-                                 Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SBlockRealize, Stmt, SBlockRealizeNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockRealizeNode);
-};
-
-/*!
  * \brief Standalone statement that declares a scope-id binding (e.g. cta_id,
  * warp_id, lane_id). Carries a ``ScopeIdDef`` value.
  *
@@ -993,6 +828,11 @@ constexpr const char* pragma_unroll_explicit = "pragma_unroll_explicit";
 constexpr const char* storage_alignment = "storage_alignment";
 /*! \brief Mark launching extent of thread, used by device API. */
 constexpr const char* thread_extent = "thread_extent";
+
+/*! \brief Shared execution attributes consumed before and after block lowering. */
+constexpr const char* virtual_thread = "virtual_thread";
+constexpr const char* async_wait_queue_scope = "async_wait_queue_scope";
+constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
 /*! \brief Annotation key on AllocBuffer marking the allocation as volatile. */
 constexpr const char* kVolatile = "tirx.volatile";
 /*! \brief Mark buffer initial addr alignment in bytes */

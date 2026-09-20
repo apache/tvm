@@ -30,6 +30,8 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
+
 namespace intrin {
 using tirx::FLowerIntrinsic;
 
@@ -63,7 +65,7 @@ TVM_REGISTER_OP("tirx.erf")
 TVM_REGISTER_OP("tirx.log")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tirx.log2")
+TVM_REGISTER_OP("prim.log2")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tirx.log10")
@@ -132,7 +134,7 @@ TVM_REGISTER_OP("tirx.sqrt")
 TVM_REGISTER_OP("tirx.floor")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tirx.ceil")
+TVM_REGISTER_OP("prim.ceil")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tirx.round")
@@ -163,7 +165,7 @@ PrimExpr DispatchFastErf(const PrimExpr& e) {
 }
 
 PrimExpr DispatchNumericalStableTanh(const PrimExpr& e) {
-  using tirx::MakeConst;
+  using tvm::prim::MakeConst;
   const CallNode* call = e.as<CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
   PrimExpr x = call->args[0].as_or_throw<PrimExpr>();
@@ -270,7 +272,7 @@ static PrimExpr QMultiplyShift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr left
 
 TVM_REGISTER_OP("tirx.q_multiply_shift")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::MakeConst;
+      using tvm::prim::MakeConst;
 
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
@@ -281,23 +283,22 @@ TVM_REGISTER_OP("tirx.q_multiply_shift")
       PrimExpr s = call->args[3].as_or_throw<PrimExpr>();
 
       // Probe scalar or broadcast constants without rejecting runtime values.
-      auto get_int_value = [](const PrimExpr& node) {
+      auto get_int_imm = [](PrimExpr node) {
         if (const auto* broadcast = node.as<prim::BroadcastNode>()) {
-          return as_const_int(broadcast->value);
+          node = broadcast->value;
         }
-        return as_const_int(node);
+        return node.as<IntImmNode>();
       };
       // Power of 2 is determined by the fixed_point_multiplier == 1 << 30. In case of power of
       // 2, fixed point multiplier will represent a float value of 0.5. In fixed point, this is
       // represented by 1 << 30.
-      const int64_t* y_value = get_int_value(y);
-      const int64_t* q_value = get_int_value(q);
-      const int64_t* s_value = get_int_value(s);
-      if (y_value && *y_value == (1 << 30) && q_value && *q_value == 31 && s_value) {
+      const auto* y_value = get_int_imm(y);
+      const auto* q_value = get_int_imm(q);
+      const auto* s_value = get_int_imm(s);
+      if (y_value && y_value->value == (1 << 30) && q_value && q_value->value == 31 && s_value) {
+        if (s_value->value == 1) return x;
         PrimExpr exp = s - 1;
-        int64_t exp_val = *s_value - 1;
-        if (exp_val == 0) return x;
-        if (exp_val > 0) {
+        if (s_value->value > 1) {
           // A positive exponent only needs a left shift.
           return x << exp;
         } else {

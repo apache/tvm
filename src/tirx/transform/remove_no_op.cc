@@ -21,12 +21,12 @@
  * \file remove_no_op.cc
  * \brief Remove no op from the stmt
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
@@ -35,13 +35,14 @@
 
 #include <unordered_map>
 
-#include "../../arith/const_fold.h"
-#include "../../arith/ir_mutator_with_analyzer.h"
+#include "../../sym/const_fold.h"
 #include "../analysis/var_use_def_analysis.h"
+#include "../ir/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 struct RemoveNoOpConfigNode : public ffi::Object {
   int64_t max_simplification_steps;
@@ -73,49 +74,49 @@ TVM_FFI_STATIC_INIT_BLOCK() { RemoveNoOpConfigNode::RegisterReflection(); }
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.RemoveNoOp", RemoveNoOpConfig);
 
 // Mark the statement of each stage.
-class NoOpRemover : public arith::IRMutatorWithAnalyzer {
+class NoOpRemover : public IRMutatorWithAnalyzer {
  public:
-  static Stmt Apply(Stmt stmt, const arith::Analyzer& analyzer, bool ignore_profiler_call = false) {
-    NoOpRemover visitor(analyzer, ignore_profiler_call);
-    return visitor(std::move(stmt));
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
+  static Stmt Apply(Stmt stmt, const sym::Analyzer& analyzer, bool ignore_profiler_call = false) {
+    auto visitor = ffi::make_object<NoOpRemover>(analyzer, ignore_profiler_call);
+    return visitor->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
   }
 
  private:
   using Parent = IRMutatorWithAnalyzer;
-  using Parent::VisitStmt;
-  using Parent::VisitStmt_;
 
-  NoOpRemover(const arith::Analyzer& analyzer, bool ignore_profiler_call = false)
+ public:
+  NoOpRemover(const sym::Analyzer& analyzer, bool ignore_profiler_call = false)
       : Parent(analyzer), ignore_profiler_call_(ignore_profiler_call) {}
 
-  Stmt VisitStmt_(const BindNode* op) final {
-    // Simply mutate the value and return.
-    // Unused Bind elimination can be done later via a separate two-pass approach.
-    return Parent::VisitStmt_(op);
-  }
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+ private:
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == "pragma_debug_skip_region") {
-      return MakeEvaluate(0);
-    } else if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
+      return MakeEvaluate(IntImm::Int32(0));
+    } else if (op->attr_key == tvm::tirx::attr::async_wait_queue_scope) {
       auto wait_attrs = GetAsyncWaitAttributes(op);
       auto wait_cnt = wait_attrs.second;
-      arith::Analyzer ana;
+      sym::Analyzer ana;
       if (ana->CanProve(wait_cnt < 0)) {
         // A negative wait count can arise if it depends on a loop variable.
         // For example, a wait count 1 - i can be negative after loop unrolling.
         // We assume that such wait is a nop.
         auto inner = op->body.as<AttrStmtNode>();
         TVM_FFI_ICHECK(inner);
-        return Parent::VisitStmt(inner->body);
+        return Parent::Mutate(ffi::AnyView(inner->body),
+                              inner->unique() ? inplace_mode : InplaceMode::kDisallow)
+            .ValueOrUnchanged(inner->body)
+            .as_or_throw<Stmt>();
       }
     }
 
-    Stmt stmt = Parent::VisitStmt_(op);
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<AttrStmtNode>();
     return is_no_op(op->body) ? MakeEvaluate(op->value) : stmt;
   }
-  Stmt VisitStmt_(const IfThenElseNode* op) final {
-    Stmt stmt = Parent::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<IfThenElseNode>();
     // Sometimes the condition can be statically determined,
     // in which the type of the `stmt` will not be IfThenElseNode.
@@ -142,14 +143,14 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
       }
     }
   }
-  Stmt VisitStmt_(const ForNode* op) final {
-    auto extent_range = arith::EvalSet(op->extent, var_range_map_);
-    if (!arith::is_neg_inf(extent_range.max()) && !arith::is_pos_inf(extent_range.max()) &&
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    auto extent_range = sym::EvalSet(op->extent, var_range_map_);
+    if (!sym::is_neg_inf(extent_range.max()) && !sym::is_pos_inf(extent_range.max()) &&
         analyzer_->CanProve(extent_range.max() <= 0)) {
       return Evaluate(0);
     }
-    var_range_map_[op->loop_var.get()] = arith::IntSet::FromMinExtent(op->min, op->extent);
-    Stmt stmt = Parent::VisitStmt_(op);
+    var_range_map_[op->loop_var.get()] = sym::IntSet::FromMinExtent(op->min, op->extent);
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     var_range_map_.erase(op->loop_var.get());
     op = stmt.as<ForNode>();
     if (is_zero(op->extent)) {
@@ -158,11 +159,9 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     return is_no_op(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final { return StmtMutator::VisitStmt_(op); }
-
-  Stmt VisitStmt_(const EvaluateNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     if (HasSideEffect(op->value)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     } else {
       return Evaluate(0);
     }
@@ -176,7 +175,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     return value.as<CallNode>() != nullptr;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     BufferStore store = ffi::GetRef<BufferStore>(op);
 
     // Helper function that returns a statement containing only the
@@ -188,7 +187,8 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
       for (const auto& index : store->indices) {
         statements.push_back(MakeEvaluate(index));
       }
-      return this->VisitStmt(SeqStmt(statements));
+      Stmt input = SeqStmt(statements);
+      return this->Mutate(input, inplace_mode).ValueOrUnchanged(input);
     };
 
     // A write whose destination is known to already contain the
@@ -215,9 +215,6 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     return store;
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final { return StmtMutator::VisitStmt_(op); }
-
- private:
   bool ArrayValueEqual(const ffi::Array<PrimExpr>& a, const ffi::Array<PrimExpr>& b) {
     if (a.size() != b.size()) {
       return false;
@@ -246,7 +243,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     return SideEffect(value) > CallEffectKind::kReadState;
   }
 
-  Stmt MakeEvaluate(PrimExpr value) {
+  Stmt MakeEvaluate(Expr value) {
     if (SideEffect(value) > CallEffectKind::kReadState) {
       return Evaluate(value);
     } else {
@@ -270,11 +267,11 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     }
   }
 
-  std::unordered_map<const VarNode*, arith::IntSet> var_range_map_;
+  std::unordered_map<const VarNode*, sym::IntSet> var_range_map_;
   bool ignore_profiler_call_{false};
 };
 
-Stmt RemoveNoOp(Stmt stmt, const arith::Analyzer& analyzer, bool ignore_profiler_call) {
+Stmt RemoveNoOp(Stmt stmt, const sym::Analyzer& analyzer, bool ignore_profiler_call) {
   return NoOpRemover::Apply(std::move(stmt), analyzer, ignore_profiler_call);
 }
 
@@ -286,7 +283,7 @@ Pass RemoveNoOp() {
         ctx->GetConfig<RemoveNoOpConfig>("tirx.RemoveNoOp")
             .value_or(tvm::transform::PassConfigWithDefaults<RemoveNoOpConfig>());
 
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     analyzer->rewrite_simplify.SetMaximumRewriteSteps(config->max_simplification_steps);
 
     bool ignore_profiler_call = config->ignore_profiler_call;

@@ -224,8 +224,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return VisitExpr_(static_cast<const VarNode*>(op));
   }
 
-  Instruction::Arg VisitExpr_(const ConstantNode* op) final {
-    auto arg = builder_->ConvertConstant(op->data);
+  Instruction::Arg VisitExpr_(const GenericConstNode* op) final {
+    auto arg = builder_->ConvertConstant(op->value);
 
     if (auto tensor_ty = op->ty.as<TensorTypeNode>()) {
       if (tensor_ty->vdevice.has_value()) {
@@ -240,7 +240,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     std::vector<int64_t> shape;
     for (PrimExpr e : op->values) {
       if (auto* int_value = e.as<IntImmNode>()) {
-        shape.push_back(int_value->value);
+        shape.push_back(static_cast<int64_t>(int_value->value));
       } else {
         TVM_FFI_THROW(InternalError)
             << "Should only use constant shape after shape lowering: " << op->values;
@@ -258,10 +258,6 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   Instruction::Arg VisitExpr_(const StringImmNode* op) final {
-    return builder_->ConvertConstant(op->value);
-  }
-
-  Instruction::Arg VisitExpr_(const DataTypeImmNode* op) final {
     return builder_->ConvertConstant(op->value);
   }
 
@@ -356,7 +352,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
     int64_t vdevice_index = -1;
     if (const auto* int_imm = call_node->args[4].as<IntImmNode>()) {
-      vdevice_index = int_imm->value;
+      vdevice_index = int_imm->value.as<int>().value();
     }
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 

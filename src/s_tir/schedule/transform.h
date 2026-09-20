@@ -22,17 +22,16 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
-#include <tvm/tirx/stmt_functor.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 
 #include <unordered_map>
 #include <utility>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
-#include "../../tirx/ir/functor_common.h"
+#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /******** Annotation ********/
@@ -72,7 +71,7 @@ BufferVar WithDType(const BufferVar& buffer, PrimType dtype);
  * \param target The buffer to be replaced to
  * \return The new sequence of regions after replacement
  */
-ffi::Array<BufferRegion> ReplaceBuffer(ffi::Array<BufferRegion> regions, const BufferVar& source,
+ffi::Array<TensorRegion> ReplaceBuffer(ffi::Array<TensorRegion> regions, const BufferVar& source,
                                        const BufferVar& target);
 
 /*!
@@ -81,7 +80,7 @@ ffi::Array<BufferRegion> ReplaceBuffer(ffi::Array<BufferRegion> regions, const B
  * \param buffer_map The mapping from old buffers to new buffers
  * \return The new sequence of regions after replacement
  */
-ffi::Array<BufferRegion> ReplaceBuffer(ffi::Array<BufferRegion> regions,
+ffi::Array<TensorRegion> ReplaceBuffer(ffi::Array<TensorRegion> regions,
                                        const ffi::Map<BufferVar, BufferVar>& buffer_map);
 
 /*!
@@ -101,9 +100,9 @@ ffi::Array<MatchBufferRegion> ReplaceBuffer(ffi::Array<MatchBufferRegion> match_
  * \param target The buffer region to be replaced to
  * \return The new sequence of regions after replacement
  */
-ffi::Array<BufferRegion> ReplaceBufferRegion(ffi::Array<BufferRegion> regions,
+ffi::Array<TensorRegion> ReplaceBufferRegion(ffi::Array<TensorRegion> regions,
                                              const BufferVar& source_buffer,
-                                             const BufferRegion& target);
+                                             const TensorRegion& target);
 
 /*!
  * \brief Replaces the buffer region within the specific sequence of match_buffers
@@ -114,7 +113,7 @@ ffi::Array<BufferRegion> ReplaceBufferRegion(ffi::Array<BufferRegion> regions,
  */
 ffi::Array<MatchBufferRegion> ReplaceBufferRegion(ffi::Array<MatchBufferRegion> match_buffers,
                                                   const BufferVar& source_buffer,
-                                                  const BufferRegion& target);
+                                                  const TensorRegion& target);
 
 /*!
  * \brief A helper mutator which recursively replaces the old buffer with the new buffer and
@@ -126,6 +125,9 @@ ffi::Array<MatchBufferRegion> ReplaceBufferRegion(ffi::Array<MatchBufferRegion> 
  */
 class ReplaceBufferMutator : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   /*!
    * \brief The constructor
    * \param old_buffer The old buffer
@@ -140,39 +142,12 @@ class ReplaceBufferMutator : public StmtExprMutator {
                        ffi::Map<SBlock, SBlock>* block_sref_reuse);
 
  protected:
-  using StmtExprMutator::VisitExpr_;
-  using StmtExprMutator::VisitStmt_;
-
-  Expr VisitExpr_(const VarNode* var) final;
-
-  template <typename Node>
-  Node VisitBufferAccess(Node node) {
-    auto it = buffer_var_map_.find(node->buffer.get());
-    if (it != buffer_var_map_.end()) {
-      node.CopyOnWrite()->buffer = it->second;
-    }
-    return node;
-  }
-
-  TensorLoad VisitBufferAccess(TensorLoad node) {
-    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
-    auto it = buffer_var_map_.find(buffer.get());
-    return it != buffer_var_map_.end() ? BufferLoad(it->second, node->indices, node->span) : node;
-  }
-
-  Stmt VisitStmt_(const BufferStoreNode* op) override;
-
-  Expr VisitExpr_(const TensorLoadNode* op) override;
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
 
   virtual MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer);
 
-  Stmt VisitStmt_(const SBlockNode* block) override;
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) override;
 
-  /*!
-   * \brief A mapping which maps old buffer vars to new buffers, including the buffers defined in
-   * MatchBufferRegion.
-   */
-  std::unordered_map<const VarNode*, BufferVar> buffer_var_map_;
   /*! \brief The block sref reuse map for the following replacement */
   ffi::Map<SBlock, SBlock>* block_sref_reuse_;
 };
@@ -236,32 +211,32 @@ ffi::Optional<s_tir::LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
 /*!
  * \brief Simplifier for indices of buffer access and block buffer access regions.
  */
-class BlockBufferAccessSimplifier : public arith::IRMutatorWithAnalyzer {
+class BlockBufferAccessSimplifier : public s_tir::IRMutatorWithAnalyzer {
  public:
+  using s_tir::IRMutatorWithAnalyzer::Mutate;
+  using s_tir::IRMutatorWithAnalyzer::Mutate_;
+
   /*!
    * \brief Simplify indices of buffer access and block buffer access regions in the statement
    * \param stmt The statement to be simplified
    * \param analyzer The arithmetic analyzer
    * \return The simplified statement
    */
-  static Stmt Simplify(const Stmt& stmt, const arith::Analyzer& analyzer) {
-    BlockBufferAccessSimplifier simplifier(analyzer);
-    return simplifier(stmt);
+  static Stmt Simplify(const Stmt& stmt, const sym::Analyzer& analyzer) {
+    auto simplifier = ffi::make_object<BlockBufferAccessSimplifier>(analyzer);
+    return simplifier->Mutate(stmt).ValueOrUnchanged(stmt);
   }
 
- private:
-  explicit BlockBufferAccessSimplifier(const arith::Analyzer& analyzer)
+  explicit BlockBufferAccessSimplifier(const sym::Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer) {}
 
-  using IRMutatorWithAnalyzer::VisitExpr_;
-  using IRMutatorWithAnalyzer::VisitStmt_;
-
-  void SimplifyAccessRegion(ffi::Array<BufferRegion>* old_access_regions);
+ private:
+  void SimplifyAccessRegion(ffi::Array<TensorRegion>* old_access_regions);
   void SimplifyBufferIndices(ffi::Array<PrimExpr>* indices);
 
-  Stmt VisitStmt_(const SBlockNode* op) final;
-  Stmt VisitStmt_(const BufferStoreNode* op) final;
-  Expr VisitExpr_(const TensorLoadNode* op) final;
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final;
 };
 
 }  // namespace s_tir

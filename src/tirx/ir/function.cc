@@ -33,6 +33,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 namespace {
 
@@ -139,8 +140,6 @@ TVMFFIAny PrimFuncMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
 
 }  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK() { TensorIntrinNode::RegisterReflection(); }
-
 // Get the function type of a PrimFunc
 PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type, DictAttrs attrs,
                    Span span) {
@@ -180,71 +179,6 @@ FuncType PrimFuncNode::func_type_annotation() const {
     param_types.push_back(param->ty);
   }
   return FuncType(param_types, ret_type);
-}
-
-class TensorIntrinManager {
- public:
-  ffi::Map<ffi::String, tirx::TensorIntrin> reg;
-
-  static TensorIntrinManager* Global() {
-    static TensorIntrinManager* inst = new TensorIntrinManager();
-    return inst;
-  }
-};
-
-TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
-  // Check the number of func var is equal
-  TVM_FFI_CHECK_EQ(desc->params.size(), impl->params.size(), ValueError)
-      << "The number of parameters of the description and the implementation of the "
-         "tensor intrinsic doesn't match.";
-  auto is_handle = [](const Var& param) {
-    return param->ty.as<PointerTypeNode>() != nullptr || param->ty.as<BufferTypeNode>() != nullptr;
-  };
-  for (size_t i = 0; i < desc->params.size(); i++) {
-    TVM_FFI_CHECK(is_handle(desc->params[i]), ValueError)
-        << "Parameters of the description of the "
-           "tensor intrinsic should be handle only.";
-    TVM_FFI_CHECK(is_handle(impl->params[i]), ValueError)
-        << "Parameters of the implementation of "
-           "the tensor intrinsic should be handle only.";
-  }
-  ffi::ObjectPtr<TensorIntrinNode> n = ffi::make_object<TensorIntrinNode>();
-  n->desc = std::move(desc);
-  n->impl = std::move(impl);
-  data_ = std::move(n);
-}
-
-void TensorIntrin::Register(ffi::String name, TensorIntrin intrin, bool override) {
-  TensorIntrinManager* manager = TensorIntrinManager::Global();
-  if (!override) {
-    TVM_FFI_CHECK_EQ(manager->reg.count(name), 0, ValueError)
-        << "TensorIntrin '" << name << "' has already been registered";
-  }
-  manager->reg.Set(name, intrin);
-}
-
-ffi::Optional<TensorIntrin> TensorIntrin::Get(ffi::String name, bool allow_missing) {
-  const TensorIntrinManager* manager = TensorIntrinManager::Global();
-  auto it = manager->reg.find(name);
-  if (it == manager->reg.end()) {
-    if (allow_missing) {
-      return std::nullopt;
-    } else {
-      TVM_FFI_THROW(ValueError) << "TensorIntrin '" << name << "' is not registered";
-    }
-  }
-  return (*it).second;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("tirx.TensorIntrin",
-           [](PrimFunc desc_func, PrimFunc intrin_func) {
-             return TensorIntrin(desc_func, intrin_func);
-           })
-      .def("tirx.TensorIntrinRegister", TensorIntrin::Register)
-      .def("tirx.TensorIntrinGet", TensorIntrin::Get);
 }
 
 }  // namespace tirx
