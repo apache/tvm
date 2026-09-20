@@ -21,18 +21,18 @@
  * \file inject_texture_alloc.cc
  */
 
-#include <tvm/arith/iter_affine_map.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
+#include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/stmt_functor.h>
 
-#include "../../../arith/ir_mutator_with_analyzer.h"
 #include "../../../backend/opencl/runtime/texture.h"
+#include "../../../s_tir/ir/ir_mutator_with_analyzer.h"
 #include "../../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace backend {
 namespace adreno {
 using namespace tvm::tirx;
@@ -43,34 +43,32 @@ using runtime::IsTextureStorage;
 /*!
  * \brief Inject Texture Alloc Intrinsic right after AllocBufferNode are realized.
  */
-class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
+class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
  public:
+  using s_tir::IRMutatorWithAnalyzer::Mutate;
+  using s_tir::IRMutatorWithAnalyzer::Mutate_;
+
   static PrimFunc Inject(PrimFunc func) {
-    arith::Analyzer ana;
-    auto pass = TextureAllocInjector(ana);
+    sym::Analyzer ana;
+    auto pass = ffi::make_object<TextureAllocInjector>(ana);
     auto writer = func.CopyOnWrite();
-    pass.MarkBufferParamShapes(func);
-    writer->body = pass.VisitStmt(func->body);
+    pass->MarkBufferParamShapes(func);
+    writer->body = pass->Mutate(func->body).ValueOrUnchanged(func->body);
     return func;
   }
 
+  explicit TextureAllocInjector(const sym::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
+
  private:
-  using IRMutatorWithAnalyzer::VisitExpr;
-  using IRMutatorWithAnalyzer::VisitExpr_;
-  using IRMutatorWithAnalyzer::VisitStmt;
-  using IRMutatorWithAnalyzer::VisitStmt_;
-
-  explicit TextureAllocInjector(const arith::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
-
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     std::string storage_scope = op->buffer.scope();
     if (IsTextureStorage(storage_scope)) {
       op = stmt.as<AllocBufferNode>();
       const auto& extents = op->buffer->shape;
       TVM_FFI_ICHECK(extents.size() >= 3) << "Only 2D Array RGBA texture is currently supported";
       const int data_bits = op->buffer->dtype.bits(),
-                vec_length = static_cast<int>(extents.back().as<IntImmNode>()->value);
+                vec_length = extents.back().as<IntImmNode>()->value.as<int>().value();
       const int channel_size = data_bits * vec_length;
       TVM_FFI_ICHECK(channel_size == 128 || channel_size == 64)
           << "Invalid Channel Size: " << channel_size << " bits";

@@ -20,13 +20,13 @@
  * \file src/relax/transform/kill_after_last_use.cc
  * \brief Kill storage/tensor objects after last use, if not already killed
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <map>
@@ -189,8 +189,8 @@ class CollectLastUsage : public ExprVisitor {
     }
   }
 
-  void VisitBinding_(const VarBindingNode* binding, const ConstantNode* val) override {
-    constant_tensors_.insert(binding->var.get());
+  void VisitBinding_(const VarBindingNode* binding, const GenericConstNode* val) override {
+    if (val->value.as<runtime::Tensor>()) constant_tensors_.insert(binding->var.get());
   }
 
  private:

@@ -234,7 +234,7 @@ def test_argmin():
                     rxplaceholder_red_temp_v0[()] = v_rxplaceholder_red_temp_v0
                     rxplaceholder_red_temp_v1[()] = v_rxplaceholder_red_temp_v1
             with T.sblock("rxplaceholder_red"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(rxplaceholder_red_temp_v0[()])
                 T.writes(rxplaceholder_red[()])
                 rxplaceholder_red[()] = rxplaceholder_red_temp_v0[()]
@@ -917,12 +917,12 @@ def test_std():
                         T_multiply_red[()] = T.float32(0)
                     T_multiply_red[()] = T_multiply_red[()] + T_multiply[v_k0, v_k1, v_k2, v_k3]
             with T.sblock("T_divide_1"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(T_multiply_red[()])
                 T.writes(T_divide_1[()])
                 T_divide_1[()] = T_multiply_red[()] / T.float32(120.0)
             with T.sblock("compute"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(T_divide_1[()])
                 T.writes(compute[()])
                 compute[()] = T.sqrt(T_divide_1[()])
@@ -996,12 +996,12 @@ def test_std_symbolic():
                         T_multiply_red[()] = T.float32(0)
                     T_multiply_red[()] = T_multiply_red[()] + T_multiply[v_k0, v_k1, v_k2, v_k3]
             with T.sblock("T_divide_1"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(T_multiply_red[()])
                 T.writes(T_divide_1[()])
                 T_divide_1[()] = T_multiply_red[()] / T.Cast("float32", a * b * c * d)
             with T.sblock("compute"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(T_divide_1[()])
                 T.writes(compute[()])
                 compute[()] = T.sqrt(T_divide_1[()])
@@ -1265,7 +1265,7 @@ def test_max_zero_dim():
         def max(x: T.Buffer((), "float32"), x_red: T.Buffer((), "float32")):
             T.func_attr({"tirx.noalias": True})
             with T.sblock("x_red"):
-                vi = T.axis.spatial(1, T.int64(0))
+                vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(x[()])
                 T.writes(x_red[()])
                 x_red[()] = x[()]

@@ -1281,9 +1281,9 @@ class OperatorConverter:
         rhs_zero_point = rhs_tensor.qnn_params["zero_point"]
         # 0.1 + 0.2 != 0.3
         return np.allclose(
-            lhs_scale.data.numpy(), rhs_scale.data.numpy(), rtol=1e-5, atol=1e-5
+            lhs_scale.value.numpy(), rhs_scale.value.numpy(), rtol=1e-5, atol=1e-5
         ) and np.allclose(
-            lhs_zero_point.data.numpy(), rhs_zero_point.data.numpy(), rtol=1e-5, atol=1e-5
+            lhs_zero_point.value.numpy(), rhs_zero_point.value.numpy(), rtol=1e-5, atol=1e-5
         )
 
     def quantize(self, expr, tensor_to_quantize):
@@ -1690,12 +1690,12 @@ class OperatorConverter:
 
         def is_dynamic(tensor):
             return self.has_expr(tensor.tensor_idx) and not isinstance(
-                self.get_expr(tensor.tensor_idx), relax.Constant
+                self.get_expr(tensor.tensor_idx), tvm.ir.GenericConst
             )
 
         def static_scalar(tensor):
             if self.has_expr(tensor.tensor_idx):
-                value = self.get_expr(tensor.tensor_idx).data.numpy()
+                value = self.get_expr(tensor.tensor_idx).value.numpy()
             else:
                 value = self.get_tensor_value(tensor)
             # TFLite RANGE operands are scalar tensors in the flatbuffer.
@@ -5822,7 +5822,7 @@ class OperatorConverter:
             )
 
             # The pad value for quantized pad is the input zero point by default.
-            pad_value = float(input_tensor.qnn_params["zero_point"].data.numpy())
+            pad_value = float(input_tensor.qnn_params["zero_point"].value.numpy())
 
         if len(input_tensors) == 3:
             pad_value = self.get_tensor_value(input_tensors[2])
@@ -8860,10 +8860,10 @@ def prepare_dense_matrix_from_sparse(sparse_tensor, sparse_tensor_value, sparse_
 
 def get_scalar_from_constant(expr):
     """Returns scalar value from Relax constant scalar."""
-    assert isinstance(expr, relax.Constant) and not expr.data.shape, (
+    assert isinstance(expr, tvm.ir.GenericConst) and not expr.value.shape, (
         "Expr is not a constant scalar."
     )
-    value = expr.data.numpy()
+    value = expr.value.numpy()
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), (
         "value must be float32/int32"
     )
@@ -8873,7 +8873,7 @@ def get_scalar_from_constant(expr):
 def get_tensor_from_constant(expr):
     """Returns tensor of values from Relax constant node."""
     assert isinstance(expr, relax.const)
-    value = expr.data.numpy()
+    value = expr.value.numpy()
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), (
         "value must be float32/int32"
     )

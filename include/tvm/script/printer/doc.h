@@ -280,6 +280,11 @@ class LiteralDoc : public ExprDoc {
   static LiteralDoc Int(int64_t v, const ffi::Optional<AccessPath>& p) {
     return LiteralDoc(IntImm::Int64(v), p);
   }
+
+  /*! rief Create an integer literal without narrowing its typed payload. */
+  static LiteralDoc Int(IntImm v, const ffi::Optional<AccessPath>& p) {
+    return LiteralDoc(std::move(v), p);
+  }
   /*!
    * \brief Create a LiteralDoc to represent boolean.
    * \param v The boolean value.

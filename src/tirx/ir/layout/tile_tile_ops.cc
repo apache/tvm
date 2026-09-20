@@ -26,10 +26,11 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 std::pair<TileLayout, std::vector<int64_t>> Group(TileLayout layout,
                                                   const ffi::Array<PrimExpr>& shape) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   size_t shape_idx = 0;
   PrimExpr prod = 1;
 
@@ -80,7 +81,7 @@ std::pair<TileLayout, std::vector<std::vector<int64_t>>> GroupMany(
     std::vector<size_t> counts;
   };
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   TVM_FFI_ICHECK(!shapes.empty()) << "group_many requires at least one shape";
 
   std::vector<std::vector<PrimExpr>> boundary_sequences;
@@ -264,7 +265,7 @@ std::optional<std::pair<TileLayout, std::vector<int64_t>>> TryGroup(
   // Same algorithm as Group but returns std::nullopt instead of ICHECK-failing
   // on regroup impossibility. Used by Apply(coord, shape) to opportunistically
   // pick the group-first path with a fallback to flatten+split.
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   size_t shape_idx = 0;
   PrimExpr prod = 1;
 
@@ -335,7 +336,7 @@ Layout TileLayoutNode::Tile(const TileLayout& outer_in, const Array<PrimExpr>& o
   outer = grouped_outer;
   inner = grouped_inner;
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
 
   {
     // Scale outer axis strides by inner span on matching axes
@@ -390,7 +391,7 @@ Layout TileLayoutNode::Tile(const TileLayout& outer_in, const Array<PrimExpr>& o
 ffi::Array<PrimExpr> TileShape(ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> factor,
                                bool is_inner) {
   TVM_FFI_ICHECK_EQ(shape.size(), factor.size()) << "Shape and factor dimension must match.";
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
 
   ffi::Array<PrimExpr> new_shape;
   for (int i = 0; i < static_cast<int>(shape.size()); ++i) {
@@ -488,7 +489,7 @@ ffi::Optional<TileLayout> TileLayoutNode::IsTileInner(
     }
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   // Get the span map of the inner layout of each axis
   auto inner_span_map = BuildSpanMap(layout);
   auto rescale_by_inner_span = [&](const Iter& iter) -> ffi::Optional<Iter> {
@@ -594,7 +595,7 @@ ffi::Optional<Layout> TileLayoutNode::IsTileOuter(const Layout& tile_layout,
     }
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   TVM_FFI_ICHECK_EQ(tiled_shape.size(), outer_shape.size())
       << "Tiled shape size must match outer shape size";
 

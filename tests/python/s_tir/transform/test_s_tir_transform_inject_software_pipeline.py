@@ -42,7 +42,7 @@ def _check(original, transformed):
     func = original
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(mod)
-    mod = tvm.tirx.transform.StmtSimplify()(mod)
+    mod = tvm.s_tir.transform.StmtSimplify()(mod)
     tvm.ir.assert_structural_equal(
         mod["main"], transformed.with_attr("global_symbol", "main"), True
     )

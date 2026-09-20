@@ -16,16 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/extra/visit_error_context.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/script/printer/printer.h>
 
 #include "./utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
-ffi::String ScheduleError::RenderReport(const ffi::String& primitive) const {
+const ScheduleErrorContextObj* GetScheduleErrorContext(const ffi::Error& error) {
+  if (auto context = error.extra_context()) {
+    if (const auto* payload = context->as<ScheduleErrorContextObj>()) {
+      return payload;
+    }
+    if (const auto* visit_context = context->as<ffi::VisitErrorContextObj>()) {
+      if (visit_context->prev_error_context) {
+        return visit_context->prev_error_context.value().as<ScheduleErrorContextObj>();
+      }
+    }
+  }
+  return nullptr;
+}
+
+ffi::String ScheduleErrorContextObj::RenderReport(const ffi::String& primitive) const {
   IRModule mod = this->mod();
   std::ostringstream os;
 
@@ -56,6 +71,8 @@ ffi::String ScheduleError::RenderReport(const ffi::String& primitive) const {
   os << "Error message: " << msg;
   return os.str();
 }
+
+TVM_FFI_STATIC_INIT_BLOCK() { ffi::reflection::ObjectDef<ScheduleErrorContextObj>(); }
 
 }  // namespace s_tir
 }  // namespace tvm

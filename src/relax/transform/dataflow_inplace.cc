@@ -39,6 +39,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 // Ops that may return a tensor sharing storage with the first argument.
 // These ops has been verified to share storage with the first argument in
@@ -286,7 +287,7 @@ class AliasAnalyzer {
     // function constant: give them a fresh index (TODO: we can handle in more detail if this is a
     // case we need to support) prim value: fresh index if node: should not happen inside dataflow
     // block
-    if (value.as<ConstantNode>() || value.as<FunctionNode>()) {
+    if (value.as<GenericConstNode>() || value.as<FunctionNode>()) {
       // TODO(@slyubomirsky): We will probably want special handling for closures
       ret.insert(get_fresh_idx());
     } else if (auto* target_var_node = value.as<VarNode>()) {
@@ -767,79 +768,14 @@ tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
                         const ffi::Map<tirx::BufferVar, tirx::BufferVar>& buffer_map) {
   class BufferMapper : public tirx::StmtExprMutator {
    public:
-    explicit BufferMapper(const ffi::Map<tirx::BufferVar, tirx::BufferVar>& buffer_map)
-        : buffer_map_(buffer_map) {}
-
-    tirx::Stmt Remap(const tirx::Stmt& stmt) { return VisitStmt(stmt); }
-
-    Expr VisitExpr_(const TensorLoadNode* op) final {
-      auto node = tirx::StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
-      return tirx::BufferLoad(AttemptRemap(node->source.as_or_throw<tirx::BufferVar>()),
-                              node->indices, node->span);
-    }
-
-    tirx::Stmt VisitStmt_(const tirx::BufferStoreNode* op) final {
-      auto node = tirx::StmtExprMutator::VisitStmt_(op).as_or_throw<tirx::BufferStore>();
-      auto* node_cow = node.CopyOnWrite();
-      node_cow->buffer = AttemptRemap(node->buffer);
-      return node;
-    }
-
-    tirx::Stmt VisitStmt_(const tirx::DeclBufferNode* op) final {
-      auto node = tirx::StmtExprMutator::VisitStmt_(op).as_or_throw<tirx::DeclBuffer>();
-      auto* node_cow = node.CopyOnWrite();
-      node_cow->buffer = AttemptRemap(node->buffer);
-      return node;
-    }
-
-    tirx::Stmt VisitStmt_(const tirx::AllocBufferNode* op) final {
-      auto node = tirx::StmtExprMutator::VisitStmt_(op).as_or_throw<tirx::AllocBuffer>();
-      auto* node_cow = node.CopyOnWrite();
-      node_cow->buffer = AttemptRemap(node->buffer);
-      return node;
-    }
-
-    tirx::Stmt VisitStmt_(const tirx::SBlockNode* op) final {
-      auto node = tirx::StmtExprMutator::VisitStmt_(op).as_or_throw<tirx::SBlock>();
-      auto* node_cow = node.CopyOnWrite();
-      // need the lambdas because class methods are not first-class (how ironic)
-      node_cow->alloc_buffers =
-          node->alloc_buffers.Map([this](const tirx::BufferVar& b) { return AttemptRemap(b); });
-      node_cow->reads =
-          node->reads.Map([this](const tirx::BufferRegion& br) { return VisitBufferRegion(br); });
-      node_cow->writes =
-          node->writes.Map([this](const tirx::BufferRegion& br) { return VisitBufferRegion(br); });
-      node_cow->match_buffers = node->match_buffers.Map(
-          [this](const tirx::MatchBufferRegion& mbr) { return VisitMatchBufferRegion(mbr); });
-      return node;
-    }
-
-   private:
-    tirx::BufferVar AttemptRemap(const tirx::BufferVar& buffer) {
-      if (buffer_map_.count(buffer)) {
-        return buffer_map_.at(buffer);
+    explicit BufferMapper(const ffi::Map<tirx::BufferVar, tirx::BufferVar>& buffer_map) {
+      for (const auto& [source, target] : buffer_map) {
+        VarRemapSet(source, target);
       }
-      return buffer;
     }
-
-    tirx::BufferRegion VisitBufferRegion(tirx::BufferRegion region) {
-      auto* region_cow = region.CopyOnWrite();
-      region_cow->buffer = AttemptRemap(region_cow->buffer);
-      return region;
-    }
-
-    tirx::MatchBufferRegion VisitMatchBufferRegion(tirx::MatchBufferRegion region) {
-      auto* region_cow = region.CopyOnWrite();
-      region_cow->buffer = AttemptRemap(region_cow->buffer);
-      return region;
-    }
-
-    const ffi::Map<tirx::BufferVar, tirx::BufferVar>& buffer_map_;
   };
 
-  BufferMapper mapper(buffer_map);
-  auto ret = mapper.Remap(stmt);
-  return ret;
+  return ffi::make_object<BufferMapper>(buffer_map)->Mutate(stmt).ValueOrUnchanged(stmt);
 }
 
 class ModuleInplaceTransformer : public ExprMutator {

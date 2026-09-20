@@ -23,7 +23,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import tirx
+from tvm import s_tir, tirx
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -1776,13 +1776,13 @@ def test_matmul_original():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block, s_tir.SBlock)
     assert isinstance(rt_func.body.block.body, tirx.stmt.For)
     assert isinstance(rt_func.body.block.body.body, tirx.stmt.For)
     assert isinstance(rt_func.body.block.body.body.body, tirx.stmt.SeqStmt)
-    assert isinstance(rt_func.body.block.body.body.body[0].block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body.body.body[0].block, s_tir.SBlock)
     assert isinstance(rt_func.body.block.body.body.body[1], tirx.stmt.For)
-    assert isinstance(rt_func.body.block.body.body.body[1].body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body.body.body[1].body.block, s_tir.SBlock)
 
 
 def test_element_wise():
@@ -1790,15 +1790,15 @@ def test_element_wise():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block, s_tir.SBlock)
     assert isinstance(rt_func.body.block.body, tirx.stmt.SeqStmt)
     assert isinstance(rt_func.body.block.body[0], tirx.stmt.For)
     assert isinstance(rt_func.body.block.body[0].body, tirx.stmt.For)
-    assert isinstance(rt_func.body.block.body[0].body.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body[0].body.body.block, s_tir.SBlock)
 
     assert isinstance(rt_func.body.block.body[1], tirx.stmt.For)
     assert isinstance(rt_func.body.block.body[1].body, tirx.stmt.For)
-    assert isinstance(rt_func.body.block.body[1].body.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body[1].body.body.block, s_tir.SBlock)
 
 
 def test_predicate():
@@ -1806,11 +1806,11 @@ def test_predicate():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block, s_tir.SBlock)
     assert isinstance(rt_func.body.block.body, tirx.stmt.For)
     assert isinstance(rt_func.body.block.body.body, tirx.stmt.For)
     assert isinstance(rt_func.body.block.body.body.body, tirx.stmt.For)
-    assert isinstance(rt_func.body.block.body.body.body.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body.body.body.body.block, s_tir.SBlock)
 
 
 def for_thread_binding():
@@ -1867,19 +1867,19 @@ def test_match_buffer_region():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body, tirx.stmt.SBlockRealize)
+    assert isinstance(rt_func.body, s_tir.SBlockRealize)
     root = rt_func.body.block
 
     assert isinstance(root.body, tirx.stmt.For)
     assert isinstance(root.body.body, tirx.stmt.For)
-    assert isinstance(root.body.body.body, tirx.stmt.SBlockRealize)
+    assert isinstance(root.body.body.body, s_tir.SBlockRealize)
     outer_block = root.body.body.body.block
     assert len(outer_block.match_buffers) == 1
     buffer_C = outer_block.match_buffers[0].buffer
     tvm.ir.assert_structural_equal(buffer_C.shape, [T.int32(16), T.int32(1), T.int32(4)])
 
     assert isinstance(outer_block.body, tirx.stmt.For)
-    assert isinstance(outer_block.body.body, tirx.stmt.SBlockRealize)
+    assert isinstance(outer_block.body.body, s_tir.SBlockRealize)
     inner_block = outer_block.body.body.block
     assert len(inner_block.match_buffers) == 1
     buffer_D = inner_block.match_buffers[0].buffer
@@ -1912,9 +1912,9 @@ def test_block_elements():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tirx.stmt.SBlock)
-    assert isinstance(rt_func.body.block.body, tirx.stmt.SBlockRealize)
-    assert isinstance(rt_func.body.block.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block, s_tir.SBlock)
+    assert isinstance(rt_func.body.block.body, s_tir.SBlockRealize)
+    assert isinstance(rt_func.body.block.body.block, s_tir.SBlock)
     block = rt_func.body.block.body.block
     assert isinstance(block.body, tirx.stmt.BufferStore)
     assert isinstance(block.init, tirx.stmt.BufferStore)
@@ -1949,14 +1949,14 @@ def test_opaque_block():
     tvm.ir.assert_structural_equal(func, rt_func)
 
     root_block = rt_func.body.block
-    assert isinstance(root_block, tirx.stmt.SBlock)
+    assert isinstance(root_block, s_tir.SBlock)
     assert isinstance(root_block.body, tirx.stmt.For)
     assert isinstance(root_block.body.body[0], tirx.stmt.For)
-    assert isinstance(root_block.body.body[0].body, tirx.stmt.SBlockRealize)
-    assert isinstance(root_block.body.body[0].body.block, tirx.stmt.SBlock)
+    assert isinstance(root_block.body.body[0].body, s_tir.SBlockRealize)
+    assert isinstance(root_block.body.body[0].body.block, s_tir.SBlock)
     assert len(root_block.body.body[0].body.block.iter_vars) == 0
-    assert isinstance(root_block.body.body[1], tirx.stmt.SBlockRealize)
-    assert isinstance(root_block.body.body[1].block, tirx.stmt.SBlock)
+    assert isinstance(root_block.body.body[1], s_tir.SBlockRealize)
+    assert isinstance(root_block.body.body[1].block, s_tir.SBlock)
     assert len(root_block.body.body[1].block.iter_vars) == 0
 
 
@@ -3003,10 +3003,7 @@ def subroutine_call_without_arguments():
     class mod:
         @T.prim_func(s_tir=True)
         def main():
-            # Should be equivalent to the bare "mod.subroutine()", but
-            # that relies on `GlobalVar.__call__` returning the
-            # correct IR type.
-            tirx.call_tir(mod.subroutine)
+            mod.subroutine()
 
         @T.prim_func(s_tir=True)
         def subroutine():

@@ -2203,7 +2203,7 @@ def extern(
         if isinstance(arg, float):
             return rx.prim_value(_tir.FloatImm("float64", arg))
         if isinstance(arg, str):
-            return rx.StringImm(arg)
+            return tvm.ir.StringImm(arg)
         if tvm.ir.is_prim_expr(arg):
             return rx.prim_value(arg)
         if isinstance(arg, tuple | list):
@@ -2271,7 +2271,7 @@ def debug_func(
         elif tvm.ir.is_prim_expr(arg):
             converted_args.append(rx.prim_value(arg))
         elif isinstance(arg, str):
-            converted_args.append(rx.StringImm(arg))
+            converted_args.append(tvm.ir.StringImm(arg))
         else:
             raise TypeError(f"Unsupported type {type(arg)}")
 
@@ -2279,8 +2279,8 @@ def debug_func(
         rx.call_pure_packed(
             "vm.builtin.invoke_debug_func",
             io.effect,
-            rx.StringImm(name),
-            rx.StringImm(_line_info),
+            tvm.ir.StringImm(name),
+            tvm.ir.StringImm(_line_info),
             *converted_args,
             ty_args=[rx.AnyType()],
         ),

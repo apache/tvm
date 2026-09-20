@@ -70,7 +70,7 @@ def prim_func(
             return func
         extra_vars = utils.inspect_function_capture(func)
         utils.resolve_closure_vars(func, extra_vars, outer_stack)
-        f = parse(func, extra_vars, check_well_formed=check_well_formed, s_tir=s_tir)
+        f = parse(func, extra_vars, check_well_formed=check_well_formed)
         setattr(f, "__name__", func.__name__)
         return f
 
@@ -335,7 +335,6 @@ class TIRJit:
             self.func,
             extra_vars,
             check_well_formed=self.check_well_formed,
-            s_tir=self.is_stir,
             absent_params=absent_params,
         )
         setattr(prim_func, "__name__", self.func.__name__)

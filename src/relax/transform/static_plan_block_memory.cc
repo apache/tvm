@@ -65,13 +65,13 @@
  * signature will have upper bound 1024. And we will use 1024 as its value
  * during memory planning.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <map>
@@ -83,6 +83,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 /*!
  * \brief A representation of a block of reusable memory required at runtime.
@@ -117,8 +118,9 @@ class StorageTokenNode : public ffi::Object {
   /*! \brief Get the constant number of bytes that this token requires, or -1 if the number of bytes
    * is symbolic */
   int64_t const_bytes() const {
-    const int64_t* const_val = tirx::as_const_int(bytes);
-    if (const_val) {
+    const auto* imm = bytes.as<IntImmNode>();
+    auto const_val = imm ? imm->value.as<int64_t>() : std::nullopt;
+    if (const_val.has_value()) {
       return *const_val;
     } else {
       return -1;
@@ -141,7 +143,7 @@ class StorageToken : public ffi::ObjectRef {
     PrimType dtype_ty(dtype);
     TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
         << "Cannot statically plan storage size for scalable vector dtype " << dtype_ty;
-    int64_t const_coeff = static_cast<int64_t>(dtype_ty.StorageBytes());
+    ffi::BigInt const_coeff = dtype_ty.StorageBytes();
     PrimExpr size = IntImm::Int64(1);
     bool size_computed = false;
 
@@ -198,7 +200,7 @@ using Tokens = NestedMsg<StorageToken>;
  */
 class TokenAllocatorMixed {
  public:
-  explicit TokenAllocatorMixed(arith::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
+  explicit TokenAllocatorMixed(sym::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
   /*!
    * \brief Request a storage token from the available token pool for a
@@ -320,7 +322,7 @@ class TokenAllocatorMixed {
   };
 
   /*! \brief The arithmetic analyzer. */
-  arith::AnalyzerObj* analyzer_;
+  sym::AnalyzerObj* analyzer_;
   /*! \brief A constant scale representing the token search range. */
   const int match_range_{16};
   /*! \brief The pool of available storage tokens for each storage scope and dtype. */
@@ -422,8 +424,8 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
  * \param ana The analyzer which contains the TIR var upper bounds.
  * \param dom_map The domain map of the TIR variables.
  */
-void SetTIRVarRangeConstraints(Function func, arith::AnalyzerObj* ana,
-                               ffi::Map<tirx::Var, arith::IntSet>* dom_map) {
+void SetTIRVarRangeConstraints(Function func, sym::AnalyzerObj* ana,
+                               ffi::Map<tirx::Var, sym::IntSet>* dom_map) {
   // Use the attribute-annotated TIR var bounds as the TIR var values for
   // memory planning.
   // NOTE: we only apply the annotated bounds to the TIR variables that
@@ -459,12 +461,12 @@ void SetTIRVarRangeConstraints(Function func, arith::AnalyzerObj* ana,
     // Without an upper bound, memory planning cannot determine the required storage size,
     // so we skip binding and let the variable remain unbounded.
     if (it_upper != var_upper_bound_attr.end()) {
-      int64_t lower = (it_lower != var_lower_bound_attr.end()) ? it_lower->second->value : 0;
-      int64_t upper = it_upper->second->value;
+      ffi::BigInt lower = (it_lower != var_lower_bound_attr.end()) ? it_lower->second->value : 0;
+      const ffi::BigInt& upper = it_upper->second->value;
       tvm::Range range = tvm::Range::FromMinExtent(tvm::IntImm::Int64(lower),
                                                    tvm::IntImm::Int64(upper - lower + 1));
       ana->Bind(tir_var, range);
-      dom_map->Set(tir_var, arith::IntSet::FromRange(range));
+      dom_map->Set(tir_var, sym::IntSet::FromRange(range));
     } else if (it_lower != var_lower_bound_attr.end() && it_lower->second->value >= 0) {
       ana->MarkGlobalNonNegValue(tir_var.as_or_throw<PrimExpr>());
     } else if (non_negative_var_attr.count(tir_var->name)) {
@@ -482,15 +484,15 @@ void SetTIRVarRangeConstraints(Function func, arith::AnalyzerObj* ana,
  * \return The upper-bounded shape. When a dimension's upper bound
  * cannot be determined, we keep the dimension unchanged.
  */
-ffi::Array<PrimExpr> GetUpperBoundShape(ffi::Array<PrimExpr> shape, arith::AnalyzerObj* ana,
-                                        const ffi::Map<tirx::Var, arith::IntSet>& dom_map) {
+ffi::Array<PrimExpr> GetUpperBoundShape(ffi::Array<PrimExpr> shape, sym::AnalyzerObj* ana,
+                                        const ffi::Map<tirx::Var, sym::IntSet>& dom_map) {
   // Use the upper bounds of TIR vars as their values.
   ffi::Array<PrimExpr> upper_bounded_shape;
   upper_bounded_shape.reserve(shape.size());
   for (const PrimExpr& dim_len : shape) {
     int64_t max_bound = ana->const_int_bound(dim_len)->max_value;
     if (max_bound == std::numeric_limits<int64_t>::max()) {
-      arith::IntSet int_set = ana->int_set(dim_len, dom_map);
+      sym::IntSet int_set = ana->int_set(dim_len, dom_map);
       if (int_set.HasUpperBound()) {
         upper_bounded_shape.push_back(int_set.max());
       } else {
@@ -531,7 +533,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
    * \return The mapping from each Expr to the token it uses.
    */
   static std::unordered_map<const ExprNode*, Tokens> Initialize(const IRModule& mod,
-                                                                arith::AnalyzerObj* analyzer) {
+                                                                sym::AnalyzerObj* analyzer) {
     StorageAllocatorInit initializer(mod, analyzer);
 
     for (auto it : mod->functions) {
@@ -547,7 +549,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
  private:
   using ExprVisitor::VisitExpr_;
 
-  explicit StorageAllocatorInit(const IRModule& ctx_mod, arith::AnalyzerObj* analyzer)
+  explicit StorageAllocatorInit(const IRModule& ctx_mod, sym::AnalyzerObj* analyzer)
       : ctx_mod_(ctx_mod), analyzer_(analyzer) {}
 
   void VisitExpr_(const FunctionNode* func) final {
@@ -651,7 +653,8 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     const auto* shape = ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK_NOTNULL(shape);
     TVM_FFI_ICHECK(!ty->IsUnknownDtype());
-    TVM_FFI_ICHECK(ty->dtype.value()->dtype == call->args[1].as_or_throw<DataTypeImm>()->value);
+    TVM_FFI_ICHECK(ty->dtype.value()->dtype ==
+                   call->args[1].as_or_throw<GenericConst>()->value.cast<DLDataType>());
     TVM_FFI_ICHECK(!token_map_.count(call));
 
     // Use the upper bounds of TIR vars as their values. The upper bound shape can still be dynamic
@@ -664,7 +667,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
 
     int64_t vdevice_index = -1;
     if (const auto* int_imm = call->args[2].as<IntImmNode>()) {
-      vdevice_index = int_imm->value;
+      vdevice_index = int_imm->value.as<int>().value();
     }
     ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
@@ -740,9 +743,9 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
    */
   const IRModule& ctx_mod_;
   /*! \brief The arithmetic analyzer. */
-  arith::AnalyzerObj* analyzer_;
+  sym::AnalyzerObj* analyzer_;
   /*! \brief The domain map of dynamic TIR variables for analysis. */
-  ffi::Map<tirx::Var, arith::IntSet> dom_map_;
+  ffi::Map<tirx::Var, sym::IntSet> dom_map_;
   /*! \brief The mapping from each token to the binding block where it is created. */
   std::unordered_map<const StorageTokenNode*, const BindingBlockNode*> token2block_;
   /*! \brief The mapping from each token to the Exprs that are using this token. */
@@ -766,7 +769,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
 class StorageAllocator : public StorageAllocatorBaseVisitor {
  public:
   explicit StorageAllocator(std::unordered_map<const ExprNode*, Tokens> token_map,
-                            arith::AnalyzerObj* analyzer)
+                            sym::AnalyzerObj* analyzer)
       : allocator_(analyzer) {
     this->token_map_ = std::move(token_map);
   }
@@ -957,7 +960,7 @@ class StorageAllocationRewriter : public ExprMutator {
         DLDataType dtype = token->dtype;
         Call alloc_storage(Type::Missing(), mem_alloc_storage,
                            {std::move(size), virtual_device_index, StringImm(token->storage_scope),
-                            DataTypeImm(dtype)},
+                            GenericConst(dtype, AnyType())},
                            Attrs());
         storage_var = builder_->Emit(alloc_storage, "storage");
         token2storage_var_[token.get()] = storage_var;
@@ -968,9 +971,10 @@ class StorageAllocationRewriter : public ExprMutator {
       // And always create a `memory.alloc_tensor` for the old `builtin.alloc_tensor`.
       PrimExpr offset = IntImm::Int64(0);
       DLDataType dtype = ty->dtype.value()->dtype;
-      return Call(Type::Missing(), mem_alloc_tensor,
-                  {storage_var, offset, ty->shape.value(), DataTypeImm(dtype), call->args[2]},
-                  Attrs());
+      return Call(
+          Type::Missing(), mem_alloc_tensor,
+          {storage_var, offset, ty->shape.value(), GenericConst(dtype, AnyType()), call->args[2]},
+          Attrs());
     } else if (plan_dynamic_output_ && call->op.same_as(alloc_tensor_op)) {
       // Case 2. For a `alloc_tensor` that is not planned for memory reuse,
       // we would still like to allocate **static** memory for the tensor.
@@ -987,7 +991,7 @@ class StorageAllocationRewriter : public ExprMutator {
       if (!IsStaticShape(shape->values)) {
         TVM_FFI_ICHECK(!ty->IsUnknownDtype());
         TVM_FFI_ICHECK_EQ(ty->dtype.value()->dtype,
-                          call->args[1].as_or_throw<DataTypeImm>()->value);
+                          call->args[1].as_or_throw<GenericConst>()->value.cast<DLDataType>());
         PrimExpr bytes = upper_bounded_shape[0];
         for (int i = 1; i < static_cast<int>(upper_bounded_shape.size()); ++i) {
           bytes *= upper_bounded_shape[i];
@@ -1001,13 +1005,13 @@ class StorageAllocationRewriter : public ExprMutator {
                            {/*size=*/ShapeExpr({bytes}),
                             /*virtual_device_index=*/call->args[2].as_or_throw<PrimExpr>(),
                             /*storage_scope=*/call->args[3].as_or_throw<StringImm>(),  //
-                            /*dtype=*/DataTypeImm(dtype)});
+                            /*dtype=*/GenericConst(dtype, AnyType())});
         Var storage = builder_->Emit(alloc_storage, "storage");
         return Call(Type::Missing(), mem_alloc_tensor,
                     {storage,  //
                      /*offset=*/IntImm::Int64(0),
                      /*shape=*/ffi::GetRef<ShapeExpr>(shape),  //
-                     /*dtype=*/DataTypeImm(dtype),
+                     /*dtype=*/GenericConst(dtype, AnyType()),
                      /*vdevice_index=*/call->args[2]});
       }
     }
@@ -1016,9 +1020,9 @@ class StorageAllocationRewriter : public ExprMutator {
   }
 
   /*! \brief The arithmetic analyzer. */
-  arith::Analyzer ana_;
+  sym::Analyzer ana_;
   /*! \brief The domain map of dynamic TIR variables for analysis. */
-  ffi::Map<tirx::Var, arith::IntSet> dom_map_;
+  ffi::Map<tirx::Var, sym::IntSet> dom_map_;
   /*! \brief A boolean indicating whether to plan dynamic-shape function output tensors. */
   bool plan_dynamic_output_;
   /*!
@@ -1033,7 +1037,7 @@ class StorageAllocationRewriter : public ExprMutator {
 };
 
 IRModule StaticPlanBlockMemory(IRModule mod) {
-  arith::Analyzer ana;
+  sym::Analyzer ana;
 
   // Step 1. Initialize.
   std::unordered_map<const ExprNode*, Tokens> token_map =
@@ -1070,9 +1074,10 @@ PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DLDataType
   struct Shape {
     const ffi::Array<PrimExpr>& shape;
     int64_t operator[](size_t i) const {
-      TVM_FFI_ICHECK(tirx::as_const_int(shape[i]))
-          << "Dymamic shapes not suported over texture now";
-      return *tirx::as_const_int(shape[i]);
+      const auto* imm = shape[i].as<IntImmNode>();
+      auto value = imm ? imm->value.as<int64_t>() : std::nullopt;
+      TVM_FFI_ICHECK(value.has_value()) << "Dymamic shapes not suported over texture now";
+      return *value;
     }
     int size() { return this->shape.size(); }
   };

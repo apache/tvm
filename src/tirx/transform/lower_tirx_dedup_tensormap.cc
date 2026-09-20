@@ -22,8 +22,8 @@
  * \brief Deduplicate identical cuTensorMap objects created by TIRx schedules.
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -32,6 +32,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 namespace {
 
@@ -43,7 +44,7 @@ inline bool IsTensorMapAlloca(const BindNode* bind) {
   if (const auto* call = bind->value.as<CallNode>()) {
     if (IsBuiltin(call, builtin::tvm_stack_alloca())) {
       if (call->args.size() == 2) {
-        if (const auto* type_str = call->args[0].as<prim::StringImmNode>()) {
+        if (const auto* type_str = call->args[0].as<StringImmNode>()) {
           return type_str->value == "tensormap";
         }
       }
@@ -57,7 +58,7 @@ inline const CallNode* AsCuTensorMapEncode(const EvaluateNode* eval) {
   const CallNode* call = eval->value.as<CallNode>();
   if (!call || !call->op.same_as(builtin::tvm_call_packed())) return nullptr;
   if (call->args.empty()) return nullptr;
-  if (const auto* s = call->args[0].as<prim::StringImmNode>()) {
+  if (const auto* s = call->args[0].as<StringImmNode>()) {
     if (s->value == "runtime.cuTensorMapEncodeTiled") return call;
   }
   return nullptr;
@@ -91,34 +92,37 @@ class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
     canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
   }
 
-  void VisitStmt_(const ForNode* op) final {
-    StmtExprVisitor::VisitExpr(op->min);
-    StmtExprVisitor::VisitExpr(op->extent);
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->min));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->extent));
     canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
-    StmtExprVisitor::VisitStmt(op->body);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->body));
     canonical_list_.pop_back();
+    return std::nullopt;
   }
 
-  void VisitStmt_(const WhileNode* op) final {
-    StmtExprVisitor::VisitExpr(op->condition);
+  ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->condition));
     canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
-    StmtExprVisitor::VisitStmt(op->body);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->body));
     canonical_list_.pop_back();
+    return std::nullopt;
   }
 
-  void VisitStmt_(const IfThenElseNode* op) final {
-    StmtExprVisitor::VisitExpr(op->condition);
+  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->condition));
     canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
-    StmtExprVisitor::VisitStmt(op->then_case);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->then_case));
     canonical_list_.pop_back();
     if (op->else_case) {
       canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
-      StmtExprVisitor::VisitStmt(op->else_case.value());
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->else_case.value()));
       canonical_list_.pop_back();
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const EvaluateNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op) final {
     if (const CallNode* call = AsCuTensorMapEncode(op)) {
       auto [maybe_var, key] = ExtractEncodeKey(call);
       if (maybe_var.has_value()) {
@@ -130,7 +134,7 @@ class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
             if (ffi::StructuralEqual()(kv.first, key)) {
               const Var& canonical = kv.second;
               if (!canonical.same_as(v)) {
-                var_remap_[v] = canonical;
+                tensormap_var_remap_[v] = canonical;
               }
               found = true;
               break;
@@ -141,75 +145,53 @@ class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
         if (!found) canonical_list_.back().emplace_back(std::move(key), v);
       }
     }
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& var_remap() const {
-    return var_remap_;
+    return tensormap_var_remap_;
   }
 
  private:
   std::vector<std::vector<std::pair<ffi::Array<Expr>, Var>>> canonical_list_;
-  std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap_;
+  std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> tensormap_var_remap_;
 };
 
 // Second pass: Rewrite vars to canonical, remove duplicate allocas and duplicate encode calls
 class CuTensorMapDedupRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   CuTensorMapDedupRewriter(
-      std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap)
-      : var_remap_(std::move(var_remap)) {
+      std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap) {
+    for (const auto& [source, target] : var_remap) VarRemapSet(source, target);
     emitted_keys_.emplace_back(std::vector<ffi::Array<Expr>>());
   }
 
  private:
-  using StmtExprMutator::VisitExpr_;
-  using StmtExprMutator::VisitStmt_;
-
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
-    ffi::Array<Stmt> seq;
-    seq.reserve(op->seq.size());
-    bool changed = false;
-    for (const Stmt& stmt : op->seq) {
-      Stmt new_stmt = VisitStmt(stmt);
-      // Dropped statements are represented as Evaluate(0).
-      if (const auto* eval = new_stmt.as<EvaluateNode>()) {
-        auto value = eval->value.as<PrimExpr>();
-        if (value && is_zero(value.value())) {
-          changed = true;
-          continue;
-        }
-      }
-      if (!new_stmt.same_as(stmt)) {
-        changed = true;
-      }
-      seq.push_back(std::move(new_stmt));
-    }
-    if (!changed) {
-      return ffi::GetRef<Stmt>(op);
-    }
-    return SeqStmt::Flatten(seq);
-  }
-
-  Expr VisitExpr_(const VarNode* op) final {
-    Var v = ffi::GetRef<Var>(op);
-    auto it = var_remap_.find(v);
-    if (it != var_remap_.end()) {
-      return it->second;
-    }
-    return v;
-  }
-
-  Stmt VisitStmt_(const ForNode* op) final {
-    PrimExpr min = VisitPrimExpr(op->min);
-    PrimExpr extent = VisitPrimExpr(op->extent);
-    emitted_keys_.emplace_back(std::vector<ffi::Array<Expr>>());
-    Stmt body = VisitStmt(op->body);
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    auto min_result = Mutate(op->min, inplace_mode);
+    bool min_unchanged = min_result.UnchangedOrSameAs(op->min);
+    PrimExpr min = std::move(min_result).ValueOrUnchanged(op->min);
+    auto extent_result = Mutate(op->extent, inplace_mode);
+    bool extent_unchanged = extent_result.UnchangedOrSameAs(op->extent);
+    PrimExpr extent = std::move(extent_result).ValueOrUnchanged(op->extent);
+    emitted_keys_.emplace_back();
+    auto body_result = Mutate(op->body, inplace_mode);
     emitted_keys_.pop_back();
-    if (min.same_as(op->min) && extent.same_as(op->extent) && body.same_as(op->body)) {
-      return ffi::GetRef<Stmt>(op);
+    bool body_unchanged = body_result.UnchangedOrSameAs(op->body);
+    Stmt body = std::move(body_result).ValueOrUnchanged(op->body);
+    if (min_unchanged && extent_unchanged && body_unchanged) {
+      return ffi::Unchanged();
     } else {
-      auto n = CopyOnWrite(op);
+      if (inplace_mode == InplaceMode::kAllow) {
+        auto* n = const_cast<ForNode*>(op);
+        n->min = std::move(min);
+        n->extent = std::move(extent);
+        n->body = std::move(body);
+        return ffi::Unchanged();
+      }
+      auto n = ffi::make_object<ForNode>(*op);
       n->min = std::move(min);
       n->extent = std::move(extent);
       n->body = std::move(body);
@@ -217,37 +199,58 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const WhileNode* op) {
-    PrimExpr condition = VisitPrimExpr(op->condition);
-    emitted_keys_.emplace_back(std::vector<ffi::Array<Expr>>());
-    Stmt body = VisitStmt(op->body);
+  UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) {
+    auto condition_result = Mutate(op->condition, inplace_mode);
+    bool condition_unchanged = condition_result.UnchangedOrSameAs(op->condition);
+    PrimExpr condition = std::move(condition_result).ValueOrUnchanged(op->condition);
+    emitted_keys_.emplace_back();
+    auto body_result = Mutate(op->body, inplace_mode);
     emitted_keys_.pop_back();
-    if (condition.same_as(op->condition) && body.same_as(op->body)) {
-      return ffi::GetRef<Stmt>(op);
+    bool body_unchanged = body_result.UnchangedOrSameAs(op->body);
+    Stmt body = std::move(body_result).ValueOrUnchanged(op->body);
+    if (condition_unchanged && body_unchanged) {
+      return ffi::Unchanged();
     } else {
-      auto n = CopyOnWrite(op);
+      if (inplace_mode == InplaceMode::kAllow) {
+        auto* n = const_cast<WhileNode*>(op);
+        n->condition = std::move(condition);
+        n->body = std::move(body);
+        return ffi::Unchanged();
+      }
+      auto n = ffi::make_object<WhileNode>(*op);
       n->condition = std::move(condition);
       n->body = std::move(body);
       return Stmt(n);
     }
   }
 
-  Stmt VisitStmt_(const IfThenElseNode* op) {
-    PrimExpr condition = VisitPrimExpr(op->condition);
-    emitted_keys_.emplace_back(std::vector<ffi::Array<Expr>>());
-    Stmt then_case = VisitStmt(op->then_case);
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) {
+    auto condition_result = Mutate(op->condition, inplace_mode);
+    bool condition_unchanged = condition_result.UnchangedOrSameAs(op->condition);
+    PrimExpr condition = std::move(condition_result).ValueOrUnchanged(op->condition);
+    emitted_keys_.emplace_back();
+    auto then_case_result = Mutate(op->then_case, inplace_mode);
     emitted_keys_.pop_back();
+    bool then_case_unchanged = then_case_result.UnchangedOrSameAs(op->then_case);
+    Stmt then_case = std::move(then_case_result).ValueOrUnchanged(op->then_case);
     ffi::Optional<Stmt> else_case = std::nullopt;
     if (op->else_case) {
-      emitted_keys_.emplace_back(std::vector<ffi::Array<Expr>>());
-      else_case = VisitStmt(op->else_case.value());
+      emitted_keys_.emplace_back();
+      else_case =
+          Mutate(op->else_case.value(), inplace_mode).ValueOrUnchanged(op->else_case.value());
       emitted_keys_.pop_back();
     }
-    if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
-        else_case.same_as(op->else_case)) {
-      return ffi::GetRef<Stmt>(op);
+    if (condition_unchanged && then_case_unchanged && else_case.same_as(op->else_case)) {
+      return ffi::Unchanged();
     } else {
-      auto n = CopyOnWrite(op);
+      if (inplace_mode == InplaceMode::kAllow) {
+        auto* n = const_cast<IfThenElseNode*>(op);
+        n->condition = std::move(condition);
+        n->then_case = std::move(then_case);
+        n->else_case = std::move(else_case);
+        return ffi::Unchanged();
+      }
+      auto n = ffi::make_object<IfThenElseNode>(*op);
       n->condition = std::move(condition);
       n->then_case = std::move(then_case);
       n->else_case = std::move(else_case);
@@ -255,24 +258,27 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const BindNode* op) final {
-    Expr value = VisitExpr(op->value);
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    auto value_result = Mutate(op->value, inplace_mode);
+    bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
+    Expr value = std::move(value_result).ValueOrUnchanged(op->value);
     if (IsTensorMapAlloca(op)) {
       // If this bind allocates a tensormap that is remapped to a canonical var, drop it.
-      auto it = var_remap_.find(op->var);
-      if (it != var_remap_.end()) {
+      if (VarRemapGet(op->var) != nullptr) {
         return Evaluate(0);
       }
     }
-    if (value.same_as(op->value)) {
-      return ffi::GetRef<Stmt>(op);
+    if (value_unchanged) {
+      return ffi::Unchanged();
     }
     return Bind(op->var, value, op->span);
   }
 
-  Stmt VisitStmt_(const EvaluateNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     // Default mutation
-    Evaluate eval = StmtExprMutator::VisitStmt_(op).as_or_throw<Evaluate>();
+    Evaluate eval = StmtExprMutator::Mutate_(op, inplace_mode)
+                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                        .as_or_throw<Evaluate>();
     if (const CallNode* call = AsCuTensorMapEncode(eval.get())) {
       // Build key after var remapping
       auto [maybe_var, key] = ExtractEncodeKey(call);
@@ -290,8 +296,6 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     return eval;
   }
 
-  // Map of duplicate var -> canonical var
-  std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap_;
   // Track which parameter keys have already emitted an encode call
   std::vector<std::vector<ffi::Array<Expr>>> emitted_keys_;
 };
@@ -301,13 +305,15 @@ namespace transform {
 Pass LowerTIRxDedupCuTensorMaps() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     // Analyze usage to find duplicates
-    CuTensorMapDedupAnalyzer analyzer;
-    analyzer(f->body);
-    if (analyzer.var_remap().empty()) {
+    auto analyzer = ffi::make_object<CuTensorMapDedupAnalyzer>();
+    analyzer->Visit(f->body);
+    if (analyzer->var_remap().empty()) {
       return f;
     }
     auto* n = f.CopyOnWrite();
-    n->body = CuTensorMapDedupRewriter(analyzer.var_remap())(n->body);
+    n->body = ffi::make_object<CuTensorMapDedupRewriter>(analyzer->var_remap())
+                  ->Mutate(n->body, InplaceMode::kAllow)
+                  .ValueOrUnchanged(n->body);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.LowerTIRxDedupCuTensorMaps", {});

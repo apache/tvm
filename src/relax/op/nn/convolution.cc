@@ -32,6 +32,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   Conv1DAttrs::RegisterReflection();
@@ -103,7 +104,7 @@ Type InferTypeConv1d(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
   ffi::Array<PrimExpr> weight_OIW_shape = weight2OIW.ForwardShape(weight_shape.value()->values);
 
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCW_shape[1];
   PrimExpr input_channel_kernel = weight_OIW_shape[1];
   if (analyzer->CanProve(input_channel_data != input_channel_kernel * attrs->groups)) {
@@ -273,7 +274,7 @@ Type InferTypeConv2d(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
   ffi::Array<PrimExpr> weight_OIHW_shape = weight2OIHW.ForwardShape(weight_shape.value()->values);
 
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCHW_shape[1];
   PrimExpr input_channel_kernel = weight_OIHW_shape[1];
   if (analyzer->CanProve(input_channel_data != input_channel_kernel * attrs->groups)) {
@@ -487,7 +488,7 @@ Type InferTypeConv3d(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<PrimExpr> data_NCDHW_shape = data2NCDHW.ForwardShape(data_shape.value()->values);
   ffi::Array<PrimExpr> weight_OIDHW_shape = weight2OIDHW.ForwardShape(weight_shape.value()->values);
 
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCDHW_shape[1];
   PrimExpr input_channel_kernel = weight_OIDHW_shape[1];
   if (analyzer->CanProve(input_channel_data != input_channel_kernel * attrs->groups)) {
@@ -675,7 +676,7 @@ Type InferTypeConv1dTranspose(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
   ffi::Array<PrimExpr> weight_IOW_shape = weight2IOW.ForwardShape(weight_shape.value()->values);
 
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCW_shape[1];
   PrimExpr input_channel_kernel = weight_IOW_shape[0];
   if (analyzer->CanProve(input_channel_data != input_channel_kernel)) {
@@ -867,7 +868,7 @@ Type InferTypeConv2dTranspose(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
   ffi::Array<PrimExpr> weight_IOHW_shape = weight2IOHW.ForwardShape(weight_shape.value()->values);
 
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCHW_shape[1];
   PrimExpr input_channel_kernel = weight_IOHW_shape[0];
   if (analyzer->CanProve(input_channel_data != input_channel_kernel)) {
@@ -1099,7 +1100,7 @@ Type InferTypeConv3dTranspose(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<PrimExpr> data_NCDHW_shape = data2NCDHW.ForwardShape(data_shape.value()->values);
   ffi::Array<PrimExpr> weight_IODHW_shape = weight2IODHW.ForwardShape(weight_shape.value()->values);
 
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCDHW_shape[1];
   PrimExpr input_channel_kernel = weight_IODHW_shape[0];
   if (analyzer->CanProve(input_channel_data != input_channel_kernel)) {

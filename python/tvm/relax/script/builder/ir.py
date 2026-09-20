@@ -25,19 +25,10 @@ from typing import Any
 
 import tvm
 from tvm import DataType, relax
-from tvm.ir import IRModule, VDevice
-from tvm.relax import (
-    Call,
-    Expr,
-    ExternFunc,
-    ShapeExpr,
-    StringImm,
-    TupleGetItem,
-    Var,
-    VarBinding,
-    const,
-)
+from tvm.ir import IRModule, StringImm
+from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, TupleGetItem, Var, VarBinding, const
 from tvm.relax.dpl import PatternMatchingRewriter
+from tvm.relax.global_info import VDevice
 
 ############################### Operators ###############################
 from tvm.relax.op import (
@@ -778,7 +769,7 @@ def str(value: py_str) -> Expr:
     res : Expr
         The result str.
     """
-    return relax.StringImm(value)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return tvm.ir.StringImm(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def dtype(value: py_str | DataType) -> Expr:
@@ -792,7 +783,7 @@ def dtype(value: py_str | DataType) -> Expr:
     res : Expr
         The result dtype.
     """
-    return relax.DataTypeImm(value)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return tvm.ir.GenericConst(tvm.DataType(value), tvm.relax.AnyType())  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 ############################### Importer ###############################

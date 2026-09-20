@@ -20,19 +20,21 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/script/ir_builder/ir/ir.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/script/builder/frame.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../../tirx/ir/script/script_complete.h"
 #include "./utils.h"
 
 namespace tvm {
 namespace script {
+
 namespace ir_builder {
 namespace tirx {
 
@@ -49,18 +51,19 @@ namespace {
 //
 // This normalizer runs at PrimFunc construction time: it strips any defined
 // layout from buffers in `buffer_map` / `root_alloc_buffers` and rewrites
-// matching body references through the StmtExprMutator's built-in
-// `buffer_remap_` machinery, so the body remains well-formed.
+// matching body references through the s_tir::StmtExprMutator's built-in
+// variable remapping, so the body remains well-formed.
 class STirBufferLayoutNormalizer : public tvm::tirx::StmtExprMutator {
  public:
+  using tvm::tirx::StmtExprMutator::Mutate;
+  using tvm::tirx::StmtExprMutator::Mutate_;
   void Register(const tvm::tirx::BufferVar& old_buf, const tvm::tirx::BufferVar& new_buf) {
-    this->buffer_remap_.Set(old_buf, new_buf);
+    VarRemapSet(old_buf, new_buf);
   }
-  bool Empty() const { return this->buffer_remap_.empty(); }
-  tvm::tirx::BufferVar Lookup(const tvm::tirx::BufferVar& buf) const {
-    auto it = this->buffer_remap_.find(buf);
-    if (it != this->buffer_remap_.end()) {
-      return (*it).second;
+  bool Empty() const { return var_remap_.empty(); }
+  tvm::tirx::BufferVar Lookup(const tvm::tirx::BufferVar& buf) {
+    if (auto mapped = VarRemapGet(buf); mapped != nullptr) {
+      return mapped.as_or_throw<tvm::tirx::BufferVar>();
     }
     return buf;
   }
@@ -117,7 +120,7 @@ void PrimFuncFrameNode::ExitWithScope() {
   // STirBufferLayoutNormalizer above) and rewrite body references coherently.
   ffi::Array<tvm::tirx::BufferVar> effective_root_alloc_buffers = root_alloc_buffers;
   tvm::tirx::Stmt body = AsStmt(stmts);
-  STirBufferLayoutNormalizer normalizer;
+  auto normalizer = ffi::make_object<STirBufferLayoutNormalizer>();
   ffi::Array<tvm::tirx::Var> effective_args;
   ffi::Map<tvm::tirx::Var, tvm::Expr> param_replacements;
   for (const tvm::tirx::Var& arg : args) {
@@ -135,7 +138,7 @@ void PrimFuncFrameNode::ExitWithScope() {
       ffi::ObjectPtr<tvm::tirx::BufferTypeNode> type = tvm::tirx::CopyBufferType(buffer);
       type->layout = std::nullopt;
       tvm::tirx::BufferVar new_buffer = tvm::tirx::RebuildBufferVar(buffer, std::move(type));
-      normalizer.Register(buffer, new_buffer);
+      normalizer->Register(buffer, new_buffer);
       buffer = new_buffer;
     }
     effective_args.push_back(buffer.var());
@@ -144,14 +147,14 @@ void PrimFuncFrameNode::ExitWithScope() {
       tvm::Expr data = buffer.data();
       param_replacements.Set(arg, ffi::StructuralEqual()(arg->ty, data->ty)
                                       ? data
-                                      : tvm::reinterpret(arg->ty, std::move(data)));
+                                      : tvm::prim::reinterpret(arg->ty, std::move(data)));
     }
   }
-  if (!normalizer.Empty()) {
-    body = normalizer(std::move(body));
+  if (!normalizer->Empty()) {
+    body = normalizer->Mutate(body, InplaceMode::kAllow).ValueOrUnchanged(body);
     ffi::Array<tvm::tirx::BufferVar> new_root_alloc_buffers;
     for (const tvm::tirx::BufferVar& buffer : root_alloc_buffers) {
-      new_root_alloc_buffers.push_back(normalizer.Lookup(buffer));
+      new_root_alloc_buffers.push_back(normalizer->Lookup(buffer));
     }
     effective_root_alloc_buffers = std::move(new_root_alloc_buffers);
   }
@@ -200,7 +203,7 @@ void PrimFuncFrameNode::ExitWithScope() {
 void SBlockFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
 
-  // Allow SBlock construction in raw IRBuilder context (no enclosing PrimFuncFrame)
+  // Allow s_tir::SBlock construction in raw IRBuilder context (no enclosing PrimFuncFrame)
   // so test fixtures can construct blocks/block-realizes directly.
 
   ffi::Array<tvm::tirx::BufferVar> tir_alloc_buffers;
@@ -211,10 +214,9 @@ void SBlockFrameNode::ExitWithScope() {
   if (int detect_access = (!reads.has_value()) | (!writes.has_value() << 1)) {
     attrs.Set("tirx.script_parsing_detect_access", tvm::IntImm::Int64(detect_access));
   }
-  tvm::tirx::SBlock block(iter_vars, reads.value_or(ffi::Array<tvm::tirx::BufferRegion>()),
-                          writes.value_or(ffi::Array<tvm::tirx::BufferRegion>()), name,
-                          AsStmt(stmts), init, tir_alloc_buffers, match_buffers, attrs,
-                          tvm::Span());
+  tvm::s_tir::SBlock block(iter_vars, reads.value_or(ffi::Array<tvm::TensorRegion>()),
+                           writes.value_or(ffi::Array<tvm::TensorRegion>()), name, AsStmt(stmts),
+                           init, tir_alloc_buffers, match_buffers, attrs, tvm::Span());
   if (no_realize) {
     TVM_FFI_CHECK(iter_values.empty(), ValueError)
         << "Block bindings are not allowed when `no_realize=True`";
@@ -223,7 +225,7 @@ void SBlockFrameNode::ExitWithScope() {
     AddToParent(block);
   } else {
     AddToParent(
-        tvm::tirx::SBlockRealize(iter_values, predicate.value_or(IntImm::Bool(true)), block));
+        tvm::s_tir::SBlockRealize(iter_values, predicate.value_or(IntImm::Bool(true)), block));
   }
 }
 

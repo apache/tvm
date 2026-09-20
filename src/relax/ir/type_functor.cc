@@ -31,6 +31,8 @@ void TypeVisitor::VisitType_(const AnyTypeNode* op) {}
 
 void TypeVisitor::VisitType_(const PrimTypeNode* op) {}
 
+void TypeVisitor::VisitType_(const StringTypeNode* op) {}
+
 void TypeVisitor::VisitType_(const ShapeTypeNode* op) {
   if (op->values.has_value()) {
     for (PrimExpr value : op->values.value()) {
@@ -67,6 +69,8 @@ void TypeVisitor::VisitType_(const FuncTypeNode* op) {
 Type TypeMutator::VisitType_(const AnyTypeNode* op) { return ffi::GetRef<Type>(op); }
 
 Type TypeMutator::VisitType_(const PrimTypeNode* op) { return ffi::GetRef<Type>(op); }
+
+Type TypeMutator::VisitType_(const StringTypeNode* op) { return ffi::GetRef<Type>(op); }
 
 Type TypeMutator::VisitType_(const ShapeTypeNode* op) {
   if (!op->values.has_value()) {

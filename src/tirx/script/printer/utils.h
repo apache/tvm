@@ -23,6 +23,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/script/printer/ir_docsifier.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/buffer.h>
@@ -31,7 +32,6 @@
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/tile_primitive.h>
 
 #include <string>
@@ -44,6 +44,7 @@
 
 namespace tvm {
 namespace script {
+
 namespace printer {
 
 using tvm::ffi::StructuralEqual;
@@ -145,7 +146,7 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
       if (d->cfg->syntax_sugar && alloc != nullptr && alloc->buffer.IsScalar(true) && i + 1 < n) {
         const auto* store = body[i + 1].as<tirx::BufferStoreNode>();
         bool can_merge_init = store != nullptr && store->buffer.same_as(alloc->buffer) &&
-                              store->indices.size() == 1 && tirx::is_zero(store->indices[0]) &&
+                              store->indices.size() == 1 && tvm::prim::is_zero(store->indices[0]) &&
                               !value_refs_buffer(store->value, alloc->buffer);
         if (can_merge_init) {
           Doc alloc_doc = d->AsDoc(body[i], item_p);

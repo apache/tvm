@@ -21,7 +21,8 @@
 import tvm_ffi
 from tvm_ffi import Array
 
-from tvm.ir import EnvFunc, PrimType, Span, TupleType, VDevice
+from tvm.ir import EnvFunc, PrimType, Span, TupleType
+from tvm.relax.global_info import VDevice
 
 from . import _ffi_api
 from .expr import Expr, ShapeExpr, Type

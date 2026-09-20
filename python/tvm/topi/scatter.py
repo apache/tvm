@@ -19,9 +19,9 @@
 """ScatterND operator"""
 
 from tvm import DataTypeCode, ir, te, tirx  # hide redefinition of min and max
-from tvm.arith.analyzer import Analyzer
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tirx as T
+from tvm.sym.analyzer import Analyzer
 
 
 def _verify_scatter_nd_inputs(data, indices, updates):

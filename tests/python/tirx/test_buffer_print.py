@@ -352,7 +352,7 @@ def test_print():
             A = T.match_buffer(A_ptr, (M,), dtype_str)
             B = T.match_buffer(B_ptr, (M,), dtype_str)
             C = T.match_buffer(C_ptr, (M,), dtype_str)
-            string_var = T.StringImm(test_string)
+            string_var = tvm.ir.StringImm(test_string)
 
             for i in T.grid(M):
                 with T.sblock("C"):

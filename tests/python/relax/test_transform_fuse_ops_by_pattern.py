@@ -524,7 +524,7 @@ def test_bind_params():
     for gvar, f in mod.functions.items():
         if gvar.name_hint == "fused_relax_nn_conv2d_relax_nn_relu":
             conv2d = f.body.blocks[0].bindings[0].value
-            assert isinstance(conv2d.args[1], relax.Constant)
+            assert isinstance(conv2d.args[1], tvm.ir.GenericConst)
 
 
 def test_annotate_codegen():

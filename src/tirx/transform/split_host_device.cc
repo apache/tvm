@@ -47,22 +47,28 @@ namespace tirx {
 
 // Device-region annotation
 
-class DeviceRegionAnnotater : public StmtMutator {
+class DeviceRegionAnnotater : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override {
+    if (input.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(input, inplace_mode);
+  }
   explicit DeviceRegionAnnotater(Target device_target) : device_target_(device_target) {}
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == tvm::attr::kTarget) {
       // If a target attribute already exists, use it as-is.
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     } else if (op->attr_key == attr::thread_extent || op->attr_key == attr::device_scope) {
       // These attributes are only allowed in device-side code, so
       // they should be annotated with the function's default target.
       Stmt body = ffi::GetRef<Stmt>(op);
-      return AttrStmt(device_target_, tvm::attr::kTarget, 0, body);
+      return AttrStmt(device_target_, tvm::attr::kTarget, IntImm::Int32(0), body);
     } else {
       // All other annotations are ignored.
-      return StmtMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 
@@ -76,9 +82,12 @@ PrimFunc AnnotateDeviceRegionsForSplit(PrimFunc func) {
   Target target = opt_target.value();
 
   if (target->GetHost()) {
-    DeviceRegionAnnotater mutator(target.WithoutHost());
-    auto body = mutator(func->body);
-    if (!body.same_as(func->body)) {
+    auto mutator = ffi::make_object<DeviceRegionAnnotater>(target.WithoutHost());
+    auto body_result =
+        mutator->Mutate(func->body, func.unique() ? InplaceMode::kAllow : InplaceMode::kDisallow);
+    bool body_unchanged = body_result.UnchangedOrSameAs(func->body);
+    auto body = std::move(body_result).ValueOrUnchanged(func->body);
+    if (!body_unchanged) {
       func.CopyOnWrite()->body = body;
     }
   }
@@ -87,14 +96,20 @@ PrimFunc AnnotateDeviceRegionsForSplit(PrimFunc func) {
 
 // Host/device function extraction
 
-class LaunchBoundsAttrExtractor : public StmtMutator {
+class LaunchBoundsAttrExtractor : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override {
+    if (input.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(input, inplace_mode);
+  }
   Stmt Extract(Stmt stmt) {
     min_blocks_per_sm_.reset();
     max_blocks_per_cluster_.reset();
     max_registers_.reset();
     required_block_size_.reset();
-    Stmt result = operator()(std::move(stmt));
+    Stmt result = Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
     TVM_FFI_ICHECK(!max_blocks_per_cluster_.has_value() || min_blocks_per_sm_.has_value())
         << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " requires "
         << tirx::attr::kLaunchBoundsMinBlocksPerSM;
@@ -112,7 +127,7 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
   std::optional<int64_t> required_block_size() const { return required_block_size_; }
 
  private:
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == tirx::attr::kLaunchBoundsMinBlocksPerSM) {
       const auto* min_blocks_per_sm = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(min_blocks_per_sm)
@@ -123,8 +138,8 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
         TVM_FFI_ICHECK_EQ(min_blocks_per_sm_.value(), min_blocks_per_sm->value)
             << "Conflicting " << tirx::attr::kLaunchBoundsMinBlocksPerSM << " values";
       }
-      min_blocks_per_sm_ = min_blocks_per_sm->value;
-      return VisitStmt(op->body);
+      min_blocks_per_sm_ = static_cast<int64_t>(min_blocks_per_sm->value);
+      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else if (op->attr_key == tirx::attr::kLaunchBoundsMaxBlocksPerCluster) {
       const auto* max_blocks_per_cluster = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(max_blocks_per_cluster)
@@ -135,8 +150,8 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
         TVM_FFI_ICHECK_EQ(max_blocks_per_cluster_.value(), max_blocks_per_cluster->value)
             << "Conflicting " << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " values";
       }
-      max_blocks_per_cluster_ = max_blocks_per_cluster->value;
-      return VisitStmt(op->body);
+      max_blocks_per_cluster_ = static_cast<int64_t>(max_blocks_per_cluster->value);
+      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else if (op->attr_key == tirx::attr::kMaxRegisters) {
       const auto* max_registers = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(max_registers) << tirx::attr::kMaxRegisters << " expects an integer value";
@@ -146,8 +161,8 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
         TVM_FFI_ICHECK_EQ(max_registers_.value(), max_registers->value)
             << "Conflicting " << tirx::attr::kMaxRegisters << " values";
       }
-      max_registers_ = max_registers->value;
-      return VisitStmt(op->body);
+      max_registers_ = static_cast<int64_t>(max_registers->value);
+      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else if (op->attr_key == tirx::attr::kRequiredBlockSize) {
       const auto* required_block_size = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(required_block_size)
@@ -158,10 +173,10 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
         TVM_FFI_ICHECK_EQ(required_block_size_.value(), required_block_size->value)
             << "Conflicting " << tirx::attr::kRequiredBlockSize << " values";
       }
-      required_block_size_ = required_block_size->value;
-      return VisitStmt(op->body);
+      required_block_size_ = static_cast<int64_t>(required_block_size->value);
+      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     }
-    return StmtMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   std::optional<int64_t> min_blocks_per_sm_;
@@ -170,29 +185,36 @@ class LaunchBoundsAttrExtractor : public StmtMutator {
   std::optional<int64_t> required_block_size_;
 };
 
-class HostDeviceSplitter : public StmtMutator {
+class HostDeviceSplitter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override {
+    if (input.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(input, inplace_mode);
+  }
   explicit HostDeviceSplitter(IRModule* device_mod, std::function<GlobalVar()> var_supply,
                               PrimFunc cur_func)
       : device_mod_(device_mod), var_supply_(var_supply), cur_func_(cur_func) {}
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == tvm::attr::kTarget) {
       auto device_target = op->node.as<Target>().value().WithoutHost();
       return SplitDeviceFunc(op->body, device_target);
     }
-    return StmtMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  private:
   Stmt SplitDeviceFunc(Stmt body, Target device_target) {
     auto [params,
           buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<BufferVar>> {
-      VarUseDefAnalyzer use_def(/*defined_vars=*/{}, /*visit_thread_extent=*/true);
-      use_def(body);
+      auto use_def =
+          ffi::make_object<VarUseDefAnalyzer>(ffi::Array<Var>{}, /*visit_thread_extent=*/true);
+      use_def->Visit(body);
 
       // Sort first by variable type, then by variable name
-      std::vector<Var> params{use_def.undefined_.begin(), use_def.undefined_.end()};
+      std::vector<Var> params{use_def->undefined_.begin(), use_def->undefined_.end()};
       if (device_target->kind->name != "trn") {
         std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
           auto sort_key = [](const Var& var) {
@@ -214,7 +236,7 @@ class HostDeviceSplitter : public StmtMutator {
         std::sort(params.begin(), params.end(),
                   [&](const Var& a, const Var& b) { return param_order[a] < param_order[b]; });
       }
-      return {params, use_def.undefined_buffers_};
+      return {params, use_def->undefined_buffers_};
     }();
 
     // Buffer Vars are compiler-side values, not ABI values.  Thread their
@@ -223,7 +245,7 @@ class HostDeviceSplitter : public StmtMutator {
     ffi::Array<Var> kernel_params;
     ffi::Array<Expr> call_args;
     ffi::Map<Var, Var> buffer_data_params;
-    ffi::Map<Var, Expr> kernel_buffer_remap;
+    auto kernel_rewriter = ffi::make_object<StmtExprMutator>();
     for (const Var& param : params) {
       if (param->ty.as<BufferTypeNode>()) {
         BufferVar buffer(param);
@@ -232,19 +254,13 @@ class HostDeviceSplitter : public StmtMutator {
         kernel_params.push_back(data_param);
         call_args.push_back(buffer.data());
         buffer_data_params.Set(param, data_param);
-        kernel_buffer_remap.Set(param, kernel_buffer.var());
+        kernel_rewriter->VarRemapSet(param, kernel_buffer);
       } else {
         kernel_params.push_back(param);
         call_args.push_back(param);
       }
     }
-    auto map_kernel_buffer =
-        [&kernel_buffer_remap](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-      if (auto repl = kernel_buffer_remap.Get(var)) return ffi::Any(*std::move(repl));
-      return ffi::Unchanged();
-    };
-    body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(body), map_kernel_buffer)
-               .as_or_throw<Stmt>();
+    body = kernel_rewriter->Mutate(body).ValueOrUnchanged(body);
 
     // CodeGenCPU is used for some device-side targets, such as
     // "ext_dev", and expects to be able to return a int32_t status
@@ -265,16 +281,15 @@ class HostDeviceSplitter : public StmtMutator {
 
     for (BufferVar buf : buffers_to_declare) {
       auto data_param = buffer_data_params.Get(buf.var());
-      auto kernel_buffer = kernel_buffer_remap.Get(buf.var());
+      auto kernel_buffer = kernel_rewriter->VarRemapGet(buf);
       TVM_FFI_ICHECK(data_param.has_value())
           << "Undefined buffer " << buf.name() << " was not captured as a kernel parameter";
-      TVM_FFI_ICHECK(kernel_buffer.has_value());
+      TVM_FFI_ICHECK(kernel_buffer != nullptr);
       body = SeqStmt::Flatten(
-          DeclBuffer(BufferVar(kernel_buffer.value().as_or_throw<Var>()), data_param.value()),
-          std::move(body));
+          DeclBuffer(kernel_buffer.as_or_throw<BufferVar>(), data_param.value()), std::move(body));
     }
-    LaunchBoundsAttrExtractor launch_bounds_attr;
-    body = launch_bounds_attr.Extract(std::move(body));
+    auto launch_bounds_attr = ffi::make_object<LaunchBoundsAttrExtractor>();
+    body = launch_bounds_attr->Extract(std::move(body));
     PrimFunc device_func(kernel_params, body, kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tirx::attr::kNoAlias, true},
@@ -289,21 +304,21 @@ class HostDeviceSplitter : public StmtMutator {
           WithAttr(std::move(device_func), tirx::attr::kKernelLaunchParams, launch_params.value());
     }
     if (device_target->kind->name == "cuda") {
-      if (launch_bounds_attr.min_blocks_per_sm().has_value()) {
+      if (launch_bounds_attr->min_blocks_per_sm().has_value()) {
         device_func = WithAttr(std::move(device_func), tirx::attr::kLaunchBoundsMinBlocksPerSM,
-                               launch_bounds_attr.min_blocks_per_sm().value());
+                               launch_bounds_attr->min_blocks_per_sm().value());
       }
-      if (launch_bounds_attr.max_blocks_per_cluster().has_value()) {
+      if (launch_bounds_attr->max_blocks_per_cluster().has_value()) {
         device_func = WithAttr(std::move(device_func), tirx::attr::kLaunchBoundsMaxBlocksPerCluster,
-                               launch_bounds_attr.max_blocks_per_cluster().value());
+                               launch_bounds_attr->max_blocks_per_cluster().value());
       }
-      if (launch_bounds_attr.max_registers().has_value()) {
+      if (launch_bounds_attr->max_registers().has_value()) {
         device_func = WithAttr(std::move(device_func), tirx::attr::kMaxRegisters,
-                               launch_bounds_attr.max_registers().value());
+                               launch_bounds_attr->max_registers().value());
       }
-      if (launch_bounds_attr.required_block_size().has_value()) {
+      if (launch_bounds_attr->required_block_size().has_value()) {
         device_func = WithAttr(std::move(device_func), tirx::attr::kRequiredBlockSize,
-                               launch_bounds_attr.required_block_size().value());
+                               launch_bounds_attr->required_block_size().value());
       }
     }
     auto num_inputs = cur_func_->GetAttr<int64_t>(tvm::attr::kNumInputs);
@@ -316,14 +331,13 @@ class HostDeviceSplitter : public StmtMutator {
       Var kernel_error_code("kernel_error_code", success.ty());
       Call kernel_call(success.ty(), kernel_symbol_global, call_args);
       AssertStmt assert_success(kernel_error_code.as_or_throw<PrimExpr>() == success,
-                                prim::StringImm("RuntimeError"),
-                                {prim::StringImm("Error executing compute kernel")});
+                                StringImm("RuntimeError"),
+                                {StringImm("Error executing compute kernel")});
       return SeqStmt(ffi::Array<Stmt>{Bind(kernel_error_code, kernel_call.as_or_throw<PrimExpr>()),
                                       assert_success});
 
     } else {
-      return Evaluate(
-          Call(PrimType::Void(), kernel_symbol_global, call_args).as_or_throw<PrimExpr>());
+      return Evaluate(Call(kernel_ret_type, kernel_symbol_global, call_args));
     }
   }
 
@@ -337,10 +351,12 @@ class HostDeviceSplitter : public StmtMutator {
 
 PrimFunc SplitHostDevice(PrimFunc func, IRModule* device_mod,
                          std::function<GlobalVar()> var_supply) {
-  HostDeviceSplitter splitter(device_mod, var_supply, func);
+  auto splitter = ffi::make_object<HostDeviceSplitter>(device_mod, var_supply, func);
 
-  if (auto body = splitter(func->body); !body.same_as(func->body)) {
-    func.CopyOnWrite()->body = body;
+  auto body_result =
+      splitter->Mutate(func->body, func.unique() ? InplaceMode::kAllow : InplaceMode::kDisallow);
+  if (!body_result.UnchangedOrSameAs(func->body)) {
+    func.CopyOnWrite()->body = std::move(body_result).ValueUnchecked();
   }
 
   return func;
@@ -376,36 +392,40 @@ struct KernelInfo {
 /*!
  * \brief Visitor class to collect device-side program information.
  */
-class DeviceInfoCollector : public StmtVisitor {
+class DeviceInfoCollector : public StmtExprVisitor {
  public:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
   static KernelInfo Collect(const GlobalVar& gvar, const PrimFunc& func) {
-    DeviceInfoCollector collector;
-    collector.info_.target = func->GetAttr<Target>(tvm::attr::kTarget).value().WithoutHost();
-    collector.info_.params = func->params;
+    auto collector = ffi::make_object<DeviceInfoCollector>();
+    collector->info_.target = func->GetAttr<Target>(tvm::attr::kTarget).value().WithoutHost();
+    collector->info_.params = func->params;
 
     if (auto requested = func->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams)) {
       for (const ffi::String& tag : requested.value()) {
         if (tag == tvm::runtime::launch_param::kUseProgramaticDependentLaunch) {
-          collector.use_programmatic_dependent_launch_ = true;
+          collector->use_programmatic_dependent_launch_ = true;
         } else if (tag == tvm::runtime::launch_param::kUseCooperativeLaunch) {
-          collector.use_cooperative_launch_ = true;
+          collector->use_cooperative_launch_ = true;
         }
       }
     }
-    collector.use_required_block_dimension_ =
+    collector->use_required_block_dimension_ =
         func->GetAttr<int64_t>(tirx::attr::kRequiredBlockSize).value_or(0) == 1;
 
-    collector(func->body);
+    collector->Visit(func->body);
 
-    if (collector.use_programmatic_dependent_launch_) {
-      collector.info_.launch_params.push_back(
+    if (collector->use_programmatic_dependent_launch_) {
+      collector->info_.launch_params.push_back(
           tvm::runtime::launch_param::kUseProgramaticDependentLaunch);
     }
-    if (collector.use_cooperative_launch_) {
-      collector.info_.launch_params.push_back(tvm::runtime::launch_param::kUseCooperativeLaunch);
+    if (collector->use_cooperative_launch_) {
+      collector->info_.launch_params.push_back(tvm::runtime::launch_param::kUseCooperativeLaunch);
     }
-    if (collector.use_required_block_dimension_) {
-      collector.info_.launch_params.push_back(
+    if (collector->use_required_block_dimension_) {
+      collector->info_.launch_params.push_back(
           tvm::runtime::launch_param::kUseRequiredBlockDimension);
     }
     // The dynamic shared memory is required to be the last of the kernel
@@ -413,33 +433,33 @@ class DeviceInfoCollector : public StmtVisitor {
     // otherwise fall back to the size inferred from the allocation extent.
     // A zero-extent allocation is a pool-style extern placeholder, so having
     // neither a declaration nor a usable extent is an authoring error.
-    if (!collector.dyn_shmem_size.has_value() && collector.inferred_shmem_size_.has_value()) {
-      const auto* inferred = collector.inferred_shmem_size_.value().as<IntImmNode>();
+    if (!collector->dyn_shmem_size.has_value() && collector->inferred_shmem_size_.has_value()) {
+      const auto* inferred = collector->inferred_shmem_size_.value().as<IntImmNode>();
       TVM_FFI_ICHECK(!(inferred && inferred->value == 0))
           << "PrimFunc " << gvar->name_hint
           << " allocates dynamic shared memory with a placeholder extent but does not declare "
              "its size; annotate the kernel with tirx.dyn_smem_bytes (SMEMPool.commit() emits "
              "it).";
-      collector.dyn_shmem_size = collector.inferred_shmem_size_;
+      collector->dyn_shmem_size = collector->inferred_shmem_size_;
     }
-    if (collector.dyn_shmem_size) {
-      collector.info_.launch_params.push_back(
+    if (collector->dyn_shmem_size) {
+      collector->info_.launch_params.push_back(
           tvm::runtime::launch_param::kUseDynamicSharedMemoryTag);
     }
 
-    collector.info_.global_symbol =
+    collector->info_.global_symbol =
         func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
 
-    for (const ffi::String& param : collector.info_.launch_params) {
+    for (const ffi::String& param : collector->info_.launch_params) {
       if (param == tvm::runtime::launch_param::kUseProgramaticDependentLaunch ||
           param == tvm::runtime::launch_param::kUseCooperativeLaunch ||
           param == tvm::runtime::launch_param::kUseRequiredBlockDimension) {
         continue;
       }
-      collector.info_.launch_args.push_back(collector.GetArgument(param));
+      collector->info_.launch_args.push_back(collector->GetArgument(param));
     }
 
-    return collector.info_;
+    return collector->info_;
   }
 
  private:
@@ -458,7 +478,7 @@ class DeviceInfoCollector : public StmtVisitor {
     return extent.value();
   }
 
-  void VisitStmt_(const BindNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     // Track Bind definitions so that thread_extent values and
     // dyn_shmem_size expressions that reference locally-bound
     // variables (e.g. CSE variables) can be inlined back to
@@ -466,8 +486,7 @@ class DeviceInfoCollector : public StmtVisitor {
     // bindings into the value to handle chains (cse_v2 = f(cse_v1)).
     auto prim_value = op->value.as<PrimExpr>();
     if (!prim_value) {
-      StmtVisitor::VisitStmt_(op);
-      return;
+      return StmtExprVisitor::Visit_(op);
     }
     auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (auto repl = bind_map_.Get(var)) return ffi::Any(*std::move(repl));
@@ -478,10 +497,10 @@ class DeviceInfoCollector : public StmtVisitor {
                                             .as_or_throw<PrimExpr>()
                                       : prim_value.value();
     bind_map_.Set(op->var, value);
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     if (op->attr_key == "tirx.dyn_smem_bytes") {
       // Kernel-level declaration of the dynamic shared memory launch size.
       // The backing shared.dyn allocation is an extern placeholder; this
@@ -489,7 +508,7 @@ class DeviceInfoCollector : public StmtVisitor {
       TVM_FFI_ICHECK(!dyn_shmem_size.has_value())
           << "Only one tirx.dyn_smem_bytes declaration is allowed per kernel.";
       TVM_FFI_ICHECK(op->value.as<IntImmNode>()) << "tirx.dyn_smem_bytes must be an IntImm";
-      dyn_shmem_size = op->value;
+      dyn_shmem_size = op->value.as_or_throw<PrimExpr>();
     }
     if (op->attr_key == attr::thread_extent) {
       ffi::String thread_tag;
@@ -517,15 +536,15 @@ class DeviceInfoCollector : public StmtVisitor {
         PrimExpr value = bind_map_.size() ? ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
                                                 op->value, f_substitute)
                                                 .as_or_throw<PrimExpr>()
-                                          : op->value;
+                                          : op->value.as_or_throw<PrimExpr>();
         thread_extent.Set(thread_tag, value);
       }
     }
 
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
     auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       TVM_FFI_ICHECK(!saw_dyn_shared_alloc_)
@@ -552,7 +571,7 @@ class DeviceInfoCollector : public StmtVisitor {
       }
       inferred_shmem_size_ = dyn_size;
     }
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   // The collected results.
@@ -578,15 +597,18 @@ class DeviceInfoCollector : public StmtVisitor {
 
 class ReturnRemover : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   static Stmt Apply(const Stmt& stmt, bool remove) {
-    ReturnRemover mutator(remove);
-    return mutator(stmt);
+    auto mutator = ffi::make_object<ReturnRemover>(remove);
+    return mutator->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
   }
 
- private:
+ public:
   explicit ReturnRemover(bool remove) : remove_(remove) {}
 
-  Stmt VisitStmt_(const ReturnNode* op) override {
+ private:
+  UnchangedOr<Stmt> Mutate_(const ReturnNode* op, InplaceMode inplace_mode) override {
     auto as_int = op->value.as<IntImmNode>();
     TVM_FFI_ICHECK(as_int && as_int->value == 0)
         << "Device kernel may only contain a successful return, return 0";
@@ -599,23 +621,23 @@ class ReturnRemover : public StmtExprMutator {
 class GlobalVarCallCollector : public StmtExprVisitor {
  public:
   static std::unordered_set<const GlobalVarNode*> Collect(const IRModule& mod) {
-    GlobalVarCallCollector collector;
+    auto collector = ffi::make_object<GlobalVarCallCollector>();
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto prim_func = base_func.as<PrimFunc>()) {
-        collector(prim_func.value()->body);
+        collector->Visit(prim_func.value()->body);
       }
     }
-    return collector.called_gvars_;
+    return collector->called_gvars_;
   }
 
  private:
   using Parent = StmtExprVisitor;
 
-  void VisitExpr_(const CallNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if (auto* gvar = op->op.as<GlobalVarNode>()) {
       called_gvars_.insert(gvar);
     }
-    Parent::VisitExpr_(op);
+    return Parent::Visit_(op);
   }
 
   std::unordered_set<const GlobalVarNode*> called_gvars_;
@@ -625,6 +647,8 @@ class GlobalVarCallCollector : public StmtExprVisitor {
 
 class DeviceKernelMutator : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   using Parent = StmtExprMutator;
 
   explicit DeviceKernelMutator(std::unordered_map<const GlobalVarNode*, KernelInfo> device_info_map)
@@ -649,8 +673,10 @@ class DeviceKernelMutator : public StmtExprMutator {
       current_caller_host_target_ = std::nullopt;
     }
 
-    auto body = VisitStmt(func->body);
-    if (!body.same_as(func->body)) {
+    auto body_result = Mutate(func->body, InplaceMode::kDisallow);
+    bool body_unchanged = body_result.UnchangedOrSameAs(func->body);
+    auto body = std::move(body_result).ValueOrUnchanged(func->body);
+    if (!body_unchanged) {
       func.CopyOnWrite()->body = body;
     }
 
@@ -685,15 +711,25 @@ class DeviceKernelMutator : public StmtExprMutator {
         write_ptr->body = ReturnRemover::Apply(write_ptr->body, !preserve_early_returns);
         // The dyn-smem size declaration was consumed by DeviceInfoCollector;
         // it has no meaning inside the kernel body.
-        class StripDynSmemAttr : public StmtMutator {
-          Stmt VisitStmt_(const AttrStmtNode* op) final {
+        class StripDynSmemAttr : public StmtExprMutator {
+         public:
+          using StmtExprMutator::Mutate;
+          using StmtExprMutator::Mutate_;
+          UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override {
+            if (input.as<ExprNode>()) return ffi::Unchanged();
+            return StmtExprMutator::Mutate(input, inplace_mode);
+          }
+
+          UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
             if (op->attr_key == "tirx.dyn_smem_bytes") {
-              return VisitStmt(op->body);
+              return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
             }
-            return StmtMutator::VisitStmt_(op);
+            return StmtExprMutator::Mutate_(op, inplace_mode);
           }
         };
-        write_ptr->body = StripDynSmemAttr()(std::move(write_ptr->body));
+        write_ptr->body = ffi::make_object<StripDynSmemAttr>()
+                              ->Mutate(write_ptr->body, InplaceMode::kAllow)
+                              .ValueOrUnchanged(write_ptr->body);
       }
 
       func = WithAttrs(std::move(func),
@@ -709,8 +745,10 @@ class DeviceKernelMutator : public StmtExprMutator {
   }
 
  private:
-  Expr VisitExpr_(const CallNode* op) override {
-    auto node = Parent::VisitExpr_(op).as_or_throw<Call>();
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
+    auto node = Parent::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<Expr>(op))
+                    .as_or_throw<Call>();
 
     auto* gvar = op->op.as<GlobalVarNode>();
     if (!gvar) return node;
@@ -768,11 +806,12 @@ class DeviceKernelMutator : public StmtExprMutator {
         // launch, but need to be replaced with call_extern.
         extern_function_call_.insert(gvar);
         ffi::Array<Expr> args;
-        args.push_back(prim::StringImm(gvar->name_hint));
+        args.push_back(StringImm(gvar->name_hint));
         for (const Expr& arg : node->args) {
           args.push_back(arg);
         }
-        return Call(node->ty, builtin::call_extern(), args);
+        Type ret_ty = IsVoidType(node->ty) ? PrimType::Void() : node->ty;
+        return Call(ret_ty, builtin::call_extern(), args);
       }
     }
 
@@ -804,7 +843,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     device_kernel_launch_.insert(gvar);
 
     ffi::Array<Expr> call_args;
-    call_args.push_back(prim::StringImm(dev_info.global_symbol));
+    call_args.push_back(StringImm(dev_info.global_symbol));
     for (const Expr& arg : args) {
       call_args.push_back(arg);
     }
@@ -817,7 +856,7 @@ class DeviceKernelMutator : public StmtExprMutator {
                               .as_or_throw<PrimExpr>());
     }
 
-    PrimType node_ty = node->ty.as_or_throw<PrimType>();
+    PrimType node_ty = IsVoidType(node->ty) ? PrimType::Void() : node->ty.as_or_throw<PrimType>();
     PrimType ret_ty = node_ty.IsVoid() ? PrimType::Int(32) : node_ty;
 
     return Call(ret_ty, builtin::tvm_call_packed(), call_args).as_or_throw<PrimExpr>();
@@ -847,14 +886,14 @@ IRModule LowerDeviceKernelLaunches(IRModule mod) {
         }
       }
     }
-    return DeviceKernelMutator(std::move(device_info_map));
+    return ffi::make_object<DeviceKernelMutator>(std::move(device_info_map));
   }();
 
   {
     IRModule updates;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto* ptr = base_func.as<PrimFuncNode>()) {
-        auto prim_func = mutator.RewriteKernelLaunchSite(gvar, ffi::GetRef<PrimFunc>(ptr));
+        auto prim_func = mutator->RewriteKernelLaunchSite(gvar, ffi::GetRef<PrimFunc>(ptr));
         if (!prim_func.same_as(base_func)) {
           updates->Add(gvar, prim_func);
         }
@@ -870,7 +909,7 @@ IRModule LowerDeviceKernelLaunches(IRModule mod) {
     IRModule updates;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto* ptr = base_func.as<PrimFuncNode>()) {
-        auto prim_func = mutator.UpdateKernelAttributes(gvar, ffi::GetRef<PrimFunc>(ptr));
+        auto prim_func = mutator->UpdateKernelAttributes(gvar, ffi::GetRef<PrimFunc>(ptr));
         if (!prim_func.same_as(base_func)) {
           updates->Add(gvar, prim_func);
         }

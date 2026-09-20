@@ -34,9 +34,9 @@
 #include <utility>
 
 namespace tvm {
-namespace arith {
+namespace sym {
 class Analyzer;
-}  // namespace arith
+}  // namespace sym
 }  // namespace tvm
 
 namespace tvm {
@@ -109,7 +109,7 @@ class IndexMapNode : public ffi::Object {
    * each expression in `final_indices`.
    */
   ffi::Array<PrimExpr> MapIndices(const ffi::Array<PrimExpr>& indices,
-                                  const arith::Analyzer& analyzer) const;
+                                  const sym::Analyzer& analyzer) const;
 
   /*! \brief Map a memory range to the output space using a fresh analyzer.
    *
@@ -137,8 +137,7 @@ class IndexMapNode : public ffi::Object {
    * \returns The ranges in the output space.  Contains one value for
    * each expression in `final_indices`.
    */
-  ffi::Array<Range> MapRanges(const ffi::Array<Range>& ranges,
-                              const arith::Analyzer& analyzer) const;
+  ffi::Array<Range> MapRanges(const ffi::Array<Range>& ranges, const sym::Analyzer& analyzer) const;
 
   /*! \brief Map a buffer shape to the output space using a fresh analyzer.
    *
@@ -157,7 +156,7 @@ class IndexMapNode : public ffi::Object {
    * value for each expression in `final_indices`.
    */
   ffi::Array<PrimExpr> MapShape(const ffi::Array<PrimExpr>& shape,
-                                const arith::Analyzer& analyzer) const;
+                                const sym::Analyzer& analyzer) const;
 
   /* \brief Map an Tensor according to this index map
    *
@@ -231,7 +230,7 @@ class IndexMap : public ffi::ObjectRef {
    * \param analyzer An analyzer to be used while deriving and validating
    * the inverse.
    */
-  IndexMap Inverse(ffi::Array<Range> initial_ranges, const arith::Analyzer& analyzer) const;
+  IndexMap Inverse(ffi::Array<Range> initial_ranges, const sym::Analyzer& analyzer) const;
 
   /*! \brief Rename the variables in the index map and ensure the names are unique.
    *
@@ -268,7 +267,7 @@ class IndexMap : public ffi::ObjectRef {
    * which the inverse maps to a valid range.
    */
   std::pair<IndexMap, PrimExpr> NonSurjectiveInverse(ffi::Array<Range> initial_ranges,
-                                                     const arith::Analyzer& analyzer) const;
+                                                     const sym::Analyzer& analyzer) const;
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IndexMap, ffi::ObjectRef, IndexMapNode);
 };

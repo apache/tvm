@@ -379,7 +379,7 @@ class CutlassModuleCodegen {
 
 ffi::Array<ffi::Module> CUTLASSCompiler(ffi::Array<Function> functions,
                                         ffi::Map<ffi::String, ffi::Any> options,
-                                        ffi::Map<Constant, ffi::String> /*unused*/) {
+                                        ffi::Map<GenericConst, ffi::String> /*unused*/) {
   const auto tune_func = tvm::ffi::Function::GetGlobal("contrib.cutlass.tune_relax_function");
   TVM_FFI_ICHECK(tune_func.has_value())
       << "The packed function contrib.cutlass.tune_relax_function not found, "

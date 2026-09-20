@@ -29,6 +29,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 namespace {
 class Mutator : public ExprMutator {
@@ -48,7 +49,7 @@ class Mutator : public ExprMutator {
           << "However, received " << ffi::GetRef<Call>(op);
 
       auto shape_arg = op->args[0];
-      auto dtype = op->args[1].as_or_throw<DataTypeImm>();
+      auto dtype = op->args[1].as_or_throw<GenericConst>();
       PrimExpr runtime_device_index = op->args[2].as_or_throw<PrimExpr>();
       StringImm storage_scope = op->args[3].as_or_throw<StringImm>();
 
@@ -72,7 +73,7 @@ class Mutator : public ExprMutator {
       }();
 
       PrimExpr nbytes = [&]() -> PrimExpr {
-        PrimType dtype_ty(dtype->value);
+        PrimType dtype_ty(dtype->value.cast<DLDataType>());
         TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
             << "Cannot statically compute allocation size for scalable vector dtype " << dtype_ty;
         PrimExpr nbytes = IntImm::Int64(static_cast<int64_t>(dtype_ty.StorageBytes()));
@@ -86,7 +87,7 @@ class Mutator : public ExprMutator {
 
       int64_t vdevice_index = -1;
       if (const auto* int_imm = op->args[2].as<IntImmNode>()) {
-        vdevice_index = int_imm->value;
+        vdevice_index = int_imm->value.as<int>().value();
       }
       ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
@@ -114,9 +115,9 @@ class Mutator : public ExprMutator {
 
       auto offset = IntImm::Int64(0);
 
-      Expr storage = Call(
-          Type::Missing(), mem_alloc_storage_op,
-          {size, runtime_device_index, storage_scope, DataTypeImm((DLDataType{kDLUInt, 8, 1}))});
+      Expr storage = Call(Type::Missing(), mem_alloc_storage_op,
+                          {size, runtime_device_index, storage_scope,
+                           GenericConst((DLDataType{kDLUInt, 8, 1}), AnyType())});
       storage = builder_->Emit(storage, "storage");
       Expr tensor = Call(Type::Missing(), mem_alloc_tensor_op,
                          {storage, offset, shape_arg, dtype, op->args[2]});

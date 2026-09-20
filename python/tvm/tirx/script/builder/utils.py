@@ -19,6 +19,7 @@
 import contextlib
 
 from tvm import tirx
+from tvm.ir import StringImm
 from tvm.tirx import Buffer
 
 from . import frame
@@ -108,7 +109,7 @@ def seq_scope():
                     T.evaluate(j)
             result = ib.get()
     """
-    return T.attr(0, "pragma_scope", tirx.StringImm("seq"))
+    return T.attr(0, "pragma_scope", StringImm("seq"))
 
 
 def _unravel_index(index, shape):

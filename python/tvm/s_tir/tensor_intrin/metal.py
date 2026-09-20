@@ -19,8 +19,9 @@
 
 from typing import Literal
 
+from tvm.s_tir import TensorIntrin
 from tvm.script import tirx as T
-from tvm.tirx import Buffer, Expr, PrimFunc, TensorIntrin
+from tvm.tirx import Buffer, Expr, PrimFunc
 
 ######## simdgroup matrix intrinsics ########
 

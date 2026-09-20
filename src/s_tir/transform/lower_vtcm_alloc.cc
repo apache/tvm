@@ -19,15 +19,13 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt.h>
 
-#include "../../arith/ir_visitor_with_analyzer.h"
-
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 inline bool IsVtcmStorage(std::string scope) {
@@ -36,10 +34,12 @@ inline bool IsVtcmStorage(std::string scope) {
 
 class VtcmAllocator : public StmtExprMutator {
  public:
-  using StmtExprMutator::VisitStmt_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   VtcmAllocator() {}
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
     std::string storage_scope = op->buffer.scope();
     if (IsVtcmStorage(storage_scope)) {
       ffi::Array<Expr> args;
@@ -50,7 +50,7 @@ class VtcmAllocator : public StmtExprMutator {
       return DeclBuffer(op->buffer, Call(op->buffer.DataPointerType(),
                                          tirx::builtin::nd_mem_alloc_with_scope(), args));
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  protected:
@@ -63,7 +63,9 @@ class VtcmAllocator : public StmtExprMutator {
 
 PrimFunc LowerVtcmAlloc(PrimFunc func) {
   auto fptr = func.CopyOnWrite();
-  fptr->body = VtcmAllocator()(std::move(fptr->body));
+  fptr->body = ffi::make_object<VtcmAllocator>()
+                   ->Mutate(fptr->body, InplaceMode::kAllow)
+                   .ValueOrUnchanged(std::move(fptr->body));
   return func;
 }
 

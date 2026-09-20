@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/runtime/device_api.h>  // For `kAllocAlignment`
+#include <tvm/s_tir/stmt.h>
 
 #include <algorithm>
 #include <utility>
@@ -25,6 +26,7 @@
 
 namespace tvm {
 namespace script {
+
 namespace printer {
 
 ffi::Map<ffi::String, ExprDoc> BufferAttrs(
@@ -381,7 +383,7 @@ ffi::Array<Doc> BufferSlices(const ffi::Array<Range>& region, const AccessPath& 
     Range range = region[i];
     AccessPath range_p = p->ArrayItem(i);
     ExprDoc min = d->AsDoc<ExprDoc>(range->min, range_p->Attr("min"));
-    if (tirx::is_one(range->extent)) {
+    if (tvm::prim::is_one(range->extent)) {
       indices.push_back(min);
     } else {
       ExprDoc max = d->AsDoc<ExprDoc>(range->min + range->extent, range_p->Attr("extent"));
@@ -392,9 +394,9 @@ ffi::Array<Doc> BufferSlices(const ffi::Array<Range>& region, const AccessPath& 
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::BufferRegion>(
-      "", [](tirx::BufferRegion buffer_region, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc prefix = d->AsDoc<ExprDoc>(buffer_region->buffer, p->Attr("buffer"));
+  IRDocsifier::vtable().set_dispatch<tvm::TensorRegion>(
+      "", [](tvm::TensorRegion buffer_region, AccessPath p, IRDocsifier d) -> Doc {
+        ExprDoc prefix = d->AsDoc<ExprDoc>(buffer_region->source, p->Attr("source"));
         return prefix[BufferSlices(buffer_region->region, p->Attr("region"), d)];
       });
 }
@@ -407,7 +409,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
         // special case for scalar buffers
         if (store->buffer.IsScalar(true) || store->buffer.IsScalar(false)) {
-          // TVM_FFI_ICHECK(store->indices.size() == 1 && tirx::is_zero(store->indices[0]))
+          // TVM_FFI_ICHECK(store->indices.size() == 1 && tvm::prim::is_zero(store->indices[0]))
           //     << "1-dim buffer with shape (1,) store with indices other than [0] is not "
           //        "supported";
           ffi::Optional<ExprDoc> doc = d->GetVarDoc(store->buffer);
@@ -430,7 +432,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
         // special case for scalar
         if (source.IsScalar(true) || source.IsScalar(false)) {
-          // TVM_FFI_ICHECK(load->indices.size() == 1 && tirx::is_zero(load->indices[0]))
+          // TVM_FFI_ICHECK(load->indices.size() == 1 && tvm::prim::is_zero(load->indices[0]))
           //     << "Scalar buffer load with indices other than [0] is not supported";
           ffi::Optional<ExprDoc> doc = d->GetVarDoc(source);
           TVM_FFI_ICHECK(doc.has_value())
@@ -574,8 +576,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::MatchBufferRegion>(
-      "", [](tirx::MatchBufferRegion stmt, AccessPath p, IRDocsifier d) -> Doc {
+  IRDocsifier::vtable().set_dispatch<s_tir::MatchBufferRegion>(
+      "", [](s_tir::MatchBufferRegion stmt, AccessPath p, IRDocsifier d) -> Doc {
         Frame frame = d->frames.back();
         ExprDoc lhs = DefineBuffer(stmt->buffer, frame, d);
         ExprDoc src_buffer = d->AsDoc<ExprDoc>(stmt->source, p->Attr("source"));
@@ -585,14 +587,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_SCRIPT_REPR(tirx::BufferRegionNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tvm::TensorRegionNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(TensorLoadNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::BufferStoreNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::BufferTypeNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::IterNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::TileLayoutNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::ComposeLayoutNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::MatchBufferRegionNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(s_tir::MatchBufferRegionNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

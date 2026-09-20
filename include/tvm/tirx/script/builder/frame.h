@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
 #define TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
 
+#include <tvm/s_tir/stmt.h>
 #include <tvm/script/ir_builder/base.h>
 #include <tvm/script/ir_builder/ir/frame.h>
 #include <tvm/tirx/exec_scope.h>
@@ -87,7 +88,7 @@ class PrimFuncFrameNode : public TIRFrameNode {
   ffi::Array<tvm::tirx::BufferVar> root_alloc_buffers;
 
   // TIR utils
-  /*! \brief Whether this PrimFunc uses s_tir semantics (root SBlock wrap,
+  /*! \brief Whether this PrimFunc uses s_tir semantics (root s_tir::SBlock wrap,
    *  parser layout default = None). Default (false) = tirx semantics. */
   bool s_tir;
   /*! \brief Whether it is a persistent kernel. */
@@ -144,15 +145,15 @@ class SBlockFrameNode : public TIRFrameNode {
   /*! \brief The variables of the block. */
   ffi::Array<tvm::tirx::IterVar> iter_vars;
   /*! \brief The read buffer regions of the block. */
-  ffi::Optional<ffi::Array<tvm::tirx::BufferRegion>> reads;
+  ffi::Optional<ffi::Array<tvm::TensorRegion>> reads;
   /*! \brief The write buffer regions of the block. */
-  ffi::Optional<ffi::Array<tvm::tirx::BufferRegion>> writes;
+  ffi::Optional<ffi::Array<tvm::TensorRegion>> writes;
   /*! \brief The init statement of the bolck. */
   ffi::Optional<tvm::tirx::Stmt> init;
   /*! \brief The buffer allocated in the block. */
   ffi::Array<tvm::tirx::BufferVar> alloc_buffers;
   /*! \brief The match buffer regions. */
-  ffi::Array<tvm::tirx::MatchBufferRegion> match_buffers;
+  ffi::Array<tvm::s_tir::MatchBufferRegion> match_buffers;
   /*! \brief The annotation of the block. */
   ffi::Optional<ffi::Map<ffi::String, Any>> annotations;
   /*! \brief The corresponding values of the iter vars. */
@@ -315,9 +316,9 @@ class AssertFrameNode : public TIRFrameNode {
   /*! \brief The PrimExpr to test. */
   PrimExpr condition;
   /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
-  tvm::prim::StringImm error_kind;
+  tvm::StringImm error_kind;
   /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
-  ffi::Array<tvm::prim::StringImm> message_parts;
+  ffi::Array<tvm::StringImm> message_parts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -409,7 +410,7 @@ class AttrFrameNode : public TIRFrameNode {
   /*! \brief Attribute type key. */
   ffi::String attr_key;
   /*! \brief The value of the attribute. */
-  PrimExpr value;
+  Expr value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

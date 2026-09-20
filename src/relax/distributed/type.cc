@@ -66,12 +66,15 @@ TVMFFIAny DTensorTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
                                         ffi::AnyView value) noexcept {
   DTensorTypeNode* self = const_cast<DTensorTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DTensorTypeNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<DeviceMesh>, mapped_device_mesh,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->device_mesh));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Placement>, mapped_placement,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->placement));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<TensorType>, mapped_tensor_ty,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->tensor_ty));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<DeviceMesh>, mapped_device_mesh,
+      mutator->MutateExpected(self->device_mesh, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<Placement>, mapped_placement,
+      mutator->MutateExpected(self->placement, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<TensorType>, mapped_tensor_ty,
+      mutator->MutateExpected(self->tensor_ty, ffi::InplaceMode::kAllow));
   if (!mapped_device_mesh.UnchangedOrSameAs(self->device_mesh)) {
     self->device_mesh = std::move(mapped_device_mesh).ValueUnchecked();
   }

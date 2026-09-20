@@ -49,7 +49,7 @@ def dilate(data, strides, dilation_value=0.0, name="DilatedInput"):
     n = len(data.shape)
     if len(strides) != n:
         raise ValueError(f"data dimension and strides size dismatch : {n} vs {len(strides)}")
-    ana = tvm.arith.Analyzer()
+    ana = tvm.sym.Analyzer()
     out_shape = tuple(ana.simplify((data.shape[i] - 1) * strides[i] + 1) for i in range(n))
 
     def _dilate(*indices):

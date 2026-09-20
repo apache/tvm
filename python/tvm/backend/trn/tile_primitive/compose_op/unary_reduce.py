@@ -17,8 +17,9 @@
 
 """Implementation of UnaryReduce dispatch."""
 
+from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion, PrimFunc, TilePrimitiveCall
+from tvm.tirx import PrimFunc, TilePrimitiveCall
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.ops import UnaryReduce
 
@@ -42,7 +43,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     analyzer = init_analyzer(sctx)
 
     # Normalize axes and default values
-    reduce_axes = [i if i >= 0 else len(unary_output.buffer.ty.shape) + i for i in op.reduce_axes]
+    reduce_axes = [i if i >= 0 else len(unary_output.source.ty.shape) + i for i in op.reduce_axes]
     scale = 1.0 if scale is None else scale
     bias = 0.0 if bias is None else bias
 
@@ -50,7 +51,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     reduce_dim_map = get_reduction_dim_map(unary_output, reduce_output, reduce_axes, analyzer)
     inst_gen.link_buffer_regions(unary_output, reduce_output, reduce_dim_map)
     # Find instruction patterns based on bias type
-    if isinstance(bias, BufferRegion):
+    if isinstance(bias, TensorRegion):
         inst_repr, _, _ = try_find_inst_nary(
             unary_output,
             [unary_input, bias],
@@ -72,7 +73,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     f_var = T.Var("F", "int32")
     reduction_b_var = T.Var("rB", "int32")
     spatial_b_var = T.Var("sB", "int32")
-    p_size = unary_output.buffer.ty.layout.size("P")
+    p_size = unary_output.source.ty.layout.size("P")
     inst_gen.bind_inst_iter(unary_output, p_var, p_size, 1, False)
     inst_gen.bind_inst_iter(unary_output, f_var, inst_repr.size, inst_repr.stride, True)
     reduction_b_extent = inst_gen.fill_in_block_dim(unary_output, reduction_b_var, reduce_axes)
@@ -82,14 +83,14 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
             reduce_output, reduction_b_extent, op.workspace, sctx
         )
     # Extract buffers and opcodes
-    src, dst1, dst2 = unary_input.buffer, unary_output.buffer, reduce_output.buffer
+    src, dst1, dst2 = unary_input.source, unary_output.source, reduce_output.source
     unary_opcode = opcode_table[op.unary_op]
     reduce_opcode = opcode_table[op.reduce_op]
 
     # Handle bias buffer
     bias_buffer = (
-        bias.buffer
-        if isinstance(bias, BufferRegion)
+        bias.source
+        if isinstance(bias, TensorRegion)
         else get_const_bias_tensor(
             bias, (p_size, inst_repr.size), dst1.ty.dtype, op.workspace, sctx
         )
@@ -99,7 +100,8 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     if reduction_b_extent == 1:
         # Direct implementation without intermediate buffer
         # fmt: off
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.prim_func(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
                 with T.attr(0, "tensorized_nki_instruction", 1):
@@ -110,7 +112,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
                             dst_1_indices = T.meta_var(inst_gen.generate_indices(unary_output))
                             dst_2_indices = T.meta_var(inst_gen.generate_indices(reduce_output))
                             if inst_gen.make_guard(unary_output):
-                                if isinstance(bias, BufferRegion):
+                                if isinstance(bias, TensorRegion):
                                     src_bias_indices = T.meta_var(inst_gen.generate_indices(bias))
                                     T.evaluate(T.nki.activation_reduce(dst2[tuple(dst_2_indices)], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[tuple(src_bias_indices)], scale))  # noqa: E501
                                 else:
@@ -124,7 +126,8 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         return mod["main"]
     else:
         # fmt: off
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.prim_func(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
                 for reduction_b_loop in T.serial(0, reduction_b_extent):
@@ -135,7 +138,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
                                 src_1_indices = T.meta_var(inst_gen.generate_indices(unary_input))
                                 dst_1_indices = T.meta_var(inst_gen.generate_indices(unary_output))
                                 if inst_gen.make_guard(unary_output):
-                                    if isinstance(bias, BufferRegion):
+                                    if isinstance(bias, TensorRegion):
                                         src_bias_indices = T.meta_var(inst_gen.generate_indices(bias))  # noqa: E501
                                         T.evaluate(T.nki.activation_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[tuple(src_bias_indices)], scale))  # noqa: E501
                                     else:

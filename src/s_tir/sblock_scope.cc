@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/sblock_scope.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/utils.h>
 
 namespace tvm {
@@ -85,17 +86,19 @@ SBlockScope::SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
   SMap<BufferVar, ffi::Array<StmtSRef>> buffer_readers;
   SMap<BufferVar, ffi::Array<StmtSRef>>& buffer_writers = n->buffer_writers;
   for (const StmtSRef& child_block_sref : child_block_srefs) {
-    const SBlockNode* child_block = TVM_SREF_TO_SBLOCK(child_block_sref);
+    const s_tir::SBlockNode* child_block = TVM_SREF_TO_SBLOCK(child_block_sref);
     // Step 1. Update `buffer_readers` and `buffer_writers` for each buffer
-    for (const BufferRegion& region : child_block->reads) {
-      buffer_readers[region->buffer].push_back(child_block_sref);
+    for (const TensorRegion& region : child_block->reads) {
+      buffer_readers[region->source.as_or_throw<tvm::tirx::BufferVar>()].push_back(
+          child_block_sref);
     }
-    for (const BufferRegion& region : child_block->writes) {
-      buffer_writers[region->buffer].push_back(child_block_sref);
+    for (const TensorRegion& region : child_block->writes) {
+      buffer_writers[region->source.as_or_throw<tvm::tirx::BufferVar>()].push_back(
+          child_block_sref);
     }
     // Step 2. Update RAW dependency
-    for (const BufferRegion& region : child_block->reads) {
-      auto it = buffer_writers.find(region->buffer);
+    for (const TensorRegion& region : child_block->reads) {
+      auto it = buffer_writers.find(region->source.as_or_throw<tvm::tirx::BufferVar>());
       if (it != buffer_writers.end()) {
         for (const StmtSRef& from : it->second) {
           AddDependency(n.get(), from, child_block_sref, DepKind::kRAW);
@@ -103,8 +106,8 @@ SBlockScope::SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
       }
     }
     // Step 3. Update WAW dependency
-    for (const BufferRegion& region : child_block->writes) {
-      auto it = buffer_writers.find(region->buffer);
+    for (const TensorRegion& region : child_block->writes) {
+      auto it = buffer_writers.find(region->source.as_or_throw<tvm::tirx::BufferVar>());
       if (it != buffer_writers.end()) {
         for (const StmtSRef& from : it->second) {
           AddDependency(n.get(), from, child_block_sref, DepKind::kWAW);
@@ -112,8 +115,8 @@ SBlockScope::SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
       }
     }
     // Step 4. Update WAR dependency
-    for (const BufferRegion& region : child_block->writes) {
-      auto it = buffer_readers.find(region->buffer);
+    for (const TensorRegion& region : child_block->writes) {
+      auto it = buffer_readers.find(region->source.as_or_throw<tvm::tirx::BufferVar>());
       if (it != buffer_readers.end()) {
         for (const StmtSRef& from : it->second) {
           AddDependency(n.get(), from, child_block_sref, DepKind::kWAR);
@@ -169,27 +172,30 @@ void SRefTreeCreator::PopAndRecordSRef() {
   srefs_.pop_back();
 }
 
-void SRefTreeCreator::VisitStmt_(const ForNode* loop) {
+ffi::Optional<VisitInterrupt> SRefTreeCreator::Visit_(const ForNode* loop) {
   if (!include_loops_) {
-    VisitStmt(loop->body);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(loop->body));
   } else {
     PushSRef(loop);
-    VisitStmt(loop->body);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(loop->body));
     PopAndRecordSRef();
   }
+  return std::nullopt;
 }
 
-void SRefTreeCreator::VisitStmt_(const SBlockRealizeNode* realize) {
-  const SBlockNode* block = realize->block.get();
+ffi::Optional<VisitInterrupt> SRefTreeCreator::Visit_(const s_tir::SBlockRealizeNode* realize) {
+  const s_tir::SBlockNode* block = realize->block.get();
   PushSRef(block);
-  VisitStmt(block->body);  // `block->init` is not visited
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(block->body));  // `block->init` is not visited
   PopAndRecordSRef();
+  return std::nullopt;
 }
 
-void SRefTreeCreator::VisitStmt_(const SeqStmtNode* seq_stmt) {
+ffi::Optional<VisitInterrupt> SRefTreeCreator::Visit_(const SeqStmtNode* seq_stmt) {
   // Set `seq_index` information for SeqStmtNode
-  StmtVisitor::VisitStmt_(seq_stmt);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(seq_stmt));
   SetSeqIndexInChildren(stmt2ref_, seq_stmt, include_loops_);
+  return std::nullopt;
 }
 
 /******** FFI ********/

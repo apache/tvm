@@ -18,15 +18,15 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
-class WrongBlockIterTypeError : public ScheduleError {
+class WrongBlockIterTypeError : public ScheduleErrorContextObj {
  public:
   explicit WrongBlockIterTypeError(IRModule mod, ForKind for_kind, Var loop_var, SBlock block)
       : mod_(std::move(mod)), loop_var_(std::move(loop_var)), block_(std::move(block)) {
@@ -112,7 +112,7 @@ void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
     IterVarType iter_type = iter_var->iter_type;
     if (!(iter_type == kDataPar ||
           (iter_type == kCommReduce && thread_scope.rank == 1 && thread_scope.dim_index != -1))) {
-      throw WrongBlockIterTypeError(self->mod, for_kind, loop_var, block);
+      throw MakeScheduleError<WrongBlockIterTypeError>(self->mod, for_kind, loop_var, block);
     }
   }
 }

@@ -160,12 +160,14 @@ void ConvEntry::UpdateWorkspace(const size_t wsize) {
       CleanWorkspace();
     }
     workspace_size = wsize;
-    workspace = cuda_api->AllocWorkspace(device, workspace_size);
+
+    DLDataType type_hint{kDLUInt, 8, 1};
+    workspace = cuda_api->AllocDataSpace(device, wsize, runtime::kTempAllocaAlignment, type_hint);
   }
 }
 
 void ConvEntry::CleanWorkspace() {
-  if (workspace) cuda_api->FreeWorkspace(device, workspace);
+  if (workspace) cuda_api->FreeDataSpace(device, workspace);
   workspace_size = 0;
 }
 

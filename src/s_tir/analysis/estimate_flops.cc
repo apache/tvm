@@ -17,14 +17,15 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/stmt_functor.h>
 
-#include "tvm/arith/analyzer.h"
+#include "tvm/sym/analyzer.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 int32_t DataType2Int(DLDataType dtype) {
@@ -85,139 +86,165 @@ struct TResult {
   std::unordered_map<int32_t, double> data_;
 };
 
-class FlopEstimator : private ExprFunctor<TResult(const Expr& n)>,
+class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
                       private StmtFunctor<TResult(const Stmt& n)> {
-  arith::Analyzer ana;
+  sym::Analyzer ana;
 
  public:
-  TResult VisitExpr(const Expr& expr) override { return ExprFunctor::VisitExpr(expr); }
-  TResult VisitStmt(const Stmt& stmt) override { return StmtFunctor::VisitStmt(stmt); }
+  using tirx::ExprFunctor<TResult(const Expr&)>::Dispatch;
+  TResult Dispatch(const Stmt& stmt) override { return StmtFunctor::Dispatch(stmt); }
 
 #define TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(Node)       \
-  TResult VisitExpr_(const Node* op) final {           \
-    TResult result = VisitExpr(op->a);                 \
-    result += VisitExpr(op->b);                        \
+  TResult Dispatch_(const Node* op) final {            \
+    TResult result = Dispatch(op->a);                  \
+    result += Dispatch(op->b);                         \
     result.Add(op->ty.as_or_throw<PrimType>()->dtype); \
     return result;                                     \
   }
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(AddNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(SubNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(MulNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(DivNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(ModNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(FloorDivNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(FloorModNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(MinNode);
-  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(MaxNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::AddNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::SubNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::MulNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::DivNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::ModNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::FloorDivNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::FloorModNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::MinNode);
+  TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(prim::MaxNode);
 #undef TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY
-  TResult VisitExpr_(const EQNode* op) override { return TResult(); }
-  TResult VisitExpr_(const NENode* op) override { return TResult(); }
-  TResult VisitExpr_(const LTNode* op) override { return TResult(); }
-  TResult VisitExpr_(const LENode* op) override { return TResult(); }
-  TResult VisitExpr_(const GTNode* op) override { return TResult(); }
-  TResult VisitExpr_(const GENode* op) override { return TResult(); }
+  TResult Dispatch_(const prim::EQNode* op) override { return TResult(); }
+  TResult Dispatch_(const prim::NENode* op) override { return TResult(); }
+  TResult Dispatch_(const prim::LTNode* op) override { return TResult(); }
+  TResult Dispatch_(const prim::LENode* op) override { return TResult(); }
+  TResult Dispatch_(const prim::GTNode* op) override { return TResult(); }
+  TResult Dispatch_(const prim::GENode* op) override { return TResult(); }
 
-  int64_t GetLoopExtent(const ForNode* node, const arith::Analyzer& ana) {
+  int64_t GetLoopExtent(const ForNode* node, const sym::Analyzer& ana) {
     int64_t bound = ana->const_int_bound(node->extent)->max_value;
-    if (bound == arith::ConstIntBound::kPosInf) {
+    if (bound == sym::ConstIntBound::kPosInf) {
       return 1;  // Analyzer could not determine a valid bound, use 1 instead.
     } else {
       return bound;
     }
   }
 
-  TResult VisitExpr_(const NotNode* op) override { return VisitExpr(op->a); }
-  TResult VisitExpr_(const AndNode* op) final {
-    TResult result = VisitExpr(op->a);
-    result += VisitExpr(op->b);
+  TResult Dispatch_(const prim::LShiftNode* op) final {
+    TResult result = Dispatch(op->a);
+    result += Dispatch(op->b);
     return result;
   }
-  TResult VisitExpr_(const OrNode* op) final {
-    TResult result = VisitExpr(op->a);
-    result += VisitExpr(op->b);
+  TResult Dispatch_(const prim::RShiftNode* op) final {
+    TResult result = Dispatch(op->a);
+    result += Dispatch(op->b);
+    return result;
+  }
+  TResult Dispatch_(const prim::BitwiseAndNode* op) final {
+    TResult result = Dispatch(op->a);
+    result += Dispatch(op->b);
+    return result;
+  }
+  TResult Dispatch_(const prim::BitwiseOrNode* op) final {
+    TResult result = Dispatch(op->a);
+    result += Dispatch(op->b);
+    return result;
+  }
+  TResult Dispatch_(const prim::BitwiseXorNode* op) final {
+    TResult result = Dispatch(op->a);
+    result += Dispatch(op->b);
+    return result;
+  }
+  TResult Dispatch_(const prim::BitwiseNotNode* op) final { return Dispatch(op->a); }
+  TResult Dispatch_(const prim::NotNode* op) override { return Dispatch(op->a); }
+  TResult Dispatch_(const prim::AndNode* op) final {
+    TResult result = Dispatch(op->a);
+    result += Dispatch(op->b);
+    return result;
+  }
+  TResult Dispatch_(const prim::OrNode* op) final {
+    TResult result = Dispatch(op->a);
+    result += Dispatch(op->b);
     return result;
   }
 
-  TResult VisitExpr_(const TensorLoadNode* op) override { return TResult(); }
-  TResult VisitStmt_(const AttrStmtNode* op) override {
-    TResult result = VisitStmt(op->body);
-    result += VisitExpr(op->value);
+  TResult Dispatch_(const TensorLoadNode* op) override { return TResult(); }
+  TResult Dispatch_(const AttrStmtNode* op) override {
+    TResult result = Dispatch(op->body);
+    result += Dispatch(op->value);
     return result;
   }
-  TResult VisitStmt_(const BufferStoreNode* store) override { return VisitExpr(store->value); }
-  TResult VisitStmt_(const SBlockRealizeNode* block) override {
-    return VisitStmt(block->block->body);
+  TResult Dispatch_(const BufferStoreNode* store) override { return Dispatch(store->value); }
+  TResult Dispatch_(const SBlockRealizeNode* block) override {
+    return Dispatch(block->block->body);
   }
-  TResult VisitStmt_(const SBlockNode* block) override {
+  TResult Dispatch_(const SBlockNode* block) override {
     TResult result;
     if (block->init.has_value()) {
-      result += VisitStmt(block->init.value());
+      result += Dispatch(block->init.value());
     }
-    result += VisitStmt(block->body);
+    result += Dispatch(block->body);
     return result;
   }
-  TResult VisitStmt_(const ForNode* loop) override {
+  TResult Dispatch_(const ForNode* loop) override {
     ana->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     const auto int_imm = GetLoopExtent(loop, ana);
-    TResult result = VisitStmt(loop->body);
+    TResult result = Dispatch(loop->body);
     result *= int_imm;
     return result;
   }
 
-  TResult VisitStmt_(const IfThenElseNode* branch) override {
-    TResult cond = VisitExpr(branch->condition);
+  TResult Dispatch_(const IfThenElseNode* branch) override {
+    TResult cond = Dispatch(branch->condition);
     if (branch->else_case) {
-      cond += VisitStmt(branch->then_case).MaxWith(VisitStmt(branch->else_case.value()));
+      cond += Dispatch(branch->then_case).MaxWith(Dispatch(branch->else_case.value()));
     } else {
-      cond += VisitStmt(branch->then_case);
+      cond += Dispatch(branch->then_case);
     }
     return cond;
   }
 
-  TResult VisitStmt_(const WhileNode* op) override {
+  TResult Dispatch_(const WhileNode* op) override {
     // TODO(jikechao): Improve while loop FLOP estimation with loop bound analysis
-    TResult result = VisitExpr(op->condition);
-    result += VisitStmt(op->body);
+    TResult result = Dispatch(op->condition);
+    result += Dispatch(op->body);
     return result;
   }
 
-  TResult VisitStmt_(const BindNode* let) override {
-    if (auto value = let->value.as<PrimExpr>()) return VisitExpr(value.value());
+  TResult Dispatch_(const BindNode* let) override {
+    if (auto value = let->value.as<PrimExpr>()) return Dispatch(value.value());
     return TResult();
   }
 
-  TResult VisitExpr_(const SelectNode* op) override {
-    TResult cond = VisitExpr(op->condition);
-    cond += VisitExpr(op->true_value).MaxWith(VisitExpr(op->false_value));
+  TResult Dispatch_(const prim::SelectNode* op) override {
+    TResult cond = Dispatch(op->condition);
+    cond += Dispatch(op->true_value).MaxWith(Dispatch(op->false_value));
     return cond;
   }
 
-  TResult VisitStmt_(const AssertStmtNode* op) override {
-    TResult result = VisitExpr(op->condition);
+  TResult Dispatch_(const AssertStmtNode* op) override {
+    TResult result = Dispatch(op->condition);
     return result;
   }
 
-  TResult VisitExpr_(const VarNode* op) override { return TResult(); }
-  TResult VisitExpr_(const IntImmNode* op) override { return TResult(); }
-  TResult VisitExpr_(const FloatImmNode* op) override { return TResult(); }
-  TResult VisitExpr_(const StringImmNode* op) override { return TResult(); }
-  TResult VisitExpr_(const CastNode* op) override { return VisitExpr(op->value); }
-  TResult VisitStmt_(const AllocBufferNode* op) override { return TResult(); }
-  TResult VisitStmt_(const DeclBufferNode* op) override { return TResult(); }
-  TResult VisitStmt_(const EvaluateNode* op) override { return TResult(); }
+  TResult Dispatch_(const VarNode* op) override { return TResult(); }
+  TResult Dispatch_(const IntImmNode* op) override { return TResult(); }
+  TResult Dispatch_(const FloatImmNode* op) override { return TResult(); }
+  TResult Dispatch_(const StringImmNode* op) override { return TResult(); }
+  TResult Dispatch_(const prim::CastNode* op) override { return Dispatch(op->value); }
+  TResult Dispatch_(const AllocBufferNode* op) override { return TResult(); }
+  TResult Dispatch_(const DeclBufferNode* op) override { return TResult(); }
+  TResult Dispatch_(const EvaluateNode* op) override { return TResult(); }
 
-  TResult VisitStmt_(const SeqStmtNode* seq) override {
+  TResult Dispatch_(const SeqStmtNode* seq) override {
     TResult result;
     for (const Stmt& stmt : seq->seq) {
-      result += VisitStmt(stmt);
+      result += Dispatch(stmt);
     }
     return result;
   }
 
-  TResult VisitExpr_(const CallNode* op) override {
+  TResult Dispatch_(const CallNode* op) override {
     TResult ret;
     for (const Expr& arg : op->args) {
-      ret += VisitExpr(arg);
+      ret += Dispatch(arg);
     }
     return ret;
   }
@@ -233,7 +260,7 @@ double PostprocessResults(const TResult& result) {
 
 double EstimateTIRFlops(const Stmt& stmt) {
   FlopEstimator counter;
-  return PostprocessResults(counter.VisitStmt(stmt));
+  return PostprocessResults(counter.Dispatch(stmt));
 }
 
 double EstimateTIRFlops(const IRModule& mod) {
@@ -244,7 +271,7 @@ double EstimateTIRFlops(const IRModule& mod) {
     if (auto cached = f->attrs.GetAttr<int64_t>("estimated_flops")) {
       cached_result += cached.value();
     } else {
-      result += counter.VisitStmt(f->body);  //
+      result += counter.Dispatch(f->body);  //
     }
   });
   return PostprocessResults(result) + cached_result;

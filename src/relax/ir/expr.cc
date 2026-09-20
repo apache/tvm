@@ -32,7 +32,6 @@ namespace relax {
 namespace {
 
 // Traverses only ExprNode::ty.  The per-node payload is an intentional constant leaf:
-// ConstantNode::data is tensor data; StringImmNode::value and DataTypeImmNode::value are scalars;
 // ExternFuncNode::global_symbol is scalar and BaseFuncNode::attrs is metadata.
 template <typename TNode>
 TVMFFIAny TypeOnlyExprVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
@@ -60,7 +59,7 @@ TVMFFIAny TypeOnlyExprMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   TNode* self = const_cast<TNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ty));
+                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
   if (!mapped_ty.UnchangedOrSameAs(self->ty)) {
     self->ty = std::move(mapped_ty).ValueUnchecked();
   }
@@ -106,14 +105,15 @@ TVMFFIAny IfMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView 
   IfNode* self = const_cast<IfNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IfNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ty));
+                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_cond,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->cond));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<SeqExpr>, mapped_true_branch,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->true_branch));
+                                    mutator->MutateExpected(self->cond, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<SeqExpr>, mapped_true_branch,
+      mutator->MutateExpected(self->true_branch, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<SeqExpr>, mapped_false_branch,
-      mutator->MaybeInplaceMutateIfUniqueExpected(self->false_branch));
+      mutator->MutateExpected(self->false_branch, ffi::InplaceMode::kAllow));
   if (!mapped_ty.UnchangedOrSameAs(self->ty)) self->ty = std::move(mapped_ty).ValueUnchecked();
   if (!mapped_cond.UnchangedOrSameAs(self->cond)) {
     self->cond = std::move(mapped_cond).ValueUnchecked();
@@ -156,9 +156,10 @@ TVMFFIAny ShapeExprMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   ShapeExprNode* self = const_cast<ShapeExprNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ShapeExprNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ty));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<PrimExpr>>, mapped_values,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->values));
+                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Array<PrimExpr>>, mapped_values,
+      mutator->MutateExpected(self->values, ffi::InplaceMode::kAllow));
   if (!mapped_ty.UnchangedOrSameAs(self->ty)) self->ty = std::move(mapped_ty).ValueUnchecked();
   if (!mapped_values.UnchangedOrSameAs(self->values)) {
     self->values = std::move(mapped_values).ValueUnchecked();
@@ -241,8 +242,8 @@ TVMFFIAny DataflowVarMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
         mutator->def_region_kind() == kTVMFFIDefRegionKindSimple
             ? mutator->WithDefRegionKind(
                   kTVMFFIDefRegionKindNone,
-                  [&]() { return mutator->MaybeInplaceMutateIfUniqueExpected(self->ty); })
-            : mutator->MaybeInplaceMutateIfUniqueExpected(self->ty);
+                  [&]() { return mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow); })
+            : mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow);
     TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
                                       std::move(mapped_ty_result));
     if (!mapped_ty.UnchangedOrSameAs(self->ty)) {
@@ -294,12 +295,13 @@ TVMFFIAny SeqExprMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
                                     ffi::AnyView value) noexcept {
   SeqExprNode* self = const_cast<SeqExprNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const SeqExprNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<BindingBlock>>, mapped_blocks,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->blocks));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Array<BindingBlock>>, mapped_blocks,
+      mutator->MutateExpected(self->blocks, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ty));
+                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_body,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->body));
+                                    mutator->MutateExpected(self->body, ffi::InplaceMode::kAllow));
   if (!mapped_blocks.UnchangedOrSameAs(self->blocks)) {
     self->blocks = std::move(mapped_blocks).ValueUnchecked();
   }
@@ -355,17 +357,18 @@ TVMFFIAny FunctionMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   // skips: attrs (metadata), is_pure (scalar)
   FunctionNode* self = const_cast<FunctionNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FunctionNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<ffi::Array<Var>>, mapped_params,
-      mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&]() {
-        return mutator->MaybeInplaceMutateIfUniqueExpected(self->params);
-      }));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Var>>, mapped_params,
+                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&]() {
+                                      return mutator->MutateExpected(self->params,
+                                                                     ffi::InplaceMode::kAllow);
+                                    }));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ty));
+                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<SeqExpr>, mapped_body,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->body));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ret_ty,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->ret_ty));
+                                    mutator->MutateExpected(self->body, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<Type>, mapped_ret_ty,
+      mutator->MutateExpected(self->ret_ty, ffi::InplaceMode::kAllow));
   if (!mapped_params.UnchangedOrSameAs(self->params)) {
     self->params = std::move(mapped_params).ValueUnchecked();
   }
@@ -411,7 +414,7 @@ ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, Span span) {
 
   n->values = values.Map([](PrimExpr value) {
     if (value->IsInstance<IntImmNode>()) {
-      return tvm::cast(PrimType::Int(64), value);
+      return tvm::prim::cast(PrimType::Int(64), value);
     }
     TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
         << "the value in ShapeType can only have dtype of int64";
@@ -461,87 +464,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         });
 }
 
-Constant::Constant(runtime::Tensor data, ffi::Optional<Type> ty_annotation, Span span) {
-  ffi::ObjectPtr<ConstantNode> n = ffi::make_object<ConstantNode>();
-  n->data = std::move(data);
-  n->span = std::move(span);
-
-  // set type.
-  ffi::Array<PrimExpr> values;
-  auto shape_tuple = n->data.Shape();
-  for (size_t dim = 0; dim < shape_tuple.size(); ++dim) {
-    values.push_back(IntImm::Int64(shape_tuple[dim]));
-  }
+GenericConst MakeTensorConst(runtime::Tensor data, ffi::Optional<Type> ty_annotation, Span span) {
   if (ty_annotation.has_value()) {
-    n->ty = ty_annotation.value();
-  } else {
-    TensorType tinfo(ShapeExpr(values), PrimType(n->data.DataType()), VDevice(), span);
-    n->ty = tinfo;
+    return GenericConst(std::move(data), ty_annotation.value(), std::move(span));
   }
-
-  data_ = std::move(n);
+  ffi::Array<PrimExpr> shape;
+  for (int64_t dim : data.Shape()) {
+    shape.push_back(IntImm::Int64(dim));
+  }
+  TensorType ty(ShapeExpr(shape), PrimType(data.DataType()), VDevice(), span);
+  return GenericConst(std::move(data), std::move(ty), std::move(span));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  ConstantNode::RegisterReflection();
-  refl::TypeAttrDef<ConstantNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            reinterpret_cast<void*>(&TypeOnlyExprVisit<ConstantNode>))
-      .attr(refl::type_attr::kStructuralMutate,
-            reinterpret_cast<void*>(&TypeOnlyExprMutate<ConstantNode>))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TypeOnlyExprMaybeInplaceMutate<ConstantNode>));
-
-  refl::GlobalDef().def("relax.Constant",
-                        [](runtime::Tensor data, ffi::Optional<Type> ty_annotation = std::nullopt,
-                           Span span = Span()) { return Constant(data, ty_annotation, span); });
-}
-
-StringImm::StringImm(ffi::String value, Span span) {
-  ffi::ObjectPtr<StringImmNode> n = ffi::make_object<StringImmNode>();
-  n->value = std::move(value);
-  n->span = std::move(span);
-  n->ty = AnyType();
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  StringImmNode::RegisterReflection();
-  refl::TypeAttrDef<StringImmNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            reinterpret_cast<void*>(&TypeOnlyExprVisit<StringImmNode>))
-      .attr(refl::type_attr::kStructuralMutate,
-            reinterpret_cast<void*>(&TypeOnlyExprMutate<StringImmNode>))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TypeOnlyExprMaybeInplaceMutate<StringImmNode>));
-
-  refl::GlobalDef().def("relax.StringImm",
-                        [](ffi::String value, Span span) { return StringImm(value, span); });
-}
-
-DataTypeImm::DataTypeImm(DLDataType value, Span span) {
-  ffi::ObjectPtr<DataTypeImmNode> n = ffi::make_object<DataTypeImmNode>();
-  n->value = value;
-  n->span = std::move(span);
-  n->ty = AnyType();
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  DataTypeImmNode::RegisterReflection();
-  refl::TypeAttrDef<DataTypeImmNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            reinterpret_cast<void*>(&TypeOnlyExprVisit<DataTypeImmNode>))
-      .attr(refl::type_attr::kStructuralMutate,
-            reinterpret_cast<void*>(&TypeOnlyExprMutate<DataTypeImmNode>))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TypeOnlyExprMaybeInplaceMutate<DataTypeImmNode>));
-
-  refl::GlobalDef().def("relax.DataTypeImm",
-                        [](DLDataType value, Span span) { return DataTypeImm(value, span); });
+  ffi::reflection::GlobalDef().def("relax.MakeTensorConst", MakeTensorConst);
 }
 
 MatchCast::MatchCast(Var var, Expr value, Type ty, Span span) {
@@ -727,7 +663,7 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty
       auto tir_vars = DefinableTIRVarsInType(TupleType(params.Map(GetType)));
       std::unordered_set<tirx::Var> lookup(tir_vars.begin(), tir_vars.end());
       return [lookup = std::move(lookup)](const Var& var) -> ffi::Optional<Expr> {
-        if (auto prim_var = var.as<tirx::PrimVar>(); prim_var && lookup.count(prim_var.value())) {
+        if (auto prim_var = var.as<PrimVar>(); prim_var && lookup.count(prim_var.value())) {
           return prim_var.value().as_or_throw<PrimExpr>();
         }
         return std::nullopt;

@@ -27,7 +27,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 namespace {
@@ -536,7 +535,7 @@ void Trace::ApplyJSONToSchedule(ffi::ObjectRef json, Schedule sch) {
       TVM_FFI_ICHECK(arr && arr->size() == 2);
       auto arr0 = arr->at(0).try_cast<IntImm>();
       TVM_FFI_ICHECK(arr0);
-      index = arr0.value()->value;
+      index = static_cast<int64_t>(arr0.value()->value);
       // Unbox any IntImm into int64_t so decisions whose trait expects
       // Optional<int64_t> or Optional<Array<int64_t>> dispatch correctly.
       decision = NormalizeJSONIntegers(arr->at(1));

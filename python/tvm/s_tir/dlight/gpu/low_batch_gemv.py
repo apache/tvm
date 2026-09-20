@@ -22,7 +22,7 @@ from typing import Literal
 
 import tvm_ffi
 
-from tvm import arith, s_tir, tirx
+from tvm import s_tir, sym, tirx
 from tvm.target import Target
 
 from ..analysis import (
@@ -37,7 +37,7 @@ from ..base import auto_vectorize, get_bytes, get_extent, try_inline_contiguous_
 from .base import GPUScheduleRule
 
 
-def _get_reduction_expr(block: tirx.SBlock) -> tirx.Expr | None:
+def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     # Detect and return `Y` in `X[...] = X[...] + Y`
     buffer_store = block.body
     if not isinstance(buffer_store, tirx.BufferStore):
@@ -53,7 +53,7 @@ def _get_reduction_expr(block: tirx.SBlock) -> tirx.Expr | None:
     return buffer_store.value.b
 
 
-def _has_pad_einsum_compatible_access(block: tirx.SBlock) -> bool:
+def _has_pad_einsum_compatible_access(block: s_tir.SBlock) -> bool:
     """Check the point-access restriction required by ``Schedule.pad_einsum``."""
     return all(
         isinstance(dim.extent, tirx.IntImm)
@@ -112,7 +112,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
     if symbolic_iter_var.iter_type != tirx.stmt.IterVar.DataPar:
         return None
     ret = [
-        read.buffer
+        read.source
         for read in block_stmt.reads
         if len(
             collect_block_iter_vars_used_in_access_region(block_stmt, read.region) & const_iter_vars
@@ -126,7 +126,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
     return ret if 0 < len(ret) < len(block_stmt.reads) else None
 
 
-def detect_dominant_read(block: tirx.SBlock, const_iter_vars: set[tirx.Var]) -> tirx.Expr:
+def detect_dominant_read(block: s_tir.SBlock, const_iter_vars: set[tirx.Var]) -> tirx.Expr:
     """Detect the dominant read indices in the block."""
     dominant_read = None
     num_read_iters = -1
@@ -139,7 +139,7 @@ def detect_dominant_read(block: tirx.SBlock, const_iter_vars: set[tirx.Var]) -> 
             num_read_iters = len(tir_vars)
             dominant_read = buffer_region
     assert dominant_read is not None
-    (result,) = dominant_read.buffer.offset_of([e.min for e in dominant_read.region])
+    (result,) = dominant_read.source.offset_of([e.min for e in dominant_read.region])
     return result
 
 
@@ -148,7 +148,7 @@ def normalize(
     block_info: SBlockInfo,
 ) -> bool | None:
     """Normalize the main block."""
-    block_stmt: tirx.SBlock = sch.get(block_info.block_rv)
+    block_stmt: s_tir.SBlock = sch.get(block_info.block_rv)
     const_iter_vars = set(
         iter_var.var
         for iter_var in block_stmt.iter_vars
@@ -157,7 +157,7 @@ def normalize(
     dynamic_iter_vars = set(
         iter_var.var for iter_var in block_stmt.iter_vars if iter_var.var not in const_iter_vars
     )
-    access = arith.normalize_to_iter_sum(
+    access = sym.normalize_to_iter_sum(
         detect_dominant_read(block_stmt, const_iter_vars),
         input_iters={i.var: i.dom for i in block_stmt.iter_vars},
     )

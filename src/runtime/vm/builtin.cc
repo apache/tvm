@@ -328,6 +328,11 @@ void CheckPrimValueInfo(ffi::AnyView arg, DLDataType dtype, ffi::Optional<ffi::S
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.check_prim_value_info", CheckPrimValueInfo);
+  refl::GlobalDef().def("vm.builtin.check_string_info",
+                        [](ffi::AnyView value, ffi::Optional<ffi::String> err_ctx) {
+                          TVM_FFI_CHECK(value.as<ffi::String>().has_value(), TypeError)
+                              << err_ctx.value_or("") << " expect a string";
+                        });
 }
 
 /*!

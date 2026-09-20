@@ -21,10 +21,10 @@
  * \brief External computation rule.
  * \file extern_op.cc
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 
 namespace tvm {

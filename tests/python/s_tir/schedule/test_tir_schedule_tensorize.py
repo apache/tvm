@@ -21,7 +21,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import te, tirx
+from tvm import s_tir, te, tirx
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
@@ -496,11 +496,11 @@ def annotated_tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
-tirx.TensorIntrin.register("test_mma_intrin", mma_desc, mma_intrin)
-tirx.TensorIntrin.register("test_annotated_mma_intrin", annotated_mma_desc, mma_intrin)
-tirx.TensorIntrin.register("test_dot_product_intrin", dot_product_desc, dot_product_intrin)
-tirx.TensorIntrin.register("test_outer_product_intrin", outer_product_desc, outer_product_intrin)
-tirx.TensorIntrin.register("test_dot_product_intrin_annotated", dot_product_desc, dot_product_intrin_annotated)
+s_tir.TensorIntrin.register("test_mma_intrin", mma_desc, mma_intrin)
+s_tir.TensorIntrin.register("test_annotated_mma_intrin", annotated_mma_desc, mma_intrin)
+s_tir.TensorIntrin.register("test_dot_product_intrin", dot_product_desc, dot_product_intrin)
+s_tir.TensorIntrin.register("test_outer_product_intrin", outer_product_desc, outer_product_intrin)
+s_tir.TensorIntrin.register("test_dot_product_intrin_annotated", dot_product_desc, dot_product_intrin_annotated)
 
 
 def test_tensorize_matmul():
@@ -749,9 +749,9 @@ def test_tensorize_dp4a():
 
 def test_tensor_intrin_look_up():
     intrin_name = 'non_existent_intrin'
-    assert tirx.TensorIntrin.get(intrin_name, allow_missing=True) is None
+    assert s_tir.TensorIntrin.get(intrin_name, allow_missing=True) is None
     with pytest.raises(ValueError):
-        tirx.TensorIntrin.get(intrin_name)
+        s_tir.TensorIntrin.get(intrin_name)
 
 
 def test_tensorize_matmul_mixed_dtype():
@@ -911,7 +911,7 @@ def decode_i4s_to_f16_impl(compressed: T.handle, decompressed: T.handle) -> None
             8,
         )
 
-tirx.TensorIntrin.register("test_decode_i4s_to_f16_intrin", decode_i4s_to_f16_desc, decode_i4s_to_f16_impl)
+s_tir.TensorIntrin.register("test_decode_i4s_to_f16_intrin", decode_i4s_to_f16_desc, decode_i4s_to_f16_impl)
 
 def test_tensorize_arith_simplification():
     # fmt: off

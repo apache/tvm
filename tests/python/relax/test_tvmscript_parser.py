@@ -24,7 +24,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tirx, topi
-from tvm.ir import DummyGlobalInfo, VDevice
+from tvm.relax import DummyGlobalInfo, VDevice
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -2451,7 +2451,7 @@ def test_primitive_assignments_emit_fresh_bindings():
         assert isinstance(binding.var.ty, tvm.ir.PrimType)
         assert binding.var.ty.dtype == dtype
         assert tvm.ir.is_prim_expr(binding.value)
-        assert not isinstance(binding.value, relax.Constant)
+        assert not isinstance(binding.value, tvm.ir.GenericConst)
 
     source = func.script(show_all_ty=False)
     assert "R.prim_value" not in source
