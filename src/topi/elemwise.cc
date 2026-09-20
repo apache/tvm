@@ -27,6 +27,7 @@
 
 namespace tvm {
 namespace topi {
+using namespace tvm::prim;
 
 using namespace tvm;
 using namespace tvm::runtime;
@@ -87,16 +88,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                       ffi::Any* rv) { *rv = negative(args[0].cast<te::Tensor>()); })
       .def_packed("topi.clip",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = clip(args[0].cast<te::Tensor>(), args[1].cast<PrimExpr>(),
-                               args[2].cast<PrimExpr>());
+                    auto a_min_tensor = args[1].try_cast<te::Tensor>();
+                    auto a_max_tensor = args[2].try_cast<te::Tensor>();
+                    PrimExpr a_min = a_min_tensor ? a_min_tensor.value()(ffi::Array<PrimExpr>{})
+                                                  : args[1].cast<PrimExpr>();
+                    PrimExpr a_max = a_max_tensor ? a_max_tensor.value()(ffi::Array<PrimExpr>{})
+                                                  : args[2].cast<PrimExpr>();
+                    *rv = clip(args[0].cast<te::Tensor>(), a_min, a_max);
                   })
       .def_packed("topi.cast",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = cast(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
+                    *rv = cast(args[0].cast<te::Tensor>(), args[1].cast<PrimType>());
                   })
       .def_packed("topi.reinterpret",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = reinterpret(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
+                    *rv = reinterpret(args[0].cast<te::Tensor>(), args[1].cast<PrimType>());
                   })
       .def_packed("topi.elemwise_sum",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -106,12 +112,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                   ffi::Any* rv) { *rv = sign(args[0].cast<te::Tensor>()); })
       .def_packed("topi.full",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = full(args[0].cast<ffi::Array<PrimExpr>>(), args[1].cast<DataType>(),
-                               args[2].cast<PrimExpr>());
+                    auto fill_value_tensor = args[2].try_cast<te::Tensor>();
+                    PrimExpr fill_value = fill_value_tensor
+                                              ? fill_value_tensor.value()(ffi::Array<PrimExpr>{})
+                                              : args[2].cast<PrimExpr>();
+                    *rv = full(args[0].cast<ffi::Array<PrimExpr>>(), args[1].cast<PrimType>(),
+                               fill_value);
                   })
       .def_packed("topi.full_like",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = full_like(args[0].cast<te::Tensor>(), args[1].cast<PrimExpr>());
+                    auto fill_value_tensor = args[1].try_cast<te::Tensor>();
+                    PrimExpr fill_value = fill_value_tensor
+                                              ? fill_value_tensor.value()(ffi::Array<PrimExpr>{})
+                                              : args[1].cast<PrimExpr>();
+                    *rv = full_like(args[0].cast<te::Tensor>(), fill_value);
                   })
       .def_packed(
           "topi.logical_not",

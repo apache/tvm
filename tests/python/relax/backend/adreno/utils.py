@@ -19,6 +19,7 @@ import os
 import tempfile
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -55,50 +56,19 @@ class run_time_check:
         return self.check
 
 
+# Eager skips for Adreno GPU tests, resolved at import time. Pair each with
+# ``@pytest.mark.gpu`` at the test site so CI's ``-m gpu`` filter selects it.
+
 # OpenCL or Vulkan
-requires_adreno_opencl_vulkan = tvm.testing.Feature(
-    "adreno_opencl_vulkan",
-    "Adreno Vulkan Or OpenCL",
-    run_time_check=run_time_check("any")(),
-    parent_features="gpu" if "ADRENO_TARGET" not in os.environ else "rpc",
-)
-
-# Any Vulkan
-requires_adreno_vulkan = tvm.testing.Feature(
-    "adreno_vulkan",
-    "Adreno Vulkan",
-    target_kind_enabled="vulkan",
-    run_time_check=lambda: tvm.runtime.enabled("vulkan") and run_time_check("vulkan").check(),
-    parent_features="gpu" if "ADRENO_TARGET" not in os.environ else "rpc",
-)
-
-# Any OpenCL
-requires_adreno_opencl = tvm.testing.Feature(
-    "adreno_opencl",
-    "Adreno OpenCL",
-    target_kind_enabled="opencl",
-    run_time_check=lambda: tvm.runtime.enabled("opencl") and run_time_check("opencl").check(),
-    parent_features="gpu" if "ADRENO_TARGET" not in os.environ else "rpc",
-)
-
-# Real Adreno GPU OpenCL Target
-requires_adreno_opencl_real = tvm.testing.Feature(
-    "adreno_opencl_real",
-    "Adreno OpenCL Real",
-    target_kind_enabled="opencl",
-    run_time_check=lambda: tvm.runtime.enabled("opencl") and run_time_check("real").check(),
-    parent_features="rpc",
+skip_unless_adreno_opencl_vulkan = pytest.mark.skipif(
+    not run_time_check("any").check(),
+    reason="need adreno opencl or vulkan",
 )
 
 # CLML Codegen
-requires_adreno_clml = tvm.testing.Feature(
-    "adreno_clml",
-    "Adreno OpenCLML",
-    run_time_check=lambda: (
-        tvm.get_global_func("relax.is_openclml_runtime_enabled", allow_missing=True) is not None
-    ),
-    target_kind_enabled="opencl",
-    parent_features="opencl" if "ADRENO_TARGET" not in os.environ else "rpc",
+skip_unless_adreno_clml = pytest.mark.skipif(
+    tvm.get_global_func("relax.is_openclml_runtime_enabled", allow_missing=True) is None,
+    reason="need adreno openclml",
 )
 
 
@@ -201,27 +171,27 @@ def build_and_run(mod, inputs, tgt):
 
     ex = tvm.compile(mod, tgt, tir_pipeline=tir_pipeline)
 
-    with SessionManager() as sess:
-        rexec = sess.load_module(ex)
-        dev = sess.device(tgt.kind.name)
+    def run_and_check():
+        with SessionManager() as sess:
+            rexec = sess.load_module(ex)
+            dev = sess.device(tgt.kind.name)
 
-        if "vdevice" in mod.global_infos:
-            device_arr = [dev for ii in range(len(mod.global_infos["vdevice"]))]
-        else:
-            device_arr = [dev]
-        vm = relax.VirtualMachine(rexec, device_arr)
-        inputs = [tvm.runtime.tensor(ip, dev) for ip in inputs]
-        vm.set_input("main", *inputs)
+            if "vdevice" in mod.global_infos:
+                device_arr = [dev for _ in range(len(mod.global_infos["vdevice"]))]
+            else:
+                device_arr = [dev]
+            vm = relax.VirtualMachine(rexec, device_arr)
+            device_inputs = [tvm.runtime.tensor(ip, dev) for ip in inputs]
+            vm.set_input("main", *device_inputs)
+            vm.invoke_stateful("main")
+            tvm_output = vm.get_outputs("main")
+            if isinstance(tvm_output, tuple):
+                return tuple(out.numpy() for out in tvm_output)
+            return (tvm_output.numpy(),)
 
-        vm.invoke_stateful("main")
-
-        tvm_output = vm.get_outputs("main")
-        if isinstance(tvm_output, tuple):
-            tvm_output = tuple(out.numpy() for out in tvm_output)
-        else:
-            tvm_output = (tvm_output.numpy(),)
-
-    return tvm_output
+    if SessionManager.is_target_rpc():
+        return run_and_check()
+    return tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def verify_results(mod, target, ref_target):
@@ -231,8 +201,8 @@ def verify_results(mod, target, ref_target):
 
     inputs = []
     for arg in mod["main"].params:
-        shape = tuple(shape_val.value for shape_val in arg.struct_info.shape.values)
-        inputs.append(np.random.uniform(0, 1, size=shape).astype(arg.struct_info.dtype))
+        shape = tuple(shape_val.value for shape_val in arg.ty.shape.values)
+        inputs.append(np.random.uniform(0, 1, size=shape).astype(arg.ty.dtype))
 
     mod_org, mod_ref = mod, mod.clone()
 

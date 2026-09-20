@@ -15,8 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E501, E741
+import functools
 import itertools
+import json
+import math
 
+import numpy as np
 import pytest
 import torch
 import tvm_ffi
@@ -40,6 +44,7 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
     tree_attn_with_paged_kv_cache,
 )
 from tvm.s_tir import dlight as dl
+from tvm.testing import env
 
 reserved_nseq = 32
 maximum_total_seq_length = 2048
@@ -55,7 +60,7 @@ rope_theta = 1e4
 rope_scaling = {}
 dtype = None
 dtype_torch = None
-device = tvm.cuda()
+device = None
 device_torch = torch.device("cuda")
 fclear = None
 fadd_sequence = None
@@ -85,8 +90,73 @@ fattention_rotary = None
 fcopy_single_page = None
 fcompact_copy = None
 
+_COMPILED_KERNEL_CACHE = {}
 
-def set_global_func(head_dim, dtype):
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
+@pytest.mark.parametrize("device_type", ["cuda", "metal"])
+def test_paged_prefill_layer_sliding_window_mask(device_type):
+    if not tvm.testing.device_enabled(device_type):
+        pytest.skip(f"{device_type} not enabled")
+
+    dev = tvm.device(device_type)
+    target = tvm.target.Target.from_device(dev)
+    head_dim = 64
+    num_kv_heads = 2
+    num_qo_heads = 4
+    page_size = 16
+    tir_func = _attention_prefill(
+        num_kv_heads,
+        num_qo_heads,
+        head_dim,
+        "float16",
+        True,
+        {},
+        target,
+        page_size=page_size,
+        sliding_window_size=3,
+    )
+    built = tvm.tirx.build(tir_func, target=target)
+
+    q = np.zeros((2, num_qo_heads, head_dim), dtype="float16")
+    q_indptr = np.array([0, 2], dtype="int32")
+    pages = np.zeros((1, 2, num_kv_heads, page_size, head_dim), dtype="float16")
+    for position, value in enumerate([1, 3, 5]):
+        pages[0, 1, :, position, :] = value
+    page_indptr = np.array([0, 1], dtype="int32")
+    page_values = np.array([0], dtype="int32")
+    length_info = np.array([[3], [0], [0]], dtype="int32")
+    k_rope_pos_offset = np.array([0], dtype="int32")
+    q_rope_position = np.array([3, 4], dtype="int32")
+    output = np.zeros_like(q)
+    lse = np.zeros((2, num_qo_heads), dtype="float32")
+
+    args = [
+        tvm.runtime.tensor(array, device=dev)
+        for array in [
+            q,
+            q_indptr,
+            pages,
+            page_indptr,
+            page_values,
+            length_info,
+            k_rope_pos_offset,
+            q_rope_position,
+            output,
+            lse,
+        ]
+    ]
+
+    def run_and_check():
+        built.main(*args, 1, 0, 1.0, 10000.0, 1 / math.sqrt(head_dim))
+        expected = np.array([4, 5], dtype="float16")
+        tvm.testing.assert_allclose(args[8].numpy()[:, 0, 0], expected, rtol=1e-3, atol=1e-3)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+def set_global_func(head_dim, dtype, target):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence, fenable_sliding_window_for_seq
     global fpopn, fbegin_forward, fend_forward, fcommit_accepted_token_tree_nodes
     global fattention_with_fuse_qkv, fis_empty, fdebug_get_kv
@@ -117,36 +187,57 @@ def set_global_func(head_dim, dtype):
     fis_empty = tvm.get_global_func("vm.builtin.attention_kv_cache_empty")
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
 
-    target = tvm.target.Target.from_device(device)
-    builts = []
-    for tir_func in [
-        _kv_cache_transpose_append(num_kv_heads, head_dim, dtype),
-        _kv_cache_debug_get_kv(num_layers, num_kv_heads, head_dim, dtype),
-        _attention_prefill(
-            num_kv_heads, num_qo_heads, head_dim, dtype, False, rope_scaling, target
-        ),
-        _attention_decode(num_kv_heads, num_qo_heads, head_dim, dtype, False, rope_scaling, target),
-        _attention_prefill(num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling, target),
-        _attention_decode(num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling, target),
-        _attention_prefill_ragged(
-            num_kv_heads, num_qo_heads, head_dim, head_dim, dtype, rope_scaling, target
-        ),
-        tree_attn(num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target),
-        tree_attn_with_paged_kv_cache(
-            num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target
-        ),
-        _merge_state_inplace(num_qo_heads, head_dim, dtype, target),
-        llama_rope_with_position_map(
-            rope_theta, rope_scale, head_dim, num_qo_heads, num_kv_heads, dtype, rope_scaling
-        ),
-        _copy_single_page(num_kv_heads, page_size, head_dim, dtype, target),
-        _compact_kv_copy(num_kv_heads, head_dim, dtype, target),
-    ]:
-        mod = tvm.IRModule({"main": tir_func})
-        with target:
-            mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
-        f = tvm.tirx.build(mod["main"], target=target)
-        builts.append(f.main)
+    cache_key = (
+        str(target),
+        num_layers,
+        num_qo_heads,
+        num_kv_heads,
+        head_dim,
+        page_size,
+        dtype,
+        rope_scale,
+        rope_theta,
+        json.dumps(rope_scaling, sort_keys=True),
+    )
+    builts = _COMPILED_KERNEL_CACHE.get(cache_key)
+    if builts is None:
+        builts = []
+        for tir_func in [
+            _kv_cache_transpose_append(num_kv_heads, head_dim, dtype),
+            _kv_cache_debug_get_kv(num_layers, num_kv_heads, head_dim, dtype),
+            _attention_prefill(
+                num_kv_heads, num_qo_heads, head_dim, dtype, False, rope_scaling, target
+            ),
+            _attention_decode(
+                num_kv_heads, num_qo_heads, head_dim, dtype, False, rope_scaling, target
+            ),
+            _attention_prefill(
+                num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling, target
+            ),
+            _attention_decode(
+                num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling, target
+            ),
+            _attention_prefill_ragged(
+                num_kv_heads, num_qo_heads, head_dim, head_dim, dtype, rope_scaling, target
+            ),
+            tree_attn(num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target),
+            tree_attn_with_paged_kv_cache(
+                num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target
+            ),
+            _merge_state_inplace(num_qo_heads, head_dim, dtype, target),
+            llama_rope_with_position_map(
+                rope_theta, rope_scale, head_dim, num_qo_heads, num_kv_heads, dtype, rope_scaling
+            ),
+            _copy_single_page(num_kv_heads, page_size, head_dim, dtype, target),
+            _compact_kv_copy(num_kv_heads, head_dim, dtype, target),
+        ]:
+            mod = tvm.IRModule({"main": tir_func})
+            with target:
+                mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
+            f = tvm.tirx.build(mod["main"], target=target)
+            builts.append(f.main)
+        builts = tuple(builts)
+        _COMPILED_KERNEL_CACHE[cache_key] = builts
 
     (
         ftranspose_append,
@@ -229,8 +320,31 @@ def kv_cache_and_config(request):
     head_dim, dtype, rope_mode, support_sliding_window = request.param
     dtype_torch = getattr(torch, dtype)
     sm_scale = head_dim ** (-0.5)
-    set_global_func(head_dim, dtype)
-    return create_kv_cache(*request.param), rope_mode, support_sliding_window
+    target = tvm.testing.run_with_gpu_lock(_get_cuda_target)
+    set_global_func(head_dim, dtype, target)
+    return request.param
+
+
+def _get_cuda_target():
+    return tvm.target.Target.from_device(tvm.cuda())
+
+
+def _run_with_kv_cache(test):
+    @functools.wraps(test)
+    def wrapper(kv_cache_and_config):
+        def run_and_check():
+            global device
+            device = tvm.cuda()
+            head_dim, dtype, rope_mode, support_sliding_window = kv_cache_and_config
+            try:
+                cache = create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window)
+                return test((cache, rope_mode, support_sliding_window))
+            finally:
+                device = None
+
+        return tvm.testing.run_with_gpu_lock(run_and_check)
+
+    return wrapper
 
 
 def verify_cached_kv(kv_cache, seq_ids, expected_k, expected_v):
@@ -587,8 +701,9 @@ def apply_attention(
     verify_cached_kv(kv_cache, seq_ids, cached_k, cached_v)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -612,8 +727,9 @@ def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
         apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -639,8 +755,9 @@ def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
         )
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -717,8 +834,9 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     apply_attention(kv_cache, rope_mode, [(10, 1), (12, 1)], cached_k, cached_v)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_unlimited_depth(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -768,8 +886,9 @@ def test_paged_attention_kv_cache_unlimited_depth(kv_cache_and_config):
     assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_popn(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -803,8 +922,9 @@ def test_paged_attention_kv_cache_popn(kv_cache_and_config):
     assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_sliding_window(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if not support_sliding_window or rope_mode == RopeMode.NORMAL:
@@ -855,8 +975,9 @@ def test_paged_attention_kv_cache_sliding_window(kv_cache_and_config):
         )
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_sliding_window_fork(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if not support_sliding_window or rope_mode == RopeMode.NORMAL:
@@ -928,8 +1049,9 @@ def test_paged_attention_kv_cache_sliding_window_fork(kv_cache_and_config):
     # seq_len: [15+6, 20+13, 25+7, 38, 41, 43, 24+6]
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_tree_attn(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window:
@@ -1013,22 +1135,4 @@ def test_paged_attention_kv_cache_tree_attn(kv_cache_and_config):
 
 
 if __name__ == "__main__":
-    HEAD_DIMS = [64, 128]
-    DTYPES = ["float16", "float32"]
-    ROPE_MODES = [RopeMode.NONE, RopeMode.NORMAL, RopeMode.INLINE]
-    SUPPORT_SLIDING_WINDOW = [False, True]
-    for head_dim, dtype, rope_mode, support_sliding_window in itertools.product(
-        HEAD_DIMS, DTYPES, ROPE_MODES, SUPPORT_SLIDING_WINDOW
-    ):
-        dtype_torch = getattr(torch, dtype)
-        sm_scale = head_dim ** (-0.5)
-        set_global_func(head_dim, dtype)
-        cache = create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window)
-        cache_and_config = (cache, rope_mode, support_sliding_window)
-        test_paged_attention_kv_cache_prefill_and_decode(cache_and_config)
-        test_paged_attention_kv_cache_remove_sequence(cache_and_config)
-        test_paged_attention_kv_cache_fork_sequence(cache_and_config)
-        test_paged_attention_kv_cache_popn(cache_and_config)
-        test_paged_attention_kv_cache_sliding_window(cache_and_config)
-        test_paged_attention_kv_cache_tree_attn(cache_and_config)
-        test_paged_attention_kv_cache_unlimited_depth(cache_and_config)
+    tvm.testing.main()

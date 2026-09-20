@@ -28,51 +28,60 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class ThreadExtentChecker : private StmtVisitor {
+class ThreadExtentChecker : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
   static bool Check(const Stmt& stmt, int thread_warp_size) {
     try {
       TVM_FFI_ICHECK(thread_warp_size > 0);
-      ThreadExtentChecker checker(thread_warp_size);
-      checker.VisitStmt(stmt);
+      auto checker = ffi::make_object<ThreadExtentChecker>(thread_warp_size);
+      checker->Visit(stmt);
       return true;
     } catch (const std::exception&) {
       return false;
     }
   }
 
- private:
   explicit ThreadExtentChecker(int thread_warp_size) : thread_warp_size_(thread_warp_size) {}
 
-  void VisitStmt_(const ForNode* loop) {
+ private:
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) {
     runtime::ThreadScope thread_scope = GetThreadScope(loop);
     if (IsThreadIdx(thread_scope)) {
-      if (const int64_t* p_ext = GetLoopIntExtent(loop)) {
+      const auto* p_ext_imm = loop->extent.as<IntImmNode>();
+      if (auto p_ext = p_ext_imm ? p_ext_imm->value.as<int64_t>() : std::nullopt;
+          p_ext.has_value()) {
         int64_t ext = *p_ext;
         if (thread_scope.dim_index == 0) {
           std::swap(thread_idx_x, ext);
-          StmtVisitor::VisitStmt_(loop);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
           std::swap(thread_idx_x, ext);
         } else if (thread_scope.dim_index == 1) {
           std::swap(thread_idx_y, ext);
-          StmtVisitor::VisitStmt_(loop);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
           std::swap(thread_idx_y, ext);
         } else if (thread_scope.dim_index == 2) {
           std::swap(thread_idx_z, ext);
-          StmtVisitor::VisitStmt_(loop);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
           std::swap(thread_idx_z, ext);
         } else {
-          StmtVisitor::VisitStmt_(loop);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
         }
-        return;
+        return std::nullopt;
       } else {
         throw std::runtime_error("Dynamic thread extent");
       }
     }
-    StmtVisitor::VisitStmt_(loop);
+    return StmtExprVisitor::Visit_(loop);
   }
 
-  void VisitStmt_(const SBlockNode* block) {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) {
     int old_thread_idx_x = thread_idx_x;
     if (block->annotations.count(s_tir::attr::warp_execution)) {
       thread_idx_x = thread_warp_size_;
@@ -89,8 +98,9 @@ class ThreadExtentChecker : private StmtVisitor {
         }
       }
     }
-    StmtVisitor::VisitStmt_(block);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
     thread_idx_x = old_thread_idx_x;
+    return std::nullopt;
   }
 
   int64_t thread_idx_x = 1;
@@ -110,7 +120,7 @@ namespace meta_schedule {
 IntImm Extract(const Target& target, const char* name) {
   TVM_FFI_ICHECK(target.defined());
   if (ffi::Optional<int64_t> v = target->GetAttr<int64_t>(name)) {
-    return IntImm(DataType::Int(64), v.value());
+    return IntImm::Int64(v.value());
   }
   TVM_FFI_THROW(AttributedError) << "\"" << name << "\" is not defined in the target";
   throw;
@@ -124,15 +134,15 @@ class VerifyGPUCodeNode : public PostprocNode {
   int thread_warp_size_ = -1;
 
   void InitializeWithTuneContext(const TuneContext& context) final {
-    TVM_FFI_ICHECK(context->target.defined());
+    TVM_FFI_ICHECK(context->target.has_value());
     this->target_ = context->target.value();
     this->target_constraints_ = ffi::Map<ffi::String, PrimExpr>{
         {"max_shared_memory_per_block", Extract(this->target_, "max_shared_memory_per_block")},
         {"max_threads_per_block", Extract(this->target_, "max_threads_per_block")},
-        {"max_vthread", IntImm(DataType::Int(32), 8)},
-        {"max_vector_bytes", IntImm(DataType::Int(32), 16)},
+        {"max_vthread", IntImm::Int32(8)},
+        {"max_vector_bytes", IntImm::Int32(16)},
     };
-    thread_warp_size_ = static_cast<int>(Extract(this->target_, "thread_warp_size")->value);
+    thread_warp_size_ = Extract(this->target_, "thread_warp_size")->value.as<int>().value();
   }
 
   bool Verify(const IRModule& mod) const {
@@ -166,7 +176,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(s_tir::transform::LiftThreadBinding());
           pass_list.push_back(s_tir::transform::ManifestSharedMemoryLocalStage());
           pass_list.push_back(s_tir::transform::CompactBufferAllocation());
-          pass_list.push_back(tirx::transform::StmtSimplify());
+          pass_list.push_back(s_tir::transform::StmtSimplify());
           pass_list.push_back(s_tir::transform::LowerAutoCopy());
           pass_list.push_back(s_tir::transform::UnifyThreadBinding());
           pass_list.push_back(s_tir::transform::LowerMatchBuffer());

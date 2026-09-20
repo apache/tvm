@@ -49,17 +49,17 @@ void tvm_cutlass_group_gemm_impl(Tensor x, Tensor weight, Tensor indptr, Tensor 
   float alpha = 1.0f;
   float beta = 0.0f;
 
-  if (DataType(x->dtype) == DataType::Float(16)) {
-    TVM_FFI_ICHECK(DataType(weight->dtype) == DataType::Float(16));
-    TVM_FFI_ICHECK(DataType(out->dtype) == DataType::Float(16));
+  if (x->dtype == DLDataType{kDLFloat, 16, 1}) {
+    TVM_FFI_ICHECK((weight->dtype == DLDataType{kDLFloat, 16, 1}));
+    TVM_FFI_ICHECK((out->dtype == DLDataType{kDLFloat, 16, 1}));
     using Dtype = cutlass::half_t;
     CutlassGroupGemm<Arch, Dtype, Dtype, Dtype>::run(
         static_cast<Dtype*>(x->data), static_cast<Dtype*>(weight->data),
         static_cast<int64_t*>(indptr->data), static_cast<uint8_t*>(workspace->data),
         workspace->shape[0], n, k, num_groups, alpha, beta, static_cast<Dtype*>(out->data), stream);
-  } else if (DataType(x->dtype) == DataType::BFloat(16)) {
-    TVM_FFI_ICHECK(DataType(weight->dtype) == DataType::BFloat(16));
-    TVM_FFI_ICHECK(DataType(out->dtype) == DataType::BFloat(16));
+  } else if (x->dtype == DLDataType{kDLBfloat, 16, 1}) {
+    TVM_FFI_ICHECK((weight->dtype == DLDataType{kDLBfloat, 16, 1}));
+    TVM_FFI_ICHECK((out->dtype == DLDataType{kDLBfloat, 16, 1}));
     using Dtype = cutlass::bfloat16_t;
     CutlassGroupGemm<Arch, Dtype, Dtype, Dtype>::run(
         static_cast<Dtype*>(x->data), static_cast<Dtype*>(weight->data),

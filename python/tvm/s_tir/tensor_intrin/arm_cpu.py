@@ -178,14 +178,14 @@ def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
     ----------
     tensor : tvm.tirx.Buffer
         The tensor the buffer access will be performed on.
-    relative_offsets : Tuple[PrimExpr, PrimExpr]
+    relative_offsets : Tuple[Expr, Expr]
         The vertical and horizontal offsets into the accumulator tile.
-    vertical_limit : PrimExpr
+    vertical_limit : Expr
         An absolute offset specifying the limit at which rows should be stored.
 
     Returns
     -------
-    PrimExpr
+    Expr
         The active lane mask intrinsic.
     """
     vertical_offset, horizontal_offset = relative_offsets
@@ -487,7 +487,7 @@ def get_transpose_interleave_intrin_name(in_dtype, out_dtype, extent_cols, exten
         sme_transpose_interleave_intrin_name = (
             ARM_SME_2SVLx2SVL_FP32_TRANSPOSE_INTERLEAVE + f"_{extent_cols}_{extent_rows}"
         )
-        tirx.TensorIntrin.register(
+        TensorIntrin.register(
             sme_transpose_interleave_intrin_name,
             *get_sme_transpose_interleave_2svlx2svl_fp32_intrin(extent_cols, extent_rows),
             override=True,

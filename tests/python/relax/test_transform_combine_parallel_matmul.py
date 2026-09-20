@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E731, F401, F841
+import pytest
+
 import tvm.testing
 from tvm import relax, tirx
 from tvm.relax.transform import CombineParallelMatmul
@@ -56,7 +58,7 @@ def get_parallel_matmul(
 
                 for i, r in enumerate(rhs):
                     result = R.emit(R.matmul(x, r, out_dtype=dtype))
-                    if bias[i]:
+                    if bias[i] is not None:
                         result = R.emit(result + bias[i])
                     if activation and activation[i]:
                         result = R.emit(activation_map[activation[i]](result))
@@ -382,9 +384,9 @@ def test_rhs_batched():
             lv1 = R.matmul(x, lv, out_dtype="float32")
             lv2 = R.split(lv1, indices_or_sections=[640], axis=2)
             lv0 = lv2[0]
-            lv1_1 = R.matmul(x, w1, out_dtype="void")
+            lv1_1 = R.matmul(x, w1, out_dtype=None)
             lv2_1 = lv2[1]
-            lv3 = R.matmul(x, w3, out_dtype="void")
+            lv3 = R.matmul(x, w3, out_dtype=None)
             out = lv0, lv1_1, lv2_1, lv3
             R.output(out)
         return out
@@ -517,8 +519,8 @@ def test_check():
             lv0 = lv2[0]
             lv1_1 = lv2[1]
             lv2_1 = lv2[2]
-            lv3 = R.matmul(x2, w3, out_dtype="void")
-            lv4 = R.matmul(x2, w4, out_dtype="void")
+            lv3 = R.matmul(x2, w3, out_dtype=None)
+            lv4 = R.matmul(x2, w4, out_dtype=None)
             out = (lv0, lv1_1, lv2_1, lv3, lv4)
             R.output(out)
         return out
@@ -692,6 +694,43 @@ def test_limit_one_dynamic_shape_in_combined_matmul():
     after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
 
     tvm.ir.assert_structural_equal(after, expected)
+
+
+@pytest.mark.parametrize("float32_branch", [0, 1])
+def test_skip_matmuls_with_different_output_dtypes(float32_branch):
+    if float32_branch == 0:
+
+        @R.function(private=True)
+        def before(
+            x: R.Tensor((3, 4), "float16"),
+            w0: R.Tensor((4, 5), "float16"),
+            w1: R.Tensor((4, 6), "float16"),
+        ):
+            with R.dataflow():
+                y0 = R.matmul(x, w0, out_dtype="float32")
+                y1 = R.matmul(x, w1)
+                out = (y0, y1)
+                R.output(out)
+            return out
+
+    else:
+
+        @R.function(private=True)
+        def before(
+            x: R.Tensor((3, 4), "float16"),
+            w0: R.Tensor((4, 5), "float16"),
+            w1: R.Tensor((4, 6), "float16"),
+        ):
+            with R.dataflow():
+                y0 = R.matmul(x, w0)
+                y1 = R.matmul(x, w1, out_dtype="float32")
+                out = (y0, y1)
+                R.output(out)
+            return out
+
+    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
+
+    tvm.ir.assert_structural_equal(after, before)
 
 
 if __name__ == "__main__":

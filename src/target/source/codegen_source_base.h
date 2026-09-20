@@ -25,9 +25,9 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 #define TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 
-#include <tvm/ir/name_supply.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/target/codegen.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 
 #include <functional>
@@ -58,7 +58,7 @@ class CodeGenSourceBase {
    * \param t The type representation.
    * \param os The stream to print the ctype into
    */
-  virtual void PrintType(DataType type, std::ostream& os);  // NOLINT(*)
+  virtual void PrintType(const PrimType& type, std::ostream& os);  // NOLINT(*)
   /*!
    * Print Type representation of type type.
    * \param type The type representation.
@@ -85,6 +85,13 @@ class CodeGenSourceBase {
    */
   std::string AllocVarID(const tirx::VarNode* v);
   /*!
+   * \brief Allocate a variable name using an explicit diagnostic hint.
+   * \param v The variable.
+   * \param name_hint The name hint.
+   * \return the variable name.
+   */
+  std::string AllocVarID(const tirx::VarNode* v, std::string name_hint);
+  /*!
    * \brief Get a variable name.
    * \param v The variable.
    * \return the variable name.
@@ -96,7 +103,7 @@ class CodeGenSourceBase {
    * \param src The source expression
    * \param t The type of the expression.
    */
-  std::string SSAGetID(std::string src, DataType t);
+  std::string SSAGetID(std::string src, const Type& t);
   /*!
    * \brief mark the beginning of a new scope
    * \return The scope id.
@@ -113,7 +120,7 @@ class CodeGenSourceBase {
    * \param src The source expression.
    * \param t The type of target.
    */
-  virtual void PrintSSAAssign(const std::string& target, const std::string& src, DataType t) = 0;
+  virtual void PrintSSAAssign(const std::string& target, const std::string& src, const Type& t) = 0;
 
   /*! \brief the declaration stream */
   std::ostringstream decl_stream;
@@ -123,8 +130,8 @@ class CodeGenSourceBase {
   std::ostringstream fwd_decl_stream;
   /*! \brief name of each variable */
   std::unordered_map<const tirx::VarNode*, std::string> var_idmap_;
-  /*! \brief NameSupply for allocation */
-  NameSupply name_supply_;
+  /*! \brief Unique name supply for allocation */
+  UniqueNameSupply name_supply_;
   /*! \brief The current indentation value */
   int indent_{0};
 

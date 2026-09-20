@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import tvm_ffi
+
 import tvm
 import tvm.script
 from tvm.script import tirx as T
@@ -104,6 +106,94 @@ def test_bf16_simple_store_will_legalize():
     after_storage = tvm.tirx.transform.BF16StorageLegalize()(after_compute)
     tvm.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
     tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
+
+
+def test_bf16_masked_load_store_will_legalize():
+    def get_before():
+        @tvm.script.ir_module
+        class Before:
+            @T.prim_func(s_tir=True)
+            def main(Aptr: T.handle("bfloat16"), Cptr: T.handle("bfloat16")):
+                T.func_attr({"global_symbol": "main"})
+                A = T.decl_buffer((16,), "bfloat16", data=Aptr)
+                B = T.decl_buffer((16,), "bfloat16")
+                C = T.decl_buffer((16,), "bfloat16", data=Cptr)
+                mask = T.Broadcast(T.bool(True), 4)
+                T.evaluate(
+                    T.call_intrin(
+                        "void",
+                        "tirx.masked_store",
+                        B,
+                        T.call_intrin("bfloat16x4", "tirx.masked_load", A, T.Ramp(0, 1, 4), mask),
+                        T.Ramp(0, 1, 4),
+                        mask,
+                    )
+                )
+                T.evaluate(
+                    T.call_intrin(
+                        "void",
+                        "tirx.masked_store",
+                        C,
+                        T.call_intrin("bfloat16x4", "tirx.masked_load", B, T.Ramp(0, 1, 4), mask),
+                        T.Ramp(0, 1, 4),
+                        mask,
+                    )
+                )
+
+        return Before
+
+    target = Target("nvidia/geforce-rtx-2080-ti")
+    before = BindTarget(target)(get_before())
+    after_compute = tvm.tirx.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm.tirx.transform.BF16StorageLegalize()(after_compute)
+
+    def collect(mod):
+        nodes = []
+
+        def collect_once(node):
+            if not any(node.same_as(existing) for existing in nodes):
+                nodes.append(node)
+
+        tvm_ffi.structural_walk(
+            mod["main"].body,
+            ((tvm.tirx.DeclBuffer, tvm.tirx.AllocBuffer, tvm.ir.Call), collect_once),
+        )
+        buffers = {
+            node.buffer.name: str(node.buffer.dtype)
+            for node in nodes
+            if isinstance(node, tvm.tirx.DeclBuffer | tvm.tirx.AllocBuffer)
+        }
+        masked_loads = [
+            node
+            for node in nodes
+            if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.masked_load"
+        ]
+        masked_stores = [
+            node
+            for node in nodes
+            if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.masked_store"
+        ]
+        return buffers, masked_loads, masked_stores
+
+    compute_buffers, compute_loads, compute_stores = collect(after_compute)
+    assert compute_buffers == {"A": "bfloat16", "B": "float32", "C": "bfloat16", "mask": "boolx4"}
+    assert sorted(str(load.ty) for load in compute_loads) == ["bfloat16x4", "float32x4"]
+    assert sorted(str(store.args[1].ty) for store in compute_stores) == [
+        "bfloat16x4",
+        "float32x4",
+    ]
+
+    storage_buffers, storage_loads, storage_stores = collect(after_storage)
+    assert storage_buffers == {"A": "uint16", "B": "float32", "C": "uint16", "mask": "boolx4"}
+    assert sorted(str(load.ty) for load in storage_loads) == [
+        "float32x4",
+        "float32x4",
+        "uint16x4",
+    ]
+    assert sorted(str(store.args[1].ty) for store in storage_stores) == [
+        "float32x4",
+        "uint16x4",
+    ]
 
 
 def test_bf16_storage_compute_scope_will_legalize():
@@ -262,7 +352,7 @@ def test_bf16_reduce_will_legalize():
                     with T.attr(
                         T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
                         "reduce_scope",
-                        T.reinterpret("handle", T.uint64(0)),
+                        T.int32(0),
                     ):
                         T.tvm_thread_allreduce(
                             T.uint32(1),
@@ -291,7 +381,7 @@ def test_bf16_reduce_will_legalize():
                     with T.attr(
                         T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                         "reduce_scope",
-                        T.reinterpret("handle", T.uint64(0)),
+                        T.int32(0),
                     ):
                         T.tvm_thread_allreduce(
                             T.uint32(1),
@@ -316,7 +406,7 @@ def test_bf16_reduce_will_legalize():
             def main(
                 Aptr: T.handle("uint16", storage_scope="shared"),
             ):
-                A_flat_1 = T.decl_buffer(4096, "uint16", data=Aptr)
+                A_flat = T.decl_buffer(4096, "uint16", data=Aptr)
 
                 for i in range(128):
                     threadIdx_x = T.launch_thread("threadIdx.x", 32)
@@ -326,14 +416,14 @@ def test_bf16_reduce_will_legalize():
                     with T.attr(
                         T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                         "reduce_scope",
-                        T.reinterpret("handle", T.uint64(0)),
+                        T.int32(0),
                     ):
                         T.tvm_thread_allreduce(
                             T.uint32(1),
                             T.reinterpret(
                                 "float32",
                                 T.shift_left(
-                                    T.Cast("uint32", T.reinterpret("uint16", A_flat_1[0])),
+                                    T.Cast("uint32", T.reinterpret("uint16", A_flat[0])),
                                     T.uint32(16),
                                 ),
                             ),
@@ -370,7 +460,7 @@ def test_bf16_reduce_wont_legalize():
                     with T.attr(
                         T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
                         "reduce_scope",
-                        T.reinterpret("handle", T.uint64(0)),
+                        T.int32(0),
                     ):
                         T.tvm_thread_allreduce(
                             T.uint32(1),
@@ -399,7 +489,7 @@ def test_bf16_reduce_wont_legalize():
                     with T.attr(
                         T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
                         "reduce_scope",
-                        T.reinterpret("handle", T.uint64(0)),
+                        T.int32(0),
                     ):
                         T.tvm_thread_allreduce(
                             T.uint32(1),
@@ -428,7 +518,7 @@ def test_bf16_reduce_wont_legalize():
                     with T.attr(
                         T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
                         "reduce_scope",
-                        T.reinterpret("handle", T.uint64(0)),
+                        T.int32(0),
                     ):
                         T.tvm_thread_allreduce(
                             T.uint32(1),

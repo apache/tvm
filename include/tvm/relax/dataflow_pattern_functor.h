@@ -49,7 +49,7 @@ class DFPatternFunctor;
   }
 
 #define RELAX_DFPATTERN_FUNCTOR_DISPATCH(OP)                                                    \
-  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) {     \
+  vtable.template SetDispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) {      \
     return self->VisitDFPattern_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
   });
 
@@ -57,7 +57,7 @@ template <typename R, typename... Args>
 class DFPatternFunctor<R(const DFPattern& n, Args...)> {
  private:
   using TSelf = DFPatternFunctor<R(const DFPattern& n, Args...)>;
-  using FType = tvm::NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
+  using FType = tvm::ObjectFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief virtual destructor */
@@ -96,8 +96,7 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
   virtual R VisitDFPattern_(const TupleGetItemPatternNode* op,
                             Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const TuplePatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
-  virtual R VisitDFPattern_(const StructInfoPatternNode* op,
-                            Args... args) DFPATTERN_FUNCTOR_DEFAULT;
+  virtual R VisitDFPattern_(const TypePatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const WildcardPatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const VarPatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
 
@@ -132,7 +131,7 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(ShapePatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(TupleGetItemPatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(TuplePatternNode);
-    RELAX_DFPATTERN_FUNCTOR_DISPATCH(StructInfoPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(TypePatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(WildcardPatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(VarPatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(DataflowVarPatternNode);
@@ -166,7 +165,7 @@ class DFPatternVisitor : public DFPatternFunctor<void(const DFPattern&)> {
   void VisitDFPattern_(const ShapePatternNode* op) override;
   void VisitDFPattern_(const TupleGetItemPatternNode* op) override;
   void VisitDFPattern_(const TuplePatternNode* op) override;
-  void VisitDFPattern_(const StructInfoPatternNode* op) override;
+  void VisitDFPattern_(const TypePatternNode* op) override;
   void VisitDFPattern_(const WildcardPatternNode* op) override;
   void VisitDFPattern_(const VarPatternNode* op) override;
 

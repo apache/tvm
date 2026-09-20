@@ -96,4 +96,4 @@ def find_include_path() -> str:
 try:
     from ._version import version as __version__
 except ImportError:  # pragma: no cover - source tree without a build
-    __version__ = "0.25.dev0"
+    __version__ = "0.26.dev0"

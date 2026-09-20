@@ -19,7 +19,7 @@
 
 /*!
  * \file nn.h
- * \brief The functions to infer struct info for distributed nn operator
+ * \brief The functions to infer type for distributed nn operator
  */
 
 #ifndef TVM_RELAX_OP_DISTRIBUTED_NN_H_
@@ -31,7 +31,7 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-StructInfo InferDistStructInfoSoftmax(const Call& call, const BlockBuilder& ctx);
+Type InferDistTypeSoftmax(const Call& call, const BlockBuilder& ctx);
 
 }  // namespace distributed
 }  // namespace relax

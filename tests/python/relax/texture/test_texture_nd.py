@@ -36,6 +36,7 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.support import ndk
 from tvm.target import Target
+from tvm.testing import env
 
 
 def get_rpc():
@@ -105,8 +106,9 @@ def postprocess_pipeline(mod: IRModule) -> IRModule:
     return mod
 
 
-@tvm.testing.requires_rpc
-@tvm.testing.requires_adreno_opencl
+@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_adreno_opencl(), reason="need adreno opencl")
 @pytest.mark.parametrize("backend", ["opencl"])
 @pytest.mark.parametrize("dtype", ["int8", "float16", "int16", "float32", "int32"])
 @pytest.mark.parametrize("channel_size", [64, 128])
@@ -166,43 +168,38 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
     ex = relax.build(mod, target)
     load_path = "vm_library.so"
     inputs = [np.random.randint(0, 128, (M, N)).astype(dtype), np.zeros((M, N), dtype)]
+
+    def run_and_check(rexec, remote_session):
+        if remote_session is not None:
+            dev = remote_session.cl()
+        elif "opencl" in backend:
+            dev = tvm.opencl(0)
+        elif "vulkan" in backend:
+            dev = tvm.vulkan(0)
+        else:
+            raise RuntimeError("Unsupported backend")
+
+        if "vdevice" in mod.global_infos:
+            device_arr = [dev for _ in range(len(mod.global_infos["vdevice"]))]
+        else:
+            device_arr = [dev]
+        vm = relax.VirtualMachine(rexec, device_arr)
+        inps = [tvm.runtime.tensor(inp, dev) for inp in inputs]
+        vm["main"](*inps)
+        np.testing.assert_equal(inps[-1].numpy(), inps[0].numpy())
+
     with tempfile.TemporaryDirectory() as temp_dir:
         if remote is not None:
             path = temp_dir + "/" + load_path
             ex.export_library(path, fcompile=ndk.create_shared, options=["-shared", "-fPIC", "-lm"])
             remote.upload(path)
             rexec = remote.load_module(load_path)
-            dev = remote.cl()
-            if "vdevice" in mod.global_infos:
-                device_arr = [dev for ii in range(len(mod.global_infos["vdevice"]))]
-            else:
-                device_arr = [dev]
-            vm = relax.VirtualMachine(rexec, device_arr)
+            try:
+                run_and_check(rexec, remote)
+            finally:
+                remote.get_function("CloseRPCConnection")()
         else:
-            # local execution
-            if "opencl" in backend:
-                dev = tvm.opencl(0)
-            elif "vulkan" in backend:
-                dev = tvm.vulkan(0)
-            else:
-                raise RuntimeError("Unsupported backend")
-
-            if "vdevice" in mod.global_infos:
-                device_arr = [dev for ii in range(len(mod.global_infos["vdevice"]))]
-            else:
-                device_arr = [dev]
-            vm = relax.VirtualMachine(ex, device_arr)
-
-        inps = [tvm.runtime.tensor(inp, dev) for inp in inputs]
-        vm["main"](*inps)
-
-        out1 = inps[-1].numpy()
-        out2 = inps[0].numpy()
-
-        if remote:
-            remote.get_function("CloseRPCConnection")()
-
-        np.testing.assert_equal(out1, out2)
+            tvm.testing.run_with_gpu_lock(run_and_check, ex, None)
 
 
 if __name__ == "__main__":

@@ -35,13 +35,13 @@ using namespace tvm::tirx;
 
 std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  const BufferNode* write_buffer = block->writes[0]->buffer.get();
+  const VarNode* write_buffer = block->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>().get();
   int n = block->reads.size();
   std::vector<int> results(n, -1);
   for (int i = 0; i < n; ++i) {
-    const BufferNode* read_buffer = block->reads[i]->buffer.get();
+    const VarNode* read_buffer = block->reads[i]->source.as_or_throw<tvm::tirx::BufferVar>().get();
     if (read_buffer != write_buffer) {
-      results[i] = read_buffer->shape.size();
+      results[i] = GetBufferVar(read_buffer)->shape.size();
     }
   }
   return results;
@@ -235,7 +235,9 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state,
       }
       idx = &s_indices_;
       if (spatial_loop_product != -1) {
-        if (const int64_t* extent = s_tir::GetLoopIntExtent(sch->Get(loop).get())) {
+        const auto* extent_imm = sch->Get(loop)->extent.as<IntImmNode>();
+        if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+            extent.has_value()) {
           spatial_loop_product *= *extent;
         } else {
           spatial_loop_product = -1;
@@ -284,9 +286,9 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state,
       low_inclusive = this->thread_warp_size_;
     }
     sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_low_inclusive,
-                  IntImm(DataType::Int(32), low_inclusive));
+                  IntImm::Int32(low_inclusive));
     sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_high_inclusive,
-                  IntImm(DataType::Int(32), high_inclusive));
+                  IntImm::Int32(high_inclusive));
   }
   return {state};
 }
@@ -338,7 +340,7 @@ std::vector<State> MultiLevelTilingNode::AddAsyncPipeline(State state) const {
   // therefore it matches the notation array size in the following code
   tirx::StmtSRef r_loop_sref = state->sch->GetSRef(state->tiles[r_indices_[0]].back());
   const tirx::ForNode* r_for_loop = TVM_SREF_TO_FOR(r_loop_sref);
-  ffi::Array<tirx::Stmt> seq = Downcast<tirx::SeqStmt>(r_for_loop->body)->seq;
+  ffi::Array<tirx::Stmt> seq = r_for_loop->body.as_or_throw<tirx::SeqStmt>()->seq;
   if (seq.size() != 3) {
     return {state};
   }
@@ -367,17 +369,18 @@ std::vector<State> MultiLevelTilingNode::AddAsyncPipeline(State state) const {
 void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
                                                        const s_tir::SBlockRV& block) const {
   // Filter out invalid vector lanes according to the data type.
-  const tirx::SBlockNode* block_node = (*sch)->GetSRef(block)->StmtAs<tirx::SBlockNode>();
+  const s_tir::SBlockNode* block_node = (*sch)->GetSRef(block)->StmtAs<s_tir::SBlockNode>();
   TVM_FFI_ICHECK_EQ(block_node->writes.size(), 1);
-  const runtime::DataType dtype = block_node->writes[0]->buffer->dtype;
+  const DLDataType dtype =
+      block_node->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>()->dtype->dtype;
   std::function<bool(int)> f_filter = nullptr;
-  if (dtype == runtime::DataType::Float(32)) {
+  if (dtype == DLDataType{kDLFloat, 32, 1}) {
     f_filter = [&](int vector_len) { return vector_len <= 4; };
-  } else if (dtype == runtime::DataType::Float(16)) {
+  } else if (dtype == DLDataType{kDLFloat, 16, 1}) {
     f_filter = [&](int vector_len) {
       return (vector_len == 1 || vector_len % 2 == 0) && vector_len <= 8;
     };
-  } else if (dtype == runtime::DataType::Int(8)) {
+  } else if (dtype == DLDataType{kDLInt, 8, 1}) {
     f_filter = [&](int vector_len) { return vector_len <= 16; };
   }
   std::vector<int> valid_vector_lens;
@@ -396,7 +399,7 @@ void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
     valid_vector_lens_arr.reserve(valid_vector_lens.size());
     for (int v : valid_vector_lens) valid_vector_lens_arr.push_back(static_cast<int64_t>(v));
     s_tir::ExprRV vector_load_len = (*sch)->SampleCategorical(
-        valid_vector_lens_arr, ffi::Array<FloatImm>(n, FloatImm(DataType::Float(32), prob)));
+        valid_vector_lens_arr, ffi::Array<FloatImm>(n, FloatImm(PrimType::Float(32), prob)));
     (*sch)->Annotate(block, s_tir::attr::meta_schedule_cooperative_fetch, vector_load_len);
   }
 }

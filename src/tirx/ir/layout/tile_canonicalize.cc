@@ -24,6 +24,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 // Forward declarations for helpers used before their definitions
 TileLayout SortReplicaIters(TileLayout layout);
@@ -55,7 +56,7 @@ TileLayout RemoveZeroOffsets(TileLayout layout) {
 
 TileLayout FuseContiguousShardIters(TileLayout layout) {
   std::vector<Iter> fused_shard;
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   const auto& shard = layout->shard;
   for (size_t cur = 0; cur < shard.size();) {
     // Find consecutive fusable axes

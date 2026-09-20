@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, missing-docstring
 
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -31,7 +33,7 @@ def test_rewrite_to_shuffle_0():
         def main(A: T.Buffer((16,), "float32"), B: T.Buffer((4,), "float32")):
             A_local = T.alloc_buffer((16,), scope="local")
             for i in range(4):
-                A_local[i * 4 : i * 4 + 4] = A[i * 4 : i * 4 + 4]
+                A_local[T.ramp(i * 4, 1, 4)] = A[T.ramp(i * 4, 1, 4)]
             for i in range(4):
                 B[i] = A_local[i * 4] + A_local[i * 4 + 1] + A_local[i * 4 + 2] + A_local[i * 4 + 3]
 
@@ -62,8 +64,8 @@ def test_rewrite_to_shuffle_1():
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer((8,), "float32"), B: T.Buffer((1,), "float32")):
             A_local = T.alloc_buffer((8,), scope="local")
-            A_local[0:4] = A[0:4]
-            A_local[4:8] = A[4:8]
+            A_local[T.ramp(0, 1, 4)] = A[T.ramp(0, 1, 4)]
+            A_local[T.ramp(4, 1, 4)] = A[T.ramp(4, 1, 4)]
             B[0] = (
                 A_local[0]
                 + A_local[1]
@@ -106,7 +108,7 @@ def test_address_of():
         def main(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
             for i in range(4):
                 T.evaluate(T.address_of(A[i * 4]))
-                B[i * 4 : i * 4 + 4] = A[i * 4 : i * 4 + 4]
+                B[T.ramp(i * 4, 1, 4)] = A[T.ramp(i * 4, 1, 4)]
 
     @I.ir_module
     class Expected:
@@ -114,7 +116,7 @@ def test_address_of():
         def main(A: T.Buffer((16,), "float32"), B: T.Buffer((4,), "float32x4")):
             for i in range(4):
                 T.evaluate(T.address_of(A[i * 4]))
-                B[T.Div(i * 4, 4)] = A[i * 4 : i * 4 + 4]
+                B[T.Div(i * 4, 4)] = A[T.ramp(i * 4, 1, 4)]
 
     After = transform(Before)
     tvm.ir.assert_structural_equal(After, Expected)
@@ -140,6 +142,41 @@ def test_scalar_read_without_write():
 
     After = transform(Before)
     tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_decl_buffer_alias_chain_uses_flat_root_map():
+    transform = tvm.tirx.transform.PointerValueTypeRewrite()
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((16,), "float32")):
+            A_view = T.decl_buffer((16,), "float32", data=A.data)
+            A_view_2 = T.decl_buffer((16,), "float32", data=A_view.data)
+            for i in range(4):
+                A_view_2[T.ramp(i * 4, 1, 4)] = T.broadcast(T.float32(1), 4)
+
+    After = transform(Before)
+    assert tvm.tirx.analysis.verify_well_formed(After)
+    func = After["main"]
+    assert func.params[0].ty.dtype == tvm.ir.PrimType("float32x4")
+
+    decl_buffers = []
+    buffer_stores = []
+    tvm_ffi.structural_walk(
+        func.body,
+        lambda node: (
+            decl_buffers.append(node)
+            if isinstance(node, tvm.tirx.DeclBuffer)
+            else buffer_stores.append(node)
+            if isinstance(node, tvm.tirx.BufferStore)
+            else None
+        ),
+    )
+    assert len(decl_buffers) == 2
+    assert all(decl.buffer.ty.dtype == tvm.ir.PrimType("float32x4") for decl in decl_buffers)
+    assert len(buffer_stores) == 1
+    assert buffer_stores[0].buffer.ty.dtype == tvm.ir.PrimType("float32x4")
 
 
 if __name__ == "__main__":

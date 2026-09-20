@@ -38,6 +38,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx.layout import S, TileLayout, laneid
 from tvm.tirx.operator.tile_primitive import list_registered_schedules
 
@@ -240,11 +241,12 @@ def _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype):
     """End-to-end ``T.gemm`` over an Mt x Nt x Kt tiling, with the A/B inputs
     loaded and the D output stored register-by-register.
 
-    Fragments are indexed through their per-register multi-dim ``.local()`` views
-    (the shard's non-lane dims, in shard order): A = [Mt, rM(2), Kt, kHi, kp],
-    B = [Kt, kHi, kp, Nt], D/C = [Mt, rM(2), Nt, rN(2)]. The lane owns g = lane>>2
-    and t = lane&3; within a tile M = mt*16 + rM*8 + g, N = nt*8 + t*2 + rN,
-    K = kt*kinst + kHi*8 + t*2 + kp.
+    Fragments are indexed through per-register multi-dim ``.local()`` views.
+    Their axes follow physical register order (stride-descending):
+    A = [Mt, Kt, kHi, rM(2), kp], B = [Kt, Nt, kHi, kp], and
+    D/C = [Mt, Nt, rM(2), rN(2)]. The lane owns g = lane>>2 and
+    t = lane&3; within a tile M = mt*16 + rM*8 + g,
+    N = nt*8 + t*2 + rN, K = kt*kinst + kHi*8 + t*2 + kp.
     """
     Dl, Al, Bl = _frag(Mt, Nt, Kt, kinst)
     M, N, K = 16 * Mt, 8 * Nt, kinst * Kt
@@ -265,28 +267,28 @@ def _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype):
         B_f = T.alloc_buffer((K, N), dtype, scope="local", layout=Bl)
         C_f = T.alloc_buffer((M, N), "float32", scope="local", layout=Dl)
         D_f = T.alloc_buffer((M, N), "float32", scope="local", layout=Dl)
-        A_reg = A_f.local(Mt, 2, Kt, kHi_n, KP)
-        for mt, rM, kt, kHi, kp in T.grid(Mt, 2, Kt, kHi_n, KP):
-            A_reg[mt, rM, kt, kHi, kp] = A_g[
+        A_reg = A_f.local(Mt, Kt, kHi_n, 2, KP)
+        for mt, kt, kHi, rM, kp in T.grid(Mt, Kt, kHi_n, 2, KP):
+            A_reg[mt, kt, kHi, rM, kp] = A_g[
                 mt * 16 + lane // 4 + 8 * rM,
                 kt * kinst + kHi * 8 + 2 * (lane % 4) + kp,
             ]
-        B_reg = B_f.local(Kt, kHi_n, KP, Nt)
-        for kt, kHi, kp, nt in T.grid(Kt, kHi_n, KP, Nt):
-            B_reg[kt, kHi, kp, nt] = B_g[
+        B_reg = B_f.local(Kt, Nt, kHi_n, KP)
+        for kt, nt, kHi, kp in T.grid(Kt, Nt, kHi_n, KP):
+            B_reg[kt, nt, kHi, kp] = B_g[
                 kt * kinst + kHi * 8 + 2 * (lane % 4) + kp,
                 nt * 8 + lane // 4,
             ]
         if beta == 1.0:
-            C_reg = C_f.local(Mt, 2, Nt, 2)
-            for mt, rM, nt, rN in T.grid(Mt, 2, Nt, 2):
-                C_reg[mt, rM, nt, rN] = C_g[
+            C_reg = C_f.local(Mt, Nt, 2, 2)
+            for mt, nt, rM, rN in T.grid(Mt, Nt, 2, 2):
+                C_reg[mt, nt, rM, rN] = C_g[
                     mt * 16 + lane // 4 + 8 * rM, nt * 8 + 2 * (lane % 4) + rN
                 ]
         Tx.warp.gemm(D_f, A_f, B_f, C_f, transpose_A=False, transpose_B=False, alpha=1.0, beta=beta)
-        D_reg = D_f.local(Mt, 2, Nt, 2)
-        for mt, rM, nt, rN in T.grid(Mt, 2, Nt, 2):
-            D_g[mt * 16 + lane // 4 + 8 * rM, nt * 8 + 2 * (lane % 4) + rN] = D_reg[mt, rM, nt, rN]
+        D_reg = D_f.local(Mt, Nt, 2, 2)
+        for mt, nt, rM, rN in T.grid(Mt, Nt, 2, 2):
+            D_g[mt * 16 + lane // 4 + 8 * rM, nt * 8 + 2 * (lane % 4) + rN] = D_reg[mt, nt, rM, rN]
 
     return gemm, M, N, K
 
@@ -294,11 +296,9 @@ def _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype):
 def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
     """End-to-end single-tile ``T.gemm`` for one A/B input orientation.
 
-    The transposed A fragment (``A_KM_FRAG``) carries its registers in the
-    [kHi, kp, rM] shard order (vs [rM, kHi, kp] for the K-major ``A_FRAG``); B's
-    register order ([kHi, kp]) is the same for both orientations. The buffer
-    index axes swap with the orientation, but each register still holds the same
-    logical (M, K) / (K, N) element.
+    The transposed and K-major A fragments share the physical register order
+    [kHi, rM, kp]; only their logical buffer axes differ.  B's physical order
+    [kHi, kp] is likewise unchanged by orientation.
     """
     Al = A_KM_FRAG if transpose_A else A_FRAG
     Bl = B_NK_FRAG if transpose_B else B_FRAG
@@ -319,13 +319,13 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
         D_f = T.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
         A_reg = A_f.local(2, 2, 2)
         if transpose_A:
-            # A_KM_FRAG register order is [kHi, kp, rM]; buffer is [K, M].
-            for kHi, kp, rM in T.grid(2, 2, 2):
-                A_reg[kHi, kp, rM] = A_g[2 * (lane % 4) + kp + 8 * kHi, lane // 4 + 8 * rM]
+            # A_KM_FRAG: buffer is [K, M].
+            for kHi, rM, kp in T.grid(2, 2, 2):
+                A_reg[kHi, rM, kp] = A_g[2 * (lane % 4) + kp + 8 * kHi, lane // 4 + 8 * rM]
         else:
-            # A_FRAG register order is [rM, kHi, kp]; buffer is [M, K].
-            for rM, kHi, kp in T.grid(2, 2, 2):
-                A_reg[rM, kHi, kp] = A_g[lane // 4 + 8 * rM, 2 * (lane % 4) + kp + 8 * kHi]
+            # A_FRAG: buffer is [M, K].
+            for kHi, rM, kp in T.grid(2, 2, 2):
+                A_reg[kHi, rM, kp] = A_g[lane // 4 + 8 * rM, 2 * (lane % 4) + kp + 8 * kHi]
         B_reg = B_f.local(2, 2)
         if transpose_B:
             # B_NK_FRAG buffer is [N, K].
@@ -368,6 +368,7 @@ def test_cuda_gemm_mma_variant_is_registered():
 
 
 @pytest.mark.parametrize("dtype", ["bfloat16", "float16"])
+@pytest.mark.gpu
 def test_cuda_gemm_mma_lowers_to_mma_sync(dtype):
     """beta=0: the dispatch clears D, then issues a single accumulating mma with
     the registers laid out in the fixed PTX fragment order."""
@@ -380,14 +381,17 @@ def test_cuda_gemm_mma_lowers_to_mma_sync(dtype):
     # D accumulator: c_id = 2*rM + rN -> regs 0..3.
     for r in range(4):
         assert f"d_local[{r}]" in script
-    # A multiplicand: b32 = rM + 2*kHi (kHi outer) -> ma in {0, 2, 4, 6}.
-    for r in (0, 2, 4, 6):
-        assert f"a_local[{r}]" in script
-    # B multiplicand: b32 = kHi -> mb in {0, 2}.
-    for r in (0, 2):
-        assert f"b_local[{r}]" in script
+    # A and B fragments are packed two elements per b32, so the instruction
+    # indexes a uint32 view: the element strides above halve into word strides.
+    # A: b32 = rM + 2*kHi (kHi outer) -> words 0..3.
+    for r in range(4):
+        assert f"a_words[{r}]" in script
+    # B: b32 = kHi -> words 0, 1.
+    for r in (0, 1):
+        assert f"b_words[{r}]" in script
 
 
+@pytest.mark.gpu
 def test_cuda_gemm_mma_accumulates_c_when_beta_one():
     """beta=1: the accumulator is initialized by copying C instead of zeroing."""
     script = _lower(_build_gemm(alpha=1.0, beta=1.0))["main"].script()
@@ -411,7 +415,8 @@ def test_cuda_gemm_mma_rejects_fractional_beta():
         _lower(_build_gemm(alpha=1.0, beta=0.5))
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
 def test_cuda_gemm_mma_numerical(dtype):
     """End-to-end D = A @ B on a single m16n8k16 tile (one warp).
@@ -424,7 +429,7 @@ def test_cuda_gemm_mma_numerical(dtype):
     with ``g = lane >> 2`` and ``t = lane & 3``. The per-register *slot* order
     matches the dispatch's fragment register layout:
 
-        A reg slot = 4*rM + 2*kHi + kp  -> M = g + 8*rM, K = 2*t + kp + 8*kHi
+        A reg slot = 4*kHi + 2*rM + kp  -> M = g + 8*rM, K = 2*t + kp + 8*kHi
         B reg slot = 2*kHi + kp         -> K = 2*t + kp + 8*kHi, N = g
         D reg slot = 2*rM + rN          -> M = g + 8*rM, N = 2*t + rN
     """
@@ -448,9 +453,10 @@ def test_cuda_gemm_mma_numerical(dtype):
         D_f = T.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
         A_reg = A_f.local(8)
         for s in T.unroll(8):
+            # Physical register order: s = 4*kHi + 2*rM + kp.
             kp = s % 2
-            kHi = (s // 2) % 2
-            rM = s // 4
+            rM = (s // 2) % 2
+            kHi = s // 4
             A_reg[s] = A_g[lane // 4 + 8 * rM, 2 * (lane % 4) + kp + 8 * kHi]
         B_reg = B_f.local(4)
         for s in T.unroll(4):
@@ -464,20 +470,23 @@ def test_cuda_gemm_mma_numerical(dtype):
             rM = s // 2
             D_g[lane // 4 + 8 * rM, 2 * (lane % 4) + rN] = D_reg[s]
 
-    dev = tvm.cuda(0)
     with tvm.target.Target("cuda"):
         mod = tvm.compile(tvm.IRModule({"main": gemm}), target="cuda", tir_pipeline="tirx")
 
     np.random.seed(0)
     A_np = np.random.uniform(-1, 1, (16, 16)).astype(np.float32)
     B_np = np.random.uniform(-1, 1, (16, 8)).astype(np.float32)
-    A_dev = tvm.runtime.tensor(A_np.astype(np_dtype), dev)
-    B_dev = tvm.runtime.tensor(B_np.astype(np_dtype), dev)
-    D_dev = tvm.runtime.tensor(np.zeros((16, 8), np.float32), dev)
-    mod(A_dev, B_dev, D_dev)
-
     golden = A_np @ B_np
-    tvm.testing.assert_allclose(golden, D_dev.numpy(), atol=1e-2, rtol=1e-2)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A_dev = tvm.runtime.tensor(A_np.astype(np_dtype), dev)
+        B_dev = tvm.runtime.tensor(B_np.astype(np_dtype), dev)
+        D_dev = tvm.runtime.tensor(np.zeros((16, 8), np.float32), dev)
+        mod(A_dev, B_dev, D_dev)
+        tvm.testing.assert_allclose(golden, D_dev.numpy(), atol=1e-2, rtol=1e-2)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # (Mt, Nt, Kt, kinst) tilings: single tile, each dim multi-tiled, fully tiled,
@@ -503,7 +512,8 @@ _TILED_MODES = [
 ]
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("Mt, Nt, Kt, kinst", _TILED_SHAPES)
 @pytest.mark.parametrize("dtype, beta", _TILED_MODES)
 def test_cuda_gemm_mma_numerical_tiled(dtype, beta, Mt, Nt, Kt, kinst):
@@ -519,7 +529,6 @@ def test_cuda_gemm_mma_numerical_tiled(dtype, beta, Mt, Nt, Kt, kinst):
         np_dtype = np.float16
 
     func, M, N, K = _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype)
-    dev = tvm.cuda(0)
     with tvm.target.Target("cuda"):
         mod = tvm.compile(tvm.IRModule({"main": func}), target="cuda", tir_pipeline="tirx")
 
@@ -527,17 +536,22 @@ def test_cuda_gemm_mma_numerical_tiled(dtype, beta, Mt, Nt, Kt, kinst):
     A_np = np.random.uniform(-1, 1, (M, K)).astype(np.float32)
     B_np = np.random.uniform(-1, 1, (K, N)).astype(np.float32)
     C_np = np.random.uniform(-1, 1, (M, N)).astype(np.float32)
-    A_dev = tvm.runtime.tensor(A_np.astype(np_dtype), dev)
-    B_dev = tvm.runtime.tensor(B_np.astype(np_dtype), dev)
-    C_dev = tvm.runtime.tensor(C_np, dev)
-    D_dev = tvm.runtime.tensor(np.zeros((M, N), np.float32), dev)
-    mod(A_dev, B_dev, C_dev, D_dev)
-
     golden = A_np @ B_np + (C_np if beta == 1.0 else 0.0)
-    tvm.testing.assert_allclose(golden, D_dev.numpy(), atol=2e-2, rtol=2e-2)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A_dev = tvm.runtime.tensor(A_np.astype(np_dtype), dev)
+        B_dev = tvm.runtime.tensor(B_np.astype(np_dtype), dev)
+        C_dev = tvm.runtime.tensor(C_np, dev)
+        D_dev = tvm.runtime.tensor(np.zeros((M, N), np.float32), dev)
+        mod(A_dev, B_dev, C_dev, D_dev)
+        tvm.testing.assert_allclose(golden, D_dev.numpy(), atol=2e-2, rtol=2e-2)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
 @pytest.mark.parametrize(
     "transpose_A, transpose_B",
@@ -555,7 +569,6 @@ def test_cuda_gemm_mma_numerical_transpose(transpose_A, transpose_B, dtype):
         np_dtype = np.float16
 
     func = _build_transpose_numeric(transpose_A, transpose_B, dtype)
-    dev = tvm.cuda(0)
     with tvm.target.Target("cuda"):
         mod = tvm.compile(tvm.IRModule({"main": func}), target="cuda", tir_pipeline="tirx")
 
@@ -564,12 +577,17 @@ def test_cuda_gemm_mma_numerical_transpose(transpose_A, transpose_B, dtype):
     B_log = np.random.uniform(-1, 1, (16, 8)).astype(np.float32)  # logical B[K, N]
     A_buf = (A_log.T if transpose_A else A_log).astype(np_dtype)
     B_buf = (B_log.T if transpose_B else B_log).astype(np_dtype)
-    A_dev = tvm.runtime.tensor(A_buf, dev)
-    B_dev = tvm.runtime.tensor(B_buf, dev)
-    D_dev = tvm.runtime.tensor(np.zeros((16, 8), np.float32), dev)
-    mod(A_dev, B_dev, D_dev)
+    golden = A_log @ B_log
 
-    tvm.testing.assert_allclose(A_log @ B_log, D_dev.numpy(), atol=2e-2, rtol=2e-2)
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A_dev = tvm.runtime.tensor(A_buf, dev)
+        B_dev = tvm.runtime.tensor(B_buf, dev)
+        D_dev = tvm.runtime.tensor(np.zeros((16, 8), np.float32), dev)
+        mod(A_dev, B_dev, D_dev)
+        tvm.testing.assert_allclose(golden, D_dev.numpy(), atol=2e-2, rtol=2e-2)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize(
@@ -585,6 +603,7 @@ def test_cuda_gemm_mma_numerical_transpose(transpose_A, transpose_B, dtype):
         (2, 2, 3, 8),  # k8, every dim tiled
     ],
 )
+@pytest.mark.gpu
 def test_cuda_gemm_mma_lowers_tiled(Mt, Nt, Kt, kinst):
     """Every tiling we expect to dispatch must lower, selecting the right mma.
 
@@ -596,7 +615,8 @@ def test_cuda_gemm_mma_lowers_tiled(Mt, Nt, Kt, kinst):
     assert f"m16n8k{kinst}" in script
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize(
     "Mt, Nt, Kt, kinst",
     [
@@ -621,7 +641,7 @@ def test_cuda_gemm_mma_codegen_issue_count(Mt, Nt, Kt, kinst):
     src = mod.mod.imports[0].inspect_source()
     assert f"mma.sync.aligned.m16n8k{kinst}" in src
     # mma is emitted as one __device__ helper, invoked once per tile.
-    helper = f"ptx_mma_m16n8k{kinst}_row_col"
+    helper = f"ptx_mma_sync_aligned_m16n8k{kinst}_row_col"
     assert src.count(helper) - 1 == Mt * Nt * Kt
 
 
@@ -629,6 +649,7 @@ def test_cuda_gemm_mma_codegen_issue_count(Mt, Nt, Kt, kinst):
     "transpose_A, transpose_B",
     [(False, False), (True, False), (False, True), (True, True)],
 )
+@pytest.mark.gpu
 def test_cuda_gemm_mma_lowers_transpose(transpose_A, transpose_B):
     """All four A/B orientations dispatch to the same m16n8k16. transpose only
     describes the input's logical orientation; the .row.col mma is unchanged."""
@@ -637,7 +658,8 @@ def test_cuda_gemm_mma_lowers_transpose(transpose_A, transpose_B):
     assert "m16n8k16" in script
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize(
     "transpose_A, transpose_B",
     [(False, False), (True, False), (False, True), (True, True)],

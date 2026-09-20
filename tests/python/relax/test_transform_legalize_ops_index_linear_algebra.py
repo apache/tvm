@@ -240,7 +240,7 @@ def test_strided_slice_no_strides():
     class Expected:
         @R.function
         def main(x: R.Tensor((8, 9, 10, 10), dtype="float32")):
-            gv = R.call_tir(Expected.strided_slice, (x,), out_sinfo=R.Tensor((7, 9, 10, 2), dtype="float32"))
+            gv = R.call_tir(Expected.strided_slice, (x,), out_ty=R.Tensor((7, 9, 10, 2), dtype="float32"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
@@ -272,7 +272,7 @@ def test_strided_slice_negative_axes():
     class Expected:
         @R.function
         def main(x: R.Tensor((8, 9, 10), dtype="float32")) -> R.Tensor((8, 9, 3), dtype="float32"):
-            gv = R.call_tir(Expected.strided_slice, (x,), out_sinfo=R.Tensor((8, 9, 3), dtype="float32"))
+            gv = R.call_tir(Expected.strided_slice, (x,), out_ty=R.Tensor((8, 9, 3), dtype="float32"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
@@ -321,7 +321,7 @@ def test_strided_slice_symbolic_sliced_axis():
             n = T.int64()
             m = T.int64()
             cls = Expected
-            gv = R.call_tir(cls.strided_slice, (x,), out_sinfo=R.Tensor((3, n), dtype="float32"))
+            gv = R.call_tir(cls.strided_slice, (x,), out_ty=R.Tensor((3, n), dtype="float32"))
             return gv
     # fmt: on
 
@@ -371,7 +371,7 @@ def test_strided_slice_symbolic_bound():
     class StridedSlice:
         @R.function
         def main(x: R.Tensor((10, "n"), "float32")) -> R.Tensor((3, "n"), "float32"):
-            n = T.int64(is_size_var=True)
+            n = T.int64()
             gv: R.Tensor((3, n), "float32") = R.strided_slice(x, axes=[0, 1], begin=[1, 0], end=[8, n], strides=[3, 1])
             return gv
 
@@ -379,7 +379,7 @@ def test_strided_slice_symbolic_bound():
     class Expected:
         @R.function
         def main(x: R.Tensor((10, "n"), dtype="float32")) -> R.Tensor((3, "n"), dtype="float32"):
-            n = T.int64(is_size_var=True)
+            n = T.int64()
             gv = R.call_tir(Expected.strided_slice, (x,), R.Tensor((3, n), dtype="float32"))
             return gv
 
@@ -403,7 +403,7 @@ def test_strided_slice_non_unit_stride():
     class StridedSlice:
         @R.function
         def main(x: R.Tensor((10, "n"), "float32")) -> R.Tensor((3, "n"), "float32"):
-            n = T.int64(is_size_var=True)
+            n = T.int64()
             gv: R.Tensor((3, n), "float32") = R.strided_slice(x, axes=[0, 1], begin=[1, 0], end=[8, n], strides=[3, 1])
             return gv
 
@@ -411,7 +411,7 @@ def test_strided_slice_non_unit_stride():
     class Expected:
         @R.function
         def main(x: R.Tensor((10, "n"), dtype="float32")) -> R.Tensor((3, "n"), dtype="float32"):
-            n = T.int64(is_size_var=True)
+            n = T.int64()
             gv = R.call_tir(Expected.strided_slice, (x,), R.Tensor((3, n), dtype="float32"))
             return gv
 
@@ -460,27 +460,79 @@ def test_dynamic_strided_slice():
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(
                         rxplaceholder[
-                            T.min(rxplaceholder_1[T.int64(0)], T.int64(7))
-                            + v_ax0 * rxplaceholder_3[T.int64(0)],
-                            T.min(rxplaceholder_1[T.int64(1)], T.int64(8))
-                            + v_ax1 * rxplaceholder_3[T.int64(1)],
-                            T.min(rxplaceholder_1[T.int64(2)], T.int64(9))
-                            + v_ax2 * rxplaceholder_3[T.int64(2)],
-                            T.min(rxplaceholder_1[T.int64(3)], T.int64(9))
-                            + v_ax3 * rxplaceholder_3[T.int64(3)],
+                            T.int64(0) : T.int64(8),
+                            T.int64(0) : T.int64(9),
+                            T.int64(0) : T.int64(10),
+                            T.int64(0) : T.int64(10),
                         ],
                         rxplaceholder_1[T.int64(0) : T.int64(4)],
                         rxplaceholder_3[T.int64(0) : T.int64(4)],
                     )
                     T.writes(T_strided_slice_dynamic[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_strided_slice_dynamic[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[
-                        T.min(rxplaceholder_1[T.int64(0)], T.int64(7))
+                        T.min(
+                            T.max(
+                                T.if_then_else(
+                                    rxplaceholder_1[T.int64(0)] < T.int64(0),
+                                    rxplaceholder_1[T.int64(0)] + T.int64(8),
+                                    rxplaceholder_1[T.int64(0)],
+                                ),
+                                T.if_then_else(
+                                    rxplaceholder_3[T.int64(0)] < T.int64(0), T.int64(-1), T.int64(0)
+                                ),
+                            ),
+                            T.if_then_else(
+                                rxplaceholder_3[T.int64(0)] < T.int64(0), T.int64(7), T.int64(8)
+                            ),
+                        )
                         + v_ax0 * rxplaceholder_3[T.int64(0)],
-                        T.min(rxplaceholder_1[T.int64(1)], T.int64(8))
+                        T.min(
+                            T.max(
+                                T.if_then_else(
+                                    rxplaceholder_1[T.int64(1)] < T.int64(0),
+                                    rxplaceholder_1[T.int64(1)] + T.int64(9),
+                                    rxplaceholder_1[T.int64(1)],
+                                ),
+                                T.if_then_else(
+                                    rxplaceholder_3[T.int64(1)] < T.int64(0), T.int64(-1), T.int64(0)
+                                ),
+                            ),
+                            T.if_then_else(
+                                rxplaceholder_3[T.int64(1)] < T.int64(0), T.int64(8), T.int64(9)
+                            ),
+                        )
                         + v_ax1 * rxplaceholder_3[T.int64(1)],
-                        T.min(rxplaceholder_1[T.int64(2)], T.int64(9))
+                        T.min(
+                            T.max(
+                                T.if_then_else(
+                                    rxplaceholder_1[T.int64(2)] < T.int64(0),
+                                    rxplaceholder_1[T.int64(2)] + T.int64(10),
+                                    rxplaceholder_1[T.int64(2)],
+                                ),
+                                T.if_then_else(
+                                    rxplaceholder_3[T.int64(2)] < T.int64(0), T.int64(-1), T.int64(0)
+                                ),
+                            ),
+                            T.if_then_else(
+                                rxplaceholder_3[T.int64(2)] < T.int64(0), T.int64(9), T.int64(10)
+                            ),
+                        )
                         + v_ax2 * rxplaceholder_3[T.int64(2)],
-                        T.min(rxplaceholder_1[T.int64(3)], T.int64(9))
+                        T.min(
+                            T.max(
+                                T.if_then_else(
+                                    rxplaceholder_1[T.int64(3)] < T.int64(0),
+                                    rxplaceholder_1[T.int64(3)] + T.int64(10),
+                                    rxplaceholder_1[T.int64(3)],
+                                ),
+                                T.if_then_else(
+                                    rxplaceholder_3[T.int64(3)] < T.int64(0), T.int64(-1), T.int64(0)
+                                ),
+                            ),
+                            T.if_then_else(
+                                rxplaceholder_3[T.int64(3)] < T.int64(0), T.int64(9), T.int64(10)
+                            ),
+                        )
                         + v_ax3 * rxplaceholder_3[T.int64(3)],
                     ]
 
@@ -701,7 +753,7 @@ def test_dynamic_strided_slice():
             gv = R.call_tir(
                 Expected.shape_func,
                 (x, begin, end, strides),
-                out_sinfo=R.Tensor((4,), dtype="int64"),
+                out_ty=R.Tensor((4,), dtype="int64"),
             )
             gv1: R.Shape(ndim=4) = R.tensor_to_shape(gv)
             gv2: R.Shape([s, s_1, s_2, s_3]) = R.match_cast(
@@ -710,7 +762,7 @@ def test_dynamic_strided_slice():
             gv_1 = R.call_tir(
                 Expected.dynamic_strided_slice,
                 (x, begin, end, strides),
-                out_sinfo=R.Tensor((s, s_1, s_2, s_3), dtype="float32"),
+                out_ty=R.Tensor((s, s_1, s_2, s_3), dtype="float32"),
             )
             return gv_1
     # fmt: on
@@ -748,19 +800,45 @@ def test_dynamic_strided_slice_symbolic():
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(
                         rxplaceholder_3[
-                            T.min(rxplaceholder[T.int64(0)], T.int64(9))
-                            + v_ax0 * rxplaceholder_2[T.int64(0)],
-                            T.min(rxplaceholder[T.int64(1)], n - T.int64(1))
-                            + v_ax1 * rxplaceholder_2[T.int64(1)],
+                            T.int64(0) : T.int64(10),
+                            T.int64(0) : n,
                         ],
                         rxplaceholder[T.int64(0) : T.int64(2)],
                         rxplaceholder_2[T.int64(0) : T.int64(2)],
                     )
                     T.writes(T_strided_slice_dynamic[v_ax0, v_ax1])
                     T_strided_slice_dynamic[v_ax0, v_ax1] = rxplaceholder_3[
-                        T.min(rxplaceholder[T.int64(0)], T.int64(9))
+                        T.min(
+                            T.max(
+                                T.if_then_else(
+                                    rxplaceholder[T.int64(0)] < T.int64(0),
+                                    rxplaceholder[T.int64(0)] + T.int64(10),
+                                    rxplaceholder[T.int64(0)],
+                                ),
+                                T.if_then_else(
+                                    rxplaceholder_2[T.int64(0)] < T.int64(0), T.int64(-1), T.int64(0)
+                                ),
+                            ),
+                            T.if_then_else(
+                                rxplaceholder_2[T.int64(0)] < T.int64(0), T.int64(9), T.int64(10)
+                            ),
+                        )
                         + v_ax0 * rxplaceholder_2[T.int64(0)],
-                        T.min(rxplaceholder[T.int64(1)], n - T.int64(1))
+                        T.min(
+                            T.max(
+                                T.if_then_else(
+                                    rxplaceholder[T.int64(1)] < T.int64(0),
+                                    rxplaceholder[T.int64(1)] + n,
+                                    rxplaceholder[T.int64(1)],
+                                ),
+                                T.if_then_else(
+                                    rxplaceholder_2[T.int64(1)] < T.int64(0), T.int64(-1), T.int64(0)
+                                ),
+                            ),
+                            T.if_then_else(
+                                rxplaceholder_2[T.int64(1)] < T.int64(0), n - T.int64(1), n
+                            ),
+                        )
                         + v_ax1 * rxplaceholder_2[T.int64(1)],
                     ]
 
@@ -898,14 +976,14 @@ def test_dynamic_strided_slice_symbolic():
             gv = R.call_tir(
                 Expected.shape_func,
                 (x, begin, end, strides),
-                out_sinfo=R.Tensor((2,), dtype="int64"),
+                out_ty=R.Tensor((2,), dtype="int64"),
             )
             gv1: R.Shape(ndim=2) = R.tensor_to_shape(gv)
             gv2: R.Shape([s, s_1]) = R.match_cast(gv1, R.Shape([s, s_1]))
             gv_1 = R.call_tir(
                 Expected.dynamic_strided_slice,
                 (x, begin, end, strides),
-                out_sinfo=R.Tensor((s, s_1), dtype="float32"),
+                out_ty=R.Tensor((s, s_1), dtype="float32"),
             )
             return gv_1
     # fmt: on
@@ -1128,12 +1206,28 @@ def test_matmul_batching_dim_1():
         @R.function
         def main(x: R.Tensor((1, 1, 4, 5), dtype="float32"), y: R.Tensor((1, 1, 5, 7), dtype="float32")) -> R.Tensor((1, 1, 4, 7), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.matmul, (x, y), out_sinfo=R.Tensor((1, 1, 4, 7), dtype="float32"))
+            gv = R.call_tir(cls.matmul, (x, y), out_ty=R.Tensor((1, 1, 4, 7), dtype="float32"))
             return gv
     # fmt: on
 
     mod = LegalizeOps()(Matmul)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_matmul_zero_k_no_reduction():
+    # fmt: off
+    @tvm.script.ir_module
+    class Matmul:
+        @R.function
+        def main(x: R.Tensor((2, 0), "float32"), y: R.Tensor((0, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv: R.Tensor((2, 3), "float32") = R.matmul(x, y)
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Matmul)
+    script = mod.script()
+    assert "T.axis.reduce" not in script
+    assert "T.float32(0)" in script or "T.float32(0.0)" in script
 
 
 def test_einsum():
@@ -1152,7 +1246,7 @@ def test_einsum():
             x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((3, 4), dtype="float32")
         ) -> R.Tensor((2, 4), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.einsum, (x, y), out_sinfo=R.Tensor((2, 4), dtype="float32"))
+            gv = R.call_tir(cls.einsum, (x, y), out_ty=R.Tensor((2, 4), dtype="float32"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
@@ -1199,7 +1293,7 @@ def test_einsum_symbolic():
             c = T.int64()
             b = T.int64()
             cls = Expected
-            gv = R.call_tir(cls.einsum, (x, y), out_sinfo=R.Tensor((a, c), dtype="float32"))
+            gv = R.call_tir(cls.einsum, (x, y), out_ty=R.Tensor((a, c), dtype="float32"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)

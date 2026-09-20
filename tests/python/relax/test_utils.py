@@ -24,7 +24,6 @@ import tvm
 from tvm import relax
 from tvm.ir.base import assert_structural_equal
 from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
 
 
 def test_copy_with_new_vars():
@@ -53,7 +52,7 @@ def test_copy_with_new_vars_copied_symbolic_vars():
     assert len(after.params) == len(before.params)
     for before_var, after_var in zip(before.params, after.params):
         assert before_var != after_var
-        assert before_var.struct_info.shape[0] != after_var.struct_info.shape[0]
+        assert before_var.ty.shape[0] != after_var.ty.shape[0]
 
 
 def test_copy_with_new_vars_on_ir_module():
@@ -143,7 +142,7 @@ def test_assert_structural_equal_in_seqexpr():
 
     with pytest.raises(
         ValueError,
-        match=re.escape("<root>.body.blocks[0].bindings[0].value.op"),
+        match=re.escape("<root>.ty.ret.shape.ty.values[0].value"),
     ):
         assert_structural_equal(func_1, func_2)
 
@@ -187,15 +186,14 @@ def test_structural_equal_with_recursive_lambda_function():
         @R.function
         def func(n: R.Prim("int64")):
             @R.function
-            def recursive_lambda(i_arg: R.Prim(value="i")) -> R.Prim("int64"):
-                i = T.int64()
-                if R.prim_value(i == 0):
-                    output = R.prim_value(T.int64(0))
+            def recursive_lambda(i_arg: R.Prim("int64")) -> R.Prim("int64"):
+                condition = R.equal(i_arg, R.prim_value(0))
+                if condition:
+                    output = R.prim_value(0)
                 else:
-                    remainder_relax = recursive_lambda(R.prim_value(i - 1))
-                    remainder_tir = T.int64()
-                    _ = R.match_cast(remainder_relax, R.Prim(value=remainder_tir))
-                    output = R.prim_value(i + remainder_tir)
+                    next_i = R.subtract(i_arg, R.prim_value(1))
+                    remainder = recursive_lambda(next_i)
+                    output = R.add(i_arg, remainder)
                 return output
 
             return recursive_lambda(n)
@@ -218,17 +216,16 @@ def test_structural_equal_with_distinct_recursive_lambda_function():
     @R.function(private=True)
     def func_a(n: R.Prim("int64")):
         @R.function
-        def recursive_lambda(i_arg: R.Prim(value="i")) -> R.Prim("int64"):
-            i = T.int64()
-            if R.prim_value(i == 0):
-                output = R.prim_value(T.int64(0))
-                #                             ^
-                # The first mismatch is here  ^
+        def recursive_lambda(i_arg: R.Prim("int64")) -> R.Prim("int64"):
+            condition = R.equal(i_arg, R.prim_value(0))
+            if condition:
+                output = R.prim_value(0)
+                #                          ^
+                # The first mismatch is here
             else:
-                remainder_relax = recursive_lambda(R.prim_value(i - 1))
-                remainder_tir = T.int64()
-                _ = R.match_cast(remainder_relax, R.Prim(value=remainder_tir))
-                output = R.prim_value(i + remainder_tir)
+                next_i = R.subtract(i_arg, R.prim_value(1))
+                remainder = recursive_lambda(next_i)
+                output = R.add(i_arg, remainder)
             return output
 
         return recursive_lambda(n)
@@ -236,17 +233,16 @@ def test_structural_equal_with_distinct_recursive_lambda_function():
     @R.function(private=True)
     def func_b(n: R.Prim("int64")):
         @R.function
-        def recursive_lambda(i_arg: R.Prim(value="i")) -> R.Prim("int64"):
-            i = T.int64()
-            if R.prim_value(i == 0):
-                output = R.prim_value(T.int64(1))
-                #                             ^
-                # The first mismatch is here  ^
+        def recursive_lambda(i_arg: R.Prim("int64")) -> R.Prim("int64"):
+            condition = R.equal(i_arg, R.prim_value(0))
+            if condition:
+                output = R.prim_value(1)
+                #                          ^
+                # The first mismatch is here
             else:
-                remainder_relax = recursive_lambda(R.prim_value(i - 1))
-                remainder_tir = T.int64()
-                _ = R.match_cast(remainder_relax, R.Prim(value=remainder_tir))
-                output = R.prim_value(i * remainder_tir)
+                next_i = R.subtract(i_arg, R.prim_value(1))
+                remainder = recursive_lambda(next_i)
+                output = R.multiply(i_arg, remainder)
             return output
 
         return recursive_lambda(n)
@@ -261,11 +257,10 @@ def test_structural_equal_with_distinct_recursive_lambda_function():
         "value",
         "body",
         "blocks[0]",
-        "bindings[0]",
+        "bindings[1]",
         "value",
         "true_branch",
         "body",
-        "value",
         "value",
     ]
 

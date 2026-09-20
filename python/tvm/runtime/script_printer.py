@@ -17,6 +17,7 @@
 """Configuration of TVMScript printer"""
 
 import os
+import sys
 from collections.abc import Sequence
 
 from tvm_ffi import get_global_func, register_object
@@ -66,7 +67,7 @@ class PrinterConfig(Object):
         num_context_lines: int | None = None,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
-        show_all_struct_info: bool = True,
+        show_all_ty: bool = True,
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
         path_to_annotate: dict[AccessPath, str] | None = None,
@@ -93,7 +94,7 @@ class PrinterConfig(Object):
             "obj_to_underline": obj_to_underline,
             "obj_to_annotate": obj_to_annotate,
             # Dialect-specific config via dotted keys in extra_config
-            "relax.show_all_struct_info": show_all_struct_info,
+            "relax.show_all_ty": show_all_ty,
         }
 
         if name is not None:
@@ -133,7 +134,7 @@ class Scriptable:
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
-        show_all_struct_info: bool = True,
+        show_all_ty: bool = True,
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
         path_to_annotate: dict[AccessPath, str] | None = None,
@@ -169,7 +170,7 @@ class Scriptable:
             Whether to output with syntax sugar, set false for complete printing.
         show_object_address: bool = False
             Whether to include the object's address as part of the TVMScript name
-        show_all_struct_info: bool = True
+        show_all_ty: bool = True
             If True (default), annotate all variable bindings with the struct
             info of that variable.  If False, only add annotations where
             required for unambiguous round-trip of Relax -> TVMScript -> Relax.
@@ -194,11 +195,15 @@ class Scriptable:
         """
         # Auto-switch to tirx (`T`/`tirx`) flavor only when explicitly
         # printing a PrimFunc / IRModule that has no s_tir-tagged content.
-        # Free objects (Buffer, BufferRegion, ...) keep the default `T`/`tir`
+        # Free objects (Buffer, buffer-backed TensorRegion, ...) keep the default `T`/`tir`
         # flavor -- they have no enclosing function to indicate tirx vs s_tir.
         merged_extra: dict = {}
         if extra_config is not None:
             merged_extra.update(extra_config)
+        if "script.use_pep695" not in merged_extra:
+            merged_extra["script.use_pep695"] = merged_extra.get(
+                "relax.use_pep695", sys.version_info >= (3, 12)
+            )
 
         # Only auto-switch if the caller has not already set a tirx.prefix override.
         if "tirx.prefix" not in merged_extra:
@@ -241,7 +246,7 @@ class Scriptable:
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
                 show_object_address=show_object_address,
-                show_all_struct_info=show_all_struct_info,
+                show_all_ty=show_all_ty,
                 extra_config=merged_extra if merged_extra else None,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
@@ -271,6 +276,11 @@ class Scriptable:
         obj_to_underline: list[Object] | None = None,
         obj_to_annotate: dict[Object, str] | None = None,
     ) -> str:
+        merged_extra = dict(extra_config or {})
+        if "script.use_pep695" not in merged_extra:
+            merged_extra["script.use_pep695"] = merged_extra.get(
+                "relax.use_pep695", sys.version_info >= (3, 12)
+            )
         return _relax_script(
             self,
             PrinterConfig(
@@ -286,7 +296,7 @@ class Scriptable:
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
                 show_object_address=show_object_address,
-                extra_config=extra_config,
+                extra_config=merged_extra,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,
@@ -311,7 +321,7 @@ class Scriptable:
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
-        show_all_struct_info: bool = True,
+        show_all_ty: bool = True,
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
         path_to_annotate: dict[AccessPath, str] | None = None,
@@ -370,7 +380,7 @@ class Scriptable:
             Whether to output with syntax sugar, set false for complete printing.
         show_object_address: bool = False
             Whether to include the object's address as part of the TVMScript name
-        show_all_struct_info: bool = True
+        show_all_ty: bool = True
             If True (default), annotate all variable bindings with the struct
             info of that variable.  If False, only add annotations where
             required for unambiguous round-trip of Relax -> TVMScript -> Relax.
@@ -406,7 +416,7 @@ class Scriptable:
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
                 show_object_address=show_object_address,
-                show_all_struct_info=show_all_struct_info,
+                show_all_ty=show_all_ty,
                 extra_config=extra_config,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,

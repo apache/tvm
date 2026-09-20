@@ -210,12 +210,12 @@ class DefaultScheduledModule:
             lv0 = R.call_tir(
                 DefaultScheduledModule.tir_matmul,
                 (x, w),
-                out_sinfo=R.Tensor((32, 32), dtype="float32"),
+                out_ty=R.Tensor((32, 32), dtype="float32"),
             )
             lv1 = R.call_tir(
                 DefaultScheduledModule.tir_relu,
                 (lv0,),
-                out_sinfo=R.Tensor((32, 32), dtype="float32"),
+                out_ty=R.Tensor((32, 32), dtype="float32"),
             )
             R.output(lv1)
         return lv1

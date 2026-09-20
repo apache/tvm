@@ -39,7 +39,7 @@ def test_simple_impure_case():
     @tvm.script.ir_module
     class ImpureTest:
         @R.function(pure=False)
-        def impure_func() -> R.Object:
+        def impure_func() -> R.Any:
             y = R.print(format="I am a message")
             return y
 
@@ -53,7 +53,7 @@ def test_nested_function():
         def pure_with_impure_nested() -> R.Tensor((), "int32"):
             # unused
             @R.function(pure=False)
-            def impure_inner() -> R.Object:
+            def impure_inner() -> R.Any:
                 y = R.print(format="Another, worse, message")
                 return y
 
@@ -73,7 +73,7 @@ def test_ignoring_recursive_call():
     @tvm.script.ir_module
     class RecursiveTest:
         @R.function(pure=False)
-        def recursive_impure() -> R.Object:
+        def recursive_impure() -> R.Any:
             x = R.const(1, "int32")
             y = R.add(x, x)
             z = R.print(x, y, format="{} {}")
@@ -91,12 +91,12 @@ def test_ignoring_recursive_call():
         body.blocks[0].bindings[-1],
     ]
     # Note: we construct the function in this way so that we keep the old vars
-    # with their current StructInfo. That would get fixed during normalization.
+    # with their current Type. That would get fixed during normalization.
     # However, this situation is meant to correspond to an intermediate state
     # that might arise within a pass.
     new_body = rx.SeqExpr([rx.BindingBlock(new_bindings)], body.body)
 
-    # if we didn't ignore the recursive call, the fact the var's StructInfo
+    # if we didn't ignore the recursive call, the fact the var's Type
     # calls it impure would throw it off
     assert not contains_impure_call(new_body, own_name=own_name)
     assert contains_impure_call(new_body)

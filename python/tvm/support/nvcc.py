@@ -20,6 +20,7 @@
 import glob
 import os
 import platform
+import shlex
 import subprocess
 import warnings
 
@@ -31,8 +32,31 @@ from tvm.target import Target
 from . import utils
 
 
+def _ptxas_option_flags():
+    """Return ptxas flags forwarded via ``--ptxas-options`` (without the prefix).
+
+    Environment Variables
+    ---------------------
+    TVM_CUDA_PTXAS_REG_LEVEL : str
+        ptxas ``--register-usage-level`` (default ``10``).
+    TVM_CUDA_PTXAS_EXTRA_OPTS : str
+        Extra ptxas flags, shell-tokenized (e.g. ``"-O1"`` or ``"-O2 --def-load-cache=ca"``).
+        Each token becomes its own ``--ptxas-options=<token>`` entry for NVRTC, or is
+        comma-joined for nvcc.
+    """
+    flags = [
+        "-v",
+        f"--register-usage-level={os.environ.get('TVM_CUDA_PTXAS_REG_LEVEL', '10')}",
+        "--warn-on-local-memory-usage",
+    ]
+    extra = os.environ.get("TVM_CUDA_PTXAS_EXTRA_OPTS", "").strip()
+    if extra:
+        flags.extend(shlex.split(extra))
+    return flags
+
+
 def compile_cuda(
-    code, target_format=None, arch=None, options=None, path_target=None, compiler="nvcc"
+    code, target_format=None, arch=None, options=None, path_target=None, compiler="nvrtc"
 ):
     """Compile CUDA code with NVCC or NVRTC.
 
@@ -54,7 +78,7 @@ def compile_cuda(
         Output file.
 
     compiler : str, optional
-        Compiler backend: "nvcc" or "nvrtc".
+        Compiler backend: "nvrtc" (default) or "nvcc".
         This can be set by the TVM_CUDA_COMPILE_MODE environment variable.
 
     Returns
@@ -65,7 +89,7 @@ def compile_cuda(
     Notes
     -----
     - NVRTC is a "runtime" compilation library and can be faster for JIT compilation.
-    - NVRTC requires cuda-python: pip install cuda-python
+    - NVRTC requires cuda-bindings: pip install cuda-bindings
     """
     use_nvshmem = "#include <nvshmem.h>" in code or "#include <nvshmemx.h>" in code
 
@@ -125,10 +149,13 @@ def _compile_cuda_nvcc(
         #   "-gencode", "arch=compute_52,code=sm_52",
         #   "-gencode", "arch=compute_70,code=sm_70"
         # ]
-        compute_version = "".join(
-            get_target_compute_version(Target.current(allow_none=True)).split(".")
-        )
-        arch = ["-gencode", f"arch=compute_{compute_version},code=sm_{compute_version}"]
+        target = Target.current(allow_none=True)
+        target_arch = getattr(target, "arch", None) if target is not None else None
+        if isinstance(target_arch, str) and target_arch.startswith("sm_"):
+            suffix = target_arch[3:]
+        else:
+            suffix = "".join(get_target_compute_version(target).split("."))
+        arch = ["-gencode", f"arch=compute_{suffix},code=sm_{suffix}"]
 
     temp = utils.tempdir()
     file_name = "tvm_kernels"
@@ -189,9 +216,8 @@ def _compile_cuda_nvcc(
         "-U__CUDA_NO_BFLOAT162_CONVERSIONS__",
         "--expt-relaxed-constexpr",
         "--expt-extended-lambda",
-        "--use_fast_math",
-        "--ptxas-options=-v",  # printing out number of registers
-        "--ptxas-options=--verbose,--register-usage-level=10,--warn-on-local-memory-usage",  # printing out number of registers  # noqa: E501
+        *([] if os.environ.get("TVM_CUDA_NVCC_NO_FAST_MATH") else ["--use_fast_math"]),
+        f"--ptxas-options={','.join(_ptxas_option_flags())}",
     ]
 
     major, _ = parse_compute_version(get_target_compute_version(Target.current(allow_none=True)))
@@ -232,6 +258,12 @@ def _compile_cuda_nvcc(
 
     # Second stage for NVSHMEM
     if use_nvshmem:
+        target = Target.current(allow_none=True)
+        target_arch = getattr(target, "arch", None) if target is not None else None
+        if isinstance(target_arch, str) and target_arch.startswith("sm_"):
+            compute_version = target_arch[3:]
+        else:
+            compute_version = "".join(get_target_compute_version(target).split("."))
         cmd = ["nvlink"]
         cmd += [f"-arch=sm_{compute_version}"]
         cmd += ["-L", nvshmem_lib_path]
@@ -260,6 +292,28 @@ def _compile_cuda_nvcc(
         return data
 
 
+def _find_cuda_target_include(cuda_path):
+    """Find the architecture-specific ``targets/<triple>/include`` directory.
+
+    CUDA ships ARM64 server toolkits under ``targets/sbsa-linux``; only the
+    embedded/L4T toolkits use ``targets/aarch64-linux``, so probe both.
+
+    Returns None when no architecture-specific include directory exists.
+    """
+    machine = platform.machine()
+    system = platform.system().lower()
+    if system == "linux" and machine.lower() in ("aarch64", "arm64"):
+        triples = ["sbsa-linux", f"{machine}-{system}"]
+    else:
+        triples = [f"{machine}-{system}"]
+
+    for triple in triples:
+        include_dir = os.path.join(cuda_path, "targets", triple, "include")
+        if os.path.isdir(include_dir):
+            return include_dir
+    return None
+
+
 def _compile_cuda_nvrtc(
     code, target_format=None, arch=None, options=None, path_target=None, use_nvshmem=False
 ):
@@ -272,7 +326,7 @@ def _compile_cuda_nvrtc(
     target_format : str, optional
         Output format: "cubin" or "ptx". Default: "cubin"
     arch : str, optional
-        Target architecture (e.g., "sm_80"). Auto-detected if None.
+        Target architecture (e.g., "compute_80" or "sm_80"). Auto-detected if None.
     options : str or list of str, optional
         Additional NVRTC options.
     path_target : str, optional
@@ -289,9 +343,9 @@ def _compile_cuda_nvrtc(
         from cuda.bindings import nvrtc  # pylint: disable=import-outside-toplevel
     except ImportError as e:
         raise RuntimeError(
-            "Failed to compile CUDA with NVRTC because the `cuda-python` package "
+            "Failed to compile CUDA with NVRTC because the `cuda-bindings` package "
             "is not available.\n"
-            "Please install it with: pip install cuda-python\n"
+            "Please install it with: pip install cuda-bindings\n"
             "See: https://nvidia.github.io/cuda-python/"
         ) from e
 
@@ -301,9 +355,9 @@ def _compile_cuda_nvrtc(
 
         if importlib.util.find_spec("cuda.bindings.driver") is None:
             raise RuntimeError(
-                "Failed to compile CUDA with NVRTC+NVSHMEM because the `cuda-python` package "
+                "Failed to compile CUDA with NVRTC+NVSHMEM because the `cuda-bindings` package "
                 "is not available.\n"
-                "Please install it with: pip install cuda-python\n"
+                "Please install it with: pip install cuda-bindings\n"
                 "See: https://nvidia.github.io/cuda-python/"
             )
 
@@ -325,10 +379,18 @@ def _compile_cuda_nvrtc(
     if options is not None and not isinstance(options, str | list):
         raise ValueError("options must be str or list of str")
 
-    # Auto-detect architecture
+    # NVRTC selects the output kind through both target_format and the
+    # architecture spelling.  A virtual ``compute_*`` target produces PTX,
+    # while a real ``sm_*`` target produces a loadable cubin.  Keep the suffix
+    # (including family/architecture qualifiers such as ``a`` and ``f``), but
+    # normalize the prefix to the requested output format.
     if arch is None:
         compute_version = get_target_compute_version(Target.current(allow_none=True))
         arch = f"sm_{''.join(compute_version.split('.'))}"
+    if target_format == "ptx" and arch.startswith("sm_"):
+        arch = f"compute_{arch.removeprefix('sm_')}"
+    elif target_format == "cubin" and arch.startswith("compute_"):
+        arch = f"sm_{arch.removeprefix('compute_')}"
 
     # Get NVSHMEM paths if needed
     nvshmem_include_path, nvshmem_lib_path = None, None
@@ -342,14 +404,23 @@ def _compile_cuda_nvrtc(
         line for line in code.splitlines() if line.strip() not in headers_to_strip
     )
 
-    # NVRTC compiles device code and does not include the host-side cuda.h.
-    # CUtensorMap is a host-side structure, to reference and use it in device code,
-    # we must forward-declare it for NVRTC.
+    # NVRTC compiles device code and does not include the host-side cuda.h
+    # (it is guarded behind ``#ifndef __CUDACC_RTC__`` in generated code and is
+    # stripped above), so the complete ``CUtensorMap_st`` layout that cuda.h
+    # normally provides is missing. TMA kernels take ``CUtensorMap`` by value as
+    # ``__grid_constant__`` params, which requires the complete type. Define the
+    # ``CUtensorMap_st`` tag with cuda.h's layout (64-byte aligned, 128 bytes)
+    # plus the typedef alias. This is compatible with cccl's ``<cuda/barrier>``,
+    # which only forward-declares ``struct CUtensorMap_st;`` and re-typedefs the
+    # alias (a redundant typedef to the same type is legal in C++); defining the
+    # tag rather than ``struct CUtensorMap`` avoids the previous redefinition
+    # clash with that header.
     if "CUtensorMap" in code_filtered:
         code_filtered = (
-            "struct __align__(128) CUtensorMap {\n"
+            "struct alignas(64) CUtensorMap_st {\n"
             "  unsigned long long opaque[16];\n"
-            "};\n\n" + code_filtered
+            "};\n"
+            "typedef struct CUtensorMap_st CUtensorMap;\n\n" + code_filtered
         )
 
     # Add standard type definitions and compatibility macros that NVRTC doesn't provide.
@@ -369,6 +440,13 @@ using cuda::std::int64_t;
 #endif
 #ifndef __volatile__
 #define __volatile__ volatile
+#endif
+
+// NVRTC does not pull in the host <math.h>, so INFINITY is undefined. Provide it
+// from libcu++ (same float +inf value nvcc's <math.h> yields).
+#include <cuda/std/limits>
+#ifndef INFINITY
+#define INFINITY (::cuda::std::numeric_limits<float>::infinity())
 #endif
 
 """
@@ -406,6 +484,9 @@ namespace std {
     compile_opts = [
         f"--gpu-architecture={arch}".encode(),
         b"-default-device",
+        # nvcc enables 128-bit integers by default on Linux; NVRTC requires the
+        # flag to be passed explicitly for kernels that use __int128_t.
+        b"--device-int128",
     ]
 
     if use_nvshmem:
@@ -422,18 +503,13 @@ namespace std {
         include_paths.append(standard_include)
 
     # Check architecture-specific include directory
-    arch_include = os.path.join(
-        cuda_path,
-        "targets",
-        f"{platform.machine()}-{platform.system().lower()}",
-        "include",
-    )
-    if os.path.isdir(arch_include):
+    arch_include = _find_cuda_target_include(cuda_path)
+    if arch_include:
         include_paths.append(arch_include)
 
     # Check for CCCL include directory (required for cuda/std/cstdint and type_traits)
     # CCCL provides standard library functionality for device code
-    cccl_include = os.path.join(arch_include, "cccl") if os.path.isdir(arch_include) else None
+    cccl_include = os.path.join(arch_include, "cccl") if arch_include else None
     if cccl_include and os.path.isdir(cccl_include):
         include_paths.append(cccl_include)
 
@@ -469,6 +545,21 @@ namespace std {
             ]
         )
 
+    # Define the vector-deprecation silencing macros as no-ops for every NVRTC
+    # compile. These live in vector_types.h, which the fp4/fp6/fp8 headers use
+    # but do not include; depending on the include chain NVRTC pulls in, the
+    # macro can be left undefined and trigger a bogus "declaration has no storage
+    # class" error. Defining them empty is harmless (they only gate host-side
+    # deprecation warnings) and matches what the NVSHMEM path already did.
+    compile_opts.extend(
+        [
+            b"-D__NV_SILENCE_DEPRECATION_BEGIN=",
+            b"-D__NV_SILENCE_DEPRECATION_END=",
+            b"-D__NV_SILENCE_HOST_DEPRECATION_BEGIN=",
+            b"-D__NV_SILENCE_HOST_DEPRECATION_END=",
+        ]
+    )
+
     compile_opts.extend(
         [
             b"-U__CUDA_NO_HALF_OPERATORS__",
@@ -480,6 +571,25 @@ namespace std {
             b"--use_fast_math",
         ]
     )
+
+    # Mirror the nvcc path's ptxas options. register-usage-level drives ptxas
+    # register allocation / instruction scheduling and is perf-relevant (FA4 was
+    # tuned around it, hence the env-driven default); -v and
+    # --warn-on-local-memory-usage are diagnostic. NVRTC rejects -O3 and
+    # --register-usage-level as top-level flags but forwards them to its internal
+    # ptxas via --ptxas-options (ptxas already defaults to -O3). NB: unlike nvcc,
+    # NVRTC does not comma-split --ptxas-options, so each ptxas flag must be its
+    # own entry. The nvcc-only --expt-relaxed-constexpr / --expt-extended-lambda
+    # have no NVRTC equivalent and are intentionally not mirrored.
+    for flag in _ptxas_option_flags():
+        compile_opts.append(f"--ptxas-options={flag}".encode())
+
+    # Extra NVRTC frontend flags (shell-tokenized), appended after all built-in
+    # defaults so they can override them (e.g. TVM_CUDA_NVRTC_EXTRA_OPTS="--ftz=false"
+    # to undo the -ftz=true implied by --use_fast_math).
+    nvrtc_extra = os.environ.get("TVM_CUDA_NVRTC_EXTRA_OPTS", "").strip()
+    if nvrtc_extra:
+        compile_opts.extend(t.encode() for t in shlex.split(nvrtc_extra))
 
     # Add user-provided options, filtering out nvcc-specific flags that nvrtc doesn't support
     if options:
@@ -802,7 +912,7 @@ def tvm_callback_cuda_compile(code):
     Compile CUDA code using the configured backend (nvcc or nvrtc).
 
     This callback is invoked by TVM's C++ backend during CUDA module compilation.
-    By default, uses nvcc to generate fatbin.  The current target is fetched
+    By default, uses nvrtc to generate cubin.  The current target is fetched
     inside the callback (via ``tvm.target.Target.current(allow_none=True)``)
     so the caller does not need to push/pop a target scope around the
     invocation.
@@ -810,12 +920,16 @@ def tvm_callback_cuda_compile(code):
     Environment Variables
     ---------------------
     TVM_CUDA_COMPILE_MODE : str
-        Compiler backend: "nvcc" (default) or "nvrtc"
+        Compiler backend: "nvrtc" (default) or "nvcc"
+        - "nvrtc": Use NVRTC via cuda-bindings for faster JIT, generates cubin
         - "nvcc": Use nvcc subprocess, generates fatbin
-        - "nvrtc": Use NVRTC via cuda-python for faster JIT, generates cubin
     TVM_KERNEL_DUMP : str
         If set, dump generated CUDA/intermediate files and append "-lineinfo" so profilers can
         correlate SASS back to the dumped source.
+    TVM_CUDA_PTXAS_REG_LEVEL : str
+        Forwarded to ptxas ``--register-usage-level`` (default ``10``).
+    TVM_CUDA_PTXAS_EXTRA_OPTS : str
+        Extra ptxas flags (shell-tokenized), e.g. ``"-O1"`` or ``"-O2"``.
 
     Parameters
     ----------
@@ -830,7 +944,7 @@ def tvm_callback_cuda_compile(code):
     # The current Target is fetched inside compile_cuda via
     # tvm.target.Target.current(allow_none=True) when arch is unset; the
     # caller no longer needs to push/pop a target scope.
-    compiler = os.environ.get("TVM_CUDA_COMPILE_MODE", "nvcc").lower()
+    compiler = os.environ.get("TVM_CUDA_COMPILE_MODE", "nvrtc").lower()
 
     if compiler == "nvrtc":
         return compile_cuda(code, target_format="cubin", compiler="nvrtc")

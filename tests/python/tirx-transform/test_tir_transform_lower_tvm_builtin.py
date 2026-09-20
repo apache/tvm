@@ -22,6 +22,7 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @tvm.register_global_func("tvm.test_matmul")
@@ -53,13 +54,11 @@ def test_lower_call_packed():
             T.func_attr({"target": tvm.target.Target("llvm")})
             stack_ffi_any: T.let[T.handle] = T.tvm_stack_alloca("tvm_ffi_any", 4)
             stack_array: T.let[T.handle] = T.tvm_stack_alloca("array", 3)
-            stack_shape: T.let[T.handle("int64")] = T.tvm_stack_alloca("shape", 6)
-            stack_shape_1 = T.decl_buffer((T.int64(6),), "int64", data=stack_shape)
-            stack_shape_1[0] = T.int64(64)
-            stack_shape_1[1] = T.int64(64)
+            stack_shape = T.decl_buffer((T.int64(6),), "int64", data=T.tvm_stack_alloca("shape", 6))
+            stack_shape[0] = T.int64(64)
+            stack_shape[1] = T.int64(64)
             T.tvm_struct_set(stack_array, 0, 1, A.data)
-            stack_shape_2 = T.Buffer((1,), "int64", data=stack_shape)
-            T.tvm_struct_set(stack_array, 0, 2, T.address_of(stack_shape_2[0]))
+            T.tvm_struct_set(stack_array, 0, 2, T.address_of(stack_shape[0]))
             T.tvm_struct_set(stack_array, 0, 3, T.reinterpret("handle", T.uint64(0)))
             T.tvm_struct_set(stack_array, 0, 4, 2)
             T.tvm_struct_set(stack_array, 0, 5, T.uint8(2))
@@ -68,11 +67,10 @@ def test_lower_call_packed():
             T.tvm_struct_set(stack_array, 0, 8, T.uint64(0))
             T.tvm_struct_set(stack_array, 0, 9, 0)
             T.tvm_struct_set(stack_array, 0, 10, 1)
-            stack_shape_1[2] = T.int64(64)
-            stack_shape_1[3] = T.int64(64)
+            stack_shape[2] = T.int64(64)
+            stack_shape[3] = T.int64(64)
             T.tvm_struct_set(stack_array, 1, 1, B.data)
-            stack_shape_3 = T.Buffer((3,), "int64", data=stack_shape)
-            T.tvm_struct_set(stack_array, 1, 2, T.address_of(stack_shape_3[2]))
+            T.tvm_struct_set(stack_array, 1, 2, T.address_of(stack_shape[2]))
             T.tvm_struct_set(stack_array, 1, 3, T.reinterpret("handle", T.uint64(0)))
             T.tvm_struct_set(stack_array, 1, 4, 2)
             T.tvm_struct_set(stack_array, 1, 5, T.uint8(2))
@@ -81,11 +79,10 @@ def test_lower_call_packed():
             T.tvm_struct_set(stack_array, 1, 8, T.uint64(0))
             T.tvm_struct_set(stack_array, 1, 9, 0)
             T.tvm_struct_set(stack_array, 1, 10, 1)
-            stack_shape_1[4] = T.int64(64)
-            stack_shape_1[5] = T.int64(64)
+            stack_shape[4] = T.int64(64)
+            stack_shape[5] = T.int64(64)
             T.tvm_struct_set(stack_array, 2, 1, C.data)
-            stack_shape_4 = T.Buffer((5,), "int64", data=stack_shape)
-            T.tvm_struct_set(stack_array, 2, 2, T.address_of(stack_shape_4[4]))
+            T.tvm_struct_set(stack_array, 2, 2, T.address_of(stack_shape[4]))
             T.tvm_struct_set(stack_array, 2, 3, T.reinterpret("handle", T.uint64(0)))
             T.tvm_struct_set(stack_array, 2, 4, 2)
             T.tvm_struct_set(stack_array, 2, 5, T.uint8(2))
@@ -112,14 +109,44 @@ def test_lower_call_packed():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_lower_call_packed_raw_string():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main():
+            T.func_attr({"target": tvm.target.Target("llvm")})
+            T.call_packed("testing.echo", "payload")
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main():
+            T.func_attr({"target": tvm.target.Target("llvm")})
+            stack_ffi_any: T.let[T.handle] = T.tvm_stack_alloca("tvm_ffi_any", 2)
+            T.tvm_struct_set(stack_ffi_any, 0, 13, 8)
+            T.tvm_struct_set(stack_ffi_any, 0, 14, 0)
+            T.tvm_struct_set(stack_ffi_any, 0, 15, T.reinterpret(T.handle().ty, "payload"))
+            T.tvm_struct_set(stack_ffi_any, 1, 13, 0)
+            T.tvm_struct_set(stack_ffi_any, 1, 14, 0)
+            T.tvm_struct_set(stack_ffi_any, 1, 15, T.int64(0))
+            T.call_packed_lowered("testing.echo", stack_ffi_any, 0, 1)
+
+    After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+    # The typed pointer is required by the LLVM TVMFFIAny lowering.
+    tvm.compile(Before, target="llvm")
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_call_packed_return_non_i32():
     # This call packed that return non i32 types
     expected_value = np.array([1.2, 1.4], dtype="float32")
 
     def packed_echo(value):
         return tvm.tirx.call_intrin(
-            value.dtype, tvm.ir.Op.get("tirx.tvm_call_packed"), "testing.echo", value
+            value.ty, tvm.ir.Op.get("tirx.tvm_call_packed"), "testing.echo", value
         )
 
     def build_tir():
@@ -132,7 +159,7 @@ def test_call_packed_return_non_i32():
         )
 
         # 2. Let binding: Aptr_dup = packed_echo(Ab.data), then store const into Ab[1]
-        Aptr_dup = tvm.tirx.Var("Aptr_dup", "handle")
+        Aptr_dup = tvm.tirx.Var("Aptr_dup", Ab.data.ty)
         store1 = tvm.tirx.BufferStore(Ab, tvm.tirx.const(expected_value[1], "float32"), [1])
         bind_stmt = tvm.tirx.Bind(Aptr_dup, packed_echo(Ab.data))
 
@@ -156,9 +183,9 @@ def test_lower_overflow_int32():
         T.func_attr({"global_symbol": "variance4", "tirx.noalias": True})
         rxplaceholder_red = T.alloc_buffer((32,), "float32")
         T_subtract = T.alloc_buffer((822083584,), "float32")
-        rxplaceholder_red_1 = T.Buffer((T.int64(32),), data=rxplaceholder_red.data)
-        rxplaceholder_1 = T.Buffer((T.int64(822083584),), data=rxplaceholder.data)
-        T_subtract_1 = T.Buffer((T.int64(822083584),), data=T_subtract.data)
+        rxplaceholder_red_1 = T.decl_buffer((T.int64(32),), data=rxplaceholder_red.data)
+        rxplaceholder_1 = T.decl_buffer((T.int64(822083584),), data=rxplaceholder.data)
+        T_subtract_1 = T.decl_buffer((T.int64(822083584),), data=T_subtract.data)
         for ax1, ax2 in T.grid(32, 25690112):
             cse_v1: T.let[T.int32] = ax1 * 25690112 + ax2
             T_subtract_1[cse_v1] = rxplaceholder_1[cse_v1] - rxplaceholder_red_1[ax1]

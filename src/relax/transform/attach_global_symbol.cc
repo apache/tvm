@@ -25,8 +25,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -57,19 +57,22 @@ struct TirxGvarMutator : tirx::StmtExprMutator {
   explicit TirxGvarMutator(ffi::Map<GlobalVar, GlobalVar> replacements)
       : replacements(replacements) {}
 
-  PrimExpr VisitExpr_(const tirx::CallNode* node) override {
-    auto call = Downcast<tirx::Call>(tirx::StmtExprMutator::VisitExpr_(node));
+  using tirx::StmtExprMutator::Mutate_;
+  UnchangedOr<Expr> Mutate_(const CallNode* node, InplaceMode inplace_mode) override {
+    auto call = tirx::StmtExprMutator::Mutate_(node, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<Expr>(node))
+                    .as_or_throw<tvm::Call>();
     if (auto old_gvar = call->op.as<GlobalVar>()) {
       if (auto new_gvar = replacements.Get(old_gvar.value())) {
         call.CopyOnWrite()->op = new_gvar.value();
       }
     }
-    return call;
+    return call.as_or_throw<PrimExpr>();
   }
 };
 
 // Replace GlobalVar references across all functions in the module.
-// Direct dispatch on function type — no NodeFunctor indirection needed
+// Direct dispatch on function type — no ObjectFunctor indirection needed
 // since this file already includes the relax + tirx headers.
 IRModule ReplaceGlobalVarsInModule(IRModule mod, ffi::Map<GlobalVar, GlobalVar> replacements) {
   if (replacements.empty()) {
@@ -85,8 +88,9 @@ IRModule ReplaceGlobalVarsInModule(IRModule mod, ffi::Map<GlobalVar, GlobalVar> 
 
     if (auto* prim_func_node = old_func.as<tirx::PrimFuncNode>()) {
       auto func = ffi::GetRef<tirx::PrimFunc>(prim_func_node);
-      TirxGvarMutator mutator(replacements);
-      auto new_body = mutator(func->body);
+      auto mutator = ffi::make_object<TirxGvarMutator>(replacements);
+      auto new_body =
+          mutator->Mutate(func->body, InplaceMode::kDisallow).ValueOrUnchanged(func->body);
       if (!new_body.same_as(func->body)) {
         func.CopyOnWrite()->body = new_body;
       }
@@ -99,8 +103,7 @@ IRModule ReplaceGlobalVarsInModule(IRModule mod, ffi::Map<GlobalVar, GlobalVar> 
       new_func = func;
     } else if (auto* relax_func_node = old_func.as<FunctionNode>()) {
       RelaxGvarMutator mutator(replacements);
-      auto new_relax_func =
-          Downcast<Function>(mutator(Downcast<Function>(ffi::GetRef<Function>(relax_func_node))));
+      auto new_relax_func = mutator(ffi::GetRef<Function>(relax_func_node)).as_or_throw<Function>();
       // Update kGlobalSymbol if the function is externally exposed and being renamed.
       if (new_relax_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
         if (new_gvar->name_hint != old_gvar->name_hint) {
@@ -163,8 +166,8 @@ Pass AttachGlobalSymbol() {
         updates->Add(gvar, new_func);
         if (new_name.value() != gvar->name_hint) {
           GlobalVar new_gvar(new_name.value());
-          if (auto sinfo = gvar->struct_info_.as<StructInfo>()) {
-            UpdateStructInfo(new_gvar, sinfo.value());
+          if (auto ty = gvar->ty.as<Type>()) {
+            UpdateType(new_gvar, ty.value());
           }
 
           gvar_updates.Set(gvar, new_gvar);

@@ -22,23 +22,41 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.target import Target
+from tvm.testing import env
 
 
 def test_all_targets_device_type_verify():
     """Consistency verification for all targets' device type"""
-    target_kind_set = set(tvm.target.Target.list_kinds())
-    target_kind_set.remove("composite")
-    all_targets = [tvm.target.Target(t) for t in target_kind_set]
+    for target_kind in tvm.target.Target.list_kinds():
+        target = Target(target_kind)
+        device = tvm.device_from_target(target)
 
-    for tgt in all_targets:
-        if tgt.kind.name not in tvm.runtime.Device._DEVICE_NAME_TO_TYPE:
-            raise KeyError(
-                f"Cannot find target kind: {tgt.kind.name} in Device._DEVICE_NAME_TO_TYPE"
-            )
+        assert device.dlpack_device_type() == target.get_target_device_type()
 
-        assert (
-            tgt.get_target_device_type() == tvm.runtime.Device._DEVICE_NAME_TO_TYPE[tgt.kind.name]
-        )
+
+@pytest.mark.parametrize("target", ["llvm", {"kind": "llvm"}, Target("llvm")])
+def test_device_from_target_input_forms(target):
+    assert tvm.device_from_target(target) == tvm.cpu()
+
+
+def test_device_from_target_compiler_only_kind():
+    assert tvm.device_from_target("composite") == tvm.cpu()
+
+
+def test_device_from_target_index():
+    assert tvm.device_from_target("llvm").index == 0
+    assert tvm.device_from_target("llvm", 3).index == 3
+
+
+def test_device_from_target_override():
+    target = Target(
+        {
+            "kind": "llvm",
+            "target_device_type": int(tvm_ffi.DLDeviceType.kDLCUDA),
+        }
+    )
+
+    assert tvm.device_from_target(target).dlpack_device_type() == tvm_ffi.DLDeviceType.kDLCUDA
 
 
 def test_target_string_parse():
@@ -158,6 +176,21 @@ def test_target_tag_1():
     assert tgt.attrs["max_threads_per_block"] == 1024
     assert tgt.attrs["thread_warp_size"] == 32
     assert tgt.attrs["registers_per_block"] == 32768
+
+
+def test_target_tag_jetson_agx_thor():
+    tgt = tvm.target.Target("nvidia/jetson-agx-thor")
+    assert tgt.kind.name == "cuda"
+    assert tgt.attrs["arch"] == "sm_110a"
+    assert tgt.attrs["max_shared_memory_per_block"] == 232448
+    assert tgt.attrs["max_threads_per_block"] == 1024
+    assert tgt.attrs["thread_warp_size"] == 32
+    assert tgt.attrs["registers_per_block"] == 65536
+    assert tgt.attrs["l2_cache_size_bytes"] == 33554432
+    assert tgt.host.kind.name == "llvm"
+    assert tgt.host.attrs["mtriple"] == "aarch64-linux-gnu"
+    assert tgt.host.attrs["mcpu"] == "neoverse-v3ae"
+    assert tgt.host.attrs["num-cores"] == 14
 
 
 def test_target_tag_override():
@@ -325,61 +358,73 @@ def test_target_features():
     assert not target_with_features.features.is_missing
 
 
-@tvm.testing.requires_cuda
-@pytest.mark.parametrize("input_device", ["cuda", tvm.cuda()])
-def test_target_from_device_cuda(input_device):
-    target = Target.from_device(input_device)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("input_form", ["string", "device"])
+def test_target_from_device_cuda(input_form):
+    def run_and_check():
+        dev = tvm.cuda()
+        target = Target.from_device("cuda" if input_form == "string" else dev)
+        assert target.kind.name == "cuda"
+        assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
+        assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
+        assert int(target.attrs["thread_warp_size"]) == dev.warp_size
+        assert str(target.attrs.get("arch", "")) == "sm_" + dev.compute_version.replace(".", "")
 
-    dev = tvm.cuda()
-    assert target.kind.name == "cuda"
-    assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
-    assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
-    assert int(target.attrs["thread_warp_size"]) == dev.warp_size
-    assert str(target.attrs.get("arch", "")) == "sm_" + dev.compute_version.replace(".", "")
-
-
-@tvm.testing.requires_rocm
-@pytest.mark.parametrize("input_device", ["rocm", tvm.rocm()])
-def test_target_from_device_rocm(input_device):
-    target = Target.from_device(input_device)
-
-    dev = tvm.rocm()
-    assert target.kind.name == "rocm"
-    assert target.attrs["mtriple"] == "amdgcn-and-amdhsa-hcc"
-    assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
-    assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
-    assert int(target.attrs["thread_warp_size"]) == dev.warp_size
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.requires_vulkan
-@pytest.mark.parametrize("input_device", ["vulkan", tvm.vulkan()])
-def test_target_from_device_vulkan(input_device):
-    target = Target.from_device(input_device)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
+@pytest.mark.parametrize("input_form", ["string", "device"])
+def test_target_from_device_rocm(input_form):
+    def run_and_check():
+        dev = tvm.rocm()
+        target = Target.from_device("rocm" if input_form == "string" else dev)
+        assert target.kind.name == "rocm"
+        assert target.attrs["mtriple"] == "amdgcn-and-amdhsa-hcc"
+        assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
+        assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
+        assert int(target.attrs["thread_warp_size"]) == dev.warp_size
 
-    f_get_target_property = tvm.get_global_func("device_api.vulkan.get_target_property")
-    dev = tvm.vulkan()
-    assert target.kind.name == "vulkan"
-    assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
-    assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
-    assert int(target.attrs["thread_warp_size"]) == dev.warp_size
-    assert target.attrs["supports_float16"] == f_get_target_property(dev, "supports_float16")
-    assert target.attrs["supports_int16"] == f_get_target_property(dev, "supports_int16")
-    assert target.attrs["supports_int8"] == f_get_target_property(dev, "supports_int8")
-    assert target.attrs["supports_16bit_buffer"] == f_get_target_property(
-        dev, "supports_16bit_buffer"
-    )
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.requires_opencl
-@pytest.mark.parametrize("input_device", ["opencl", tvm.opencl()])
-def test_target_from_device_opencl(input_device):
-    target = Target.from_device(input_device)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
+@pytest.mark.parametrize("input_form", ["string", "device"])
+def test_target_from_device_vulkan(input_form):
+    def run_and_check():
+        dev = tvm.vulkan()
+        target = Target.from_device("vulkan" if input_form == "string" else dev)
+        f_get_target_property = tvm.get_global_func("device_api.vulkan.get_target_property")
+        assert target.kind.name == "vulkan"
+        assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
+        assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
+        assert int(target.attrs["thread_warp_size"]) == dev.warp_size
+        assert target.attrs["supports_float16"] == f_get_target_property(dev, "supports_float16")
+        assert target.attrs["supports_int16"] == f_get_target_property(dev, "supports_int16")
+        assert target.attrs["supports_int8"] == f_get_target_property(dev, "supports_int8")
+        assert target.attrs["supports_16bit_buffer"] == f_get_target_property(
+            dev, "supports_16bit_buffer"
+        )
 
-    dev = tvm.opencl()
-    assert target.kind.name == "opencl"
-    assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
-    assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
-    assert int(target.attrs["thread_warp_size"]) == dev.warp_size
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_opencl(), reason="need opencl")
+@pytest.mark.parametrize("input_form", ["string", "device"])
+def test_target_from_device_opencl(input_form):
+    def run_and_check():
+        dev = tvm.opencl()
+        target = Target.from_device("opencl" if input_form == "string" else dev)
+        assert target.kind.name == "opencl"
+        assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
+        assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
+        assert int(target.attrs["thread_warp_size"]) == dev.warp_size
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_module_dict_from_deserialized_targets():

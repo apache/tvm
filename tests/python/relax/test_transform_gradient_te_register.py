@@ -94,11 +94,11 @@ def get_expected_1():
         def main_adjoint(a: R.Tensor((5, 5), dtype="float32"), b: R.Tensor((5, 5), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tuple(R.Tensor((5, 5), dtype="float32"), R.Tensor((5, 5), dtype="float32"))):
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir(cls.f_mul, (a, b), out_sinfo=R.Tensor((5, 5), dtype="float32"))
+                lv = R.call_tir(cls.f_mul, (a, b), out_ty=R.Tensor((5, 5), dtype="float32"))
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 gv_adjoint: R.Tensor((), dtype="float32") = R.ones(R.shape([]), dtype="float32")
                 lv_adjoint: R.Tensor((5, 5), dtype="float32") = R.broadcast_to(gv_adjoint, R.shape([5, 5]))
-                lv_1 = R.call_tir(cls.f_mul_grad, (lv_adjoint, a, b), out_sinfo=[R.Tensor((5, 5), dtype="float32"), R.Tensor((5, 5), dtype="float32")])
+                lv_1 = R.call_tir(cls.f_mul_grad, (lv_adjoint, a, b), out_ty=[R.Tensor((5, 5), dtype="float32"), R.Tensor((5, 5), dtype="float32")])
                 a_adjoint: R.Tensor((5, 5), dtype="float32") = lv_1[0]
                 b_adjoint: R.Tensor((5, 5), dtype="float32") = lv_1[1]
                 a_adjoint_out: R.Tensor((5, 5), dtype="float32") = a_adjoint
@@ -110,7 +110,7 @@ def get_expected_1():
         def main(a: R.Tensor((5, 5), dtype="float32"), b: R.Tensor((5, 5), dtype="float32")) -> R.Tensor((), dtype="float32"):
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir_with_grad(cls.f_mul, (a, b), out_sinfo=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mul_grad")
+                lv = R.call_tir_with_grad(cls.f_mul, (a, b), out_ty=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mul_grad")
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 R.output(gv)
             return gv
@@ -126,8 +126,8 @@ def test_emit_te(register_te_grads):
 
         return tvm.te.compute(src1.shape, mul, name="f_mul")
 
-    a = relax.Var("a", relax.TensorStructInfo([5, 5], "float32"))
-    b = relax.Var("b", relax.TensorStructInfo([5, 5], "float32"))
+    a = relax.Var("a", relax.TensorType([5, 5], "float32"))
+    b = relax.Var("b", relax.TensorType([5, 5], "float32"))
 
     bb = relax.BlockBuilder()
     with bb.function("main", [a, b]):
@@ -164,7 +164,7 @@ def test_call_tir(register_te_grads):
         def main(a: R.Tensor((5, 5), dtype="float32"), b: R.Tensor((5, 5), dtype="float32")) -> R.Tensor((), dtype="float32"):
             cls = Before
             with R.dataflow():
-                lv = R.call_tir_with_grad(cls.f_mul, (a, b), out_sinfo=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mul_grad")
+                lv = R.call_tir_with_grad(cls.f_mul, (a, b), out_ty=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mul_grad")
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 R.output(gv)
             return gv
@@ -204,11 +204,11 @@ def get_expected_2():
         def main_adjoint(a: R.Tensor((5, 5), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tuple(R.Tensor((5, 5), dtype="float32"))):
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir(cls.f_mul, (a,), out_sinfo=R.Tensor((5, 5), dtype="float32"))
+                lv = R.call_tir(cls.f_mul, (a,), out_ty=R.Tensor((5, 5), dtype="float32"))
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 gv_adjoint: R.Tensor((), dtype="float32") = R.ones(R.shape([]), dtype="float32")
                 lv_adjoint: R.Tensor((5, 5), dtype="float32") = R.broadcast_to(gv_adjoint, R.shape([5, 5]))
-                lv_1 = R.call_tir(cls.f_mulk_grad, (lv_adjoint, a), out_sinfo=R.Tensor((5, 5), dtype="float32"))
+                lv_1 = R.call_tir(cls.f_mulk_grad, (lv_adjoint, a), out_ty=R.Tensor((5, 5), dtype="float32"))
                 a_adjoint: R.Tensor((5, 5), dtype="float32") = lv_1
                 a_adjoint_out: R.Tensor((5, 5), dtype="float32") = a_adjoint
                 R.output(gv, a_adjoint_out)
@@ -218,7 +218,7 @@ def get_expected_2():
         def main(a: R.Tensor((5, 5), dtype="float32")) -> R.Tensor((), dtype="float32"):
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir_with_grad(cls.f_mul, (a,), out_sinfo=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mulk_grad", te_grad_kwargs={"k": T.float32(2)})
+                lv = R.call_tir_with_grad(cls.f_mul, (a,), out_ty=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mulk_grad", te_grad_kwargs={"k": T.float32(2)})
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 R.output(gv)
             return gv
@@ -231,7 +231,7 @@ def test_emit_te_kwargs(register_te_grads):
     def f_mul2(src):
         return tvm.te.compute(src.shape, lambda *idx: src[idx] * T.float32(2), name="f_mul2")
 
-    a = relax.Var("a", relax.TensorStructInfo([5, 5], "float32"))
+    a = relax.Var("a", relax.TensorType([5, 5], "float32"))
 
     bb = relax.BlockBuilder()
     with bb.function("main", [a]):
@@ -273,7 +273,7 @@ def test_call_tir_kwargs(register_te_grads):
         def main(a: R.Tensor((5, 5), dtype="float32")) -> R.Tensor((), dtype="float32"):
             cls = Before
             with R.dataflow():
-                lv = R.call_tir_with_grad(cls.f_mul, (a,), out_sinfo=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mulk_grad", te_grad_kwargs={"k": T.float32(2)})
+                lv = R.call_tir_with_grad(cls.f_mul, (a,), out_ty=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mulk_grad", te_grad_kwargs={"k": T.float32(2)})
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 R.output(gv)
             return gv
@@ -330,11 +330,11 @@ def get_expected_3():
             n = T.int64()
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir(cls.f_mul, (a, b), out_sinfo=R.Tensor((n, n), dtype="float32"))
+                lv = R.call_tir(cls.f_mul, (a, b), out_ty=R.Tensor((n, n), dtype="float32"))
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 gv_adjoint: R.Tensor((), dtype="float32") = R.ones(R.shape([]), dtype="float32")
                 lv_adjoint: R.Tensor((n, n), dtype="float32") = R.broadcast_to(gv_adjoint, R.shape([n, n]))
-                lv_1 = R.call_tir(cls.f_mul_grad, (lv_adjoint, a, b), out_sinfo=[R.Tensor((n, n), dtype="float32"), R.Tensor((n, n), dtype="float32")])
+                lv_1 = R.call_tir(cls.f_mul_grad, (lv_adjoint, a, b), out_ty=[R.Tensor((n, n), dtype="float32"), R.Tensor((n, n), dtype="float32")])
                 a_adjoint: R.Tensor((n, n), dtype="float32") = lv_1[0]
                 b_adjoint: R.Tensor((n, n), dtype="float32") = lv_1[1]
                 a_adjoint_out: R.Tensor((n, n), dtype="float32") = a_adjoint
@@ -347,7 +347,7 @@ def get_expected_3():
             n = T.int64()
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir_with_grad(cls.f_mul, (a, b), out_sinfo=R.Tensor((n, n), dtype="float32"), te_grad_name="f_mul_grad")
+                lv = R.call_tir_with_grad(cls.f_mul, (a, b), out_ty=R.Tensor((n, n), dtype="float32"), te_grad_name="f_mul_grad")
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 R.output(gv)
             return gv
@@ -363,8 +363,8 @@ def test_tir_var(register_te_grads):
         return tvm.te.compute(src1.shape, mul, name="f_mul")
 
     n = tirx.Var("n", "int64")
-    a = relax.Var("a", relax.TensorStructInfo([n, n], "float32"))
-    b = relax.Var("b", relax.TensorStructInfo([n, n], "float32"))
+    a = relax.Var("a", relax.TensorType([n, n], "float32"))
+    b = relax.Var("b", relax.TensorType([n, n], "float32"))
 
     bb = relax.BlockBuilder()
     with bb.function("main", [a, b]):

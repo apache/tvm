@@ -20,36 +20,44 @@
 #include "transform/utils.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op_attr_types.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/index.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/utils.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 /*! \brief Helper to implement bind params.*/
 class ExprBinder : public ExprMutator {
  public:
-  explicit ExprBinder(const tvm::ffi::Map<Var, Expr>& args_map,
-                      const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map)
-      : args_map_(args_map), symbolic_var_map_(symbolic_var_map) {}
+  explicit ExprBinder(const tvm::ffi::Map<Var, Expr>& bindings) : bindings_(bindings) {}
 
  private:
   using ExprMutator::VisitExpr_;
+
+  Expr VisitExpr_(const ShapeExprNode* op) final {
+    ffi::Array<PrimExpr> values =
+        op->values.Map([this](const PrimExpr& value) { return BindShapeValue(value); });
+    return values.same_as(op->values) ? ffi::GetRef<Expr>(op) : ShapeExpr(values, op->span);
+  }
 
   Expr VisitExpr_(const FunctionNode* op) final {
     tvm::ffi::Array<Var> params;
     bool all_params_unchanged = true;
     for (const Var& param : op->params) {
-      if (args_map_.count(param)) {
+      if (bindings_.count(param)) {
         all_params_unchanged = false;
       } else {
         Var new_param = this->VisitVarDef(param);
         params.push_back(new_param);
         if (!param.same_as(new_param)) {
-          this->var_remap_[param->vid] = new_param;
+          this->var_remap_[param] = new_param;
           all_params_unchanged = false;
         }
       }
@@ -57,91 +65,96 @@ class ExprBinder : public ExprMutator {
 
     Expr body = this->VisitWithNewScope(op->body, params);
 
-    // FuncStructInfo does not depend on Expr
+    // FuncType does not depend on Expr
     if (all_params_unchanged && body.same_as(op->body)) {
       return ffi::GetRef<Expr>(op);
     } else {
       // purity won't be affected, no need to update annotation
-      return Function(params, body, VisitExprDepStructInfoField(op->ret_struct_info), op->is_pure,
-                      op->attrs);
+      return Function(params, body, VisitExprDepTypeField(op->ret_ty), op->is_pure, op->attrs);
     }
   }
 
   Expr VisitExpr_(const VarNode* op) final {
     auto id = ffi::GetRef<Var>(op);
-    auto it = args_map_.find(id);
-    if (it != args_map_.end()) {
+    auto it = bindings_.find(id);
+    if (it != bindings_.end()) {
       return (*it).second;
     } else {
       return ExprMutator::VisitExpr_(op);
     }
   }
 
-  PrimExpr VisitPrimExpr(const PrimExpr& expr) final {
-    auto new_expr = tirx::Substitute(expr, symbolic_var_map_);
-    if (!expr.same_as(new_expr)) {
-      arith::Analyzer analyzer;
-      new_expr = analyzer->Simplify(new_expr);
-    }
-    return new_expr;
+  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final { return BindShapeValue(expr); }
+
+  PrimExpr BindShapeValue(const PrimExpr& expr) {
+    auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      auto it = bindings_.find(var);
+      if (it == bindings_.end()) return ffi::Unchanged();
+      if (auto value = (*it).second.as<PrimExpr>()) {
+        return ffi::Any(*value);
+      }
+      return ffi::Unchanged();
+    };
+    PrimExpr output =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr, f_substitute).as_or_throw<PrimExpr>();
+    return output.same_as(expr) ? expr : analyzer_->Simplify(output);
   }
 
- private:
-  const tvm::ffi::Map<Var, Expr>& args_map_;
-  const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map_;
+  const tvm::ffi::Map<Var, Expr>& bindings_;
+  sym::Analyzer analyzer_;
 };
 
 /*!
  * \brief Bind params on expr
  * \param expr The expr where to bind params
  * \param binds The map from param var to the expr it binds to
- * \param symbolic_var_map The map from symbolic var to the expr it binds to
  * \return The result expr after bind params
  */
-Expr Bind(const Expr& expr, const tvm::ffi::Map<Var, Expr>& binds,
-          const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map) {
-  return ExprBinder(binds, symbolic_var_map).VisitExpr(expr);
+Expr Bind(const Expr& expr, const tvm::ffi::Map<Var, Expr>& binds) {
+  return ExprBinder(binds).VisitExpr(expr);
 }
 
-StructInfo Bind(const StructInfo& sinfo,
-                const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map) {
-  return ExprBinder({}, symbolic_var_map).VisitExprDepStructInfoField(sinfo);
+Type Bind(const Type& ty, const tvm::ffi::Map<Var, Expr>& binds) {
+  return ExprBinder(binds).VisitExprDepTypeField(ty);
 }
 
-tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
-    const tvm::ffi::Map<relax::Var, relax::Expr>& relax_var_remap,
-    const arith::Analyzer& analyzer) {
-  (void)analyzer;
-  tvm::ffi::Map<tirx::Var, PrimExpr> tir_var_remap;
+tvm::ffi::Map<Var, Expr> InferSymbolicVarMap(
+    const tvm::ffi::Map<tvm::Var, relax::Expr>& relax_var_remap, const sym::Analyzer& analyzer) {
+  tvm::ffi::Map<Var, Expr> var_remap = relax_var_remap;
 
-  auto bind_from_prim_expr = [&tir_var_remap](const PrimExpr& var_shape,
-                                              const PrimExpr& expr_shape) {
-    if (auto var = var_shape.as<tirx::Var>()) {
-      tir_var_remap.Set(var.value(), expr_shape);
+  for (const auto& [var, value] : relax_var_remap) {
+    if (!var.as<PrimVar>()) continue;
+    TVM_FFI_CHECK(value.as<PrimExpr>().has_value(), ValueError)
+        << "Explicit binding for symbolic variable " << var
+        << " must be a primitive expression, but received " << value;
+  }
+
+  auto bind_from_prim_expr = [&relax_var_remap, &var_remap, &analyzer](const PrimExpr& var_shape,
+                                                                       const PrimExpr& expr_shape) {
+    if (auto var = var_shape.as<PrimVar>()) {
+      if (auto it = relax_var_remap.find(var.value()); it != relax_var_remap.end()) {
+        auto explicit_value = (*it).second.as<PrimExpr>();
+        TVM_FFI_CHECK(explicit_value.has_value(), ValueError)
+            << "Explicit binding for symbolic variable " << var.value()
+            << " must be a primitive expression, but received " << (*it).second;
+        TVM_FFI_CHECK(analyzer->CanProveEqual(explicit_value.value(), expr_shape), ValueError)
+            << "Explicit binding for symbolic variable " << var.value()
+            << " conflicts with the value inferred from a parameter shape: explicit value "
+            << explicit_value.value() << ", inferred value " << expr_shape;
+        return;
+      }
+      var_remap.Set(var.value(), expr_shape);
     }
   };
 
-  auto bind_from_prim_value = [&bind_from_prim_expr](const StructInfo& var,
-                                                     const StructInfo& expr) {
-    auto var_sinfo = var.as<PrimStructInfoNode>();
-    if (!var_sinfo) return;
-
-    auto expr_sinfo = expr.as<PrimStructInfoNode>();
-    if (!expr_sinfo) return;
-
-    if (!var_sinfo->value.defined() || !expr_sinfo->value.defined()) return;
-
-    bind_from_prim_expr(var_sinfo->value.value(), expr_sinfo->value.value());
-  };
-
-  auto bind_from_shape = [&bind_from_prim_expr](const StructInfo& var, const StructInfo& expr) {
-    auto var_shape = var.as<ShapeStructInfoNode>();
+  auto bind_from_shape = [&bind_from_prim_expr](const Type& var, const Type& expr) {
+    auto var_shape = var.as<ShapeTypeNode>();
     if (!var_shape) return;
-    if (!var_shape->values.defined()) return;
+    if (!var_shape->values.has_value()) return;
 
-    auto expr_shape = expr.as<ShapeStructInfoNode>();
+    auto expr_shape = expr.as<ShapeTypeNode>();
     if (!expr_shape) return;
-    if (!expr_shape->values.defined()) return;
+    if (!expr_shape->values.has_value()) return;
 
     auto var_shape_arr = var_shape->values.value();
     auto expr_shape_arr = expr_shape->values.value();
@@ -151,86 +164,94 @@ tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
     }
   };
 
-  auto bind_from_tensor = [&bind_from_shape](const StructInfo& var, const StructInfo& expr) {
-    auto var_tensor = var.as<TensorStructInfoNode>();
+  auto bind_from_tensor = [&bind_from_shape](const Type& var, const Type& expr) {
+    auto var_tensor = var.as<TensorTypeNode>();
     if (!var_tensor) return;
-    if (!var_tensor->shape.defined()) return;
+    if (!var_tensor->shape.has_value()) return;
 
-    auto expr_tensor = expr.as<TensorStructInfoNode>();
+    auto expr_tensor = expr.as<TensorTypeNode>();
     if (!expr_tensor) return;
-    if (!expr_tensor->shape.defined()) return;
+    if (!expr_tensor->shape.has_value()) return;
 
-    bind_from_shape(GetStructInfo(var_tensor->shape.value()),
-                    GetStructInfo(expr_tensor->shape.value()));
+    bind_from_shape(GetType(var_tensor->shape.value()), GetType(expr_tensor->shape.value()));
   };
 
-  std::function<void(const StructInfo&, const StructInfo&)> bind_from_struct_info = nullptr;
-  auto bind_from_tuple = [&bind_from_struct_info](const StructInfo& var, const StructInfo& expr) {
-    auto var_tuple = var.as<TupleStructInfoNode>();
+  std::function<void(const Type&, const Type&)> bind_from_ty = nullptr;
+  auto bind_from_tuple = [&bind_from_ty](const Type& var, const Type& expr) {
+    auto var_tuple = var.as<TupleTypeNode>();
     if (!var_tuple) return;
 
-    auto expr_tuple = expr.as<TupleStructInfoNode>();
+    auto expr_tuple = expr.as<TupleTypeNode>();
     if (!expr_tuple) return;
 
     if (var_tuple->fields.size() != expr_tuple->fields.size()) return;
 
     for (size_t i = 0; i < var_tuple->fields.size(); i++) {
-      bind_from_struct_info(var_tuple->fields[i], expr_tuple->fields[i]);
+      bind_from_ty(var_tuple->fields[i], expr_tuple->fields[i]);
     }
   };
 
-  bind_from_struct_info = [&](const StructInfo& var, const StructInfo& expr) {
+  bind_from_ty = [&](const Type& var, const Type& expr) {
     bind_from_tensor(var, expr);
     bind_from_shape(var, expr);
-    bind_from_prim_value(var, expr);
     bind_from_tuple(var, expr);
   };
 
   for (const auto& [relax_var, relax_expr] : relax_var_remap) {
-    auto var_sinfo = GetStructInfo(relax_var);
-    auto expr_sinfo = GetStructInfo(relax_expr);
-    bind_from_struct_info(var_sinfo, expr_sinfo);
+    auto var_ty = GetType(relax_var);
+    auto expr_ty = GetType(relax_expr);
+    bind_from_ty(var_ty, expr_ty);
   }
 
-  return tir_var_remap;
+  return var_remap;
 }
 
-bool IsBoolStructInfo(const StructInfo& sinfo, bool permit_unknown_rank,
-                      bool permit_unknown_dtype) {
-  DataType dtype;
+bool IsBoolType(const Type& ty, bool permit_unknown_rank, bool permit_unknown_dtype) {
+  DLDataType dtype;
   int ndim;
 
-  if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
-    dtype = tensor->dtype;
+  if (const auto* tensor = ty.as<TensorTypeNode>()) {
     ndim = tensor->ndim;
-  } else if (const auto* prim = sinfo.as<PrimStructInfoNode>()) {
+    if (tensor->IsUnknownDtype()) {
+      bool correct_rank = ndim == 0 || (permit_unknown_rank && ndim == -1);
+      return permit_unknown_dtype && correct_rank;
+    }
+    dtype = tensor->dtype.value()->dtype;
+  } else if (const auto* prim = ty.as<PrimTypeNode>()) {
     dtype = prim->dtype;
     ndim = 0;
   } else {
     return false;
   }
 
-  bool correct_dtype = dtype.is_bool() || (permit_unknown_dtype && dtype.is_void());
+  // Bool-type matching uses element-code-only behavior; rank is checked separately.
+  // Unknown dtype is already handled above via IsUnknownDtype().
+  bool correct_dtype = dtype.code == DLDataTypeCode::kDLBool;
   bool correct_rank = ndim == 0 || (permit_unknown_rank && ndim == -1);
   return correct_dtype && correct_rank;
 }
 
 bool IsLeafOrTuple(const Expr& expr) {
-  return expr.as<LeafExprNode>() || expr.as<GlobalVarNode>() || expr.as<ExternFuncNode>() ||
-         expr.as<OpNode>() || expr.as<TupleNode>();
+  return !expr.as<CallNode>() && !expr.as<TupleGetItemNode>() && !expr.as<SeqExprNode>() &&
+         !expr.as<IfNode>() && !expr.as<FunctionNode>();
 }
 
 bool IsImpureCall(const Call& call) {
   if (auto op_ptr = call->op.as<OpNode>()) {
     auto op = ffi::GetRef<Op>(op_ptr);
     static auto purity_map = Op::GetAttrMap<bool>("FPurity");
-    TVM_FFI_ICHECK(purity_map.count(op))
-        << "Cannot find the registered purity of this op: " << op->name;
-    return !(purity_map[op]);
+    if (purity_map.count(op)) {
+      return !(purity_map[op]);
+    }
+    static auto effect_map = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
+    TVM_FFI_ICHECK(effect_map.count(op))
+        << "Cannot find the registered purity or call effect of this op: " << op->name;
+    auto effect = static_cast<CallEffectKind>(effect_map[op]);
+    return effect > CallEffectKind::kPure;
   }
-  // the StructInfo must be FuncStructInfo
-  auto func_struct_info = GetStructInfoAs<FuncStructInfoNode>(call->op);
-  return !func_struct_info->purity;
+  // the Type must be FuncType
+  auto func_ty = GetTypeAs<FuncTypeNode>(call->op);
+  return !func_ty->purity;
 }
 
 Expr GetBoundValue(const Binding& b) {

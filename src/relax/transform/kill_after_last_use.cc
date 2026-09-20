@@ -20,13 +20,13 @@
  * \file src/relax/transform/kill_after_last_use.cc
  * \brief Kill storage/tensor objects after last use, if not already killed
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <map>
@@ -53,7 +53,7 @@ class UnusedTrivialBindingRemover : public ExprMutator {
       }
       void VisitBinding_(const MatchCastNode* binding) override {
         if (binding->value.as<VarNode>() &&
-            ffi::StructuralEqual()(GetStructInfo(binding->var), GetStructInfo(binding->value))) {
+            ffi::StructuralEqual()(GetType(binding->var), GetType(binding->value))) {
           has_trivial_binding.insert(binding->var.get());
         }
         ExprVisitor::VisitBinding_(binding);
@@ -112,20 +112,27 @@ class CollectLastUsage : public ExprVisitor {
         bool already_killed = visitor.killed_objects_.count(var);
 
         // Currently, the VM requires that objects to be killed
-        // objects only exist in VM registers.  This requires
-        // KillAfterLastUse to have more knowledge about the VM
-        // implementation than should exist at this stage of lowering.
-        // In the future, this may be handled more easily at the
-        // CodeGenVM level.
+        // only exist in VM registers. This requires KillAfterLastUse
+        // to have more knowledge about the VM implementation than
+        // should exist at this stage of lowering. In the future,
+        // this may be handled more easily at the CodeGenVM level.
+        //
+        // Variables bound to `relax.null_value` are excluded for the
+        // same reason as constants: both CodeGenVM and CodeGenVMTIR
+        // special-case `null_value` to bypass register/anylist-slot
+        // allocation, so such a variable is never a valid target for
+        // R.vm.kill_object. It is currently the only operator either
+        // codegen special-cases this way; a new special case added to
+        // either codegen should be reflected here as well.
         bool stored_in_vm_register =
-            !(visitor.constant_tensors_.count(var) || var->struct_info_.as<FuncStructInfoNode>() ||
-              var->struct_info_.as<ShapeStructInfoNode>() ||
-              var->struct_info_.as<PrimStructInfoNode>());
+            !(visitor.constant_tensors_.count(var) || visitor.null_value_objects_.count(var) ||
+              var->ty.as<FuncTypeNode>() || var->ty.as<ShapeTypeNode>() ||
+              var->ty.as<PrimTypeNode>());
 
         if (!is_output && !already_killed) {
           if (visitor.storage_objects_.count(var)) {
             output[last_usage_point].storage.push_back(var);
-          } else if (var->struct_info_.as<TensorStructInfoNode>() && stored_in_vm_register) {
+          } else if (var->ty.as<TensorTypeNode>() && stored_in_vm_register) {
             output[last_usage_point].tensors.push_back(var);
           } else if (stored_in_vm_register) {
             output[last_usage_point].objects.push_back(var);
@@ -157,6 +164,7 @@ class CollectLastUsage : public ExprVisitor {
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) override {
     static const Op& vm_alloc_storage = Op::Get("relax.vm.alloc_storage");
     static const Op& mem_alloc_storage = Op::Get("relax.memory.alloc_storage");
+    static const Op& null_value_op = Op::Get("relax.null_value");
 
     static const Op& mem_kill_tensor = Op::Get("relax.memory.kill_tensor");
     static const Op& mem_kill_storage = Op::Get("relax.memory.kill_storage");
@@ -164,6 +172,8 @@ class CollectLastUsage : public ExprVisitor {
 
     if (val->op.same_as(vm_alloc_storage) || val->op.same_as(mem_alloc_storage)) {
       storage_objects_.insert(binding->var.get());
+    } else if (val->op.same_as(null_value_op)) {
+      null_value_objects_.insert(binding->var.get());
     } else if (val->op.same_as(mem_kill_tensor) || val->op.same_as(mem_kill_storage) ||
                val->op.same_as(vm_kill_object)) {
       TVM_FFI_ICHECK_EQ(val->args.size(), 1)
@@ -179,8 +189,8 @@ class CollectLastUsage : public ExprVisitor {
     }
   }
 
-  void VisitBinding_(const VarBindingNode* binding, const ConstantNode* val) override {
-    constant_tensors_.insert(binding->var.get());
+  void VisitBinding_(const VarBindingNode* binding, const GenericConstNode* val) override {
+    if (val->value.as<runtime::Tensor>()) constant_tensors_.insert(binding->var.get());
   }
 
  private:
@@ -197,13 +207,18 @@ class CollectLastUsage : public ExprVisitor {
   std::unordered_map<const VarNode*, const VarNode*> last_usage_of_;
 
   // Storage objects, eligible for R.vm.kill_object.  This cannot be
-  // determined solely from the StructInfo, because the
-  // `R.*.alloc_storage` operators return ObjectStructInfo
+  // determined solely from the Type, because the
+  // `R.*.alloc_storage` operators return AnyType
   std::unordered_set<const VarNode*> storage_objects_;
 
   // Constants, which do not have a VM register, and may *not* have
   // R.builtin.kill_tensor called on them.
   std::unordered_set<const VarNode*> constant_tensors_;
+
+  // Variables bound to `relax.null_value`, which do not occupy a VM
+  // register in either CodeGenVM or CodeGenVMTIR, and therefore must
+  // never be passed to R.vm.kill_object.
+  std::unordered_set<const VarNode*> null_value_objects_;
 
   // Set of objects that already have a call node to kill them.  Should not have a duplicate
   std::unordered_set<const VarNode*> killed_objects_;
@@ -233,17 +248,20 @@ class KillInserter : public ExprMutator {
     if (auto it = last_usage_.find(binding->var.get()); it != last_usage_.end()) {
       static const Op& mem_kill_tensor = Op::Get("relax.memory.kill_tensor");
       for (const auto& tensor_obj : it->second.tensors) {
-        builder_->Emit(Call(mem_kill_tensor, {ffi::GetRef<Expr>(tensor_obj)}), /*name_hint=*/"_");
+        builder_->Emit(Call(Type::Missing(), mem_kill_tensor, {ffi::GetRef<Expr>(tensor_obj)}),
+                       /*name_hint=*/"_");
       }
 
       static const Op& mem_kill_storage = Op::Get("relax.memory.kill_storage");
       for (const VarNode* storage_obj : it->second.storage) {
-        builder_->Emit(Call(mem_kill_storage, {ffi::GetRef<Expr>(storage_obj)}), /*name_hint=*/"_");
+        builder_->Emit(Call(Type::Missing(), mem_kill_storage, {ffi::GetRef<Expr>(storage_obj)}),
+                       /*name_hint=*/"_");
       }
 
       static const Op& vm_kill_object = Op::Get("relax.vm.kill_object");
       for (const VarNode* obj : it->second.objects) {
-        builder_->Emit(Call(vm_kill_object, {ffi::GetRef<Expr>(obj)}), /*name_hint=*/"_");
+        builder_->Emit(Call(Type::Missing(), vm_kill_object, {ffi::GetRef<Expr>(obj)}),
+                       /*name_hint=*/"_");
       }
     }
   }
@@ -263,7 +281,7 @@ namespace transform {
 
 Pass KillAfterLastUse() {
   auto pass_func = [=](Function func, IRModule m, PassContext pc) {
-    return Downcast<Function>(relax::KillAfterLastUse(std::move(func)));
+    return relax::KillAfterLastUse(std::move(func)).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, /*opt_level=*/0, "KillAfterLastUse", {});
 }

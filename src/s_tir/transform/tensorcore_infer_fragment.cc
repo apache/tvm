@@ -24,10 +24,11 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/expr.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -40,17 +41,31 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-// Get fragment information from tensor intrinsics
-class FragmentGetter : public StmtExprVisitor {
- public:
-  void VisitExpr_(const CallNode* op) final {
-    StmtExprVisitor::VisitExpr_(op);
+const VarNode* GetBufferVarFromData(const Expr& data) {
+  if (const auto* var = data.as<VarNode>()) {
+    return var;
+  }
+  if (const auto* call = data.as<CallNode>();
+      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+    return call->args[0].as<VarNode>();
+  }
+  return nullptr;
+}
 
-    if (op->op.same_as(builtin::tvm_load_matrix_sync()) ||
-        op->op.same_as(builtin::tvm_store_matrix_sync())) {
+// Get fragment information from tensor intrinsics
+class FragmentGetter : public s_tir::StmtExprVisitor {
+ public:
+  using s_tir::StmtExprVisitor::Visit_;
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
+
+    static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
+    static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
+    static const Op& tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
+    if (op->op.same_as(tvm_load_matrix_sync_op) || op->op.same_as(tvm_store_matrix_sync_op)) {
       // Get shape and layout information from load and store intrinsic
       TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-      const VarNode* buffer_var = op->args[0].as<VarNode>();
+      const VarNode* buffer_var = GetBufferVarFromData(op->args[0]);
       TVM_FFI_ICHECK(buffer_var);
       // Get shape
       const IntImmNode* m = op->args[1].as<IntImmNode>();
@@ -76,16 +91,18 @@ class FragmentGetter : public StmtExprVisitor {
         // store metadata
         FragmentInfo info;
         if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
-          info = FragmentInfo(m->value, n->value, k->value, layout->value, scope);
+          info = FragmentInfo(m->value.as<int>().value(), n->value.as<int>().value(),
+                              k->value.as<int>().value(), layout->value, scope);
         } else if (scope == "wmma.accumulator") {
-          info = FragmentInfo(m->value, n->value, k->value, "", scope);
+          info = FragmentInfo(m->value.as<int>().value(), n->value.as<int>().value(),
+                              k->value.as<int>().value(), "", scope);
         }
         fragments[buffer_var] = info;
       }
-    } else if (op->op.same_as(builtin::tvm_fill_fragment())) {
+    } else if (op->op.same_as(tvm_fill_fragment_op)) {
       // Get shape information from fill intrinsic
       TVM_FFI_ICHECK_EQ(op->args.size(), 6U);
-      const VarNode* buffer_var = op->args[0].as<VarNode>();
+      const VarNode* buffer_var = GetBufferVarFromData(op->args[0]);
       TVM_FFI_ICHECK(buffer_var);
       // Get shape
       const IntImmNode* m = op->args[1].as<IntImmNode>();
@@ -103,14 +120,13 @@ class FragmentGetter : public StmtExprVisitor {
         TVM_FFI_ICHECK_EQ(k->value, info.k);
       } else {
         // default to row major ordering
-        FragmentInfo info(m->value, n->value, k->value, "row_major", scope);
+        FragmentInfo info(m->value.as<int>().value(), n->value.as<int>().value(),
+                          k->value.as<int>().value(), "row_major", scope);
         fragments[buffer_var] = info;
       }
     }
+    return std::nullopt;
   }
-
-  // Get memory scope
-  void VisitStmt_(const AttrStmtNode* op) final { StmtExprVisitor::VisitStmt_(op); }
 
   // Fragment metadata for all fragments
   std::unordered_map<const VarNode*, FragmentInfo> fragments;
@@ -120,28 +136,31 @@ class FragmentGetter : public StmtExprVisitor {
 
 namespace tirx {
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt) {
-  s_tir::FragmentGetter getter;
-  getter(stmt);
-  return std::move(getter.fragments);
+  auto getter = ffi::make_object<s_tir::FragmentGetter>();
+  getter->Visit(stmt);
+  return std::move(getter->fragments);
 }
 }  // namespace tirx
 
 namespace s_tir {
 
 // Check shape of fragment making sure it is a valid shape for tvm_mma_sync
-class FragmentChecker : public StmtExprVisitor {
+class FragmentChecker : public s_tir::StmtExprVisitor {
  public:
+  using s_tir::StmtExprVisitor::Visit_;
   explicit FragmentChecker(const FragmentGetter& getter) : fragment_getter(getter) {}
 
-  void VisitExpr_(const CallNode* op) final {
-    StmtExprVisitor::VisitExpr_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     // Check shape when calling tvm_mma_sync
-    if (op->op.same_as(builtin::tvm_mma_sync()) || op->op.same_as(builtin::tvm_bmma_sync())) {
+    static const Op& tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
+    static const Op& tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
+    if (op->op.same_as(tvm_mma_sync_op) || op->op.same_as(tvm_bmma_sync_op)) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-      const VarNode* buffer_var_d = op->args[0].as<VarNode>();
-      const VarNode* buffer_var_a = op->args[2].as<VarNode>();
-      const VarNode* buffer_var_b = op->args[4].as<VarNode>();
-      const VarNode* buffer_var_c = op->args[6].as<VarNode>();
+      const VarNode* buffer_var_d = GetBufferVarFromData(op->args[0]);
+      const VarNode* buffer_var_a = GetBufferVarFromData(op->args[2]);
+      const VarNode* buffer_var_b = GetBufferVarFromData(op->args[4]);
+      const VarNode* buffer_var_c = GetBufferVarFromData(op->args[6]);
       TVM_FFI_ICHECK(buffer_var_d);
       TVM_FFI_ICHECK(buffer_var_a);
       TVM_FFI_ICHECK(buffer_var_b);
@@ -152,17 +171,18 @@ class FragmentChecker : public StmtExprVisitor {
       TVM_FFI_ICHECK(CheckShape(buffer_var_d, buffer_var_b));
       TVM_FFI_ICHECK(CheckShape(buffer_var_d, buffer_var_c));
     }
+    return std::nullopt;
   }
 
  private:
   // A tool for checking shapes of two fragments
   bool CheckShape(const VarNode* buffer1, const VarNode* buffer2) {
     TVM_FFI_ICHECK(fragment_getter.fragments.count(buffer1))
-        << "Tensorecore fragment " << buffer1->name_hint
+        << "Tensorecore fragment " << buffer1->name
         << " must be filled (with tvm_fill_fragment) or loaded (with tvm_load_matrix_sync) before "
            "use.";
     TVM_FFI_ICHECK(fragment_getter.fragments.count(buffer2))
-        << "Tensorecore fragment " << buffer2->name_hint
+        << "Tensorecore fragment " << buffer2->name
         << " must be filled (with tvm_fill_fragment) or loaded (with tvm_load_matrix_sync) before "
            "use.";
     FragmentInfo info1 = fragment_getter.fragments.at(buffer1);
@@ -174,22 +194,30 @@ class FragmentChecker : public StmtExprVisitor {
 };
 
 // Store the metadata into attributes
-class InferFragmenter : public StmtMutator {
+class InferFragmenter : public s_tir::StmtExprMutator {
  public:
+  using s_tir::StmtExprMutator::Mutate;
+  using s_tir::StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   explicit InferFragmenter(const FragmentGetter& getter) : fragment_getter(getter) {}
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Stmt stmt = StmtMutator::VisitStmt_(op);
-    const VarNode* buffer = op->buffer->data.get();
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt =
+        s_tir::StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    const VarNode* buffer = op->buffer.get();
     if (fragment_getter.fragments.count(buffer)) {
       FragmentInfo info = fragment_getter.fragments.at(buffer);
 
       std::string shape =
           std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k);
-      PrimExpr shape_expr = StringImm(shape);
-      Stmt shape_attr = AttrStmt(op->buffer->data, s_tir::attr::fragment_shape, shape_expr, stmt);
+      Expr shape_expr = StringImm(shape);
+      Stmt shape_attr = AttrStmt(op->buffer.var(), s_tir::attr::fragment_shape, shape_expr, stmt);
       if (info.layout != "") {
-        Stmt layout_attr = AttrStmt(op->buffer->data, s_tir::attr::fragment_layout,
+        Stmt layout_attr = AttrStmt(op->buffer.var(), s_tir::attr::fragment_layout,
                                     StringImm(info.layout), shape_attr);
         return layout_attr;
       } else {
@@ -205,11 +233,13 @@ class InferFragmenter : public StmtMutator {
 };
 
 Stmt InferFragment(Stmt stmt) {
-  FragmentGetter getter;
-  getter(stmt);
-  FragmentChecker checker(getter);
-  checker(stmt);
-  stmt = InferFragmenter(getter)(std::move(stmt));
+  auto getter = ffi::make_object<FragmentGetter>();
+  getter->Visit(stmt);
+  auto checker = ffi::make_object<FragmentChecker>(*getter);
+  checker->Visit(stmt);
+  stmt = ffi::make_object<InferFragmenter>(*getter)
+             ->Mutate(stmt, InplaceMode::kAllow)
+             .ValueOrUnchanged(std::move(stmt));
   return stmt;
 }
 

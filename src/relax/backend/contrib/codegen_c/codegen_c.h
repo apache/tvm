@@ -282,7 +282,7 @@ class CodegenCBase {
 
     for (const auto& arg : args) {
       const auto& dtype_str = GetDtypeString(arg);
-      code_stream_ << dtype_str << "* " << arg->name_hint() << ", ";
+      code_stream_ << dtype_str << "* " << arg->name << ", ";
     }
     for (size_t i = 0; i < outs.size() - 1; ++i) {
       code_stream_ << outs[i].dtype << "* out" << i << ", ";
@@ -333,9 +333,9 @@ class CodegenCBase {
    * \return The dtype string.
    */
   std::string GetDtypeString(const Var& var) {
-    auto tsinfo = var->struct_info_.as<TensorStructInfoNode>();
-    TVM_FFI_ICHECK(tsinfo) << "Expect TensorStructInfoNode";
-    return GetDtypeString(tsinfo);
+    auto tensor_ty = var->ty.as<TensorTypeNode>();
+    TVM_FFI_ICHECK(tensor_ty) << "Expect TensorTypeNode";
+    return GetDtypeString(tensor_ty);
   }
 
   /*!
@@ -345,24 +345,25 @@ class CodegenCBase {
    *
    * \return The dtype string.
    */
-  std::string GetDtypeString(const TensorStructInfoNode* tsinfo) {
+  std::string GetDtypeString(const TensorTypeNode* tensor_ty) {
     std::string dtype;
-    if (runtime::TypeMatch(tsinfo->dtype, kDLFloat, 32)) {
+    DLDataType raw_dtype = tensor_ty->dtype.value()->dtype;
+    if (raw_dtype == DLDataType{kDLFloat, 32, 1}) {
       dtype = "float";
-    } else if (runtime::TypeMatch(tsinfo->dtype, kDLFloat, 16)) {
+    } else if (raw_dtype == DLDataType{kDLFloat, 16, 1}) {
       dtype = "half";
-    } else if (runtime::TypeMatch(tsinfo->dtype, kDLBfloat, 16)) {
+    } else if (raw_dtype == DLDataType{kDLBfloat, 16, 1}) {
       dtype = "bfloat";
-    } else if (runtime::TypeMatch(tsinfo->dtype, kDLInt, 32)) {
+    } else if (raw_dtype == DLDataType{kDLInt, 32, 1}) {
       dtype = "int";
-    } else if (runtime::TypeMatch(tsinfo->dtype, kDLInt, 64)) {
+    } else if (raw_dtype == DLDataType{kDLInt, 64, 1}) {
       dtype = "int64_t";
-    } else if (runtime::TypeMatch(tsinfo->dtype, kDLInt, 8)) {
+    } else if (raw_dtype == DLDataType{kDLInt, 8, 1}) {
       dtype = "int8_t";
-    } else if (runtime::TypeMatch(tsinfo->dtype, kDLUInt, 8)) {
+    } else if (raw_dtype == DLDataType{kDLUInt, 8, 1}) {
       dtype = "uint8_t";
     } else {
-      TVM_FFI_THROW(InternalError) << "Unsupported dtype " << tsinfo->dtype;
+      TVM_FFI_THROW(InternalError) << "Unsupported dtype " << tensor_ty->dtype;
     }
 
     return dtype;

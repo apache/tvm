@@ -21,15 +21,17 @@
  *  Lower allreduce to device implementable ir.
  * \file lower_thread_allreduce.cc
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
+#include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
 
@@ -39,49 +41,77 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
+
+namespace {
+
+ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
+  if (auto var = data.as<Var>()) {
+    return var;
+  }
+  if (const auto* call = data.as<CallNode>();
+      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+    return call->args[0].as<Var>();
+  }
+  return std::nullopt;
+}
+
+}  // namespace
 
 class ThreadAllreduceBuilder final : public StmtExprMutator {
  public:
-  explicit ThreadAllreduceBuilder(const TargetNode* target)
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
+  explicit ThreadAllreduceBuilder(const TargetNode* target, const ffi::Array<Var>& params)
       : target_(target),
         warp_size_(target->GetAttr<int64_t>("thread_warp_size", 1).value()),
-        max_num_threads_(target->GetAttr<int64_t>("max_num_threads", -1).value()) {}
+        max_num_threads_(target->GetAttr<int64_t>("max_num_threads", -1).value()) {
+    for (const Var& param : params) {
+      if (param->ty.as<BufferTypeNode>()) {
+        buffer_aliases_.Set(param, param);
+      }
+    }
+  }
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == tirx::attr::thread_extent) {
       thread_extents_.push_back(op);
-      Stmt ret = StmtExprMutator::VisitStmt_(op);
+      Stmt ret = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       thread_extents_.pop_back();
       return ret;
     } else if (op->attr_key == s_tir::attr::reduce_scope) {
-      const CommReducerNode* combiner = op->node.as<CommReducerNode>();
+      const te::CommReducerNode* combiner = op->node.as<te::CommReducerNode>();
       TVM_FFI_ICHECK(combiner);
       reduce_combiner_.push_back(combiner);
-      Stmt ret = StmtExprMutator::VisitStmt_(op);
+      Stmt ret = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       reduce_combiner_.pop_back();
       return ret;
     } else {
-      return StmtExprMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
-  Stmt VisitStmt_(const EvaluateNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<EvaluateNode>();
     const CallNode* call = op->value.as<CallNode>();
-    if (call && call->op.same_as(builtin::tvm_thread_allreduce())) {
+    if (call && call->op.same_as(tirx::builtin::tvm_thread_allreduce())) {
       return MakeAllreduce(call);
     } else {
       return stmt;
     }
   }
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    buffer_aliases_.Set(op->buffer.var(), op->buffer.var());
     // In flat IR, alloc_remap_ may not yet be populated when this AllocBuffer is visited
     // (the remap is set up by MakeAllreduce which runs during AttrStmt/Evaluate visit
     // that appears later in the sequence). We record the original data pointer and
     // attempt the remap; if it's not ready, the post-processing pass will handle it.
-    const VarNode* orig_data_ptr = op->buffer->data.get();
-    auto node = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
+    const VarNode* orig_data_ptr = op->buffer.get();
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                    .as_or_throw<AllocBuffer>();
 
     if (auto it = alloc_remap_.find(orig_data_ptr); it != alloc_remap_.end()) {
       return RemapAllocBuffer(node, it->second);
@@ -97,7 +127,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
    * \param replacement The replacement buffer.
    * \return The remapped statement(s).
    */
-  Stmt RemapAllocBuffer(AllocBuffer node, const Buffer& replacement) {
+  Stmt RemapAllocBuffer(AllocBuffer node, const BufferVar& replacement) {
     auto* cow = node.CopyOnWrite();
     cow->buffer = replacement;
     if (replacement.scope() == "shared") {
@@ -108,50 +138,60 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     return node;
   }
 
-  ffi::Optional<Buffer> GetRemappedBuffer(const Buffer& buf) {
-    if (auto it = buf_remap_.find(buf.get()); it != buf_remap_.end()) {
-      return it->second;
-    }
-
-    if (auto it = var_remap_.find(buf->data.get()); it != var_remap_.end()) {
-      Buffer new_buf = buf;
-      new_buf.CopyOnWrite()->data = it->second;
-      buf_remap_[buf.get()] = new_buf;
-      return new_buf;
+  ffi::Optional<BufferVar> GetRemappedBuffer(const BufferVar& buf) {
+    Var root = buffer_aliases_.Get(buf.var()).value_or(buf.var());
+    if (auto it = allreduce_var_remap_.find(root.get()); it != allreduce_var_remap_.end()) {
+      return BufferVar(it->second);
     }
 
     return std::nullopt;
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
-    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
-    if (auto buf = GetRemappedBuffer(node->buffer)) {
-      node.CopyOnWrite()->buffer = buf.value();
-    }
-    return node;
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
+    RegisterBufferAlias(op->buffer, op->data);
+    // Remap declarations only after the complete traversal has populated the
+    // physical-root maps.  Eagerly replacing an alias declared after its
+    // allreduce would retain the old source pointer on the new buffer.
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    if (auto it = load_remap_.find(op->buffer->data.get()); it != load_remap_.end()) {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    const VarNode* allocation =
+        GetAllocationKey(op->source.as_or_throw<tvm::tirx::BufferVar>().get());
+    if (auto it = load_remap_.find(allocation); it != load_remap_.end()) {
       for (const auto& index : op->indices) {
         TVM_FFI_ICHECK(is_zero(index));
       }
       return it->second;
     }
 
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    TensorLoad load = StmtExprMutator::Mutate_(op, inplace_mode)
+                          .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
+                          .as_or_throw<TensorLoad>();
     op = load.get();
 
-    if (auto opt = GetRemappedBuffer(load->buffer)) {
-      load.CopyOnWrite()->buffer = opt.value();
+    if (auto opt = GetRemappedBuffer(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
+      return BufferLoad(opt.value(), load->indices, load->span);
     }
     return load;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    const VarNode* allocation = GetAllocationKey(op->buffer.get());
+    BufferStore store = StmtExprMutator::Mutate_(op, inplace_mode)
+                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                            .as_or_throw<BufferStore>();
 
-    if (auto opt = GetRemappedBuffer(store->buffer)) {
+    if (auto it = load_remap_.find(allocation); it != load_remap_.end()) {
+      const auto* replacement = it->second.as<TensorLoadNode>();
+      TVM_FFI_ICHECK(replacement);
+      for (const auto& index : store->indices) {
+        TVM_FFI_ICHECK(is_zero(index));
+      }
+      auto* writer = store.CopyOnWrite();
+      writer->buffer = replacement->source.as_or_throw<tvm::tirx::BufferVar>();
+      writer->indices = replacement->indices;
+    } else if (auto opt = GetRemappedBuffer(store->buffer)) {
       store.CopyOnWrite()->buffer = opt.value();
     }
     return store;
@@ -172,7 +212,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   // make allreduce.
   Stmt MakeAllreduce(const CallNode* call) {
     TVM_FFI_ICHECK(!reduce_combiner_.empty());
-    const CommReducerNode* combiner = reduce_combiner_.back();
+    const te::CommReducerNode* combiner = reduce_combiner_.back();
     size_t size = combiner->result.size();
 
     const IntImmNode* size_of_args = call->args[0].as<IntImmNode>();
@@ -180,29 +220,31 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     TVM_FFI_ICHECK_EQ(size, size_of_args->value);
     ffi::Array<PrimExpr> inits = combiner->identity_element;
     std::vector<PrimExpr> values(size);
-    std::vector<DataType> types(size);
-    PrimExpr cond = call->args[size + 1];
+    std::vector<PrimType> dtypes;
+    dtypes.reserve(size);
+    PrimExpr cond = call->args[size + 1].as_or_throw<PrimExpr>();
     for (size_t idx = 0; idx < size; ++idx) {
-      values[idx] = call->args[1 + idx];
+      values[idx] = call->args[1 + idx].as_or_throw<PrimExpr>();
       if (!is_one(cond)) {
         values[idx] = Select(cond, values[idx], inits[idx]);
       }
-      types[idx] = values[idx].dtype();
+      dtypes.push_back(values[idx].ty());
     }
-    std::vector<Buffer> buffers(size);
+    std::vector<BufferVar> buffers(size);
     for (size_t idx = 0; idx < size; ++idx) {
-      PrimExpr arg = call->args[2 + size + idx];
+      PrimExpr arg = call->args[2 + size + idx].as_or_throw<PrimExpr>();
       // Loads from boolean buffers may have cast nodes inserted by
       // earlier passes.
       if (auto cast = arg.as<CastNode>()) {
         arg = cast->value;
       }
-      buffers[idx] = Downcast<BufferLoad>(arg)->buffer;
+      buffers[idx] = arg.as_or_throw<TensorLoad>()->source.as_or_throw<tvm::tirx::BufferVar>();
     }
 
     std::unordered_set<const VarNode*> reduce_set;
     for (size_t i = 2 + 2 * size; i < call->args.size(); ++i) {
-      const VarNode* v = call->args[i].as<VarNode>();
+      auto var = call->args[i].as<PrimVar>();
+      const VarNode* v = var.has_value() ? var.value().get() : nullptr;
       // The simply optimization replace a iteration variable with a constant
       // when extent of the iteration is 1. As threaded IterVar always started from 0,
       // we can just ignore this variable in this case.
@@ -218,7 +260,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     std::vector<ThreadEntry> vred, vpar;
     for (const AttrStmtNode* attr : thread_extents_) {
       ThreadEntry e;
-      IterVar iv = Downcast<IterVar>(attr->node);
+      IterVar iv = attr->node.as_or_throw<IterVar>();
       e.scope = runtime::ThreadScope::Create(iv->thread_tag);
       e.iv = iv;
       TVM_FFI_ICHECK_LE(e.scope.rank, 1);
@@ -226,7 +268,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       if (e.scope.rank == 1) {
         const auto* ptr = attr->value.as<IntImmNode>();
         TVM_FFI_ICHECK(ptr) << "Need constant extent for reduce set " << iv;
-        e.extent = static_cast<int>(ptr->value);
+        e.extent = ptr->value.as<int>().value();
         // ignore variables equal to 0
         if (e.extent == 1) {
           continue;
@@ -275,7 +317,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
 
     std::vector<Stmt> seq;
-    std::vector<Buffer> new_alloc_bufs;
+    std::vector<BufferVar> new_alloc_bufs;
     //
     // This is an optimization. For small reduction sizes, it may be beneficial
     // for a single warp to performance the entire reduction. No trips to shared
@@ -305,38 +347,40 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // In the second stage we use the first 16 lanes of the first warp to reduce
     // the remaining elements, and this reduction can also be optimized by
     // shuffle_down warp-level primitives.
-    PrimExpr zero_index = make_const(reduce_index->dtype, 0);
-    if (IsWarpReduction(types, group_extent, reduce_extent, contiguous_reduce_extent)) {
+    PrimExpr zero_index = IntImm(reduce_index.ty(), 0);
+    if (IsWarpReduction(dtypes, group_extent, reduce_extent, contiguous_reduce_extent)) {
       std::vector<PrimExpr> reduce_results;
-      DataType mask_dtype = DataType::UInt(32);
-      PrimExpr mask = Call(mask_dtype, builtin::tvm_warp_activemask(), {});
+      PrimExpr mask = Call(PrimType::UInt(32), tirx::builtin::tvm_warp_activemask(), {})
+                          .as_or_throw<PrimExpr>();
 
       if (reduce_extent <= warp_size_) {
         std::tie(reduce_results, new_alloc_bufs) =
-            MakeWarpAllreduce(values, types, combiner, reduce_index, reduce_extent, group_index,
+            MakeWarpAllreduce(values, dtypes, combiner, reduce_index, reduce_extent, group_index,
                               mask, std::nullopt, &seq);
 
         // Broadcast the reduction result from lane 0 to all other lanes.
         // This avoids to emit predicated stores, as all threads are
         // uniformly writing the same result.
         for (size_t i = 0; i < size; ++i) {
-          Buffer buf = Downcast<BufferLoad>(reduce_results[i])->buffer;
+          BufferVar buf = reduce_results[i]
+                              .as_or_throw<TensorLoad>()
+                              ->source.as_or_throw<tvm::tirx::BufferVar>();
           PrimExpr val = BufferLoad(buf, {zero_index});
-          TVM_FFI_ICHECK_EQ(val->dtype, types[i]);
-          PrimExpr splat = WarpShuffle(builtin::tvm_warp_shuffle(), new_alloc_bufs.back(), val,
-                                       reduce_extent * group_index);
+          TVM_FFI_ICHECK_EQ(val.ty(), dtypes[i]);
+          PrimExpr splat = WarpShuffle(tirx::builtin::tvm_warp_shuffle(), new_alloc_bufs.back(),
+                                       val, reduce_extent * group_index);
           seq.push_back(BufferStore(buf, splat, {zero_index}));
         }
       } else {
         int n_warps = reduce_extent / warp_size_;
-        std::vector<Buffer> local_bufs;
+        std::vector<BufferVar> local_bufs;
 
         // 1. Create the staging buffer in shared memory.
-        std::vector<Buffer> staging_shared_bufs;
+        std::vector<BufferVar> staging_shared_bufs;
         staging_shared_bufs.reserve(size);
         for (size_t i = 0; i < size; ++i) {
-          Buffer staging_shared_buf = decl_buffer(
-              /*shape=*/{make_const(reduce_index->dtype, n_warps * group_extent)},
+          BufferVar staging_shared_buf = decl_buffer(
+              /*shape=*/{IntImm(reduce_index.ty(), n_warps * group_extent)},
               /*dtype=*/buffers[i]->dtype, /*name=*/"red_buf_staging", /*storage_scope=*/"shared");
           staging_shared_bufs.push_back(staging_shared_buf);
           new_alloc_bufs.push_back(staging_shared_buf);
@@ -344,7 +388,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
         // 2. First round of allreduce.
         std::tie(reduce_results, local_bufs) =
-            MakeWarpAllreduce(values, types, combiner, reduce_index, warp_size_, group_index, mask,
+            MakeWarpAllreduce(values, dtypes, combiner, reduce_index, warp_size_, group_index, mask,
                               std::nullopt, &seq);
         new_alloc_bufs.insert(new_alloc_bufs.end(), local_bufs.begin(), local_bufs.end());
 
@@ -352,7 +396,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         std::vector<Stmt> write_staging_buf;
         write_staging_buf.reserve(size);
         for (size_t i = 0; i < size; ++i) {
-          new_alloc_bufs.push_back(Downcast<BufferLoad>(reduce_results[i])->buffer);
+          new_alloc_bufs.push_back(reduce_results[i]
+                                       .as_or_throw<TensorLoad>()
+                                       ->source.as_or_throw<tvm::tirx::BufferVar>());
           write_staging_buf.push_back(BufferStore(
               /*buffer=*/staging_shared_bufs[i],
               /*value=*/reduce_results[i],
@@ -369,8 +415,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
                                  /*indices=*/{group_index * n_warps + reduce_index});
         }
         std::tie(reduce_results, local_bufs) = MakeWarpAllreduce(
-            values, types, combiner, reduce_index, n_warps, group_index, mask,
-            /*predicate=*/reduce_index < make_const(reduce_index->dtype, n_warps), &seq);
+            values, dtypes, combiner, reduce_index, n_warps, group_index, mask,
+            /*predicate=*/reduce_index < IntImm(reduce_index.ty(), n_warps), &seq);
         new_alloc_bufs.insert(new_alloc_bufs.end(), local_bufs.begin(), local_bufs.end());
 
         // 5. Create shared memory buffer(s) of `group_extent` elements, storing
@@ -378,9 +424,11 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         std::vector<Stmt> write_result;
         write_result.reserve(size);
         for (size_t i = 0; i < size; ++i) {
-          new_alloc_bufs.push_back(Downcast<BufferLoad>(reduce_results[i])->buffer);
-          Buffer broadcast_shared_buf = decl_buffer(
-              /*shape=*/{make_const(reduce_index->dtype, group_extent)},
+          new_alloc_bufs.push_back(reduce_results[i]
+                                       .as_or_throw<TensorLoad>()
+                                       ->source.as_or_throw<tvm::tirx::BufferVar>());
+          BufferVar broadcast_shared_buf = decl_buffer(
+              /*shape=*/{IntImm(reduce_index.ty(), group_extent)},
               /*dtype=*/buffers[i]->dtype, /*name=*/"red_result", /*storage_scope=*/"shared");
           write_result.push_back(
               BufferStore(broadcast_shared_buf, reduce_results[i], {group_index}));
@@ -393,19 +441,21 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
       // Write back allreduce results and update existing allocations.
       for (size_t i = 0; i < size; ++i) {
-        TVM_FFI_ICHECK(!load_remap_.count(buffers[i]->data.get()));
-        Buffer buf = Downcast<BufferLoad>(reduce_results[i])->buffer;
-        TVM_FFI_ICHECK_EQ(reduce_results[i]->dtype, types[i]);
-        load_remap_[buffers[i]->data.get()] = reduce_results[i];
+        const VarNode* alloc_key = GetAllocationKey(buffers[i].get());
+        TVM_FFI_ICHECK(!load_remap_.count(alloc_key));
+        BufferVar buf =
+            reduce_results[i].as_or_throw<TensorLoad>()->source.as_or_throw<tvm::tirx::BufferVar>();
+        TVM_FFI_ICHECK_EQ(reduce_results[i].ty(), dtypes[i]);
+        load_remap_[alloc_key] = reduce_results[i];
 
         // The AllocBuffer doesn't need to be emitted here since alloc_remap_
         // will cause the existing allocation to be rewritten in VisitStmt_(AllocBufferNode*).
-        alloc_remap_[buffers[i]->data.get()] = buf;
-        var_remap_[buffers[i]->data.get()] = buf->data;
-        buf_remap_[buffers[i].get()] = buf;
+        alloc_remap_[alloc_key] = buf;
+        allreduce_var_remap_[alloc_key] = buf.var();
+        allreduce_var_remap_[buffers[i].get()] = buf.var();
       }
     } else {
-      std::vector<Buffer> shared_bufs(size);
+      std::vector<BufferVar> shared_bufs(size);
       if (reduce_extent == 1) {
         // special case, no reduction is needed.
         std::vector<Stmt> stores;
@@ -418,30 +468,32 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       // previous iteration on the same buffer.
       seq.emplace_back(SyncThread("shared"));
       for (size_t idx = 0; idx < size; ++idx) {
-        shared_bufs[idx] = decl_buffer({IntImm(group_index->dtype, group_extent * reduce_extent)},
-                                       types[idx], "red_buf" + std::to_string(idx), "shared");
+        shared_bufs[idx] = decl_buffer({IntImm(group_index.ty(), group_extent * reduce_extent)},
+                                       dtypes[idx], "red_buf" + std::to_string(idx), "shared");
         seq.emplace_back(BufferStore(shared_bufs[idx], values[idx],
                                      {BufIndex(reduce_index, group_index, reduce_extent)}));
       }
       seq.emplace_back(SyncThread("shared"));
-      seq.emplace_back(MakeBufAllreduce(combiner, types, shared_bufs, reduce_index, group_index,
+      seq.emplace_back(MakeBufAllreduce(combiner, dtypes, shared_bufs, reduce_index, group_index,
                                         reduce_extent, group_extent, contiguous_reduce_extent));
       for (size_t idx = 0; idx < size; ++idx) {
-        TVM_FFI_ICHECK(!load_remap_.count(buffers[idx]->data.get()));
-        PrimExpr pred = const_true(types[idx].lanes());
-        BufferLoad load(shared_bufs[idx],
-                        {BufIndex(make_zero(reduce_index.dtype()), group_index, reduce_extent)});
-        TVM_FFI_ICHECK_EQ(load->dtype, types[idx]);
-        load_remap_[buffers[idx]->data.get()] = load;
-        alloc_remap_[buffers[idx]->data.get()] = shared_bufs[idx];
-        var_remap_[buffers[idx]->data.get()] = shared_bufs[idx]->data;
-        buf_remap_[buffers[idx].get()] = shared_bufs[idx];
+        const VarNode* alloc_key = GetAllocationKey(buffers[idx].get());
+        TVM_FFI_ICHECK(!load_remap_.count(alloc_key));
+        PrimExpr pred =
+            prim::MakeConst(PrimType::Bool(static_cast<int16_t>(dtypes[idx].lanes())), true);
+        TensorLoad load = BufferLoad(
+            shared_bufs[idx], {BufIndex(IntImm(reduce_index.ty(), 0), group_index, reduce_extent)});
+        TVM_FFI_ICHECK_EQ(load.ty(), dtypes[idx]);
+        load_remap_[alloc_key] = load;
+        alloc_remap_[alloc_key] = shared_bufs[idx];
+        allreduce_var_remap_[alloc_key] = shared_bufs[idx].var();
+        allreduce_var_remap_[buffers[idx].get()] = shared_bufs[idx].var();
       }
     }
 
     // Fix all local allocations as all statements are built.
     ffi::Array<Stmt> alloc_stmts;
-    for (Buffer buf : new_alloc_bufs) {
+    for (BufferVar buf : new_alloc_bufs) {
       alloc_stmts.push_back(AllocBuffer(buf));
     }
     // Prepend allocations before the sequence
@@ -453,18 +505,18 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     return body;
   }
 
-  std::pair<std::vector<PrimExpr>, std::vector<Buffer>> MakeWarpAllreduce(
+  std::pair<std::vector<PrimExpr>, std::vector<BufferVar>> MakeWarpAllreduce(
       std::vector<PrimExpr> src_values,                  //
-      std::vector<DataType> dtypes,                      //
-      const CommReducerNode* combiner,                   //
+      std::vector<PrimType> dtypes,                      //
+      const te::CommReducerNode* combiner,               //
       PrimExpr reduce_index, int reduce_extent,          //
       PrimExpr group_index,                              //
       PrimExpr mask, ffi::Optional<PrimExpr> predicate,  //
       std::vector<Stmt>* seq) {
     int n_buffers = src_values.size();
 
-    std::vector<Buffer> shared_bufs;
-    std::vector<Buffer> local_bufs;
+    std::vector<BufferVar> shared_bufs;
+    std::vector<BufferVar> local_bufs;
     shared_bufs.reserve(n_buffers);
 
     // This is the index to the reduction variable, one reduction
@@ -485,7 +537,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       local_bufs.push_back(decl_buffer(shape, dtypes[idx], "t" + std::to_string(idx), "local"));
     }
 
-    if (predicate.defined()) {
+    if (predicate.has_value()) {
       seq->push_back(IfThenElse(predicate.value(), SeqStmt::Flatten(load_values)));
     } else {
       seq->insert(seq->end(), load_values.begin(), load_values.end());
@@ -494,9 +546,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // The mask for this reducer, as this reducer may sit inside
     // a divergent control flow. Here it uses a variable to cache the current
     // active channels.
-    ffi::Optional<Buffer> mask_buffer;
+    ffi::Optional<BufferVar> mask_buffer;
     if (need_warp_shuffle_mask_) {
-      mask_buffer = decl_buffer(shape, mask->dtype, "mask", "local");
+      mask_buffer = decl_buffer(shape, mask.ty(), "mask", "local");
       seq->emplace_back(BufferStore(mask_buffer.value(), mask, zero_indices));
       // Push the buffer description.  Later this will have an
       // allocation built for it.
@@ -512,9 +564,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       // Load reduction values, no synchronization needed.
       ffi::Array<PrimExpr> a, b;
       for (int i = 0; i < n_buffers; ++i) {
-        Buffer shared_buf = shared_bufs[i];
-        BufferLoad val(shared_buf, zero_indices);
-        TVM_FFI_ICHECK_EQ(val->dtype, dtypes[i]);
+        BufferVar shared_buf = shared_bufs[i];
+        TensorLoad val = BufferLoad(shared_buf, zero_indices);
+        TVM_FFI_ICHECK_EQ(val.ty(), dtypes[i]);
         a.push_back(val);
 
         // __shfl_*sync calls shall not appear in if_then_else expressions
@@ -529,13 +581,14 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         //
         // The former may cause dead lock as there is a divergent
         // branch with a warp sync call inside.
-        PrimExpr other = WarpShuffle(builtin::tvm_warp_shuffle_down(), mask_buffer, val, offset);
-        Buffer local_buf = local_bufs[i];
+        PrimExpr other =
+            WarpShuffle(tirx::builtin::tvm_warp_shuffle_down(), mask_buffer, val, offset);
+        BufferVar local_buf = local_bufs[i];
         Stmt s = BufferStore(local_buf, other, zero_indices);
         seq->push_back(s);
 
-        BufferLoad load = BufferLoad(local_buf, zero_indices);
-        TVM_FFI_ICHECK_EQ(load->dtype, dtypes[i]);
+        TensorLoad load = BufferLoad(local_buf, zero_indices);
+        TVM_FFI_ICHECK_EQ(load.ty(), dtypes[i]);
         b.push_back(load);
       }
 
@@ -546,7 +599,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       std::vector<Stmt> stores;
       stores.reserve(n_buffers);
       for (int i = 0; i < n_buffers; ++i) {
-        Buffer buf = shared_bufs[i];
+        BufferVar buf = shared_bufs[i];
         stores.push_back(BufferStore(buf, ret[i], zero_indices));
       }
 
@@ -574,8 +627,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
 
   // make allreduce.
-  Stmt MakeBufAllreduce(const CommReducerNode* combiner, const std::vector<DataType>& types,
-                        const ffi::Array<Buffer>& shared_bufs, PrimExpr reduce_index,
+  Stmt MakeBufAllreduce(const te::CommReducerNode* combiner, const std::vector<PrimType>& dtypes,
+                        const ffi::Array<BufferVar>& shared_bufs, PrimExpr reduce_index,
                         PrimExpr group_index, int reduce_extent, int group_extent,
                         int contiguous_reduce_extent) {
     // Get next power of two
@@ -592,13 +645,13 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     auto fload = [&](int offset) {
       ffi::Array<PrimExpr> a, b;
       for (size_t i = 0; i < size; ++i) {
-        BufferLoad b_load(shared_bufs[i],
-                          {BufIndex(reduce_index + offset, group_index, reduce_extent)});
-        TVM_FFI_ICHECK_EQ(b_load->dtype, types[i]);
+        TensorLoad b_load = BufferLoad(
+            shared_bufs[i], {BufIndex(reduce_index + offset, group_index, reduce_extent)});
+        TVM_FFI_ICHECK_EQ(b_load.ty(), dtypes[i]);
         b.push_back(b_load);
 
-        BufferLoad a_load(shared_bufs[i], {buf_index});
-        TVM_FFI_ICHECK_EQ(a_load->dtype, types[i]);
+        TensorLoad a_load = BufferLoad(shared_bufs[i], {buf_index});
+        TVM_FFI_ICHECK_EQ(a_load.ty(), dtypes[i]);
         a.push_back(a_load);
       }
       ffi::Array<PrimExpr> ret = (*combiner)(a, b);
@@ -658,14 +711,15 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         for (auto expr : loads) {
           Var var(
               "w_" + std::to_string(reduce_align) + "_" + std::to_string(in_warp_local_vars.size()),
-              expr->dtype);
+              expr.ty());
           in_warp_local_vars.push_back(var);
         }
 
         std::vector<Stmt> in_let_statement;
         in_let_statement.emplace_back(SyncThread("warp"));
-        in_let_statement.emplace_back(
-            fstore({in_warp_local_vars.begin(), in_warp_local_vars.end()}));
+        ffi::Array<PrimExpr> prim_in_warp_local_vars =
+            in_warp_local_vars.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
+        in_let_statement.emplace_back(fstore(prim_in_warp_local_vars));
         in_let_statement.emplace_back(SyncThread("warp"));
 
         ffi::Array<Stmt> bind_stmts;
@@ -692,7 +746,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     int& total_extent = *out_total_extent;
     total_extent = 1;
     if (tvec.size() == 0) {
-      return make_zero(DataType::Int(32));
+      return IntImm::Int32(0);
     }
 
     PrimExpr ret;
@@ -717,29 +771,30 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
   // sync thread op.
   static Stmt SyncThread(const std::string& sync) {
-    return Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(), {StringImm(sync)}));
+    return Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(), {StringImm(sync)})
+                        .as_or_throw<PrimExpr>());
   }
 
   // Emit warp shuffle  calls.
-  PrimExpr WarpShuffle(const Op& op, ffi::Optional<Buffer> mask_buffer, PrimExpr val,
+  PrimExpr WarpShuffle(const Op& op, ffi::Optional<BufferVar> mask_buffer, PrimExpr val,
                        PrimExpr delta_or_lane) {
     ffi::Array<PrimExpr> indices = {0};
     PrimExpr mask;
-    if (mask_buffer.defined()) {
+    if (mask_buffer.has_value()) {
       mask = BufferLoad(mask_buffer.value(), indices);
     } else {
-      mask = IntImm(DataType::Int(32), 0);
+      mask = IntImm::Int32(0);
     }
-    PrimExpr width = IntImm(DataType::Int(32), warp_size_);
+    PrimExpr width = IntImm::Int32(warp_size_);
     ffi::Array<PrimExpr> args{mask, val, delta_or_lane, width, width};
-    return Call(val.dtype(), op, args);
+    return Call(val.ty(), op, args).as_or_throw<PrimExpr>();
   }
 
   // Check if we can use warp level reduction.
   //
   // Note: The ROCm backend will only have warp reductions for now.
   // Also, the warp/wavefront size differs (64 on rocm, 32 on cuda and metal).
-  bool IsWarpReduction(const std::vector<DataType>& types, int group_extent, int reduce_extent,
+  bool IsWarpReduction(const std::vector<PrimType>& dtypes, int group_extent, int reduce_extent,
                        int contiguous_reduce_extent) {
     if ((target_->kind->name != "cuda") && (target_->kind->name != "rocm") &&
         (target_->kind->name != "metal") && (target_->kind->name != "webgpu")) {
@@ -750,19 +805,22 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
     // rocm only supports 32 bit operands for shuffling at the moment
     if ((target_->kind->name == "rocm") &&
-        (std::any_of(types.begin(), types.end(), [](DataType ty) {
-          if (ty.is_fixed_length_vector()) return ty.bits() * ty.lanes() != 32;
-          return ty.bits() != 32;
+        (std::any_of(dtypes.begin(), dtypes.end(), [](const PrimType& dtype) {
+          int16_t lanes = static_cast<int16_t>(dtype.lanes());
+          if (lanes > 1) return dtype.bits() * lanes != 32;
+          return dtype.bits() != 32;
         }))) {
       return false;
     }
 
     // Supported types:
     // {u}int, {u}long, {u}long long, float, double, half/half2
-    if (std::any_of(types.begin(), types.end(), [](DataType ty) {
-          if (ty.is_float16()) return ty.lanes() > 2;
-          if (ty.is_fixed_length_vector()) return true;
-          return ty.bytes() < 4 || ty.bytes() > 8;
+    if (std::any_of(dtypes.begin(), dtypes.end(), [](const PrimType& dtype) {
+          int16_t lanes = static_cast<int16_t>(dtype.lanes());
+          if (dtype.MatchesCode(kDLFloat) && dtype.bits() == 16) return lanes > 2;
+          if (lanes > 1) return true;
+          int bytes = dtype.StorageBytes();
+          return bytes < 4 || bytes > 8;
         })) {
       return false;
     }
@@ -795,6 +853,18 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
   }
 
+  void RegisterBufferAlias(BufferVar buffer, const Expr& data) {
+    Var root = buffer.var();
+    if (auto source = GetBufferDataVar(data);
+        source.has_value() && source.value()->ty.as<BufferTypeNode>()) {
+      auto source_root = buffer_aliases_.Get(source.value());
+      TVM_FFI_ICHECK(source_root.has_value()) << "Buffer alias source " << source.value()->name
+                                              << " must be registered before its DeclBuffer alias";
+      root = source_root.value();
+    }
+    buffer_aliases_.Set(buffer.var(), root);
+  }
+
   // The target.
   const TargetNode* target_ = nullptr;
 
@@ -807,22 +877,30 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
   // surrounding scope of thread extent.
   std::vector<const AttrStmtNode*> thread_extents_;
-  std::vector<const CommReducerNode*> reduce_combiner_;
+  std::vector<const te::CommReducerNode*> reduce_combiner_;
   // The load remap
   std::unordered_map<const VarNode*, PrimExpr> load_remap_;
   // Internal analyzer
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 
  public:
+  const VarNode* GetAllocationKey(const VarNode* buffer) const {
+    if (buffer->ty.as<BufferTypeNode>()) {
+      Var var = ffi::GetRef<Var>(buffer);
+      return buffer_aliases_.Get(var).value_or(var).get();
+    }
+    return buffer;
+  }
+
   // These members are public for post-processing by DeferredRemapper.
   // Allocate remap
-  std::unordered_map<const VarNode*, Buffer> alloc_remap_;
+  std::unordered_map<const VarNode*, BufferVar> alloc_remap_;
   // BufferVar remap
-  std::unordered_map<const VarNode*, Var> var_remap_;
-  // Buffer remap
-  std::unordered_map<const BufferNode*, Buffer> buf_remap_;
+  std::unordered_map<const VarNode*, Var> allreduce_var_remap_;
   // Pending AllocBuffer original data pointers (for flat IR deferred remapping)
   std::vector<const VarNode*> pending_alloc_buffers_;
+  // Physical roots of buffer aliases, flattened at each declaration.
+  ffi::Map<Var, Var> buffer_aliases_;
 };
 
 namespace transform {
@@ -832,16 +910,21 @@ namespace transform {
  *
  * In flat IR, AllocBuffer nodes may be visited before the alloc_remap_ is populated
  * (since MakeAllreduce runs when Evaluate is visited, which is later in the flat sequence).
- * Handles AllocBuffer, DeclBuffer, and BufferLoad nodes whose remappings
+ * Handles AllocBuffer, DeclBuffer, and TensorLoad nodes whose remappings
  * were not available during the main traversal.
  */
 class DeferredRemapper : public StmtExprMutator {
  public:
-  DeferredRemapper(const std::unordered_map<const VarNode*, Buffer>& alloc_remap,
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
+  DeferredRemapper(const std::unordered_map<const VarNode*, BufferVar>& alloc_remap,
                    const std::unordered_map<const VarNode*, Var>& var_remap,
-                   const std::unordered_map<const BufferNode*, Buffer>& buf_remap,
+                   const ffi::Map<Var, Var>& buffer_aliases,
                    const std::vector<const VarNode*>& pending)
-      : alloc_remap_(alloc_remap), var_remap_(var_remap), buf_remap_(buf_remap) {
+      : alloc_remap_(alloc_remap),
+        allreduce_var_remap_(var_remap),
+        buffer_aliases_(buffer_aliases) {
     for (const VarNode* ptr : pending) {
       pending_set_.insert(ptr);
     }
@@ -854,12 +937,14 @@ class DeferredRemapper : public StmtExprMutator {
     return false;
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    auto node = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
-    const VarNode* data_ptr = op->buffer->data.get();
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                    .as_or_throw<AllocBuffer>();
+    const VarNode* data_ptr = op->buffer.get();
     if (pending_set_.count(data_ptr)) {
       if (auto it = alloc_remap_.find(data_ptr); it != alloc_remap_.end()) {
-        const Buffer& replacement = it->second;
+        const BufferVar& replacement = it->second;
         auto* cow = node.CopyOnWrite();
         cow->buffer = replacement;
         if (replacement.scope() == "shared") {
@@ -872,15 +957,14 @@ class DeferredRemapper : public StmtExprMutator {
     return node;
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
-    // If the DeclBuffer's original data var was remapped by alloc_remap_,
-    // the corresponding AllocBuffer was also remapped, making this DeclBuffer
-    // redundant. Remove it by replacing with a no-op.
-    const VarNode* orig_data = op->buffer->data.get();
-    if (pending_set_.count(orig_data) && alloc_remap_.count(orig_data)) {
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
+    const VarNode* root = buffer_aliases_.Get(op->buffer.var()).value_or(op->buffer.var()).get();
+    if (pending_set_.count(root) && alloc_remap_.count(root)) {
       return Evaluate(0);
     }
-    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                    .as_or_throw<DeclBuffer>();
     if (auto new_buf = GetRemappedBuffer(node->buffer)) {
       node.CopyOnWrite()->buffer = new_buf.value();
     }
@@ -888,21 +972,17 @@ class DeferredRemapper : public StmtExprMutator {
   }
 
  private:
-  ffi::Optional<Buffer> GetRemappedBuffer(const Buffer& buf) {
-    if (auto it = buf_remap_.find(buf.get()); it != buf_remap_.end()) {
-      return it->second;
-    }
-    if (auto it = var_remap_.find(buf->data.get()); it != var_remap_.end()) {
-      Buffer new_buf = buf;
-      new_buf.CopyOnWrite()->data = it->second;
-      return new_buf;
+  ffi::Optional<BufferVar> GetRemappedBuffer(const BufferVar& buf) {
+    Var root = buffer_aliases_.Get(buf.var()).value_or(buf.var());
+    if (auto it = allreduce_var_remap_.find(root.get()); it != allreduce_var_remap_.end()) {
+      return BufferVar(it->second);
     }
     return std::nullopt;
   }
 
-  const std::unordered_map<const VarNode*, Buffer>& alloc_remap_;
-  const std::unordered_map<const VarNode*, Var>& var_remap_;
-  const std::unordered_map<const BufferNode*, Buffer>& buf_remap_;
+  const std::unordered_map<const VarNode*, BufferVar>& alloc_remap_;
+  const std::unordered_map<const VarNode*, Var>& allreduce_var_remap_;
+  const ffi::Map<Var, Var>& buffer_aliases_;
   std::unordered_set<const VarNode*> pending_set_;
 };
 
@@ -910,16 +990,16 @@ Pass LowerThreadAllreduce() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
-    TVM_FFI_ICHECK(target.defined()) << "LowerThreadAllreduce: Require the target attribute";
+    TVM_FFI_ICHECK(target.has_value()) << "LowerThreadAllreduce: Require the target attribute";
     const TargetNode* target_node = target.as<TargetNode>();
-    ThreadAllreduceBuilder thread_all_reduce(target_node);
-    n->body = thread_all_reduce(n->body);
+    auto thread_all_reduce = ffi::make_object<ThreadAllreduceBuilder>(target_node, f->params);
+    n->body = thread_all_reduce->Mutate(n->body).ValueOrUnchanged(n->body);
     // Post-process: apply deferred remappings for flat IR
-    DeferredRemapper remapper(thread_all_reduce.alloc_remap_, thread_all_reduce.var_remap_,
-                              thread_all_reduce.buf_remap_,
-                              thread_all_reduce.pending_alloc_buffers_);
-    if (remapper.HasPendingRemaps()) {
-      n->body = remapper(n->body);
+    auto remapper = ffi::make_object<DeferredRemapper>(
+        thread_all_reduce->alloc_remap_, thread_all_reduce->allreduce_var_remap_,
+        thread_all_reduce->buffer_aliases_, thread_all_reduce->pending_alloc_buffers_);
+    if (remapper->HasPendingRemaps()) {
+      n->body = remapper->Mutate(n->body).ValueOrUnchanged(n->body);
     }
     return f;
   };

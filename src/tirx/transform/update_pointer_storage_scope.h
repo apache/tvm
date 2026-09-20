@@ -24,7 +24,7 @@
 #ifndef TVM_TIR_TRANSFORM_UPDATE_POINTER_STORAGE_SCOPE_H_
 #define TVM_TIR_TRANSFORM_UPDATE_POINTER_STORAGE_SCOPE_H_
 
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -35,23 +35,13 @@ namespace tirx {
 
 class UpdatePointerStorageScope : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate_;
+
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final;
+
   explicit UpdatePointerStorageScope(
-      const std::unordered_map<const VarNode*, ffi::String>& new_storage_scopes);
-
-  virtual PrimExpr VisitExpr_(const VarNode*);
-  virtual PrimExpr VisitExpr_(const BufferLoadNode*);
-  virtual Stmt VisitStmt_(const AllocBufferNode*);
-  virtual Stmt VisitStmt_(const DeclBufferNode*);
-  virtual Stmt VisitStmt_(const BufferStoreNode*);
-
- private:
-  template <typename Node>
-  Node UpdateBufferAccess(Node node);
-
-  Buffer GetUpdatedBuffer(Buffer buf);
-
-  std::unordered_map<const VarNode*, Var> new_var_remap_;
-  std::unordered_map<const BufferNode*, Buffer> new_buffer_remap_;
+      const std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
+          new_storage_scopes);
 };
 
 }  // namespace tirx

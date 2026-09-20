@@ -41,7 +41,8 @@ using backend::contrib::NodeEntries;
 
 class DNNLJSONSerializer : public JSONSerializer {
  public:
-  DNNLJSONSerializer(ffi::Map<Constant, ffi::String> constant_names, ffi::Map<Var, Expr> bindings)
+  DNNLJSONSerializer(ffi::Map<GenericConst, ffi::String> constant_names,
+                     ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
   using JSONSerializer::VisitExpr_;
@@ -49,7 +50,7 @@ class DNNLJSONSerializer : public JSONSerializer {
   NodeEntries VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
     TVM_FFI_ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    const auto fn = bindings_[ffi::GetRef<Var>(fn_var)].as_or_throw<Function>();
     TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
     auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
@@ -84,7 +85,7 @@ class DNNLJSONSerializer : public JSONSerializer {
 
 ffi::Array<ffi::Module> DNNLCompiler(ffi::Array<Function> functions,
                                      ffi::Map<ffi::String, ffi::Any> /*unused*/,
-                                     ffi::Map<Constant, ffi::String> constant_names) {
+                                     ffi::Map<GenericConst, ffi::String> constant_names) {
   ffi::Array<ffi::Module> compiled_functions;
 
   for (const auto& func : functions) {

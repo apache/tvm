@@ -42,8 +42,8 @@ DeviceMesh::DeviceMesh(ffi::Shape shape, ffi::Array<int64_t> device_ids) {
 DeviceMesh::DeviceMesh(ffi::Shape shape, Range device_range) {
   ffi::ObjectPtr<DeviceMeshNode> n = ffi::make_object<DeviceMeshNode>();
   ffi::Array<int64_t> device_ids;
-  int range_start = device_range->min.as<IntImmNode>()->value;
-  int range_extent = device_range->extent.as<IntImmNode>()->value;
+  int range_start = device_range->min.as<IntImmNode>()->value.as<int>().value();
+  int range_extent = device_range->extent.as<IntImmNode>()->value.as<int>().value();
   for (int i = range_start; i < range_start + range_extent; i++) {
     device_ids.push_back(i);
   }
@@ -64,7 +64,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "relax.distributed.DeviceMesh",
       [](ffi::Shape shape, ffi::Array<int64_t> device_ids, ffi::Optional<Range> device_range) {
-        if (device_range.defined())
+        if (device_range.has_value())
           return DeviceMesh(shape, device_range.value());
         else
           return DeviceMesh(shape, device_ids);

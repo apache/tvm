@@ -21,6 +21,7 @@ Runtime error tests are in tests/python/codegen/test_codegen_error_handling.py.
 """
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -37,7 +38,7 @@ def _find_compute_scope(func):
             nonlocal result
             result = stmt
 
-    tirx.stmt_functor.post_order_visit(func.body, _visitor)
+    tvm_ffi.structural_walk(func.body, _visitor)
 
     return result
 
@@ -193,6 +194,43 @@ def test_zero_arg_function():
 
     After = tvm.tirx.transform.MakePackedAPI()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_pointer_return():
+    """Pointer returns are stored as an opaque pointer in TVMFFIAny."""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(arg: T.handle) -> T.handle:
+            T.func_attr({"target": T.target("llvm", host="llvm")})
+            return arg
+
+    after = tvm.tirx.transform.MakePackedAPI()(Before)["main"]
+    return_type_indices = []
+
+    def collect(node):
+        if not isinstance(node, tvm.ir.Call) or node.op.name != "tirx.tvm_struct_set":
+            return
+        field = node.args[2]
+        if isinstance(field, tvm.tirx.IntImm) and int(field) == 13:
+            return_type_indices.append(int(node.args[3]))
+
+    tvm_ffi.structural_walk(after.body, collect)
+    assert 4 in return_type_indices  # ffi::TypeIndex::kTVMFFIOpaquePtr
+
+
+def test_return_from_parallel_scope_is_rejected():
+    """A parallel loop cannot return from its enclosing function."""
+
+    i = tirx.Var("i", "int32")
+    body = tirx.For(i, 0, 1, tirx.ForKind.PARALLEL, tirx.Return(i))
+    func = tirx.PrimFunc([], body, tvm.ir.PrimType("int32"))
+    func = func.with_attr("global_symbol", "main")
+    func = func.with_attr("target", tvm.target.Target("llvm", host="llvm"))
+
+    with pytest.raises(tvm.error.InternalError, match="Return cannot be used in parallel scope"):
+        tvm.tirx.transform.MakePackedAPI()(tvm.IRModule({"main": func}))
 
 
 def test_int_parameter():
@@ -423,6 +461,31 @@ def test_forward_reference_symbolic_variable():
     # Should not raise "variable batch_size has been used before definition"
     After = tvm.tirx.transform.MakePackedAPI()(Before)
     assert len(After["main"].params) == 4
+
+
+def test_buffer_alignment_attached_to_buffer_var():
+    """Packed ABI alignment metadata remains keyed by the logical BufferVar."""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((16,), "float32", align=64)):
+            T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
+            T.evaluate(A[0])
+
+    after = tvm.tirx.transform.MakePackedAPI()(Before)["main"]
+    alignment_nodes = []
+    declared_buffers = []
+
+    def collect(node):
+        if isinstance(node, tirx.AttrStmt) and node.attr_key == "storage_alignment":
+            alignment_nodes.append(node.node)
+        if isinstance(node, tirx.DeclBuffer):
+            declared_buffers.append(node.buffer)
+
+    tvm_ffi.structural_walk(after.body, collect)
+    assert len(alignment_nodes) == 1
+    assert any(alignment_nodes[0].same_as(buffer) for buffer in declared_buffers)
 
 
 if __name__ == "__main__":

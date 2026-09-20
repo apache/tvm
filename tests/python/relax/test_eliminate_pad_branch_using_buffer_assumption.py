@@ -121,7 +121,7 @@ class AddBefore:
         out = R.call_tir(
             AddBefore.add,
             (a, b),
-            out_sinfo=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
+            out_ty=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
         )
         return out
 
@@ -223,7 +223,7 @@ class AddExpected:
         out = R.call_tir(
             AddExpected.add,
             (a, b),
-            out_sinfo=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
+            out_ty=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
         )
         return out
 
@@ -320,7 +320,7 @@ class SubBefore:
         out = R.call_tir(
             SubBefore.sub,
             (a, b),
-            out_sinfo=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
+            out_ty=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
         )
         return out
 
@@ -422,7 +422,7 @@ class SubExpected:
         out = R.call_tir(
             SubExpected.sub,
             (a, b),
-            out_sinfo=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
+            out_ty=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
         )
         return out
 
@@ -519,7 +519,7 @@ class MulBefore:
         out = R.call_tir(
             MulBefore.mul,
             (a, b),
-            out_sinfo=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
+            out_ty=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
         )
         return out
 
@@ -621,7 +621,7 @@ class MulExpected:
         out = R.call_tir(
             MulExpected.mul,
             (a, b),
-            out_sinfo=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
+            out_ty=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
         )
         return out
 

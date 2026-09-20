@@ -18,11 +18,11 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt.h>
-
-#include "../../arith/ir_visitor_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
@@ -34,25 +34,28 @@ inline bool IsVtcmStorage(std::string scope) {
 
 class VtcmAllocator : public StmtExprMutator {
  public:
-  using StmtExprMutator::VisitStmt_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   VtcmAllocator() {}
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    std::string storage_scope = GetStorageScope(op->buffer->data);
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    std::string storage_scope = op->buffer.scope();
     if (IsVtcmStorage(storage_scope)) {
-      ffi::Array<PrimExpr> args;
+      ffi::Array<Expr> args;
       args.push_back(StringImm(storage_scope));
-      args.push_back(IntImm(DataType::Int(64), op->buffer->shape.size()));
-      args.push_back(Call(DataType::Handle(), builtin::tvm_stack_make_shape(), op->buffer->shape));
-      return Bind(op->buffer->data,
-                  Call(op->buffer->data.dtype(), builtin::nd_mem_alloc_with_scope(), args));
+      args.push_back(IntImm::Int64(op->buffer->shape.size()));
+      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
+                          op->buffer->shape));
+      return DeclBuffer(op->buffer, Call(op->buffer.DataPointerType(),
+                                         tirx::builtin::nd_mem_alloc_with_scope(), args));
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  protected:
   std::string GetStorageScope(const Var& var) {
-    auto* ptr = var->type_annotation.as<PointerTypeNode>();
+    auto* ptr = var->ty.as<PointerTypeNode>();
     TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
     return ptr->storage_scope;
   }
@@ -60,7 +63,9 @@ class VtcmAllocator : public StmtExprMutator {
 
 PrimFunc LowerVtcmAlloc(PrimFunc func) {
   auto fptr = func.CopyOnWrite();
-  fptr->body = VtcmAllocator()(std::move(fptr->body));
+  fptr->body = ffi::make_object<VtcmAllocator>()
+                   ->Mutate(fptr->body, InplaceMode::kAllow)
+                   .ValueOrUnchanged(std::move(fptr->body));
   return func;
 }
 

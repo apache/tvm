@@ -28,6 +28,7 @@ from tvm.runtime import ShapeTuple
 from tvm.runtime import disco as di
 from tvm.script import tirx as T
 from tvm.support.popen_pool import PopenWorker
+from tvm.testing import env
 
 NUM_WORKERS = 4
 
@@ -61,6 +62,8 @@ def create_nvshmem_array(sess, shape, dtype, init_data_fn=None, zero_out=True):
     return arr
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.skip(reason="nvshmem doesn't work with pytest")
 def test_codegen_nvshmem():
     def _test_func():
@@ -291,12 +294,19 @@ def test_codegen_nvshmem():
         finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
         finalize_dfunc()
         sess.sync_worker_0()
+        sess.shutdown()
         return True
 
-    p = PopenWorker()
-    p.send(_test_func)
-    assert p.recv()
+    def run_and_check():
+        worker = PopenWorker()
+        try:
+            worker.send(_test_func)
+            assert worker.recv()
+        finally:
+            worker.kill()
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
-    test_codegen_nvshmem()
+    tvm.testing.main()

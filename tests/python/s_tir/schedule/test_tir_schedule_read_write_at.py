@@ -37,6 +37,7 @@ import sys
 import pytest
 
 import tvm
+import tvm.testing
 from tvm import tirx
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,

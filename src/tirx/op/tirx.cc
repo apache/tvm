@@ -24,7 +24,7 @@
 
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
-#include <tvm/tirx/tirx_op.h>
+#include <tvm/tirx/tile_primitive.h>
 
 namespace tvm {
 namespace tirx {
@@ -54,13 +54,13 @@ Value getOrSetDefault(ffi::Map<ffi::String, ffi::ObjectRef>& m, const Key& key,
     m.Set(key, defaultValue);
     return defaultValue;
   }
-  return Downcast<Value>((*it).second);
+  return (*it).second.template as_or_throw<Value>();
 }
 
 /********************* DispatchContext **********************/
 
-void DispatchContextNode::AddAllocBuffer(Buffer buffer) {
-  auto buffers = getOrSetDefault(callbacks, callback::kPrivateAlloc, ffi::Array<Buffer>());
+void DispatchContextNode::AddAllocBuffer(BufferVar buffer) {
+  auto buffers = getOrSetDefault(callbacks, callback::kPrivateAlloc, ffi::Array<BufferVar>());
   buffers.push_back(buffer);
   callbacks.Set(callback::kPrivateAlloc, buffers);
 }
@@ -72,9 +72,9 @@ void DispatchContextNode::AddInitStmt(Stmt stmt, bool host) {
   callbacks.Set(tag, stmts);
 }
 
-void DispatchContextNode::AddPostBufferDefStmt(Buffer buffer, Stmt stmt) {
+void DispatchContextNode::AddPostBufferDefStmt(BufferVar buffer, Stmt stmt) {
   auto mapping = getOrSetDefault(callbacks, callback::kPostBufferDefStmt,
-                                 ffi::Map<Buffer, ffi::Array<Stmt>>());
+                                 ffi::Map<BufferVar, ffi::Array<Stmt>>());
   auto it = mapping.find(buffer);
   ffi::Array<Stmt> stmts;
   if (it != mapping.end()) {
@@ -145,6 +145,7 @@ TIRX_DEFINE_TILE_OP(zero);
 TIRX_DEFINE_TILE_OP(sqrt);
 TIRX_DEFINE_TILE_OP(exp);
 TIRX_DEFINE_TILE_OP(exp2);
+TIRX_DEFINE_TILE_OP(log2);
 TIRX_DEFINE_TILE_OP(add);
 TIRX_DEFINE_TILE_OP(sub);
 TIRX_DEFINE_TILE_OP(mul);

@@ -17,7 +17,7 @@
 """The entry point of TVM parser."""
 
 import inspect
-from typing import Any
+from typing import Any, TypeVar
 
 import tvm
 
@@ -62,6 +62,7 @@ def _default_globals() -> dict[str, Any]:
         "Tx": _tirx_tile,
         "tirx": _tirx_dsl,
         "Axis": _tirx_layout.Axis,
+        "TypeVar": TypeVar,
     }
 
 
@@ -78,6 +79,7 @@ def parse(
     extra_vars: dict[str, Any] | None = None,
     check_well_formed: bool = True,
     s_tir: bool = False,
+    absent_params: dict[str, None] | None = None,
 ) -> Any:
     """Register a method for a operand type, AST operator node and operand index.
 
@@ -91,6 +93,15 @@ def parse(
 
     check_well_formed : bool
         Whether to check well-formedness after parsing.
+
+    s_tir : bool
+        Compatibility argument accepted by parse/from_source.  It no longer
+        selects verification: each PrimFunc's s_tir attribute determines its
+        dialect checks, and common well-formedness checks cover the full module.
+
+    absent_params : Optional[Dict[str, None]]
+        Function parameters removed by a compile-time specialization.  The
+        dialect-specific function parser decides how to bind these names.
 
     Returns
     -------
@@ -111,7 +122,7 @@ def parse(
                 all_pyfuncs[name] = func
 
     source = Source(program)
-    parser = Parser(source, ann)
+    parser = Parser(source, ann, absent_params=absent_params)
     with IRBuilder() as builder:
         try:
             parser.parse(extra_vars=extra_vars)
@@ -136,10 +147,12 @@ def parse(
             parser.report_error(source_ast, err=WELL_FORMED_ERROR_MESSAGE)
 
         try:
-            if s_tir:
-                tvm.tirx.analysis.verify_well_formed(check_ret)
-            else:
-                tvm.tirx.analysis.verify_tirx_well_formed(check_ret)
+            # Keep shared-definition checks across both dialects, then apply
+            # ordinary TIRX execution restrictions only to its own functions.
+            tvm.s_tir.analysis.verify_well_formed(check_ret)
+            for func in check_ret.functions.values():
+                if isinstance(func, tvm.tirx.PrimFunc) and not func.attrs.get("s_tir", False):
+                    tvm.tirx.analysis.verify_tirx_well_formed(func)
         except Exception as err:  # pylint: disable=broad-exception-caught
             parser.report_error(
                 source_ast,

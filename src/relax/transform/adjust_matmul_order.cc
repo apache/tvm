@@ -24,6 +24,8 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/attrs/linear_algebra.h>
+#include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -40,6 +42,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 namespace {
 
@@ -49,13 +52,40 @@ ffi::Array<PrimExpr> GetBatchPrefix(const ffi::Array<PrimExpr>& shape) {
 }
 
 PrimExpr ProductDims(const ffi::Array<PrimExpr>& dims) {
-  PrimExpr product = IntImm(DataType::Int(64), 1);
+  PrimExpr product = IntImm::Int64(1);
   for (const auto& dim : dims) product = product * dim;
   return product;
 }
 
+bool IsLastTwoDimsSwap(const Expr& expr) {
+  const auto* call = expr.as<CallNode>();
+  if (call == nullptr) return false;
+
+  const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
+  const auto* input_type = GetTypeAs<TensorTypeNode>(call->args[0]);
+  if (attrs == nullptr || input_type == nullptr || input_type->ndim < 2) return false;
+
+  size_t ndim = input_type->ndim;
+  if (!attrs->axes.has_value()) return ndim == 2;
+
+  const auto& axes = attrs->axes.value();
+  if (axes.size() != ndim) return false;
+  for (size_t i = 0; i < axes.size(); ++i) {
+    int64_t axis = axes[i];
+    if (axis < 0) axis += ndim;
+    size_t expected = i;
+    if (i == ndim - 2) {
+      expected = ndim - 1;
+    } else if (i == ndim - 1) {
+      expected = ndim - 2;
+    }
+    if (axis != static_cast<int64_t>(expected)) return false;
+  }
+  return true;
+}
+
 ffi::Optional<ffi::Array<PrimExpr>> InferBatchedMatmulBroadcastPrefix(
-    arith::AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& x1, const ffi::Array<PrimExpr>& x2) {
+    sym::AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& x1, const ffi::Array<PrimExpr>& x2) {
   auto infer_result = InferBinaryBroadcastShape(analyzer, x1, x2);
   if (infer_result.status == BinaryBroadcastShapeInferResult::Status::kSuccess) {
     return infer_result.shape;
@@ -89,31 +119,34 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
   auto pat_matmul_on_lhs = pat_matmul(pat_matmul(pat_a, pat_b), pat_c);
   auto pat_matmul_on_rhs = pat_matmul(pat_a, pat_matmul(pat_b, pat_c));
 
-  auto pat_permuted_matmul_on_lhs = pat_matmul(pat_permute_dims(pat_matmul(pat_b, pat_a)), pat_c);
-  auto pat_permuted_matmul_on_rhs = pat_matmul(pat_a, pat_permute_dims(pat_matmul(pat_c, pat_b)));
+  auto pat_permuted_inner_matmul_on_lhs = pat_permute_dims(pat_matmul(pat_b, pat_a));
+  auto pat_permuted_inner_matmul_on_rhs = pat_permute_dims(pat_matmul(pat_c, pat_b));
+  auto pat_permuted_matmul_on_lhs = pat_matmul(pat_permuted_inner_matmul_on_lhs, pat_c);
+  auto pat_permuted_matmul_on_rhs = pat_matmul(pat_a, pat_permuted_inner_matmul_on_rhs);
 
   auto pat = pat_matmul_on_lhs | pat_matmul_on_rhs | pat_permuted_matmul_on_lhs |
              pat_permuted_matmul_on_rhs;
 
-  PrimExpr symbolic_var_constraints = tirx::const_true();
+  PrimExpr symbolic_var_constraints = IntImm::Bool(true);
   auto upper_bounds = func->GetAttr<ffi::Map<ffi::String, Any>>("tir_var_upper_bound");
   auto lower_bounds = func->GetAttr<ffi::Map<ffi::String, Any>>("tir_var_lower_bound");
 
   if (upper_bounds || lower_bounds) {
     ffi::Map<ffi::String, tirx::Var> name_lookup;
-    for (const auto& tir_var : TIRVarsInStructInfo(GetStructInfo(func))) {
-      name_lookup.Set(tir_var->name_hint, tir_var);
-      symbolic_var_constraints = symbolic_var_constraints && (0 <= tir_var);
+    for (const auto& tir_var : TIRVarsInType(GetType(func))) {
+      name_lookup.Set(tir_var->name, tir_var);
+      symbolic_var_constraints = symbolic_var_constraints && (0 <= tir_var.as_or_throw<PrimExpr>());
     }
 
     // Add lower bound constraints
     if (lower_bounds) {
       for (const auto& [key, obj_bound] : lower_bounds.value()) {
-        auto tir_var_name = Downcast<ffi::String>(key);
+        auto tir_var_name = key;
         if (auto opt_var = name_lookup.Get(tir_var_name)) {
           auto var = opt_var.value();
-          auto expr_bound = Downcast<PrimExpr>(obj_bound);
-          symbolic_var_constraints = symbolic_var_constraints && (expr_bound <= var);
+          auto expr_bound = obj_bound.cast<PrimExpr>();
+          symbolic_var_constraints =
+              symbolic_var_constraints && (expr_bound <= var.as_or_throw<PrimExpr>());
         }
       }
     }
@@ -121,11 +154,12 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     // Add upper bound constraints
     if (upper_bounds) {
       for (const auto& [key, obj_bound] : upper_bounds.value()) {
-        auto tir_var_name = Downcast<ffi::String>(key);
+        auto tir_var_name = key;
         if (auto opt_var = name_lookup.Get(tir_var_name)) {
           auto var = opt_var.value();
-          auto expr_bound = Downcast<PrimExpr>(obj_bound);
-          symbolic_var_constraints = symbolic_var_constraints && (var < expr_bound);
+          auto expr_bound = obj_bound.cast<PrimExpr>();
+          symbolic_var_constraints =
+              symbolic_var_constraints && (var.as_or_throw<PrimExpr>() < expr_bound);
         }
       }
     }
@@ -135,6 +169,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     auto expr_a = matches[pat_a];
     auto expr_b = matches[pat_b];
     auto expr_c = matches[pat_c];
+    auto out_dtype = expr.as<CallNode>()->attrs.as<MatmulAttrs>()->out_dtype;
 
     // If all three components are compile-time, the order doesn't
     // matter as the entire expression can be lifted out and
@@ -144,9 +179,9 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     }
 
     auto get_shape = [](Expr expr) -> ffi::Optional<ffi::Array<PrimExpr>> {
-      auto sinfo = expr->struct_info_.as<TensorStructInfoNode>();
-      if (sinfo) {
-        return sinfo->GetShape();
+      auto ty = expr->ty.as<TensorTypeNode>();
+      if (ty) {
+        return ty->GetShape();
       } else {
         return std::nullopt;
       }
@@ -192,12 +227,14 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     };
 
     if (matches.count(pat_permuted_matmul_on_lhs)) {
+      if (!IsLastTwoDimsSwap(matches[pat_permuted_inner_matmul_on_lhs])) return expr;
       if (shape_a.size() < 2 || shape_b.size() < 2) return expr;
       expr_a = permute_last_two_dims(expr_a);
       expr_b = permute_last_two_dims(expr_b);
       transpose_shape_last_two_dims(shape_a);
       transpose_shape_last_two_dims(shape_b);
     } else if (matches.count(pat_permuted_matmul_on_rhs)) {
+      if (!IsLastTwoDimsSwap(matches[pat_permuted_inner_matmul_on_rhs])) return expr;
       if (shape_b.size() < 2 || shape_c.size() < 2) return expr;
       expr_b = permute_last_two_dims(expr_b);
       expr_c = permute_last_two_dims(expr_c);
@@ -208,22 +245,22 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     // If two of the three are compile-time, group those two values
     // together, to allow them to be lifted out and pre-computed.
     if (is_compile_time(expr_a) && is_compile_time(expr_b)) {
-      return matmul(matmul(expr_a, expr_b, DataType::Void()), expr_c, DataType::Void());
+      return matmul(matmul(expr_a, expr_b, std::nullopt), expr_c, out_dtype);
     } else if (is_compile_time(expr_b) && is_compile_time(expr_c)) {
-      return matmul(expr_a, matmul(expr_b, expr_c, DataType::Void()), DataType::Void());
+      return matmul(expr_a, matmul(expr_b, expr_c, std::nullopt), out_dtype);
     }
 
     // Otherwise, select the order that reduces the total number of
     // operations required, assuming a naive matmul (see below).
 
     if (shape_a.size() == 1) {
-      shape_a = {IntImm(shape_a[0].dtype(), 1), shape_a[0]};
+      shape_a = {IntImm(shape_a[0].ty(), 1), shape_a[0]};
     }
     if (shape_b.size() == 1) {
       if (matches.count(pat_matmul_on_lhs)) {
-        shape_b = {shape_b[0], IntImm(shape_b[0].dtype(), 1)};
+        shape_b = {shape_b[0], IntImm(shape_b[0].ty(), 1)};
       } else if (matches.count(pat_matmul_on_rhs)) {
-        shape_b = {IntImm(shape_b[0].dtype(), 1), shape_b[0]};
+        shape_b = {IntImm(shape_b[0].ty(), 1), shape_b[0]};
       } else {
         TVM_FFI_THROW(InternalError)
             << "OrPattern " << pat << " matched, but neither " << pat_matmul_on_lhs << " nor "
@@ -231,7 +268,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       }
     }
     if (shape_c.size() == 1) {
-      shape_c = {shape_c[0], IntImm(shape_c[0].dtype(), 1)};
+      shape_c = {shape_c[0], IntImm(shape_c[0].ty(), 1)};
     }
 
     PrimExpr size_N = shape_a[shape_a.size() - 2];  // row of A
@@ -239,7 +276,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     PrimExpr size_M = shape_c[shape_c.size() - 2];  // row of C and col of B
     PrimExpr size_B = shape_c[shape_c.size() - 1];  // col of C
 
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     auto prefix_a = GetBatchPrefix(shape_a);
     auto prefix_b = GetBatchPrefix(shape_b);
     auto prefix_c = GetBatchPrefix(shape_c);
@@ -275,19 +312,18 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     PrimExpr ops_with_rhs_first =
         batch_bc * size_R * size_M * size_B + batch_outer_rhs * size_N * size_R * size_B;
 
-    analyzer->rewrite_simplify.SetEnabledExtensions(
-        static_cast<arith::RewriteSimplifier::Extension>(
-            analyzer->rewrite_simplify.GetEnabledExtensions() |
-            arith::RewriteSimplifier::Extension::kComparisonOfProductAndSum));
-    With<arith::ConstraintContext> func_attr_constraint(analyzer, symbolic_var_constraints);
-    With<arith::ConstraintContext> analyzer_constraint(
+    analyzer->rewrite_simplify.SetEnabledExtensions(static_cast<sym::RewriteSimplifier::Extension>(
+        analyzer->rewrite_simplify.GetEnabledExtensions() |
+        sym::RewriteSimplifier::Extension::kComparisonOfProductAndSum));
+    With<sym::ConstraintContext> func_attr_constraint(analyzer, symbolic_var_constraints);
+    With<sym::ConstraintContext> analyzer_constraint(
         analyzer, batch_ab > 0 && batch_bc > 0 && batch_outer_lhs > 0 && batch_outer_rhs > 0 &&
                       size_N > 0 && size_R > 0 && size_M > 0 && size_B > 0);
 
     if (analyzer->CanProve(ops_with_lhs_first < ops_with_rhs_first)) {
-      return matmul(matmul(expr_a, expr_b, DataType::Void()), expr_c, DataType::Void());
+      return matmul(matmul(expr_a, expr_b, std::nullopt), expr_c, out_dtype);
     } else if (analyzer->CanProve(ops_with_rhs_first < ops_with_lhs_first)) {
-      return matmul(expr_a, matmul(expr_b, expr_c, DataType::Void()), DataType::Void());
+      return matmul(expr_a, matmul(expr_b, expr_c, std::nullopt), out_dtype);
     }
 
     // If we cannot determine which order is best, keep the existing order.

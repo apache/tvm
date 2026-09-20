@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 class BaseTestCase:
     def test_well_formed(self):
         After = tvm.tirx.transform.InlinePrivateFunctions()(self.Before)
-        tvm.tirx.analysis.verify_well_formed(After)
+        tvm.s_tir.analysis.verify_well_formed(After)
 
     def test_produces_expected(self):
         After = tvm.tirx.transform.InlinePrivateFunctions()(self.Before)
@@ -57,10 +57,8 @@ class TestSimple(BaseTestCase):
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer([80, 16], "float32"), B: T.Buffer([64, 16], "float32")):
             for i in range(64):
-                A_view_data: T.let[T.handle("float32")] = T.address_of(A[i, 0])
-                Aview = T.decl_buffer([16, 16], "float32", data=A_view_data)
-                B_view_data: T.let[T.handle("float32")] = T.address_of(B[i, 0])
-                Bview = T.decl_buffer([16], "float32", data=B_view_data)
+                Aview = T.decl_buffer([16, 16], "float32", data=T.address_of(A[i, 0]))
+                Bview = T.decl_buffer([16], "float32", data=T.address_of(B[i, 0]))
                 for j in range(16):
                     Bview[j] = 0.0
                     for k in range(16):
@@ -87,7 +85,7 @@ class TestRetainCrossFunctionSubroutines(BaseTestCase):
 
         @T.prim_func(private=True, s_tir=True)
         def subroutine(A_data: T.handle("float32"), B_data: T.handle("float32")):
-            T.func_attr({"target": T.target("cuda")})
+            T.func_attr({"target": T.target({"kind": "cuda", "arch": "sm_80"})})
             A = T.decl_buffer([16, 16], "float32", data=A_data)
             B = T.decl_buffer([16], "float32", data=B_data)
             for i in range(16):
@@ -170,7 +168,7 @@ class TestDeduplicateBlockName(BaseTestCase):
 class TestInlineCallOccurringInExpression(BaseTestCase):
     """Inline a Call node that is used in a function
 
-    The current implementation only replaces `tirx.Call` instances that
+    The current implementation only replaces `ir.Call` instances that
     occur in a `tirx.Evaluate` context.  This is the primary use case,
     used in destination-passing style.
 
@@ -195,7 +193,7 @@ class TestInlineCallOccurringInExpression(BaseTestCase):
             cos = T.cos(T.cast(i, "float32"))
             sin = T.sin(T.cast(i, "float32"))
             retval = cos * cos + sin * sin
-            T.ret(retval)
+            return retval
 
     @I.ir_module(s_tir=True)
     class Expected:
@@ -229,11 +227,11 @@ class TestInlineFunctionWithBufferArguments(BaseTestCase):
             Before.subroutine(
                 T.tvm_stack_make_array(
                     A.data,
-                    T.tvm_stack_make_shape(*A.shape, dtype="handle"),
+                    T.tvm_stack_make_shape(*A.ty.shape, dtype="handle"),
                     0,
-                    len(A.shape),
+                    len(A.ty.shape),
                     0.0,
-                    A.elem_offset,
+                    A.ty.elem_offset,
                     dtype="handle",
                 )
             )

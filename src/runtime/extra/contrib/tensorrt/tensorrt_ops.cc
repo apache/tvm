@@ -180,8 +180,9 @@ class ActivationOpConverter : public TensorRTOpConverter {
         params->network->addActivation(*params->inputs.at(0).tensor, it->second);
 #if TRT_VERSION_GE(5, 1, 5)
     if (op_name == "clip") {
-      float a_min = static_cast<float>(params->node.GetAttr<double>("a_min"));
-      float a_max = static_cast<float>(params->node.GetAttr<double>("a_max"));
+      // Relax clip min/max are PrimExpr args (serialized as arg_min/arg_max), not Relay attrs.
+      float a_min = static_cast<float>(params->node.GetAttr<double>("arg_min"));
+      float a_max = static_cast<float>(params->node.GetAttr<double>("arg_max"));
       act_layer->setAlpha(a_min);
       act_layer->setBeta(a_max);
     } else if (op_name == "nn.leaky_relu") {
@@ -191,6 +192,23 @@ class ActivationOpConverter : public TensorRTOpConverter {
 #endif
     TVM_FFI_ICHECK(act_layer != nullptr);
     params->outputs.push_back(act_layer->getOutput(0));
+  }
+};
+
+class SiluOpConverter : public TensorRTOpConverter {
+ public:
+  explicit SiluOpConverter(std::string op_name)
+      : TensorRTOpConverter(std::move(op_name), {kTensor}) {}
+  ~SiluOpConverter() = default;
+
+  void Convert(TensorRTOpConverterParams* params) const {
+    auto input = params->inputs.at(0).tensor;
+    auto sigmoid_layer = params->network->addActivation(*input, nvinfer1::ActivationType::kSIGMOID);
+    TVM_FFI_ICHECK(sigmoid_layer != nullptr);
+    auto silu_layer = params->network->addElementWise(*input, *sigmoid_layer->getOutput(0),
+                                                      nvinfer1::ElementWiseOperation::kPROD);
+    TVM_FFI_ICHECK(silu_layer != nullptr);
+    params->outputs.push_back(silu_layer->getOutput(0));
   }
 };
 
@@ -252,11 +270,16 @@ class Conv1DOpConverter : public TensorRTOpConverter {
     auto dilation = params->node.GetAttr<ffi::Array<int64_t>>("dilation");
     auto padding = params->node.GetAttr<ffi::Array<int64_t>>("padding");
     int groups = static_cast<int>(params->node.GetAttr<int64_t>("groups"));
+    // Relax conv attrs carry no "channels" field (unlike Relay); the number of output channels is
+    // the first dimension of the OIHW/OIW kernel.
     int channels = weight_shape[0];
-    channels = static_cast<int>(params->node.GetAttr<int64_t>("channels"));
 
     auto shuffle_layer = params->network->addShuffle(*input_tensor);
-    std::vector<int> new_shape = {input_dims[0], input_dims[1], 1};
+    // Emulate a 1D convolution with a 2D convolution by appending a trailing unit spatial
+    // dimension (NCW -> NCW1). In explicit-batch mode (TensorRT 10) input_dims already includes the
+    // batch dimension, so derive the reshape from the full input rank instead of hard-coding it.
+    std::vector<int> new_shape(input_dims);
+    new_shape.push_back(1);
     shuffle_layer->setReshapeDimensions(VectorToTrtDims(new_shape));
     input_tensor = shuffle_layer->getOutput(0);
 
@@ -265,21 +288,22 @@ class Conv1DOpConverter : public TensorRTOpConverter {
 
     nvinfer1::Weights bias{weight_type, nullptr, 0};
 
-    auto conv_layer = params->network->addConvolution(*input_tensor, channels, kernel_size,
-                                                      params->inputs.at(1).weight, bias);
+    auto conv_layer = params->network->addConvolutionNd(*input_tensor, channels, kernel_size,
+                                                        params->inputs.at(1).weight, bias);
     TVM_FFI_ICHECK(conv_layer != nullptr);
-    conv_layer->setPadding(nvinfer1::DimsHW(static_cast<int>(padding[0]), 0));
+    conv_layer->setPaddingNd(nvinfer1::DimsHW(static_cast<int>(padding[0]), 0));
     TVM_FFI_ICHECK_EQ(strides.size(), 1);
     const auto trt_strides = nvinfer1::DimsHW(static_cast<int>(strides[0]), 1);
-    conv_layer->setStride(trt_strides);
+    conv_layer->setStrideNd(trt_strides);
     TVM_FFI_ICHECK_EQ(dilation.size(), 1);
     const auto trt_dilation = nvinfer1::DimsHW(static_cast<int>(dilation[0]), 1);
-    conv_layer->setDilation(trt_dilation);
+    conv_layer->setDilationNd(trt_dilation);
     conv_layer->setNbGroups(groups);
     input_tensor = conv_layer->getOutput(0);
 
-    auto conv_output_dims = TrtDimsToVector(input_tensor->getDimensions());
-    std::vector<int> back_shape = {0, 0};
+    // Drop the trailing unit dimension (NOW1 -> NOW); 0 copies the corresponding input dimension,
+    // so the number of leading dims to keep matches the original input rank.
+    std::vector<int> back_shape(input_dims.size(), 0);
     auto shuffle_back_layer = params->network->addShuffle(*input_tensor);
     shuffle_back_layer->setReshapeDimensions(VectorToTrtDims(back_shape));
     params->outputs.push_back(shuffle_back_layer->getOutput(0));
@@ -304,47 +328,36 @@ class Conv2DOpConverter : public TensorRTOpConverter {
     auto dilation = params->node.GetAttr<ffi::Array<int64_t>>("dilation");
     auto padding = params->node.GetAttr<ffi::Array<int64_t>>("padding");
     int groups = static_cast<int>(params->node.GetAttr<int64_t>("groups"));
+    // Relax conv attrs carry no "channels" field (unlike Relay); the number of output channels is
+    // the first dimension of the OIHW/OIW kernel.
     int channels = weight_shape[0];
-    channels = static_cast<int>(params->node.GetAttr<int64_t>("channels"));
     // TRT conv2d op doesn't support asymmetric padding before 5.1, so we
     // workaround by adding a padding layer before the pooling op.
     nvinfer1::DimsHW prepadding, postpadding;
     bool use_asymmetric_padding;
     GetPadding(padding, &use_asymmetric_padding, &prepadding, &postpadding);
-#if !TRT_VERSION_GE(5, 1, 5)
-    if (use_asymmetric_padding) {
-      auto pad_layer = params->network->addPadding(*input_tensor, prepadding, postpadding);
-      TVM_FFI_ICHECK(pad_layer != nullptr);
-      input_tensor = pad_layer->getOutput(0);
-      // No need for conv op to do any padding.
-      use_asymmetric_padding = false;
-      prepadding = nvinfer1::DimsHW(0, 0);
-    }
-#endif
 
     const auto kernel_size = nvinfer1::DimsHW(weight_shape[2], weight_shape[3]);
     const nvinfer1::DataType weight_type = params->inputs.at(1).weight.type;
     nvinfer1::Weights bias{weight_type, nullptr, 0};
-    auto conv_layer = params->network->addConvolution(*input_tensor, channels, kernel_size,
-                                                      params->inputs.at(1).weight, bias);
+    auto conv_layer = params->network->addConvolutionNd(*input_tensor, channels, kernel_size,
+                                                        params->inputs.at(1).weight, bias);
     TVM_FFI_ICHECK(conv_layer != nullptr);
     conv_layer->setName(params->LayerName().c_str());
     if (use_asymmetric_padding) {
-#if TRT_VERSION_GE(5, 1, 5)
       conv_layer->setPrePadding(prepadding);
       conv_layer->setPostPadding(postpadding);
-#endif
     } else {
-      conv_layer->setPadding(prepadding);
+      conv_layer->setPaddingNd(prepadding);
     }
     TVM_FFI_ICHECK_EQ(strides.size(), 2);
     const auto trt_strides =
         nvinfer1::DimsHW(static_cast<int>(strides[0]), static_cast<int>(strides[1]));
-    conv_layer->setStride(trt_strides);
+    conv_layer->setStrideNd(trt_strides);
     TVM_FFI_ICHECK_EQ(dilation.size(), 2);
     const auto trt_dilation =
         nvinfer1::DimsHW(static_cast<int>(dilation[0]), static_cast<int>(dilation[1]));
-    conv_layer->setDilation(trt_dilation);
+    conv_layer->setDilationNd(trt_dilation);
     conv_layer->setNbGroups(groups);
     params->outputs.push_back(conv_layer->getOutput(0));
   }
@@ -374,7 +387,8 @@ class Conv3DOpConverter : public TensorRTOpConverter {
     bool use_asymmetric_padding;
     GetPadding3D(padding, &use_asymmetric_padding, &prepadding, &postpadding);
 
-    const int num_outputs = static_cast<int>(params->node.GetAttr<int64_t>("channels"));
+    // Relax conv3d has no "channels" attr; output channels = weight_shape[0] (OIDHW kernel).
+    const int num_outputs = static_cast<int>(weight_shape[0]);
     const auto kernel_size = nvinfer1::Dims3(weight_shape[2], weight_shape[3], weight_shape[4]);
     const nvinfer1::DataType weight_type = params->inputs.at(1).weight.type;
     nvinfer1::Weights bias{weight_type, nullptr, 0};
@@ -410,31 +424,27 @@ class DenseOpConverter : public TensorRTOpConverter {
 
   void Convert(TensorRTOpConverterParams* params) const {
     auto input_tensor = params->inputs.at(0).tensor;
-    auto input_dims = TrtDimsToVector(input_tensor->getDimensions());
-    TVM_FFI_ICHECK(input_dims.size() > 0 && input_dims.size() <= 3);
-    const size_t required_rank = TRT_HAS_IMPLICIT_BATCH(params) ? 3 : 4;
-    const bool need_reshape_on_input = input_dims.size() != required_rank;
-    if (need_reshape_on_input) {
-      // Add dims of size 1 until rank is required_rank.
-      std::vector<int> new_shape(input_dims);
-      while (new_shape.size() < required_rank) new_shape.insert(new_shape.end(), 1);
-      input_tensor = Reshape(params, input_tensor, new_shape);
-    }
-    // Weights are in KC format.
+    // Weights are in KC (out_units x in_features) format.
     TVM_FFI_ICHECK_EQ(params->inputs.at(1).weight_shape.size(), 2);
-    const int num_units = params->inputs.at(1).weight_shape[0];
-    const nvinfer1::DataType weight_type = params->inputs.at(1).weight.type;
-    nvinfer1::Weights bias{weight_type, nullptr, 0};
-    nvinfer1::IFullyConnectedLayer* fc_layer = params->network->addFullyConnected(
-        *input_tensor, num_units, params->inputs.at(1).weight, bias);
-    TVM_FFI_ICHECK(fc_layer != nullptr);
-    auto output_tensor = fc_layer->getOutput(0);
-    if (need_reshape_on_input) {
-      // Remove added dims.
-      input_dims[input_dims.size() - 1] = num_units;
-      output_tensor = Reshape(params, output_tensor, input_dims);
-    }
-    params->outputs.push_back(output_tensor);
+    // addMatrixMultiply requires the input to have at least 2 dimensions (rows x K); the old
+    // FullyConnected path padded the rank, so guard explicitly now that it is gone.
+    TVM_FFI_ICHECK_GE(input_tensor->getDimensions().nbDims, 2)
+        << "TensorRT dense expects an input of rank >= 2 (got "
+        << input_tensor->getDimensions().nbDims << ")";
+    // TensorRT 10 removed IFullyConnectedLayer/addFullyConnected. Implement dense as a matrix
+    // multiply: out[.., O] = in[.., K] * weightᵀ, with weight a constant of shape [O, K].
+    // IMatrixMultiplyLayer contracts the last dim of `input` (K) with the last dim of the
+    // transposed weight (also K) and broadcasts the remaining leading dimensions, which matches
+    // nn.dense semantics for any input rank >= 2 without the rank-padding reshape FC required.
+    auto* weight_tensor = params->network
+                              ->addConstant(VectorToTrtDims(params->inputs.at(1).weight_shape),
+                                            params->inputs.at(1).weight)
+                              ->getOutput(0);
+    auto* matmul_layer =
+        params->network->addMatrixMultiply(*input_tensor, nvinfer1::MatrixOperation::kNONE,
+                                           *weight_tensor, nvinfer1::MatrixOperation::kTRANSPOSE);
+    TVM_FFI_ICHECK(matmul_layer != nullptr);
+    params->outputs.push_back(matmul_layer->getOutput(0));
   }
 };
 
@@ -553,19 +563,28 @@ class LayerNormOpConverter : public TensorRTOpConverter {
     const bool scale = static_cast<int>(params->node.GetAttr<int64_t>("scale"));
     const bool center = static_cast<int>(params->node.GetAttr<int64_t>("center"));
     const int input_rank = input->getDimensions().nbDims;
-    const int original_axis = static_cast<int>(params->node.GetAttr<int64_t>("axis"));
-    const int axis = ConvertAxis(params, original_axis, input_rank);
-
+    auto input_dims = TrtDimsToVector(input->getDimensions());
+    // Relax layer_norm normalizes over an `axes` list (Relay used a single `axis`).
+    auto axes_attr = params->node.GetAttr<ffi::Array<int64_t>>("axes");
+    uint32_t reduce_axes = 0;
     std::vector<int> weight_shape(input_rank, 1);
-    weight_shape[axis] = gamma_input.count;
+    int64_t normalized_count = 1;
+    for (size_t i = 0; i < axes_attr.size(); ++i) {
+      const int axis = ConvertAxis(params, static_cast<int>(axes_attr[i]), input_rank);
+      reduce_axes |= 1 << axis;
+      weight_shape[axis] = input_dims[axis];
+      normalized_count *= input_dims[axis];
+    }
+    TVM_FFI_ICHECK_EQ(normalized_count, gamma_input.count)
+        << "TensorRT layer_norm expects gamma/beta to cover exactly the normalized axes";
     auto gamma =
         params->network->addConstant(VectorToTrtDims(weight_shape), gamma_input)->getOutput(0);
     auto beta =
         params->network->addConstant(VectorToTrtDims(weight_shape), beta_input)->getOutput(0);
 
     // Compute mean
-    auto mean_layer = params->network->addReduce(*input, nvinfer1::ReduceOperation::kAVG, 1 << axis,
-                                                 /*keepdims=*/true);
+    auto mean_layer = params->network->addReduce(*input, nvinfer1::ReduceOperation::kAVG,
+                                                 reduce_axes, /*keepdims=*/true);
     TVM_FFI_ICHECK(mean_layer != nullptr);
     auto mean = mean_layer->getOutput(0);
     // Compute variance
@@ -576,8 +595,9 @@ class LayerNormOpConverter : public TensorRTOpConverter {
         params->network->addElementWise(*diff_layer->getOutput(0), *diff_layer->getOutput(0),
                                         nvinfer1::ElementWiseOperation::kPROD);
     TVM_FFI_ICHECK(square_layer != nullptr);
-    auto var_layer = params->network->addReduce(
-        *square_layer->getOutput(0), nvinfer1::ReduceOperation::kAVG, 1 << axis, /*keepdims=*/true);
+    auto var_layer = params->network->addReduce(*square_layer->getOutput(0),
+                                                nvinfer1::ReduceOperation::kAVG, reduce_axes,
+                                                /*keepdims=*/true);
     TVM_FFI_ICHECK(var_layer != nullptr);
     auto var = var_layer->getOutput(0);
     // sqrt(var + epsilon)
@@ -666,33 +686,18 @@ class PoolingOpConverter : public TensorRTOpConverter {
     GetPadding(padding, &use_asymmetric_padding, &prepadding, &postpadding);
     bool ceil_mode = static_cast<int>(params->node.GetAttr<int64_t>("ceil_mode"));
 
-// TRT pooling op doesn't support asymmetric padding before 5.1, so we
-// workaround by adding a padding layer before the pooling op.
-#if !TRT_VERSION_GE(5, 1, 5)
-    if (use_asymmetric_padding) {
-      auto pad_layer = params->network->addPadding(*input, prepadding, postpadding);
-      TVM_FFI_ICHECK(pad_layer != nullptr);
-      input = pad_layer->getOutput(0);
-      // No need for pooling op to do any padding.
-      use_asymmetric_padding = false;
-      prepadding = nvinfer1::DimsHW(0, 0);
-    }
-#endif
-
     nvinfer1::DimsHW window_size =
         nvinfer1::DimsHW(static_cast<int>(pool_size[0]), static_cast<int>(pool_size[1]));
-    auto pool_layer = params->network->addPooling(*input, it->second, window_size);
+    auto pool_layer = params->network->addPoolingNd(*input, it->second, window_size);
     TVM_FFI_ICHECK(pool_layer != nullptr);
     nvinfer1::DimsHW trt_strides =
         nvinfer1::DimsHW(static_cast<int>(strides[0]), static_cast<int>(strides[1]));
-    pool_layer->setStride(trt_strides);
+    pool_layer->setStrideNd(trt_strides);
     if (use_asymmetric_padding) {
-#if TRT_VERSION_GE(5, 1, 5)
       pool_layer->setPrePadding(prepadding);
       pool_layer->setPostPadding(postpadding);
-#endif
     } else {
-      pool_layer->setPadding(prepadding);
+      pool_layer->setPaddingNd(prepadding);
     }
     if (op_name == "nn.avg_pool2d") {
       bool count_include_pad = static_cast<int>(params->node.GetAttr<int64_t>("count_include_pad"));
@@ -783,7 +788,7 @@ class GlobalPoolingOpConverter : public TensorRTOpConverter {
     const int h = TRT_HAS_IMPLICIT_BATCH(params) ? input_dims[1] : input_dims[2];
     const int w = TRT_HAS_IMPLICIT_BATCH(params) ? input_dims[2] : input_dims[3];
     auto pool_layer =
-        params->network->addPooling(*input_tensor, it->second, nvinfer1::DimsHW(h, w));
+        params->network->addPoolingNd(*input_tensor, it->second, nvinfer1::DimsHW(h, w));
     TVM_FFI_ICHECK(pool_layer != nullptr);
     params->outputs.push_back(pool_layer->getOutput(0));
   }
@@ -798,10 +803,15 @@ class ExpandDimsOpConverter : public TensorRTOpConverter {
   void Convert(TensorRTOpConverterParams* params) const {
     auto input_tensor = params->inputs.at(0).tensor;
     auto input_dims = TrtDimsToVector(input_tensor->getDimensions());
-    const int original_axis = static_cast<int>(params->node.GetAttr<int64_t>("axis"));
-    const int num_newaxis = static_cast<int>(params->node.GetAttr<int64_t>("num_newaxis"));
-    const int axis = ConvertAxis(params, original_axis, input_dims.size() + 1);
-    for (int i = 0; i < num_newaxis; ++i) {
+    // Relax expand_dims carries an `axis` list (not Relay's `axis` + `num_newaxis`).
+    auto axes = params->node.GetAttr<ffi::Array<int64_t>>("axis");
+    const int output_ndim = static_cast<int>(input_dims.size() + axes.size());
+    std::vector<int> new_axes;
+    for (size_t i = 0; i < axes.size(); ++i) {
+      new_axes.push_back(ConvertAxis(params, static_cast<int>(axes[i]), output_ndim));
+    }
+    std::sort(new_axes.begin(), new_axes.end());
+    for (int axis : new_axes) {
       input_dims.insert(input_dims.begin() + axis, 1);
     }
     params->outputs.push_back(Reshape(params, params->inputs.at(0).tensor, input_dims));
@@ -898,39 +908,20 @@ class SplitOpConverter : public TensorRTOpConverter {
     auto input_dims = TrtDimsToVector(input->getDimensions());
     const int original_axis = static_cast<int>(params->node.GetAttr<int64_t>("axis"));
     const int axis = ConvertAxis(params, original_axis, input_dims.size());
-    auto indices_or_sections = params->node.GetAttr<ffi::Array<int64_t>>("indices_or_sections");
-    auto mode = std::string(params->node.GetAttr<ffi::String>("mode"));
-
-    std::vector<int> split_starts;
-    std::vector<int> split_sizes;
-    if (mode == "sections") {
-      int sections = static_cast<int>(indices_or_sections[0]);
-      int size = input_dims[axis] / sections;
-      for (int i = 0; i < sections; i++) {
-        split_starts.push_back(i * size);
-        split_sizes.push_back(size);
-      }
-    } else {
-      int last_index = 0;
-      for (size_t i = 0; i < indices_or_sections.size(); ++i) {
-        int index = static_cast<int>(indices_or_sections[i]);
-        split_starts.push_back(last_index);
-        split_sizes.push_back(index - last_index);
-        last_index = index;
-      }
-      split_starts.push_back(last_index);
-      split_sizes.push_back(input_dims[axis] - last_index);
-    }
+    // No Relay "mode": derive each output's extent along `axis` from the per-output shapes.
+    auto output_shapes = params->node.GetAttr<ffi::Array<ffi::Array<int64_t>>>("shape");
 
     std::vector<int> start(input_dims.size(), 0);
     std::vector<int> size(input_dims.begin(), input_dims.end());
     std::vector<int> strides(input_dims.size(), 1);
-    for (size_t i = 0; i < split_sizes.size(); ++i) {
-      start[axis] = split_starts[i];
-      size[axis] = split_sizes[i];
+    int offset = 0;
+    for (size_t i = 0; i < output_shapes.size(); ++i) {
+      start[axis] = offset;
+      size[axis] = static_cast<int>(output_shapes[i][axis]);
       auto slice_layer = params->network->addSlice(*input, VectorToTrtDims(start),
                                                    VectorToTrtDims(size), VectorToTrtDims(strides));
       params->outputs.push_back(slice_layer->getOutput(0));
+      offset += size[axis];
     }
   }
 };
@@ -993,7 +984,7 @@ class Conv2DTransposeOpConverter : public TensorRTOpConverter {
     TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("data_layout"), "NCHW");
     TVM_FFI_ICHECK(params->node.GetAttr<ffi::String>("out_layout") == "" ||
                    params->node.GetAttr<ffi::String>("out_layout") == "NCHW");
-    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("kernel_layout"), "OIHW");
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("kernel_layout"), "IOHW");
     auto dilation = params->node.GetAttr<ffi::Array<int64_t>>("dilation");
     TVM_FFI_ICHECK(static_cast<int>(dilation[0]) == 1 && static_cast<int>(dilation[1]) == 1);
     auto strides = params->node.GetAttr<ffi::Array<int64_t>>("strides");
@@ -1006,35 +997,26 @@ class Conv2DTransposeOpConverter : public TensorRTOpConverter {
     nvinfer1::DimsHW prepadding, postpadding;
     bool use_asymmetric_padding;
     GetPadding(padding, &use_asymmetric_padding, &prepadding, &postpadding);
-#if !TRT_VERSION_GE(5, 1, 5)
-    if (use_asymmetric_padding) {
-      auto pad_layer = params->network->addPadding(*input_tensor, prepadding, postpadding);
-      TVM_FFI_ICHECK(pad_layer != nullptr);
-      input_tensor = pad_layer->getOutput(0);
-      // No need for conv op to do any padding.
-      use_asymmetric_padding = false;
-      prepadding = nvinfer1::DimsHW(0, 0);
-    }
-#endif
 
-    const int num_outputs = static_cast<int>(params->node.GetAttr<int64_t>("channels"));
+    // Relax conv2d_transpose uses an IOHW kernel ([in, out, h, w]) by default, which is also the
+    // layout TensorRT's deconvolution expects, so the weight is passed through unchanged and the
+    // output channel count is the second kernel dimension.
+    const int num_outputs = static_cast<int>(weight_shape[1]);
     const auto kernel_size = nvinfer1::DimsHW(weight_shape[2], weight_shape[3]);
     const nvinfer1::DataType weight_type = params->inputs.at(1).weight.type;
     nvinfer1::Weights bias{weight_type, nullptr, 0};
-    auto deconv_layer = params->network->addDeconvolution(*input_tensor, num_outputs, kernel_size,
-                                                          params->inputs.at(1).weight, bias);
+    auto deconv_layer = params->network->addDeconvolutionNd(*input_tensor, num_outputs, kernel_size,
+                                                            params->inputs.at(1).weight, bias);
     TVM_FFI_ICHECK(deconv_layer != nullptr);
     if (use_asymmetric_padding) {
-#if TRT_VERSION_GE(5, 1, 5)
       deconv_layer->setPrePadding(prepadding);
       deconv_layer->setPostPadding(postpadding);
-#endif
     } else {
-      deconv_layer->setPadding(prepadding);
+      deconv_layer->setPaddingNd(prepadding);
     }
     const auto trt_strides =
         nvinfer1::DimsHW(static_cast<int>(strides[0]), static_cast<int>(strides[1]));
-    deconv_layer->setStride(trt_strides);
+    deconv_layer->setStrideNd(trt_strides);
     deconv_layer->setNbGroups(groups);
     nvinfer1::ITensor* output = deconv_layer->getOutput(0);
     // Output padding.
@@ -1044,7 +1026,7 @@ class Conv2DTransposeOpConverter : public TensorRTOpConverter {
           postpadding.w() != 0) {
         // Output padding for Conv2D transpose is always asymmetric and applied to post only.
         prepadding = nvinfer1::DimsHW(0, 0);
-        auto pad_layer = params->network->addPadding(*output, prepadding, postpadding);
+        auto pad_layer = params->network->addPaddingNd(*output, prepadding, postpadding);
         output = pad_layer->getOutput(0);
       }
     }
@@ -1065,7 +1047,7 @@ class Conv3DTransposeOpConverter : public TensorRTOpConverter {
     TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("data_layout"), "NCDHW");
     TVM_FFI_ICHECK(params->node.GetAttr<ffi::String>("out_layout") == "" ||
                    params->node.GetAttr<ffi::String>("out_layout") == "NCDHW");
-    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("kernel_layout"), "OIDHW");
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("kernel_layout"), "IODHW");
     auto dilation = params->node.GetAttr<ffi::Array<int64_t>>("dilation");
     TVM_FFI_ICHECK_EQ(dilation.size(), 3);
     TVM_FFI_ICHECK(static_cast<int>(dilation[0]) == 1 && static_cast<int>(dilation[1]) == 1 &&
@@ -1078,7 +1060,10 @@ class Conv3DTransposeOpConverter : public TensorRTOpConverter {
     bool use_asymmetric_padding;
     GetPadding3D(padding, &use_asymmetric_padding, &prepadding, &postpadding);
 
-    const int num_outputs = static_cast<int>(params->node.GetAttr<int64_t>("channels"));
+    // Relax conv3d_transpose uses an IODHW kernel ([in, out, d, h, w]) by default, matching the
+    // layout TensorRT's deconvolution expects, so the weight passes through unchanged and the
+    // output channel count is the second kernel dimension.
+    const int num_outputs = static_cast<int>(weight_shape[1]);
     const auto kernel_size = nvinfer1::Dims3(weight_shape[2], weight_shape[3], weight_shape[4]);
     const nvinfer1::DataType weight_type = params->inputs.at(1).weight.type;
     nvinfer1::Weights bias{weight_type, nullptr, 0};
@@ -1135,17 +1120,14 @@ class LayoutTransformOpConverter : public TensorRTOpConverter {
 
   void Convert(TensorRTOpConverterParams* params) const {
     auto input = params->inputs.at(0).tensor;
-    auto src = params->node.GetAttr<ffi::String>("src_layout");
-    auto dst = params->node.GetAttr<ffi::String>("dst_layout");
+    // The codegen emits a pure-permutation IndexMap as "arg_axes"; a missing key => unsupported
+    // map.
+    TVM_FFI_ICHECK(params->node.HasAttr("arg_axes"))
+        << "TensorRT layout_transform supports only pure-permutation index maps";
+    auto axes = params->node.GetAttr<ffi::Array<int64_t>>("arg_axes");
     std::vector<int> order;
-    if (src == "NCHW" && dst == "NHWC") {
-      order = {0, 2, 3, 1};
-    } else if (src == "NHWC" && dst == "NCHW") {
-      order = {0, 3, 1, 2};
-    } else if (src == "NDHWC" && dst == "NCDHW") {
-      order = {0, 4, 1, 2, 3};
-    } else if (src == "NCDHW" && dst == "NDHWC") {
-      order = {0, 2, 3, 4, 1};
+    for (size_t i = 0; i < axes.size(); ++i) {
+      order.push_back(static_cast<int>(axes[i]));
     }
     params->outputs.push_back(Transpose(params, input, order));
   }
@@ -1160,7 +1142,10 @@ class ReshapeOpConverter : public TensorRTOpConverter {
   void Convert(TensorRTOpConverterParams* params) const {
     auto input = params->inputs.at(0).tensor;
     auto input_dims = TrtDimsToVector(input->getDimensions());
-    auto newshape = params->node.GetAttr<ffi::Array<int64_t>>("newshape");
+    // Relax reshape's shape is a Shape arg (serialized as arg_shape); a missing key => non-static.
+    TVM_FFI_ICHECK(params->node.HasAttr("arg_shape"))
+        << "TensorRT reshape supports only a fully static target shape";
+    auto newshape = params->node.GetAttr<ffi::Array<int64_t>>("arg_shape");
     std::vector<int> new_shape;
     int start_index = TRT_HAS_IMPLICIT_BATCH(params) ? 1 : 0;
     if (static_cast<int>(newshape[0]) == -1) start_index = 0;
@@ -1186,7 +1171,7 @@ class PadOpConverter : public TensorRTOpConverter {
         nvinfer1::DimsHW(static_cast<int>(padding_arr[0]), static_cast<int>(padding_arr[1]));
     nvinfer1::DimsHW postpadding =
         nvinfer1::DimsHW(static_cast<int>(padding_arr[2]), static_cast<int>(padding_arr[3]));
-    auto pad_layer = params->network->addPadding(*input, prepadding, postpadding);
+    auto pad_layer = params->network->addPaddingNd(*input, prepadding, postpadding);
     params->outputs.push_back(pad_layer->getOutput(0));
   }
 };
@@ -1208,17 +1193,14 @@ class ReduceOpConverter : public TensorRTOpConverter {
     TVM_FFI_ICHECK(it != op_map.end()) << "Unsupported reduce type " << op_name;
 
     auto input = params->inputs.at(0).tensor;
-    TVM_FFI_ICHECK_EQ(static_cast<int>(params->node.GetAttr<int64_t>("exclude")), false);
+    // No Relay "exclude"; axis is materialized to a concrete list by the codegen (None -> all
+    // axes).
     bool keepdims = static_cast<int>(params->node.GetAttr<int64_t>("keepdims"));
+    const int input_rank = input->getDimensions().nbDims;
     auto axes = params->node.GetAttr<ffi::Array<int64_t>>("axis");
-    // TODO(trevmorr): Support reduce to scalar.
-    TVM_FFI_ICHECK_GT(axes.size(), 0);
     uint32_t reduce_axes = 0;
-
     for (size_t i = 0; i < axes.size(); ++i) {
-      const int axis =
-          ConvertAxis(params, static_cast<int>(axes[i]), input->getDimensions().nbDims);
-      reduce_axes |= 1 << axis;
+      reduce_axes |= 1 << ConvertAxis(params, static_cast<int>(axes[i]), input_rank);
     }
     auto reduce_layer = params->network->addReduce(*input, it->second, reduce_axes, keepdims);
     params->outputs.push_back(reduce_layer->getOutput(0));
@@ -1235,20 +1217,35 @@ class StridedSliceOpConverter : public TensorRTOpConverter {
   void Convert(TensorRTOpConverterParams* params) const {
     auto input = params->inputs.at(0).tensor;
     auto input_dims = TrtDimsToVector(input->getDimensions());
-    auto attr_start = params->node.GetAttr<ffi::Array<int64_t>>("start");
-    auto attr_size = params->node.GetAttr<ffi::Array<int64_t>>("size");
-    auto attr_strides = params->node.GetAttr<ffi::Array<int64_t>>("strides");
-    std::vector<int> start, size, strides;
-    std::transform(attr_start.begin(), attr_start.end(), std::back_inserter(start),
-                   [](int64_t v) { return static_cast<int>(v); });
-    std::transform(attr_size.begin(), attr_size.end(), std::back_inserter(size),
-                   [](int64_t v) { return static_cast<int>(v); });
-    std::transform(attr_strides.begin(), attr_strides.end(), std::back_inserter(strides),
-                   [](int64_t v) { return static_cast<int>(v); });
-    if (TRT_HAS_IMPLICIT_BATCH(params)) {
-      start.erase(start.begin());
-      size.erase(size.begin());
-      strides.erase(strides.begin());
+    const int rank = static_cast<int>(input_dims.size());
+    // axes/begin/end/strides are tuple args (serialized by the codegen); only listed axes are
+    // sliced.
+    auto axes = params->node.GetAttr<ffi::Array<int64_t>>("arg_axes");
+    auto begin = params->node.GetAttr<ffi::Array<int64_t>>("arg_begin");
+    auto end = params->node.GetAttr<ffi::Array<int64_t>>("arg_end");
+    std::vector<int64_t> stride_values;
+    if (params->node.HasAttr("arg_strides")) {
+      auto attr_strides = params->node.GetAttr<ffi::Array<int64_t>>("arg_strides");
+      stride_values.assign(attr_strides.begin(), attr_strides.end());
+    }
+
+    std::vector<int> start(rank, 0);
+    std::vector<int> size(input_dims.begin(), input_dims.end());
+    std::vector<int> strides(rank, 1);
+    for (size_t i = 0; i < axes.size(); ++i) {
+      const int axis = ConvertAxis(params, static_cast<int>(axes[i]), rank);
+      const int dim = input_dims[axis];
+      const int stride = stride_values.empty() ? 1 : static_cast<int>(stride_values[i]);
+      TVM_FFI_ICHECK_GT(stride, 0) << "TensorRT strided_slice supports only positive strides";
+      int b = static_cast<int>(begin[i]);
+      int e = static_cast<int>(end[i]);
+      if (b < 0) b += dim;
+      if (e < 0) e += dim;
+      b = std::max(0, std::min(b, dim));
+      e = std::max(0, std::min(e, dim));
+      start[axis] = b;
+      strides[axis] = stride;
+      size[axis] = e > b ? (e - b + stride - 1) / stride : 0;
     }
     auto slice_layer = params->network->addSlice(*input, VectorToTrtDims(start),
                                                  VectorToTrtDims(size), VectorToTrtDims(strides));
@@ -1256,6 +1253,84 @@ class StridedSliceOpConverter : public TensorRTOpConverter {
   }
 };
 #endif
+
+#if TRT_VERSION_GE(8, 0, 0)
+class Resize2DOpConverter : public TensorRTOpConverter {
+ public:
+  explicit Resize2DOpConverter(std::string op_name)
+      : TensorRTOpConverter(std::move(op_name), {kTensor}) {}
+  ~Resize2DOpConverter() = default;
+
+  void Convert(TensorRTOpConverterParams* params) const {
+    auto input = params->inputs.at(0).tensor;
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("layout"), "NCHW");
+    auto input_dims = TrtDimsToVector(input->getDimensions());
+    TVM_FFI_ICHECK_GE(input_dims.size(), 2);
+    // Relax resize2d takes the target (height, width) as a Shape argument (serialized as arg_size).
+    auto size = params->node.GetAttr<ffi::Array<int64_t>>("arg_size");
+    TVM_FFI_ICHECK_EQ(size.size(), 2);
+    const std::string method = params->node.GetAttr<ffi::String>("method");
+    const std::string coordinate_transformation_mode =
+        params->node.GetAttr<ffi::String>("coordinate_transformation_mode");
+    const std::string rounding_method = params->node.GetAttr<ffi::String>("rounding_method");
+
+    auto resize_layer = params->network->addResize(*input);
+    TVM_FFI_ICHECK(resize_layer != nullptr);
+
+    static const std::unordered_map<std::string, nvinfer1::InterpolationMode> method_map = {
+        {"nearest_neighbor", nvinfer1::InterpolationMode::kNEAREST},
+        {"linear", nvinfer1::InterpolationMode::kLINEAR},
+        {"cubic", nvinfer1::InterpolationMode::kCUBIC}};
+    auto method_it = method_map.find(method);
+    TVM_FFI_ICHECK(method_it != method_map.end()) << "Unsupported resize2d method " << method;
+    resize_layer->setResizeMode(method_it->second);
+
+    // pytorch_half_pixel matches half_pixel for output extents greater than one. Singleton output
+    // dimensions are handled by the selector below.
+    static const std::unordered_map<std::string, nvinfer1::ResizeCoordinateTransformation>
+        coordinate_transformation_map = {
+            {"asymmetric", nvinfer1::ResizeCoordinateTransformation::kASYMMETRIC},
+            {"align_corners", nvinfer1::ResizeCoordinateTransformation::kALIGN_CORNERS},
+            {"half_pixel", nvinfer1::ResizeCoordinateTransformation::kHALF_PIXEL},
+            {"pytorch_half_pixel", nvinfer1::ResizeCoordinateTransformation::kHALF_PIXEL}};
+    auto coordinate_transformation_it =
+        coordinate_transformation_map.find(coordinate_transformation_mode);
+    TVM_FFI_ICHECK(coordinate_transformation_it != coordinate_transformation_map.end())
+        << "Unsupported resize2d coordinate_transformation_mode " << coordinate_transformation_mode;
+    resize_layer->setCoordinateTransformation(coordinate_transformation_it->second);
+    if (coordinate_transformation_mode == "pytorch_half_pixel") {
+      // PyTorch maps an output dimension of size one to source coordinate zero, whereas the
+      // regular half-pixel formula selects the center of the input dimension.
+      resize_layer->setSelectorForSinglePixel(nvinfer1::ResizeSelector::kUPPER);
+    }
+
+    if (method == "nearest_neighbor") {
+      static const std::unordered_map<std::string, nvinfer1::ResizeRoundMode> rounding_map = {
+          {"floor", nvinfer1::ResizeRoundMode::kFLOOR},
+          {"ceil", nvinfer1::ResizeRoundMode::kCEIL},
+          {"round_prefer_ceil", nvinfer1::ResizeRoundMode::kHALF_UP},
+          {"round_prefer_floor", nvinfer1::ResizeRoundMode::kHALF_DOWN}};
+      auto rounding_it = rounding_map.find(rounding_method);
+      TVM_FFI_ICHECK(rounding_it != rounding_map.end())
+          << "Unsupported resize2d rounding_method " << rounding_method;
+      resize_layer->setNearestRounding(rounding_it->second);
+    }
+
+    if (method == "cubic") {
+      resize_layer->setCubicCoeff(static_cast<float>(params->node.GetAttr<double>("cubic_alpha")));
+      resize_layer->setExcludeOutside(
+          static_cast<bool>(params->node.GetAttr<int64_t>("cubic_exclude")));
+    }
+
+    std::vector<int> output_dims(input_dims.begin(), input_dims.end());
+    output_dims[output_dims.size() - 2] = static_cast<int>(size[0]);
+    output_dims[output_dims.size() - 1] = static_cast<int>(size[1]);
+    resize_layer->setOutputDimensions(VectorToTrtDims(output_dims));
+
+    params->outputs.push_back(resize_layer->getOutput(0));
+  }
+};
+#endif  // TRT_VERSION_GE(8, 0, 0)
 
 class AdaptivePoolingOpConverter : public TensorRTOpConverter {
  public:
@@ -1282,9 +1357,9 @@ class AdaptivePoolingOpConverter : public TensorRTOpConverter {
     const auto stride = nvinfer1::DimsHW(h / output_size.h(), w / output_size.w());
     const auto window_size = nvinfer1::DimsHW(h - (output_size.h() - 1) * stride.h(),
                                               w - (output_size.w() - 1) * stride.w());
-    auto pool_layer = params->network->addPooling(*input_tensor, it->second, window_size);
+    auto pool_layer = params->network->addPoolingNd(*input_tensor, it->second, window_size);
     TVM_FFI_ICHECK(pool_layer != nullptr);
-    pool_layer->setStride(stride);
+    pool_layer->setStrideNd(stride);
     params->outputs.push_back(pool_layer->getOutput(0));
   }
 };
@@ -1296,14 +1371,10 @@ class BatchMatmulOpConverter : public TensorRTOpConverter {
   ~BatchMatmulOpConverter() = default;
 
   void Convert(TensorRTOpConverterParams* params) const {
-    auto transa = static_cast<int>(params->node.GetAttr<int64_t>("transpose_a"));
-    auto transb = static_cast<int>(params->node.GetAttr<int64_t>("transpose_b"));
-    nvinfer1::MatrixOperation trt_transa =
-        transa ? nvinfer1::MatrixOperation::kTRANSPOSE : nvinfer1::MatrixOperation::kNONE;
-    nvinfer1::MatrixOperation trt_transb =
-        transb ? nvinfer1::MatrixOperation::kTRANSPOSE : nvinfer1::MatrixOperation::kNONE;
+    // Relax matmul has no transpose flags; multiply both operands as-is.
     nvinfer1::IMatrixMultiplyLayer* matmul_layer = params->network->addMatrixMultiply(
-        *params->inputs.at(0).tensor, trt_transa, *params->inputs.at(1).tensor, trt_transb);
+        *params->inputs.at(0).tensor, nvinfer1::MatrixOperation::kNONE,
+        *params->inputs.at(1).tensor, nvinfer1::MatrixOperation::kNONE);
     TVM_FFI_ICHECK(matmul_layer != nullptr);
     params->outputs.push_back(matmul_layer->getOutput(0));
   }
@@ -1315,6 +1386,7 @@ const std::unordered_map<std::string, std::unique_ptr<TensorRTOpConverter>>& Get
     all_converters.emplace_back(std::make_unique<ActivationOpConverter>("nn.relu"));
     all_converters.emplace_back(std::make_unique<ActivationOpConverter>("sigmoid"));
     all_converters.emplace_back(std::make_unique<ActivationOpConverter>("tanh"));
+    all_converters.emplace_back(std::make_unique<SiluOpConverter>("nn.silu"));
     all_converters.emplace_back(std::make_unique<BatchNormOpConverter>("nn.batch_norm"));
     all_converters.emplace_back(std::make_unique<LayerNormOpConverter>("nn.layer_norm"));
     all_converters.emplace_back(std::make_unique<SoftmaxOpConverter>("nn.softmax"));
@@ -1380,6 +1452,9 @@ const std::unordered_map<std::string, std::unique_ptr<TensorRTOpConverter>>& Get
 #if TRT_VERSION_GE(7, 0, 0)
     all_converters.emplace_back(std::make_unique<UnaryOpConverter>("erf"));
 #endif  // TRT_VERSION_GE(7, 0, 0)
+#if TRT_VERSION_GE(8, 0, 0)
+    all_converters.emplace_back(std::make_unique<Resize2DOpConverter>("image.resize2d"));
+#endif  // TRT_VERSION_GE(8, 0, 0)
     auto* map = new std::unordered_map<std::string, std::unique_ptr<TensorRTOpConverter>>();
     for (auto& converter : all_converters) {
       map->emplace("tensorrt." + converter->op_name, std::move(converter));

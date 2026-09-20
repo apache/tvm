@@ -20,11 +20,10 @@ import sys
 
 import numpy as np
 import pytest
-import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm import tirx
+from tvm import s_tir, tirx
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -1437,25 +1436,37 @@ def opt_conv_tensorcore_mod_host():
 
         A: T.let[T.handle] = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
         T.attr(A, "storage_alignment", 128)
-        arg0_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
+        arg0_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(
+            arg0, 0, 2, dtype=T.handle("int64").ty
+        )
         arg0_shape = T.decl_buffer([6], "int64", data=arg0_shape_data)
-        arg0_strides_data: T.let[T.handle("int64")] = T.tvm_struct_get(arg0, 0, 3, dtype="handle")
+        arg0_strides_data: T.let[T.handle("int64")] = T.tvm_struct_get(
+            arg0, 0, 3, dtype=T.handle("int64").ty
+        )
         arg0_strides = T.decl_buffer([6], "int64", data=arg0_strides_data)
 
         dev_id: T.let[T.int32] = T.tvm_struct_get(arg0, 0, 9, dtype="int32")
 
         W: T.let[T.handle] = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
         T.attr(W, "storage_alignment", 128)
-        arg1_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(arg1, 0, 2, dtype="handle")
+        arg1_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(
+            arg1, 0, 2, dtype=T.handle("int64").ty
+        )
         arg1_shape = T.decl_buffer([6], "int64", data=arg1_shape_data)
-        arg1_strides_data: T.let[T.handle("int64")] = T.tvm_struct_get(arg1, 0, 3, dtype="handle")
+        arg1_strides_data: T.let[T.handle("int64")] = T.tvm_struct_get(
+            arg1, 0, 3, dtype=T.handle("int64").ty
+        )
         arg1_strides = T.decl_buffer([6], "int64", data=arg1_strides_data)
 
         Conv: T.let[T.handle] = T.tvm_struct_get(arg2, 0, 1, dtype="handle")
         T.attr(Conv, "storage_alignment", 128)
-        arg2_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(arg2, 0, 2, dtype="handle")
+        arg2_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(
+            arg2, 0, 2, dtype=T.handle("int64").ty
+        )
         arg2_shape = T.decl_buffer([6], "int64", data=arg2_shape_data)
-        arg2_strides_data: T.let[T.handle("int64")] = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
+        arg2_strides_data: T.let[T.handle("int64")] = T.tvm_struct_get(
+            arg2, 0, 3, dtype=T.handle("int64").ty
+        )
         arg2_strides = T.decl_buffer([6], "int64", data=arg2_strides_data)
 
         assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (arg0_code == 4), (
@@ -1765,13 +1776,13 @@ def test_matmul_original():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block, s_tir.SBlock)
     assert isinstance(rt_func.body.block.body, tirx.stmt.For)
     assert isinstance(rt_func.body.block.body.body, tirx.stmt.For)
     assert isinstance(rt_func.body.block.body.body.body, tirx.stmt.SeqStmt)
-    assert isinstance(rt_func.body.block.body.body.body[0].block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body.body.body[0].block, s_tir.SBlock)
     assert isinstance(rt_func.body.block.body.body.body[1], tirx.stmt.For)
-    assert isinstance(rt_func.body.block.body.body.body[1].body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body.body.body[1].body.block, s_tir.SBlock)
 
 
 def test_element_wise():
@@ -1779,15 +1790,15 @@ def test_element_wise():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block, s_tir.SBlock)
     assert isinstance(rt_func.body.block.body, tirx.stmt.SeqStmt)
     assert isinstance(rt_func.body.block.body[0], tirx.stmt.For)
     assert isinstance(rt_func.body.block.body[0].body, tirx.stmt.For)
-    assert isinstance(rt_func.body.block.body[0].body.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body[0].body.body.block, s_tir.SBlock)
 
     assert isinstance(rt_func.body.block.body[1], tirx.stmt.For)
     assert isinstance(rt_func.body.block.body[1].body, tirx.stmt.For)
-    assert isinstance(rt_func.body.block.body[1].body.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body[1].body.body.block, s_tir.SBlock)
 
 
 def test_predicate():
@@ -1795,11 +1806,11 @@ def test_predicate():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block, s_tir.SBlock)
     assert isinstance(rt_func.body.block.body, tirx.stmt.For)
     assert isinstance(rt_func.body.block.body.body, tirx.stmt.For)
     assert isinstance(rt_func.body.block.body.body.body, tirx.stmt.For)
-    assert isinstance(rt_func.body.block.body.body.body.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body.body.body.body.block, s_tir.SBlock)
 
 
 def for_thread_binding():
@@ -1856,19 +1867,19 @@ def test_match_buffer_region():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body, tirx.stmt.SBlockRealize)
+    assert isinstance(rt_func.body, s_tir.SBlockRealize)
     root = rt_func.body.block
 
     assert isinstance(root.body, tirx.stmt.For)
     assert isinstance(root.body.body, tirx.stmt.For)
-    assert isinstance(root.body.body.body, tirx.stmt.SBlockRealize)
+    assert isinstance(root.body.body.body, s_tir.SBlockRealize)
     outer_block = root.body.body.body.block
     assert len(outer_block.match_buffers) == 1
     buffer_C = outer_block.match_buffers[0].buffer
     tvm.ir.assert_structural_equal(buffer_C.shape, [T.int32(16), T.int32(1), T.int32(4)])
 
     assert isinstance(outer_block.body, tirx.stmt.For)
-    assert isinstance(outer_block.body.body, tirx.stmt.SBlockRealize)
+    assert isinstance(outer_block.body.body, s_tir.SBlockRealize)
     inner_block = outer_block.body.body.block
     assert len(inner_block.match_buffers) == 1
     buffer_D = inner_block.match_buffers[0].buffer
@@ -1901,9 +1912,9 @@ def test_block_elements():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tirx.stmt.SBlock)
-    assert isinstance(rt_func.body.block.body, tirx.stmt.SBlockRealize)
-    assert isinstance(rt_func.body.block.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block, s_tir.SBlock)
+    assert isinstance(rt_func.body.block.body, s_tir.SBlockRealize)
+    assert isinstance(rt_func.body.block.body.block, s_tir.SBlock)
     block = rt_func.body.block.body.block
     assert isinstance(block.body, tirx.stmt.BufferStore)
     assert isinstance(block.init, tirx.stmt.BufferStore)
@@ -1938,14 +1949,14 @@ def test_opaque_block():
     tvm.ir.assert_structural_equal(func, rt_func)
 
     root_block = rt_func.body.block
-    assert isinstance(root_block, tirx.stmt.SBlock)
+    assert isinstance(root_block, s_tir.SBlock)
     assert isinstance(root_block.body, tirx.stmt.For)
     assert isinstance(root_block.body.body[0], tirx.stmt.For)
-    assert isinstance(root_block.body.body[0].body, tirx.stmt.SBlockRealize)
-    assert isinstance(root_block.body.body[0].body.block, tirx.stmt.SBlock)
+    assert isinstance(root_block.body.body[0].body, s_tir.SBlockRealize)
+    assert isinstance(root_block.body.body[0].body.block, s_tir.SBlock)
     assert len(root_block.body.body[0].body.block.iter_vars) == 0
-    assert isinstance(root_block.body.body[1], tirx.stmt.SBlockRealize)
-    assert isinstance(root_block.body.body[1].block, tirx.stmt.SBlock)
+    assert isinstance(root_block.body.body[1], s_tir.SBlockRealize)
+    assert isinstance(root_block.body.body[1].block, s_tir.SBlock)
     assert len(root_block.body.body[1].block.iter_vars) == 0
 
 
@@ -2109,7 +2120,7 @@ def comm_reducer_single_reduce_group():
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
             reduce_temp0 = T.alloc_buffer((1,), scope="local")
-            with T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
+            with T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.int32(0)):
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[i * 128 + threadIdx_x], True, reduce_temp0.data, threadIdx_x, dtype="handle"))
 
     return comm_reducer_single_reduce_group
@@ -2124,7 +2135,7 @@ def comm_reducer_multiple_reduce_groups():
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
             reduce_temp0 = T.alloc_buffer((1,), scope="local")
-            with T.attr(T.comm_reducer(lambda x0, x1, y0, y1: (T.Select((x1 >= y1), x0, y0), T.Select((x1 >= y1), x1, y1)), [T.int32(-1), T.min_value("float32")]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
+            with T.attr(T.comm_reducer(lambda x0, x1, y0, y1: (T.Select((x1 >= y1), x0, y0), T.Select((x1 >= y1), x1, y1)), [T.int32(-1), T.min_value("float32")]), "reduce_scope", T.int32(0)):
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[i * 128 + threadIdx_x], True, reduce_temp0.data, threadIdx_x, dtype="handle"))
 
     return comm_reducer_multiple_reduce_groups
@@ -2140,11 +2151,11 @@ def multiple_commreducer():
         reduce_temp1 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
             with T.sblock("T_softmax_maxelem_cross_thread_reduction"):
-                T.attr(T.comm_reducer(lambda x, y: T.max(x, y), [T.min_value("float32")]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle"))
+                T.attr(T.comm_reducer(lambda x, y: T.max(x, y), [T.min_value("float32")]), "reduce_scope", T.int32(0))
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), normal_reduce_temp0[0], True, reduce_temp0.data, ax0_1, dtype="handle"))
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
             with T.sblock("T_softmax_expsum_cross_thread_reduction"):
-                T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle"))
+                T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.int32(0))
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), normal_reduce_temp1[0], True, reduce_temp1.data, ax0_1, dtype="handle"))
 
     return multiple_commreducer
@@ -2279,17 +2290,22 @@ def func_T_ptr_let_statement():
         arg0: T.let[T.handle] = T.tvm_struct_get(args, 0, 12, dtype="handle")
         arg1: T.let[T.handle] = T.tvm_struct_get(args, 1, 12, dtype="handle")
 
-        # Functions that return a "handle" can be assigned to a T.Ptr
-        # variable.  A variable annotated with T.Ptr still has dtype of
-        # T.handle, but has type annotation as a pointer type.
-        A_data: T.let[T.handle("float32")] = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
+        # The ABI field is an opaque pointer.  Retag it explicitly before
+        # binding it to the buffer's exact element pointer type.
+        A_data: T.let[T.handle("float32")] = T.reinterpret(
+            T.handle("float32").ty,
+            T.tvm_struct_get(arg0, 0, 1, dtype="handle"),
+        )
 
         # The buffer declaration has a data pointer defined earlier in
         # this function.  It should only be defined after the data pointer
         # has been defined, and should not be hoisted into the header of
         # the function as other buffer_decl statements can be.
         A = T.decl_buffer([1024], dtype="float32", data=A_data)
-        B_data: T.let[T.handle("float32")] = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
+        B_data: T.let[T.handle("float32")] = T.reinterpret(
+            T.handle("float32").ty,
+            T.tvm_struct_get(arg1, 0, 1, dtype="handle"),
+        )
         B = T.decl_buffer([1024], dtype="float32", data=B_data)
 
         B[0] = A[0]
@@ -2400,25 +2416,6 @@ def pointer_type():
     return func_with_ptr_type_annotations
 
 
-def buffer_axis_separator():
-    @T.prim_func(s_tir=True)
-    def element_wise(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128), "float32", axis_separators=[1])
-        C = T.match_buffer(c, (128, 128), "float32")
-        B = T.sblock_alloc_buffer((128, 128), "float32", axis_separators=[1])
-
-        for i, j in T.grid(128, 128):
-            with T.sblock("B"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                B[vi, vj] = A[vi, vj] * T.float32(2)
-        for i, j in T.grid(128, 128):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                C[vi, vj] = B[vi, vj] + T.float32(1)
-
-    return element_wise
-
-
 def buffer_ramp_access_as_slice_index():
     @T.prim_func(s_tir=True)
     def buffer_ramp_access(a: T.handle, b: T.handle, c: T.handle) -> None:
@@ -2428,9 +2425,9 @@ def buffer_ramp_access_as_slice_index():
         for i in range(128):
             A[i : i + 1 : 1] = i
         for i in range(4):
-            B[i * 32 : i * 32 + 32] = A[i * 32 : i * 32 + 32 : 1] + T.broadcast(1.0, 32)
+            B[i * 32 : i * 32 + 32] = A[T.Ramp(i * 32, 1, 32)] + T.broadcast(1.0, 32)
         for i in range(4):
-            C[i : i + 128 : 4] = B[i : i + 128 : 4] + T.broadcast(1.0, 32)
+            C[i : i + 128 : 4] = B[T.Ramp(i, 4, 32)] + T.broadcast(1.0, 32)
 
     return buffer_ramp_access
 
@@ -2459,9 +2456,24 @@ def predicated_buffer_load_store():
         B = T.match_buffer(b, (8,), "float32")
         for i_0 in range(4):
             load_a = T.meta_var(
-                A.vload([T.Ramp(i_0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
+                T.call_intrin(
+                    "float32x4",
+                    "tirx.masked_load",
+                    A,
+                    T.Ramp(i_0, 1, 4),
+                    T.Broadcast(T.bool(True), 4),
+                )
             )
-            B.vstore([T.Ramp(0, 2, 4)], load_a, predicate=T.Broadcast(T.bool(True), 4))
+            T.evaluate(
+                T.call_intrin(
+                    "void",
+                    "tirx.masked_store",
+                    B,
+                    load_a,
+                    T.Ramp(0, 2, 4),
+                    T.Broadcast(T.bool(True), 4),
+                )
+            )
 
     return func
 
@@ -2476,23 +2488,32 @@ def let_expression():
 
 
 def test_void_ptr_vs_handle():
-    """Distinguish between void* and handle
+    """An untyped handle is the canonical void-pointer type."""
 
-    In the future, perhaps these should be de-duplicated by forbidding
-    one of the two C++ representations.
-    """
-
-    # Generates PointerType(PrimType(DataType::Void()))
+    # Generates PointerType(PrimType::Void())
     @T.prim_func(s_tir=True)
     def void_ptr(out_ret_value: T.handle("void")):
         T.evaluate(out_ret_value)
 
-    # Generates PrimType(DataType::Handle())
+    # Generates PointerType::VoidPointerTy()
     @T.prim_func(s_tir=True)
     def handle(out_ret_value: T.handle):
         T.evaluate(out_ret_value)
 
-    assert not tvm_ffi.structural_equal(void_ptr, handle)
+    tvm.ir.assert_structural_equal(void_ptr.params[0].ty, handle.params[0].ty)
+    script = void_ptr.script()
+    assert "out_ret_value: T.handle" in script
+    assert 'T.handle("void")' not in script
+    tvm.ir.assert_structural_equal(void_ptr, tvm.script.from_source(script))
+
+    @T.prim_func(s_tir=True)
+    def scoped_void_ptr(out_ret_value: T.handle("void", "shared")):
+        T.evaluate(out_ret_value)
+
+    scoped_script = scoped_void_ptr.script()
+    assert 'out_ret_value: T.handle(storage_scope="shared")' in scoped_script
+    assert 'T.handle("void"' not in scoped_script
+    tvm.ir.assert_structural_equal(scoped_void_ptr, tvm.script.from_source(scoped_script))
 
 
 def void_ptr():
@@ -2744,75 +2765,6 @@ def bind_var():
     return func
 
 
-def string_stride():
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle):
-        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        n = T.int32()
-        A = T.match_buffer(a, (n,), strides=("A_s0",), buffer_type="auto")
-        B = T.match_buffer(b, (n,), strides=("B_s0",), buffer_type="auto")
-        blockIdx_x = T.launch_thread("blockIdx.x", (n + 63) // 64)
-        threadIdx_x = T.launch_thread("threadIdx.x", 64)
-        if T.likely(blockIdx_x * 64 + threadIdx_x < n):
-            B2 = T.decl_buffer((B.strides[0] * n,), data=B.data)
-            A2 = T.decl_buffer((A.strides[0] * n,), data=A.data)
-            B2[(blockIdx_x * 64 + threadIdx_x) * B.strides[0]] = A2[
-                (blockIdx_x * 64 + threadIdx_x) * A.strides[0]
-            ] * T.float32(2)
-
-    return main
-
-
-def string_stride_int64():
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle):
-        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        n = T.int64()
-        A_s0 = T.int64()
-        B_s0 = T.int64()
-        A = T.match_buffer(a, (n,), strides=(A_s0,), buffer_type="auto")
-        B = T.match_buffer(b, (n,), strides=(B_s0,), buffer_type="auto")
-        for i in range(n):
-            B[i] = A[i]
-
-    return main
-
-
-def merge_shape_var_def():
-    # uninitialized vars
-    @T.prim_func(check_well_formed=False, s_tir=True)
-    def main(A: T.handle, B: T.handle):
-        # fmt: off
-        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        m, n = T.int32(), T.int32()
-        A_1 = T.match_buffer(A, (m, n), strides=("A_1_s0", "A_1_s1"), buffer_type="auto")
-        B_1 = T.match_buffer(B, (m, n), strides=("B_1_s0", "B_1_s1"), buffer_type="auto")
-        for i_outer, j_outer, i_inner in T.grid((m + 9) // 10, (n + 4) // 5, 10):
-            if T.likely(i_outer * 10 + i_inner < m):
-                for j_inner in range(5):
-                    if T.likely(j_outer * 5 + j_inner < n):
-                        cse_v2: T.let[T.int32] = j_outer * 5 + j_inner
-                        cse_v1: T.let[T.int32] = i_outer * 10 + i_inner
-                        B_2 = T.decl_buffer(
-                            (B_1.strides[0] * m,),
-                            data=B_1.data,
-                            strides=("B_2_s0",),
-                            buffer_type="auto",
-                        )
-                        A_2 = T.decl_buffer(
-                            (A_1.strides[0] * m,),
-                            data=A_1.data,
-                            strides=("A_2_s0",),
-                            buffer_type="auto",
-                        )
-                        B_2[cse_v1 * B_1.strides[0] + cse_v2 * B_1.strides[1]] = A_2[
-                            cse_v1 * A_1.strides[0] + cse_v2 * A_1.strides[1]
-                        ]
-        # fmt: on
-
-    return main
-
-
 def if_then_else_var():
     @T.prim_func(s_tir=True)
     def main(n: T.int32):
@@ -2850,7 +2802,7 @@ def tvm_shfl_builtins():
         with T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
             "reduce_scope",
-            T.reinterpret("handle", T.uint64(0)),
+            T.int32(0),
         ):
             mask = T.alloc_buffer((1,), "uint32", scope="local")
             t0 = T.alloc_buffer((1,), scope="local")
@@ -2988,7 +2940,7 @@ def subroutine_call_returning_int():
 
         @T.prim_func(s_tir=True)
         def subroutine(x: T.float32) -> T.float32:
-            T.ret(x * x)
+            return x * x
 
     return mod
 
@@ -3051,10 +3003,7 @@ def subroutine_call_without_arguments():
     class mod:
         @T.prim_func(s_tir=True)
         def main():
-            # Should be equivalent to the bare "mod.subroutine()", but
-            # that relies on `GlobalVar.__call__` returning the
-            # correct IR type.
-            tirx.call_tir(mod.subroutine)
+            mod.subroutine()
 
         @T.prim_func(s_tir=True)
         def subroutine():
@@ -3066,7 +3015,7 @@ def subroutine_call_without_arguments():
 def return_zero():
     @T.prim_func(s_tir=True)
     def func() -> T.int32:
-        T.ret(0)
+        return 0
 
     return func
 
@@ -3074,7 +3023,7 @@ def return_zero():
 def return_zero_private():
     @T.prim_func(private=True, s_tir=True)
     def func() -> T.int32:
-        T.ret(0)
+        return 0
 
     return func
 
@@ -3083,7 +3032,7 @@ def return_zero_private_with_attr():
     @T.prim_func(private=True, s_tir=True)
     def func() -> T.int32:
         T.func_attr({"greeting": "hello"})
-        T.ret(0)
+        return 0
 
     return func
 
@@ -3201,11 +3150,11 @@ def relax_extern_func():
         func = R.ExternFunc("dummy_func")
 
         B: R.Tensor([10, 20], "float32") = R.call_dps_packed(
-            func, [A], out_sinfo=R.Tensor([10, 20], "float32")
+            func, [A], out_ty=R.Tensor([10, 20], "float32")
         )
 
         C: R.Tensor(ndim=2, dtype="float32") = R.call_dps_packed(
-            func, [B], out_sinfo=R.Tensor([10, 20], "float32")
+            func, [B], out_ty=R.Tensor([10, 20], "float32")
         )
 
         return C
@@ -3213,15 +3162,15 @@ def relax_extern_func():
     return func
 
 
-def relax_match_cast_struct_info_proxy():
-    """StructInfoProxy subclasses may be used as expressions
+def relax_match_cast_ty_proxy():
+    """TypeProxy subclasses may be used as expressions
 
-    This is a regression test.  The TVMScript parser allows StructInfo
+    This is a regression test.  The TVMScript parser allows Type
     to be specified using a default-constructible class
     (e.g. `R.Tensor` or `R.Shape`) rather than an instance of that
     class (e.g. `R.Tensor()` or `R.Shape()`).  In previous
-    implementations, this was only handled when the `StructInfo` was
-    used in an annotation context.  However, a `StructInfo` may also
+    implementations, this was only handled when the `Type` was
+    used in an annotation context.  However, a `Type` may also
     appear as an argument, which is passed to `R.match_cast`.  Use of
     a default-constructible class must be handled in this context as
     well.
@@ -3230,7 +3179,7 @@ def relax_match_cast_struct_info_proxy():
     def make_ir_generator(proxy_subclass):
         def inner():
             @R.function
-            def func(A: R.Object):
+            def func(A: R.Any):
                 B = R.match_cast(A, proxy_subclass)
                 return B
 
@@ -3239,11 +3188,11 @@ def relax_match_cast_struct_info_proxy():
         inner.__name__ = subclass.__name__
         return inner
 
-    # Not all subclasses of StructInfoProxy are default-constructible.
-    # This list is a subset of `StructInfoProxy.__subclasses__()`,
+    # Not all subclasses of TypeProxy are default-constructible.
+    # This list is a subset of `TypeProxy.__subclasses__()`,
     # excluding `PrimProxy` and `DTensorProxy`.
     subclasses = [
-        tvm.script.parser.relax.entry.ObjectProxy,
+        tvm.script.parser.relax.entry.AnyProxy,
         tvm.script.parser.relax.entry.TensorProxy,
         tvm.script.parser.relax.entry.CallableProxy,
         tvm.script.parser.relax.entry.TupleProxy,
@@ -3254,9 +3203,9 @@ def relax_match_cast_struct_info_proxy():
         yield make_ir_generator(subclass)
 
 
-def relax_symbolic_size_var():
-    """Relax symbolic variables may be SizeVar"""
-    N = tvm.tirx.SizeVar("N", "int64")
+def relax_symbolic_var():
+    """Relax tensors may use symbolic variables."""
+    N = tvm.tirx.Var("N", "int64")
 
     @R.function
     def func(A: R.Tensor([N], "float16")):
@@ -3267,15 +3216,11 @@ def relax_symbolic_size_var():
 
 
 def relax_float_symbolic_var():
-    """Relax symbolic variables may hold any dtype"""
+    """Relax scalar variables may use any dtype."""
 
     @R.function
-    def func(A: R.Tensor(["N"], "float16"), _: R.Prim(value="threshold")):
-        N = T.int64()
-        threshold = T.float16()
-
-        B = A >= R.prim_value(threshold / T.cast(N, "float16"))
-        return B
+    def func(value: R.Prim("float16")):
+        return value
 
     return func
 
@@ -3314,7 +3259,6 @@ ir_generator = tvm.testing.parameter(
     int64_support,
     string_annotation_escaping,
     pointer_type,
-    buffer_axis_separator,
     buffer_ramp_access_as_slice_index,
     ramp_int64,
     scalable_vectors,
@@ -3340,9 +3284,6 @@ ir_generator = tvm.testing.parameter(
     multi_env_threads,
     intrinsic_pow,
     bind_var,
-    string_stride,
-    string_stride_int64,
-    merge_shape_var_def,
     if_then_else_var,
     tvm_shfl_builtins,
     make_packed_api_result,
@@ -3363,8 +3304,8 @@ ir_generator = tvm.testing.parameter(
     func_with_loop_jumps,
     func_with_loop_steps,
     *op_of_literal(),
-    *relax_match_cast_struct_info_proxy(),
-    relax_symbolic_size_var,
+    *relax_match_cast_ty_proxy(),
+    relax_symbolic_var,
     relax_float_symbolic_var,
 )
 
@@ -3372,10 +3313,10 @@ relax_ir_generator = tvm.testing.parameter(
     relax_extern_func,
 )
 
-show_all_relax_struct_info = tvm.testing.parameter(
+show_all_relax_ty = tvm.testing.parameter(
     by_dict={
-        "show_all_struct_info": True,
-        "hide_inferable_struct_info": False,
+        "show_all_ty": True,
+        "hide_inferable_ty": False,
     }
 )
 
@@ -3395,12 +3336,12 @@ def test_roundtrip(ir_generator):
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)
 
 
-def test_relax_roundtrip(relax_ir_generator, show_all_relax_struct_info):
+def test_relax_roundtrip(relax_ir_generator, show_all_relax_ty):
     original = relax_ir_generator()
     after_roundtrip = tvm.script.from_source(
         original.script(
             show_meta=True,
-            show_all_struct_info=show_all_relax_struct_info,
+            show_all_ty=show_all_relax_ty,
         )
     )
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)

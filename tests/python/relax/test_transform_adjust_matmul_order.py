@@ -314,28 +314,24 @@ class TestDynamicWithBatchConcrete1LHSFirst(Base):
     class Before:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 1, 16]),
-            A: R.Tensor([16, "lora_r"]),
-            B: R.Tensor(["lora_r", 32]),
-        ) -> R.Tensor(["batch_size", 1, 32]):
-            batch_size = T.int64(4)
-            lora_r = T.int64(16)  # noqa: F841
+            x: R.Tensor([4, 1, 16]),
+            A: R.Tensor([16, 16]),
+            B: R.Tensor([16, 32]),
+        ) -> R.Tensor([4, 1, 32]):
             weight: R.Tensor([16, 32]) = R.matmul(A, B)
-            out: R.Tensor([batch_size, 1, 32]) = R.matmul(x, weight)
+            out: R.Tensor([4, 1, 32]) = R.matmul(x, weight)
             return out
 
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 1, 16]),
-            A: R.Tensor([16, "lora_r"]),
-            B: R.Tensor(["lora_r", 32]),
-        ) -> R.Tensor(["batch_size", 1, 32]):
-            batch_size = T.int64(4)
-            lora_r = T.int64(16)
-            weight: R.Tensor([batch_size, 1, lora_r]) = R.matmul(x, A)
-            out: R.Tensor([batch_size, 1, 32]) = R.matmul(weight, B)
+            x: R.Tensor([4, 1, 16]),
+            A: R.Tensor([16, 16]),
+            B: R.Tensor([16, 32]),
+        ) -> R.Tensor([4, 1, 32]):
+            weight: R.Tensor([4, 1, 16]) = R.matmul(x, A)
+            out: R.Tensor([4, 1, 32]) = R.matmul(weight, B)
             return out
 
 
@@ -351,28 +347,24 @@ class TestDynamicWithBatchConcrete1RHSFirst(Base):
     class Before:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 1, 16]),
-            A: R.Tensor([16, "lora_r"]),
-            B: R.Tensor(["lora_r", 32]),
-        ) -> R.Tensor(["batch_size", 1, 32]):
-            batch_size = T.int64(64)
-            lora_r = T.int64(16)
-            weight: R.Tensor([batch_size, 1, lora_r]) = R.matmul(x, A)
-            out: R.Tensor([batch_size, 1, 32]) = R.matmul(weight, B)
+            x: R.Tensor([64, 1, 16]),
+            A: R.Tensor([16, 16]),
+            B: R.Tensor([16, 32]),
+        ) -> R.Tensor([64, 1, 32]):
+            weight: R.Tensor([64, 1, 16]) = R.matmul(x, A)
+            out: R.Tensor([64, 1, 32]) = R.matmul(weight, B)
             return out
 
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 1, 16]),
-            A: R.Tensor([16, "lora_r"]),
-            B: R.Tensor(["lora_r", 32]),
-        ) -> R.Tensor(["batch_size", 1, 32]):
-            batch_size = T.int64(64)
-            lora_r = T.int64(16)  # noqa: F841
+            x: R.Tensor([64, 1, 16]),
+            A: R.Tensor([16, 16]),
+            B: R.Tensor([16, 32]),
+        ) -> R.Tensor([64, 1, 32]):
             weight: R.Tensor([16, 32]) = R.matmul(A, B)
-            out: R.Tensor([batch_size, 1, 32]) = R.matmul(x, weight)
+            out: R.Tensor([64, 1, 32]) = R.matmul(x, weight)
             return out
 
 
@@ -426,28 +418,24 @@ class TestDynamicWithBatchConcrete2RHSFirst(Base):
     class Before:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 16, 1]),
-            A: R.Tensor([32, "lora_r"]),
-            B: R.Tensor(["lora_r", 16]),
-        ) -> R.Tensor(["batch_size", 32, 1]):
-            batch_size = T.int64(4)
-            lora_r = T.int64(16)  # noqa: F841
+            x: R.Tensor([4, 16, 1]),
+            A: R.Tensor([32, 16]),
+            B: R.Tensor([16, 16]),
+        ) -> R.Tensor([4, 32, 1]):
             weight: R.Tensor([32, 16]) = R.matmul(A, B)
-            out: R.Tensor([batch_size, 32, 1]) = R.matmul(weight, x)
+            out: R.Tensor([4, 32, 1]) = R.matmul(weight, x)
             return out
 
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 16, 1]),
-            A: R.Tensor([32, "lora_r"]),
-            B: R.Tensor(["lora_r", 16]),
-        ) -> R.Tensor(["batch_size", 32, 1]):
-            batch_size = T.int64(4)
-            lora_r = T.int64(16)
-            weight: R.Tensor([batch_size, lora_r, 1]) = R.matmul(B, x)
-            out: R.Tensor([batch_size, 32, 1]) = R.matmul(A, weight)
+            x: R.Tensor([4, 16, 1]),
+            A: R.Tensor([32, 16]),
+            B: R.Tensor([16, 16]),
+        ) -> R.Tensor([4, 32, 1]):
+            weight: R.Tensor([4, 16, 1]) = R.matmul(B, x)
+            out: R.Tensor([4, 32, 1]) = R.matmul(A, weight)
             return out
 
 
@@ -463,28 +451,24 @@ class TestDynamicWithBatchConcrete2LHSFirst(Base):
     class Before:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 16, 1]),
-            A: R.Tensor([32, "lora_r"]),
-            B: R.Tensor(["lora_r", 16]),
-        ) -> R.Tensor(["batch_size", 32, 1]):
-            batch_size = T.int64(64)
-            lora_r = T.int64(16)
-            weight: R.Tensor([batch_size, lora_r, 1]) = R.matmul(B, x)
-            out: R.Tensor([batch_size, 32, 1]) = R.matmul(A, weight)
+            x: R.Tensor([64, 16, 1]),
+            A: R.Tensor([32, 16]),
+            B: R.Tensor([16, 16]),
+        ) -> R.Tensor([64, 32, 1]):
+            weight: R.Tensor([64, 16, 1]) = R.matmul(B, x)
+            out: R.Tensor([64, 32, 1]) = R.matmul(A, weight)
             return out
 
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 16, 1]),
-            A: R.Tensor([32, "lora_r"]),
-            B: R.Tensor(["lora_r", 16]),
-        ) -> R.Tensor(["batch_size", 32, 1]):
-            batch_size = T.int64(64)
-            lora_r = T.int64(16)  # noqa: F841
+            x: R.Tensor([64, 16, 1]),
+            A: R.Tensor([32, 16]),
+            B: R.Tensor([16, 16]),
+        ) -> R.Tensor([64, 32, 1]):
             weight: R.Tensor([32, 16]) = R.matmul(A, B)
-            out: R.Tensor([batch_size, 32, 1]) = R.matmul(weight, x)
+            out: R.Tensor([64, 32, 1]) = R.matmul(weight, x)
             return out
 
 
@@ -578,6 +562,68 @@ class TestRHSPermuteDims(Base):
             A_transpose = R.permute_dims(A)
             x: R.Tensor([32]) = R.matmul(x, A_transpose)
             return x
+
+
+class TestRHSPermuteDimsIdentity(Base):
+    """Do not treat an explicit identity permutation as a transpose.
+
+    `TestRHSPermuteDims` above covers the real transpose case.  Here, the
+    explicit axes preserve the inner matmul's order, so reassociation must not
+    insert transposes for its operands.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([2]),
+            A: R.Tensor([2, 1]),
+            B: R.Tensor([1, 2]),
+        ) -> R.Tensor([2]):
+            linear_weight: R.Tensor([2, 2]) = R.matmul(A, B)
+            matmul_weight: R.Tensor([2, 2]) = R.permute_dims(linear_weight, axes=[0, 1])
+            out: R.Tensor([2]) = R.matmul(x, matmul_weight)
+            return out
+
+    Expected = Before
+
+
+class TestRHSPermuteDimsNonMatrixAxes(Base):
+    """Do not rewrite permutations that move a batch axis."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([4, 1, 4]),
+            A: R.Tensor([4, 4, 1]),
+            B: R.Tensor([4, 1, 4]),
+        ) -> R.Tensor([4, 1, 4]):
+            weight: R.Tensor([4, 4, 4]) = R.matmul(A, B)
+            permuted: R.Tensor([4, 4, 4]) = R.permute_dims(weight, axes=[1, 0, 2])
+            out: R.Tensor([4, 1, 4]) = R.matmul(x, permuted)
+            return out
+
+    Expected = Before
+
+
+class TestLHSPermuteDimsNonMatrixAxes(Base):
+    """Apply the same batch-axis guard to the left-hand pattern."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            A: R.Tensor([4, 4, 1]),
+            B: R.Tensor([4, 1, 4]),
+            x: R.Tensor([4, 4, 1]),
+        ) -> R.Tensor([4, 4, 1]):
+            weight: R.Tensor([4, 4, 4]) = R.matmul(A, B)
+            permuted: R.Tensor([4, 4, 4]) = R.permute_dims(weight, axes=[1, 0, 2])
+            out: R.Tensor([4, 4, 1]) = R.matmul(permuted, x)
+            return out
+
+    Expected = Before
 
 
 class TestRHSPermuteDimsDynamic(Base):
@@ -801,6 +847,62 @@ class TestBatchedSharedPrefixPreferLHSFirst(Base):
             return out
 
 
+@pytest.mark.parametrize("lhs_first", [False, True])
+@pytest.mark.parametrize("compile_time,transpose", [(False, False), (False, True), (True, False)])
+@pytest.mark.parametrize("out_dtype", [None, "float32"])
+def test_preserve_outer_out_dtype(lhs_first, compile_time, transpose, out_dtype):
+    # Compile-time grouping should override the cheaper evaluation order.
+    shapes = [(2, 20), (20, 2), (2, 10)]
+    if lhs_first == compile_time:
+        shapes = [(10, 2), (2, 20), (20, 2)]
+    inner_indices = (1, 2) if lhs_first else (0, 1)
+    if transpose:
+        for i in inner_indices:
+            shapes[i] = shapes[i][::-1]
+
+    def build_module(expected):
+        bb = relax.BlockBuilder()
+        a, b, c = [
+            relax.Var(name, relax.TensorType(shape, "float16"))
+            for name, shape in zip("abc", shapes)
+        ]
+        params = [c, a, b] if lhs_first else [a, b, c]
+        attrs = {"num_input": 1} if compile_time else None
+        with bb.function("main", params, attrs=attrs):
+            with bb.dataflow():
+                operands = [a, b, c]
+                if expected and transpose:
+                    for i in inner_indices:
+                        operands[i] = relax.op.permute_dims(operands[i])
+                a, b, c = operands
+                if expected:
+                    if lhs_first:
+                        out = relax.op.matmul(relax.op.matmul(a, b), c, out_dtype=out_dtype)
+                    else:
+                        out = relax.op.matmul(a, relax.op.matmul(b, c), out_dtype=out_dtype)
+                else:
+                    x, y = (b, c) if lhs_first else (a, b)
+                    inner = bb.emit(relax.op.matmul(y, x) if transpose else relax.op.matmul(x, y))
+                    if transpose:
+                        inner = bb.emit(relax.op.permute_dims(inner))
+                    out = (
+                        relax.op.matmul(a, inner, out_dtype=out_dtype)
+                        if lhs_first
+                        else relax.op.matmul(inner, c, out_dtype=out_dtype)
+                    )
+                output = bb.emit_output(out)
+            bb.emit_func_output(output)
+        return bb.finalize()
+
+    before = build_module(expected=False)
+    expected = build_module(expected=True)
+    transform = relax.transform.AdjustMatmulOrder()
+    after = transform(before)
+    assert after["main"].ret_ty.dtype == (out_dtype or "float16")
+    tvm.ir.assert_structural_equal(after, expected)
+    tvm.ir.assert_structural_equal(transform(after), after)
+
+
 class TestAdjustMatmulOrderAttentionBlock:
     """AdjustMatmulOrder preserves numerics on a batched attention block.
 
@@ -811,11 +913,11 @@ class TestAdjustMatmulOrderAttentionBlock:
     def _build_attention_module(self, batch, seq, dim):
         """Minimal batched attention block exercising ND permute_dims + matmul."""
         bb = relax.BlockBuilder()
-        x = relax.Var("x", relax.TensorStructInfo((batch, seq, dim), "float32"))
-        wq = relax.Var("wq", relax.TensorStructInfo((dim, dim), "float32"))
-        wk = relax.Var("wk", relax.TensorStructInfo((dim, dim), "float32"))
-        wv = relax.Var("wv", relax.TensorStructInfo((dim, dim), "float32"))
-        wo = relax.Var("wo", relax.TensorStructInfo((dim, dim), "float32"))
+        x = relax.Var("x", relax.TensorType((batch, seq, dim), "float32"))
+        wq = relax.Var("wq", relax.TensorType((dim, dim), "float32"))
+        wk = relax.Var("wk", relax.TensorType((dim, dim), "float32"))
+        wv = relax.Var("wv", relax.TensorType((dim, dim), "float32"))
+        wo = relax.Var("wo", relax.TensorType((dim, dim), "float32"))
         with bb.function("main", [x, wq, wk, wv, wo]):
             with bb.dataflow():
                 q = bb.emit(relax.op.matmul(x, wq))
@@ -867,6 +969,33 @@ class TestAdjustMatmulOrderAttentionBlock:
         tvm.testing.assert_allclose(out_before, ref, rtol=1e-3, atol=1e-3)
         tvm.testing.assert_allclose(out_after, ref, rtol=1e-3, atol=1e-3)
         tvm.testing.assert_allclose(out_before, out_after, rtol=1e-5, atol=1e-5)
+
+    def test_identity_permute_dims_numerics(self):
+        bb = relax.BlockBuilder()
+        x = relax.Var("x", relax.TensorType((2,), "int32"))
+        A = relax.Var("A", relax.TensorType((2, 1), "int32"))
+        B = relax.Var("B", relax.TensorType((1, 2), "int32"))
+        with bb.function("main", [x, A, B]):
+            with bb.dataflow():
+                linear_weight = bb.emit(relax.op.matmul(A, B))
+                identity_weight = bb.emit(relax.op.permute_dims(linear_weight, axes=[0, 1]))
+                out = bb.emit_output(relax.op.matmul(x, identity_weight))
+            bb.emit_func_output(out)
+        mod = bb.finalize()
+        mod_opt = relax.transform.AdjustMatmulOrder()(mod)
+
+        inputs = [
+            np.array([-1, 3], dtype="int32"),
+            np.array([[2], [-4]], dtype="int32"),
+            np.array([[1, -3]], dtype="int32"),
+        ]
+        expected = np.array([-14, 42], dtype="int32")
+
+        out_before = self._run_relax_main(mod, inputs)
+        out_after = self._run_relax_main(mod_opt, inputs)
+
+        np.testing.assert_array_equal(out_before, expected)
+        np.testing.assert_array_equal(out_after, expected)
 
 
 if __name__ == "__main__":

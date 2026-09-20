@@ -24,27 +24,30 @@
 #ifndef TVM_TIR_TRANSFORM_IR_UTILS_H_
 #define TVM_TIR_TRANSFORM_IR_UTILS_H_
 
-#include <tvm/arith/int_set.h>
-#include <tvm/arith/int_solver.h>
-#include <tvm/ffi/container/tuple.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/ir/scope_stack.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/s_tir/stmt.h>
+#include <tvm/sym/int_set.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
+#include <functional>
 #include <limits>
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 namespace tvm {
 namespace tirx {
+
 /*!
  * \brief combine the nest stmt, whose body is not defined.
  * \param nest A list of For and Bind, whose body is not defined.
@@ -95,11 +98,14 @@ inline ffi::Array<T> UpdateArray(ffi::Array<T> arr, F fupdate) {
  * \param kind The data kind.
  * \return the get expression.
  */
-inline PrimExpr TVMStructGet(DataType dtype, Var handle, int index,
+inline Expr TVMStructGet(Type type, Var handle, int index, builtin::TVMStructFieldKind kind) {
+  ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind))};
+  return Call(std::move(type), builtin::tvm_struct_get(), args);
+}
+
+inline PrimExpr TVMStructGet(PrimType type, Var handle, int index,
                              builtin::TVMStructFieldKind kind) {
-  ffi::Array<PrimExpr> args = {handle, make_const(DataType::Int(32), index),
-                               make_const(DataType::Int(32), static_cast<int>(kind))};
-  return Call(dtype, builtin::tvm_struct_get(), args);
+  return TVMStructGet(Type(type), std::move(handle), index, kind).as_or_throw<PrimExpr>();
 }
 
 /*!
@@ -108,14 +114,15 @@ inline PrimExpr TVMStructGet(DataType dtype, Var handle, int index,
  * \param dtype The data type.
  * \param offset the offset index.
  */
-inline PrimExpr AddressOffset(Var handle, DataType dtype, int offset) {
-  PrimExpr offset_expr = make_const(DataType::Int(32), offset * dtype.lanes());
+inline Call AddressOffset(Var handle, PrimType dtype, int offset) {
+  PrimExpr offset_expr = IntImm::Int32(offset * dtype.lanes());
   ffi::Array<PrimExpr> shape = {offset_expr + 1};
-  Buffer dummy_buf(handle, dtype, shape, {}, 0, handle->name_hint, 0, 0, kDefault, {}, Span(),
-                   std::nullopt);
-  BufferLoad buf_load(dummy_buf, {offset_expr});
+  auto pointer_type = handle->ty.as_or_throw<PointerType>();
+  BufferVar dummy_buf(handle->name,
+                      BufferType(pointer_type->storage_scope, dtype, shape, {}, 0, 0, 0));
+  TensorLoad buf_load = BufferLoad(dummy_buf, {offset_expr});
 
-  return Call(DataType::Handle(), builtin::address_of(), {buf_load});
+  return Call(handle->ty, builtin::address_of(), {buf_load});
 }
 
 /*!
@@ -124,18 +131,20 @@ inline PrimExpr AddressOffset(Var handle, DataType dtype, int offset) {
  * \param dtype The data type.
  * \param offset the offset index.
  */
-inline PrimExpr AddressOffset(Var handle, DataType dtype, PrimExpr offset) {
+inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
   if (dtype.lanes() != 1) {
-    offset = offset * make_const(offset.dtype(), dtype.lanes());
-    offset = Ramp(offset, make_const(offset.dtype(), 1), dtype.lanes());
+    PrimType offset_ty = offset.ty();
+    offset = offset * IntImm(offset_ty, dtype.lanes());
+    offset = prim::Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
   }
 
   ffi::Array<PrimExpr> shape = {offset + 1};
-  Buffer dummy_buf(handle, dtype.element_of(), shape, {}, 0, handle->name_hint, 0, 0, kDefault, {},
-                   Span(), std::nullopt);
-  BufferLoad buf_load(dummy_buf, {offset});
+  auto pointer_type = handle->ty.as_or_throw<PointerType>();
+  BufferVar dummy_buf(handle->name, BufferType(pointer_type->storage_scope, dtype.WithLanes(1),
+                                               shape, {}, 0, 0, 0));
+  TensorLoad buf_load = BufferLoad(dummy_buf, {offset});
 
-  return Call(DataType::Handle(), builtin::address_of(), {buf_load});
+  return Call(handle->ty, builtin::address_of(), {buf_load});
 }
 
 /*!
@@ -146,10 +155,10 @@ inline PrimExpr AddressOffset(Var handle, DataType dtype, PrimExpr offset) {
  * \param value The value to be set.
  * \return the set stmt.
  */
-inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind, PrimExpr value) {
-  ffi::Array<PrimExpr> args = {handle, make_const(DataType::Int(32), index),
-                               make_const(DataType::Int(32), static_cast<int>(kind)), value};
-  return Evaluate(Call(DataType::Int(32), builtin::tvm_struct_set(), args));
+inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind, Expr value) {
+  ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind)),
+                           value};
+  return Evaluate(Call(PrimType::Int(32), builtin::tvm_struct_set(), args).as_or_throw<PrimExpr>());
 }
 
 /*!
@@ -157,13 +166,14 @@ inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind
  * \param t The original type.
  * \return The corresponding API type.
  */
-inline DataType APIType(DataType t) {
-  TVM_FFI_ICHECK(!t.is_void()) << "Cannot pass void type through packed API.";
-  if (t.is_handle()) return t;
+inline PrimType APIType(const PrimType& t) {
+  TVM_FFI_ICHECK(!t.IsVoid()) << "Cannot pass void type through packed API.";
   TVM_FFI_ICHECK_EQ(t.lanes(), 1) << "Cannot pass vector type through packed API.";
-  if (t.is_bool() || t.is_uint() || t.is_int()) return DataType::Int(64);
-  TVM_FFI_ICHECK(t.is_float());
-  return DataType::Float(64);
+  if (t.MatchesCode(DLDataTypeCode::kDLBool, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt)) {
+    return PrimType::Int(64);
+  }
+  TVM_FFI_ICHECK_EQ(t.code(), DLDataTypeCode::kDLFloat);
+  return PrimType::Float(64);
 }
 
 /*!
@@ -172,12 +182,17 @@ inline DataType APIType(DataType t) {
  * \param const_size The constant size of the array.
  * \return the alignment
  */
-inline int GetTempAllocaAlignment(DataType type, int32_t const_size) {
+inline int GetTempAllocaAlignment(const PrimType& type, int64_t const_size) {
   int align = runtime::kTempAllocaAlignment;
   if (const_size > 0) {
-    int64_t const_s = static_cast<int64_t>(const_size) * type.bits() * type.lanes() / 8;
-    while (align > const_s) {
-      align = align / 2;
+    int64_t element_bytes = type.StorageBytes();
+    // Only compute the total size when it can reduce the alignment. This also avoids
+    // overflowing for very large allocations.
+    if (element_bytes > 0 && const_size <= (align - 1) / element_bytes) {
+      int64_t const_s = const_size * element_bytes;
+      while (align > const_s) {
+        align = align / 2;
+      }
     }
   }
   return align;
@@ -190,18 +205,19 @@ inline int GetTempAllocaAlignment(DataType type, int32_t const_size) {
  */
 inline PrimExpr ConstInt32(size_t index) {
   TVM_FFI_ICHECK_LE(index, std::numeric_limits<int>::max());
-  return make_const(DataType::Int(32), static_cast<int>(index));
+  return IntImm::Int32(static_cast<int>(index));
 }
 
 /*!
  * \brief Allocate TVMValues on the stack
+ * \param ret_type exact pointer type returned by the allocation
  * \param type type of allocation
  * \param num number of TVMValues to allocate
- * \return PrimExpr representing the TVMValue
+ * \return Call representing the allocated pointer
  */
-inline PrimExpr StackAlloca(std::string type, size_t num) {
-  ffi::Array<PrimExpr> args = {StringImm(type), ConstInt32(num)};
-  return Call(DataType::Handle(), builtin::tvm_stack_alloca(), args);
+inline Call StackAlloca(Type ret_type, std::string type, size_t num) {
+  ffi::Array<Expr> args = {StringImm(type), ConstInt32(num)};
+  return Call(std::move(ret_type), builtin::tvm_stack_alloca(), args);
 }
 
 /*!
@@ -211,6 +227,120 @@ inline PrimExpr StackAlloca(std::string type, size_t num) {
  */
 Stmt ConvertSSA(Stmt stmt);
 
+/*! \brief Shared SSA renaming algorithm; dialects extend statement dispatch explicitly. */
+class IRConvertSSA : public StmtExprMutator {
+ public:
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IRConvertSSA, StmtExprMutator)
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  PrimFunc VisitPrimFunc(PrimFunc func);
+  IRModule VisitIRModule(IRModule mod);
+
+ protected:
+  explicit IRConvertSSA(const VTable* table) : StmtExprMutator(table) {}
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final;
+  Stmt WithScope(const std::function<Stmt()>& body);
+  Var DefineVar(Var var);
+  BufferStore VisitBufferAccess(BufferStore node);
+  TensorLoad VisitBufferAccess(TensorLoad node);
+  Var GetRemappedVar(Var var);
+  BufferVar GetRemappedBuffer(BufferVar buf);
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final;
+  static bool BufferDependsOnVar(const BufferVar& buffer, const VarNode* var);
+  static Var MakeNewVar(const Var& old_var);
+  void PushVarRemap(const Var& old_var, const Var& new_var);
+  void PopVarRemap(const Var& old_var, const Var& new_var);
+  void PopAllRemapsInCurrentScope();
+
+ private:
+  struct VarRemap {
+    Var old_var;
+    Var new_var;
+  };
+  /*! \brief Scope stack: each scope level holds the remaps introduced in that scope.
+   *
+   * When a body-carrying statement (For, Allocate, or a dialect statement) calls
+   * scope_.WithNewScope([&]{...}), a new scope level is pushed.
+   * Bind statements push their remaps to the current scope.
+   * On scope exit, the destructor of std::vector<VarRemap> triggers,
+   * and we undo all remaps in that level.
+   *
+   * Note: ScopeStack<T>::WithNewScope calls T's destructor on exit.
+   * std::vector's destructor destroys elements but does NOT call custom
+   * cleanup.  So we wrap the vector in ScopeLevel which handles cleanup.
+   */
+  struct ScopeLevel {
+    std::vector<VarRemap> remaps;
+    IRConvertSSA* parent{nullptr};
+
+    void push_back(VarRemap remap) { remaps.push_back(std::move(remap)); }
+    size_t size() const { return remaps.size(); }
+    VarRemap& back() { return remaps.back(); }
+    void pop_back() { remaps.pop_back(); }
+
+    ~ScopeLevel() {
+      if (!parent) return;
+      // Pop remaps in reverse order
+      while (remaps.size()) {
+        auto& remap = remaps.back();
+        parent->scoped_var_remap_[remap.old_var.get()].pop_back();
+        for (auto& kv : parent->buf_remap_) {
+          std::vector<BufferVar>& buffers = kv.second;
+          if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
+            buffers.pop_back();
+          }
+        }
+        remaps.pop_back();
+      }
+    }
+
+    ScopeLevel() = default;
+    ScopeLevel(const ScopeLevel&) = delete;
+    ScopeLevel& operator=(const ScopeLevel&) = delete;
+    ScopeLevel(ScopeLevel&& other) noexcept
+        : remaps(std::move(other.remaps)), parent(other.parent) {
+      other.parent = nullptr;  // prevent other's destructor from popping
+    }
+    ScopeLevel& operator=(ScopeLevel&& other) noexcept {
+      if (this != &other) {
+        // Run our destructor logic first
+        if (parent) {
+          while (remaps.size()) {
+            auto& remap = remaps.back();
+            parent->scoped_var_remap_[remap.old_var.get()].pop_back();
+            for (auto& kv : parent->buf_remap_) {
+              std::vector<BufferVar>& buffers = kv.second;
+              if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
+                buffers.pop_back();
+              }
+            }
+            remaps.pop_back();
+          }
+        }
+        remaps = std::move(other.remaps);
+        parent = other.parent;
+        other.parent = nullptr;
+      }
+      return *this;
+    }
+  };
+
+  std::unordered_map<const VarNode*, std::vector<Var>> scoped_var_remap_;
+  std::unordered_set<const VarNode*> defined_;
+  std::unordered_map<const VarNode*, std::vector<BufferVar>> buf_remap_;
+  std::unordered_map<const VarNode*, Var> function_scope_var_remap_;
+  ScopeStack<ScopeLevel> scope_;
+};
+
 /*!
  * \brief Return the storage scope associated with a buffer variable.
  * \param buffer_var The input buffer variable.
@@ -219,68 +349,11 @@ Stmt ConvertSSA(Stmt stmt);
 ffi::String GetPtrStorageScope(Var buffer_var);
 
 /*!
- * \brief Convert match buffer target buffer access indices to original one.
- * \param indices The indices of the target buffer
- * \return The indices of source buffer.
- */
-ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
-                                    const ffi::Array<PrimExpr>& indices);
-
-/*!
- * \brief Convert match buffer target buffer region to original one.
- * \param region The sub-region of the target buffer
- * \return The region of source buffer.
- */
-Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region);
-
-/*!
  * \brief Get stride aware buffer allocation shape from buffer.
  * \param buffer The buffer object.
  * \return shape The shape considering buffer strides.
  */
-ffi::Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer);
-
-/*!
- * \brief Context helper to update domain map within conditional scope.
- * Assume the condition is `0 <= i && i < 9` and domain of i is [0, 20], Then
- * `With<ConditionalBoundsContext> ctx(condition, &relax_map, &hint_map, &constraints)`
- * step into scope where dom_map[i] is [0, 8]; and
- * `With<ConditionalBoundsContext> ctx(!condition, &relax_map, &hint_map, &constraints)`
- * step into scope where dom_map[i] is [9, 20]
- */
-class ConditionalBoundsContext {
- private:
-  friend class With<ConditionalBoundsContext>;
-  /*!
-   * \brief Construct a condition bounds context.
-   * \param condition The condition holds on true branch.
-   * \param relax_map The domain map for relaxed vars to update.
-   * \param hint_map The domain map for free vars to update.
-   * \param pending_conditions The stack of unresolved constraints.
-   */
-  ConditionalBoundsContext(const PrimExpr& condition,
-                           std::unordered_map<const VarNode*, arith::IntSet>* relax_map,
-                           std::unordered_map<const VarNode*, arith::IntSet>* hint_map,
-                           std::vector<PrimExpr>* pending_constraints);
-  void EnterWithScope();
-  void ExitWithScope();
-
-  /*! \brief Helper to solve related variable's bound within conditional scope.*/
-  ffi::Optional<arith::IntConstraints> TrySolveCondition();
-
-  /*! \brief the condition holds on true branch. */
-  const PrimExpr& condition_;
-  /*! \brief domain map for relaxed vars to update */
-  std::unordered_map<const VarNode*, arith::IntSet>* relax_map_;
-  /*! \brief domain map for free vars to update */
-  std::unordered_map<const VarNode*, arith::IntSet>* hint_map_;
-  /*! \brief unresolved condition stack */
-  std::vector<PrimExpr>* pending_conditions_;
-  /*! \brief used to record and restore original var bounds */
-  std::unordered_map<const VarNode*, arith::IntSet> origin_map_;
-  /*! \brief used to record unresolved conditions num. */
-  size_t origin_pending_conditions_num_;
-};
+ffi::Array<PrimExpr> GetBufferAllocationShape(const BufferVar& buffer);
 
 // Information of tensor core fragment.
 struct FragmentInfo {
@@ -316,19 +389,9 @@ struct FragmentInfo {
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt);
 
 // Return the queue id and the in-flight count associated with the given
-// s_tir::attr::async_wait_queue_scope annotation.
+// tvm::tirx::attr::async_wait_queue_scope annotation.
 std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op);
 
-/*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
-using StorageAlignTuple = ffi::Tuple<int32_t, int32_t, int32_t, int32_t>;
-/*! \brief A list of StorageAlignTuple, used by StorageAlign */
-using StorageAlignAnnotation = ffi::Array<StorageAlignTuple>;
-/*!
- * \brief Collect storage alignment annotations for all buffer vars within body.
- * \param body The stmt to collect.
- * \return The result dict from buffer var to storage align annotations.
- */
-std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(const Stmt& body);
 /*!
  * \brief Split string separated by "," to get wmma fragment dimension size.
  * \param  shape_str The string to split.

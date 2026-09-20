@@ -45,7 +45,7 @@ class TestAutopad:
     def _test_autopad(self, pad_type, expected):
         bb = relax.BlockBuilder()
         input_shape = (1, 1, 4, 4)
-        x = relax.Var("x", relax.TensorStructInfo(input_shape, "float32"))
+        x = relax.Var("x", relax.TensorType(input_shape, "float32"))
 
         with bb.function("main", [x]):
             with bb.dataflow():
@@ -94,9 +94,7 @@ class TestAutopad:
             ):
                 cls = expected
                 with R.dataflow():
-                    lv = R.call_tir(
-                        cls.pad, (x,), out_sinfo=R.Tensor((1, 1, 5, 5), dtype="float32")
-                    )
+                    lv = R.call_tir(cls.pad, (x,), out_ty=R.Tensor((1, 1, 5, 5), dtype="float32"))
                     gv: R.Tensor((1, 1, 5, 5), dtype="float32") = lv
                     R.output(gv)
                 return gv
@@ -121,32 +119,16 @@ class TestAutopad:
                             x[
                                 T.int64(0),
                                 T.int64(0),
-                                T.int64(0) : T.int64(4),
-                                T.int64(0) : T.int64(4),
+                                T.max(T.int64(0), T.min(T.int64(3), v_i2)),
+                                T.max(T.int64(0), T.min(T.int64(3), v_i3)),
                             ]
                         )
                         T.writes(ReplicatePadInput[v_i0, v_i1, v_i2, v_i3])
                         ReplicatePadInput[v_i0, v_i1, v_i2, v_i3] = x[
-                            T.if_then_else(
-                                v_i0 < T.int64(0),
-                                T.int64(0),
-                                T.if_then_else(T.int64(1) <= v_i0, T.int64(0), v_i0),
-                            ),
-                            T.if_then_else(
-                                v_i1 < T.int64(0),
-                                T.int64(0),
-                                T.if_then_else(T.int64(1) <= v_i1, T.int64(0), v_i1),
-                            ),
-                            T.if_then_else(
-                                v_i2 < T.int64(0),
-                                T.int64(0),
-                                T.if_then_else(T.int64(4) <= v_i2, T.int64(3), v_i2),
-                            ),
-                            T.if_then_else(
-                                v_i3 < T.int64(0),
-                                T.int64(0),
-                                T.if_then_else(T.int64(4) <= v_i3, T.int64(3), v_i3),
-                            ),
+                            T.int64(0),
+                            T.int64(0),
+                            T.max(T.int64(0), T.min(T.int64(3), v_i2)),
+                            T.max(T.int64(0), T.min(T.int64(3), v_i3)),
                         ]
 
             @R.function
@@ -156,7 +138,7 @@ class TestAutopad:
                 cls = expected
                 with R.dataflow():
                     lv = R.call_tir(
-                        cls.replicate_pad, (x,), out_sinfo=R.Tensor((1, 1, 5, 5), dtype="float32")
+                        cls.replicate_pad, (x,), out_ty=R.Tensor((1, 1, 5, 5), dtype="float32")
                     )
                     gv: R.Tensor((1, 1, 5, 5), dtype="float32") = lv
                     R.output(gv)
@@ -202,7 +184,7 @@ class TestAutopad:
                 cls = expected
                 with R.dataflow():
                     lv = R.call_tir(
-                        cls.mirror_pad, (x,), out_sinfo=R.Tensor((1, 1, 5, 5), dtype="float32")
+                        cls.mirror_pad, (x,), out_ty=R.Tensor((1, 1, 5, 5), dtype="float32")
                     )
                     gv: R.Tensor((1, 1, 5, 5), dtype="float32") = lv
                     R.output(gv)

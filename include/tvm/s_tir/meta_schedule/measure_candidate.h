@@ -22,6 +22,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/base.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 #include <tvm/s_tir/schedule/schedule.h>

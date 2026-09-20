@@ -24,11 +24,11 @@
 #ifndef TVM_RELAX_BLOCK_BUILDER_H_
 #define TVM_RELAX_BLOCK_BUILDER_H_
 
-#include <tvm/arith/analyzer.h>
-#include <tvm/ir/name_supply.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/base.h>
+#include <tvm/sym/analyzer.h>
 
 namespace tvm {
 namespace relax {
@@ -68,11 +68,11 @@ class BlockBuilderNode : public ffi::Object {
   // Global Context management
   //-------------------------------
   /*!
-   * \brief Get the name supply for generating unique names.
+   * \brief Get the unique name supply for generating unique names.
    *
-   * \return The name supply.
+   * \return The unique name supply.
    */
-  virtual NameSupply name_supply() = 0;
+  virtual UniqueNameSupply name_supply() = 0;
 
   /*!
    * \brief Get the context IRModule in this builder.
@@ -202,11 +202,11 @@ class BlockBuilderNode : public ffi::Object {
   /*!
    * \brief Emit a MatchCast.
    * \param value The input value.
-   * \param struct_info The struct info to be matched.
+   * \param ty The type to be matched.
    * \param name_hint Name hint for the bound variable.
    * \return The variable bound to the MatchCast.
    */
-  virtual Var EmitMatchCast(Expr value, StructInfo struct_info, ffi::String name_hint = "") = 0;
+  virtual Var EmitMatchCast(Expr value, Type ty, ffi::String name_hint = "") = 0;
 
   /*!
    * \brief Generate an output for the current dataflow block.
@@ -230,7 +230,7 @@ class BlockBuilderNode : public ffi::Object {
    * \param expr The input expression.
    * \return The normalized expression.
    *
-   * \note Invariant: If any of the sub expr have struct_info field.
+   * \note Invariant: If any of the sub expr have ty field.
    *       they must have already been normalized.
    */
   virtual Expr Normalize(const Expr& expr) = 0;
@@ -248,7 +248,7 @@ class BlockBuilderNode : public ffi::Object {
    * \brief Get the analyzer of the BlockBuilder.
    * \return The BlockBuilder's arithmetic analyzer.
    */
-  virtual arith::Analyzer GetAnalyzer() = 0;
+  virtual sym::Analyzer GetAnalyzer() = 0;
 
   static constexpr const bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO("relax.BlockBuilder", BlockBuilderNode, ffi::Object);

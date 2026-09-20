@@ -19,9 +19,11 @@
 
 import tvm
 from tvm import tirx
+from tvm.ir import Call, TensorLoad
+from tvm.s_tir import SBlock
 from tvm.target import Target
-from tvm.tirx import BufferStore, SBlock
-from tvm.tirx.expr import BufferLoad, Call, Cast
+from tvm.tirx import BufferStore
+from tvm.tirx.expr import Cast
 
 from ..base import ScheduleRule
 
@@ -35,11 +37,11 @@ def identify_cast_or_load_block(block: SBlock) -> bool:
     store = block.body
 
     # check types
-    if isinstance(store.value, BufferLoad):
+    if isinstance(store.value, TensorLoad):
         load = store.value
     elif isinstance(store.value, Cast):
         load = store.value.value
-        if not isinstance(load, BufferLoad):
+        if not isinstance(load, TensorLoad):
             return False
     else:
         return False

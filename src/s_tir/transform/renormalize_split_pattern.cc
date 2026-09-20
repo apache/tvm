@@ -23,20 +23,21 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
-#include "../../arith/pattern_match.h"
+#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
+#include "../../sym/pattern_match.h"
 
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-using namespace arith;
+using namespace sym;
 
 // macro for doing simple rewrite
 #define TRY_REWRITE(SrcExpr, ResExpr) \
@@ -52,13 +53,14 @@ using namespace arith;
 
 class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
  public:
-  explicit SplitPatternReNormalizer(AnalyzerObj* analyzer) : IRMutatorWithAnalyzer(analyzer) {}
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
 
-  using IRMutatorWithAnalyzer::VisitExpr_;
+  explicit SplitPatternReNormalizer(const Analyzer& analyzer) : IRMutatorWithAnalyzer(analyzer) {}
 
-  PrimExpr VisitExpr_(const FloorDivNode* op) final {
-    PrimExpr a = VisitExpr(op->a);
-    PrimExpr b = VisitExpr(op->b);
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) final {
+    PrimExpr a = Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
+    PrimExpr b = Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b);
     PrimExpr ret = floordiv(a, b);
     // Pattern var to match any expression
     PVar<PrimExpr> x, y, z;
@@ -76,62 +78,67 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
         floormod(floordiv(x, broadcast(c2, lanes)), broadcast(floordiv(c3, c2), lanes)),
         c3.Eval()->value % c2.Eval()->value == 0);
 
+    // Factoring a product requires signed, non-wrapping index arithmetic.
+    if (ret.ty().MatchesCode(DLDataTypeCode::kDLUInt)) return ret;
+
     // floordiv(x*c1*c3 + y, c2*c3) = floordiv(x*c1 + floordiv(y, c3), c2)
     if ((floordiv(x * c1 + y, c2)).Match(ret)) {
-      int64_t c1_val = c1.Eval()->value;
-      int64_t c2_val = c2.Eval()->value;
+      ffi::BigInt c1_val = c1.Eval()->value;
+      ffi::BigInt c2_val = c2.Eval()->value;
       if (c1_val > 0 && c2_val > 0) {
-        int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
+        ffi::BigInt c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
-          return RecursiveRewrite(floordiv(x.Eval() * c1_div + floordiv(y.Eval(), c3), c2_div));
+          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
+          return RecursiveRewrite(
+              floordiv(x.Eval() * c1_div + floordiv(y.Eval(), IntImm(c1.Eval().ty(), c3)), c2_div));
         }
       }
     }
     if ((floordiv(x * broadcast(c1, lanes) + y, broadcast(c2, lanes))).Match(ret)) {
-      int64_t c1_val = c1.Eval()->value;
-      int64_t c2_val = c2.Eval()->value;
+      ffi::BigInt c1_val = c1.Eval()->value;
+      ffi::BigInt c2_val = c2.Eval()->value;
       if (c1_val > 0 && c2_val > 0) {
-        int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
+        ffi::BigInt c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
+          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
           return RecursiveRewrite(floordiv(
-              x.Eval() * Broadcast(c1_div, lanes.Eval()) +
-                  floordiv(y.Eval(), Broadcast(IntImm(c1.Eval().dtype(), c3), lanes.Eval())),
-              Broadcast(c2_div, lanes.Eval())));
+              x.Eval() * prim::Broadcast(c1_div, lanes.Eval()) +
+                  floordiv(y.Eval(), prim::Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
+              prim::Broadcast(c2_div, lanes.Eval())));
         }
       }
     }
 
     // floordiv(x*c1*c3 + y + z, c2*c3) = floordiv(x*c1 + floordiv(y + z, c3), c2)
     if ((floordiv(x * c1 + y + z, c2)).Match(ret)) {
-      int64_t c1_val = c1.Eval()->value;
-      int64_t c2_val = c2.Eval()->value;
+      ffi::BigInt c1_val = c1.Eval()->value;
+      ffi::BigInt c2_val = c2.Eval()->value;
       if (c1_val > 0 && c2_val > 0) {
-        int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
+        ffi::BigInt c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
-          return RecursiveRewrite(
-              floordiv(x.Eval() * c1_div + floordiv(y.Eval() + z.Eval(), c3), c2_div));
+          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
+          return RecursiveRewrite(floordiv(
+              x.Eval() * c1_div + floordiv(y.Eval() + z.Eval(), IntImm(c1.Eval().ty(), c3)),
+              c2_div));
         }
       }
     }
     if ((floordiv(x * broadcast(c1, lanes) + y + z, broadcast(c2, lanes))).Match(ret)) {
-      int64_t c1_val = c1.Eval()->value;
-      int64_t c2_val = c2.Eval()->value;
+      ffi::BigInt c1_val = c1.Eval()->value;
+      ffi::BigInt c2_val = c2.Eval()->value;
       if (c1_val > 0 && c2_val > 0) {
-        int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
+        ffi::BigInt c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
+          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
           return RecursiveRewrite(
-              floordiv(x.Eval() * Broadcast(c1_div, lanes.Eval()) +
+              floordiv(x.Eval() * prim::Broadcast(c1_div, lanes.Eval()) +
                            floordiv(y.Eval() + z.Eval(),
-                                    Broadcast(IntImm(c1.Eval().dtype(), c3), lanes.Eval())),
-                       Broadcast(c2_div, lanes.Eval())));
+                                    prim::Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
+                       prim::Broadcast(c2_div, lanes.Eval())));
         }
       }
     }
@@ -139,16 +146,25 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     return ret;
   }
 
-  PrimExpr VisitExpr_(const LENode* op) { return this->VisitExpr(Not(op->b < op->a)); }
+  UnchangedOr<PrimExpr> Mutate_(const prim::LENode* op, InplaceMode inplace_mode) {
+    PrimExpr rewritten = prim::Not(op->b < op->a);
+    return Mutate(rewritten, inplace_mode).ValueOrUnchanged(std::move(rewritten));
+  }
 
-  PrimExpr VisitExpr_(const GTNode* op) { return this->VisitExpr(op->b < op->a); }
+  UnchangedOr<PrimExpr> Mutate_(const prim::GTNode* op, InplaceMode inplace_mode) {
+    PrimExpr rewritten = op->b < op->a;
+    return Mutate(rewritten, inplace_mode).ValueOrUnchanged(std::move(rewritten));
+  }
 
-  PrimExpr VisitExpr_(const GENode* op) { return this->VisitExpr(Not(op->a < op->b)); }
+  UnchangedOr<PrimExpr> Mutate_(const prim::GENode* op, InplaceMode inplace_mode) {
+    PrimExpr rewritten = prim::Not(op->a < op->b);
+    return Mutate(rewritten, inplace_mode).ValueOrUnchanged(std::move(rewritten));
+  }
 
-  PrimExpr VisitExpr_(const LTNode* op) {
-    PrimExpr a = VisitExpr(op->a);
-    PrimExpr b = VisitExpr(op->b);
-    PrimExpr ret = tirx::LT(a, b);
+  UnchangedOr<PrimExpr> Mutate_(const prim::LTNode* op, InplaceMode inplace_mode) {
+    PrimExpr a = Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a);
+    PrimExpr b = Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b);
+    PrimExpr ret = prim::LT(a, b);
     // Pattern var to match any expression
     PVar<PrimExpr> x;
     // Pattern var match IntImm
@@ -158,8 +174,9 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     return ret;
   }
 
-  PrimExpr VisitExpr_(const NotNode* op) {
-    PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
+  UnchangedOr<PrimExpr> Mutate_(const prim::NotNode* op, InplaceMode inplace_mode) {
+    PrimExpr ret = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     // Pattern var to match any expression
     PVar<PrimExpr> x, y;
     TRY_REWRITE(!(!x), x);
@@ -170,11 +187,12 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     return ret;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
-    With<ConstraintContext> ctx2(analyzer_, op->loop_var < op->min + op->extent);
-    return IRMutatorWithAnalyzer::VisitStmt_(op);
+    With<ConstraintContext> ctx2(analyzer_,
+                                 static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   // Recursive rewrite x
@@ -183,7 +201,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
   PrimExpr RecursiveRewrite(const PrimExpr& x) {
     if (recur_depth_ >= kMaxRecurDepth) return x;
     ++recur_depth_;
-    PrimExpr res = this->VisitExpr(x);
+    PrimExpr res = Mutate(x, InplaceMode::kDisallow).ValueOrUnchanged(x);
     --recur_depth_;
     return res;
   }
@@ -200,8 +218,10 @@ namespace transform {
 Pass RenormalizeSplitPattern() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    arith::Analyzer analyzer;
-    n->body = SplitPatternReNormalizer(analyzer.get())(std::move(n->body));
+    sym::Analyzer analyzer;
+    n->body = ffi::make_object<SplitPatternReNormalizer>(analyzer)
+                  ->Mutate(n->body, InplaceMode::kAllow)
+                  .ValueOrUnchanged(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.RenormalizeSplitPattern", {});

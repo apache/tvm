@@ -37,7 +37,7 @@ class BaseCompactTest:
         before = tvm.IRModule.from_expr(self.before.with_attr("global_symbol", "main"))
         expected = tvm.IRModule.from_expr(self.expected.with_attr("global_symbol", "main"))
         simplify = tvm.transform.Sequential(
-            [tirx.transform.StmtSimplify(), tirx.transform.RemoveNoOp()]
+            [s_tir.transform.StmtSimplify(), tirx.transform.RemoveNoOp()]
         )
         after = simplify(s_tir.transform.CompactBufferAllocation(is_strict=is_strict)(before))
         expected = simplify(expected)
@@ -1286,6 +1286,21 @@ class TestNonBoolCondition(BaseCompactTest):
         for i in range(10):
             if i:
                 A[i - 1] = A[i - 1] + 1
+
+
+def test_loop_var_does_not_escape_compacted_buffer_extent():
+    @T.prim_func(private=True, s_tir=True)
+    def before(a: T.handle):
+        n = T.int64()
+        A = T.match_buffer(a, (n,), "int32")
+        tmp = T.alloc_buffer((n,), "int32")
+        for i in range(n):
+            length: T.let[T.int64] = T.ceildiv(n, T.shift_left(T.int64(1), i + 1))
+            for j in range(length):
+                tmp[j] = A[j]
+
+    after = s_tir.transform.CompactBufferAllocation()(tvm.IRModule.from_expr(before))
+    assert s_tir.analysis.verify_well_formed(after)
 
 
 class TestCompactSymbolicBound0:

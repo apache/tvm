@@ -28,14 +28,14 @@ def test_decl_buffer_data_is_use():
     an existing variable from the enclosing scope.  It must appear in the
     undefined list so that callers (e.g., CreateComputeScope) capture it.
     """
-    n = tirx.SizeVar("n", "int32")
+    n = tirx.Var("n", "int32")
     from tvm.ir import PointerType, PrimType
 
     data_ptr = tirx.Var("buf_data", PointerType(PrimType("float32")))
     buf = tirx.decl_buffer((n,), "float32", "buf", data=data_ptr)
 
     body = tirx.Evaluate(tirx.BufferLoad(buf, [0]))
-    decl = tirx.DeclBuffer(buf)
+    decl = tirx.DeclBuffer(buf, data=data_ptr)
     stmt = tirx.SeqStmt([decl, body])
 
     undef = tvm.tirx.analysis.undefined_vars(stmt, [])
@@ -52,13 +52,13 @@ def test_decl_buffer_elem_offset_is_use():
     """
     from tvm.ir import PointerType, PrimType
 
-    n = tirx.SizeVar("n", "int32")
+    n = tirx.Var("n", "int32")
     data_ptr = tirx.Var("buf_data", PointerType(PrimType("float32")))
     elem_off = tirx.Var("buf_elem_offset", "int32")
     buf = tirx.decl_buffer((n,), "float32", "buf", data=data_ptr, elem_offset=elem_off)
 
     body = tirx.Evaluate(tirx.BufferLoad(buf, [0]))
-    decl = tirx.DeclBuffer(buf)
+    decl = tirx.DeclBuffer(buf, data=data_ptr)
     stmt = tirx.SeqStmt([decl, body])
 
     undef = tvm.tirx.analysis.undefined_vars(stmt, [])
@@ -75,7 +75,7 @@ def test_alloc_buffer_data_is_def():
     AllocBuffer allocates new storage — the data pointer is a new definition,
     not a reference to an external variable.
     """
-    n = tirx.SizeVar("n", "int32")
+    n = tirx.Var("n", "int32")
     buf = tirx.decl_buffer((n,), "float32", "buf")
 
     body = tirx.Evaluate(tirx.BufferLoad(buf, [0]))
@@ -84,12 +84,20 @@ def test_alloc_buffer_data_is_def():
 
     undef = tvm.tirx.analysis.undefined_vars(stmt, [])
     undef_names = {v.name for v in undef}
-    # data should NOT be undefined — AllocBuffer defines it
-    assert buf.data.name not in undef_names, (
-        f"AllocBuffer data should be defined, but found {buf.data.name} in {undef_names}"
-    )
+    # The buffer Var itself is defined by AllocBuffer.
+    assert buf.name not in undef_names
     # shape var n should be undefined (comes from enclosing scope)
     assert "n" in undef_names, f"Expected shape var 'n' in undefined vars, got {undef_names}"
+
+
+def test_buffer_data_projection_is_buffer_use():
+    """An opaque data projection must retain the BufferVar identity."""
+    buf = tirx.decl_buffer((16,), "float32", "buf")
+    stmt = tirx.Evaluate(buf.data)
+
+    undef = tvm.tirx.analysis.undefined_vars(stmt, [])
+    assert len(undef) == 1
+    assert undef[0].same_as(buf)
 
 
 if __name__ == "__main__":

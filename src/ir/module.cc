@@ -22,16 +22,12 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/variant.h>
-#include <tvm/ffi/extra/base64.h>
-#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
-#include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/module.h>
-#include <tvm/ir/type_functor.h>
-#include <tvm/target/codegen.h>
+#include <tvm/ir/unique_name_supply.h>
 
 #include <algorithm>
 #include <fstream>
@@ -39,8 +35,6 @@
 #include <unordered_set>
 
 namespace tvm {
-
-TVM_FFI_STATIC_INIT_BLOCK() { IRModuleNode::RegisterReflection(); }
 
 IRModule::IRModule(tvm::ffi::Map<GlobalVar, BaseFunc> functions, SourceMap source_map,
                    DictAttrs attrs, ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos) {
@@ -114,6 +108,30 @@ int64_t IRModuleNode::SHash(int64_t init_hash,
   return hash_value;
 }
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  IRModuleNode::RegisterReflection();
+
+  refl::GlobalDef().def(
+      "ir.IRModule", [](tvm::ffi::Map<GlobalVar, BaseFunc> funcs, tvm::ffi::ObjectRef attrs,
+                        ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos) {
+        auto dict_attrs = [&attrs]() {
+          if (!attrs.defined()) {
+            return DictAttrs();
+          } else if (auto* as_dict_attrs = attrs.as<tvm::DictAttrsNode>()) {
+            return ffi::GetRef<tvm::DictAttrs>(as_dict_attrs);
+          } else if (attrs.as<ffi::MapObj>()) {
+            return tvm::DictAttrs(attrs.as_or_throw<ffi::Map<ffi::String, Any>>());
+          } else {
+            TVM_FFI_THROW(InternalError) << "Expected attrs argument to be either DictAttrs or "
+                                            "ffi::Map<ffi::String,ObjectRef>";
+          }
+        }();
+
+        return IRModule(funcs, {}, dict_attrs, global_infos);
+      });
+}
+
 bool IRModuleNode::ContainGlobalVar(const ffi::String& name) const {
   return global_var_map_.find(name) != global_var_map_.end();
 }
@@ -158,7 +176,7 @@ void IRModuleNode::AddUnchecked(const GlobalVar& var, const BaseFunc& func) {
 
   auto it = global_var_map_.find(var->name_hint);
   if (it != global_var_map_.end()) {
-    TVM_FFI_ICHECK_EQ((*it).second, var);
+    TVM_FFI_ICHECK((*it).second.same_as(var));
   } else {
     TVM_FFI_ICHECK(global_var_map_.count(var->name_hint) == 0)
         << "Duplicate global function name " << var;
@@ -204,7 +222,7 @@ IRModule IRModuleNode::ShallowCopy() {
   return IRModule(this->functions, this->source_map, this->attrs, this->global_infos);
 }
 
-IRModule IRModule::FromExpr(const RelaxExpr& expr,
+IRModule IRModule::FromExpr(const Expr& expr,
                             const tvm::ffi::Map<GlobalVar, BaseFunc>& global_funcs) {
   auto mod = IRModule(global_funcs);
   ffi::String gv_name;
@@ -219,13 +237,17 @@ IRModule IRModule::FromExpr(const RelaxExpr& expr,
     }
   }
 
+  UniqueNameSupply global_names(mod->functions.begin(), mod->functions.end(),
+                                [](const auto& kv) { return kv.first->name_hint; });
   GlobalVar main_gv;
-  auto global_var_supply = GlobalVarSupply(mod);
   if (gv_name.empty()) {
     // Bind function to 'main' (though rename if would clash with existing 'main').
-    main_gv = global_var_supply->FreshGlobal("main", false);
+    main_gv = GlobalVar(global_names->FreshName("main", false));
+  } else if (mod->ContainGlobalVar(gv_name)) {
+    main_gv = mod->GetGlobalVar(gv_name);
   } else {
-    main_gv = global_var_supply->UniqueGlobalFor(gv_name, false);
+    global_names->ReserveName(gv_name, false);
+    main_gv = GlobalVar(gv_name);
   }
   mod->Add(main_gv, func);
   return mod;
@@ -233,38 +255,7 @@ IRModule IRModule::FromExpr(const RelaxExpr& expr,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::TypeAttrDef<ffi::ModuleObj>()
-      .def("__data_to_json__",
-           [](const ffi::ModuleObj* node) {
-             std::string bytes = codegen::SerializeModuleToBytes(ffi::GetRef<ffi::Module>(node),
-                                                                 /*export_dso*/ false);
-             return ffi::Base64Encode(ffi::Bytes(bytes));
-           })
-      .def("__data_from_json__", [](const ffi::String& base64_bytes) {
-        ffi::Bytes bytes = ffi::Base64Decode(base64_bytes);
-        ffi::Module rtmod = codegen::DeserializeModuleFromBytes(bytes.operator std::string());
-        return rtmod;
-      });
   refl::GlobalDef()
-      .def("ir.IRModule",
-           [](tvm::ffi::Map<GlobalVar, BaseFunc> funcs, tvm::ffi::ObjectRef attrs,
-              ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos) {
-             auto dict_attrs = [&attrs]() {
-               if (!attrs.defined()) {
-                 return DictAttrs();
-               } else if (auto* as_dict_attrs = attrs.as<tvm::DictAttrsNode>()) {
-                 return ffi::GetRef<tvm::DictAttrs>(as_dict_attrs);
-               } else if (attrs.as<ffi::MapObj>()) {
-                 return tvm::DictAttrs(Downcast<ffi::Map<ffi::String, Any>>(attrs));
-               } else {
-                 TVM_FFI_THROW(InternalError)
-                     << "Expected attrs argument to be either DictAttrs or "
-                        "ffi::Map<ffi::String,ObjectRef>";
-               }
-             }();
-
-             return IRModule(funcs, {}, dict_attrs, global_infos);
-           })
       .def("ir.Module_Clone",
            [](IRModule mod) -> IRModule {
              IRModule clone = mod;
@@ -273,8 +264,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("ir.Module_Add",
            [](IRModule mod, GlobalVar var, ffi::ObjectRef val, bool update) -> IRModule {
-             TVM_FFI_ICHECK(val->IsInstance<RelaxExprNode>());
-             mod->Add(var, Downcast<BaseFunc>(val), update);
+             TVM_FFI_ICHECK(val->IsInstance<BaseFuncNode>());
+             mod->Add(var, val.as_or_throw<BaseFunc>(), update);
              return mod;
            })
       .def("ir.Module_Remove",
@@ -327,7 +318,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::RValueRef<IRModule> mod, ffi::Map<ffi::String, ffi::Any> attr_map) -> IRModule {
              return WithAttrs(*std::move(mod), attr_map);
            })
-      .def("ir.Module_GetAttr", [](IRModule mod, ffi::String key) -> ffi::ObjectRef {
+      .def("ir.Module_GetAttr", [](IRModule mod, ffi::String key) -> ffi::Optional<ffi::ObjectRef> {
         return mod->GetAttr<ffi::ObjectRef>(key);
       });
 }

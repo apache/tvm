@@ -110,7 +110,7 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
         f = tvm.compile(s, [data, out], "llvm")
         dev = tvm.cpu()
         tvm_data = tvm.runtime.tensor(np_data, dev)
-        tvm_out = tvm.runtime.tensor(np.zeros(dshape, dtype=data.dtype), dev)
+        tvm_out = tvm.runtime.tensor(np.zeros(dshape, dtype=data.dtype.dtype), dev)
         f(tvm_data, tvm_out)
     """
     data_buf = tvm.tirx.decl_buffer(
@@ -188,7 +188,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
         data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
     )
     out_shape = list(get_const_tuple(data.shape))
-    kvar = tvm.te.size_var("k")
+    kvar = tvm.te.var("k")
     if not isinstance(k, int):
         out_shape[axis] = kvar
     elif k >= 1:

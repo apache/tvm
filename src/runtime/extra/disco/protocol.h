@@ -28,6 +28,7 @@
 
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -78,7 +79,8 @@ struct DiscoProtocol {
   /*!\ brief Arena used by RPCReference to allocate POD memory */
   template <typename T>
   T* ArenaAlloc(int count) {
-    static_assert(std::is_pod<T>::value, "need to be trival");
+    static_assert(std::is_standard_layout<T>::value && std::is_trivial<T>::value,
+                  "need to be trivial");
     return arena_.template allocate_<T>(count);
   }
 

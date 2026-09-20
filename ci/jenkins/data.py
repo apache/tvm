@@ -33,10 +33,6 @@ import sys
 files_to_stash = {
     # Executables and build files needed to run c++ tests
     "cpptest": ["build/cpptest", "build/build.ninja", "build/CMakeFiles/rules.ninja"],
-    # Folder for hexagon build
-    "hexagon_api": [
-        "build/hexagon_api_output",
-    ],
     # runtime files
     "tvm_runtime": ["build/lib/libtvm_runtime.so", "build/config.cmake"],
     # compiler files

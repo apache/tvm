@@ -40,7 +40,7 @@ namespace relax {
  * \param out_dtype The data type of the output tensor.
  * \return The computed result.
  */
-Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_dtype);
+Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DLDataType out_dtype);
 
 /*!
  * \brief Dequantize op.
@@ -53,7 +53,7 @@ Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_dty
  * \param out_dtype The data type of the output tensor.
  * \return The computed result.
  */
-Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_dtype);
+Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DLDataType out_dtype);
 
 }  // namespace relax
 }  // namespace tvm

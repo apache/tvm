@@ -22,9 +22,10 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/s_tir/meta_schedule/extracted_task.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../s_tir/meta_schedule/module_equality.h"
 
@@ -50,18 +51,23 @@ using s_tir::meta_schedule::ModuleHash;
  *   Then we will have a ExtractedTask for all three functions, whose weight
  *   is 5 + 3 + 2 = 10.
  */
-class BlockCounter : public tirx::StmtVisitor {
+class BlockCounter : public s_tir::StmtExprVisitor {
  public:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<tvm::ExprNode>()) return std::nullopt;
+    return s_tir::StmtExprVisitor::Visit(value);
+  }
+
   static size_t GetSBlockCount(const tirx::PrimFunc& func) {
-    BlockCounter counter;
-    counter(func->body);
-    return counter.count;
+    auto counter = ffi::make_object<BlockCounter>();
+    counter->Visit(func->body);
+    return counter->count;
   }
 
  private:
-  void VisitStmt_(const tirx::SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* op) final {
     ++count;
-    StmtVisitor::VisitStmt_(op);
+    return s_tir::StmtExprVisitor::Visit_(op);
   }
   size_t count{0};
 };
@@ -105,14 +111,14 @@ class TaskExtractor : public ExprVisitor {
       return;
     }
 
-    const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
-    const tirx::PrimFunc& func = Downcast<tirx::PrimFunc>(mod_->Lookup(global_var));
+    const GlobalVar& global_var = call->args[0].as_or_throw<GlobalVar>();
+    const tirx::PrimFunc& func = mod_->Lookup(global_var).as_or_throw<tirx::PrimFunc>();
     IRModule mod = (*normalize_mod_func_)(func).cast<IRModule>();
     size_t weight = 1;
     auto it = func2task_.find(mod);
     if (it != func2task_.end()) {
       it->second->weight += 1;
-      const tirx::PrimFunc& alt_func = Downcast<tirx::PrimFunc>(it->first->Lookup("main"));
+      const tirx::PrimFunc& alt_func = it->first->Lookup("main").as_or_throw<tirx::PrimFunc>();
       // When anchor-block based equality is used, tuning tasks "nn_conv2d_add_nn_relu" and
       // "nn_conv2d_add_add_nn_relu", for example, can be identified as equal. Thus, one of them
       // will be selected to tune by the code below.

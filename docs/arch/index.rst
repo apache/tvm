@@ -418,11 +418,11 @@ schedule primitives and auto-tuning tools that operate on ``tirx::PrimFunc``:
 
 Please refer to the :ref:`TensorIR Deep Dive <tensor-ir-deep-dive>` for more details.
 
-tvm/arith
----------
+tvm/sym
+-------
 
 This module is closely tied to TensorIR. One of the key problems in the low-level code generation is the analysis of the indices'
-arithmetic properties — the positiveness, variable bound, and the integer set that describes the iterator space. arith module provides
+arithmetic properties — the positiveness, variable bound, and the integer set that describes the iterator space. sym module provides
 a collection of tools that do (primarily integer) analysis. A TensorIR pass can use these analyses to simplify and optimize the code.
 
 tvm/te and tvm/topi

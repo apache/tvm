@@ -28,11 +28,10 @@
 
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/string.h>
-#include <tvm/tirx/analysis.h>  // For the ExprDeepEqual analysis
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt_functor.h>  // For the class s_tir::StmtExprVisitor
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>  // For the class StmtExprVisitor
 
 #include <unordered_map>
 #include <utility>  // For pairs datatype
@@ -48,10 +47,12 @@ namespace tirx {
           a number (which is the number of time that it is computed)
           It is important to note that the hash used is a ffi::StructuralHash (and not an
  ffi::ObjectPtrHash) as we need to hash similarly deeply equal terms. The comparison used is
- ExprDeepEqual, which is stricter than ffi::StructuralEqual (as it does not do variables remapping),
- so it is compatible with ffi::StructuralHash (intended to be used with ffi::StructuralEqual).
+ prim::ExprDeepEqual, which is stricter than ffi::StructuralEqual (as it does not do variables
+ remapping), so it is compatible with ffi::StructuralHash (intended to be used with
+ ffi::StructuralEqual).
  */
-using ComputationTable = support::OrderedMap<PrimExpr, size_t, ffi::StructuralHash, ExprDeepEqual>;
+using ComputationTable =
+    support::OrderedMap<PrimExpr, size_t, ffi::StructuralHash, prim::ExprDeepEqual>;
 
 /*!
  * \brief A cache of computations is made of a pair of two hashtables, which respectively associate
@@ -76,8 +77,10 @@ struct ComputationCache {
  * \note Computations here are considered syntactically, meaning that semantically equivalent
           computations that are not syntactically the same are not merged together.
  */
-class ComputationsDoneBy : public StmtExprVisitor {
+class ComputationsDoneBy : public s_tir::StmtExprVisitor {
  public:
+  using s_tir::StmtExprVisitor::Visit_;
+
   // Toplevel (static) methods
   static ComputationTable GetComputationsDoneBy(
       const PrimExpr& expr, std::function<bool(const PrimExpr&)> is_eligible_computation,
@@ -86,17 +89,16 @@ class ComputationsDoneBy : public StmtExprVisitor {
       const Stmt& stmt, std::function<bool(const PrimExpr&)> is_eligible_computation,
       std::function<bool(const PrimExpr&)> can_contain_computations);
 
- protected:
   // Constructor
   ComputationsDoneBy(std::function<bool(const PrimExpr&)> is_eligible_computation,
                      std::function<bool(const PrimExpr&)> can_contain_computations);
 
-  void VisitExpr(const PrimExpr& expr) override;
-  void VisitStmt(const Stmt& stmt) override;
+ protected:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView expr) override;
 
-  void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const ForNode* op) override;
-  void VisitStmt_(const WhileNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) override;
 
  private:
   static ComputationTable ComputationsDoneByChildrenOf(
@@ -110,7 +112,7 @@ class ComputationsDoneBy : public StmtExprVisitor {
   std::function<bool(const PrimExpr&)> is_eligible_computation_;
   // The predicate used for knowing in which nodes we can search for eligible computations
   std::function<bool(const PrimExpr&)> can_contain_computations_;
-  // The object being constructed and "returned" by the VisitExpr()/VisitStmt() methods
+  // The object being constructed and "returned" by the Visit() method
   ComputationTable table_of_computations_;
   // Cache for preventing to compute repeatedly the computations done by the same stmt or expr
   static ComputationCache cache_;
@@ -122,19 +124,21 @@ class ComputationsDoneBy : public StmtExprVisitor {
           So for instance, for (A+(B+C)) it will return A and (B+C) if they are eligible,
           but not B and C.
  */
-class DirectSubexpr : public ExprVisitor {
+class DirectSubexpr : public s_tir::StmtExprVisitor {
  public:
+  using s_tir::StmtExprVisitor::Visit_;
+
   // Toplevel (static) function
   static std::vector<PrimExpr> GetDirectSubexpressions(
       const PrimExpr& expr, std::function<bool(const PrimExpr&)> is_eligible_computation,
       std::function<bool(const PrimExpr&)> can_contain_computations);
 
- protected:
   // Constructor
   DirectSubexpr(std::function<bool(const PrimExpr&)> is_eligible_computation,
                 std::function<bool(const PrimExpr&)> can_contain_computations);
 
-  void VisitExpr(const PrimExpr& expr) override;
+ protected:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView expr) override;
 
  private:
   // The predicate used for knowing which computations are eligible
@@ -142,7 +146,7 @@ class DirectSubexpr : public ExprVisitor {
   // The predicate used for knowing in which nodes we can search for eligible subexpressions
   std::function<bool(const PrimExpr&)> can_contain_computations_;
 
-  // We haven't entered the VisitExpr() method yet
+  // We haven't entered the Visit() method yet
   bool entered_ = false;
   // The vector of direct subexpressions that we are building
   std::vector<PrimExpr> direct_subexpr_;

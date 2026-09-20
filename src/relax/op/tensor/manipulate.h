@@ -67,14 +67,9 @@ Expr flatten(Expr x);
  * \param index_map The transformation to apply.
  * \param pad_value The value used for padding if the transformation results in implicit padding. If
  * not specified, any value can be used.
- * \param axis_separators Array of values to differentiate between input axes
- * when generating flattened output axes.
- * \param input axis_separators Array of values for input buffer.
  * \return The transformed result.
  */
-Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimValue> pad_value,
-                      ffi::Optional<ffi::Array<IntImm>> axis_separators,
-                      ffi::Optional<ffi::Array<IntImm>> input_axis_separators = std::nullopt);
+Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimExpr> pad_value);
 
 /*!
  * \brief Permutes the dimensions of an array.
@@ -182,6 +177,16 @@ Expr tile(Expr data, ffi::Array<int64_t> repeats);
 Expr flip(Expr data, int64_t axis);
 
 /*!
+ * \brief Reverses variable length slices along seq_axis.
+ * \param data The input tensor.
+ * \param seq_lengths A 1-D tensor containing sequence lengths for each batch.
+ * \param seq_axis The axis along which to reverse.
+ * \param batch_axis The axis that indexes the batch.
+ * \return The computed result.
+ */
+Expr reverse_sequence(Expr data, Expr seq_lengths, int64_t seq_axis, int64_t batch_axis);
+
+/*!
  * \brief Gather elements from a tensor using indices.
  * \param data The input tensor.
  * \param indices The indices tensor, must have integer type.
@@ -283,7 +288,7 @@ Expr scatter_nd(Expr data, Expr indices, Expr updates, ffi::String reduction);
  * \param step The how many elements to skip in
  * \return  The computed result tensor with the same shape as `data`.
  */
-Expr slice_scatter(Expr input, Expr src, int axis, PrimValue start, PrimValue end, PrimValue step);
+Expr slice_scatter(Expr input, Expr src, int axis, PrimExpr start, PrimExpr end, PrimExpr step);
 
 /*!
  * \brief Returns a one-hot tensor.
@@ -294,7 +299,7 @@ Expr slice_scatter(Expr input, Expr src, int axis, PrimValue start, PrimValue en
  * \param axis The axis to fill.
  * \return The computed result.
  */
-Expr one_hot(Expr indices, PrimValue on_value, PrimValue off_value, int depth, int axis);
+Expr one_hot(Expr indices, PrimExpr on_value, PrimExpr off_value, int depth, int axis);
 
 }  // namespace relax
 }  // namespace tvm

@@ -202,19 +202,24 @@ class TestTVMScriptPyFunc:
         module = TestPyFuncModule
 
         if tvm.cuda().exist:
-            device = tvm.cuda(0)
-            instance = module(device)
 
-            assert isinstance(instance, BasePyModule), "Instance should be BasePyModule"
-            assert hasattr(instance, "pyfuncs"), "Instance should have pyfuncs"
+            def run_and_check():
+                device = tvm.cuda(0)
+                instance = module(device)
 
-            x = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32, device="cuda")
-            result = instance.pytorch_processor(x)
+                assert isinstance(instance, BasePyModule), "Instance should be BasePyModule"
+                assert hasattr(instance, "pyfuncs"), "Instance should have pyfuncs"
+                assert "cuda" in str(instance.target)
 
-            assert isinstance(result, torch.Tensor)
-            assert result.device.type == "cuda"
-            expected = torch.nn.functional.relu(x) * 2.0
-            assert torch.allclose(result, expected, atol=1e-5)
+                x = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32, device="cuda")
+                result = instance.pytorch_processor(x)
+
+                assert isinstance(result, torch.Tensor)
+                assert result.device.type == "cuda"
+                expected = torch.nn.functional.relu(x) * 2.0
+                assert torch.allclose(result, expected, atol=1e-5)
+
+            tvm.testing.run_with_gpu_lock(run_and_check)
         else:
             pytest.skip("CUDA not available")
 

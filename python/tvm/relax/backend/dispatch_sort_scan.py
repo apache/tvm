@@ -80,16 +80,15 @@ class SortScanDispatcher(BackendDispatcher):
             input_tensor = call.args[0]
             boundaries = call.args[1]
             right = call.attrs.right
-            tgt = self._get_target(call.struct_info)
+            tgt = self._get_target(call.ty)
             te_func = topi.searchsorted
             with tgt:
                 if self.is_gpu_target(tgt):
                     te_func = topi.gpu.searchsorted
-            return self.builder_.call_te(
-                te_func, boundaries, input_tensor, right, input_tensor.struct_info.dtype
-            )
+            out_dtype = "int32" if call.attrs.out_int32 else "int64"
+            return self.builder_.call_te(te_func, boundaries, input_tensor, right, out_dtype)
         if call.op.name == "relax.sort":
-            tgt = self._get_target(call.struct_info)
+            tgt = self._get_target(call.ty)
             te_func = topi.sort
             kwargs = {}
             with tgt:
@@ -102,7 +101,7 @@ class SortScanDispatcher(BackendDispatcher):
                 te_func, call.args[0], call.attrs.axis, not call.attrs.descending, **kwargs
             )
         if call.op.name == "relax.argsort":
-            tgt = self._get_target(call.struct_info)
+            tgt = self._get_target(call.ty)
             te_func = topi.argsort
             kwargs = {}
             with tgt:
@@ -120,7 +119,7 @@ class SortScanDispatcher(BackendDispatcher):
                 **kwargs,
             )
         if call.op.name == "relax.topk":
-            tgt = self._get_target(call.struct_info)
+            tgt = self._get_target(call.ty)
             te_func = topi.topk
             kwargs = {}
             if can_use_thrust(tgt, "tvm.contrib.thrust.sort"):
@@ -141,16 +140,20 @@ class SortScanDispatcher(BackendDispatcher):
             self._append_calls_to_update(tir_call, tgt)
             return tir_call
         if call.op.name in ("relax.cumprod", "relax.cumsum"):
-            tgt = self._get_target(call.struct_info)
+            tgt = self._get_target(call.ty)
             axis = int(call.attrs.axis) if call.attrs.axis is not None else call.attrs.axis
-            shape = call.struct_info.shape
+            shape = call.ty.shape
             # TODO(tvm-team): Support fully dynamic case with `shape=None`
             if shape is None:
                 raise ValueError("non-symbolic shape is not supported for now")
+            shape_values = [shape[i] for i in range(len(shape))]
             kwargs = {}
+            normalized_axis = axis
+            if normalized_axis is not None and normalized_axis < 0:
+                normalized_axis += len(shape)
             if (
-                shape is not None
-                and (axis == -1 or axis == len(shape) - 1)
+                normalized_axis is not None
+                and (normalized_axis == len(shape) - 1 or tgt.kind.name == "webgpu")
                 and self.is_gpu_target(tgt)
                 and not can_use_thrust(tgt, "tvm.contrib.thrust.sum_scan")
                 and call.op.name == "relax.cumsum"
@@ -158,35 +161,50 @@ class SortScanDispatcher(BackendDispatcher):
             ):
                 from tvm.relax.backend.gpu_generic import (  # pylint: disable=import-outside-toplevel
                     gpu_2d_continuous_cumsum,
+                    gpu_3d_axis_1_cumsum,
                 )
 
-                dim = 1
-                for i in range(len(shape) - 1):
-                    dim *= shape[i]
-                in_dtype = call.args[0].struct_info.dtype
+                input_tensor = call.args[0]
+                in_dtype = call.args[0].ty.dtype
                 out_dtype = call.attrs.dtype
                 out_dtype = out_dtype or in_dtype
-                cumsum_2d_shape = relax.ShapeExpr([dim, shape[-1]])
+
+                if normalized_axis == len(shape) - 1:
+                    outer = reduce(mul, shape_values[:-1], 1)
+                    kernel_shape = relax.ShapeExpr([outer, shape[-1]])
+                    kernel = gpu_2d_continuous_cumsum(
+                        in_dtype=in_dtype,
+                        out_dtype=out_dtype,
+                        index_bits=32 if tgt.kind.name == "webgpu" else 64,
+                    )
+                    kernel_name = "gpu_2d_continuous_cumsum"
+                else:
+                    outer = reduce(mul, shape_values[:normalized_axis], 1)
+                    inner = reduce(mul, shape_values[normalized_axis + 1 :], 1)
+                    kernel_shape = relax.ShapeExpr([outer, shape[normalized_axis], inner])
+                    kernel = gpu_3d_axis_1_cumsum(
+                        in_dtype=in_dtype,
+                        out_dtype=out_dtype,
+                    )
+                    kernel_name = "gpu_3d_axis_1_cumsum"
+
                 reshape = relax.call_pure_packed(
                     "vm.builtin.reshape",
-                    call.args[0],
-                    cumsum_2d_shape,
-                    sinfo_args=relax.TensorStructInfo(cumsum_2d_shape, out_dtype),
+                    input_tensor,
+                    kernel_shape,
+                    ty_args=relax.TensorType(kernel_shape, in_dtype, vdevice=call.ty.vdevice),
                 )
-                gv = self.builder_.add_func(
-                    gpu_2d_continuous_cumsum(in_dtype=in_dtype, out_dtype=out_dtype),
-                    "gpu_2d_continuous_cumsum",
-                )
+                gv = self.builder_.add_func(kernel, kernel_name)
                 cumsum = relax.call_tir(
                     gv,
                     reshape,
-                    out_sinfo=relax.TensorStructInfo(cumsum_2d_shape, out_dtype),
+                    out_ty=relax.TensorType(kernel_shape, out_dtype, vdevice=call.ty.vdevice),
                 )
                 return relax.call_pure_packed(
                     "vm.builtin.reshape",
                     cumsum,
                     shape,
-                    sinfo_args=call.struct_info,
+                    ty_args=call.ty,
                 )
 
             with tgt:
@@ -214,8 +232,8 @@ class SortScanDispatcher(BackendDispatcher):
         """
         Estimate the workspace size for thrust sort/argsort/topk/cumsum
         """
-        input_shape = call.args[0].struct_info.shape
-        input_byte_per_elem = DataType(call.args[0].struct_info.dtype).bits // 8
+        input_shape = call.args[0].ty.shape
+        input_byte_per_elem = DataType(call.args[0].ty.dtype.dtype).bits // 8
         int64_byte_per_elem = DataType("int64").bits // 8
         int32_byte_per_elem = DataType("int32").bits // 8
         num_elem = reduce(mul, input_shape, 1)

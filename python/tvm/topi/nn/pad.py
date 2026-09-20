@@ -18,7 +18,6 @@
 
 import tvm
 from tvm import te
-from tvm.tirx import if_then_else
 
 from .. import tag
 from ..utils import equal_const_int
@@ -49,7 +48,7 @@ def get_padded_shape(data, pad_before, pad_after=None):
     if len(pad_after) != n:
         raise ValueError(f"pad_after length {len(pad_after)} != input dims {n}")
 
-    ana = tvm.arith.Analyzer()
+    ana = tvm.sym.Analyzer()
     out_shape = tuple(ana.simplify(data.shape[i] + pad_before[i] + pad_after[i]) for i in range(n))
 
     return out_shape
@@ -87,15 +86,13 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput", attrs=
         raise ValueError(f"Input dimension and pad_before dismatch : {n} vs {len(pad_before)}")
     if len(pad_after) != n:
         raise ValueError(f"Input dimension and pad_after dismatch : {n} vs {len(pad_after)}")
-    ana = tvm.arith.Analyzer()
+    ana = tvm.sym.Analyzer()
     dshape = []
     for dim in data.shape:
         dshape.append(dim)
     out_shape = tuple(ana.simplify(dshape[i] + pad_before[i] + pad_after[i]) for i in range(n))
     pad_value = (
-        pad_value
-        if isinstance(pad_value, tvm.tirx.PrimExpr)
-        else tvm.tirx.const(pad_value, data.dtype)
+        pad_value if tvm.ir.is_prim_expr(pad_value) else tvm.tirx.const(pad_value, data.dtype)
     )
 
     def _pad(*indices):
@@ -148,7 +145,7 @@ def mirror_pad(data, pad_before, pad_after=None, mode="SYMMETRIC", name="MirrorP
         raise ValueError(f"Input dimension and pad_before dismatch : {n} vs {len(pad_before)}")
     if len(pad_after) != n:
         raise ValueError(f"Input dimension and pad_after dismatch : {n} vs {len(pad_after)}")
-    ana = tvm.arith.Analyzer()
+    ana = tvm.sym.Analyzer()
     out_shape = tuple(ana.simplify(data.shape[i] + pad_before[i] + pad_after[i]) for i in range(n))
     assert mode in ("SYMMETRIC", "REFLECT")
     mode = int(mode == "SYMMETRIC")
@@ -213,15 +210,12 @@ def reflect_pad(data, pad_before, pad_after=None, name="ReflectPadInput"):
 
             orig_idx = idx - before
 
-            reflected_idx = if_then_else(
-                orig_idx < 0,
-                -orig_idx,  # reflect from start (no repeat)
-                if_then_else(
-                    orig_idx >= size,
-                    (2 * size - 2) - orig_idx,  # reflect from end
-                    orig_idx,
-                ),
-            )
+            # Branchless reflect-101 boundary index. This is bit-identical to the
+            # nested if_then_else form (-orig_idx below 0, (2*size-2)-orig_idx at or
+            # above size, orig_idx otherwise) over the valid reflect-pad domain, but
+            # lowers to plain integer arithmetic instead of per-element branches.
+            m = size - 1
+            reflected_idx = m - tvm.tirx.abs(m - tvm.tirx.abs(orig_idx))
             index_tuple.append(reflected_idx)
         return data(*index_tuple)
 
@@ -262,15 +256,10 @@ def replicate_pad(data, pad_before, pad_after=None, name="ReplicatePadInput"):
             before = pad_before[i]
 
             orig_idx = idx - before
-            clamped_idx = if_then_else(
-                orig_idx < 0,
-                tvm.tirx.const(0, "int32"),  # replicate first element
-                if_then_else(
-                    orig_idx >= size,
-                    size - 1,  # replicate last element
-                    orig_idx,
-                ),
-            )
+            # Branchless edge clamp. This is bit-identical to the nested
+            # if_then_else form (0 below 0, size-1 at or above size, orig_idx
+            # otherwise) but lowers to min/max instead of per-element branches.
+            clamped_idx = tvm.tirx.max(tvm.tirx.const(0, "int32"), tvm.tirx.min(size - 1, orig_idx))
             index_tuple.append(clamped_idx)
         return data(*index_tuple)
 

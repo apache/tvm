@@ -172,24 +172,27 @@ def verify_func_4(module):
     tvm.testing.assert_allclose(a_np + 1, f.numpy(), rtol=1e-4)
 
 
-class TestPrimFuncs:
-    func, params, verify = tvm.testing.parameters(
-        [func_1, ("A"), verify_func_1],
-        [func_2, ("C", "D"), verify_func_2],
-        [func_3, ("C", "A", "D", "E"), verify_func_3],
-        [func_4, ("C", "A", "D", "E"), verify_func_4],
-    )
+_primfunc_cases = [
+    [func_1, ("A"), verify_func_1],
+    [func_2, ("C", "D"), verify_func_2],
+    [func_3, ("C", "A", "D", "E"), verify_func_3],
+    [func_4, ("C", "A", "D", "E"), verify_func_4],
+]
 
+
+class TestPrimFuncs:
+    @pytest.mark.parametrize("func,verify", [(case[0], case[2]) for case in _primfunc_cases])
     def test_primfunc_call(self, func, verify):
         target = tvm.target.Target("llvm")
         func = tvm.compile(func, target=target)
         verify(func)
 
+    @pytest.mark.parametrize("func,params,verify", _primfunc_cases)
     def test_te_extern_call(self, func, params, verify):
         ir_mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
         prim_func = ir_mod["main"]
 
-        buf_name_map = {buf.name: buf for buf in func.buffer_map.values()}
+        buf_name_map = {param.name: param for param in func.params if tvm.tirx.is_buffer_var(param)}
         input_tensors = [te.placeholder(buf_name_map[name].shape) for name in params]
         output = te.extern_primfunc(input_tensors, prim_func)
         rt_prim_func = te.create_prim_func(tensors_from_extern_op(output, prim_func))
@@ -216,8 +219,8 @@ def tensors_from_extern_op(extern, func):
     buffer_to_tensor = {**input_binds, **output_binds}
     ordered_tensors = []
     for var in func.params:
-        buf = func.buffer_map[var]
-        ordered_tensors.append(buffer_to_tensor[buf])
+        if tvm.tirx.is_buffer_var(var):
+            ordered_tensors.append(buffer_to_tensor[var])
     return ordered_tensors
 
 

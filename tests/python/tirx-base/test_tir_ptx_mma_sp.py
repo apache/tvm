@@ -16,10 +16,12 @@
 # under the License.
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def gen_2in4_mask(m: int, n: int):
@@ -68,26 +70,20 @@ def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
 
     meta_local[0] = metadata[tx // 4]
 
-    T.evaluate(
-        T.ptx.mma.sp(
-            "m16n8k16",
-            "row",
-            "col",
-            "fp16",
-            "fp16",
-            "fp16",
-            multi_a.data,
-            0,
-            multi_b.data,
-            0,
-            accum.data,
-            0,
-            meta_local.data,
-            0,
-            0,
-            False,
-            dtype="float16",
-        )
+    a_words = T.decl_buffer([2], "uint32", data=multi_a.data, scope="local")
+    b_words = T.decl_buffer([2], "uint32", data=multi_b.data, scope="local")
+    acc_words = T.decl_buffer([2], "uint32", data=accum.data, scope="local")
+    T.ptx.mma.sp.sync.aligned.m16n8k16.row.col.f16.f16.f16.f16(
+        acc_words[0],
+        acc_words[1],
+        a_words[0],
+        a_words[1],
+        b_words[0],
+        b_words[1],
+        acc_words[0],
+        acc_words[1],
+        meta_local[0],
+        0,
     )
 
     for i in range(4):
@@ -122,26 +118,23 @@ def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
 
     meta_local[0] = metadata[tx // 4]
 
-    T.evaluate(
-        T.ptx.mma.sp(
-            "m16n8k16",
-            "row",
-            "col",
-            "fp16",
-            "fp16",
-            "fp32",
-            multi_a.data,
-            0,
-            multi_b.data,
-            0,
-            accum.data,
-            0,
-            meta_local.data,
-            0,
-            0,
-            False,
-            dtype="float32",
-        )
+    a_words = T.decl_buffer([2], "uint32", data=multi_a.data, scope="local")
+    b_words = T.decl_buffer([2], "uint32", data=multi_b.data, scope="local")
+    T.ptx.mma.sp.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32(
+        accum[0],
+        accum[1],
+        accum[2],
+        accum[3],
+        a_words[0],
+        a_words[1],
+        b_words[0],
+        b_words[1],
+        accum[0],
+        accum[1],
+        accum[2],
+        accum[3],
+        meta_local[0],
+        0,
     )
 
     for i in range(4):
@@ -176,26 +169,24 @@ def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
 
     meta_local[0] = metadata[tx // 4 * 2 + tx % 2]
 
-    T.evaluate(
-        T.ptx.mma.sp(
-            "m16n8k32",
-            "row",
-            "col",
-            "fp16",
-            "fp16",
-            "fp16",
-            multi_a.data,
-            0,
-            multi_b.data,
-            0,
-            accum.data,
-            0,
-            meta_local.data,
-            0,
-            0,
-            False,
-            dtype="float16",
-        )
+    a_words = T.decl_buffer([4], "uint32", data=multi_a.data, scope="local")
+    b_words = T.decl_buffer([4], "uint32", data=multi_b.data, scope="local")
+    acc_words = T.decl_buffer([2], "uint32", data=accum.data, scope="local")
+    T.ptx.mma.sp.sync.aligned.m16n8k32.row.col.f16.f16.f16.f16(
+        acc_words[0],
+        acc_words[1],
+        a_words[0],
+        a_words[1],
+        a_words[2],
+        a_words[3],
+        b_words[0],
+        b_words[1],
+        b_words[2],
+        b_words[3],
+        acc_words[0],
+        acc_words[1],
+        meta_local[0],
+        0,
     )
 
     for i in range(4):
@@ -230,33 +221,35 @@ def mma_sp_m16n8k32_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
 
     meta_local[0] = metadata[tx // 4 * 2 + tx % 2]
 
-    T.evaluate(
-        T.ptx.mma.sp(
-            "m16n8k32",
-            "row",
-            "col",
-            "fp16",
-            "fp16",
-            "fp32",
-            multi_a.data,
-            0,
-            multi_b.data,
-            0,
-            accum.data,
-            0,
-            meta_local.data,
-            0,
-            0,
-            False,
-            dtype="float32",
-        )
+    a_words = T.decl_buffer([4], "uint32", data=multi_a.data, scope="local")
+    b_words = T.decl_buffer([4], "uint32", data=multi_b.data, scope="local")
+    T.ptx.mma.sp.sync.aligned.m16n8k32.row.col.f32.f16.f16.f32(
+        accum[0],
+        accum[1],
+        accum[2],
+        accum[3],
+        a_words[0],
+        a_words[1],
+        a_words[2],
+        a_words[3],
+        b_words[0],
+        b_words[1],
+        b_words[2],
+        b_words[3],
+        accum[0],
+        accum[1],
+        accum[2],
+        accum[3],
+        meta_local[0],
+        0,
     )
 
     for i in range(4):
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_mma_sp_m16n8k16_f16():
     def get_meta_m16n8k16_half(mask):
         assert mask.shape == (16, 4, 2)
@@ -283,17 +276,20 @@ def test_mma_sp_m16n8k16_f16():
         C_np = np.matmul(A_dense_np, B_np).astype(out_dtype)
         meta = get_meta_m16n8k16_half(mask)
 
-        ctx = tvm.cuda()
-        A_tvm = tvm.runtime.tensor(A_np, ctx)
-        B_tvm = tvm.runtime.tensor(B_np, ctx)
-        C_tvm = tvm.runtime.tensor(np.zeros_like(C_np), ctx)
-        meta_tvm = tvm.runtime.tensor(meta, ctx)
-        cuda_mod(A_tvm, B_tvm, C_tvm, meta_tvm)
+        def run_and_check():
+            ctx = tvm.cuda()
+            A_tvm = tvm.runtime.tensor(A_np, ctx)
+            B_tvm = tvm.runtime.tensor(B_np, ctx)
+            C_tvm = tvm.runtime.tensor(np.zeros_like(C_np), ctx)
+            meta_tvm = tvm.runtime.tensor(meta, ctx)
+            cuda_mod(A_tvm, B_tvm, C_tvm, meta_tvm)
+            tvm.testing.assert_allclose(C_tvm.numpy(), C_np, atol=1e-3, rtol=1e-3)
 
-        tvm.testing.assert_allclose(C_tvm.numpy(), C_np, atol=1e-3, rtol=1e-3)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_mma_sp_m16n8k32_f16():
     def get_meta_m16n8k32_half(mask):
         assert mask.shape == (16, 8, 2)
@@ -322,14 +318,16 @@ def test_mma_sp_m16n8k32_f16():
         C_np = np.matmul(A_dense_np, B_np).astype(out_dtype)
         meta = get_meta_m16n8k32_half(mask)
 
-        ctx = tvm.cuda()
-        A_tvm = tvm.runtime.tensor(A_np, ctx)
-        B_tvm = tvm.runtime.tensor(B_np, ctx)
-        C_tvm = tvm.runtime.tensor(np.zeros_like(C_np), ctx)
-        meta_tvm = tvm.runtime.tensor(meta, ctx)
-        cuda_mod(A_tvm, B_tvm, C_tvm, meta_tvm)
+        def run_and_check():
+            ctx = tvm.cuda()
+            A_tvm = tvm.runtime.tensor(A_np, ctx)
+            B_tvm = tvm.runtime.tensor(B_np, ctx)
+            C_tvm = tvm.runtime.tensor(np.zeros_like(C_np), ctx)
+            meta_tvm = tvm.runtime.tensor(meta, ctx)
+            cuda_mod(A_tvm, B_tvm, C_tvm, meta_tvm)
+            tvm.testing.assert_allclose(C_tvm.numpy(), C_np, atol=1e-3, rtol=1e-3)
 
-    tvm.testing.assert_allclose(C_tvm.numpy(), C_np, atol=1e-3, rtol=1e-3)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

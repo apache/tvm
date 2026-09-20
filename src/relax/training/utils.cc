@@ -51,7 +51,7 @@ class AppendLossMutator : private ExprMutator {
 
     AppendLossMutator mutator(mod, new_loss_func, num_backbone_outputs);
     auto new_func_transformed =
-        WithAttr(Downcast<Function>(mutator.VisitExpr(new_func)), tvm::attr::kGlobalSymbol,
+        WithAttr(mutator.VisitExpr(new_func).as_or_throw<Function>(), tvm::attr::kGlobalSymbol,
                  new_func_name.value_or(func_name + "_loss"));
 
     auto new_module = ffi::GetRef<IRModule>(mod.CopyOnWrite());
@@ -113,7 +113,7 @@ class AppendLossMutator : private ExprMutator {
    * \brief Using VisitExpr to remap the defined variable. This is different from the standard
    * behaviour of VisitVarDef.
    */
-  Var VisitVarDef(const Var& var) final { return Downcast<Var>(this->VisitExpr(var)); }
+  Var VisitVarDef(const Var& var) final { return this->VisitExpr(var).as_or_throw<Var>(); }
 
   /*! \brief Checks the loss function have only one DataflowBlock, and returns a scalar Var. */
   void CheckLossBody() {
@@ -147,7 +147,7 @@ class AppendLossMutator : private ExprMutator {
 
   /*!
    * \brief Check the number of elements in loss_func_params is no less than num_backbone_outputs,
-   * and the elements in backbone_return_arr_ and loss_func_params have matched struct_info. Also
+   * and the elements in backbone_return_arr_ and loss_func_params have matched ty. Also
    * sets up var_remap_ from loss parameter Vars to backbone returned Vars.
    */
   void CheckAndRemapLossParams(const ffi::Array<Var>& loss_func_params) {
@@ -158,16 +158,16 @@ class AppendLossMutator : private ExprMutator {
     for (int i = 0; i < num_backbone_outputs_; ++i) {
       Var loss_param = loss_func_params[i];
       Var backbone_ret = backbone_return_arr_[i];
-      auto loss_param_sinfo = GetStructInfo(loss_param);
-      auto backbone_ret_sinfo = GetStructInfo(backbone_ret);
+      auto loss_param_ty = GetType(loss_param);
+      auto backbone_ret_ty = GetType(backbone_ret);
 
-      TVM_FFI_ICHECK(checker(backbone_ret_sinfo, loss_param_sinfo))
-          << "The struct info of the " << i
-          << "-th return value of backbone function is: " << backbone_ret_sinfo
-          << " while the corresponding struct info of parameter of loss function is "
-          << loss_param_sinfo << ", which is different.";
+      TVM_FFI_ICHECK(checker(backbone_ret_ty, loss_param_ty))
+          << "The type of the " << i
+          << "-th return value of backbone function is: " << backbone_ret_ty
+          << " while the corresponding type of parameter of loss function is " << loss_param_ty
+          << ", which is different.";
 
-      this->var_remap_[loss_param->vid] = backbone_ret;
+      this->var_remap_[loss_param] = backbone_ret;
     }
   }
 
@@ -178,8 +178,10 @@ class AppendLossMutator : private ExprMutator {
    *
    * 1. Is used in prediction_outputs of the backbone function,
    * 2. Is not used in other_outputs of the backbone function.
+   * 3. Does not have PrimType.
    *
-   * Because such Vars are no longer the outputs of the new function.
+   * Because such Vars are no longer the outputs of the new function. Primitive Vars remain
+   * ordinary bindings because they may define dependent types in the appended loss function.
    */
   void CheckAndRemapBackboneReturn() {
     TVM_FFI_ICHECK(static_cast<int>(backbone_return_arr_.size()) >= num_backbone_outputs_)
@@ -189,9 +191,9 @@ class AppendLossMutator : private ExprMutator {
         backbone_return_arr_.begin() + num_backbone_outputs_, backbone_return_arr_.end());
     for (int i = 0; i < num_backbone_outputs_; ++i) {
       auto var = backbone_return_arr_[i];
-      if (other_outputs_var.count(var) == 0) {
-        auto new_var = DataflowVar(var->vid, GetStructInfo(var), var->span);
-        this->var_remap_[var->vid] = new_var;
+      if (other_outputs_var.count(var) == 0 && !var->ty.as<PrimTypeNode>()) {
+        auto new_var = DataflowVar(var->name, GetType(var), var->span);
+        this->var_remap_[var] = new_var;
         backbone_return_arr_.Set(i, new_var);
       }
     }

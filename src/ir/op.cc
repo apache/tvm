@@ -21,11 +21,12 @@
  * \file src/ir/op.cc
  * \brief Primitive operators and intrinsics.
  */
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
-#include <tvm/tirx/op_attr_types.h>
 
 #include <memory>
 
@@ -33,15 +34,28 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ArgumentInfoNode::RegisterReflection();
-  OpNode::RegisterReflection();
+namespace {
+
+TVMFFIAny OpVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  // Ops are unique registry atoms.  Avoid reflecting through their registry metadata.
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
+
+TVMFFIAny OpMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny OpMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+}  // namespace
+
+TVM_FFI_STATIC_INIT_BLOCK() { ArgumentInfoNode::RegisterReflection(); }
 
 using ffi::Any;
 using ffi::Function;
 using ffi::PackedArgs;
-using tirx::FLowerIntrinsic;
 
 using OpRegistry = AttrRegistry<OpRegEntry, Op>;
 
@@ -52,11 +66,30 @@ const Op& Op::Get(const ffi::String& name) {
   return reg->op();
 }
 
-OpRegEntry::OpRegEntry(uint32_t reg_index) {
+Op OpRegEntry::MakeOp(uint32_t reg_index) {
   ffi::ObjectPtr<OpNode> n = ffi::make_object<OpNode>();
   n->index_ = reg_index;
-  op_ = Op(n);
+  return Op(n);
 }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  OpNode::RegisterReflection();
+  refl::TypeAttrDef<OpNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&OpVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&OpMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&OpMaybeInplaceMutate));
+  refl::TypeAttrDef<OpNode>()
+      .def("__data_to_json__",
+           [](const OpNode* node) -> ffi::String {
+             // simply save as the string
+             return node->name;
+           })
+      .def("__data_from_json__", [](const ffi::String& name) -> Op { return Op::Get(name); });
+}
+
+OpRegEntry::OpRegEntry(uint32_t reg_index) : op_(MakeOp(reg_index)) {}
 
 OpRegEntry& OpRegEntry::RegisterOrGet(const ffi::String& name) {
   return OpRegistry::Global()->RegisterOrGet(name);
@@ -147,20 +180,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              } else {
                reg.set_attr(attr_key, value, plevel);
              }
-           })
-      .def("ir.RegisterOpLowerIntrinsic",
-           [](ffi::String name, ffi::Function f, ffi::String target, int plevel) {
-             tvm::OpRegEntry::RegisterOrGet(name).set_attr<FLowerIntrinsic>(
-                 target + ".FLowerIntrinsic", f, plevel);
            });
   // override OpNode to use name as the repr
-  refl::TypeAttrDef<OpNode>()
-      .def("__data_to_json__",
-           [](const OpNode* node) -> ffi::String {
-             // simply save as the string
-             return node->name;
-           })
-      .def("__data_from_json__", [](const ffi::String& name) -> Op { return Op::Get(name); });
 }
 
 // Pattern A (RM): auto-default repr from reflection.

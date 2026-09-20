@@ -62,7 +62,7 @@ def test_liveness_analysis():
         "p": (3, 5),
         "n": (4, 5),
     }
-    actual_ranges = {var.name_hint: live_range for var, live_range in live_ranges.items()}
+    actual_ranges = {var.name: live_range for var, live_range in live_ranges.items()}
     assert actual_ranges == expected_ranges
 
 
@@ -88,7 +88,7 @@ def test_alias_analysis_basic():
     }
 
     for var, alias_set in alias_sets.items():
-        assert alias_set == expected[var.name_hint]
+        assert alias_set == expected[var.name]
     assert tuple_map == {}
 
 
@@ -129,7 +129,7 @@ def test_alias_analysis_tuple():
         "n": {3},
     }
 
-    actual_alias_sets = {var.name_hint: alias_set for var, alias_set in alias_sets.items()}
+    actual_alias_sets = {var.name: alias_set for var, alias_set in alias_sets.items()}
     assert expected == actual_alias_sets
     assert 2 in tuple_map
     assert tuple_map[2] == [{0}, {1}]
@@ -162,7 +162,7 @@ def test_alias_split():
         "n": {3},
     }
 
-    actual_alias_sets = {var.name_hint: alias_set for var, alias_set in alias_sets.items()}
+    actual_alias_sets = {var.name: alias_set for var, alias_set in alias_sets.items()}
     assert expected == actual_alias_sets
     assert len(tuple_map) == 1
     assert 1 in tuple_map
@@ -205,11 +205,11 @@ def test_alias_call_tir():
         def main(x: R.Tensor((10, 10), "int32")) -> R.Tensor((10, 10), "int32"):
             with R.dataflow():
                 cls = AliasCallTir
-                y = R.call_tir(cls.tir_id, (x,), out_sinfo=R.Tensor((10, 10), "int32"))
+                y = R.call_tir(cls.tir_id, (x,), out_ty=R.Tensor((10, 10), "int32"))
                 t = R.call_tir(
                     cls.tir_id2,
                     (y,),
-                    out_sinfo=[R.Tensor((10, 10), "int32"), R.Tensor((10, 10), "int32")],
+                    out_ty=[R.Tensor((10, 10), "int32"), R.Tensor((10, 10), "int32")],
                 )
                 z = y
                 p = t[0]
@@ -236,7 +236,7 @@ def test_alias_call_tir():
         "v": {4},
     }
 
-    actual_alias_sets = {var.name_hint: alias_set for var, alias_set in alias_sets.items()}
+    actual_alias_sets = {var.name: alias_set for var, alias_set in alias_sets.items()}
     assert expected == actual_alias_sets
     assert len(tuple_map) == 1
     assert 2 in tuple_map
@@ -260,7 +260,7 @@ def test_mystery_calls():
                 n = R.const(2, dtype="int32")
                 t = (m, n)
                 a = R.call_pure_packed(
-                    "chaos", t, sinfo_args=R.Tuple(R.Tensor((), "int32"), R.Tensor((), "int32"))
+                    "chaos", t, ty_args=R.Tuple(R.Tensor((), "int32"), R.Tensor((), "int32"))
                 )
                 b = a[0]
                 c = a[1]
@@ -282,7 +282,7 @@ def test_mystery_calls():
         # (in principle, we can use type information to narrow down the aliasing)
     }
 
-    actual_alias_sets = {var.name_hint: alias_set for var, alias_set in alias_sets.items()}
+    actual_alias_sets = {var.name: alias_set for var, alias_set in alias_sets.items()}
     assert expected == actual_alias_sets
     assert len(tuple_map) == 2
     assert 5 in tuple_map
@@ -318,7 +318,7 @@ def test_alias_external_value():
         "c": {-1},
     }
 
-    actual_alias_sets = {var.name_hint: alias_set for var, alias_set in alias_sets.items()}
+    actual_alias_sets = {var.name: alias_set for var, alias_set in alias_sets.items()}
     assert expected == actual_alias_sets
     assert len(tuple_map) == 1
     assert 2 in tuple_map
@@ -496,7 +496,7 @@ def test_insert_inplace_calls():
                     cls.add_inplace,
                     (z, y),
                     inplace_indices=[0],
-                    out_sinfo=[
+                    out_ty=[
                         R.Tensor((2, 3), dtype="float32"),
                     ],
                 )
@@ -504,7 +504,7 @@ def test_insert_inplace_calls():
                     cls.multiply_inplace,
                     (a, y),
                     inplace_indices=[0],
-                    out_sinfo=[
+                    out_ty=[
                         R.Tensor((2, 3), dtype="float32"),
                     ],
                 )
@@ -513,7 +513,7 @@ def test_insert_inplace_calls():
                     cls.subtract_inplace,
                     (r, r),
                     inplace_indices=[1],
-                    out_sinfo=[
+                    out_ty=[
                         R.Tensor((1, 3), dtype="float32"),
                     ],
                 )
@@ -521,7 +521,7 @@ def test_insert_inplace_calls():
                     cls.multiply_inplace,
                     (q, s),
                     inplace_indices=[0],
-                    out_sinfo=[
+                    out_ty=[
                         R.Tensor((2, 3), dtype="float32"),
                     ],
                 )
@@ -602,13 +602,13 @@ def test_dynamic():
                 a_1 = R.call_tir_inplace(
                     cls.add_inplace,
                     (z, y),
-                    out_sinfo=R.Tensor((a, b), dtype="float32"),
+                    out_ty=R.Tensor((a, b), dtype="float32"),
                     inplace_indices=[0],
                 )
                 s = R.call_tir_inplace(
                     cls.subtract_inplace,
                     (a_1, a_1),
-                    out_sinfo=R.Tensor((a, b), dtype="float32"),
+                    out_ty=R.Tensor((a, b), dtype="float32"),
                     inplace_indices=[1],
                 )
                 R.output(s)
@@ -911,24 +911,24 @@ class TestViewOpSharedStorageAndNoInplace:
     @classmethod
     def _build_module(cls, op):
         if op == "relax.expand_dims":
-            x_sinfo = relax.TensorStructInfo((4,), "float32")
+            x_ty = relax.TensorType((4,), "float32")
         elif op == "relax.squeeze":
-            x_sinfo = relax.TensorStructInfo((1, 4, 1), "float32")
+            x_ty = relax.TensorType((1, 4, 1), "float32")
         elif op == "relax.reshape":
-            x_sinfo = relax.TensorStructInfo((4,), "float32")
+            x_ty = relax.TensorType((4,), "float32")
         elif op == "relax.permute_dims":
-            x_sinfo = relax.TensorStructInfo((1, 4), "float32")
+            x_ty = relax.TensorType((1, 4), "float32")
         elif op == "relax.memory.view":
-            x_sinfo = relax.TensorStructInfo((4,), "float32")
+            x_ty = relax.TensorType((4,), "float32")
         elif op == "relax.memory.ensure_zero_offset":
-            x_sinfo = relax.TensorStructInfo((4, 1), "float32")
+            x_ty = relax.TensorType((4, 1), "float32")
         elif op in ("relax.flatten", "relax.nn.batch_flatten"):
-            x_sinfo = relax.TensorStructInfo((1, 4), "float32")
+            x_ty = relax.TensorType((1, 4), "float32")
         else:
             raise ValueError(op)
 
         bb = relax.BlockBuilder()
-        x = relax.Var("x", x_sinfo)
+        x = relax.Var("x", x_ty)
         concat_axis = cls._concat_axis_for_view_op(op)
         with bb.function("main", [x]):
             with bb.dataflow():
@@ -1003,8 +1003,16 @@ class TestViewOpSharedStorageAndNoInplace:
         params = list(func.params)
 
         alias_sets, _ = dataflow_alias_analysis(block, params)
-        a_var = block.bindings[0].var
-        b_var = block.bindings[1].var
+        view_vars = [
+            binding.var
+            for binding in block.bindings
+            if (
+                isinstance(binding.value, relax.Call)
+                and isinstance(binding.value.op, tvm.ir.Op)
+                and binding.value.op.name == view_op
+            )
+        ]
+        a_var, b_var = view_vars[:2]
         assert alias_sets[a_var] & alias_sets[b_var], (
             f"{view_op}: duplicate views should share alias sets, but got "
             f"{alias_sets[a_var]} and {alias_sets[b_var]}"

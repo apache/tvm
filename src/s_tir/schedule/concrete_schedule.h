@@ -20,6 +20,9 @@
 #define TVM_S_TIR_SCHEDULE_CONCRETE_SCHEDULE_H_
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <memory>
 #include <utility>
@@ -48,7 +51,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   /*! \brief A symbol table that maps random variables to concrete StmtSRef/Integers */
   TSymbolTable symbol_table_;
   /*! \brief A persistent stateless arithmetic analyzer. */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   /*! \brief The value of random state for sampling. */
   LinearCongruentialEngine::TRandState rand_state_;
 
@@ -181,9 +184,6 @@ class ConcreteScheduleNode : public ScheduleNode {
                        const ffi::Optional<IndexMap>& pad_value,
                        bool assume_injective_transform = false) override;
   void TransformBlockLayout(const SBlockRV& block_rv, const IndexMap& index_map) override;
-  void SetAxisSeparator(const SBlockRV& block_rv, int buffer_index,
-                        BufferIndexType buffer_index_type,
-                        const ffi::Array<IntImm>& axis_separators) override;
   /******** Schedule: Padding decomposition ********/
   SBlockRV DecomposePadding(const SBlockRV& block_rv, const LoopRV& loop_rv) override;
   /******** Schedule: Buffer transformation ********/
@@ -261,15 +261,17 @@ inline For ConcreteScheduleNode::Get(const LoopRV& loop_rv) const {
 }
 
 inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
-  PrimExpr transformed = Substitute(expr_rv, [this](const Var& var) -> ffi::Optional<PrimExpr> {
+  auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     auto it = this->symbol_table_.find(var);
     if (it == this->symbol_table_.end()) {
       TVM_FFI_THROW(IndexError) << "Cannot find corresponding ExprRV: " << var;
     }
     const ffi::ObjectRef& obj = (*it).second;
     const auto* int_imm = TVM_TYPE_AS(obj, IntImmNode);
-    return IntImm(DataType::Int(32), int_imm->value);
-  });
+    return ffi::Any(IntImm::Int32(int_imm->value));
+  };
+  PrimExpr transformed =
+      ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr_rv, f_substitute).as_or_throw<PrimExpr>();
   return this->analyzer_->Simplify(transformed);
 }
 
@@ -369,9 +371,9 @@ inline T ConcreteScheduleNode::CreateRV(const StmtSRef& sref) {
 }
 
 inline ExprRV ConcreteScheduleNode::CreateRV(int64_t value) {
-  Var rv("v" + std::to_string(this->symbol_table_.size() + 1), DataType::Int(32));
-  this->symbol_table_.Set(rv, IntImm(DataType::Int(32), static_cast<int32_t>(value)));
-  return rv;
+  Var rv("v" + std::to_string(this->symbol_table_.size() + 1), PrimType::Int(32));
+  this->symbol_table_.Set(rv, IntImm::Int32(static_cast<int32_t>(value)));
+  return rv.as_or_throw<PrimExpr>();
 }
 
 inline ffi::Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64_t>& value,

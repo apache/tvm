@@ -16,6 +16,7 @@
 # under the License.
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -48,7 +49,49 @@ def _int_triple(side, axis):
     return tuple(int(x) for x in side[axis])
 
 
+def _launch_thread_extents(func):
+    extents = {}
+
+    def collect(node):
+        if isinstance(node, tvm.tirx.AttrStmt) and node.attr_key == "thread_extent":
+            extents[str(node.node.thread_tag)] = int(node.value)
+
+    tvm_ffi.structural_walk(func.body, collect)
+    return extents
+
+
 L_LANE = T.TileLayout(T.S[32 : 1 @ laneid])
+
+
+def test_lower_tirx_opaque_optional_pragma_annotations():
+    @T.prim_func(private=True)
+    def before(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
+        for i in T.serial(8, annotations={"pragma_unroll": None}):
+            B[i] = A[i] + 1.0
+        for i in T.serial(8, annotations={"pragma_unroll_explicit": None}):
+            B[i] = A[i] + 2.0
+        for i in T.serial(8, annotations={"pragma_unroll": False}):
+            B[i] = A[i] + 3.0
+        for i in T.serial(8, annotations={"pragma_unroll_explicit": 0}):
+            B[i] = A[i] + 4.0
+
+    @T.prim_func(private=True)
+    def after(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
+        for i in T.serial(8):
+            B[i] = A[i] + 1.0
+        for i in T.serial(8):
+            B[i] = A[i] + 2.0
+        for i in T.serial(8, annotations={"pragma_unroll": False}):
+            B[i] = A[i] + 3.0
+        for i in T.serial(8):
+            B[i] = A[i] + 4.0
+
+    # The pragma refers to the variable bound by the loop inside its body.
+    loop = after.body.seq[3]
+    pragma = tvm.tirx.AttrStmt(loop.loop_var, "pragma_unroll_explicit", 0, loop)
+    after = after.with_body(tvm.tirx.SeqStmt([*after.body.seq[:3], pragma]))
+    lowered = tvm.tirx.transform.LowerTIRxOpaque()(tvm.IRModule({"main": before}))
+    tvm.ir.assert_structural_equal(lowered["main"], after, map_free_vars=True)
 
 
 def test_lower_view_get():
@@ -399,9 +442,9 @@ def test_lower_scope_id():
         cbx: T.let[T.int32] = clusterCtaIdx_x
         cby: T.let[T.int32] = clusterCtaIdx_y
         cbz: T.let[T.int32] = clusterCtaIdx_z
-        clx: T.let[T.int32] = T.ptx.fetch_register(32, "clusterid.x")
-        cly: T.let[T.int32] = T.ptx.fetch_register(32, "clusterid.y")
-        clz: T.let[T.int32] = T.ptx.fetch_register(32, "clusterid.z")
+        clx: T.let[T.int32] = T.cuda.mov_sreg(32, "clusterid.x")
+        cly: T.let[T.int32] = T.cuda.mov_sreg(32, "clusterid.y")
+        clz: T.let[T.int32] = T.cuda.mov_sreg(32, "clusterid.z")
         wg_id: T.let[T.int32] = warp_id_in_cta // 4
         warp_id_in_wg: T.let[T.int32] = warp_id_in_cta % 4
         lane_id: T.let[T.int32] = threadIdx_x % 32
@@ -412,6 +455,98 @@ def test_lower_scope_id():
         T.evaluate(wg_id + warp_id_in_wg + lane_id + tid_in_wg)
 
     compare(before3, after3, LowerTIRx)
+
+
+def test_lower_ordinary_cta_has_no_cluster_launch_tags():
+    @T.prim_func(private=True)
+    def before() -> None:
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+
+    with tvm.target.Target("cuda"):
+        after = LowerTIRx()(tvm.IRModule({"main": before}))["main"]
+
+    launch_extents = _launch_thread_extents(after)
+    assert launch_extents == {"blockIdx.x": 1, "threadIdx.x": 32}
+
+
+def test_lower_explicit_singleton_cluster_launch_tags_survive_when_unused():
+    @T.prim_func(private=True)
+    def cluster_2d() -> None:
+        T.device_entry()
+        unused_cbx, unused_cby = T.cta_id_in_cluster([1, 1])
+        unused_bx, unused_by = T.cta_id([1, 1])
+        T.thread_id([32])
+
+    @T.prim_func(private=True)
+    def cluster_3d() -> None:
+        T.device_entry()
+        unused_cbx, unused_cby, unused_cbz = T.cta_id_in_cluster([1, 1, 1])
+        unused_bx, unused_by, unused_bz = T.cta_id([1, 1, 1])
+        T.thread_id([32])
+
+    with tvm.target.Target("cuda"):
+        after = LowerTIRx()(tvm.IRModule({"cluster_2d": cluster_2d, "cluster_3d": cluster_3d}))
+
+    assert _launch_thread_extents(after["cluster_2d"]) == {
+        "blockIdx.x": 1,
+        "blockIdx.y": 1,
+        "clusterCtaIdx.x": 1,
+        "clusterCtaIdx.y": 1,
+        "threadIdx.x": 32,
+    }
+    assert _launch_thread_extents(after["cluster_3d"]) == {
+        "blockIdx.x": 1,
+        "blockIdx.y": 1,
+        "blockIdx.z": 1,
+        "clusterCtaIdx.x": 1,
+        "clusterCtaIdx.y": 1,
+        "clusterCtaIdx.z": 1,
+        "threadIdx.x": 32,
+    }
+
+
+def test_lower_multi_cta_cluster_launch_tags_remain_unchanged():
+    @T.prim_func(private=True)
+    def before() -> None:
+        T.device_entry()
+        unused_cbx, unused_cby = T.cta_id_in_cluster([2, 1])
+        unused_bx, unused_by = T.cta_id([2, 1])
+        T.thread_id([32])
+
+    with tvm.target.Target("cuda"):
+        after = LowerTIRx()(tvm.IRModule({"main": before}))["main"]
+
+    assert _launch_thread_extents(after) == {
+        "blockIdx.x": 2,
+        "blockIdx.y": 1,
+        "clusterCtaIdx.x": 2,
+        "clusterCtaIdx.y": 1,
+        "threadIdx.x": 32,
+    }
+
+
+def test_lower_singleton_cluster_preserves_preferred_cluster_tags():
+    @T.prim_func(private=True)
+    def before() -> None:
+        T.device_entry()
+        unused_cbx, unused_cby = T.cta_id_in_cluster([1, 1], preferred=[2, 2])
+        unused_bx, unused_by = T.cta_id([1, 1])
+        T.thread_id([32])
+
+    with tvm.target.Target("cuda"):
+        after = LowerTIRx()(tvm.IRModule({"main": before}))["main"]
+
+    assert _launch_thread_extents(after) == {
+        "blockIdx.x": 1,
+        "blockIdx.y": 1,
+        "clusterCtaIdx.x": 1,
+        "clusterCtaIdx.y": 1,
+        "preferredClusterCtaIdx.x": 2,
+        "preferredClusterCtaIdx.y": 2,
+        "threadIdx.x": 32,
+    }
 
 
 def test_lower_scope_id2():
@@ -510,7 +645,10 @@ def test_lower_layout():
         T.lane_id([32])
         tid = T.thread_id([128])
         A_smem = T.alloc_buffer(
-            [128, 32], dtype="float16", scope="shared", layout=T.SwizzleLayout(3, 3, 3)
+            [128, 32],
+            dtype="float16",
+            scope="shared",
+            layout=T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(512,)])),
         )
         thread_col = T.meta_var(4)
         thread_row = T.meta_var(32)
@@ -542,15 +680,26 @@ def test_lower_layout():
         A_smem = T.alloc_shared((4096,), "float16", layout=None)
         for tile in range(4):
             for vec in T.vectorized(8):
+                # The swizzle lowers to its composition bindings rather than a
+                # folded closed form: compose_m is the flat element index, so
+                # compose_m // 8 is the row and compose_m % 8 the lane, which
+                # substituted back gives the same address.
+                compose_m = T.int32()
+                compose_q = T.int32()
                 A_smem[
-                    T.shift_left(
-                        T.bitwise_xor(
-                            tile * 128 + threadIdx_x,
-                            T.shift_right(T.bitwise_and(tile * 128 + threadIdx_x, 56), 3),
+                    T.Let(
+                        T.Let(
+                            T.shift_left(
+                                T.bitwise_xor(
+                                    compose_q, T.shift_right(T.bitwise_and(compose_q, 56), 3)
+                                ),
+                                3,
+                            )
+                            + compose_m % 8,
+                            where={compose_q: compose_m // 8},
                         ),
-                        3,
+                        where={compose_m: tile * 1024 + threadIdx_x * 8 + vec},
                     )
-                    + vec
                 ] = A_1[tile * 1024 + threadIdx_x * 8 + vec]
 
     compare(before, after, LowerTIRx)
@@ -583,7 +732,7 @@ def test_lower_decl_buffer_access_ptr():
         T.thread_id([128])
         buf = T.alloc_buffer([1024], "uint8", scope="shared.dyn")
         A = T.decl_buffer([128], "float16", buf.data, elem_offset=32)
-        T.evaluate(A.access_ptr("rw", offset=A.elem_offset_of([64])))
+        T.evaluate(A.access_ptr("rw", ptr_type="float16", offset=A.elem_offset_of([64])))
 
     @T.prim_func(private=True)
     def after():
@@ -626,6 +775,33 @@ def test_lower_separate_scope_id_def():
         T.evaluate(v)
         if tx == 0:
             T.evaluate(tx)
+
+    compare(before, after, LowerTIRx)
+
+
+def test_lower_uint32_scope_id_casts_at_bind():
+    """uint32 scope ids get a Cast at the bind; launch params stay int32."""
+
+    @T.prim_func(private=True)
+    def before():
+        T.device_entry()
+        T.cta_id([1])
+        tx = T.thread_id([128], dtype="uint32")
+        for k in T.serial(4, dtype="uint32"):
+            T.evaluate(tx + k)
+
+    @T.prim_func(private=True)
+    def after():
+        blockIdx_x = T.launch_thread("blockIdx.x", 1)
+        threadIdx_x = T.launch_thread("threadIdx.x", 128)
+        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+            T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
+        )
+        v: T.let[T.int32] = blockIdx_x
+        tx: T.let[T.uint32] = T.Cast("uint32", threadIdx_x)
+        T.evaluate(v)
+        for k in T.serial(T.uint32(4)):
+            T.evaluate(tx + k)
 
     compare(before, after, LowerTIRx)
 
@@ -959,19 +1135,40 @@ def test_lower_exec_context_selector_filter_for_elect_sync():
         T.cta_id([1])
         T.warp_id([1])
         lane_id = T.lane_id([32])
-        if T.ptx.elect_sync():
+        if T.cuda.elect_sync():
             Tx.copy(B[0:1], A[0:1], dispatch=variant)
-        if T.ptx.elect_sync() != 0:
+        if T.cuda.elect_sync() != 0:
             Tx.copy(B[0:1], A[0:1], dispatch=variant)
-        if T.ptx.elect_sync():
+        if T.cuda.elect_sync():
             Tx.copy(B[0:1], A[0:1], dispatch=variant)
 
     with tvm.target.Target("cuda"):
         LowerTIRx()(tvm.IRModule({"main": before}))
 
     assert len(seen) == 3
-    assert any("T.selector(lane_id, T.ptx.elect_sync())" in item for item in seen)
-    assert any("T.selector(lane_id, T.ptx.elect_sync() != T.uint32(0))" in item for item in seen)
+    assert any("T.selector(lane_id, T.cuda.elect_sync())" in item for item in seen)
+    assert any("T.selector(lane_id, T.cuda.elect_sync() != T.uint32(0))" in item for item in seen)
+
+
+def test_lower_cleanup_accepts_bool_elect_sync_else_path():
+    @T.prim_func(private=True)
+    def before(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (32,), "int32", scope="global")
+        T.device_entry()
+        T.cta_id([1])
+        T.warp_id([1])
+        lane_id = T.lane_id([32])
+        if T.cuda.elect_sync() != T.uint32(0):
+            A[lane_id] = 1
+        else:
+            A[lane_id] = 0
+
+    with tvm.target.Target("cuda"):
+        lowered = LowerTIRx()(tvm.IRModule({"main": before}))
+
+    script = lowered.script(extra_config={"tirx.prefix": "T"})
+    assert "T.cuda.elect_sync() != T.uint32(0)" in script
+    assert "else:" in script
 
 
 def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
@@ -999,7 +1196,7 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
         T.cta_id([1])
         warp_id = T.warp_id([4])
         lane_id = T.lane_id([32])
-        if (warp_id == 0) & T.ptx.elect_sync():
+        if (warp_id == 0) & T.cuda.elect_sync():
             Tx.copy(B[0:1], A[0:1], dispatch=variant)
 
     with tvm.target.Target("cuda"):
@@ -1010,7 +1207,7 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
     assert int(seen[0]["inter"]["laneid"][0]) == 1
     assert (
         seen[0]["inter"]["laneid"][1].script(extra_config={"tirx.prefix": "T"})
-        == "T.selector(lane_id, T.ptx.elect_sync())"
+        == "T.selector(lane_id, T.cuda.elect_sync())"
     )
     assert len(seen[0]["intra"]) == 0
 
@@ -1297,7 +1494,7 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
     def int_var1(val):
         buf = T.local_scalar("int32")
         if val is not None:
-            T.buffer_store(buf.buffer, val, 0)
+            T.buffer_store(buf.source, val, 0)
         return buf
 
     def int_var2(val):

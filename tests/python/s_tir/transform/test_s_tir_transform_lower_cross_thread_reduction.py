@@ -83,7 +83,7 @@ def lowered_loop_split(a: T.handle, b: T.handle) -> None:
                 T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret(T.uint64(0), dtype="handle"),
+                    T.int32(0),
                 )
                 T.evaluate(
                     T.tvm_thread_allreduce(
@@ -133,7 +133,7 @@ def lowered_no_normal_reduction(a: T.handle, b: T.handle) -> None:
                 T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret(T.uint64(0), dtype="handle"),
+                    T.int32(0),
                 )
                 T.evaluate(
                     T.tvm_thread_allreduce(
@@ -182,7 +182,7 @@ def lowered_two_bound_loops(a: T.handle, b: T.handle) -> None:
                     T.attr(
                         T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                         "reduce_scope",
-                        T.reinterpret(T.uint64(0), dtype="handle"),
+                        T.int32(0),
                     )
                     T.evaluate(
                         T.tvm_thread_allreduce(
@@ -259,7 +259,7 @@ def lowered_multiple_blocks_under_reduction_loop(a: T.handle, b: T.handle) -> No
                 T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret(T.uint64(0), dtype="handle"),
+                    T.int32(0),
                 )
                 T.evaluate(
                     T.tvm_thread_allreduce(
@@ -322,7 +322,7 @@ def lowered_with_block_predicate(a: T.handle, b: T.handle) -> None:
                 T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret(T.uint64(0), dtype="handle"),
+                    T.int32(0),
                 )
                 T.evaluate(
                     T.tvm_thread_allreduce(
@@ -425,7 +425,7 @@ def lowered_single_reduction_loop_with_block_predicate(
                             lambda x, y: T.max(x, y), [T.float32(-3.4028234663852886e38)]
                         ),
                         "reduce_scope",
-                        T.reinterpret(T.uint64(0), dtype="handle"),
+                        T.int32(0),
                     )
                     T.evaluate(
                         T.tvm_thread_allreduce(
@@ -465,7 +465,7 @@ def lowered_single_reduction_loop_with_block_predicate(
                     T.attr(
                         T.comm_reducer(lambda x_1, y_1: x_1 + y_1, [T.float32(0)]),
                         "reduce_scope",
-                        T.reinterpret(T.uint64(0), dtype="handle"),
+                        T.int32(0),
                     )
                     T.evaluate(
                         T.tvm_thread_allreduce(
@@ -694,7 +694,7 @@ def lowered_spatial_reduction_with_shared_prefetch(
                     T.attr(
                         T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                         "reduce_scope",
-                        T.reinterpret("handle", T.uint64(0)),
+                        T.int32(0),
                     )
                     T.tvm_thread_allreduce(
                         T.uint32(1),
@@ -763,7 +763,7 @@ def lowered_reduction_spatial_loop_predicate(
                     T.attr(
                         T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                         "reduce_scope",
-                        T.reinterpret("handle", T.uint64(0)),
+                        T.int32(0),
                     )
                     T.tvm_thread_allreduce(
                         T.uint32(1), in_thread_B[0], T.bool(True), cross_thread_B[0], k_1
@@ -829,12 +829,16 @@ def single_reduction_loop_with_tensorize(
                 C = T.match_buffer(
                     output[n, oc_chunk, oh, ow, 0:32], [32], dtype="int32", offset_factor=1
                 )
-                A_u8x4: T.uint8x4 = A[0:4]
+                A_u8x4: T.uint8x4 = A[T.ramp(0, 1, 4)]
                 A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")
-                B_i8x128 = B[0, 0:128]
+                B_i8x128 = B[0, T.ramp(0, 1, 128)]
                 B_i32x32: T.int32x32 = T.reinterpret(B_i8x128, dtype="int32x32")
-                C[0:32] = T.call_llvm_pure_intrin(
-                    4217, C[0:32], T.broadcast(A_i32, 32), B_i32x32, dtype="int32x32"
+                C[T.ramp(0, 1, 32)] = T.call_llvm_pure_intrin(
+                    4217,
+                    C[T.ramp(0, 1, 32)],
+                    T.broadcast(A_i32, 32),
+                    B_i32x32,
+                    dtype="int32x32",
                 )
 
 
@@ -881,9 +885,9 @@ def nested_reduction_loop_with_inner_match_buffers(
                             offset_factor=1,
                         )
                         C = T.match_buffer(out[yi, xr], [1], dtype="int32", offset_factor=1)
-                        A_i8x4: T.int8x4 = A[0:4]
+                        A_i8x4: T.int8x4 = A[T.ramp(0, 1, 4)]
                         A_i32: T.int32 = T.reinterpret(A_i8x4, dtype="int32")
-                        B_i8x4: T.int8x4 = B[0:4]
+                        B_i8x4: T.int8x4 = B[T.ramp(0, 1, 4)]
                         B_i32: T.int32 = T.reinterpret(B_i8x4, dtype="int32")
                         C[0] = A_i32 + B_i32 + C[0]
 
@@ -918,7 +922,7 @@ def lowered_reducer_max(a: T.handle, b: T.handle) -> None:
                 T.attr(
                     T.comm_reducer(lambda x, y: T.max(x, y), [T.min_value("float32")]),
                     "reduce_scope",
-                    T.reinterpret(T.uint64(0), dtype="handle"),
+                    T.int32(0),
                 )
                 T.evaluate(
                     T.tvm_thread_allreduce(
@@ -961,7 +965,7 @@ def lowered_zero_rank_buffer(a: T.handle, b: T.handle) -> None:
             T.attr(
                 T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                 "reduce_scope",
-                T.reinterpret(T.uint64(0), dtype="handle"),
+                T.int32(0),
             )
             T.evaluate(
                 T.tvm_thread_allreduce(T.uint32(1), A[vk], True, reduce_temp0[0], k, dtype="handle")
@@ -1145,7 +1149,7 @@ def lowered_softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
                 T.attr(
                     T.comm_reducer(lambda x, y: T.max(x, y), [T.min_value("float32")]),
                     "reduce_scope",
-                    T.reinterpret(T.uint64(0), dtype="handle"),
+                    T.int32(0),
                 )
                 T.evaluate(
                     T.tvm_thread_allreduce(
@@ -1188,7 +1192,7 @@ def lowered_softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
                 T.attr(
                     T.comm_reducer(lambda x_1, y_1: x_1 + y_1, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret(T.uint64(0), dtype="handle"),
+                    T.int32(0),
                 )
                 T.evaluate(
                     T.tvm_thread_allreduce(
@@ -1300,7 +1304,7 @@ def lowered_argmax_split(
                         [-1, T.float32(-3.4028234663852886e38)],
                     ),
                     "reduce_scope",
-                    T.reinterpret(T.uint64(0), dtype="handle"),
+                    T.int32(0),
                 )
                 T.evaluate(
                     T.tvm_thread_allreduce(
@@ -1394,7 +1398,7 @@ def lowered_argmin_split_init_update_reordered(
                         [-1, T.float32(3.4028234663852886e38)],
                     ),
                     "reduce_scope",
-                    T.reinterpret(T.uint64(0), dtype="handle"),
+                    T.int32(0),
                 )
                 T.evaluate(
                     T.tvm_thread_allreduce(
@@ -1519,7 +1523,7 @@ def lowered_layer_norm_tuple_sum(
                         lambda x0, x1, y0, y1: (x0 + y0, x1 + y1), [T.float32(0), T.float32(0)]
                     ),
                     "reduce_scope",
-                    T.reinterpret(T.uint64(0), dtype="handle"),
+                    T.int32(0),
                 )
                 T.evaluate(
                     T.tvm_thread_allreduce(
@@ -1598,7 +1602,7 @@ def lowered_thread_broadcast_1(A: T.Buffer((256, 256), "float32"), B: T.Buffer((
                 T.attr(
                     T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret("handle", T.uint64(0)),
+                    T.int32(0),
                 )
                 T.tvm_thread_allreduce(
                     T.uint32(1), A[vi, vk], T.bool(True), cross_thread_temp_local[0], k
@@ -1712,7 +1716,7 @@ def lowered_thread_broadcast_2(lv1605: T.Buffer((T.int64(1), T.int64(32), T.int6
                 with T.sblock("NT_matmul_cross_thread"):
                     T.reads(in_thread_var_NT_matmul_intermediate_local[0])
                     T.writes(cross_thread_var_NT_matmul_intermediate_local[0])
-                    T.attr(T.comm_reducer(lambda x0, y0: x0 + y0, [T.float16(0)]), "reduce_scope", T.reinterpret("handle", T.uint64(0)))
+                    T.attr(T.comm_reducer(lambda x0, y0: x0 + y0, [T.float16(0)]), "reduce_scope", T.int32(0))
                     T.tvm_thread_allreduce(T.uint32(1), in_thread_var_NT_matmul_intermediate_local[0], T.bool(True), cross_thread_var_NT_matmul_intermediate_local[0], ax0_fused)
                 with T.sblock("NT_matmul_write_back"):
                     v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
@@ -1775,7 +1779,7 @@ def lowered_no_thread_broadcast(
                 T.attr(
                     T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret("handle", T.uint64(0)),
+                    T.int32(0),
                 )
                 T.tvm_thread_allreduce(
                     T.uint32(1), A[vi, vk], T.bool(True), cross_thread_temp_1_local[0], k
@@ -1899,6 +1903,15 @@ def test_thread_broadcast_rewrite_1():
 
 def test_thread_broadcast_rewrite_2():
     _check(thread_broadcast_2, lowered_thread_broadcast_2)
+
+
+def test_thread_broadcast_rewrite_2_full_pipeline():
+    target_host = "llvm" if tvm.runtime.enabled("llvm") else "c"
+    target = tvm.target.Target("cuda").with_host(target_host)
+    mod = tvm.IRModule.from_expr(thread_broadcast_2.with_attr("global_symbol", "main"))
+    mod = tvm.tirx.transform.BindTarget(target)(mod)
+    pipeline, _, _ = tvm.tirx.get_tir_pipeline("s_tir")
+    pipeline(mod)
 
 
 def test_no_thread_broadcast_rewrite():

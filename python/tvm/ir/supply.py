@@ -14,18 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Suppliers that are used to guarantee uniqueness of names and GlobalVars."""
+"""Suppliers that are used to guarantee uniqueness of names."""
 
 import tvm_ffi
 
-from tvm import IRModule, Object
+from tvm import Object
 
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("ir.NameSupply")
-class NameSupply(Object):
-    """NameSupply that can be used to generate unique names.
+@tvm_ffi.register_object("ir.UniqueNameSupply")
+class UniqueNameSupply(Object):
+    """UniqueNameSupply that can be used to generate unique names.
 
     Parameters
     ----------
@@ -33,10 +33,10 @@ class NameSupply(Object):
     """
 
     def __init__(self, prefix=""):
-        self.__init_handle_by_constructor__(_ffi_api.NameSupply, prefix)
+        self.__init_handle_by_constructor__(_ffi_api.UniqueNameSupply, prefix)
 
     def fresh_name(self, name, add_prefix=True, add_underscore=True):
-        """Generates a unique name from this NameSupply.
+        """Generates a unique name from this UniqueNameSupply.
 
         Parameters
         ----------
@@ -44,15 +44,15 @@ class NameSupply(Object):
             The name from which the generated name is derived.
 
         add_prefix: bool
-            If set to true, then the prefix of this NameSupply will be prepended to the name.
+            If set to true, then the prefix of this UniqueNameSupply will be prepended to the name.
 
         add_underscore: bool
             If set to True, adds '_' between prefix and digit.
         """
-        return _ffi_api.NameSupply_FreshName(self, name, add_prefix, add_underscore)
+        return _ffi_api.UniqueNameSupply_FreshName(self, name, add_prefix, add_underscore)
 
     def reserve_name(self, name, add_prefix=True):
-        """Reserves an existing name with this NameSupply.
+        """Reserves an existing name with this UniqueNameSupply.
 
         Parameters
         ----------
@@ -60,13 +60,13 @@ class NameSupply(Object):
             The name to be reserved.
 
         add_prefix: bool
-            If set to true, then the prefix of this NameSupply will be prepended to the name
+            If set to true, then the prefix of this UniqueNameSupply will be prepended to the name
             before reserving it.
         """
-        return _ffi_api.NameSupply_ReserveName(self, name, add_prefix)
+        return _ffi_api.UniqueNameSupply_ReserveName(self, name, add_prefix)
 
     def contains_name(self, name, add_prefix=True):
-        """Checks if this NameSupply already generated a name.
+        """Checks if this UniqueNameSupply already generated a name.
 
         Parameters
         ----------
@@ -74,74 +74,7 @@ class NameSupply(Object):
             The name to check.
 
         add_prefix: bool
-            If set to true, then the prefix of this NameSupply will be prepended to the name
+            If set to true, then the prefix of this UniqueNameSupply will be prepended to the name
             before checking for it.
         """
-        return _ffi_api.NameSupply_ContainsName(self, name, add_prefix)
-
-
-@tvm_ffi.register_object("ir.GlobalVarSupply")
-class GlobalVarSupply(Object):
-    """GlobalVarSupply that holds a mapping between names and GlobalVars.
-
-    GlobalVarSupply can be used to generate new GlobalVars with a unique name.
-    It also can be used to retrieve previously generated GlobalVars based on a name.
-
-    Parameters
-    ----------
-    value: Union[List[IRModule], IRModule, NameSupply]
-        The IRModules used to build this GlobalVarSupply or a NameSupply.
-    """
-
-    def __init__(self, value=None):
-        if value is None:
-            name_supply = NameSupply("")
-            self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_NameSupply, name_supply)
-        elif isinstance(value, NameSupply):
-            self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_NameSupply, value)
-        elif isinstance(value, list | tvm_ffi.Array):
-            self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_IRModules, value)
-        elif isinstance(value, IRModule):
-            self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_IRModule, value)
-
-    def fresh_global(self, name, add_prefix=True):
-        """Generates a unique GlobalVar from this supply.
-
-        Parameters
-        ----------
-        name: String
-            The name from which the name of the GlobalVar is derived.
-
-        add_prefix: bool
-            If set to true, then the prefix of the contained NameSupply will be prepended
-            to the name.
-        """
-        return _ffi_api.GlobalVarSupply_FreshGlobal(self, name, add_prefix)
-
-    def unique_global_for(self, name, add_prefix=True):
-        """Looks up for a GlobalVar with the given name in this supply. If no entry is found
-        , creates one, places it in the cache and returns it.
-
-        Parameters
-        ----------
-        name: String
-            The name of the GlobalVar to search for.
-
-        add_prefix: bool
-            If set to true, the prefix of the contained NameSupply will be prepended to the
-            name before performing the search.
-        """
-        return _ffi_api.GlobalVarSupply_UniqueGlobalFor(self, name, add_prefix)
-
-    def reserve_global(self, global_var, allow_conflict=False):
-        """Reserves an existing GlobalVar with this supply.
-
-        Parameters
-        ----------
-        global_var: GlobalVar
-            The GlobalVar to be registered.
-
-        allow_conflict: bool
-            Allow conflict with other GlobalVars that have the same name
-        """
-        return _ffi_api.GlobalVarSupply_ReserveGlobalVar(self, global_var, allow_conflict)
+        return _ffi_api.UniqueNameSupply_ContainsName(self, name, add_prefix)

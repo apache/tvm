@@ -17,14 +17,14 @@
  * under the License.
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
+#include <tvm/sym/analyzer.h>
 
 #include <optional>
 #include <unordered_map>
@@ -38,6 +38,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 using FCheck = ffi::TypedFunction<bool(Var, ffi::Array<Var>, ffi::Array<Var>, ffi::Map<Var, Expr>)>;
 
@@ -53,9 +54,7 @@ std::unordered_map<size_t, std::vector<size_t>> GroupShapes(
   return indices_map;
 }
 
-inline TensorStructInfo GetTensorSInfo(Expr e) {
-  return Downcast<TensorStructInfo>(GetStructInfo(e));
-}
+inline TensorType GetTensorType(Expr e) { return GetType(e).as_or_throw<TensorType>(); }
 
 struct BranchInfo {
   int num_branches;
@@ -80,6 +79,7 @@ struct SplitInfo {
   ffi::Optional<Var> bias;
   PrimExpr split_size;
   DFPattern pattern_to_replace;
+  DLDataType out_dtype;
 };
 
 Patterns CreatePatterns(const BranchInfo& branch_info) {
@@ -120,7 +120,7 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
     const Patterns& patterns, const BranchInfo& branch_info, FCheck check) {
   auto batch_dims_compatible = [](size_t rhs_dim, const std::vector<size_t>& indices,
                                   const std::vector<ffi::Array<PrimExpr>>& rhs_shapes) {
-    arith::Analyzer ana;
+    sym::Analyzer ana;
     for (auto ind : indices) {
       TVM_FFI_ICHECK_EQ(static_cast<int>(rhs_shapes[ind].size()), rhs_dim);
       // -2 for reduction and concat axes
@@ -136,7 +136,7 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
   return [=](ffi::Map<DFPattern, Var> matchings, ffi::Map<Var, Expr> bindings) {
     std::vector<ffi::Array<PrimExpr>> rhs_shapes;
     for (const auto& rhs_pat : patterns.rhs) {
-      auto rhs_shape_opt = GetTensorSInfo(matchings[rhs_pat])->GetShape();
+      auto rhs_shape_opt = GetTensorType(matchings[rhs_pat])->GetShape();
       if (!rhs_shape_opt) {
         return ffi::Map<Var, Expr>{};
       }
@@ -163,9 +163,11 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
         if (branch_info.bias_dim.has_value()) {
           bias = matchings[patterns.bias[index]];
         }
-        PrimExpr split_size = GetTensorSInfo(rhs)->GetShape().value()[rhs_dim - 1];
+        PrimExpr split_size = GetTensorType(rhs)->GetShape().value()[rhs_dim - 1];
         DFPattern pattern_to_replace = patterns_to_replace[index];
-        splits.push_back(SplitInfo{rhs, bias, split_size, pattern_to_replace});
+        DLDataType out_dtype =
+            GetTensorType(matchings[patterns.matmul[index]])->dtype.value()->dtype;
+        splits.push_back(SplitInfo{rhs, bias, split_size, pattern_to_replace, out_dtype});
       }
       // At most one dynamic output shape can be part of the combined
       // matmul, and it must be the last item in the split.  Use
@@ -190,6 +192,12 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
         continue;
       }
 
+      if (std::any_of(splits.begin() + 1, splits.end(), [&](const SplitInfo& split) {
+            return split.out_dtype != splits[0].out_dtype;
+          })) {
+        continue;
+      }
+
       ffi::Array<Var> rhs;
       ffi::Array<Var> bias;
       for (const auto& split : splits) {
@@ -204,11 +212,10 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
       }
 
       auto concat_rhs = concat(Tuple(rhs), rhs_dim - 1);
-      auto out_dtype = GetTensorSInfo(matchings[patterns.matmul[indices[0]]])->dtype;
-      auto matmul_combined = matmul(lhs, concat_rhs, out_dtype);
+      auto matmul_combined = matmul(lhs, concat_rhs, splits[0].out_dtype);
 
       if (branch_info.bias_dim) {
-        auto bias_dim = GetTensorSInfo(bias[0])->ndim;
+        auto bias_dim = GetTensorType(bias[0])->ndim;
         auto concat_bias = concat(Tuple(bias), bias_dim - 1);
         matmul_combined = add(matmul_combined, concat_bias);
       }
@@ -233,11 +240,11 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
         auto width = splits[i].split_size.as<IntImmNode>();
         TVM_FFI_CHECK(width, InternalError)
             << "All splits except the last one must have a static shape";
-        split_index += width->value;
-        sections.push_back(IntImm(DataType::Int(64), split_index));
+        split_index = (split_index + width->value).as<int>().value();
+        sections.push_back(IntImm::Int64(split_index));
       }
 
-      int lhs_dim = GetTensorSInfo(lhs)->ndim;
+      int lhs_dim = GetTensorType(lhs)->ndim;
       int split_axis = std::max<int>(lhs_dim, rhs_dim) - 1;
       auto chunks = split(matmul_combined, sections, split_axis);
 
@@ -287,14 +294,14 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
       auto match = ExtractMatchedExpr(pat, e, bindings);
       if (!match) return;
 
-      auto matmul_call = Downcast<Call>(match.value()[matmul_pat]);
-      auto matmul_lhs = Downcast<Var>(matmul_call->args[0]);
+      auto matmul_call = match.value()[matmul_pat].as_or_throw<Call>();
+      auto matmul_lhs = matmul_call->args[0].as_or_throw<Var>();
 
       std::optional<int> bias_dim = std::nullopt;
       std::optional<std::string> activation = std::nullopt;
 
       if (match.value().count(bias_pat)) {
-        bias_dim = GetTensorSInfo(match.value()[bias_pat])->ndim;
+        bias_dim = GetTensorType(match.value()[bias_pat])->ndim;
       }
 
       for (size_t i = 0; i < activations.size(); ++i) {

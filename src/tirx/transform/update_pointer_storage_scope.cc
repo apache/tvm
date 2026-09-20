@@ -24,7 +24,9 @@
 #include "update_pointer_storage_scope.h"
 
 #include <tvm/ffi/cast.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -39,75 +41,44 @@ namespace tvm {
 namespace tirx {
 
 Var WithStorageScope(const VarNode* buffer_var, ffi::String storage_scope) {
-  auto* ptr_type = buffer_var->type_annotation.as<PointerTypeNode>();
+  auto* ptr_type = buffer_var->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(ptr_type) << "The provided variable is not of pointer type";
-  return Var(buffer_var->name_hint, PointerType(ptr_type->element_type, storage_scope),
+  return Var(buffer_var->name, PointerType(ptr_type->element_type, storage_scope),
              buffer_var->span);
 }
 
 UpdatePointerStorageScope::UpdatePointerStorageScope(
-    const std::unordered_map<const VarNode*, ffi::String>& new_storage_scopes) {
+    const std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
+        new_storage_scopes) {
   for (auto& kv : new_storage_scopes) {
-    new_var_remap_[kv.first] = WithStorageScope(kv.first, kv.second);
+    if (kv.first->ty.as<BufferTypeNode>()) {
+      BufferVar buffer = GetBufferVar(kv.first.get());
+      auto type = CopyBufferType(buffer);
+      type->storage_scope = kv.second;
+      BufferVar replacement = RebuildBufferVar(buffer, std::move(type));
+      VarRemapSet(kv.first, replacement);
+    } else {
+      VarRemapSet(kv.first, WithStorageScope(kv.first.get(), kv.second));
+    }
   }
 }
 
-PrimExpr UpdatePointerStorageScope::VisitExpr_(const VarNode* op) {
-  auto it = new_var_remap_.find(op);
-  if (it == new_var_remap_.end()) {
-    return ffi::GetRef<Var>(op);
+UnchangedOr<Expr> UpdatePointerStorageScope::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
+  auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+  if (!result.IsUnchanged()) {
+    op = ffi::AnyView(result).as<CallNode>();
+    if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
   }
-  return it->second;
-}
-
-template <typename Node>
-Node UpdatePointerStorageScope::UpdateBufferAccess(Node node) {
-  auto new_buffer = GetUpdatedBuffer(node->buffer);
-  if (!new_buffer.same_as(node->buffer)) {
-    auto writer = node.CopyOnWrite();
-    writer->buffer = new_buffer;
+  if (!op->op.same_as(builtin::buffer_data()) || op->args.size() != 1) return result;
+  PointerType type = op->args[0].as_or_throw<BufferVar>().DataPointerType();
+  if (ffi::StructuralEqual()(op->ty, type)) return result;
+  if (inplace_mode == InplaceMode::kAllow) {
+    const_cast<CallNode*>(op)->ty = std::move(type);
+    return result;
   }
-  return node;
-}
-
-Buffer UpdatePointerStorageScope::GetUpdatedBuffer(Buffer buf) {
-  // Use the cached buffer, if it exists.
-  auto key = buf.get();
-  auto it = new_buffer_remap_.find(key);
-  if (it != new_buffer_remap_.end()) {
-    return it->second;
-  }
-
-  // Update the buffer's var, if needed.
-  auto remapped = Downcast<Var>(StmtExprMutator::VisitExpr(buf->data));
-  if (!remapped.same_as(buf->data)) {
-    auto writer = buf.CopyOnWrite();
-    writer->data = remapped;
-  }
-
-  // Update the cache and return
-  new_buffer_remap_[key] = buf;
-  return buf;
-}
-
-Stmt UpdatePointerStorageScope::VisitStmt_(const AllocBufferNode* op) {
-  auto node = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
-  return UpdateBufferAccess(node);
-}
-
-Stmt UpdatePointerStorageScope::VisitStmt_(const DeclBufferNode* op) {
-  auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
-  return UpdateBufferAccess(node);
-}
-
-PrimExpr UpdatePointerStorageScope::VisitExpr_(const BufferLoadNode* op) {
-  auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
-  return UpdateBufferAccess(node);
-}
-
-Stmt UpdatePointerStorageScope::VisitStmt_(const BufferStoreNode* op) {
-  auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
-  return UpdateBufferAccess(node);
+  auto copy = ffi::make_object<CallNode>(*op);
+  copy->ty = std::move(type);
+  return Expr(std::move(copy));
 }
 
 }  // namespace tirx

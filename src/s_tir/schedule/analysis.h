@@ -19,10 +19,13 @@
 #ifndef TVM_S_TIR_SCHEDULE_ANALYSIS_H_
 #define TVM_S_TIR_SCHEDULE_ANALYSIS_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/te/operation.h>
 #include <tvm/tirx/index_map.h>
 
 #include <tuple>
@@ -81,7 +84,7 @@ StmtSRef GetSRefTreeRoot(const StmtSRef& sref);
  * \param analyzer The analyzer to be bound
  */
 void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
-                       arith::AnalyzerObj* analyzer);
+                       sym::AnalyzerObj* analyzer);
 
 /******** Scope ********/
 /*!
@@ -232,7 +235,7 @@ bool IsWriteCache(const StmtSRef& block_sref);
  * \return A boolean flag indicating if the binding is affine
  */
 bool IsAffineBinding(const SBlockRealize& realize, const ffi::Map<Var, Range>& loop_var_ranges,
-                     arith::AnalyzerObj* analyzer);
+                     sym::AnalyzerObj* analyzer);
 
 /*!
  * \brief Check whether a block has an affine binding using the cached flag, and throw an exception
@@ -298,7 +301,7 @@ bool GetVarsTouchedByBlockIters(const SBlockRealize& block_realize,
  * \throw ScheduleError If the loop doesn't starts with zero.
  */
 void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
-                             arith::AnalyzerObj* analyzer);
+                             sym::AnalyzerObj* analyzer);
 
 /*!
  * \brief Check whether a block has a trivial binding, i.e. each block var is bound to a outer loop,
@@ -450,8 +453,8 @@ struct ProducerConsumerSplit {
  * \return The buffer of the n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
-Buffer GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
-                          BufferIndexType index_type);
+BufferVar GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
+                             BufferIndexType index_type);
 
 /*!
  * \brief Get the n-th read or write buffer of the given block.
@@ -462,7 +465,7 @@ Buffer GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
  * \return The n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
-BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& block, int n,
+TensorRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& block, int n,
                                       BufferIndexType index_type);
 
 /*!
@@ -473,7 +476,7 @@ BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& b
  *         buffer is from match_buffer).
  */
 std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
-                                                               const Buffer& buffer);
+                                                               const BufferVar& buffer);
 
 /******** Reduction SBlock Related ********/
 
@@ -511,10 +514,10 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block);
  * \param self The schedule state
  * \param identities The reduction identities to be analyzed
  * \param combiners The reduction combiners to be analyzed
- * \return The corresponding CommReducer, combiner LHS values and combiner RHS values
+ * \return The corresponding te::CommReducer, combiner LHS values and combiner RHS values
  * \throw ScheduleError If no corresponding commutative reducer can be matched
  */
-std::tuple<CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
+std::tuple<te::CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
     const ffi::Optional<ScheduleState>& self, const ffi::Array<PrimExpr>& identities,
     const ffi::Array<BufferStore>& combiners);
 
@@ -525,7 +528,7 @@ std::tuple<CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAn
  * \return The list of the registered reducer-getter functions
  * \sa ReducerRegistry
  */
-std::vector<ffi::TypedFunction<ffi::Optional<CommReducer>(ffi::Array<PrimExpr>)>>
+std::vector<ffi::TypedFunction<ffi::Optional<te::CommReducer>(ffi::Array<PrimExpr>)>>
 GetReducerGetters();
 
 /*!
@@ -533,13 +536,13 @@ GetReducerGetters();
  * corresponding commutative reducer, LHS values and RHS values, if possible.
  * \param identities The identities of the reduction
  * \param combiners The combiners of the reduction
- * \param result_reducer The extracted CommReducer
+ * \param result_reducer The extracted te::CommReducer
  * \param lhs The extracted LHS values of the reducer
  * \param rhs The extracted RHS values of the reducer
  * \return A boolean indicating whether a corresponding commutative reducer is found
  */
 bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
-                          const ffi::Array<BufferStore>& combiners, CommReducer* result_reducer,
+                          const ffi::Array<BufferStore>& combiners, te::CommReducer* result_reducer,
                           ffi::Array<PrimExpr>* lhs, ffi::Array<PrimExpr>* rhs);
 
 /******** Misc ********/
@@ -600,9 +603,10 @@ bool CanReverseComputeAt(const ScheduleState& self, const StmtSRef& block_sref,
  * \param predicate The predicate of the access
  * \param analyzer Arithmetic analyzer
  */
-ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<PrimExpr>& indices,
+ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
+                                        const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
-                                        arith::AnalyzerObj* analyzer);
+                                        sym::AnalyzerObj* analyzer);
 
 /*!
  * \brief Checks if the given AST contains the specific operators
@@ -646,7 +650,7 @@ std::tuple</*exists=*/bool,
            /*ordered=*/bool,
            /*no_const_read=*/bool,
            /*no_shift_read=*/bool>
-AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& write_region);
+AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& write_region);
 
 /*!
  * \brief Check if the block is a data parallel block, i.e. all the block vars are data parallel
@@ -702,11 +706,11 @@ bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
  * \param dom_high_exclusive The highest node in the sref tree path
  * \return An n-dimensional integer set
  */
-ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,
-                                                  const PrimExpr& predicate,
-                                                  const StmtSRef& dom_low_inclusive,
-                                                  const StmtSRef& dom_high_exclusive,
-                                                  arith::AnalyzerObj* analyzer);
+ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(const TensorRegion& region,
+                                                const PrimExpr& predicate,
+                                                const StmtSRef& dom_low_inclusive,
+                                                const StmtSRef& dom_high_exclusive,
+                                                sym::AnalyzerObj* analyzer);
 
 /*!
  * \brief Analyze the buffer region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
@@ -718,11 +722,11 @@ ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,
  * \param analyzer The analyzer
  * \return An n-dimensional integer set
  */
-ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,
-                                                  const PrimExpr& predicate,
-                                                  const StmtSRef& dom_low_inclusive,
-                                                  const StmtSRef& dom_high_exclusive,
-                                                  arith::AnalyzerObj* analyzer);
+ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(const TensorRegion& region,
+                                                const PrimExpr& predicate,
+                                                const StmtSRef& dom_low_inclusive,
+                                                const StmtSRef& dom_high_exclusive,
+                                                sym::AnalyzerObj* analyzer);
 
 /*!
  * \brief Simplify non-trivial expressions
@@ -734,7 +738,7 @@ ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,
  * simplified to constant values for further scheduling and analysis because simplifing away the
  * block iters may result in loss of information for further analysis.
  */
-PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, arith::AnalyzerObj* analyzer);
+PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, sym::AnalyzerObj* analyzer);
 
 /*! \brief Necessary information used for tensorization */
 class TensorizeInfoNode : public ffi::Object {
@@ -788,9 +792,9 @@ class AutoTensorizeMappingInfoNode : public ffi::Object {
   /* Additional information from AutoTensorizeComparator */
 
   /*! \brief Mapping from LHS buffer to RHS buffer */
-  ffi::Map<Buffer, Buffer> lhs_buffer_map;
-  /*! \brief Buffer indices on RHS */
-  ffi::Map<Buffer, ffi::Array<PrimExpr>> rhs_buffer_indices;
+  ffi::Map<BufferVar, BufferVar> lhs_buffer_map;
+  /*! \brief BufferVar indices on RHS */
+  ffi::Map<BufferVar, ffi::Array<PrimExpr>> rhs_buffer_indices;
   /*! \brief SBlock iters on LHS */
   ffi::Array<IterVar> lhs_iters;
   /*! \brief SBlock iters on RHS */

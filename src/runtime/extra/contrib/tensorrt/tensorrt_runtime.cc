@@ -28,10 +28,13 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
 
+#include <cstdint>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "../../../../support/env.h"
@@ -40,6 +43,10 @@
 #include "../json/json_runtime.h"
 
 #ifdef TVM_GRAPH_EXECUTOR_TENSORRT
+#include <tvm/ffi/extra/c_env_api.h>
+#include <tvm/ffi/extra/cuda/base.h>
+#include <tvm/ffi/extra/cuda/device_guard.h>
+
 #include "NvInfer.h"
 #include "tensorrt_builder.h"
 #include "tensorrt_calibrator.h"
@@ -105,6 +112,70 @@ class TensorRTRuntime : public JSONRuntimeBase {
     return ffi::Module::kBinarySerializable | ffi::Module::kRunnable;
   }
 
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override {
+    if (name == "build_engine") {
+      ffi::ObjectPtr<ffi::Object> self = ffi::GetObjectPtr<ffi::Object>(this);
+      return ffi::Function([self, this](ffi::PackedArgs args, ffi::Any* rv) {
+        TVM_FFI_ICHECK_EQ(args.size(), 1U);
+        std::lock_guard<std::mutex> guard(initialize_mutex_);
+        TVM_FFI_ICHECK(!initialized_) << "Build the TensorRT engine before initializing the module";
+        BuildEngineAtCompileTime(args[0].cast<ffi::Array<Tensor>>());
+        *rv = 0;
+      });
+    }
+    return JSONRuntimeBase::GetFunction(name);
+  }
+
+  ffi::Bytes SaveToBytes() const override {
+    auto graph_bytes = JSONRuntimeBase::SaveToBytes();
+    if (serialized_engine_.empty()) return graph_bytes;
+
+    // Keep the JSON runtime prefix unchanged. Only opt-in, prebuilt modules have this trailer.
+    std::string result(graph_bytes.data(), graph_bytes.size());
+    support::BytesOutStream stream(&result);
+    stream.Write(kEngineMagic);
+    stream.Write(kEngineVersion);
+    stream.Write(serialized_engine_);
+    stream.Write(serialized_inputs_);
+    stream.Write(serialized_outputs_);
+    stream.Write(serialized_batch_size_);
+    return ffi::Bytes(std::move(result));
+  }
+
+  static ffi::Module LoadFromBytes(const ffi::Bytes& bytes) {
+    support::BytesInStream stream(bytes);
+    std::string symbol, graph_json;
+    std::vector<std::string> consts;
+    TVM_FFI_ICHECK(stream.Read(&symbol)) << "Loading symbol name failed";
+    TVM_FFI_ICHECK(stream.Read(&graph_json)) << "Loading graph json failed";
+    TVM_FFI_ICHECK(stream.Read(&consts)) << "Loading the const name list failed";
+    ffi::Array<ffi::String> const_names;
+    for (const auto& name : consts) const_names.push_back(name);
+    auto n = ffi::make_object<TensorRTRuntime>(symbol, graph_json, const_names);
+
+    uint64_t magic;
+    size_t nread = stream.Read(&magic, sizeof(magic));
+    if (nread == 0) return ffi::Module(n);  // Legacy JSON-only module.
+    TVM_FFI_ICHECK_EQ(nread, sizeof(magic)) << "Truncated TensorRT engine trailer";
+    TVM_FFI_ICHECK_EQ(magic, kEngineMagic) << "Invalid TensorRT engine trailer";
+    uint32_t version;
+    TVM_FFI_ICHECK(stream.Read(&version)) << "Loading TensorRT engine version failed";
+    TVM_FFI_ICHECK_EQ(version, kEngineVersion) << "Unsupported TensorRT engine version";
+    TVM_FFI_ICHECK(stream.Read(&n->serialized_engine_)) << "Loading TensorRT engine failed";
+    TVM_FFI_ICHECK(!n->serialized_engine_.empty()) << "The embedded TensorRT engine is empty";
+    TVM_FFI_ICHECK(stream.Read(&n->serialized_inputs_)) << "Loading TensorRT input names failed";
+    TVM_FFI_ICHECK(stream.Read(&n->serialized_outputs_)) << "Loading TensorRT output names failed";
+    TVM_FFI_ICHECK(stream.Read(&n->serialized_batch_size_)) << "Loading TensorRT batch size failed";
+    TVM_FFI_ICHECK_GT(n->serialized_batch_size_, 0) << "Invalid TensorRT batch size";
+    TVM_FFI_ICHECK_EQ(n->serialized_inputs_.size(), n->input_var_eid_.size());
+    TVM_FFI_ICHECK_EQ(n->serialized_outputs_.size(), n->outputs_.size());
+    char trailing;
+    TVM_FFI_ICHECK_EQ(stream.Read(&trailing, sizeof(trailing)), 0U)
+        << "Unexpected data after the TensorRT engine";
+    // Defer GPU-dependent deserialization until the first call supplies the execution device.
+    return ffi::Module(n);
+  }
+
   /*!
    * \brief Initialize runtime. Create TensorRT layer from JSON
    * representation.
@@ -114,9 +185,15 @@ class TensorRTRuntime : public JSONRuntimeBase {
   void Init(const ffi::Array<Tensor>& consts) override {
     TVM_FFI_ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
+    if (!serialized_engine_.empty()) {
+      TVM_FFI_ICHECK(!support::GetEnv("TVM_TENSORRT_USE_INT8", false) &&
+                     support::GetEnv("TENSORRT_NUM_CALI_INT8", 0) == 0 &&
+                     num_calibration_batches_remaining_ == 0)
+          << "A prebuilt TensorRT engine cannot perform INT8 calibration";
+    }
     LoadGlobalAttributes();
     SetupConstants(consts);
-    GetCachedEnginesFromDisk();
+    if (serialized_engine_.empty()) GetCachedEnginesFromDisk();
   }
 
   void LoadGlobalAttributes() {
@@ -125,6 +202,10 @@ class TensorRTRuntime : public JSONRuntimeBase {
     for (size_t i = 0; i < nodes_.size(); ++i) {
       if (nodes_[i].HasAttr("use_implicit_batch") && nodes_[i].HasAttr("max_workspace_size")) {
         use_implicit_batch_ = static_cast<int>(nodes_[i].GetAttr<int64_t>("use_implicit_batch"));
+        if (use_implicit_batch_) {
+          LOG(WARNING) << "use_implicit_batch=True is ignored: TensorRT 10 removed implicit-batch "
+                          "mode, so the engine is always built and run in explicit-batch mode.";
+        }
         // Allow max_workspace_size to be overridden at runtime.
         size_t runtime_max_workspace_size =
             support::GetEnv("TVM_TENSORRT_MAX_WORKSPACE_SIZE", size_t(0));
@@ -142,35 +223,181 @@ class TensorRTRuntime : public JSONRuntimeBase {
   }
 
 #ifdef TVM_GRAPH_EXECUTOR_TENSORRT
-  /*! \brief Destroy engines and contexts. */
+  /*! \brief Destroy engines and contexts on the device that owns them. */
   void DestroyEngines() {
+    if (embedded_device_id_ >= 0) {
+      ffi::CUDADeviceGuard guard(embedded_device_id_);
+      DestroyEnginesOnCurrentDevice();
+      device_buffers_.reset();
+      embedded_device_id_ = -1;
+    } else {
+      DestroyEnginesOnCurrentDevice();
+    }
+  }
+
+  void DestroyEnginesOnCurrentDevice() {
     for (auto& it : trt_engine_cache_) {
+      // TensorRT 10 removed obj->destroy(); release with delete. The deserialization runtime must
+      // outlive the engine it produced, so delete the context, then the engine, then the runtime.
       VLOG(1) << "Destroying TensorRT context for function '" << it.first.first << "' (batch size "
               << it.first.second << ")";
-      it.second.context->destroy();
+      delete it.second.context;
       VLOG(1) << "Destroying TensorRT engine for function '" << it.first.first << "' (batch size "
               << it.first.second << ")";
-      it.second.engine->destroy();
+      delete it.second.engine;
+      delete it.second.runtime;
     }
     trt_engine_cache_.clear();
   }
 
-  ~TensorRTRuntime() override {
+  ~TensorRTRuntime() {
+    // FFI can retain imported modules until process shutdown, after CUDA has already unloaded.
+    // TensorRT destructors and CUDADeviceGuard cannot run then; the process reclaims the resources.
+    int current_device;
+    if ((!trt_engine_cache_.empty() || device_buffers_ || calibrator_) &&
+        cudaGetDevice(&current_device) == cudaErrorCudartUnloading) {
+      // CPU-input staging tensors and the calibrator also own CUDA allocations. Release their
+      // containers so member destruction cannot enter CUDA after this confirmed shutdown state.
+      (void)device_buffers_.release();
+      (void)calibrator_.release();
+      return;
+    }
     VLOG(1) << "Destroying TensorRT runtime";
     DestroyEngines();
     VLOG(1) << "Destroyed TensorRT runtime";
   }
 
-  /*! \brief Run inference using built engine. */
+  /*! \brief Build from static input metadata and weights, without running inference. */
+  void BuildEngineAtCompileTime(const ffi::Array<Tensor>& consts) {
+    TVM_FFI_ICHECK_EQ(consts.size(), const_idx_.size())
+        << "The number of input constants must match the number of required.";
+    TVM_FFI_ICHECK(!support::GetEnv("TVM_TENSORRT_USE_INT8", false) &&
+                   support::GetEnv("TENSORRT_NUM_CALI_INT8", 0) == 0 &&
+                   num_calibration_batches_remaining_ == 0)
+        << "TensorRT build_at_compile_time does not support INT8 calibration";
+    TVM_FFI_ICHECK(!input_var_eid_.empty())
+        << "TensorRT build_at_compile_time requires at least one tensor input";
+    TVM_FFI_ICHECK(serialized_engine_.empty()) << "The TensorRT engine has already been built";
+
+    std::vector<std::vector<int64_t>> shapes(NumEntries());
+    std::vector<DLTensor> inputs(NumEntries());
+    for (auto nid : input_nodes_) {
+      const auto& node = nodes_[nid];
+      if (node.GetOpType() != "input") continue;
+      auto node_shapes = node.GetOpShape();
+      auto dtypes = node.GetOpDataType();
+      for (size_t j = 0; j < node_shapes.size(); ++j) {
+        TVM_FFI_ICHECK(dtypes[j].code == kDLFloat && dtypes[j].lanes == 1 &&
+                       (dtypes[j].bits == 16 || dtypes[j].bits == 32))
+            << "TensorRT build_at_compile_time requires float16 or float32 inputs";
+        uint32_t eid = EntryID(nid, j);
+        for (int64_t dim : node_shapes[j]) {
+          TVM_FFI_ICHECK_GT(dim, 0)
+              << "TensorRT build_at_compile_time requires static positive input dimensions";
+          TVM_FFI_ICHECK_LE(dim, std::numeric_limits<int32_t>::max())
+              << "TensorRT input dimensions must fit in int32";
+          shapes[eid].push_back(dim);
+        }
+        inputs[eid].device = DLDevice{kDLCPU, 0};
+        inputs[eid].ndim = static_cast<int32_t>(shapes[eid].size());
+        inputs[eid].dtype = dtypes[j];
+        inputs[eid].shape = shapes[eid].data();
+      }
+    }
+
+    for (const auto& constant : consts) {
+      TVM_FFI_ICHECK_EQ(constant->device.device_type, kDLCPU)
+          << "TensorRT build_at_compile_time requires constants on the CPU";
+      const auto dtype = constant->dtype;
+      TVM_FFI_ICHECK(dtype.code == kDLFloat && dtype.lanes == 1 &&
+                     (dtype.bits == 16 || dtype.bits == 32))
+          << "TensorRT build_at_compile_time requires float16 or float32 constants";
+    }
+    LoadGlobalAttributes();
+    auto original_entries = data_entry_;
+    try {
+      SetupConstants(consts);
+      for (auto eid : input_var_eid_) data_entry_[eid] = &inputs[eid];
+      int batch_size = GetBatchSize();
+      BuildEngineFromJson(batch_size);
+      const auto& built = trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size));
+      std::unique_ptr<nvinfer1::IHostMemory> plan(built.engine->serialize());
+      TVM_FFI_ICHECK(plan != nullptr) << "Serializing the TensorRT engine failed";
+      TVM_FFI_ICHECK_GT(plan->size(), 0U) << "The serialized TensorRT engine is empty";
+      serialized_engine_.assign(static_cast<const char*>(plan->data()), plan->size());
+      serialized_inputs_ = built.inputs;
+      serialized_outputs_ = built.outputs;
+      serialized_batch_size_ = batch_size;
+    } catch (...) {
+      data_entry_ = std::move(original_entries);
+      DestroyEngines();
+      serialized_engine_.clear();
+      serialized_inputs_.clear();
+      serialized_outputs_.clear();
+      serialized_batch_size_ = 0;
+      throw;
+    }
+    // Neither input metadata nor the supplied constants are owned by the runtime at this point.
+    data_entry_ = std::move(original_entries);
+    DestroyEngines();
+  }
+
+  void LoadEmbeddedEngine(int device_id) {
+    TVM_FFI_ICHECK(!support::GetEnv("TVM_TENSORRT_USE_INT8", false) &&
+                   support::GetEnv("TENSORRT_NUM_CALI_INT8", 0) == 0 &&
+                   num_calibration_batches_remaining_ == 0)
+        << "A prebuilt TensorRT engine cannot perform INT8 calibration";
+    std::unique_ptr<nvinfer1::IRuntime> runtime(nvinfer1::createInferRuntime(GetTensorRTLogger()));
+    TVM_FFI_ICHECK(runtime != nullptr) << "Creating the TensorRT deserialization runtime failed";
+    std::unique_ptr<nvinfer1::ICudaEngine> engine(
+        runtime->deserializeCudaEngine(serialized_engine_.data(), serialized_engine_.size()));
+    TVM_FFI_ICHECK(engine != nullptr)
+        << "Failed to deserialize the embedded TensorRT engine. Recompile the model for this "
+           "GPU, platform, and TensorRT version; compile-time engines are not rebuilt at runtime.";
+    std::unique_ptr<nvinfer1::IExecutionContext> context(engine->createExecutionContext());
+    TVM_FFI_ICHECK(context != nullptr) << "Creating the embedded TensorRT execution context failed";
+    TensorRTEngineAndContext loaded;
+    loaded.inputs = serialized_inputs_;
+    loaded.outputs = serialized_outputs_;
+    auto key = std::make_pair(symbol_name_, serialized_batch_size_);
+    auto result = trt_engine_cache_.emplace(key, std::move(loaded));
+    TVM_FFI_ICHECK(result.second) << "The embedded TensorRT engine has already been initialized";
+    result.first->second.runtime = runtime.release();
+    result.first->second.engine = engine.release();
+    result.first->second.context = context.release();
+    max_batch_size_ = serialized_batch_size_;
+    embedded_device_id_ = device_id;
+  }
+
+  /*! \brief Run inference using a prebuilt or lazily built engine. */
   void Run() override {
+    if (serialized_engine_.empty()) {
+      RunWithEngine();
+      return;
+    }
+    // Const-loader initialization has no execution device. The first invocation does, so load the
+    // plan here without invoking the TensorRT builder and restore the caller's current device.
+    const DLDevice& dev = data_entry_[input_var_eid_[0]]->device;
+    const int device_id = dev.device_type == kDLCUDA ? dev.device_id : 0;
+    ffi::CUDADeviceGuard guard(device_id);
+    if (embedded_device_id_ != device_id) {
+      DestroyEngines();
+      LoadEmbeddedEngine(device_id);
+    }
+    RunWithEngine();
+  }
+
+  void RunWithEngine() {
     auto& engine_and_context = GetOrBuildEngine();
     int batch_size = GetBatchSize();
     if (batch_size == 0) return;
-    auto engine = engine_and_context.engine;
     auto context = engine_and_context.context;
-    const int num_bindings = engine->getNbBindings();
-    std::vector<void*> bindings(num_bindings, nullptr);
-    std::vector<size_t> binding_sizes(num_bindings, 0);
+
+    // TensorRT 10 uses named-tensor I/O (setInputShape/setTensorAddress/enqueueV3, no binding
+    // indices). Track input device pointers and per-sample element counts for the INT8 calibrator.
+    std::vector<void*> input_bindings;
+    std::vector<size_t> input_binding_sizes;
+
     // Setup input bindings.
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
       auto nid = input_nodes_[i];
@@ -178,28 +405,28 @@ class TensorRTRuntime : public JSONRuntimeBase {
         for (size_t j = 0; j < nodes_[nid].GetOpShape().size(); ++j) {
           uint32_t eid = EntryID(nid, j);
           const std::string name = nodes_[nid].GetOpName() + "_" + std::to_string(j);
-          int binding_index = engine->getBindingIndex(name.c_str());
-          TVM_FFI_ICHECK_NE(binding_index, -1);
-#if TRT_VERSION_GE(6, 0, 1)
-          if (!use_implicit_batch_) {
-            std::vector<int64_t> shape(data_entry_[eid]->shape,
-                                       data_entry_[eid]->shape + data_entry_[eid]->ndim);
-            auto dims = VectorToTrtDims(shape);
-            TVM_FFI_ICHECK(context->setBindingDimensions(binding_index, dims));
-          }
-#endif
-          if (data_entry_[eid]->device.device_type == kDLCUDA) {
-            bindings[binding_index] = data_entry_[eid]->data;
-          } else {
-            auto device_buffer = GetOrAllocateDeviceBuffer(eid, binding_index);
-            device_buffer.CopyFrom(data_entry_[eid]);
-            bindings[binding_index] = device_buffer->data;
-          }
+          std::vector<int64_t> shape(data_entry_[eid]->shape,
+                                     data_entry_[eid]->shape + data_entry_[eid]->ndim);
+          auto dims = VectorToTrtDims(shape);
+          TVM_FFI_ICHECK(context->setInputShape(name.c_str(), dims));
 
-          auto dims = engine->getBindingDimensions(binding_index);
+          void* device_ptr = nullptr;
+          if (data_entry_[eid]->device.device_type == kDLCUDA) {
+            device_ptr = data_entry_[eid]->data;
+          } else {
+            auto device_buffer = GetOrAllocateDeviceBuffer(name, eid);
+            device_buffer.CopyFrom(data_entry_[eid]);
+            device_ptr = device_buffer->data;
+          }
+          TVM_FFI_ICHECK(context->setTensorAddress(name.c_str(), device_ptr));
+
+          // Per-sample element count (exclude the batch dimension d[0]); the INT8 calibrator
+          // multiplies by the batch size itself when copying calibration data, so including the
+          // batch dim here would over-read the device buffer by a factor of batch_size.
           int num_elements = 1;
-          for (int i = 0; i < dims.nbDims; ++i) num_elements *= dims.d[i];
-          binding_sizes[binding_index] = num_elements;
+          for (int k = 1; k < dims.nbDims; ++k) num_elements *= dims.d[k];
+          input_bindings.push_back(device_ptr);
+          input_binding_sizes.push_back(static_cast<size_t>(num_elements));
         }
       }
     }
@@ -209,7 +436,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       if (calibrator_ != nullptr) {
         LOG(INFO) << "Starting adding last " << num_calibration_batches_remaining_
                   << "-th batch data to the calibrator";
-        calibrator_->AddBatchData(bindings, binding_sizes);
+        calibrator_->AddBatchData(input_bindings, input_binding_sizes);
         num_calibration_batches_remaining_--;
       }
       return;
@@ -219,34 +446,31 @@ class TensorRTRuntime : public JSONRuntimeBase {
     for (size_t i = 0; i < outputs_.size(); ++i) {
       uint32_t eid = EntryID(outputs_[i]);
       const std::string& name = engine_and_context.outputs[i];
-      int binding_index = engine->getBindingIndex(name.c_str());
-      TVM_FFI_ICHECK_NE(binding_index, -1);
+      void* device_ptr = nullptr;
       if (data_entry_[eid]->device.device_type == kDLCUDA) {
-        bindings[binding_index] = data_entry_[eid]->data;
+        device_ptr = data_entry_[eid]->data;
       } else {
-        auto device_buffer = GetOrAllocateDeviceBuffer(eid, binding_index);
-        bindings[binding_index] = device_buffer->data;
+        auto device_buffer = GetOrAllocateDeviceBuffer(name, eid);
+        device_ptr = device_buffer->data;
       }
+      TVM_FFI_ICHECK(context->setTensorAddress(name.c_str(), device_ptr));
     }
 
-#if TRT_VERSION_GE(6, 0, 1)
-    if (use_implicit_batch_) {
-      TVM_FFI_ICHECK(context->execute(batch_size, bindings.data())) << "Running TensorRT failed.";
-    } else {
-      TVM_FFI_ICHECK(context->executeV2(bindings.data())) << "Running TensorRT failed.";
-    }
-#else
-    TVM_FFI_ICHECK(context->execute(batch_size, bindings.data())) << "Running TensorRT failed.";
-#endif
+    // Run on TVM's current CUDA stream so the engine is ordered after the inputs produced upstream
+    // (and to avoid TensorRT's default-stream synchronization warning). enqueueV3 is async-only in
+    // TRT10, so synchronize afterwards to preserve Run()'s blocking semantics.
+    const DLDevice& dev = data_entry_[input_var_eid_[0]]->device;
+    const int device_id = dev.device_type == kDLCUDA ? dev.device_id : 0;
+    cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, device_id));
+    TVM_FFI_ICHECK(context->enqueueV3(stream)) << "Running TensorRT failed.";
+    TVM_FFI_CHECK_CUDA_ERROR(cudaStreamSynchronize(stream));
 
     // Copy outputs from GPU buffers if needed.
     for (size_t i = 0; i < outputs_.size(); ++i) {
       uint32_t eid = EntryID(outputs_[i]);
       const std::string& name = engine_and_context.outputs[i];
-      int binding_index = engine->getBindingIndex(name.c_str());
-      TVM_FFI_ICHECK_NE(binding_index, -1);
       if (data_entry_[eid]->device.device_type != kDLCUDA) {
-        auto device_buffer = GetOrAllocateDeviceBuffer(eid, binding_index);
+        auto device_buffer = GetOrAllocateDeviceBuffer(name, eid);
         device_buffer.CopyTo(const_cast<DLTensor*>(data_entry_[eid]));
       }
     }
@@ -269,8 +493,11 @@ class TensorRTRuntime : public JSONRuntimeBase {
       }
       return false;
     }
-    // Check for engine with compatible max_batch_size.
-    if (batch_size <= max_batch_size_) {
+    // Single-engine mode: TensorRT 10 engines are explicit-batch and their optimization profile
+    // pins the built batch size, so a cached engine can only serve that exact batch. Require an
+    // exact match (otherwise a smaller batch would be rejected by setInputShape) and rebuild on any
+    // change. This replaces the implicit-batch "any batch <= max" reuse that TRT10 removed.
+    if (batch_size == max_batch_size_) {
       *compatible_engine_batch_size = max_batch_size_;
       return true;
     }
@@ -285,6 +512,12 @@ class TensorRTRuntime : public JSONRuntimeBase {
     int batch_size = GetBatchSize();
     int compatible_engine_batch_size = -1;
     bool find_engine_flag = FindCompatibleEngine(batch_size, &compatible_engine_batch_size);
+    if (!serialized_engine_.empty()) {
+      TVM_FFI_ICHECK_EQ(batch_size, serialized_batch_size_)
+          << "The input batch size does not match the compile-time TensorRT engine";
+      TVM_FFI_ICHECK(find_engine_flag) << "The embedded TensorRT engine has not been initialized";
+      return trt_engine_cache_.at(std::make_pair(symbol_name_, serialized_batch_size_));
+    }
     const bool use_int8 = (support::GetEnv("TVM_TENSORRT_USE_INT8", 0) != 0);
     const bool int8_calibration_not_used_or_not_complete =
         (calibrator_ != nullptr && num_calibration_batches_remaining_ != 0);
@@ -325,8 +558,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
   void BuildEngineFromJson(int batch_size) {
     const bool use_fp16 = support::GetEnv("TVM_TENSORRT_USE_FP16", false) || use_fp16_;
-    TensorRTBuilder builder(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
-                            use_fp16, batch_size, calibrator_.get());
+    TensorRTBuilder builder(&GetTensorRTLogger(), data_entry_, max_workspace_size_, use_fp16,
+                            calibrator_.get());
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
       auto nid = input_nodes_[i];
       const auto& node = nodes_[nid];
@@ -372,11 +605,20 @@ class TensorRTRuntime : public JSONRuntimeBase {
     infile.close();
     std::string serialized_engine;
     LoadBinaryFromFile(path, &serialized_engine);
-    // Deserialize engine
-    nvinfer1::IRuntime* runtime = nvinfer1::createInferRuntime(logger_);
+    // Deserialize engine. TensorRT 10 dropped the trailing IPluginFactory* argument and the runtime
+    // must outlive the engine, so it is owned by the cached TensorRTEngineAndContext.
+    nvinfer1::IRuntime* runtime = nvinfer1::createInferRuntime(GetTensorRTLogger());
     TensorRTEngineAndContext engine_and_context;
+    engine_and_context.runtime = runtime;
     engine_and_context.engine =
-        runtime->deserializeCudaEngine(&serialized_engine[0], serialized_engine.size(), nullptr);
+        runtime->deserializeCudaEngine(&serialized_engine[0], serialized_engine.size());
+    if (engine_and_context.engine == nullptr) {
+      // A stale or incompatible (e.g. different TensorRT version) .plan file. Drop it and rebuild.
+      delete runtime;
+      LOG(WARNING) << "Failed to deserialize cached TensorRT engine from " << path
+                   << "; it will be rebuilt.";
+      return false;
+    }
     engine_and_context.context = engine_and_context.engine->createExecutionContext();
     // Load metadata
     namespace json = ::tvm::ffi::json;
@@ -424,7 +666,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
         trt_engine_cache_[std::make_pair(symbol_name_, batch_size)].engine->serialize();
     SaveBinaryToFile(path, std::string(static_cast<const char*>(serialized_engine->data()),
                                        serialized_engine->size()));
-    serialized_engine->destroy();
+    delete serialized_engine;
     // Serialize metadata
     namespace json = ::tvm::ffi::json;
     json::Object meta_obj;
@@ -454,26 +696,30 @@ class TensorRTRuntime : public JSONRuntimeBase {
     return symbol_name_ + (support::GetEnv("TVM_TENSORRT_USE_FP16", false) ? "_fp16" : "_fp32");
   }
 
-  /*! \brief Retreive a GPU buffer for input or output or allocate if needed. */
-  Tensor GetOrAllocateDeviceBuffer(int entry_id, int binding_index) {
+  /*! \brief Retreive a GPU buffer for input or output or allocate if needed. Keyed by TensorRT IO
+   * tensor name (TRT10 has no binding indices). */
+  Tensor GetOrAllocateDeviceBuffer(const std::string& name, int entry_id) {
+    if (!device_buffers_) {
+      device_buffers_ = std::make_unique<std::unordered_map<std::string, Tensor>>();
+    }
+    auto& device_buffers = *device_buffers_;
+    DLDevice device{kDLCUDA, embedded_device_id_ >= 0 ? embedded_device_id_ : 0};
     std::vector<int64_t> shape(data_entry_[entry_id]->shape,
                                data_entry_[entry_id]->shape + data_entry_[entry_id]->ndim);
-    if (device_buffers_.count(binding_index)) {
+    if (device_buffers.count(name)) {
       // Buffer is already initialized.
-      if (shape[0] > device_buffers_[binding_index]->shape[0]) {
+      if (shape[0] > device_buffers[name]->shape[0]) {
         // Buffer is too small. Need to allocate bigger buffer.
-        device_buffers_[binding_index] =
-            runtime::Tensor::Empty(shape, data_entry_[entry_id]->dtype, {kDLCUDA, 0});
-      } else if (shape[0] < device_buffers_[binding_index]->shape[0]) {
+        device_buffers[name] = runtime::Tensor::Empty(shape, data_entry_[entry_id]->dtype, device);
+      } else if (shape[0] < device_buffers[name]->shape[0]) {
         // Buffer is too large. Create view.
-        return device_buffers_[binding_index].CreateView(shape, data_entry_[entry_id]->dtype);
+        return device_buffers[name].CreateView(shape, data_entry_[entry_id]->dtype);
       }
     } else {
       // Buffer not initialized yet.
-      device_buffers_[binding_index] =
-          runtime::Tensor::Empty(shape, data_entry_[entry_id]->dtype, {kDLCUDA, 0});
+      device_buffers[name] = runtime::Tensor::Empty(shape, data_entry_[entry_id]->dtype, device);
     }
-    return device_buffers_.at(binding_index);
+    return device_buffers.at(name);
   }
 
   void CreateInt8Calibrator(const TensorRTEngineAndContext& engine_and_context) {
@@ -491,6 +737,9 @@ class TensorRTRuntime : public JSONRuntimeBase {
   std::unordered_map<std::pair<std::string, int>, TensorRTEngineAndContext, PairHash>
       trt_engine_cache_;
 
+  /*! \brief Device owning the deserialized compile-time engine, or -1 before the first call. */
+  int embedded_device_id_ = -1;
+
   /*! \brief Calibrator for INT8 mode. */
   std::unique_ptr<TensorRTCalibrator> calibrator_;
 
@@ -498,10 +747,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
    * is not "cuda". Since TensorRT execution can only read data from GPU, we need to copy data from
    * the runtime device to these buffers first. These will be allocated for the highest batch size
    * used by all engines. */
-  std::unordered_map<int, Tensor> device_buffers_;
-
-  /*! \brief TensorRT logger. */
-  TensorRTLogger logger_;
+  std::unique_ptr<std::unordered_map<std::string, Tensor>> device_buffers_;
 
 #else   // TVM_GRAPH_EXECUTOR_TENSORRT
   void Run() override {
@@ -514,10 +760,24 @@ class TensorRTRuntime : public JSONRuntimeBase {
                  << "Please build with USE_TENSORRT_RUNTIME.";
   }
 
+  void BuildEngineAtCompileTime(const ffi::Array<Tensor>& consts) {
+    TVM_FFI_THROW(InternalError)
+        << "TensorRT build_at_compile_time requires TVM to be built with USE_TENSORRT_RUNTIME";
+  }
+
   bool GetCachedEnginesFromDisk() { return false; }
 
   void CacheEngineToDisk() {}
 #endif  // TVM_GRAPH_EXECUTOR_TENSORRT
+
+  static constexpr uint64_t kEngineMagic = 0x31545254564d5445ULL;
+  static constexpr uint32_t kEngineVersion = 1;
+
+  // Retain serialized bytes independently of initialized CUDA objects, including after reloading.
+  std::string serialized_engine_;
+  std::vector<std::string> serialized_inputs_;
+  std::vector<std::string> serialized_outputs_;
+  int serialized_batch_size_ = 0;
 
   bool use_implicit_batch_;
 
@@ -551,7 +811,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.tensorrt_runtime_create", TensorRTRuntimeCreate)
-      .def("ffi.Module.load_from_bytes.tensorrt", JSONRuntimeBase::LoadFromBytes<TensorRTRuntime>);
+      .def("ffi.Module.load_from_bytes.tensorrt", TensorRTRuntime::LoadFromBytes);
 }
 
 }  // namespace contrib

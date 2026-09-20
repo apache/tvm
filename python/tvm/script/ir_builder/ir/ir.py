@@ -16,11 +16,44 @@
 # under the License.
 """Package tvm.script.ir_builder.ir.ir"""
 
-from tvm.ir import BaseFunc, DummyGlobalInfo, GlobalInfo, GlobalVar, VDevice
+from typing import TYPE_CHECKING, Any, TypeVar
+
+from tvm.ir import BaseFunc, GlobalInfo, GlobalVar
 from tvm.runtime import Object as tvm_Object
 
 from . import _ffi_api
 from .frame import IRModuleFrame
+
+if TYPE_CHECKING:
+    from tvm.relax import DummyGlobalInfo, VDevice
+
+    T = TypeVar("T")
+
+    def meta_var(value: T) -> T:
+        """Mark a value for parser-time metaprogramming."""
+        return value
+
+else:
+
+    class meta_var:  # pylint: disable=invalid-name
+        """A value used only for TVMScript parser-time metaprogramming.
+
+        Assignments unwrap this object without emitting an IR binding.  The
+        shared wrapper is exposed as ``I.meta_var``; dialect namespaces may
+        provide compatibility aliases to the same implementation.
+        For Relax, this is the explicit opt-out from default primitive binding emission.
+
+        Parameters
+        ----------
+        value : Any
+            The parser-time value.
+        """
+
+        def __init__(self, value: Any) -> None:
+            self.value = value
+
+        def __iter__(self):
+            return (meta_var(item) for item in self.value)
 
 
 def ir_module() -> IRModuleFrame:
@@ -131,17 +164,19 @@ def module_global_infos(global_infos: dict[str, list[GlobalInfo]]) -> None:
 ############################### GlobalInfo ###############################
 
 
-def dummy_global_info() -> DummyGlobalInfo:
+def dummy_global_info() -> "DummyGlobalInfo":
     """Create a dummy global info expression.
     Returns
     -------
     res : DummyGlobalInfo
         The result dummy global info.
     """
+    from tvm.relax import DummyGlobalInfo  # pylint: disable=import-outside-toplevel
+
     return DummyGlobalInfo()  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def vdevice(target=None, vdevice_id: int = 0, memory_scope: str = "global") -> VDevice:
+def vdevice(target=None, vdevice_id: int = 0, memory_scope: str = "global") -> "VDevice":
     """Create a virtual device global info.
     Parameters
     ----------
@@ -157,10 +192,12 @@ def vdevice(target=None, vdevice_id: int = 0, memory_scope: str = "global") -> V
     res : VDevice
         The result virtual device.
     """
+    from tvm.relax import VDevice  # pylint: disable=import-outside-toplevel
+
     return VDevice(target, vdevice_id, memory_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def lookup_vdevice(target_kind: str | None = None, device_index: int = -1) -> VDevice:
+def lookup_vdevice(target_kind: str | None = None, device_index: int = -1) -> "VDevice":
     """Retrieve a virtual device from the globalinfo vdevice list.
     Parameters
     ----------

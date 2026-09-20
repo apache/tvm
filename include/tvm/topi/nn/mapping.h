@@ -49,7 +49,10 @@ using namespace tvm::te;
 inline Tensor scale_shift_nchw(const Tensor& x, const Tensor& scale, const Tensor& shift,
                                std::string name = "ScaleShift", std::string tag = kBroadcast) {
   return tvm::te::compute(
-      x->shape, [&](Var b, Var c, Var h, Var w) { return x(b, c, h, w) * scale(c) + shift(c); },
+      x->shape,
+      [&](PrimVar b, PrimVar c, PrimVar h, PrimVar w) {
+        return x(b, c, h, w) * scale(c) + shift(c);
+      },
       name, tag);
 }
 
@@ -67,7 +70,10 @@ inline Tensor scale_shift_nchw(const Tensor& x, const Tensor& scale, const Tenso
 inline Tensor scale_shift_nhwc(const Tensor& x, const Tensor& scale, const Tensor& shift,
                                std::string name = "ScaleShift", std::string tag = kBroadcast) {
   return tvm::te::compute(
-      x->shape, [&](Var b, Var h, Var w, Var c) { return x(b, h, w, c) * scale(c) + shift(c); },
+      x->shape,
+      [&](PrimVar b, PrimVar h, PrimVar w, PrimVar c) {
+        return x(b, h, w, c) * scale(c) + shift(c);
+      },
       name, tag);
 }
 

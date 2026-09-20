@@ -24,49 +24,59 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
-class RemoveLayoutRewriteBlock : public StmtMutator {
+class RemoveLayoutRewriteBlock : public StmtExprMutator {
  public:
-  static std::tuple<PrimFunc, ffi::Map<Buffer, Buffer>,
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
+  static std::tuple<PrimFunc, ffi::Map<BufferVar, BufferVar>,
                     std::unordered_map<const VarNode*, IndexMap>,
                     std::unordered_map<const VarNode*, ffi::Array<PrimExpr>>>
   Rewrite(PrimFunc f) {
-    RemoveLayoutRewriteBlock rewriter;
+    auto rewriter = ffi::make_object<RemoveLayoutRewriteBlock>();
 
     PrimFuncNode* n = f.CopyOnWrite();
-    n->body = rewriter(std::move(n->body));
-    return std::make_tuple(f, rewriter.buf_map_, rewriter.buffer_var_to_index_map_,
-                           rewriter.buffer_var_to_rewritten_shape_);
+    n->body = rewriter->Mutate(n->body, InplaceMode::kAllow).ValueOrUnchanged(std::move(n->body));
+    return std::make_tuple(f, rewriter->buf_map_, rewriter->buffer_var_to_index_map_,
+                           rewriter->buffer_var_to_rewritten_shape_);
   }
 
  private:
-  Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                       .as_or_throw<SBlock>();
 
     auto it = block->annotations.find(s_tir::attr::meta_schedule_layout_rewrite_preproc);
-    if (it == block->annotations.end() || !is_one(Downcast<PrimExpr>((*it).second))) {
+    if (it == block->annotations.end() || !is_one((*it).second.cast<PrimExpr>())) {
       // The block is not a weight layout block
       // Remove allocates if needed
-      ffi::Array<Buffer> alloc_buffers;
-      for (const Buffer& buffer : block->alloc_buffers) {
+      ffi::Array<BufferVar> alloc_buffers;
+      for (const BufferVar& buffer : block->alloc_buffers) {
         if (!rewritten_buffers_.count(buffer)) {
           alloc_buffers.push_back(buffer);
         }
       }
       if (alloc_buffers.size() < block->alloc_buffers.size()) {
-        auto n = CopyOnWrite(block.get());
+        SBlockNode* n = block.CopyOnWrite();
         n->alloc_buffers = std::move(alloc_buffers);
-        return Stmt(n);
+        return block;
       } else {
         return block;
       }
@@ -81,36 +91,38 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
     TVM_FFI_ICHECK(store);
 
     // Step 2. Checking the rhs of buffer store is a BufferLoad
-    const auto* load = store->value.as<BufferLoadNode>();
+    const auto* load = store->value.as<TensorLoadNode>();
     TVM_FFI_ICHECK(load);
 
-    // Step 3. Update Buffer
-    buf_map_.Set(load->buffer, store->buffer);
+    // Step 3. Update BufferVar
+    buf_map_.Set(load->source.as_or_throw<tvm::tirx::BufferVar>(), store->buffer);
     rewritten_buffers_.insert(store->buffer);
 
     // Step 4. Set block body as no_op
-    auto n = CopyOnWrite(block.get());
+    Stmt old_body = block->body;
+    SBlockNode* n = block.CopyOnWrite();
     n->body = std::move(Evaluate(0));
     n->reads = {};
     n->writes = {};
 
-    ffi::Array<Var> load_indices;
+    ffi::Array<PrimVar> load_indices;
     for (auto ind : load->indices) {
-      TVM_FFI_ICHECK(ind->IsInstance<VarNode>());
-      load_indices.push_back(Downcast<Var>(ind));
+      TVM_FFI_ICHECK(ind.as<PrimVar>());
+      load_indices.push_back(ind.as_or_throw<PrimVar>());
     }
-    buffer_var_to_index_map_[load->buffer->data.get()] = IndexMap(load_indices, store->indices);
+    buffer_var_to_index_map_[load->source.as_or_throw<tvm::tirx::BufferVar>().get()] =
+        IndexMap(load_indices, store->indices);
 
-    buffer_var_to_rewritten_shape_[load->buffer->data.get()] = store->buffer->shape;
+    buffer_var_to_rewritten_shape_[load->source.as_or_throw<tvm::tirx::BufferVar>().get()] =
+        store->buffer->shape;
 
-    return Stmt(n);
+    return block;
   }
 
- private:
   /*! \brief The buffer map from original layout buffer to rewritten buffer */
-  ffi::Map<Buffer, Buffer> buf_map_;
+  ffi::Map<BufferVar, BufferVar> buf_map_;
   /*! \brief The buffer map from original layout buffer to rewritten buffer */
-  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rewritten_buffers_;
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rewritten_buffers_;
   /*! \brief Maps a buffer load to an index map associated with the load / store
     in a layout rewrite block. */
   std::unordered_map<const VarNode*, IndexMap> buffer_var_to_index_map_;
@@ -118,24 +130,37 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
   std::unordered_map<const VarNode*, ffi::Array<PrimExpr>> buffer_var_to_rewritten_shape_;
 };
 
-class WeightLayoutRewriteBlockRemover : public StmtMutator {
+class WeightLayoutRewriteBlockRemover : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   static PrimFunc Remove(PrimFunc f, bool skip_tensor_rewrite) {
     auto [f_, buf_map, buffer_var_to_index_map, buffer_var_to_rewritten_shape] =
-        RemoveLayoutRewriteBlock().Rewrite(f);
+        RemoveLayoutRewriteBlock::Rewrite(f);
 
     PrimFuncNode* n = f_.CopyOnWrite();
 
-    ffi::Map<tirx::Var, Buffer> buffer_map;
-    for (const auto& [param, buffer] : f_->buffer_map) {
+    ffi::Array<tirx::Var> params;
+    for (const tirx::Var& param : f_->params) {
+      auto opt_buffer = param.as<BufferVar>();
+      if (!opt_buffer.has_value()) {
+        params.push_back(param);
+        continue;
+      }
+      BufferVar buffer = opt_buffer.value();
       auto it = buf_map.find(buffer);
       if (it != buf_map.end()) {
-        buffer_map.Set(param, (*it).second);
+        params.push_back((*it).second.var());
       } else {
-        buffer_map.Set(param, buffer);
+        params.push_back(param);
       }
     }
-    n->buffer_map = std::move(buffer_map);
+    n->params = std::move(params);
     return f_;
   }
 };

@@ -63,6 +63,16 @@ driving its costs down.
    deep_dive/relax/index
 
 .. toctree::
+   :maxdepth: 2
+   :caption: TIRx
+
+   tirx/overview
+   tirx/get_started/index
+   tirx/programming/index
+   tirx/arch/index
+   tirx/api/index
+
+.. toctree::
    :maxdepth: 1
    :caption: API Reference
 

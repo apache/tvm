@@ -195,9 +195,9 @@ via ``cls.func_name``:
    @R.function
    def main(x: R.Tensor((10, 20), "float32")):
        with R.dataflow():
-           lv0 = R.call_tir(add, (x, const_1), out_sinfo=R.Tensor((10, 20), "float32"))
-           lv1 = R.call_tir(exp, (lv0,), out_sinfo=R.Tensor((10, 20), "float32"))
-           gv = R.call_tir(squeeze, (lv1,), out_sinfo=R.Tensor((10, 20), "float32"))
+           lv0 = R.call_tir(add, (x, const_1), out_ty=R.Tensor((10, 20), "float32"))
+           lv1 = R.call_tir(exp, (lv0,), out_ty=R.Tensor((10, 20), "float32"))
+           gv = R.call_tir(squeeze, (lv1,), out_ty=R.Tensor((10, 20), "float32"))
            R.output(gv)
        return gv
 

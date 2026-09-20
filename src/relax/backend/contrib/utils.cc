@@ -46,7 +46,7 @@ ffi::Map<ffi::String, IntImm> ExtractArgIdx(ffi::String pattern_name, Function f
 
   auto find_index = [](const ffi::Array<Var>& params, Var v) -> std::optional<size_t> {
     for (size_t i = 0; i < params.size(); ++i) {
-      if (params[i] == v) {
+      if (params[i].same_as(v)) {
         return i;
       }
     }
@@ -57,7 +57,7 @@ ffi::Map<ffi::String, IntImm> ExtractArgIdx(ffi::String pattern_name, Function f
     auto exp = matched_expr.value()[pat];
     if (auto arg_var = exp.as<VarNode>()) {
       if (auto idx = find_index(f->params, ffi::GetRef<Var>(arg_var))) {
-        arg_idx.Set(name, IntImm(DataType::Int(64), *idx));
+        arg_idx.Set(name, IntImm::Int64(*idx));
       }
     }
   }

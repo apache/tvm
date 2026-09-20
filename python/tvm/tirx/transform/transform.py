@@ -245,41 +245,27 @@ def ConvertSSA():
     return _ffi_api.ConvertSSA()  # type: ignore
 
 
-def LowerCustomDatatypes():
-    """Lower custom datatypes.
-
-    See tvm::datatypes::Registry for more information on adding custom datatypes.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerCustomDatatypes()  # type: ignore
-
-
 def MakePackedAPI():
     """Transform the PrimFuncs in the module to a packed func API.
 
-    Prior to this pass, the PrimFunc may have Buffer arguments defined
-    in the `PrimFuncNode::buffer_map`.  This pass consumes the
-    `buffer_map`, using it to generate arguments that implement
-    the packed based TVM FFI API.
+    Prior to this pass, the PrimFunc may have parameters annotated with
+    `BufferType`.  This pass consumes those annotations to generate
+    arguments that implement the packed based TVM FFI API.
 
-    For static shapes, the `BufferNode::shape`, `BufferNode::strides`,
-    and `BufferNode::elem_offset` member variables are used to
+    For static shapes, the `BufferType::shape`, `BufferType::strides`,
+    and `BufferType::elem_offset` fields are used to
     generate runtime checks on the corresponding member variables in
     the user-provided `DLTensor*` or `tvm.runtime.tensor` argument.  (e.g. A
     PrimFunc that accepts a buffer of shape `[16,32]` validates that
     the `DLTensor::shape` array is `[16,32]`.)
 
-    For dynamic Buffers, in which one or more of these `BufferNode` member
-    variables use `tirx.Var` that are not defined by other PrimFunc
+    For dynamic Buffers, in which one or more of these `BufferType` fields
+    use `tirx.Var` that are not defined by other PrimFunc
     parameters, these are instead used to define the variables based on
     the corresponding `DLTensor` members.  (e.g. A PrimFunc that accepts a
-    buffer of shape `[tirx.Var("n"), tirx.Var("m")]`, when passed a
-    `DLTensor` of shape `[16,32]`, will define `n = 16` and `n=32`, based
-    on the argument's shape.
+    buffer of shape `[tirx.Var("n", "int64"), tirx.Var("m", "int64")]`,
+    when passed a `DLTensor` of shape `[16, 32]`, will define `n = 16` and
+    `m = 32`, based on the argument's shape.
 
     Returns
     -------
@@ -349,7 +335,7 @@ def LowerIntrin():
 
 
 def NarrowDataType(target_bits: int):
-    """Narrow down PrimExpr datatype in stmt to target_bits.
+    """Narrow down Expr datatype in stmt to target_bits.
 
     Parameters
     ----------
@@ -501,6 +487,17 @@ def Filter(fcond: Callable):
         The result pass
     """
     return _ffi_api.Filter(fcond)  # type: ignore
+
+
+def TilePrimitiveDispatch():
+    """Lower TIRx tile primitive calls through the active backend dispatch table.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.TilePrimitiveDispatch()  # type: ignore
 
 
 def LowerTIRx():

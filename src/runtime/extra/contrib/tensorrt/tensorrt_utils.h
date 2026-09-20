@@ -30,6 +30,15 @@
 
 #include "NvInfer.h"
 
+// This integration targets the TensorRT 10 API. TensorRT 10 removed a large set of APIs the
+// pre-TRT10 code relied on (implicit batch, binding indices, addConvolution/addPooling/addPadding,
+// IFullyConnectedLayer, IBuilder::setMaxBatchSize, IBuilderConfig::setMaxWorkspaceSize,
+// IExecutionContext::execute, obj->destroy(), ...). Emit a clear error instead of a flood of
+// "has no member" diagnostics on older releases.
+#if !defined(NV_TENSORRT_MAJOR) || NV_TENSORRT_MAJOR < 10
+#error "TVM's TensorRT runtime requires TensorRT 10.0 or newer (or set USE_TENSORRT_RUNTIME=OFF)."
+#endif
+
 // There is a conflict between cpplint and clang-format-10.
 // clang-format off
 #define TRT_VERSION_GE(major, minor, patch)                                                    \
@@ -42,18 +51,18 @@ namespace runtime {
 namespace contrib {
 
 /*!
- * \brief Helper function to convert an vector to TRT Dims.
- * \param vec Vector.
+ * \brief Helper function to convert a vector-like container to TRT Dims.
+ * \param vec A container supporting size() and operator[] (e.g. std::vector or ffi::Array).
  * \return TRT Dims.
  */
-template <typename T>
-inline nvinfer1::Dims VectorToTrtDims(const std::vector<T>& vec) {
+template <typename Container>
+inline nvinfer1::Dims VectorToTrtDims(const Container& vec) {
   nvinfer1::Dims dims;
   // Dims(nbDims=0, d[0]=1) is used to represent a scalar in TRT.
   dims.d[0] = 1;
-  dims.nbDims = vec.size();
+  dims.nbDims = static_cast<int32_t>(vec.size());
   for (size_t i = 0; i < vec.size(); ++i) {
-    dims.d[i] = vec[i];
+    dims.d[i] = static_cast<int64_t>(vec[i]);
   }
   return dims;
 }

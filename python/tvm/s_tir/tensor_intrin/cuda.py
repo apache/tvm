@@ -23,8 +23,9 @@ from typing import Literal
 from tvm_ffi import register_global_func
 
 from tvm.runtime import convert
+from tvm.s_tir import TensorIntrin
 from tvm.script import tirx as T
-from tvm.tirx import Cast, IntImm, TensorIntrin
+from tvm.tirx import Cast, IntImm
 from tvm.tirx.function import PrimFunc
 
 
@@ -207,7 +208,7 @@ def get_ldmatrix_intrin(
             T.writes(warp[0:WARP_SIZE, 0:local_size])
             for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                 T.evaluate(
-                    T.ptx.ldmatrix_legacy(
+                    T.ptx_legacy.ldmatrix(
                         transpose_in_ldmatrix,
                         4,  # Always load 4 matrices
                         ".b16",
@@ -430,7 +431,7 @@ def get_mma_intrin(
 
             for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                 T.evaluate(
-                    T.ptx.mma.legacy(
+                    T.ptx_legacy.mma(
                         mma_prefix,
                         "row",
                         "col",
@@ -449,7 +450,7 @@ def get_mma_intrin(
                 )
 
                 T.evaluate(
-                    T.ptx.mma.legacy(
+                    T.ptx_legacy.mma(
                         mma_prefix,
                         "row",
                         "col",
@@ -580,7 +581,7 @@ def get_mma_fill_intrin(dtype, local_size):
 
             for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                 T.evaluate(
-                    T.mma_fill_legacy(local_size, C_warp.data, C_warp.elem_offset, dtype=dtype)
+                    T.cuda.mma_fill_legacy(local_size, C_warp.data, C_warp.elem_offset, dtype=dtype)
                 )
 
     return mma_fill_desc, mma_fill_impl
@@ -637,7 +638,7 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
 
                 for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                     T.evaluate(
-                        T.mma_store_legacy(
+                        T.cuda.mma_store_legacy(
                             M_DIM,
                             N_DIM,
                             C.access_ptr("w"),
@@ -889,10 +890,10 @@ def get_wmma_load_intrin(
                     n_dim,
                     k_dim,
                     get_wmma_fragment_index(C, d1, frag_m, frag_n),
-                    A.access_ptr("r"),
+                    A.access_ptr("r", ptr_type=dtype),
                     s1,
                     layout,
-                    dtype="handle",
+                    dtype="void",
                 )
             )
 
@@ -948,7 +949,7 @@ def get_wmma_fill_intrin(
                     k_dim,
                     get_wmma_fragment_index(C, d1, m_dim, n_dim),
                     T.float32(0),
-                    dtype="handle",
+                    dtype="void",
                 )
             )
 
@@ -1016,10 +1017,10 @@ def get_wmma_store_intrin(
                     n_dim,
                     k_dim,
                     get_wmma_fragment_index(A, d1, m_dim, n_dim),
-                    C.access_ptr("w"),
+                    C.access_ptr("w", ptr_type=dtype),
                     s1,
                     "row_major",
-                    dtype="handle",
+                    dtype="void",
                 )
             )
 
@@ -1135,7 +1136,7 @@ def get_wmma_sync_intrin(
                     get_wmma_fragment_index(B, b1, b_shape_0, b_shape_1),
                     C.data,
                     get_wmma_fragment_index(C, c1, m_dim, n_dim),
-                    dtype="handle",
+                    dtype="void",
                 )
             )
 
@@ -1582,7 +1583,7 @@ def get_mma_load_intrin(
 
             for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                 T.evaluate(
-                    T.ptx.ldmatrix_legacy(
+                    T.ptx_legacy.ldmatrix(
                         trans,
                         4,  # Always load 4 matrices
                         ".b16",
@@ -1677,7 +1678,7 @@ def get_mma_sync_intrin(
             T.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:B_shape_0, 0:B_shape_1])
             T.writes(C[0:m_dim, 0:n_dim])
             T.evaluate(
-                T.ptx.mma.legacy(
+                T.ptx_legacy.mma(
                     f"m{m_dim}n{n_dim}k{k_dim}",
                     "row",
                     "col",

@@ -218,7 +218,7 @@ class BasePyModule:
             wrapped_func = create_py_func_wrapper(func_name, py_func)
             register_py_func(func_name, wrapped_func)
 
-    def call_tir(self, tir_func, args, out_sinfo):
+    def call_tir(self, tir_func, args, out_ty):
         """Call a TIR function with PyTorch tensors."""
         # Try to get function name from different sources
         if isinstance(tir_func, str):
@@ -244,7 +244,7 @@ class BasePyModule:
             )
         func = self.compiled_tir_funcs[func_name]
 
-        out = self._create_output_tensors(out_sinfo, args)
+        out = self._create_output_tensors(out_ty, args)
         tvm_args = self._convert_pytorch_to_tvm(args)
         tvm_out = self._convert_pytorch_to_tvm(out)
 
@@ -253,7 +253,7 @@ class BasePyModule:
         result = self._convert_tvm_to_pytorch(tvm_out)
         return result[0] if len(result) == 1 else result
 
-    def call_dps_packed(self, func_name: str, args, out_sinfo):
+    def call_dps_packed(self, func_name: str, args, out_ty):
         """Call a packed function with PyTorch tensors, converting TVM Tensors via DLPack."""
         if hasattr(self, func_name) and callable(getattr(self, func_name)):
             return getattr(self, func_name)(*args)
@@ -268,7 +268,7 @@ class BasePyModule:
                 ) from error
         func = self.extern_funcs[func_name]
 
-        out = self._create_output_tensors(out_sinfo, args)
+        out = self._create_output_tensors(out_ty, args)
         tvm_args = self._convert_pytorch_to_tvm(args)
         tvm_out = self._convert_pytorch_to_tvm(out)
         func(*tvm_args, *tvm_out)
@@ -281,22 +281,20 @@ class BasePyModule:
         py_func = self.pyfuncs[func_name]
         return py_func(self, *args)
 
-    def _create_output_tensors(self, out_sinfo, in_args=None):
+    def _create_output_tensors(self, out_ty, in_args=None):
         # pylint: disable=import-outside-toplevel
         import torch
 
-        sinfo_list = out_sinfo if isinstance(out_sinfo, list) else [out_sinfo]
+        ty_list = out_ty if isinstance(out_ty, list) else [out_ty]
         out_tensors = []
-        for sinfo in sinfo_list:
-            if isinstance(sinfo, tuple | list) and all(
-                isinstance(x, int | np.integer) for x in sinfo
-            ):
-                out_tensors.append(torch.zeros(list(map(int, sinfo)), dtype=torch.float32))
+        for ty in ty_list:
+            if isinstance(ty, tuple | list) and all(isinstance(x, int | np.integer) for x in ty):
+                out_tensors.append(torch.zeros(list(map(int, ty)), dtype=torch.float32))
                 continue
 
-            if hasattr(sinfo, "shape") and hasattr(sinfo, "dtype"):
-                concrete_shape = self._infer_concrete_shape_from_args(sinfo.shape, in_args)
-                torch_dtype = self._convert_tvm_dtype_to_torch(sinfo.dtype)
+            if hasattr(ty, "shape") and hasattr(ty, "dtype"):
+                concrete_shape = self._infer_concrete_shape_from_args(ty.shape, in_args)
+                torch_dtype = self._convert_tvm_dtype_to_torch(ty.dtype)
                 out_tensors.append(torch.zeros(concrete_shape, dtype=torch_dtype))
                 continue
 
@@ -341,7 +339,7 @@ class BasePyModule:
 
         raise ValueError(
             "Cannot infer concrete output shape from symbolic shape and inputs. "
-            "Please provide a concrete `out_sinfo` (e.g., a tuple/list of ints) "
+            "Please provide a concrete `out_ty` (e.g., a tuple/list of ints) "
             "or ensure input tensors carry shapes that determine output extents."
         )
 
@@ -510,7 +508,7 @@ class BasePyModule:
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
-        show_all_struct_info: bool = True,
+        show_all_ty: bool = True,
         extra_config: dict | None = None,
     ) -> str:
         """Print TVM IR into TVMScript text format with Python function support.
@@ -532,7 +530,7 @@ class BasePyModule:
             num_context_lines=num_context_lines,
             syntax_sugar=syntax_sugar,
             show_object_address=show_object_address,
-            show_all_struct_info=show_all_struct_info,
+            show_all_ty=show_all_ty,
             extra_config=extra_config,
         )
 

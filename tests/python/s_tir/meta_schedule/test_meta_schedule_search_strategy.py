@@ -103,6 +103,7 @@ def test_meta_schedule_replay_func(
 
     context = ms.TuneContext(
         mod=Matmul,
+        num_threads=1,
         space_generator=ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul, postprocs=[]),
         search_strategy=TestClass(),
     )

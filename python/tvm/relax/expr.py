@@ -19,7 +19,7 @@
 
 import typing
 from collections.abc import Callable, Mapping
-from numbers import Number
+from numbers import Integral, Number, Real
 from typing import Any, Optional, Union
 
 import numpy as _np  # type: ignore
@@ -30,77 +30,73 @@ import tvm.ir
 import tvm.relax
 import tvm.runtime
 from tvm import DataType
-from tvm.runtime import Object
 
 from ..ir import BaseFunc, Node, Span
+from ..ir.expr import _CallableExprWithOp
 from ..runtime import Scriptable
-from ..tirx import PrimExpr
 from . import _ffi_api
 
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
 # This feature is not supported until python 3.10:
 # https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
-Expr = tvm.ir.RelaxExpr
+Expr = tvm.ir.Expr
 Type = tvm.ir.Type  # pylint: disable=invalid-name
 GlobalVar = tvm.ir.GlobalVar
 
 
-@tvm_ffi.register_object("relax.Id")
-class Id(Object):
-    """Unique identifier(name) used in Var.
-    Guaranteed to be stable across all passes.
+def prim_value(value: Expr | int | float, dtype: str | None = None) -> Expr:
+    """Convert a Python scalar or primitive expression to ``Expr``.
+
+    Parameters
+    ----------
+    value : Expr | int | float
+        The value to convert.
+
+    dtype : Optional[str]
+        The dtype to use when converting Python numeric values.
+
+    Returns
+    -------
+    result : Expr
+        The converted primitive expression.  Existing ``Expr`` inputs are
+        returned unchanged.
     """
+    if tvm.ir.is_prim_expr(value):
+        return value
+    if isinstance(value, bool | _np.bool_):
+        return tvm.tirx.IntImm(dtype or "bool", int(value))
+    if isinstance(value, Integral):
+        return tvm.tirx.IntImm(dtype or "int64", int(value))
+    if isinstance(value, Real):
+        return tvm.tirx.FloatImm(dtype or "float64", float(value))
+    tvm_value = tvm_ffi.convert(value)
+    if tvm.ir.is_prim_expr(tvm_value):
+        return tvm_value
+    raise TypeError(f"Cannot convert {value} with type {type(value)} to `Expr`")
 
-    name_hint: str
 
-    def __init__(self):
-        raise RuntimeError("Cannot directly construct Id")
+def _relax_type_is_base_of(self: Type, derived: Type) -> bool:
+    """Check if this Relax type is a base of another Relax type."""
+
+    return _ffi_api.TypeIsBaseOf(self, derived)  # type: ignore
 
 
-# NOTE: place base struct info in expr to avoid cyclic dep
-# from expr to struct info.
-@tvm_ffi.register_object("ir.StructInfo")
-class StructInfo(Node, Scriptable):
-    """The base class of all StructInfo.
-
-    StructInfo contains both the static type
-    and runtime structural information.
-    """
-
-    def __eq__(self, other):
-        """Compare two struct info for structural equivalence."""
-        return tvm_ffi.structural_equal(self, other)
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def same_as(self, other):
-        """Overload with structural equality."""
-        return super().__eq__(other)
-
-    def is_base_of(self, derived: "StructInfo") -> bool:
-        """Check if self is base of another derived struct info.
-
-        Parameters
-        ----------
-        derived : StructInfo
-            The derived struct info to be checked.
-
-        Returns
-        -------
-        result : bool
-            The check result.
-        """
-        return _ffi_api.StructInfoIsBaseOf(self, derived)  # type: ignore
+Type.is_base_of = _relax_type_is_base_of  # type: ignore[attr-defined]
 
 
 # will be registered afterwards in python/tvm/relax/op/init.py
 _op_ffi_api = None  # pylint: disable=invalid-name
 
 
-def _binary_op_helper(lhs: "ExprWithOp", rhs: "ExprWithOp", op: Callable) -> "ExprWithOp":
+def _is_tensor_or_missing_type(ty: Type) -> bool:
+    return isinstance(ty, tvm.relax.TensorType) or ty.is_missing()
+
+
+def _binary_op_helper(lhs: Expr, rhs: Expr, op: Callable):
     if not isinstance(lhs, Expr):  # type: ignore
         raise ValueError("lhs must be Expr")
+    if not _is_tensor_or_missing_type(lhs.ty):
+        return NotImplemented
     if isinstance(rhs, Expr):  # type: ignore
         return op(lhs, rhs)
     elif isinstance(rhs, Number):
@@ -109,483 +105,14 @@ def _binary_op_helper(lhs: "ExprWithOp", rhs: "ExprWithOp", op: Callable) -> "Ex
         raise TypeError(f"type {type(rhs)} not supported")
 
 
-def _binary_rhs_helper(rhs: "ExprWithOp") -> "ExprWithOp":
+def _binary_rhs_helper(rhs: Expr):
     if isinstance(rhs, Number):
         raise TypeError(f"Please convert {rhs} with `const` first")
     raise TypeError(f"type {type(rhs)} not supported")
 
 
-class ExprWithOp(Expr, Scriptable):
-    """Basetype of all relax expressions that defines op overloading."""
-
-    def astype(self, dtype: str | DataType) -> "ExprWithOp":
-        """Cast the content type of the current data to dtype.
-
-        Parameters
-        ----------
-        dtype : str
-            The target data type.
-
-        Note
-        ----
-        This function only works for TensorType Exprs.
-
-        Returns
-        -------
-        result : ExprWithOp
-            The result expression.
-        """
-        return _op_ffi_api.astype(self, dtype)  # type: ignore
-
-    def __neg__(self) -> "ExprWithOp":
-        return _op_ffi_api.negative(self)  # type: ignore
-
-    def __lt__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.less)  # type: ignore
-
-    def __gt__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.greater)  # type: ignore
-
-    def __ge__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.greater_equal)  # type: ignore
-
-    def __le__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.less_equal)  # type: ignore
-
-    # NOTE: Cannot override __eq__ and __ne__, which will influence object equal
-
-    def __add__(self, other: Expr) -> "ExprWithOp":
-        if isinstance(self.struct_info_, tvm.relax.TupleStructInfo) and isinstance(other, tuple):
-            return tuple([*self, *other])
-
-        return _binary_op_helper(self, other, _op_ffi_api.add)  # type: ignore
-
-    def __radd__(self, other: Expr) -> "ExprWithOp":
-        return self.__add__(other)
-
-    def __sub__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.subtract)  # type: ignore
-
-    def __rsub__(self, other: Expr) -> "ExprWithOp":
-        return _binary_rhs_helper(other)
-
-    def __mul__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.multiply)  # type: ignore
-
-    def __rmul__(self, other: Expr) -> "ExprWithOp":
-        return self.__mul__(other)
-
-    def __truediv__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.divide)  # type: ignore
-
-    def __rtruediv__(self, other: Expr) -> "ExprWithOp":
-        return _binary_rhs_helper(other)
-
-    def __floordiv__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.floor_divide)  # type: ignore
-
-    def __rfloordiv__(self, other: Expr) -> "ExprWithOp":
-        return _binary_rhs_helper(other)
-
-    def __mod__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.mod)  # type: ignore
-
-    def __rmod__(self, other: Expr) -> "ExprWithOp":
-        return _binary_rhs_helper(other)
-
-    def __pow__(self, other: Expr) -> "ExprWithOp":
-        return _binary_op_helper(self, other, _op_ffi_api.power)  # type: ignore
-
-    def __rpow__(self, other: Expr) -> "ExprWithOp":
-        return _binary_rhs_helper(other)
-
-    def __call__(self, *args: list[Expr], attrs: dict[str, Any] | None = None) -> "ExprWithOp":
-        """Call the variable (if it represents a function).
-
-        Parameters
-        ----------
-        args: List[Expr]
-            The arguments to the call.
-
-        attr: Optional[Dict[str, object]]
-            The additional attributes to the call.
-
-        Returns
-        -------
-        call: ExprWithOp
-            A call taking the variable as a function.
-        """
-        return Call(self, args, attrs=attrs)
-
-    def __getitem__(self, index: int) -> "ExprWithOp":
-        """Get the i-th element of the tuple or Expr with TupleType.
-
-        Parameters
-        ----------
-        index: int
-            The index of the element to be retrieved.
-
-        Note
-        ----
-        This function will be overridden by Tuple and ShapeExpr
-
-        Returns
-        -------
-        result: ExprWithOp
-            The result expression.
-        """
-        try:
-            return TupleGetItem(self, index)
-        except RuntimeError as err:
-            # For Python objects with __getitem__, but without
-            # __len__, tuple unpacking is done by iterating over
-            # sequential indices until IndexError is raised.
-            # Therefore, convert from RuntimeError to IndexError for
-            # compatibility.
-            if "Index out of bounds" in err.args[0]:
-                raise IndexError from err
-            raise
-
-    def _check_for_tensor_struct_info(self):
-        """Raise an error if this is something other than a Tensor
-
-        Used for early checks in `expr.dtype` and `expr.shape`
-        accessors.  While invalid usage would cause errors to be
-        raised during shape inference, an earlier check makes it
-        easier to find the invalid usage.
-        """
-        if self.struct_info_ is None:
-            return
-
-        if not isinstance(self.struct_info_, tvm.relax.TensorStructInfo):
-            raise TypeError(
-                f"Runtime unpacking of DLDataType is only implemented for tensors, "
-                f"but was applied to object {self} of type {type(self)}."
-            )
-
-    @property
-    def dtype(self) -> "_DLTensorDTypeProxy":
-        """Returns a proxy object for accessing DLTensor::dtype"""
-        self._check_for_tensor_struct_info()
-        return _DLTensorDTypeProxy(self)
-
-    @property
-    def ndim(self) -> "Expr":
-        """Returns the runtime value of DLTensor::ndim"""
-        self._check_for_tensor_struct_info()
-        op = tvm.ir.Op.get("relax.inspect.tensor_ndim")
-        return tvm.relax.Call(op, [self])
-
-    @property
-    def shape(self) -> "_DLTensorShapeProxy":
-        """Returns a proxy object for accessing DLTensor::shape"""
-        self._check_for_tensor_struct_info()
-        return _DLTensorShapeProxy(self)
-
-    @property
-    def strides(self) -> "_DLTensorStrideProxy":
-        """Returns a proxy object for accessing DLTensor::strides"""
-        self._check_for_tensor_struct_info()
-        return _DLTensorStrideProxy(self)
-
-    @property
-    def byte_offset(self) -> "Expr":
-        """Returns a proxy object for accessing DLTensor::byte_offset"""
-        self._check_for_tensor_struct_info()
-        op = tvm.ir.Op.get("relax.inspect.tensor_byte_offset")
-        return tvm.relax.Call(op, [self])
-
-    @property
-    def elem_offset(self) -> "Expr":
-        """Returns a proxy object for accessing a DLTensor's elem_offset
-
-        This parameter is not stored in the DLTensor, but is instead
-        derived from the DLTensor's byte offset and datatype.  This is
-        exposed in Relax for ease of use, and for translation into the
-        `tirx::BufferNode::elem_offset` field when interacting with TIR
-        buffers.
-        """
-        self._check_for_tensor_struct_info()
-        op = tvm.ir.Op.get("relax.inspect.tensor_elem_offset")
-        return tvm.relax.Call(op, [self])
-
-
-class _DLTensorDTypeProxy(tvm.runtime.ObjectConvertible):
-    """A proxy object for unpacking DLDatatype from DLTensor
-
-    Exposes accessors for `DLDataType` fields `type_code`, `lanes`,
-    and `bits` within a `DLTensor::dtype`.  Accessing these fields
-    will produce `relax.Call` expressions, representing the field's
-    runtime value.  If the datatype of the tensor is known at
-    compile-time, the `relax.Call` will be normalized into a
-    `relax.PrimValue`, with no runtime cost.
-
-    Parameters
-    ----------
-    tensor: relax.Expr
-
-        The relax tensor (or a variable referring to a relax tensor),
-        whose runtime shape is being inspected.
-
-    """
-
-    def __init__(self, tensor):
-        self.tensor = tensor
-
-    def asobject(self):
-        """Provide expected in error message
-
-        This method is called when `_DLTensorDTypeProxy` is used in a
-        context that requires a `relax.Expr`.  This usage is not
-        supported, and raising an error here can provide suggested
-        fixes that are not present in the default error message from
-        `tvm.runtime.convert`.
-        """
-
-        fields = [f"{self.tensor}.dtype.{field}" for field in ["type_code", "bits", "lanes"]]
-        raise TypeError(
-            f"{self.tensor}.dtype cannot be converted to a relax expression, "
-            f"and should be used as a proxy object to access "
-            f"fields {fields}"
-        )
-
-    @property
-    def type_code(self) -> Expr:
-        """Accessor for the DLDataType::bits field
-
-        Returns
-        -------
-        type_code: Expr
-
-            The type code of the DLTensor.  See the `DLDeviceType`
-            enum in `dlpack.h` for more information.
-        """
-        op = tvm.ir.Op.get("relax.inspect.tensor_dtype_code")
-        return tvm.relax.Call(op, [self.tensor])
-
-    @property
-    def lanes(self) -> Expr:
-        """Accessor for the DLDataType::bits field
-
-        Returns
-        -------
-        lanes: Expr
-
-            The number of lanes in the DLDataType
-        """
-        op = tvm.ir.Op.get("relax.inspect.tensor_dtype_lanes")
-        return tvm.relax.Call(op, [self.tensor])
-
-    @property
-    def bits(self) -> Expr:
-        """Accessor for the DLDataType::bits field
-
-        Returns
-        -------
-        bits: Expr
-
-            The number of bits in the DLDataType
-        """
-        op = tvm.ir.Op.get("relax.inspect.tensor_dtype_bits")
-        return tvm.relax.Call(op, [self.tensor])
-
-
-class _DLTensorShapeProxy(tvm.runtime.ObjectConvertible):
-    """A proxy object for unpacking the shape from DLTensor
-
-    Exposes accessors for the `DLTensor::shape` field.  Accessing
-    these fields will produce `relax.Call` expressions, representing
-    the field's runtime value.  If the datatype of the tensor is known
-    at compile-time, the `relax.Call` will be normalized into a
-    `relax.PrimValue`, with no runtime cost.
-
-    Parameters
-    ----------
-    tensor: relax.Expr
-
-        The relax tensor (or a variable referring to a relax tensor),
-        whose runtime shape is being inspected.
-    """
-
-    def __init__(self, tensor):
-        self.tensor = tensor
-
-    def asobject(self):
-        """Provide expected in error message
-
-        This method is called when `_DLTensorShapeProxy` is used in a
-        context that requires a `relax.Expr`.  This usage is not
-        supported, and raising an error here can provide suggested
-        fixes that are not present in the default error message from
-        `tvm.runtime.convert`.
-        """
-        raise TypeError(
-            f"{self.tensor}.shape cannot be converted to a relax expression, "
-            f"and should be used as a proxy object to access the runtime shape of the DLTensor. "
-            f"The DLTensor::ndim field can be accessed as len({self.tensor}), "
-            f"and the DLTensor::shape array can be accessed as {self.tensor}.shape[i]"
-        )
-
-    def __getitem__(self, axis: int | PrimExpr | Expr) -> Expr:
-        """Returns the extent of a tensor axis
-
-        Parameters
-        ----------
-        axis: int | PrimExpr | Expr
-
-            The tensor axis whose extent should be returned.  For ease
-            of use, any python integers or TIR expressions are
-            converted to `relax.Expr`.
-
-        Returns
-        -------
-        extent: Expr
-
-            The extent of the tensor's axis.
-        """
-
-        if not isinstance(axis, tvm.relax.Expr):
-            axis = tvm.relax.PrimValue(axis)
-
-        if axis.struct_info_ is not None and not isinstance(
-            axis.struct_info_, tvm.relax.PrimStructInfo
-        ):
-            raise TypeError(
-                f"The index used to access {self.tensor}.shape "
-                f'must have struct info R.Prim("int64"), '
-                f"but index {axis} had struct info {axis.struct_info_}."
-            )
-
-        op = tvm.ir.Op.get("relax.inspect.tensor_shape_i")
-        return tvm.relax.Call(op, [self.tensor, axis])
-
-
-class _DLTensorStrideProxy(tvm.runtime.ObjectConvertible):
-    """A proxy object for unpacking the strides from DLTensor
-
-    Exposes accessors for the `DLTensor::strides` field.  Accessing
-    these fields will produce `relax.Call` expressions, representing
-    the field's runtime value.  If the datatype of the tensor is known
-    at compile-time, the `relax.Call` will be normalized into a
-    `relax.PrimValue`, with no runtime cost.
-
-    Parameters
-    ----------
-    tensor: relax.Expr
-
-        The relax tensor (or a variable referring to a relax tensor),
-        whose runtime strides is being inspected.
-    """
-
-    def __init__(self, tensor):
-        self.tensor = tensor
-
-    def asobject(self):
-        """Provide expected in error message
-
-        This method is called when `_DLTensorStrideProxy` is used in a
-        context that requires a `relax.Expr`.  This usage is not
-        supported, and raising an error here can provide suggested
-        fixes that are not present in the default error message from
-        `tvm.runtime.convert`.
-        """
-        raise TypeError(
-            f"{self.tensor}.strides cannot be converted to a relax expression, "
-            f"and should be used as a proxy object to access the runtime strides of the DLTensor. "
-            f"The DLTensor::ndim field can be accessed as len({self.tensor}), "
-            f"and the DLTensor::strides array can be accessed as {self.tensor}.strides[i]"
-        )
-
-    def __getitem__(self, axis: int | PrimExpr | Expr) -> Expr:
-        """Returns the extent of a tensor axis
-
-        Parameters
-        ----------
-        axis: int | PrimExpr | Expr
-
-            The tensor axis whose extent should be returned.  For ease
-            of use, any python integers or TIR expressions are
-            converted to `relax.Expr`.
-
-        Returns
-        -------
-        extent: Expr
-
-            The extent of the tensor's axis.
-        """
-
-        if not isinstance(axis, tvm.relax.Expr):
-            axis = tvm.relax.PrimValue(axis)
-
-        if axis.struct_info_ is not None and not isinstance(
-            axis.struct_info_, tvm.relax.PrimStructInfo
-        ):
-            raise TypeError(
-                f"The index used to access {self.tensor}.strides "
-                f'must have struct info R.Prim("int64"), '
-                f"but index {axis} had struct info {axis.struct_info_}."
-            )
-
-        op = tvm.ir.Op.get("relax.inspect.tensor_stride_i")
-        return tvm.relax.Call(op, [self.tensor, axis])
-
-
-@tvm_ffi.register_object("relax.expr.Call")
-class Call(ExprWithOp):
-    """Function call node in Relax.
-
-    Call node corresponds the operator application node
-    in computational graph terminology.
-
-    Parameters
-    ----------
-    op: tvm.ir.Op or any tvm.relax.Expr with function type.
-        The operation to be called.
-
-    args: Union[List[Expr], typing.Tuple[Expr, ...]]
-        The arguments to the call.
-
-    attrs: Optional[tvm.ir.Attrs]
-        Attributes to the call, can be None
-
-    sinfo_args: Optional[Union[List[StructInfo], typing.Tuple[StructInfo, ...]]]
-        The structure info arguments of a CallNode.
-        sinfo_args is designed to be non-empty only for intrinsic op (e.g.,
-        call_tir, call_builtin_with_ctx, etc.) and calls to ExternFuncs, with the main
-        usage of structure info inference.
-
-    span: Optional[Span]
-        Span that points to original source code
-    """
-
-    op: Expr
-    args: list[Expr]
-    attrs: tvm.ir.Attrs
-    sinfo_args: list[StructInfo]
-    span: Span | None
-
-    def __init__(
-        self,
-        op: Expr | tvm.ir.Op,
-        args: list[Expr] | tuple[Expr, ...],
-        attrs: tvm.ir.Attrs | None = None,
-        sinfo_args: list[StructInfo] | tuple[StructInfo, ...] | None = None,
-        span: Span | None = None,
-    ):
-        if not sinfo_args:
-            sinfo_args = []
-        self.__init_handle_by_constructor__(
-            _ffi_api.Call,
-            op,
-            args,
-            attrs,
-            sinfo_args,
-            span,  # type: ignore
-        )
-
-
 @tvm_ffi.register_object("relax.expr.If")
-class If(ExprWithOp):
+class If(_CallableExprWithOp):
     """A conditional expression in Relax.
 
     Parameters
@@ -608,6 +135,9 @@ class If(ExprWithOp):
     false_branch: Expr
     span: Span | None
 
+    def __bool__(self) -> bool:
+        return True
+
     def __init__(self, cond: Expr, true_branch: Expr, false_branch: Expr, span: Span | None = None):
         self.__init_handle_by_constructor__(
             _ffi_api.If,
@@ -618,87 +148,30 @@ class If(ExprWithOp):
         )
 
 
-@tvm_ffi.register_object("relax.expr.Tuple")
-class Tuple(ExprWithOp):
-    """Tuple expression that groups several fields together.
-
-    Parameters
-    ----------
-    fields : Union[List[Expr], typing.Tuple[Expr, ...]]
-        The fields in the tuple.
-
-    span: Optional[Span]
-        Span that points to original source code
-    """
-
-    fields: list[Expr]
-    span: Span | None
-
-    def __init__(self, fields: list[Expr] | tuple[Expr, ...], span: Span | None = None):
-        if isinstance(fields, tvm.relax.Tuple):
-            fields = fields.fields
-        elif isinstance(getattr(fields, "struct_info_", None), tvm.relax.TupleStructInfo):
-            fields = [*fields]
-
-        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)  # type: ignore
-
-    def __getitem__(self, index: int) -> Expr:
-        if index >= len(self) or index < -len(self):
-            raise IndexError("Tuple index out of range")
-        return self.fields[index]
-
-    def __len__(self) -> int:
-        return len(self.fields)
-
-
-@tvm_ffi.register_object("relax.expr.TupleGetItem")
-class TupleGetItem(ExprWithOp):
-    """Get index-th item from a tuple.
-
-    Parameters
-    ----------
-    tuple_value: Expr
-        The input tuple expression.
-
-    index: int
-        The index.
-
-    span: Optional[Span]
-        Span that points to original source code
-    """
-
-    tuple_value: Expr
-    index: int
-    span: Span | None
-
-    def __init__(self, tuple_value: Expr, index: int, span: Span | None = None):
-        self.__init_handle_by_constructor__(
-            _ffi_api.TupleGetItem,
-            tuple_value,
-            index,
-            span,  # type: ignore
-        )
+# Compatibility aliases. Tuple expressions are owned by the common IR.
+Tuple = tvm.ir.Tuple
+TupleGetItem = tvm.ir.TupleGetItem
 
 
 @tvm_ffi.register_object("relax.expr.ShapeExpr")
-class ShapeExpr(ExprWithOp):
-    """A shape expression which allows users to construct a shape containing PrimExpr.
+class ShapeExpr(_CallableExprWithOp):
+    """A shape expression which allows users to construct a shape containing Expr.
 
     Parameters
     ----------
-    values: Union[List[PrimExpr], typing.Tuple[PrimExpr, ...], tvm_ffi.Array]
+    values: Union[List[Expr], typing.Tuple[Expr, ...], tvm_ffi.Array]
         The values of the shape expression.
 
     span: Optional[Span]
         Span that points to original source code
     """
 
-    values: list[PrimExpr]
+    values: list[Expr]
     span: Span | None
 
     def __init__(
         self,
-        values: list[PrimExpr] | tuple[PrimExpr, ...] | tvm_ffi.Array,
+        values: list[Expr] | tuple[Expr, ...] | tvm_ffi.Array,
         span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values, span)  # type: ignore
@@ -711,6 +184,9 @@ class ShapeExpr(ExprWithOp):
     def __len__(self):
         return len(self.values)
 
+    def __bool__(self) -> bool:
+        return len(self) != 0
+
 
 def make_shape(shape: list[Any] | tuple[Any, ...]) -> ShapeExpr:
     if isinstance(shape, list | tuple):
@@ -721,88 +197,8 @@ def make_shape(shape: list[Any] | tuple[Any, ...]) -> ShapeExpr:
     )
 
 
-@tvm_ffi.register_object("relax.expr.Constant")
-class Constant(ExprWithOp):
-    """Constant Tensor
-
-    Parameters
-    ----------
-    data: tvm.runtime.Tensor
-        The data of the constant tensor.
-
-    struct_info: Optional[StructInfo]
-        The struct info of the constant tensor. If not specified, infer it from data.
-
-    span: Optional[Span]
-        Span that points to original source code
-
-    Note
-    ----
-    Scalar constants are represented by ndim-0 constant tensors.
-    """
-
-    data: tvm.runtime.Tensor
-    span: Span | None
-
-    def __init__(
-        self,
-        data: tvm.runtime.Tensor,
-        struct_info: StructInfo | None = None,
-        span: Span | None = None,
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.Constant,
-            data,
-            struct_info,
-            span,  # type: ignore
-        )
-
-
-@tvm_ffi.register_object("relax.expr.Var")
-class Var(ExprWithOp):
-    """The variable class for all Relax bindings.
-
-    Parameters
-    ----------
-    name_hint: str | Id
-        The name hint of the variable.
-
-    struct_info: Optional[StructInfo]
-        The struct info annotation of the variable.
-
-    span: Optional[Span]
-        Span that points to original source code
-    """
-
-    vid: Id
-    span: Span | None
-
-    def __init__(
-        self,
-        name_hint: str | Id,
-        struct_info: StructInfo | None = None,
-        span: Span | None = None,
-    ) -> None:
-        if struct_info is not None:
-            struct_info = tvm.runtime.convert(struct_info)
-            if not isinstance(struct_info, StructInfo):
-                raise TypeError(
-                    "struct_info needs to be an instance of StructInfo. "
-                    "If you attempt to pass in shape, "
-                    "use relax.TensorStructInfo(shape, dtype)."
-                )
-        self.__init_handle_by_constructor__(
-            _ffi_api.Var if isinstance(name_hint, str) else _ffi_api.VarFromId,  # type: ignore
-            name_hint,
-            struct_info,
-            span,
-        )
-
-    @property
-    def name_hint(self) -> str:
-        """Get name hint of the current var."""
-        name = str(self.vid.name_hint)
-        return name
+# Ordinary Relax bindings use the canonical IR Var directly.
+Var = tvm.ir.Var
 
 
 @tvm_ffi.register_object("relax.expr.DataflowVar")
@@ -813,79 +209,45 @@ class DataflowVar(Var):
 
     Parameters
     ----------
-    name_hint: str | Id
-        The name hint of the variable.
+    name: str
+        The name of the variable.
 
-    struct_info: Optional[StructInfo]
-        The struct info annotation of the variable.
+    ty: Optional[Type]
+        The type annotation of the variable.
 
     span: Optional[Span]
         Span that points to original source code
     """
 
-    vid: Id
+    name: str
     span: Span | None
 
     def __init__(
         self,
-        name_hint: str | Id,
-        struct_info: StructInfo | None = None,
+        name: str | None = None,
+        ty: Type | None = None,
         span: Span | None = None,
+        *,
+        name_hint: str | None = None,
     ) -> None:
         # pylint: disable=super-init-not-called
-        if struct_info is not None:
-            struct_info = tvm.runtime.convert(struct_info)
-            if not isinstance(struct_info, StructInfo):
+        if name is None:
+            name = name_hint
+        elif name_hint is not None:
+            raise TypeError("Specify either name or name_hint, not both")
+        if not isinstance(name, str):
+            raise TypeError("name must be a str")
+
+        if ty is not None:
+            ty = tvm.runtime.convert(ty)
+            if not isinstance(ty, Type):
                 raise TypeError(
-                    "struct_info needs to be an instance of StructInfo. "
+                    "ty needs to be an instance of Type. "
                     "If you attempt to pass in shape, "
-                    "use relax.TensorStructInfo(shape, dtype)."
+                    "use relax.TensorType(shape, dtype)."
                 )
 
-        self.__init_handle_by_constructor__(
-            (
-                _ffi_api.DataflowVar  # type: ignore
-                if isinstance(name_hint, str)
-                else _ffi_api.DataflowVarFromId
-            ),  # type: ignore
-            name_hint,
-            struct_info,
-            span,
-        )
-
-
-@tvm_ffi.register_object("relax.expr.PrimValue")
-class PrimValue(Expr, Scriptable):
-    """The prim expr representing the value."""
-
-    value: PrimExpr
-
-    def __init__(self, value: PrimExpr | int, span: Span | None = None) -> None:
-        if isinstance(value, int):
-            value = tvm.tirx.IntImm("int64", value)
-        self.__init_handle_by_constructor__(_ffi_api.PrimValue, value, span)  # type: ignore
-
-
-@tvm_ffi.register_object("relax.expr.StringImm")
-class StringImm(Expr, Scriptable):
-    """Represent a string literal constant."""
-
-    value: str
-    span: Span | None
-
-    def __init__(self, value: str, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.StringImm, value, span)  # type: ignore
-
-
-@tvm_ffi.register_object("relax.expr.DataTypeImm")
-class DataTypeImm(Expr, Scriptable):
-    """Represent a data type constant."""
-
-    value: DataType
-    span: Span | None
-
-    def __init__(self, value: DataType | str, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.DataTypeImm, value, span)  # type: ignore
+        self.__init_handle_by_constructor__(_ffi_api.DataflowVar, name, ty, span)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.expr.Binding")
@@ -898,10 +260,10 @@ class Binding(Node, Scriptable):
 
 @tvm_ffi.register_object("relax.expr.MatchCast")
 class MatchCast(Binding):
-    """Runtime-match the value to the struct info.
+    """Runtime-match the value to the type.
 
     This operation does runtime check, populates the un-defined symbolic shape vars
-    and vars in struct_info in the first occurrence, and insert equality assertions in
+    and vars in ty in the first occurrence, and insert equality assertions in
     other cases.
 
     Parameters
@@ -912,22 +274,20 @@ class MatchCast(Binding):
     value: Expr
         The input value expression.
 
-    struct_info: tvm.relax.StructInfo
-        The struct info to match cast to.
+    ty: tvm.relax.Type
+        The type to match cast to.
     """
 
-    struct_info: StructInfo
+    ty: Type
     value: Expr
     span: Span | None
 
-    def __init__(
-        self, var: Var, value: Expr, struct_info: StructInfo, span: Span | None = None
-    ) -> None:
+    def __init__(self, var: Var, value: Expr, ty: Type, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.MatchCast,
             var,
             value,
-            struct_info,
+            ty,
             span,  # type: ignore
         )
 
@@ -979,12 +339,15 @@ class DataflowBlock(BindingBlock):
 
 
 @tvm_ffi.register_object("relax.expr.SeqExpr")
-class SeqExpr(ExprWithOp):
+class SeqExpr(_CallableExprWithOp):
     """A sequence of binding blocks followed by an expression."""
 
     blocks: list[BindingBlock]
     body: Expr
     span: Span | None
+
+    def __bool__(self) -> bool:
+        return True
 
     def __init__(self, blocks: list[BindingBlock], body: Expr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body, span)  # type: ignore
@@ -996,7 +359,7 @@ class Function(BaseFunc, Scriptable):
 
     params: list[Var]
     body: Expr
-    ret_struct_info: StructInfo
+    ret_ty: Type
     is_pure: bool
     attrs: tvm.ir.DictAttrs
     span: Span | None
@@ -1005,7 +368,7 @@ class Function(BaseFunc, Scriptable):
         self,
         params: list[Var],
         body: Expr,
-        ret_struct_info: StructInfo | None = None,
+        ret_ty: Type | None = None,
         is_pure: bool | None = True,
         attrs: tvm.ir.DictAttrs | None = None,
         span: Span | None = None,
@@ -1016,7 +379,7 @@ class Function(BaseFunc, Scriptable):
             _ffi_api.Function,
             params,
             body,
-            ret_struct_info,
+            ret_ty,
             is_pure,
             attrs,
             span,
@@ -1025,7 +388,7 @@ class Function(BaseFunc, Scriptable):
     @staticmethod
     def create_empty(
         params: list[Var],
-        ret_struct_info: StructInfo,
+        ret_ty: Type,
         is_pure: bool | None = True,
         attrs: tvm.ir.DictAttrs | None = None,
         span: Span | None = None,
@@ -1033,7 +396,7 @@ class Function(BaseFunc, Scriptable):
         """Construct a relax.Function but without body"""
         if attrs is None:
             attrs = tvm.ir.DictAttrs({})
-        return _ffi_api.FunctionCreateEmpty(params, ret_struct_info, is_pure, attrs, span)  # type: ignore
+        return _ffi_api.FunctionCreateEmpty(params, ret_ty, is_pure, attrs, span)  # type: ignore
 
     def __call__(self, *args):
         """Invoke the global function.
@@ -1043,14 +406,14 @@ class Function(BaseFunc, Scriptable):
         args: List[relax.Expr]
             Arguments.
         """
-        return Call(self, args, None, None)
+        return tvm.ir.Call(self, args, None, None)
 
-    def bind_symbolic_vars(self, binding_map: Mapping[str | tvm.tirx.Var, PrimExpr]) -> "Function":
+    def bind_symbolic_vars(self, binding_map: Mapping[str | tvm.tirx.Var, Expr]) -> "Function":
         """Return a new function with updated symbolic variable
 
         Parameters
         ----------
-        binding_map: Mapping[str | tvm.tirx.Var, PrimExpr]
+        binding_map: Mapping[str | tvm.tirx.Var, Expr]
 
             The mapping of values to be replaced.  Keys may be either
             a `tirx.Var` or a string name of the variable.  If the
@@ -1077,7 +440,7 @@ class Function(BaseFunc, Scriptable):
         self,
         binding_map: Mapping[
             str | Var,
-            int | float | PrimExpr | tvm.runtime.Tensor | _np.ndarray | Expr,
+            int | float | Expr | tvm.runtime.Tensor | _np.ndarray,
         ],
     ) -> "Function":
         """Return a new function with updated symbolic variable
@@ -1086,7 +449,7 @@ class Function(BaseFunc, Scriptable):
         ----------
         binding_map: Mapping[
                 str | Var,
-                int | float | PrimExpr | tvm.runtime.Tensor | _np.ndarray | Expr,
+                int | float | Expr | tvm.runtime.Tensor | _np.ndarray,
         ]
 
             The mapping of values to be replaced.
@@ -1130,7 +493,7 @@ class Function(BaseFunc, Scriptable):
 
 
 @tvm_ffi.register_object("relax.expr.ExternFunc")
-class ExternFunc(BaseFunc, ExprWithOp):
+class ExternFunc(BaseFunc):
     """extern function, which represents a PackedFunc."""
 
     global_symbol: String
@@ -1139,25 +502,25 @@ class ExternFunc(BaseFunc, ExprWithOp):
     def __init__(
         self,
         global_symbol: String,
-        struct_info: StructInfo | None = None,
+        ty: Type | None = None,
         span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ExternFunc,
             global_symbol,
-            struct_info,
+            ty,
             span,  # type: ignore
         )
 
 
-def extern(name: str, struct_info: StructInfo | None = None, span: Span | None = None):
+def extern(name: str, ty: Type | None = None, span: Span | None = None):
     """Create extern function."""
-    return ExternFunc(name, struct_info, span)
+    return ExternFunc(name, ty, span)
 
 
 def const(
     value: bool | int | float | _np.ndarray | tvm.runtime.Tensor, dtype: str | None = None
-) -> Constant:
+) -> tvm.ir.GenericConst:
     """Create a constant value.
 
     Parameters
@@ -1180,6 +543,9 @@ def const(
     # Needed for bf16 and fp8 support (does not come with numpy)
     import ml_dtypes  # pylint: disable=unused-import,import-outside-toplevel
 
+    if isinstance(dtype, tvm.ir.PrimType):
+        dtype = dtype.dtype
+
     if isinstance(value, Number | (bool | list)):
         value = _np.array(value, dtype=dtype)
 
@@ -1201,7 +567,7 @@ def const(
     if not isinstance(value, tvm.runtime.Tensor):
         raise ValueError("value has to be scalar or Tensor")
 
-    return Constant(value)
+    return _ffi_api.MakeTensorConst(value, None, None)
 
 
 @tvm_ffi.register_object("relax.TEPlaceholderOp")
@@ -1210,19 +576,21 @@ class TEPlaceholderOp(tvm.te.tensor.Operation):
 
 
 def te_tensor(
-    value: Expr, tir_var_map: dict[tvm.tirx.Var, tvm.tirx.PrimExpr], name: str = "rxplaceholder"
+    value: Expr,
+    tir_var_map: dict[tvm.ir.Var, tvm.tirx.Expr],
+    name: str = "rxplaceholder",
 ):
-    """Create a TE tensor from relax expression, with TIR variables in the
-    tensor shape substituted by the given mapping
+    """Create a TE tensor from a Relax expression, with primitive variables
+    in the tensor shape substituted by the given mapping.
 
     Parameters
     ----------
     value : Expr
-        The relax expression, which is required to have TensorStructInfo.
+        The relax expression, which is required to have TensorType.
 
-    tir_var_map : Dict[tvm.tirx.Var, tvm.tirx.PrimExpr]
-        The mapping to substitute the TIR variables appeared in the
-        shape of the input Expr.
+    tir_var_map : Dict[tvm.ir.Var, tvm.tirx.Expr]
+        The exact-identity mapping used to refresh canonical primitive Vars
+        that appear in the input shape.
 
     name : str
         The name of the created tensor.
@@ -1246,7 +614,7 @@ def get_shape_of(expr: Expr) -> Expr:
     Note
     ----
     This function requires expr to be normalized.
-    The function will report an error if expr's StructInfo is not TensorStructInfo.
+    The function will report an error if expr's Type is not TensorType.
     It will try to return symbolic function when possible. If the tensor do not
     have a compile-time symbolic shape, the function will then choose to return
     `Call(relax.op.shape_of, [expr])`.
@@ -1254,5 +622,5 @@ def get_shape_of(expr: Expr) -> Expr:
     return _ffi_api.GetShapeOf(expr)  # type: ignore
 
 
-def _update_struct_info(expr: Expr, struct_info: StructInfo | None) -> None:
-    _ffi_api.UpdateStructInfo(expr, struct_info)  # type: ignore
+def _update_type(expr: Expr, ty: Type | None) -> None:
+    _ffi_api.UpdateType(expr, ty)  # type: ignore

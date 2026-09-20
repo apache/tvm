@@ -20,9 +20,10 @@
 /*!
  * \file cuDNN kernel calls for the forward algorithm.
  */
+#include <tvm/ffi/container/tensor.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 
@@ -30,8 +31,6 @@
 
 namespace tvm {
 namespace contrib {
-
-using namespace runtime;
 
 void ConvolutionForward(int mode, int format, int algo, int dims, int groups, const int pad[],
                         const int stride[], const int dilation[], const DLTensor* x,
@@ -112,7 +111,7 @@ void FindAlgo(int format, int dims, int groups, const int pad[], const int strid
               const std::string& data_dtype, const std::string& conv_dtype, bool verbose,
               ffi::Any* ret) {
   int device_id;
-  CUDA_CALL(cudaGetDevice(&device_id));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
   const int full_dims = dims + 2;
   std::vector<int64_t> x_dim_int64(full_dims);

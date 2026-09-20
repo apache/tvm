@@ -20,6 +20,7 @@ import gc
 import sys
 
 import pytest
+from tvm_ffi import structural_walk
 
 import tvm
 import tvm.testing
@@ -29,7 +30,6 @@ from tvm.s_tir import SBlockDependenceInfo
 from tvm.s_tir.sblock_scope import DepKind
 from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
-from tvm.tirx.stmt_functor import post_order_visit
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -90,11 +90,11 @@ def get_sblocks(func: PrimFunc):
     blocks = {}
 
     def update_blocks(node):
-        if isinstance(node, tvm.tirx.SBlock):
+        if isinstance(node, tvm.s_tir.SBlock):
             blocks[node.name_hint] = node
 
-    # post_order_visit(func.body, lambda node: blocks[node.name_hint] = node if isinstance(node, tvm.tirx.SBlock) else None)
-    post_order_visit(func.body, update_blocks)
+    # post_order_visit(func.body, lambda node: blocks[node.name_hint] = node if isinstance(node, tvm.s_tir.SBlock) else None)
+    structural_walk(func.body, update_blocks, order="post")
     return blocks
 
 

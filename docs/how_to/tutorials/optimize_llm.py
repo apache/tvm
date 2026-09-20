@@ -92,7 +92,7 @@ class LlamaConfig:
     head_dim: int = 64  # hidden_size // num_attention_heads
 
 
-dev = tvm.device("cuda", 0)
+dev = tvm.cuda(0)
 target = tvm.target.Target.from_device(dev)
 
 
@@ -306,7 +306,7 @@ class LlamaForCausalLM(nn.Module):
             rope_scale=1,
             rope_theta=self.rope_theta,
             rope_scaling={},
-            rope_ext_factors=relax.PrimValue(0),
+            rope_ext_factors=tirx.IntImm("int64", 0),
             rotary_dim=self.head_dim,
             dtype=self.dtype,
             target=target,

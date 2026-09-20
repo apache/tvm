@@ -193,7 +193,15 @@ def test_round():
         fround = m["test_round"]
         dev = tvm.cpu(0)
         n = nn
-        a = tvm.runtime.tensor(np.random.rand(n).astype("float32"), dev)
+        # Exact midpoints first: this is where ties-to-even (np.round, and the
+        # semantics every other backend and the constant folder use) differs
+        # from ties-away-from-zero. np.random.rand never produces them, so the
+        # random tail alone cannot exercise the tie rule.
+        midpoints = np.array([0.5, 1.5, 2.5, 3.5, -0.5, -1.5, -2.5, -3.5], dtype="float32")
+        a_np = np.concatenate(
+            [midpoints, np.random.rand(n - len(midpoints)).astype("float32")]
+        ).astype("float32")
+        a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
         fround(a, b)
         tvm.testing.assert_allclose(b.numpy(), (np.round(a.numpy()).view("float32")))
@@ -224,6 +232,92 @@ def test_subroutine_call():
     )
     assert source.count("subroutine(") == 3, (
         "Expected three occurrences, for forward-declaration, definition, and call from main."
+    )
+
+
+def test_workspace_allocation_cast():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((256,), "float32")):
+            workspace = T.alloc_buffer((256,), "float32", scope="global")
+            for i in range(256):
+                workspace[i] = A[i]
+            for i in range(256):
+                A[i] = workspace[i]
+
+    built = tvm.tirx.build(Module, target="c")
+    assert "((float*)TVMBackendAllocWorkspace(" in built.inspect_source()
+
+    temp = utils.tempdir()
+    built.export_library(temp.relpath("workspace.so"))
+
+
+def test_local_alloc_buffer_uses_plain_c_pointer():
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((1,), "float32")):
+            B = T.alloc_buffer((1,), "float32", scope="local")
+            for i in range(1):
+                with T.sblock("copy"):
+                    vi = T.axis.spatial(1, i)
+                    T.reads(A[vi])
+                    T.writes(B[vi], A[vi])
+                    B[vi] = A[vi] + T.float32(1)
+                    A[vi] = B[vi]
+
+    built = tvm.tirx.build(Module, target="c")
+    assert "local float*" not in built.inspect_source()
+
+    temp = utils.tempdir()
+    path_dso = temp.relpath("local_alloc.so")
+    built.export_library(path_dso)
+    loaded = tvm.runtime.load_module(path_dso)
+
+    data = tvm.runtime.tensor(np.array([1.0], dtype="float32"))
+    loaded["main"](data)
+    tvm.testing.assert_allclose(data.numpy(), np.array([2.0], dtype="float32"))
+
+
+def test_vector_access_ptr_address_uses_ramp_base():
+    buffer = tvm.tirx.decl_buffer((8,), "float32x2", name="A")
+    access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
+    body = tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr))
+    func = tvm.tirx.PrimFunc([buffer], body).with_attr("global_symbol", "main")
+
+    source = tvm.tirx.build(tvm.IRModule.from_expr(func), target="c").inspect_source()
+    call = next(line.strip() for line in source.splitlines() if line.strip().startswith("consume("))
+    assert "int32_t2" not in call
+    assert "float2*" in call
+    assert " + 4" in call
+
+
+def test_if_then_else_avoids_extraneous_parentheses():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((8,), "int32"), B: T.Buffer((8,), "int32")):
+            for i in range(8):
+                B[i] = T.if_then_else(i == 0, 1, A[i])
+
+    built = tvm.tirx.build(Module, target="c")
+    source = built.inspect_source()
+    assert "if ((" not in source, (
+        "Generated code contains extraneous parentheses in the if condition, "
+        "which triggers clang's -Wparentheses-equality warning"
+    )
+
+    temp = utils.tempdir()
+    path_dso = temp.relpath("if_then_else.so")
+    built.export_library(path_dso)
+    loaded = tvm.runtime.load_module(path_dso)
+
+    a = tvm.runtime.tensor(np.arange(8, dtype="int32"))
+    b = tvm.runtime.tensor(np.zeros(8, dtype="int32"))
+    loaded["main"](a, b)
+    tvm.testing.assert_allclose(
+        b.numpy(), np.where(np.arange(8) == 0, 1, np.arange(8)).astype("int32")
     )
 
 

@@ -18,10 +18,12 @@
 # ruff: noqa: F401, F841
 
 import pytest
+from tvm_ffi import structural_walk
 
 import tvm
 import tvm.testing
-from tvm.s_tir import Schedule
+from tvm.ir.prim import expr_deep_equal
+from tvm.s_tir import Schedule, TensorIntrin
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.s_tir.schedule.analysis import (
     TensorizeInfo,
@@ -47,13 +49,10 @@ from tvm.tirx import (
     floordiv,
     floormod,
 )
-from tvm.tirx.analysis import expr_deep_equal
-from tvm.tirx.function import TensorIntrin
-from tvm.tirx.stmt_functor import pre_order_visit
 
 
 def _make_vars(*args: str) -> list[Var]:
-    return [Var(arg, dtype="int32") for arg in args]
+    return [Var(arg, ty="int32") for arg in args]
 
 
 def _make_loops(loop_vars: list[Var], extents: list[int]) -> list[For]:
@@ -223,13 +222,7 @@ class Conv2dNCHWcTIRModule:
 
 def collect_loops(prim_func):
     loops = []
-
-    def callback(node):
-        if isinstance(node, tvm.tirx.For):
-            loops.append(node)
-        return True
-
-    pre_order_visit(prim_func.body, callback)
+    structural_walk(prim_func.body, (tvm.tirx.For, loops.append), order="pre")
 
     return loops
 

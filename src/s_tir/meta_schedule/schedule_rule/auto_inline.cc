@@ -145,8 +145,8 @@ inline InlineType AutoInlineNode::CheckInline(const s_tir::Schedule& sch,
   }
   // Cond 5. The mapping from read indices to write indices are injective and ordered
   if (!is_pure_sptial && (require_injective || require_ordered)) {
-    const BufferRegion& write_region = block->writes[0];
-    for (const BufferRegion& read_region : block->reads) {
+    const TensorRegion& write_region = block->writes[0];
+    for (const TensorRegion& read_region : block->reads) {
       bool injective, ordered;
       auto _ = std::ignore;
       std::tie(/*exists=*/_, /*surjective=*/_, injective, ordered, /*no_const_read=*/_,
@@ -212,7 +212,7 @@ ScheduleRule ScheduleRule::AutoInline(bool into_producer,          //
   n->require_injective = require_injective;
   n->require_ordered = require_ordered;
   n->disallow_op.clear();
-  if (disallow_op.defined()) {
+  if (disallow_op.has_value()) {
     ffi::Array<ffi::String> op_names = disallow_op.value();
     n->disallow_op.reserve(op_names.size());
     for (const ffi::String& op_name : op_names) {
@@ -244,7 +244,7 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
     // }
     auto block = sch->Get(block_rv);
     if (block->reads.size() == 0 && block->writes.size() == 1 &&
-        block->writes[0]->buffer->shape.size() == 0) {
+        block->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size() == 0) {
       auto sref = sch->GetSRef(block_rv);
       if (!s_tir::IsOutputBlock(sch->state(), sref,
                                 s_tir::GetScopeRoot(sch->state(), sref, true))) {

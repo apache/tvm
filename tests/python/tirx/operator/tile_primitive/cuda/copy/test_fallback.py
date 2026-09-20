@@ -18,8 +18,8 @@
 """Tests for the priority=0 ``copy/fallback`` dispatch — scalar single-thread
 emit picked when every higher-priority variant rejects.
 
-The cases here are *intentionally* shaped so ``gmem_smem`` rejects (region
-element count doesn't divide ``thread_cnt``) and ``reg`` / ``ld_stmatrix`` /
+The cases here are *intentionally* shaped so the ``vec_auto`` global ↔ shared
+path rejects (region element count doesn't divide ``thread_cnt``) and register / ``ld_stmatrix`` /
 ... don't apply (scope pair mismatch). The dispatcher should land on
 fallback, the emit should pick one active thread, and the round-trip
 ``A_gmem → A_smem → B_gmem`` should match.
@@ -32,16 +32,17 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
-from tvm.tirx.layout import S, TileLayout
+from tvm.testing import env
 
 # Force the fallback dispatch to register before any test compiles a kernel.
 # Without this import, in fresh pytest workers the `copy/fallback` variant
 # isn't yet registered when the dispatcher snapshots its registry.
-from tvm.tirx.operator.tile_primitive.cuda.copy import fallback as _fallback_module  # noqa: F401
+from tvm.tirx.cuda.tile_primitive.copy import fallback as _fallback_module  # noqa: F401
+from tvm.tirx.layout import S, TileLayout
 
 
 def _round_trip_shapes_and_threads():
-    """Cases where ``gmem_smem`` rejects on ``n_elements % thread_cnt``.
+    """Cases where the vec_auto global ↔ shared path rejects on ``n_elements % thread_cnt``.
 
     Per task: ``(scope, n_threads, shape, why_fallback)``. ``shape`` is small
     enough that scalar emit is fine, and chosen so the higher-priority
@@ -128,6 +129,8 @@ def _build_round_trip_kernel(scope, n_threads, shape, dtype):
     return kernel
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize(
     "scope,n_threads,shape,why",
     [
@@ -143,7 +146,6 @@ def test_fallback_round_trip(scope, n_threads, shape, why):
     dtype = "float32"
     kernel = _build_round_trip_kernel(scope, n_threads, shape, dtype)
 
-    dev = tvm.cuda(0)
     target = tvm.target.Target("cuda")
     with target, pytest.warns(UserWarning, match="copy/fallback"):
         mod = tvm.IRModule({"main": kernel})
@@ -152,14 +154,21 @@ def test_fallback_round_trip(scope, n_threads, shape, why):
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     A_np = tvm.testing.generate_random_array(dtype, shape)
     B_np = np.zeros(shape, dtype=np_dtype)
-    A = tvm.runtime.tensor(A_np, dev)
-    B = tvm.runtime.tensor(B_np, dev)
-    compiled(A, B)
-    np.testing.assert_array_equal(B.numpy(), A_np)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, dev)
+        B = tvm.runtime.tensor(B_np, dev)
+        compiled(A, B)
+        np.testing.assert_array_equal(B.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_fallback_thread_scope():
-    """``T.thread()`` — single thread, no gate. Either ``gmem_smem`` picks
+    """``T.thread()`` — single thread, no gate. Either the vec_auto path picks
     it up (n_elements % 1 == 0) or ``fallback`` does — both end up emitting
     a sensible single-thread copy. We only check the round trip is correct,
     not which variant fired."""
@@ -180,7 +189,6 @@ def test_fallback_thread_scope():
         T.cuda.cta_sync()
         Tx.copy(B[full], A_smem[full])
 
-    dev = tvm.cuda(0)
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
@@ -189,10 +197,15 @@ def test_fallback_thread_scope():
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     A_np = tvm.testing.generate_random_array(dtype, shape)
     B_np = np.zeros(shape, dtype=np_dtype)
-    A = tvm.runtime.tensor(A_np, dev)
-    B = tvm.runtime.tensor(B_np, dev)
-    compiled(A, B)
-    np.testing.assert_array_equal(B.numpy(), A_np)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, dev)
+        B = tvm.runtime.tensor(B_np, dev)
+        compiled(A, B)
+        np.testing.assert_array_equal(B.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_fallback_emits_gate():

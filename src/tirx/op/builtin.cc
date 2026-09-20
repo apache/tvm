@@ -23,6 +23,7 @@
  *  builtin intrinsic operators.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
@@ -30,6 +31,23 @@
 namespace tvm {
 namespace tirx {
 namespace builtin {
+
+// Script metadata extends the canonical primitive operators registered by IR.
+TVM_FFI_STATIC_INIT_BLOCK() {
+#define PRIM_SCRIPT_BUILTIN(OpName)                                \
+  OpRegEntry::RegisterOrGet("prim." #OpName)                       \
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", #OpName) \
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), 1)
+
+  PRIM_SCRIPT_BUILTIN(likely);
+  PRIM_SCRIPT_BUILTIN(if_then_else);
+  PRIM_SCRIPT_BUILTIN(vscale);
+  PRIM_SCRIPT_BUILTIN(ceil);
+  PRIM_SCRIPT_BUILTIN(log2);
+  PRIM_SCRIPT_BUILTIN(clz);
+
+#undef PRIM_SCRIPT_BUILTIN
+}
 
 #define TIR_DEFINE_BUILTIN_FUNC(OpName)             \
   const Op& OpName() {                              \
@@ -42,11 +60,6 @@ TIR_DEFINE_BUILTIN_FUNC(reinterpret)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
     .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
                                          static_cast<int64_t>(ScriptDtypePrintLocation::kFirst))
-    .set_num_inputs(1);
-
-TIR_DEFINE_BUILTIN_FUNC(ret)
-    .set_attr<TCallEffectKind>("TCallEffectKind",
-                               static_cast<int64_t>(CallEffectKind::kControlJump))
     .set_num_inputs(1);
 
 TIR_DEFINE_BUILTIN_FUNC(thread_return)
@@ -64,12 +77,6 @@ TIR_DEFINE_BUILTIN_FUNC(break_loop)
                                static_cast<int64_t>(CallEffectKind::kControlJump))
     .set_num_inputs(0);
 
-TIR_DEFINE_BUILTIN_FUNC(likely)
-    .set_num_inputs(1)
-    .set_attr<TCallEffectKind>("TCallEffectKind",
-                               static_cast<int64_t>(CallEffectKind::kExprAnnotation))
-    .set_attr<TVectorizable>("TVectorizable", true);
-
 // tirx.filter: escape hatch for non-canonical thread-set filter predicates
 // used as an IfThenElse condition. (var, cond) -- ``var`` names the
 // active-set axis the compiler should collapse to a singleton if it cannot
@@ -82,47 +89,9 @@ TIR_DEFINE_BUILTIN_FUNC(filter).set_num_inputs(2).set_attr<TCallEffectKind>(
 TIR_DEFINE_BUILTIN_FUNC(selector).set_num_inputs(2).set_attr<TCallEffectKind>(
     "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(bitwise_and)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-
-TIR_DEFINE_BUILTIN_FUNC(bitwise_or)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-
-TIR_DEFINE_BUILTIN_FUNC(bitwise_xor)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-
-TIR_DEFINE_BUILTIN_FUNC(bitwise_not)
-    .set_num_inputs(1)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-
-TIR_DEFINE_BUILTIN_FUNC(shift_left)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-
-TIR_DEFINE_BUILTIN_FUNC(shift_right)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-
-TIR_DEFINE_BUILTIN_FUNC(large_uint_imm)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
-
 TIR_DEFINE_BUILTIN_FUNC(address_of)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
     .set_num_inputs(1);
-
-TIR_DEFINE_BUILTIN_FUNC(if_then_else)
-    .set_num_inputs(3)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
 TIR_DEFINE_BUILTIN_FUNC(q_multiply_shift)
     .set_num_inputs(3)
@@ -290,19 +259,6 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_global_barrier_kinit)
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_thread_allreduce)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(make_filled_simdgroup_matrix)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(simdgroup_load)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(simdgroup_store)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(simdgroup_multiply_accumulate)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
 TIR_DEFINE_BUILTIN_FUNC(cooperative_tensor_fill)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -388,14 +344,20 @@ TIR_DEFINE_BUILTIN_FUNC(anylist_setitem_call_packed)
 TIR_DEFINE_BUILTIN_FUNC(anylist_setitem_call_cpacked)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(vscale).set_attr<TCallEffectKind>(
-    "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
-
 TIR_DEFINE_BUILTIN_FUNC(get_active_lane_mask)
     .set_num_inputs(2)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
     .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
                                          static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+
+TIR_DEFINE_BUILTIN_FUNC(masked_load)
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kReadState))
+    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                         static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+
+TIR_DEFINE_BUILTIN_FUNC(masked_store)
+    .set_attr<TCallEffectKind>("TCallEffectKind",
+                               static_cast<int64_t>(CallEffectKind::kUpdateState));
 
 TIR_DEFINE_BUILTIN_FUNC(ignore_loop_partition)
     .set_num_inputs(1)
@@ -406,149 +368,13 @@ TIR_DEFINE_BUILTIN_FUNC(buffer_offset)
     .set_num_inputs(2)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
+TIR_DEFINE_BUILTIN_FUNC(buffer_data)
+    .set_num_inputs(1)
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
 TIR_DEFINE_BUILTIN_FUNC(print_buffer)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(timer_init_cuda)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(timer_start_cuda)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(timer_end_cuda)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(timer_finalize_cuda)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_atomic_add)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_thread_fence)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_warpgroup_sync)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_warp_reduce)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_cta_reduce)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_copy_bytes)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_warp_sync)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_cta_sync)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_grid_sync)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_thread_rank)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
-
-// Cluster-wide sync (CUDA thread block clusters)
-TIR_DEFINE_BUILTIN_FUNC(cuda_cluster_sync)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_half2float)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_bfloat162float)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_float22half2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_trap_when_assert_failed)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_runtime_instr_desc)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_half8tofloat8)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_float8tohalf8)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_syncthreads_and)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_syncthreads_or)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_nano_sleep)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_atomic_cas)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_printf)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_ldg)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
-    .set_num_inputs(2);
-
-TIR_DEFINE_BUILTIN_FUNC(cuda_get_tmem_addr)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(ptx_exp2).set_attr<TCallEffectKind>(
-    "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
-
-TIR_DEFINE_BUILTIN_FUNC(ptx_rcp).set_attr<TCallEffectKind>(
-    "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
-
-TIR_DEFINE_BUILTIN_FUNC(ptx_any_sync)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
-
-TIR_DEFINE_BUILTIN_FUNC(ptx_reduce3_max_f32)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
-
-TIR_DEFINE_BUILTIN_FUNC(ptx_reduce3_min_f32)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
-
-// PTX scalar / packed floating-point arithmetic, DPS form (writes to *d_addr).
-//   add/sub/mul: 2 sources, 1 destination.
-//   fma:         3 sources, 1 destination.
-//   Modifiers (rounding / ftz / sat) are codegen attrs.
-// kOpaque because all four kinds write through the destination pointer.
-TIR_DEFINE_BUILTIN_FUNC(ptx_add_f32)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-TIR_DEFINE_BUILTIN_FUNC(ptx_add_f32x2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-TIR_DEFINE_BUILTIN_FUNC(ptx_add_f64)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(ptx_sub_f32)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-TIR_DEFINE_BUILTIN_FUNC(ptx_sub_f32x2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-TIR_DEFINE_BUILTIN_FUNC(ptx_sub_f64)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(ptx_mul_f32)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-TIR_DEFINE_BUILTIN_FUNC(ptx_mul_f32x2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-TIR_DEFINE_BUILTIN_FUNC(ptx_mul_f64)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(ptx_fma_f32)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-TIR_DEFINE_BUILTIN_FUNC(ptx_fma_f32x2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-TIR_DEFINE_BUILTIN_FUNC(ptx_fma_f64)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-// max stays value-returning + kPure (no .sat, not in the add/sub/mul/fma family).
-TIR_DEFINE_BUILTIN_FUNC(ptx_max_f32)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 }  // namespace builtin
 }  // namespace tirx
 }  // namespace tvm

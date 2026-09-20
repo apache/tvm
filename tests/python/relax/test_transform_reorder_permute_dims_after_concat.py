@@ -70,6 +70,26 @@ class TestSimple(Base):
             return out
 
 
+class TestDoNotRewriteUnknownRank(Base):
+    """Do not rewrite implicit permutations when their rank is unknown."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor(dtype="float32"),
+            y: R.Tensor(dtype="float32"),
+        ):
+            with R.dataflow():
+                x_t = R.permute_dims(x)
+                y_t = R.permute_dims(y)
+                out = R.concat([x_t, y_t], axis=0)
+                R.output(out)
+            return out
+
+    Expected = Before
+
+
 class TestCombineExplicitAndImplicitAxes(Base):
     """Check for explicit axes to be permuted
 

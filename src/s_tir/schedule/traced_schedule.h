@@ -19,6 +19,9 @@
 #ifndef TVM_S_TIR_SCHEDULE_TRACED_SCHEDULE_H_
 #define TVM_S_TIR_SCHEDULE_TRACED_SCHEDULE_H_
 
+#include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt.h>
+
 #include "./concrete_schedule.h"
 
 namespace tvm {
@@ -136,9 +139,6 @@ class TracedScheduleNode : public ConcreteScheduleNode {
                        const ffi::Optional<IndexMap>& pad_value,
                        bool assume_injective_transform) override;
   void TransformBlockLayout(const SBlockRV& block_rv, const IndexMap& index_map) override;
-  void SetAxisSeparator(const SBlockRV& block_rv, int buffer_index,
-                        BufferIndexType buffer_index_type,
-                        const ffi::Array<IntImm>& axis_separators) final;
   /******** Schedule: Padding ********/
   SBlockRV DecomposePadding(const SBlockRV& block_rv, const LoopRV& loop_rv) final;
   void PadEinsum(const SBlockRV& block_rv, const ffi::Array<int64_t>& padding) final;

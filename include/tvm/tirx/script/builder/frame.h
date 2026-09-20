@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
 #define TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
 
+#include <tvm/s_tir/stmt.h>
 #include <tvm/script/ir_builder/base.h>
 #include <tvm/script/ir_builder/ir/frame.h>
 #include <tvm/tirx/exec_scope.h>
@@ -77,17 +78,17 @@ class PrimFuncFrameNode : public TIRFrameNode {
   bool is_private;
   /*! \brief The return type of the function. */
   ffi::Optional<Type> ret_type;
-  /*! \brief Maps some parameters to specific Buffer data structures. */
-  ffi::Map<tvm::tirx::Var, tvm::tirx::Buffer> buffer_map;
+  /*! \brief Maps some parameters to specific buffer data structures. */
+  ffi::Map<tvm::tirx::Var, tvm::tirx::BufferVar> buffer_map;
   /*! \brief Additional attributes storing the meta-data */
   ffi::Map<ffi::String, Any> attrs;
   /*! \brief The variable map bound to thread env. */
   ffi::Map<tvm::tirx::Var, tvm::tirx::IterVar> env_threads;
   /*! \brief The buffer allocated in root block. */
-  ffi::Array<tvm::tirx::Buffer> root_alloc_buffers;
+  ffi::Array<tvm::tirx::BufferVar> root_alloc_buffers;
 
   // TIR utils
-  /*! \brief Whether this PrimFunc uses s_tir semantics (root SBlock wrap,
+  /*! \brief Whether this PrimFunc uses s_tir semantics (root s_tir::SBlock wrap,
    *  parser layout default = None). Default (false) = tirx semantics. */
   bool s_tir;
   /*! \brief Whether it is a persistent kernel. */
@@ -144,15 +145,15 @@ class SBlockFrameNode : public TIRFrameNode {
   /*! \brief The variables of the block. */
   ffi::Array<tvm::tirx::IterVar> iter_vars;
   /*! \brief The read buffer regions of the block. */
-  ffi::Optional<ffi::Array<tvm::tirx::BufferRegion>> reads;
+  ffi::Optional<ffi::Array<tvm::TensorRegion>> reads;
   /*! \brief The write buffer regions of the block. */
-  ffi::Optional<ffi::Array<tvm::tirx::BufferRegion>> writes;
+  ffi::Optional<ffi::Array<tvm::TensorRegion>> writes;
   /*! \brief The init statement of the bolck. */
   ffi::Optional<tvm::tirx::Stmt> init;
   /*! \brief The buffer allocated in the block. */
-  ffi::Array<tvm::tirx::Buffer> alloc_buffers;
+  ffi::Array<tvm::tirx::BufferVar> alloc_buffers;
   /*! \brief The match buffer regions. */
-  ffi::Array<tvm::tirx::MatchBufferRegion> match_buffers;
+  ffi::Array<tvm::s_tir::MatchBufferRegion> match_buffers;
   /*! \brief The annotation of the block. */
   ffi::Optional<ffi::Map<ffi::String, Any>> annotations;
   /*! \brief The corresponding values of the iter vars. */
@@ -315,9 +316,9 @@ class AssertFrameNode : public TIRFrameNode {
   /*! \brief The PrimExpr to test. */
   PrimExpr condition;
   /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
-  tvm::tirx::StringImm error_kind;
+  tvm::StringImm error_kind;
   /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
-  ffi::Array<tvm::tirx::StringImm> message_parts;
+  ffi::Array<tvm::StringImm> message_parts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -409,7 +410,7 @@ class AttrFrameNode : public TIRFrameNode {
   /*! \brief Attribute type key. */
   ffi::String attr_key;
   /*! \brief The value of the attribute. */
-  PrimExpr value;
+  Expr value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -610,7 +611,9 @@ class ElseFrame : public TIRFrame {
 class DeclBufferFrameNode : public TIRFrameNode {
  public:
   /*! \brief The declared buffer. */
-  tvm::tirx::Buffer buffer;
+  tvm::tirx::BufferVar buffer;
+  /*! \brief Physical pointer expression backing the declaration. */
+  Expr data;
   /*! \brief The buffer allocated or not. */
   bool allocated;
 
@@ -618,6 +621,7 @@ class DeclBufferFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DeclBufferFrameNode>()
         .def_ro("buffer", &DeclBufferFrameNode::buffer)
+        .def_ro("data", &DeclBufferFrameNode::data)
         .def_ro("allocated", &DeclBufferFrameNode::allocated);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.DeclBufferFrame", DeclBufferFrameNode,
@@ -638,7 +642,7 @@ class DeclBufferFrame : public TIRFrame {
 class ComposeOpFrameNode : public TIRFrameNode {
  public:
   /*! \brief The workspace of the compose op. */
-  ffi::Map<ffi::String, tvm::tirx::Buffer> workspace;
+  ffi::Map<ffi::String, tvm::tirx::BufferVar> workspace;
   /*! \brief The config of the compose op. */
   ffi::Map<ffi::String, ffi::Any> config;
   /*! \brief The optional dispatch variant name of the compose op. */
@@ -669,7 +673,7 @@ class ComposeOpFrame : public TIRFrame {
 class AllocBufferFrameNode : public TIRFrameNode {
  public:
   /*! \brief The allocated buffer. */
-  tvm::tirx::Buffer buffer;
+  tvm::tirx::BufferVar buffer;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

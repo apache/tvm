@@ -32,21 +32,21 @@ namespace contrib {
 dnnl::memory::data_type dtype_dl2dnnl(DLDataType dltype) {
   using dt = dnnl::memory::data_type;
   dt dnnl_type = dt::undef;
-  if (dltype.code == DataType::TypeCode::kFloat) {
+  if (dltype.code == DLDataTypeCode::kDLFloat) {
     if (dltype.bits == 16) {
       dnnl_type = dt::f16;
     } else if (dltype.bits == 32) {
       dnnl_type = dt::f32;
     }
-  } else if (dltype.code == DataType::TypeCode::kBFloat && dltype.bits == 16) {
+  } else if (dltype.code == DLDataTypeCode::kDLBfloat && dltype.bits == 16) {
     dnnl_type = dt::bf16;
-  } else if (dltype.code == DataType::TypeCode::kInt) {
+  } else if (dltype.code == DLDataTypeCode::kDLInt) {
     if (dltype.bits == 8) {
       dnnl_type = dt::s8;
     } else if (dltype.bits == 32) {
       dnnl_type = dt::s32;
     }
-  } else if (dltype.code == DataType::TypeCode::kUInt && dltype.bits == 8) {
+  } else if (dltype.code == DLDataTypeCode::kDLUInt && dltype.bits == 8) {
     dnnl_type = dt::u8;
   }
   if (dnnl_type == dt::undef) {

@@ -17,25 +17,34 @@
  * under the License.
  */
 
-#include <tvm/arith/analyzer.h>
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
 
-#include "../../arith/const_fold.h"
-#include "../../arith/pattern_match.h"
+#include "../../sym/const_fold.h"
+#include "../../sym/pattern_match.h"
 
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class PTXRewriter : public StmtMutator {
+class PTXRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   Stmt AddAllocationsIfNeeded(Stmt body) {
     if (!needs_buffer || has_buffer_2) {
       return body;
@@ -46,8 +55,9 @@ class PTXRewriter : public StmtMutator {
     return body;
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Stmt result = StmtMutator::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    Stmt result =
+        StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     if (needs_buffer && !has_buffer_2) {
       EnsureBuffers();
       has_buffer_2 = true;
@@ -56,49 +66,52 @@ class PTXRewriter : public StmtMutator {
     return result;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* store) final {
-    Stmt result = StmtMutator::VisitStmt_(store);
-    Buffer load_buffer = store->buffer;
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) final {
+    Stmt result =
+        StmtExprMutator::Mutate_(store, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(store));
+    BufferVar load_buffer = store->buffer;
     PrimExpr load_value = store->value;
-    // const BufferLoadNode* gload = load_value.as<BufferLoadNode>(); // take
+    // const TensorLoadNode* gload = load_value.as<TensorLoadNode>(); // take
     // the place of instance of
     const CallNode* call = load_value.as<CallNode>();
     if (call != nullptr) {
       const OpNode* op = call->op.as<OpNode>();
-      if (op != nullptr && op->name == "tirx.if_then_else") {
-        const PrimExpr& predicate = call->args[0];
-        const PrimExpr& lhs = call->args[1];
-        const PrimExpr& rhs = call->args[2];
+      if (op != nullptr && op->name == "prim.if_then_else") {
+        PrimExpr predicate = call->args[0].as_or_throw<PrimExpr>();
+        PrimExpr lhs = call->args[1].as_or_throw<PrimExpr>();
+        PrimExpr rhs = call->args[2].as_or_throw<PrimExpr>();
         PrimExpr global_addr, local_addr;
-        const BufferLoadNode* load = lhs.as<BufferLoadNode>();
+        const TensorLoadNode* load = lhs.as<TensorLoadNode>();
         PrimExpr imm_value = rhs;
         if (load == nullptr) {
-          load = rhs.as<BufferLoadNode>();
+          load = rhs.as<TensorLoadNode>();
           imm_value = lhs;
           if (load == nullptr) {
             return result;
           }
         }
         global_addr = load->indices[0];
-        const RampNode* ramp = global_addr.as<RampNode>();
+        const prim::RampNode* ramp = global_addr.as<prim::RampNode>();
         if (ramp != nullptr) {
           return result;
         }
         EnsureBuffers();
         needs_buffer = true;
         local_addr = store->indices[0];
-        BufferStore addr_store(addr_buffer, global_addr, {IntImm(DataType::Int(32), 0)});
-        BufferStore local_addr_store(addr_buffer, local_addr, {IntImm(DataType::Int(32), 1)});
-        BufferStore predicate_store(predicate_buffer, predicate, {IntImm(DataType::Int(32), 0)});
+        BufferStore addr_store(addr_buffer, global_addr, {IntImm::Int32(0)});
+        BufferStore local_addr_store(addr_buffer, local_addr, {IntImm::Int32(1)});
+        BufferStore predicate_store(predicate_buffer, predicate, {IntImm::Int32(0)});
         PrimExpr new_lhs, new_rhs, new_predicate, new_indice;
-        new_lhs =
-            BufferLoad(load->buffer, {BufferLoad(addr_buffer, {IntImm(DataType::Int(32), 0)})});
-        new_rhs = IntImm(DataType::Int(32), 0);
-        new_predicate = BufferLoad(predicate_buffer, {IntImm(DataType::Int(32), 0)});
-        new_indice = BufferLoad(addr_buffer, {IntImm(DataType::Int(32), 1)});
+        new_lhs = BufferLoad(load->source.as_or_throw<tvm::tirx::BufferVar>(),
+                             {BufferLoad(addr_buffer, {IntImm::Int32(0)})});
+        new_rhs = IntImm::Int32(0);
+        new_predicate = BufferLoad(predicate_buffer, {IntImm::Int32(0)});
+        new_indice = BufferLoad(addr_buffer, {IntImm::Int32(1)});
         BufferStore value_store(store->buffer, imm_value, {new_indice});
-        Evaluate ptx_load(Call(store->buffer->dtype, tvm::tirx::builtin::ptx_ldg32(),
-                               {store->buffer->data, new_predicate, new_lhs, new_indice}));
+        static const Op& ptx_ldg32_op = Op::Get("tirx.s_tir.ldg32");
+        Evaluate ptx_load(Call(store->buffer->dtype, ptx_ldg32_op,
+                               {store->buffer.data(), new_predicate, new_lhs, new_indice})
+                              .as_or_throw<PrimExpr>());
         ffi::Array<Stmt> tmp_seq = {addr_store, local_addr_store, predicate_store, value_store,
                                     ptx_load};
         SeqStmt seq_stmt = SeqStmt(tmp_seq);
@@ -114,14 +127,13 @@ class PTXRewriter : public StmtMutator {
     }
     has_buffer_1 = true;
     // addr[0] -> global_addr /  addr[1] -> local_addr
-    addr_buffer = decl_buffer({IntImm(DataType::Int(32), 2)}, DataType::Int(32), "addr", "local");
-    predicate_buffer =
-        decl_buffer({IntImm(DataType::Int(32), 1)}, DataType::Bool(), "predicate", "local");
+    addr_buffer = decl_buffer({IntImm::Int32(2)}, PrimType::Int(32), "addr", "local");
+    predicate_buffer = decl_buffer({IntImm::Int32(1)}, PrimType::Bool(), "predicate", "local");
   }
 
   bool has_buffer_1 = false, has_buffer_2 = false;
   bool needs_buffer = false;
-  Buffer addr_buffer, predicate_buffer;
+  BufferVar addr_buffer, predicate_buffer;
 };
 
 namespace transform {
@@ -130,13 +142,13 @@ Pass InjectPTXLDG32(bool enable_inject_ptx_intrin) {
   auto pass_func = [enable_inject_ptx_intrin](PrimFunc f, IRModule m, PassContext ctx) {
     if (enable_inject_ptx_intrin) {
       auto target = f->GetAttr<Target>("target");
-      if (!target.defined() || target.value()->kind->name != "cuda") {
+      if (!target.has_value() || target.value()->kind->name != "cuda") {
         return f;
       }
       auto* n = f.CopyOnWrite();
-      PTXRewriter rewriter;
-      Stmt body = rewriter(n->body);
-      n->body = rewriter.AddAllocationsIfNeeded(body);
+      auto rewriter = ffi::make_object<PTXRewriter>();
+      Stmt body = rewriter->Mutate(n->body).ValueOrUnchanged(n->body);
+      n->body = rewriter->AddAllocationsIfNeeded(body);
       // inject ptx
     }
     return f;

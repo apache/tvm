@@ -27,7 +27,8 @@
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/script/builder/frame.h>
-#include <tvm/tirx/tirx_stmt.h>
+#include <tvm/tirx/tile_primitive.h>
+#include <tvm/tirx/type.h>
 
 namespace tvm {
 namespace script {
@@ -37,7 +38,7 @@ namespace tirx {
 using tvm::ffi::Tuple;
 using tvm::ffi::Variant;
 using tvm::runtime::Tensor;
-using tvm::tirx::Buffer;
+using tvm::tirx::BufferVar;
 using tvm::tirx::ExecScope;
 using tvm::tirx::Layout;
 using tvm::tirx::Var;
@@ -53,17 +54,13 @@ using tvm::tirx::Var;
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \return The declared buffer.
  */
-Buffer BufferDecl(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name,
-                  ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                  ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                  int offset_factor, ffi::String buffer_type,
-                  ffi::Optional<ffi::Array<IntImm>> axis_separators,
-                  ffi::Optional<Layout> layout = std::nullopt,
-                  ffi::Array<PrimExpr> allocated_addr = {});
+BufferVar BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
+                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
+                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
+                     ffi::Array<PrimExpr> allocated_addr = {});
 
 /*!
  * \brief The primitive function statement.
@@ -85,7 +82,7 @@ Var Arg(ffi::String name, Var var);
  * \param buffer The buffer argument.
  * \return The buffer.
  */
-Buffer Arg(ffi::String name, Buffer buffer);
+BufferVar Arg(ffi::String name, BufferVar buffer);
 
 /*!
  * \brief The PrimFunc naming statement.
@@ -117,37 +114,55 @@ Type FuncRet(Type ret_type);
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \return The matched buffer.
  */
-Buffer MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
-                   DataType dtype = DataType::Float(32), ffi::Optional<Var> data = std::nullopt,
-                   ffi::Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
-                   ffi::String storage_scope = "global", int align = -1, int offset_factor = 0,
-                   ffi::String buffer_type = "default",
-                   ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt,
-                   ffi::Optional<Layout> layout = std::nullopt);
+BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
+                      PrimType dtype = PrimType::Float(32), ffi::Optional<Expr> data = std::nullopt,
+                      ffi::Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
+                      ffi::String storage_scope = "global", int align = -1, int offset_factor = 0,
+                      ffi::Optional<Layout> layout = std::nullopt);
 
 /*!
  * \brief The block declaration statement.
  * \param name The name of the block.
- * \param no_realize The flag whether to construct SBlockRealize or SBlock.
+ * \param no_realize The flag whether to construct s_tir::SBlockRealize or s_tir::SBlock.
  * \return The SBlockFrame.
  */
 SBlockFrame Block(ffi::String name, bool no_realize = false, ffi::String exec_scope = "");
 
 void TilePrimitiveCall(tvm::tirx::TilePrimitiveCall op_call);
 
-ffi::Array<tvm::tirx::Var> KernelId(ffi::Array<PrimExpr> extents, ffi::String parent);
+/*!
+ * \brief Define a scope id. Pass `extents=std::nullopt` to defer the extent; it is
+ *        inferred at LowerTIRx from the sibling ScopeIdDef closure.
+ * \param extents The optional extents of the scope id.
+ * \param parent The parent scope name.
+ * \param name The user-facing API name, used in error messages.
+ * \param cur The current scope name.
+ * \param dtype The dtype of the introduced scope id vars ("int32" or "uint32").
+ * \return The introduced scope id vars.
+ */
+ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                                   ffi::String name, ffi::String cur,
+                                   PrimType dtype = PrimType::Int(32));
 
-ffi::Array<tvm::tirx::Var> CtaId(ffi::Array<PrimExpr> extents, ffi::String parent);
+ffi::Array<tvm::tirx::Var> ClusterId(ffi::Optional<ffi::Array<PrimExpr>> extents,
+                                     ffi::String parent, PrimType dtype = PrimType::Int(32));
 
-ffi::Array<tvm::tirx::Var> CtaIdInPair();
+ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                                 ffi::Optional<ffi::Array<PrimExpr>> preferred = std::nullopt,
+                                 PrimType dtype = PrimType::Int(32));
 
-ffi::Array<tvm::tirx::Var> WarpId(ffi::Array<PrimExpr> extents, ffi::String parent);
+ffi::Array<tvm::tirx::Var> CtaIdInPair(PrimType dtype = PrimType::Int(32));
 
-ffi::Array<tvm::tirx::Var> ThreadId(ffi::Array<PrimExpr> extents, ffi::String parent);
+ffi::Array<tvm::tirx::Var> WarpgroupId(ffi::Optional<ffi::Array<PrimExpr>> extents,
+                                       ffi::String parent, PrimType dtype = PrimType::Int(32));
+
+ffi::Array<tvm::tirx::Var> WarpId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                                  PrimType dtype = PrimType::Int(32));
+
+ffi::Array<tvm::tirx::Var> ThreadId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                                    PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The block initialization statement.
@@ -189,20 +204,17 @@ void BlockAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \param layout The layout of the buffer.
  * \param allocated_addr The allocated address of the buffer. Might be multi-dimensional.
  * \return The allocated buffer or the AllocBufferFrame if the function is called under
  * T.prim_func(tirx=True).
  */
-ffi::Variant<Buffer, AllocBufferFrame> SBlockAllocBuffer(
-    ffi::Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-    ffi::Optional<Var> data = std::nullopt, ffi::Array<PrimExpr> strides = {},
+ffi::Variant<BufferVar, AllocBufferFrame> SBlockAllocBuffer(
+    ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
+    ffi::Optional<Expr> data = std::nullopt, ffi::Array<PrimExpr> strides = {},
     PrimExpr elem_offset = PrimExpr(), ffi::String storage_scope = "", int align = -1,
-    int offset_factor = 0, ffi::String buffer_type = "default",
-    ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt,
-    ffi::Optional<Layout> layout = std::nullopt, ffi::Array<PrimExpr> allocated_addr = {});
+    int offset_factor = 0, ffi::Optional<Layout> layout = std::nullopt,
+    ffi::Array<PrimExpr> allocated_addr = {});
 
 namespace axis {
 
@@ -213,7 +225,7 @@ namespace axis {
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Spatial(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+Var Spatial(Range dom, PrimExpr binding, PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The reduced block axis defining function.
@@ -222,7 +234,7 @@ Var Spatial(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Reduce(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+Var Reduce(Range dom, PrimExpr binding, PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The scanning block axis defining function.
@@ -231,7 +243,7 @@ Var Reduce(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Scan(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+Var Scan(Range dom, PrimExpr binding, PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The opaque block axis defining function.
@@ -240,7 +252,7 @@ Var Scan(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Opaque(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+Var Opaque(Range dom, PrimExpr binding, PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The block axis remapping function.
@@ -250,7 +262,7 @@ Var Opaque(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
  * \return The iteration variables.
  */
 ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings,
-                      DataType dtype = DataType::Int(32));
+                      PrimType dtype = PrimType::Int(32));
 
 }  // namespace axis
 
@@ -260,44 +272,53 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings,
  * \param stop The maximum value of iteration.
  * \param annotations The optional annotations of the For statement.
  * \param step The optional step value of iteration.
+ * \param dtype The optional dtype of the loop var ("int32" or "uint32"). When omitted
+ *              it is inferred from the bounds.
  * \return The ForFrame.
  */
 ForFrame Serial(PrimExpr start, PrimExpr stop,
                 ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                ffi::Optional<PrimExpr> step = std::nullopt);
+                ffi::Optional<PrimExpr> step = std::nullopt,
+                ffi::Optional<PrimType> dtype = std::nullopt);
 /*!
  * \brief The parallel For statement.
  * \param start The minimum value of iteration.
  * \param stop The maximum value of iteration.
  * \param annotations The optional annotations of the For statement.
  * \param step The optional step value of iteration.
+ * \param dtype The optional dtype of the loop var ("int32" or "uint32").
  * \return The ForFrame.
  */
 ForFrame Parallel(PrimExpr start, PrimExpr stop,
                   ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                  ffi::Optional<PrimExpr> step = std::nullopt);
+                  ffi::Optional<PrimExpr> step = std::nullopt,
+                  ffi::Optional<PrimType> dtype = std::nullopt);
 /*!
  * \brief The vectorized For statement.
  * \param start The minimum value of iteration.
  * \param stop The maximum value of iteration.
  * \param annotations The optional annotations of the For statement.
  * \param step The optional step value of iteration.
+ * \param dtype The optional dtype of the loop var ("int32" or "uint32").
  * \return The ForFrame.
  */
 ForFrame Vectorized(PrimExpr start, PrimExpr stop,
                     ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                    ffi::Optional<PrimExpr> step = std::nullopt);
+                    ffi::Optional<PrimExpr> step = std::nullopt,
+                    ffi::Optional<PrimType> dtype = std::nullopt);
 /*!
  * \brief The unrolled For statement.
  * \param start The minimum value of iteration.
  * \param stop The maximum value of iteration.
  * \param annotations The optional annotations of the For statement.
  * \param step The optional step value of iteration.
+ * \param dtype The optional dtype of the loop var ("int32" or "uint32").
  * \return The ForFrame.
  */
 ForFrame Unroll(PrimExpr start, PrimExpr stop,
                 ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                ffi::Optional<PrimExpr> step = std::nullopt);
+                ffi::Optional<PrimExpr> step = std::nullopt,
+                ffi::Optional<PrimType> dtype = std::nullopt);
 /*!
  * \brief The thread-binding For statement.
  * \param start The minimum value of iteration.
@@ -311,9 +332,12 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
 /*!
  * \brief The grid For statement.
  * \param extents The extents of the iteration.
+ * \param dtype The optional dtype of every loop var ("int32" or "uint32"). When omitted
+ *              each loop var takes the dtype of its own extent.
  * \return The ForFrame.
  */
-ForFrame Grid(ffi::Array<Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>> extents);
+ForFrame Grid(ffi::Array<Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>> extents,
+              ffi::Optional<PrimType> dtype = std::nullopt);
 
 /*!
  * \brief The assertion statement.
@@ -337,7 +361,7 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
  * \param var The variable to be bound. If not specified, a new variable will be created.
  * \return The bound Var.
  */
-Var Bind(PrimExpr value, ffi::Optional<Type> type_annotation = std::nullopt,
+Var Bind(Expr value, ffi::Optional<Type> type_annotation = std::nullopt,
          ffi::Optional<Var> var = std::nullopt);
 
 /*!
@@ -347,7 +371,7 @@ Var Bind(PrimExpr value, ffi::Optional<Type> type_annotation = std::nullopt,
  * \param value The value of the attribute.
  * \return The result AttrFrame.
  */
-AttrFrame Attr(ffi::Any node, ffi::String attr_key, PrimExpr value);
+AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value);
 
 /*!
  * \brief Mark the device-region entry within the enclosing PrimFunc body.
@@ -366,6 +390,12 @@ AttrFrame DeviceEntry();
  * \return The result WhileFrame.
  */
 WhileFrame While(PrimExpr condition);
+
+/*!
+ * \brief Create a return statement.
+ * \param value The value to return.
+ */
+void Return(Expr value);
 
 /*!
  * \brief Create a break statement.
@@ -407,16 +437,13 @@ ElseFrame Else();
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \param layout The layout of the buffer.
  * \return The declaration frame.
  */
-DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name,
-                           ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
+DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+                           ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                            ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
-                           int align, int offset_factor, ffi::String buffer_type,
-                           ffi::Optional<ffi::Array<IntImm>> axis_separators,
+                           int align, int offset_factor,
                            ffi::Optional<Layout> layout = std::nullopt,
                            ffi::Optional<PrimExpr> allocated_addr = std::nullopt);
 
@@ -428,9 +455,9 @@ DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::Stri
  * \param annotations Optional annotations for the allocation.
  * \return The allocated buffer.
  */
-Buffer AllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                   ffi::String storage_scope = "global",
-                   ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
+BufferVar AllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
+                      ffi::String storage_scope = "global",
+                      ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
 
 /*!
  * \brief Launch a thread.
@@ -455,7 +482,7 @@ LaunchThreadFrame LaunchThread(ffi::String thread_tag, PrimExpr extent);
  * \param dispatch The optional dispatch variant name.
  * \return The result ComposeOpFrame.
  */
-ComposeOpFrame ComposeOp(ffi::Map<ffi::String, Buffer> workspace,
+ComposeOpFrame ComposeOp(ffi::Map<ffi::String, BufferVar> workspace,
                          ffi::Map<ffi::String, ffi::Any> config,
                          ffi::Optional<ffi::String> dispatch = std::nullopt);
 
@@ -465,121 +492,103 @@ ComposeOpFrame ComposeOp(ffi::Map<ffi::String, Buffer> workspace,
  * \param dtype The data type of the variable.
  * \return The result variable which gets bound to the thread env.
  */
-Var EnvThread(ffi::String thread_tag, DataType dtype = DataType::Int(32));
+Var EnvThread(ffi::String thread_tag, PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief Store data in a buffer.
  * \param buffer The buffer.
  * \param value The value to be stored.
  * \param indices The indices location to be stored.
- * \param predicate A vector mask of boolean values indicating which lanes of a vector are to be
- * stored. The number lanes of the mask must be equal to the number of lanes in value.
  */
-void BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                 ffi::Optional<PrimExpr> predicate);
+void BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices);
 
 /*!
  * \brief Evaluate the input expression.
  * \param value The input expression to evaluate.
  */
-void Evaluate(PrimExpr value);
+void Evaluate(Expr value);
 
 /*!
  * \brief Create a TIR var that represents a pointer
  *
- * \param dtype The data type of the pointer.
+ * \param dtype The optional data type of the pointer.  If omitted, construct
+ * an opaque handle.
  *
  * \param storage_scope The storage scope of the pointer.
  *
- * \param is_size_var Whether the pointer is a size var.
- *
- * \param is_unknown_type Used to distinguish between
- * `PrimType(DataType::Handle())` and
- * `PointerType(PrimType(DataType::Void()))`.  If true, resolve dtype
- * of `Void()` as `PrimType`, and if false resolve dtype of `Void()`
- * as a `PointerType`.
- *
  * \return The pointer.
  */
-inline Var Handle(runtime::DataType dtype = runtime::DataType::Void(),
-                  ffi::String storage_scope = "global", bool is_size_var = false,
-                  bool is_unknown_type = false) {
-  Type type_annotation{nullptr};
-  if (is_unknown_type && storage_scope == "global") {
-    type_annotation = PrimType(runtime::DataType::Handle());
-  } else {
-    type_annotation = PointerType(PrimType(dtype), storage_scope);
-  }
-  return is_size_var ? tvm::tirx::SizeVar("", type_annotation)
-                     : tvm::tirx::Var("", type_annotation);
+inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
+                  ffi::String storage_scope = "global") {
+  Type type_annotation = dtype.has_value() ? Type(PointerType(dtype.value(), storage_scope))
+                                           : Type(PointerType::VoidPointerTy(storage_scope));
+  return tvm::tirx::Var("", type_annotation);
 }
 
-inline Var TensorMap() { return tvm::tirx::Var("", PointerType(TensorMapType())); }
+inline Var TensorMap() { return tvm::tirx::Var("", PointerType(tvm::tirx::TensorMapType())); }
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                                 \
-  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt,                     \
-                           bool is_size_var = false) {                                      \
-    DataType dtype = DType;                                                                 \
-    return expr.defined()                                                                   \
-               ? tvm::cast(dtype, expr.value())                                             \
-               : (is_size_var ? tvm::tirx::SizeVar("", dtype) : tvm::tirx::Var("", dtype)); \
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                      \
+  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {        \
+    PrimType dtype = DType;                                                      \
+    return expr.has_value() ? tvm::prim::cast(dtype, expr.value())               \
+                            : tvm::tirx::Var("", dtype).as_or_throw<PrimExpr>(); \
   }
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, FDType) \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##8, FDType(8));      \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##16, FDType(16));    \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##32, FDType(32));    \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##64, FDType(64));
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, Code)                         \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##8, (PrimType(DLDataType{Code, 8, 1})));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##16, (PrimType(DLDataType{Code, 16, 1}))); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##32, (PrimType(DLDataType{Code, 32, 1}))); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##64, (PrimType(DLDataType{Code, 64, 1})));
 
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(BFloat, DataType::BFloat);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(Float, DataType::Float);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(UInt, DataType::UInt);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(Int, DataType::Int);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(BFloat, kDLBfloat);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(Float, kDLFloat);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(UInt, kDLUInt);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(Int, kDLInt);
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(FuncName, FDType, Size) \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x2, FDType(Size, 2))      \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x4, FDType(Size, 4));     \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x8, FDType(Size, 8));     \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x16, FDType(Size, 16));   \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x32, FDType(Size, 32));   \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x64, FDType(Size, 64));
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(FuncName, Code, Size)                       \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x2, (PrimType(DLDataType{Code, Size, 2})))    \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x4, (PrimType(DLDataType{Code, Size, 4})));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x8, (PrimType(DLDataType{Code, Size, 8})));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x16, (PrimType(DLDataType{Code, Size, 16}))); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x32, (PrimType(DLDataType{Code, Size, 32}))); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x64, (PrimType(DLDataType{Code, Size, 64})));
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(DType, FDType) \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##8, FDType, 8);      \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##16, FDType, 16);    \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##32, FDType, 32);    \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##64, FDType, 64);
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(DType, Code) \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##8, Code, 8);      \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##16, Code, 16);    \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##32, Code, 32);    \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##64, Code, 64);
 
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(BFloat, DataType::BFloat);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Float, DataType::Float);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(UInt, DataType::UInt);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Int, DataType::Int);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(BFloat, kDLBfloat);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Float, kDLFloat);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(UInt, kDLUInt);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Int, kDLInt);
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(DType, FDType) \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType, FDType(1));                    \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x2, FDType(2));                \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x4, FDType(4));                \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x8, FDType(8));                \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x16, FDType(16));              \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x32, FDType(32));              \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x64, FDType(64));
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(DType, Code, Bits)            \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType, (PrimType(DLDataType{Code, Bits, 1})));       \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x2, (PrimType(DLDataType{Code, Bits, 2})));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x4, (PrimType(DLDataType{Code, Bits, 4})));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x8, (PrimType(DLDataType{Code, Bits, 8})));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x16, (PrimType(DLDataType{Code, Bits, 16}))); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x32, (PrimType(DLDataType{Code, Bits, 32}))); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x64, (PrimType(DLDataType{Code, Bits, 64})));
 
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E3M4, DataType::Float8E3M4);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3, DataType::Float8E4M3);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3B11FNUZ, DataType::Float8E4M3B11FNUZ);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3FN, DataType::Float8E4M3FN);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3FNUZ, DataType::Float8E4M3FNUZ);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E5M2, DataType::Float8E5M2);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E5M2FNUZ, DataType::Float8E5M2FNUZ);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E8M0FNU, DataType::Float8E8M0FNU);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E3M4, kDLFloat8_e3m4, 8);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3, kDLFloat8_e4m3, 8);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3B11FNUZ, kDLFloat8_e4m3b11fnuz, 8);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3FN, kDLFloat8_e4m3fn, 8);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3FNUZ, kDLFloat8_e4m3fnuz, 8);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E5M2, kDLFloat8_e5m2, 8);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E5M2FNUZ, kDLFloat8_e5m2fnuz, 8);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E8M0FNU, kDLFloat8_e8m0fnu, 8);
 
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float6E2M3FN, DataType::Float6E2M3FN);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float6E3M2FN, DataType::Float6E3M2FN);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float6E2M3FN, kDLFloat6_e2m3fn, 6);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float6E3M2FN, kDLFloat6_e3m2fn, 6);
 
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float4E2M1FN, DataType::Float4E2M1FN);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float4E2M1FN, kDLFloat4_e2m1fn, 4);
 
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(Boolean, DataType::Bool());
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(Void, DataType::Void());
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(Boolean, PrimType::Bool());
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(Void, PrimType::Void());
 
 #undef TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST
 

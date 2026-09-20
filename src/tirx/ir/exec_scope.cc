@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/arith/analyzer.h>
+#include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/op.h>
@@ -26,6 +28,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 std::string ScopeKindToString(ScopeKind kind) {
   switch (kind) {
@@ -125,7 +128,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // ScopeIdDef
-ScopeIdDef::ScopeIdDef(ffi::Array<Var> ids, ffi::Optional<ffi::Array<PrimExpr>> extents,
+ScopeIdDef::ScopeIdDef(ffi::Array<PrimVar> ids, ffi::Optional<ffi::Array<PrimExpr>> extents,
                        ScopeBinding scope, ffi::Optional<ffi::Array<PrimExpr>> preferred_extents) {
   auto n = ffi::make_object<ScopeIdDefNode>();
   if (extents.has_value()) {
@@ -162,7 +165,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tirx.ScopeIdDef",
-      [](ffi::Array<Var> vars, ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+      [](ffi::Array<PrimVar> vars, ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
          ffi::String cur, ffi::Optional<ffi::Array<PrimExpr>> preferred_extents) {
         return ScopeIdDef(vars, extents, StringPairToScopeBinding(parent, cur), preferred_extents);
       });
@@ -188,7 +191,7 @@ static ScopeIdDef FillExtents(const ScopeIdDef& existing, const ScopeIdDef& fill
 
 bool ScopeIdDefVerifier::Verify(const ffi::Array<ScopeIdDef>& defs, Mode mode) {
   id_set.clear();
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   std::queue<ScopeIdDef> queue;
 
   // Insert or upgrade a binding in id_set.
@@ -302,7 +305,7 @@ static ffi::Optional<ScopeIdDef> Compose(const ScopeIdDef& lhs, const ScopeIdDef
   if (l_cur != r_parent) return std::nullopt;
   auto composed = TryStringPairToBinding(l_parent, r_cur);
   if (!composed.has_value()) return std::nullopt;
-  return ScopeIdDef(ffi::Array<Var>{Var("")},
+  return ScopeIdDef(ffi::Array<PrimVar>{PrimVar("")},
                     ffi::Array<PrimExpr>{lhs.fused_extent() * rhs.fused_extent()},
                     composed.value());
 }
@@ -313,12 +316,12 @@ static ffi::Optional<ScopeIdDef> Compliment(const ScopeIdDef& lhs, const ScopeId
     return std::nullopt;
   }
   if (is_zero(rhs.fused_extent())) return std::nullopt;
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   auto try_compliment = [&](PrimExpr lhs_ext, PrimExpr rhs_ext,
                             ScopeBinding scope) -> ffi::Optional<ScopeIdDef> {
     if (ana->CanProve(floormod(lhs_ext, rhs_ext) == 0)) {
-      return ScopeIdDef(ffi::Array<Var>{Var("")}, ffi::Array<PrimExpr>{floordiv(lhs_ext, rhs_ext)},
-                        scope);
+      return ScopeIdDef(ffi::Array<PrimVar>{PrimVar("")},
+                        ffi::Array<PrimExpr>{floordiv(lhs_ext, rhs_ext)}, scope);
     }
     TVM_FFI_ICHECK(!ana->CanProve(floormod(lhs_ext, rhs_ext) != 0))
         << "ValueError: scope binding " << static_cast<int>(scope)
@@ -362,10 +365,12 @@ PrimExpr GetLinearThreadIndex(const LaunchParams& params) {
   return tx + ty * ex + tz * ex * ey;
 }
 
-ffi::Array<PrimExpr> Trivial3DResolve(const LaunchParams& params, const char* prefix, int out_dim) {
+ffi::Array<PrimExpr> Trivial3DResolve(const LaunchParams& params, const char* prefix, int out_dim,
+                                      bool allow_missing = false) {
   ffi::Array<PrimExpr> ret;
   for (int i = 0; i < out_dim; ++i) {
-    ret.push_back(GetThread(std::string(prefix) + static_cast<char>('x' + i), params).first);
+    ret.push_back(
+        GetThread(std::string(prefix) + static_cast<char>('x' + i), params, allow_missing).first);
   }
   return ret;
 }
@@ -373,28 +378,32 @@ ffi::Array<PrimExpr> Trivial3DResolve(const LaunchParams& params, const char* pr
 ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
                                  const ffi::Optional<ffi::Array<PrimExpr>>& extents, int out_dim,
                                  const LaunchParams& params) {
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   switch (binding) {
     case ScopeBinding::kKernelCta:
       return Trivial3DResolve(params, "blockIdx.", out_dim);
     case ScopeBinding::kClusterCta:
-      return Trivial3DResolve(params, "clusterCtaIdx.", out_dim);
+      // Keep the missing-tag fallback for compatibility with pre-existing IR. A missing
+      // clusterCtaIdx coordinate resolves to the constant zero; blockIdx and threadIdx are
+      // always bound, so they keep the strict lookup.
+      return Trivial3DResolve(params, "clusterCtaIdx.", out_dim, /*allow_missing=*/true);
     case ScopeBinding::kCtaThread:
       return Trivial3DResolve(params, "threadIdx.", out_dim);
     case ScopeBinding::kKernelCluster: {
       TVM_FFI_ICHECK_LE(out_dim, 3)
           << "ValueError: kernel->cluster can only have 3 dimensions for now";
+      static const Op& cuda_mov_sreg_op = Op::Get("tirx.cuda.mov_sreg");
       ffi::Array<PrimExpr> ret;
       for (int i = 0; i < out_dim; ++i) {
-        ret.push_back(tirx::Call(
-            DataType::Int(32), builtin::ptx_fetch_register(),
-            {IntImm(DataType::Int(32), 32), StringImm("clusterid." + std::string(1, 'x' + i))}));
+        ret.push_back(Call(PrimType::Int(32), cuda_mov_sreg_op,
+                           {IntImm::Int32(32), StringImm("clusterid." + std::string(1, 'x' + i))})
+                          .as_or_throw<PrimExpr>());
       }
       return ret;
     }
     case ScopeBinding::kCtaWarpgroup: {
       TVM_FFI_ICHECK_EQ(out_dim, 1) << "ValueError: cta->warpgroup must be 1D";
-      return {ana->Simplify(FloorDiv(GetThread("warp_id_in_cta", params).first, 4))};
+      return {ana->Simplify(prim::FloorDiv(GetThread("warp_id_in_cta", params).first, 4))};
     }
     case ScopeBinding::kCtaWarp: {
       TVM_FFI_ICHECK_EQ(out_dim, 1) << "ValueError: cta->warp must be 1D";
@@ -402,15 +411,15 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
     }
     case ScopeBinding::kWarpgroupWarp: {
       TVM_FFI_ICHECK_EQ(out_dim, 1) << "ValueError: warpgroup->warp must be 1D";
-      return {ana->Simplify(FloorMod(GetThread("warp_id_in_cta", params).first, 4))};
+      return {ana->Simplify(prim::FloorMod(GetThread("warp_id_in_cta", params).first, 4))};
     }
     case ScopeBinding::kWarpgroupThread: {
       TVM_FFI_ICHECK_EQ(out_dim, 1) << "ValueError: warpgroup->thread must be 1D";
-      return {ana->Simplify(FloorMod(GetLinearThreadIndex(params), 128))};
+      return {ana->Simplify(prim::FloorMod(GetLinearThreadIndex(params), 128))};
     }
     case ScopeBinding::kWarpThread: {
       TVM_FFI_ICHECK_EQ(out_dim, 1) << "ValueError: warp->thread must be 1D";
-      return {ana->Simplify(FloorMod(GetLinearThreadIndex(params), 32))};
+      return {ana->Simplify(prim::FloorMod(GetLinearThreadIndex(params), 32))};
     }
     case ScopeBinding::kClusterCtaPair: {
       TVM_FFI_ICHECK_EQ(out_dim, 1) << "ValueError: cluster->cta_pair must be 1D";
@@ -418,7 +427,7 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
       std::tie(cbx, ex) = GetThread("clusterCtaIdx.x", params, true);
       std::tie(cby, ey) = GetThread("clusterCtaIdx.y", params, true);
       std::tie(cbz, ez) = GetThread("clusterCtaIdx.z", params, true);
-      return {ana->Simplify(FloorMod(cbx + cby * ex + cbz * ex * ey, 2))};
+      return {ana->Simplify(prim::FloorMod(cbx + cby * ex + cbz * ex * ey, 2))};
     }
   }
   LOG(FATAL) << "Internal Error: unknown ScopeBinding " << static_cast<int>(binding);
@@ -435,11 +444,11 @@ ffi::Array<PrimExpr> ScopeIdResolve::Resolve(ScopeBinding binding,
 }
 
 PrimExpr ScopeIdResolve::ComputeWarpIdInCta(const LaunchParams& params) {
-  PrimExpr warp_id = FloorDiv(GetLinearThreadIndex(params), 32);
-  PrimExpr mask = IntImm(DataType::UInt(32), 0xffffffff);
-  return Call(warp_id.dtype(), builtin::tvm_warp_shuffle(),
-              {mask, warp_id, IntImm(DataType::Int(32), 0), IntImm(DataType::Int(32), 32),
-               IntImm(DataType::Int(32), 32)});
+  PrimExpr warp_id = prim::FloorDiv(GetLinearThreadIndex(params), 32);
+  PrimExpr mask = IntImm(PrimType::UInt(32), 0xffffffff);
+  return Call(warp_id.ty(), builtin::tvm_warp_shuffle(),
+              {mask, warp_id, IntImm::Int32(0), IntImm::Int32(32), IntImm::Int32(32)})
+      .as_or_throw<PrimExpr>();
 }
 
 }  // namespace tirx

@@ -16,14 +16,17 @@
 # under the License.
 # ruff: noqa: RUF005
 import numpy as np
+import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
+from tvm.testing import env
 
 
 def lower_intrin(params, stmt):
     """wrapper to call transformation in stmt"""
-    lower_expr = isinstance(stmt, tvm.tirx.PrimExpr)
+    lower_expr = tvm.ir.is_prim_expr(stmt)
     stmt = tvm.tirx.Evaluate(stmt) if lower_expr else stmt
     mod = tvm.IRModule.from_expr(
         tvm.tirx.PrimFunc(params, stmt).with_attr("target", tvm.target.Target("llvm"))
@@ -48,9 +51,9 @@ def check_value(expr, variables, data, fref):
 
     # Build input and output buffers
     input_bufs = [
-        tvm.tirx.decl_buffer((n,), dtype=variables[i].dtype, name=f"v{i}") for i in range(num_vars)
+        tvm.tirx.decl_buffer((n,), dtype=variables[i].ty, name=f"v{i}") for i in range(num_vars)
     ]
-    out_buf = tvm.tirx.decl_buffer((n,), dtype=expr.dtype, name="C")
+    out_buf = tvm.tirx.decl_buffer((n,), dtype=expr.ty, name="C")
 
     # Build loop body: for each i, bind variables[j] = input_bufs[j][i], then store expr to out
     loop_var = tvm.tirx.Var("i", "int32")
@@ -75,13 +78,136 @@ def check_value(expr, variables, data, fref):
     f = tvm.compile(prim_func, "llvm")
 
     arrays = [
-        tvm.runtime.tensor(np.array([row[j] for row in data], dtype=variables[j].dtype))
+        tvm.runtime.tensor(np.array([row[j] for row in data], dtype=str(variables[j].ty)))
         for j in range(num_vars)
     ]
-    c = tvm.runtime.tensor(np.zeros(n, dtype=expr.dtype))
+    c = tvm.runtime.tensor(np.zeros(n, dtype=str(expr.ty)))
     f(*arrays, c)
     cref = np.array([fref(*row) for row in data])
     np.testing.assert_equal(c.numpy(), cref)
+
+
+def test_lower_nested_access_ptr():
+    data = tvm.tirx.Var("data", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
+    inner = tvm.tirx.tvm_access_ptr("float32", data, 2, 16, 1)
+    outer = tvm.tirx.tvm_access_ptr("float32", inner, 3, 8, 1)
+    body = tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", outer))
+    mod = tvm.IRModule.from_expr(
+        tvm.tirx.PrimFunc([data], body).with_attr("target", tvm.target.Target("llvm"))
+    )
+
+    lowered = tvm.tirx.transform.LowerIntrin()(mod)["main"]
+    access_ptr_calls = []
+    address_calls = []
+
+    def collect(node):
+        if isinstance(node, tvm.ir.Call):
+            if node.op.name == "tirx.tvm_access_ptr":
+                access_ptr_calls.append(node)
+            elif node.op.name == "tirx.address_of":
+                address_calls.append(node)
+
+    tvm_ffi.structural_walk(lowered.body, collect)
+    assert not access_ptr_calls
+    assert len(address_calls) == 1
+    load = address_calls[0].args[0]
+    assert isinstance(load, tvm.ir.TensorLoad)
+    assert int(tvm.sym.Analyzer().simplify(load.indices[0])) == 5
+
+    targets = ["c"]
+    if env.has_llvm():
+        targets.append("llvm")
+    for target in targets:
+        target = tvm.target.Target(target)
+        build_func = (
+            tvm.tirx.PrimFunc([data], body)
+            .with_attr("global_symbol", "main")
+            .with_attr("target", target)
+        )
+        build_mod = tvm.tirx.transform.LowerIntrin()(tvm.IRModule.from_expr(build_func))
+        tvm.tirx.build(build_mod, target=target)
+
+
+def test_lower_vector_access_ptr():
+    buffer = tvm.tirx.decl_buffer((8,), "float32x2", name="A")
+    access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
+
+    assert access_ptr.op.name == "tirx.tvm_access_ptr"
+    assert int(access_ptr.args[2]) == 2
+    assert int(access_ptr.args[3]) == 4
+    assert int(access_ptr.args[4]) == 3
+
+    mod = tvm.IRModule.from_expr(
+        tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(access_ptr)).with_attr(
+            "target", tvm.target.Target("llvm")
+        )
+    )
+    lowered_body = tvm.tirx.transform.LowerIntrin()(mod)["main"].body
+    assert isinstance(lowered_body, tvm.tirx.SeqStmt)
+    alias = lowered_body.seq[0]
+    assert isinstance(alias, tvm.tirx.DeclBuffer)
+    assert alias.data.op.name == "tirx.buffer_data"
+    assert alias.data.args[0].same_as(buffer)
+    lowered = lowered_body.seq[1].value
+    assert lowered.op.name == "tirx.address_of"
+    assert lowered.ty == access_ptr.ty
+
+    load = lowered.args[0]
+    assert isinstance(load, tvm.ir.TensorLoad)
+    assert load.source.same_as(alias.buffer)
+    assert not load.source.same_as(buffer)
+    assert load.source.ty.dtype == tvm.ir.PrimType("float32")
+    assert len(load.indices) == 1
+    ramp = load.indices[0]
+    assert isinstance(ramp, tvm.tirx.Ramp)
+    assert int(ramp.base) == 4
+    assert int(ramp.stride) == 1
+    assert ramp.lanes == 2
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_lower_vector_access_ptr_with_padded_vector_dtype():
+    buffer = tvm.tirx.decl_buffer((8,), "float32x3", name="A")
+    access_ptr = buffer.access_ptr(access_mask=1, offset=2, extent=4)
+    body = tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr))
+    func = tvm.tirx.PrimFunc([buffer], body).with_attr("global_symbol", "main")
+
+    tvm.tirx.build(tvm.IRModule.from_expr(func), target="llvm")
+
+
+def test_lower_buffer_data_access_ptr_preserves_buffer_identity():
+    buffer = tvm.tirx.decl_buffer((16,), "float32", "buffer")
+    access = tvm.tirx.tvm_access_ptr("float32", buffer.data, 3, 8, 1)
+
+    func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(access)).with_attr(
+        "target", tvm.target.Target("llvm")
+    )
+    lowered = tvm.tirx.transform.LowerIntrin()(tvm.IRModule.from_expr(func))["main"].body.value
+    assert isinstance(lowered, tvm.ir.Call)
+    assert lowered.op.name == "tirx.address_of"
+    load = lowered.args[0]
+    assert isinstance(load, tvm.ir.TensorLoad)
+    assert load.source.same_as(buffer)
+    assert int(load.indices[0]) == 3
+
+
+@pytest.mark.parametrize("shape", [(), (2, 4)])
+def test_lower_access_ptr_uses_flat_alias_for_non_1d_buffer(shape):
+    buffer = tvm.tirx.decl_buffer(shape, "float32", "buffer")
+    access = buffer.access_ptr(access_mask=1)
+    func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(access)).with_attr(
+        "target", tvm.target.Target("llvm")
+    )
+
+    lowered = tvm.tirx.transform.LowerIntrin()(tvm.IRModule.from_expr(func))["main"].body
+    assert isinstance(lowered, tvm.tirx.SeqStmt)
+    alias = lowered.seq[0]
+    assert isinstance(alias, tvm.tirx.DeclBuffer)
+    assert len(alias.buffer.ty.shape) == 1
+    load = lowered.seq[1].value.args[0]
+    assert isinstance(load, tvm.ir.TensorLoad)
+    assert load.source.same_as(alias.buffer)
+    assert len(load.indices) == 1
 
 
 def get_ref_data():
@@ -94,7 +220,7 @@ def get_ref_data():
     return list(itertools.product(x, y))
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_lower_floordiv():
     data = get_ref_data()
     for dtype in ["int32", "int64", "int16"]:
@@ -128,7 +254,7 @@ def test_lower_floordiv():
         check_value(res, [x, y], [(a, b) for a, b in data if b == 5], lambda a, b: (a + 4) // b)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_lower_floormod():
     data = get_ref_data()
     for dtype in ["int32", "int64", "int16"]:
@@ -157,7 +283,7 @@ def test_lower_floormod():
         check_value(res, [x, y], [(a, b) for a, b in data if b == 5], lambda a, b: (a + 4) % b)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_lower_floordiv_overflow_checks():
     """
     Regression tests for overflow checks in TryFindShiftCoefficientForPositiveRange.

@@ -24,10 +24,10 @@
 #ifndef TVM_S_TIR_TRANSFORM_STORAGE_ACCESS_H_
 #define TVM_S_TIR_TRANSFORM_STORAGE_ACCESS_H_
 
-#include <tvm/arith/int_set.h>
 #include <tvm/ir/attrs.h>
-#include <tvm/tirx/expr.h>
-#include <tvm/tirx/stmt_functor.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/int_set.h>
 
 #include <unordered_map>
 #include <vector>
@@ -45,6 +45,8 @@ using runtime::StorageScope;
  */
 class StorageAccessVisitor : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   /*! \brief Storage access type */
   enum AccessType {
     kRead,
@@ -59,14 +61,14 @@ class StorageAccessVisitor : public StmtExprVisitor {
     /*! \brief The thread index that access this entry */
     ffi::Array<IterVar> threads;
     /*! \brief The buffer variable, if any */
-    Var buffer = Var(ffi::ObjectPtr<VarNode>(nullptr));
+    Var buffer{ffi::UnsafeInit{}};
     /*! \brief The access data type */
-    DataType dtype;
+    PrimType dtype = PrimType::Void();
     /*! \brief The touched access range
      *
      * Has one IntSet for each index in the buffer being accessed.
      */
-    ffi::Array<arith::IntSet> touched;
+    ffi::Array<sym::IntSet> touched;
     /*! \brief The type of access */
     AccessType type;
     /*! \brief The storage scope */
@@ -82,15 +84,16 @@ class StorageAccessVisitor : public StmtExprVisitor {
     std::vector<AccessEntry> access;
   };
   // override visitor pattern
-  void VisitExpr_(const BufferLoadNode* op) final;
-  void VisitStmt_(const BufferStoreNode* op) final;
-  void VisitStmt_(const EvaluateNode* op) final;
-  void VisitStmt_(const BindNode* op) final;
-  void VisitStmt_(const AttrStmtNode* op) final;
-  void VisitStmt_(const ForNode* op) final;
-  void VisitStmt_(const IfThenElseNode* op) final;
-  void VisitStmt_(const WhileNode* op) final;
-  void VisitExpr_(const CallNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final;
 
  protected:
   StorageAccessVisitor() { scope_.push_back(std::vector<StmtEntry>()); }
@@ -124,6 +127,8 @@ class StorageAccessVisitor : public StmtExprVisitor {
    * \return The scope of the final buffer array.
    */
   StorageScope GetScope(Var buffer_var) const;
+  /*! \brief Resolve a logical buffer view to its physical storage root. */
+  Var ResolveBuffer(Var buffer_var) const;
   // access scope
   std::vector<std::vector<StmtEntry>> scope_;
 
@@ -140,6 +145,8 @@ class StorageAccessVisitor : public StmtExprVisitor {
   StmtEntry curr_stmt_;
   // The involving threads
   ffi::Array<IterVar> env_threads_;
+  // Physical storage root for each declared logical buffer view.
+  std::unordered_map<const VarNode*, Var> buffer_aliases_;
 };
 }  // namespace s_tir
 }  // namespace tvm

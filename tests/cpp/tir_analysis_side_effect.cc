@@ -18,18 +18,21 @@
  */
 
 #include <gtest/gtest.h>
+#include <tvm/ir/expr.h>
+#include <tvm/ir/op_attr_types.h>
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/buffer.h>
 #include <tvm/tirx/builtin.h>
 
 TEST(SimplePasses, SideEffect) {
+  using namespace tvm::prim;
   using namespace tvm;
-  auto buf = tirx::decl_buffer({16}, DataType::Float(32));
-  auto i = tirx::Var("i", DataType::Int(32));
-  TVM_FFI_ICHECK(tirx::SideEffect(tirx::BufferLoad(buf, {i})) == tirx::CallEffectKind::kReadState);
-  TVM_FFI_ICHECK(tirx::SideEffect(exp(tirx::Cast(DataType::Float(32), i + 1))) ==
-                 tirx::CallEffectKind::kPure);
-  TVM_FFI_ICHECK(tirx::SideEffect(tirx::Call(DataType::Handle(), tirx::builtin::tvm_storage_sync(),
-                                             {})) == tirx::CallEffectKind::kUpdateState);
+  auto buf = tirx::decl_buffer({16}, PrimType::Float(32));
+  auto i = PrimVar("i", PrimType::Int(32));
+  TVM_FFI_ICHECK(SideEffect(tirx::BufferLoad(buf, {i})) == CallEffectKind::kReadState);
+  TVM_FFI_ICHECK(SideEffect(exp(prim::Cast(PrimType::Float(32), i + 1))) == CallEffectKind::kPure);
+  TVM_FFI_ICHECK(SideEffect(tvm::Call(PrimType::Void(), tirx::builtin::tvm_storage_sync(), {})
+                                .as_or_throw<PrimExpr>()) == CallEffectKind::kUpdateState);
 }

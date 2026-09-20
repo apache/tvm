@@ -167,7 +167,6 @@ def docker(
 
     # As sccache is added to these images these can be uncommented
     sccache_images = {
-        # "ci_lint",
         "ci_gpu",
         "ci_cpu",
         # "ci_wasm",
@@ -271,17 +270,17 @@ def docs(
         # These are taken from the ci-gpu image via pip freeze, consult that
         # if there are any changes: https://github.com/apache/tvm/tree/main/docs#native
         requirements = [
-            "Sphinx==4.2.0",
-            "tlcpack-sphinx-addon==0.2.1",
+            "Sphinx==8.1.3",
+            "sphinx_autodoc_annotation~=1.0",
+            "sphinx-gallery==0.20.0",
+            "sphinx-book-theme==1.1.4",
+            "pydata-sphinx-theme==0.15.4",
+            "autodocsumm==0.2.14",
             "image==1.5.33",
-            # Temporary git link until a release is published
-            "git+https://github.com/sphinx-gallery/sphinx-gallery.git@6142f1791151849b5bec4bf3959f75697ba226cd",
-            "sphinx-rtd-theme==1.0.0",
-            "matplotlib==3.3.4",
+            "matplotlib==3.10.8",
             "commonmark==0.9.1",
-            "Pillow==8.3.2",
-            "autodocsumm==0.2.7",
-            "docutils==0.16",
+            "docutils==0.21.2",
+            "Pillow==12.1.1",
         ]
 
         extra_setup = [
@@ -333,25 +332,26 @@ def serve_docs(directory: str = "_docs") -> None:
     cmd([sys.executable, "-m", "http.server"], cwd=directory_path)
 
 
-def lint(interactive: bool = False, fix: bool = False, docker_image: str | None = None) -> None:
+def lint(interactive: bool = False, docker_image: str | None = None) -> None:
     """
-    Run CI's Sanity Check step
+    Run lint checks locally.
 
     arguments:
-    interactive -- start a shell after running build / test scripts
-    fix -- where possible (currently black and clang-format) edit files in place with formatting fixes
-    docker-image -- manually specify the docker image to use
+    interactive -- start a shell after running build / test scripts when using --docker-image
+    docker-image -- manually specify a docker image to use
     """
-    env = {}
-    if fix:
-        env["IS_LOCAL"] = "true"
-        env["INPLACE_FORMAT"] = "true"
+    scripts = ["pre-commit run --all-files"]
+    if docker_image is None:
+        if interactive:
+            clean_exit("--interactive requires --docker-image")
+        cmd(scripts[0].split())
+        return
 
     docker(
-        name=gen_name("ci-lint"),
-        image="ci_lint" if docker_image is None else docker_image,
-        scripts=["pre-commit run --all-files"],
-        env=env,
+        name=gen_name("lint"),
+        image=docker_image,
+        scripts=scripts,
+        env={},
         interactive=interactive,
     )
 
@@ -591,7 +591,6 @@ generated = [
                 [
                     "./tests/scripts/task_java_unittest.sh",
                     "./tests/scripts/task_python_unittest_gpuonly.sh",
-                    "./tests/scripts/task_python_integration_gpuonly.sh",
                 ],
             ),
         },
@@ -601,10 +600,6 @@ generated = [
         help="Run CPU build and test(s)",
         options={
             "cpp": CPP_UNITTEST,
-            "integration": (
-                "run integration tests",
-                ["./tests/scripts/task_python_integration.sh"],
-            ),
             "unittest": (
                 "run unit tests",
                 [

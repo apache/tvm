@@ -18,6 +18,8 @@
  */
 #include "./traced_schedule.h"
 
+#include <tvm/s_tir/stmt.h>
+
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
@@ -28,7 +30,7 @@ Schedule Schedule::Traced(IRModule mod, LinearCongruentialEngine::TRandState see
   n->state_ = ScheduleState(mod, debug_mask, enable_check);
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
-  n->analyzer_ = arith::Analyzer();
+  n->analyzer_ = sym::Analyzer();
   n->trace_ = Trace();
   n->Seed(seed);
   GlobalVar gv;
@@ -45,7 +47,7 @@ Schedule TracedScheduleNode::Copy() {
   n->error_render_level_ = this->error_render_level_;
   ConcreteScheduleNode::Copy(&n->state_, &n->symbol_table_);
   n->func_working_on_ = this->func_working_on_;
-  n->analyzer_ = arith::Analyzer();  // new analyzer needed because it is stateful
+  n->analyzer_ = sym::Analyzer();  // new analyzer needed because it is stateful
   n->rand_state_ = ForkSeed();
   n->trace_ = Trace(this->trace_->insts, this->trace_->decisions);
   return Schedule(std::move(n));
@@ -80,7 +82,7 @@ ffi::Array<ExprRV> TracedScheduleNode::SamplePerfectTile(
       /*inst=*/Instruction(
           /*kind=*/kind,  //
           /*inputs=*/{loop_rv},
-          /*attrs=*/{IntImm(DataType::Int(32), n), IntImm(DataType::Int(32), max_innermost_factor)},
+          /*attrs=*/{IntImm::Int32(n), IntImm::Int32(max_innermost_factor)},
           /*outputs=*/results),
       /*decision=*/decision);
   return results;
@@ -93,14 +95,14 @@ ffi::Array<ExprRV> TracedScheduleNode::SamplePartitionedTile(
       &this->rand_state_, this->GetSRef(loop_rv), n, partition_pos, innerpart_factor, &decision));
 
   static const InstructionKind& kind = InstructionKind::Get("SamplePartitionedTile");
-  trace_->Append(/*inst=*/Instruction(
-                     /*kind=*/kind,  //
-                     /*inputs=*/{loop_rv},
-                     /*attrs=*/
-                     {IntImm(DataType::Int(32), n), IntImm(DataType::Int(32), partition_pos),
-                      IntImm(DataType::Int(32), innerpart_factor)},
-                     /*outputs=*/results),
-                 /*decision=*/decision);
+  trace_->Append(
+      /*inst=*/Instruction(
+          /*kind=*/kind,  //
+          /*inputs=*/{loop_rv},
+          /*attrs=*/
+          {IntImm::Int32(n), IntImm::Int32(partition_pos), IntImm::Int32(innerpart_factor)},
+          /*outputs=*/results),
+      /*decision=*/decision);
   return results;
 }
 
@@ -125,7 +127,7 @@ SBlockRV TracedScheduleNode::GetSBlock(const ffi::String& name,
   GlobalVar gv;
   if (func_name.has_value()) {
     gv = state_->mod->GetGlobalVar(func_name.value());
-  } else if (func_working_on_.defined()) {
+  } else if (func_working_on_.has_value()) {
     gv = this->func_working_on_.value();
   } else {
     TVM_FFI_THROW(ValueError)
@@ -227,7 +229,7 @@ LoopRV TracedScheduleNode::Fuse(const ffi::Array<LoopRV>& loop_rvs, bool preserv
   static const InstructionKind& kind = InstructionKind::Get("Fuse");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
                                       /*inputs=*/loop_rvs,
-                                      /*attrs=*/{IntImm(DataType::Int(32), preserve_unit_loops)},
+                                      /*attrs=*/{IntImm::Int32(preserve_unit_loops)},
                                       /*outputs=*/{result}));
   return result;
 }
@@ -270,7 +272,7 @@ ffi::Array<LoopRV> TracedScheduleNode::LoopPartition(
   static const InstructionKind& kind = InstructionKind::Get("LoopPartition");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
                                       /*inputs=*/inputs,
-                                      /*attrs=*/{IntImm(DataType::Int(32), preserve_unit_iters)},
+                                      /*attrs=*/{IntImm::Int32(preserve_unit_iters)},
                                       /*outputs=*/results));
   return results;
 }
@@ -369,7 +371,7 @@ SBlockRV TracedScheduleNode::CacheRead(const SBlockRV& block_rv, int read_buffer
   trace_->Append(
       /*inst=*/Instruction(/*kind=*/kind,
                            /*inputs=*/{block_rv, consumer_blocks},
-                           /*attrs=*/{IntImm(DataType::Int(32), read_buffer_index), storage_scope},
+                           /*attrs=*/{IntImm::Int32(read_buffer_index), storage_scope},
                            /*outputs=*/{result}));
   return result;
 }
@@ -384,7 +386,7 @@ SBlockRV TracedScheduleNode::CacheWrite(const SBlockRV& block_rv, int write_buff
   trace_->Append(
       /*inst=*/Instruction(/*kind=*/kind,
                            /*inputs=*/{block_rv, consumer_blocks},
-                           /*attrs=*/{IntImm(DataType::Int(32), write_buffer_index), storage_scope},
+                           /*attrs=*/{IntImm::Int32(write_buffer_index), storage_scope},
                            /*outputs=*/{result}));
   return result;
 }
@@ -400,7 +402,7 @@ SBlockRV TracedScheduleNode::ReindexCacheRead(const SBlockRV& block_rv, int read
       /*inst=*/Instruction(
           /*kind=*/kind,
           /*inputs=*/{block_rv, index_map},
-          /*attrs=*/{IntImm(DataType::Int(32), read_buffer_index), storage_scope},
+          /*attrs=*/{IntImm::Int32(read_buffer_index), storage_scope},
           /*outputs=*/{result}));
   return result;
 }
@@ -416,7 +418,7 @@ SBlockRV TracedScheduleNode::ReindexCacheWrite(const SBlockRV& block_rv, int wri
       /*inst=*/Instruction(
           /*kind=*/kind,
           /*inputs=*/{block_rv, index_map},
-          /*attrs=*/{IntImm(DataType::Int(32), write_buffer_index), storage_scope},
+          /*attrs=*/{IntImm::Int32(write_buffer_index), storage_scope},
           /*outputs=*/{result}));
   return result;
 }
@@ -434,7 +436,7 @@ ffi::Array<SBlockRV> TracedScheduleNode::CacheInplace(const SBlockRV& block_rv,
   trace_->Append(
       /*inst=*/Instruction(/*kind=*/kind,
                            /*inputs=*/{block_rv},
-                           /*attrs=*/{IntImm(DataType::Int(32), read_buffer_index), storage_scope},
+                           /*attrs=*/{IntImm::Int32(read_buffer_index), storage_scope},
                            /*outputs=*/results));
   return result;
 }
@@ -452,7 +454,7 @@ ffi::Array<SBlockRV> TracedScheduleNode::CacheIndex(const SBlockRV& block_rv,
   trace_->Append(
       /*inst=*/Instruction(/*kind=*/kind,
                            /*inputs=*/{block_rv},
-                           /*attrs=*/{storage_scope, IntImm(DataType::Int(32), cse_thresh)},
+                           /*attrs=*/{storage_scope, IntImm::Int32(cse_thresh)},
                            /*outputs=*/outputs));
   return result;
 }
@@ -463,12 +465,12 @@ SBlockRV TracedScheduleNode::ReIndex(const SBlockRV& block_rv, int buffer_index,
 
   static const InstructionKind& kind = InstructionKind::Get("ReIndex");
   trace_->Append(
-      /*inst=*/Instruction(/*kind=*/kind,
-                           /*inputs=*/{block_rv},
-                           /*attrs=*/
-                           {IntImm(DataType::Int(32), buffer_index),
-                            IntImm(DataType::Int(32), static_cast<int>(buffer_index_type))},
-                           /*outputs=*/{result}));
+      /*inst=*/Instruction(
+          /*kind=*/kind,
+          /*inputs=*/{block_rv},
+          /*attrs=*/
+          {IntImm::Int32(buffer_index), IntImm::Int32(static_cast<int>(buffer_index_type))},
+          /*outputs=*/{result}));
   return result;
 }
 
@@ -483,7 +485,7 @@ SBlockRV TracedScheduleNode::ReadAt(const LoopRV& loop_rv, const SBlockRV& block
   trace_->Append(
       /*inst=*/Instruction(/*kind=*/kind,
                            /*inputs=*/{loop_rv, block_rv},
-                           /*attrs=*/{IntImm(DataType::Int(32), read_buffer_index), storage_scope},
+                           /*attrs=*/{IntImm::Int32(read_buffer_index), storage_scope},
                            /*outputs=*/{result}));
   return result;
 }
@@ -497,7 +499,7 @@ SBlockRV TracedScheduleNode::WriteAt(const LoopRV& loop_rv, const SBlockRV& bloc
   trace_->Append(
       /*inst=*/Instruction(/*kind=*/kind,
                            /*inputs=*/{loop_rv, block_rv},
-                           /*attrs=*/{IntImm(DataType::Int(32), write_buffer_index), storage_scope},
+                           /*attrs=*/{IntImm::Int32(write_buffer_index), storage_scope},
                            /*outputs=*/{result}));
   return result;
 }
@@ -514,7 +516,7 @@ void TracedScheduleNode::ComputeAt(const SBlockRV& block_rv, const LoopRV& loop_
           /*kind=*/kind,
           /*inputs=*/{block_rv, loop_rv},
           /*attrs=*/
-          {IntImm(DataType::Int(32), preserve_unit_loops), IntImm(DataType::Int(32), index)},
+          {IntImm::Int32(preserve_unit_loops), IntImm::Int32(index)},
           /*outputs=*/{}));
 }
 
@@ -526,7 +528,7 @@ void TracedScheduleNode::ReverseComputeAt(const SBlockRV& block_rv, const LoopRV
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{block_rv, loop_rv},
-      /*attrs=*/{IntImm(DataType::Int(32), preserve_unit_loops), IntImm(DataType::Int(32), index)},
+      /*attrs=*/{IntImm::Int32(preserve_unit_loops), IntImm::Int32(index)},
       /*outputs=*/{}));
 }
 
@@ -578,7 +580,7 @@ SBlockRV TracedScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
   static const InstructionKind& kind = InstructionKind::Get("RFactor");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
                                       /*inputs=*/{loop_rv},
-                                      /*attrs=*/{IntImm(DataType::Int(32), factor_axis)},
+                                      /*attrs=*/{IntImm::Int32(factor_axis)},
                                       /*outputs=*/{result}));
   return result;
 }
@@ -593,8 +595,8 @@ void TracedScheduleNode::StorageAlign(const SBlockRV& block_rv, int buffer_index
       /*kind=*/kind,
       /*inputs=*/{block_rv},
       /*attrs=*/
-      {IntImm(DataType::Int(32), buffer_index), IntImm(DataType::Int(32), axis),
-       IntImm(DataType::Int(32), factor), IntImm(DataType::Int(32), offset)},
+      {IntImm::Int32(buffer_index), IntImm::Int32(axis), IntImm::Int32(factor),
+       IntImm::Int32(offset)},
       /*outputs=*/{}));
 }
 
@@ -605,7 +607,7 @@ void TracedScheduleNode::SetScope(const SBlockRV& block_rv, int buffer_index,
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{block_rv},
-      /*attrs=*/{IntImm(DataType::Int(32), buffer_index), storage_scope},
+      /*attrs=*/{IntImm::Int32(buffer_index), storage_scope},
       /*outputs=*/{}));
 }
 
@@ -616,7 +618,7 @@ void TracedScheduleNode::UnsafeSetDType(const SBlockRV& block_rv, int buffer_ind
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{block_rv},
-      /*attrs=*/{IntImm(DataType::Int(32), buffer_index), dtype},
+      /*attrs=*/{IntImm::Int32(buffer_index), dtype},
       /*outputs=*/{}));
 }
 
@@ -628,7 +630,7 @@ SBlockRV TracedScheduleNode::Blockize(const LoopRV& loop_rv, bool preserve_unit_
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{loop_rv},
-      /*attrs=*/{IntImm(DataType::Bool(), preserve_unit_iters)},
+      /*attrs=*/{IntImm::Bool(preserve_unit_iters)},
       /*outputs=*/{new_block}));
   return new_block;
 }
@@ -640,7 +642,7 @@ SBlockRV TracedScheduleNode::Blockize(const ffi::Array<SBlockRV>& blocks,
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{blocks},
-      /*attrs=*/{IntImm(DataType::Bool(), preserve_unit_iters)},
+      /*attrs=*/{IntImm::Bool(preserve_unit_iters)},
       /*outputs=*/{new_block}));
   return new_block;
 }
@@ -652,7 +654,7 @@ void TracedScheduleNode::Tensorize(const LoopRV& loop_rv, const ffi::String& int
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{loop_rv},
-      /*attrs=*/{intrin, IntImm(DataType::Bool(), preserve_unit_iters)},
+      /*attrs=*/{intrin, IntImm::Bool(preserve_unit_iters)},
       /*outputs=*/{}));
 }
 
@@ -663,7 +665,7 @@ void TracedScheduleNode::Tensorize(const SBlockRV& block_rv, const ffi::String& 
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{block_rv},
-      /*attrs=*/{intrin, IntImm(DataType::Bool(), preserve_unit_iters)},
+      /*attrs=*/{intrin, IntImm::Bool(preserve_unit_iters)},
       /*outputs=*/{}));
 }
 
@@ -722,9 +724,8 @@ void TracedScheduleNode::TransformLayout(const SBlockRV& block_rv, int buffer_in
           /*kind=*/kind,
           /*inputs=*/{block_rv, index_map},
           /*attrs=*/
-          {IntImm(DataType::Int(32), buffer_index),
-           IntImm(DataType::Int(32), static_cast<int>(buffer_index_type)), pad_value,
-           IntImm(DataType::Bool(), assume_injective_transform)},
+          {IntImm::Int32(buffer_index), IntImm::Int32(static_cast<int>(buffer_index_type)),
+           pad_value, IntImm::Bool(assume_injective_transform)},
           /*outputs=*/{}));
 }
 
@@ -736,21 +737,6 @@ void TracedScheduleNode::TransformBlockLayout(const SBlockRV& block_rv, const In
                            /*inputs=*/{block_rv},
                            /*attrs=*/{index_map},
                            /*outputs=*/{}));
-}
-
-void TracedScheduleNode::SetAxisSeparator(const SBlockRV& block_rv, int buffer_index,
-                                          BufferIndexType buffer_index_type,
-                                          const ffi::Array<IntImm>& axis_separators) {
-  ConcreteScheduleNode::SetAxisSeparator(block_rv, buffer_index, buffer_index_type,
-                                         axis_separators);
-  static const InstructionKind& kind = InstructionKind::Get("SetAxisSeparator");
-  trace_->Append(/*inst=*/Instruction(
-      /*kind=*/kind,
-      /*inputs=*/{block_rv},
-      /*attrs=*/
-      {IntImm(DataType::Int(32), buffer_index),
-       IntImm(DataType::Int(32), static_cast<int>(buffer_index_type)), axis_separators},
-      /*outputs=*/{}));
 }
 
 /******** Schedule: Padding ********/
@@ -783,7 +769,7 @@ void TracedScheduleNode::RollingBuffer(const SBlockRV& block_rv, int write_buffe
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{block_rv},
-      /*attrs=*/{IntImm(DataType::Int(32), write_buffer_index)},
+      /*attrs=*/{IntImm::Int32(write_buffer_index)},
       /*outputs=*/{}));
 }
 
@@ -818,8 +804,8 @@ void TracedScheduleNode::AnnotateBufferAccess(const SBlockRV& block_rv, int buff
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/
-      {block_rv, IntImm(DataType::Int(32), buffer_index),
-       IntImm(DataType::Int(32), static_cast<int>(buffer_index_type)), index_map},
+      {block_rv, IntImm::Int32(buffer_index), IntImm::Int32(static_cast<int>(buffer_index_type)),
+       index_map},
       /*attrs=*/{},
       /*outputs=*/{}));
 }

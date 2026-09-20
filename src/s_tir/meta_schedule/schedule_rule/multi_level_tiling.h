@@ -20,6 +20,7 @@
 #define TVM_S_TIR_META_SCHEDULE_SCHEDULE_RULE_MULTI_LEVEL_TILING_H_
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/meta_schedule/schedule_rule.h>
 #include <tvm/s_tir/schedule/schedule.h>
 
@@ -93,15 +94,15 @@ struct ReuseConfig {
 
   /*! \brief Construct from a configuration dictionary */
   explicit ReuseConfig(const ffi::Map<ffi::String, ffi::Any>& config)
-      : req(Str2ReuseType(Downcast<ffi::String>(config.at("req")))),
+      : req(Str2ReuseType(config.at("req").as_or_throw<ffi::String>())),
         levels([&]() {
-          auto arr = Downcast<ffi::Array<int64_t>>(config.at("levels"));
+          auto arr = config.at("levels").as_or_throw<ffi::Array<int64_t>>();
           std::vector<int> r;
           r.reserve(arr.size());
           for (int64_t v : arr) r.push_back(static_cast<int>(v));
           return r;
         }()),
-        scope(Downcast<ffi::String>(config.at("scope"))) {
+        scope(config.at("scope").as_or_throw<ffi::String>()) {
     TVM_FFI_ICHECK_EQ(config.size(), 3);
   }
 };
@@ -259,8 +260,8 @@ ffi::ObjectPtr<NodeType> MultiLevelTilingInitCommon(
     for (int64_t v : arr) r.push_back(static_cast<int>(v));
     return r;
   }();
-  n->reuse_read_ = reuse_read.defined() ? ReuseConfig(reuse_read.value()) : ReuseConfig();
-  n->reuse_write_ = reuse_write.defined() ? ReuseConfig(reuse_write.value()) : ReuseConfig();
+  n->reuse_read_ = reuse_read.has_value() ? ReuseConfig(reuse_read.value()) : ReuseConfig();
+  n->reuse_write_ = reuse_write.has_value() ? ReuseConfig(reuse_write.value()) : ReuseConfig();
   for (int i = 0, len = structure.size(); i < len; ++i) {
     char c = structure.data()[i];
     if (c == 'S') {

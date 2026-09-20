@@ -43,10 +43,10 @@
 
 namespace tvm {
 
-namespace arith {
+namespace sym {
 class AnalyzerObj;
 class Analyzer;
-}  // namespace arith
+}  // namespace sym
 
 namespace relax {
 
@@ -56,7 +56,7 @@ class OrPattern;
 class AndPattern;
 class NotPattern;
 class ShapePattern;
-class StructInfoPattern;
+class TypePattern;
 class DataTypePattern;
 class AttrPattern;
 class SameShapeConstraint;
@@ -114,10 +114,10 @@ class DFPattern : public ffi::ObjectRef {
   TVM_DLL NotPattern operator~() const;
   /*! \brief Syntatic Sugar for creating an AttrPattern */
   TVM_DLL AttrPattern HasAttr(const ffi::Map<ffi::String, Any>& attrs) const;
-  /*! \brief Syntatic Sugar for creating a StructInfoPattern */
-  TVM_DLL StructInfoPattern HasStructInfo(const StructInfo& struct_info) const;
-  /*! \brief Syntatic Sugar for creating a DataTypePattern with a DataType */
-  TVM_DLL DataTypePattern HasDtype(const DataType& dtype) const;
+  /*! \brief Syntatic Sugar for creating a TypePattern */
+  TVM_DLL TypePattern HasType(const Type& ty) const;
+  /*! \brief Syntatic Sugar for creating a DataTypePattern with a dtype */
+  TVM_DLL DataTypePattern HasDtype(DLDataType dtype) const;
   /*! \brief Syntatic Sugar for creating a DataTypePattern with a data type's name */
   TVM_DLL DataTypePattern HasDtype(const std::string& dtype) const;
   /*! \brief Syntatic Sugar for creating a ShapePattern */
@@ -194,7 +194,7 @@ class DFConstraintNode : public ffi::Object {
    *    second tuple element indicates whether the condition is also
    *    sufficient for the constraint to be satisfied.
    */
-  virtual std::tuple<PrimExpr, bool> AsPrimExpr(
+  virtual std::tuple<PrimExpr, bool> AsCondition(
       std::function<ffi::Optional<Var>(const DFPatternNode*)> match_state) const = 0;
 
   static constexpr const uint32_t _type_child_slots = 1;
@@ -441,7 +441,7 @@ class GlobalVarPattern : public DFPattern {
 };
 
 /*!
- * \brief A Pattern to Match a Relax Constant.
+ * \brief A Pattern to Match a Relax GenericConst.
  * \sa ConstantPattern
  */
 class ConstantPatternNode : public DFPatternNode {
@@ -484,7 +484,7 @@ class CallPatternNode : public DFPatternNode {
    */
   bool varg_default_wildcard; /*!< N(args) can be < N(real args) by the padding of Wildcard */
 
-  // Todo(relax-team): Dataflow pattern for StructInfo, and match sinfo_args
+  // Todo(relax-team): Dataflow pattern for Type, and match ty_args
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -770,28 +770,27 @@ class WildcardPattern : public DFPattern {
 };
 
 /*!
- * \brief Pattern for matching a certain struct info.
- * \sa StructInfoPattern
+ * \brief Pattern for matching a certain type.
+ * \sa TypePattern
  */
-class StructInfoPatternNode : public DFPatternNode {
+class TypePatternNode : public DFPatternNode {
  public:
-  DFPattern pattern;      /*!< The pattern to match */
-  StructInfo struct_info; /*!< The type to match */
+  DFPattern pattern;         /*!< The pattern to match */
+  Type ty = Type::Missing(); /*!< The type to match */
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StructInfoPatternNode>()
-        .def_ro("pattern", &StructInfoPatternNode::pattern)
-        .def_ro("struct_info", &StructInfoPatternNode::struct_info);
+    refl::ObjectDef<TypePatternNode>()
+        .def_ro("pattern", &TypePatternNode::pattern)
+        .def_ro("ty", &TypePatternNode::ty);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.StructInfoPattern", StructInfoPatternNode,
-                                    DFPatternNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.TypePattern", TypePatternNode, DFPatternNode);
 };
 
-class StructInfoPattern : public DFPattern {
+class TypePattern : public DFPattern {
  public:
-  TVM_DLL StructInfoPattern(DFPattern pattern, StructInfo struct_info);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StructInfoPattern, DFPattern, StructInfoPatternNode);
+  TVM_DLL TypePattern(DFPattern pattern, Type ty);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TypePattern, DFPattern, TypePatternNode);
 };
 
 /*!
@@ -832,7 +831,7 @@ class SameShapeConstraintNode : public DFConstraintNode {
 
   ffi::Array<DFPattern> GetDependentPatterns() const override { return args; }
 
-  std::tuple<PrimExpr, bool> AsPrimExpr(
+  std::tuple<PrimExpr, bool> AsCondition(
       std::function<ffi::Optional<Var>(const DFPatternNode*)> match_state) const override;
 
   static void RegisterReflection() {
@@ -861,7 +860,7 @@ class SameShapeConstraint : public DFConstraint {
 class DataTypePatternNode : public DFPatternNode {
  public:
   DFPattern pattern; /*!< The root pattern to match */
-  DataType dtype;    /*!< The data type to match */
+  DLDataType dtype;  /*!< The data type to match */
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -879,7 +878,7 @@ class DataTypePatternNode : public DFPatternNode {
  */
 class DataTypePattern : public DFPattern {
  public:
-  TVM_DLL DataTypePattern(DFPattern pattern, DataType dtype);
+  TVM_DLL DataTypePattern(DFPattern pattern, DLDataType dtype);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataTypePattern, DFPattern, DataTypePatternNode);
 };
 
@@ -953,7 +952,7 @@ ExprPattern IsExpr(const Expr& expr);
 /*! \brief Syntatic Sugar for creating a ExprPattern base on an Op */
 ExprPattern IsOp(const ffi::String& op_name);
 /*! \brief Syntatic Sugar for call_tir (return a tensor) */
-// Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
+// Todo(relax-team): Dataflow pattern for Type, and match out_ty
 CallPattern IsCallTIR(const ffi::String& name, ffi::Optional<TuplePattern> args = std::nullopt);
 /*! \brief Syntatic Sugar for call_tir (return a tuple of tensor) */
 CallPattern IsCallTIR(const ffi::String& name, TuplePattern var_args);

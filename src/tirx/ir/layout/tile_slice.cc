@@ -33,7 +33,7 @@ ffi::Optional<TileLayout> SlicePerGroup(TileLayout layout, PrimExpr begin, PrimE
     return std::nullopt;
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
 
   int m = static_cast<int>(shard.size());
   std::vector<PrimExpr> B(m);
@@ -118,7 +118,7 @@ ffi::Optional<TileLayout> SlicePerGroup(TileLayout layout, PrimExpr begin, PrimE
     return TileLayout(new_shard, layout->replica, new_offset);
   }
 
-  PrimExpr two = make_const(rem.dtype(), 2);
+  PrimExpr two = IntImm(rem.ty(), 2);
   PrimExpr c = analyzer->Simplify(floordiv(rem, two));
   bool even = analyzer->CanProveEqual(floormod(rem, two), 0);
   bool mid = analyzer->CanProveEqual(analyzer->Simplify(d0[pivot] + c), Ek);
@@ -131,7 +131,7 @@ ffi::Optional<TileLayout> SlicePerGroup(TileLayout layout, PrimExpr begin, PrimE
       PrimExpr delta =
           analyzer->Simplify((pivot > 0 ? shard[pivot - 1]->stride : PrimExpr(0)) - (Ek - c) * Sk);
       std::vector<Iter> new_shard;
-      new_shard.push_back(Iter(make_const(c.dtype(), 2), delta, ak));
+      new_shard.push_back(Iter(IntImm(c.ty(), 2), delta, ak));
       new_shard.push_back(Iter(c, Sk, ak));
       new_shard.insert(new_shard.end(), peeled_rev.rbegin(), peeled_rev.rend());
       return TileLayout(new_shard, layout->replica, new_offset);
@@ -143,10 +143,20 @@ ffi::Optional<TileLayout> SlicePerGroup(TileLayout layout, PrimExpr begin, PrimE
 
 ffi::Optional<Layout> TileLayoutNode::Slice(const Array<PrimExpr>& shape,
                                             const Region& region) const {
-  arith::Analyzer analyzer;
-  auto [grouped_layout, seps] = Group(ffi::GetRef<TileLayout>(this), shape);
+  sym::Analyzer analyzer;
+  // Canonicalize the whole layout first so scope fusion (e.g. wid_in_wg+laneid
+  // -> tid_in_wg) runs globally; otherwise grouping can split sibling thread
+  // axes and SlicePerGroup's per-group fusion leaves an ill-formed mix.
+  TileLayout canon = this->Canonicalize().as<TileLayout>().value();
+  auto [grouped_layout, seps] = Group(canon, shape);
   std::vector<Iter> new_shard;
   ffi::Map<Axis, PrimExpr> new_offset;
+  // The buffer layout may already be a statement-local view with a physical
+  // base offset (for example a non-zero TMEM row/column).  Group slicing adds
+  // the selected region's offset to that base; it must not replace it.
+  for (const auto& [axis, off] : grouped_layout->offset) {
+    new_offset.Set(axis, off);
+  }
   for (size_t i = 0; i < seps.size() - 1; ++i) {
     std::vector<Iter> shard(grouped_layout->shard.begin() + seps[i],
                             grouped_layout->shard.begin() + seps[i + 1]);

@@ -17,6 +17,8 @@
 # ruff: noqa: F401, F821
 """Test type nodes in the IR"""
 
+import pytest
+
 import tvm
 from tvm.script import tirx as T
 
@@ -27,10 +29,19 @@ def check_json_roundtrip(node):
     tvm.ir.assert_structural_equal(back, node, map_free_vars=True)
 
 
+def test_missing_type():
+    missing = tvm.ir.Type.missing()
+
+    assert isinstance(missing, tvm.ir.Type)
+    assert missing.is_missing()
+
+
 def test_prim_type():
     x = tvm.ir.PrimType("int32")
     assert isinstance(x, tvm.ir.PrimType)
     assert x.dtype == "int32"
+    with pytest.raises(TypeError, match="PointerType::VoidPointerTy"):
+        tvm.ir.PrimType("handle")
 
 
 def test_func_type():

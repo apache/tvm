@@ -73,7 +73,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   void SetMeanAttribute(const CallNode* call_node) {
     const auto* mean_attrs = call_node->attrs.as<StatisticalAttrs>();
     TVM_FFI_ICHECK(mean_attrs);
-    TVM_FFI_ICHECK(mean_attrs->axis.defined());
+    TVM_FFI_ICHECK(mean_attrs->axis.has_value());
 
     {
       ffi::Array<int64_t> axis;
@@ -144,7 +144,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
 
 class NNAPIJSONSerializer : public JSONSerializer {
  public:
-  explicit NNAPIJSONSerializer(ffi::Map<Constant, ffi::String> constant_names,
+  explicit NNAPIJSONSerializer(ffi::Map<GenericConst, ffi::String> constant_names,
                                ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
   using JSONSerializer::VisitExpr_;
@@ -152,7 +152,7 @@ class NNAPIJSONSerializer : public JSONSerializer {
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
     TVM_FFI_ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    const auto fn = bindings_[ffi::GetRef<Var>(fn_var)].as_or_throw<Function>();
     TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
     auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
@@ -204,7 +204,7 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
 
 ffi::Array<ffi::Module> NNAPICompiler(ffi::Array<Function> functions,
                                       ffi::Map<ffi::String, ffi::Any> /*unused*/,
-                                      ffi::Map<Constant, ffi::String> constant_names) {
+                                      ffi::Map<GenericConst, ffi::String> constant_names) {
   VLOG(1) << "NNAPI Compiler";
 
   ffi::Array<ffi::Module> compiled_functions;

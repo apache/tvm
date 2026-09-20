@@ -23,7 +23,9 @@ and `[tool.scikit-build]`). This directory holds the few helper scripts that flo
 invokes:
 
 - `manylinux_build_libtvm_runtime_cuda.sh` — run by the `build_cuda_runtime` CI
-  stage; builds the `libtvm_runtime_cuda.so` sidecar inside the manylinux container.
+  stage; builds the `libtvm_runtime_cuda.so` sidecar inside the prebuilt
+  `quay.io/manylinux_cuda` image (CUDA toolkit preinstalled).
 - `windows_build_libtvm_runtime_cuda.bat` — the Windows equivalent (run with
-  `shell: cmd`), building `tvm_runtime_cuda.dll`.
+  `shell: cmd`); installs the CUDA toolkit via conda and builds
+  `tvm_runtime_cuda.dll`.
 - `build-environment.yaml` — conda environment for building the wheel.

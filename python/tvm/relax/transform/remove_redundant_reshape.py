@@ -27,6 +27,27 @@ from tvm.relax.dpl import is_op, rewrite_call, wildcard
 from . import function_pass
 
 
+def _can_reparent(arg: Expr, output_shape: Expr) -> bool:
+    """Whether ``reshape(arg, output_shape)`` still asks for ``output_shape``.
+
+    A literal ``0`` in a reshape target means "copy the corresponding input dimension",
+    and ``relax.op.reshape`` resolves it against the input it is handed. Moving such a
+    target onto a different input therefore changes what it asks for. For
+    ``x: (0, 3, 5)``, ``reshape(reshape(x, [0, 0, 5]), [0, 0, 0])`` is ``(0, 0, 0)``,
+    while the combined ``reshape(x, [0, 0, 0])`` copies all three dimensions back and is
+    ``(0, 3, 5)``.
+
+    Rather than reason about which zeros are safe, re-resolve the target against the new
+    input and keep the rewrite only when it comes back unchanged.
+    """
+    try:
+        reparented = relax.op.reshape(arg, output_shape)
+    except Exception:  # pylint: disable=broad-except
+        # reshape cannot resolve a 0 or -1 without a known input shape.
+        return False
+    return tvm_ffi.structural_equal(reparented.args[1], output_shape)
+
+
 @function_pass(opt_level=0)
 class RemoveRedundantReshape:
     """
@@ -70,13 +91,13 @@ class RemoveRedundantReshape:
 
             if self.repeated_reshape in matches:
                 output_shape = matches[self.repeated_reshape].args[1]
-                return relax.op.reshape(arg, output_shape)
+                if _can_reparent(arg, output_shape):
+                    return relax.op.reshape(arg, output_shape)
+                return expr
 
             elif self.no_op_reshape in matches:
                 output_shape = matches[self.no_op_reshape].args[1]
-                if arg.struct_info.shape and tvm_ffi.structural_equal(
-                    arg.struct_info.shape, output_shape
-                ):
+                if arg.ty.shape and tvm_ffi.structural_equal(arg.ty.shape, output_shape):
                     return arg
             return expr
 

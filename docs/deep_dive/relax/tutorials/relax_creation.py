@@ -122,7 +122,7 @@ RelaxModuleWithTIR.show()
 #   .. code-block:: python
 #
 #     lv: R.Tensor((784, 128), dtype="float32") = R.permute_dims(w0, axes=None)
-#     lv1: R.Tensor((n, 128), dtype="float32") = R.matmul(data, lv, out_dtype="void")
+#     lv1: R.Tensor((n, 128), dtype="float32") = R.matmul(data, lv)
 #     lv0: R.Tensor((n, 128), dtype="float32") = R.add(lv1, b0)
 #
 
@@ -254,7 +254,7 @@ with bb.function("forward", [x, fc1_weight, fc1_bias, fc2_weight, fc2_bias]):
             relax.call_dps_packed(
                 "env.linear",
                 [x, fc1_weight, fc1_bias],
-                out_sinfo=relax.TensorStructInfo((n, 128), "float32"),
+                out_ty=relax.TensorType((n, 128), "float32"),
             )
         )
         lv1 = bb.emit_te(topi.nn.relu, lv0)
@@ -263,7 +263,7 @@ with bb.function("forward", [x, fc1_weight, fc1_bias, fc2_weight, fc2_bias]):
             relax.call_tir(
                 tir_gv,
                 [lv1, fc2_weight, fc2_bias],
-                out_sinfo=relax.TensorStructInfo((n, 10), "float32"),
+                out_ty=relax.TensorType((n, 10), "float32"),
             )
         )
         bb.emit_output(gv)

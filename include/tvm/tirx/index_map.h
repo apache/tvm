@@ -21,7 +21,7 @@
  * \file tvm/tirx/index_map.h
  * \brief Defines a remapping of buffer indices
  *
- * For use with tvm::tirx::Buffer.
+ * For use with TIR buffers.
  */
 #ifndef TVM_TIR_INDEX_MAP_H_
 #define TVM_TIR_INDEX_MAP_H_
@@ -34,9 +34,9 @@
 #include <utility>
 
 namespace tvm {
-namespace arith {
+namespace sym {
 class Analyzer;
-}  // namespace arith
+}  // namespace sym
 }  // namespace tvm
 
 namespace tvm {
@@ -46,7 +46,7 @@ namespace tirx {
  * \brief Defines a mapping between two representations of indices
  * into a buffer.
  *
- * This is primarily used for layout transformations of Buffer
+ * This is primarily used for layout transformations of buffers
  * objects.
  */
 class IndexMapNode : public ffi::Object {
@@ -56,7 +56,7 @@ class IndexMapNode : public ffi::Object {
    * If initial_indices is empty, then final_indices should also be
    * empty, and no mapping is applied.
    */
-  ffi::Array<Var> initial_indices;
+  ffi::Array<PrimVar> initial_indices;
 
   /*!
    * \brief Expressions defining the indices after remapping.
@@ -109,7 +109,7 @@ class IndexMapNode : public ffi::Object {
    * each expression in `final_indices`.
    */
   ffi::Array<PrimExpr> MapIndices(const ffi::Array<PrimExpr>& indices,
-                                  const arith::Analyzer& analyzer) const;
+                                  const sym::Analyzer& analyzer) const;
 
   /*! \brief Map a memory range to the output space using a fresh analyzer.
    *
@@ -137,8 +137,7 @@ class IndexMapNode : public ffi::Object {
    * \returns The ranges in the output space.  Contains one value for
    * each expression in `final_indices`.
    */
-  ffi::Array<Range> MapRanges(const ffi::Array<Range>& ranges,
-                              const arith::Analyzer& analyzer) const;
+  ffi::Array<Range> MapRanges(const ffi::Array<Range>& ranges, const sym::Analyzer& analyzer) const;
 
   /*! \brief Map a buffer shape to the output space using a fresh analyzer.
    *
@@ -157,7 +156,7 @@ class IndexMapNode : public ffi::Object {
    * value for each expression in `final_indices`.
    */
   ffi::Array<PrimExpr> MapShape(const ffi::Array<PrimExpr>& shape,
-                                const arith::Analyzer& analyzer) const;
+                                const sym::Analyzer& analyzer) const;
 
   /* \brief Map an Tensor according to this index map
    *
@@ -179,7 +178,7 @@ class IndexMapNode : public ffi::Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IndexMapNode>()
         .def_ro("initial_indices", &IndexMapNode::initial_indices,
-                refl::AttachFieldFlag::SEqHashDefRecursive())
+                refl::AttachFieldFlag::SEqHashDefPattern())
         .def_ro("final_indices", &IndexMapNode::final_indices)
         .def_ro("inverse_index_map", &IndexMapNode::inverse_index_map,
                 refl::AttachFieldFlag::SEqHashIgnore());
@@ -197,7 +196,7 @@ class IndexMap : public ffi::ObjectRef {
    * \param final_indices Expressions defining the indices after remapping.
    * \param inverse_index_map The optional pre-defined inverse index map
    */
-  IndexMap(ffi::Array<Var> initial_indices, ffi::Array<PrimExpr> final_indices,
+  IndexMap(ffi::Array<PrimVar> initial_indices, ffi::Array<PrimExpr> final_indices,
            ffi::Optional<IndexMap> inverse_index_map = std::nullopt);
 
   /*!
@@ -231,7 +230,7 @@ class IndexMap : public ffi::ObjectRef {
    * \param analyzer An analyzer to be used while deriving and validating
    * the inverse.
    */
-  IndexMap Inverse(ffi::Array<Range> initial_ranges, const arith::Analyzer& analyzer) const;
+  IndexMap Inverse(ffi::Array<Range> initial_ranges, const sym::Analyzer& analyzer) const;
 
   /*! \brief Rename the variables in the index map and ensure the names are unique.
    *
@@ -268,18 +267,10 @@ class IndexMap : public ffi::ObjectRef {
    * which the inverse maps to a valid range.
    */
   std::pair<IndexMap, PrimExpr> NonSurjectiveInverse(ffi::Array<Range> initial_ranges,
-                                                     const arith::Analyzer& analyzer) const;
+                                                     const sym::Analyzer& analyzer) const;
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IndexMap, ffi::ObjectRef, IndexMapNode);
 };
-
-/*! \brief Substitute variables in an index map.
- *
- * \param index_map The index_map
- * \param f_subst The substitution function
- */
-IndexMap Substitute(const IndexMap& index_map,
-                    std::function<ffi::Optional<PrimExpr>(const Var& var)> f_subst);
 
 }  // namespace tirx
 }  // namespace tvm

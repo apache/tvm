@@ -22,7 +22,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/utils.h>
 #include <tvm/script/printer/ir_docsifier.h>
@@ -42,7 +41,9 @@ class RelaxFrameNode : public FrameNode {
  public:
   bool is_func = false;
   bool module_alias_printed = false;
-  std::unordered_set<const tirx::VarNode*>* func_vars = nullptr;
+  std::unordered_set<const VarNode*>* func_vars = nullptr;
+  std::unordered_set<const VarNode*>* type_vars = nullptr;
+  std::unordered_set<const VarNode*>* prim_params = nullptr;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -61,6 +62,8 @@ class RelaxFrame : public Frame {
     n->d = d.get();
     n->is_func = false;
     n->func_vars = nullptr;
+    n->type_vars = nullptr;
+    n->prim_params = nullptr;
     data_ = std::move(n);
   }
 
@@ -75,74 +78,76 @@ inline std::string ReprPrintRelax(const ffi::ObjectRef& obj, const PrinterConfig
   return Docsify(obj, d, *f, cfg);
 }
 
-inline IdDoc DefineVar(const relax::Var& var, const Frame& frame, const IRDocsifier& d) {
-  return d->Define(var, frame, var->name_hint().empty() ? "v" : var->name_hint());
+inline IdDoc DefineRelaxVar(const tvm::Var& var, const Frame& frame, const IRDocsifier& d) {
+  return d->Define(var, frame, var->name.empty() ? "v" : var->name);
 }
 
-inline ffi::Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessPath& v_p,
-                                              const IRDocsifier& d,
-                                              const ffi::Optional<relax::Expr>& rhs) {
-  if (!v->struct_info_.defined()) {
+inline ffi::Optional<ExprDoc> TypeAsAnn(const tvm::Var& v, const AccessPath& v_p,
+                                        const IRDocsifier& d,
+                                        const ffi::Optional<relax::Expr>& rhs) {
+  if (v->ty.IsMissing()) {
     return std::nullopt;
   }
-  bool attempt_to_hide_struct_info =
-      !d->cfg->GetExtraConfig<bool>("relax.show_all_struct_info", true);
+  bool attempt_to_hide_ty = !d->cfg->GetExtraConfig<bool>("relax.show_all_ty", true);
 
-  if (const auto* call = rhs.as<relax::CallNode>()) {
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
-    static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
-    if (call->op.same_as(call_tir_op) || call->op.same_as(call_dps_packed_op)) {
-      attempt_to_hide_struct_info = true;
+  if (rhs.has_value()) {
+    if (const auto* call = rhs.as<tvm::CallNode>()) {
+      static const Op& call_tir_op = Op::Get("relax.call_tir");
+      static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
+      if (call->op.same_as(call_tir_op) || call->op.same_as(call_dps_packed_op)) {
+        attempt_to_hide_ty = true;
+      }
     }
   }
-  if (attempt_to_hide_struct_info) {
-    ffi::Optional<relax::StructInfo> inferred_sinfo = std::nullopt;
-    if (auto opt = rhs.as<relax::Call>()) {
+  if (attempt_to_hide_ty && rhs.has_value()) {
+    ffi::Optional<tvm::Type> inferred_ty = std::nullopt;
+    if (auto opt = rhs.as<tvm::Call>()) {
       auto call = opt.value();
       if (auto opt = call->op.as<Op>()) {
         auto op = opt.value();
 
-        static auto op_map_infer_struct_info =
-            Op::GetAttrMap<relax::FInferStructInfo>("FInferStructInfo");
+        static auto op_map_infer_ty = Op::GetAttrMap<relax::FInferType>("FInferType");
 
         auto temp_builder = relax::BlockBuilder::Create(std::nullopt);
-        inferred_sinfo = op_map_infer_struct_info[op](call, temp_builder);
-      } else if (auto opt = call->op.as<relax::FuncStructInfo>()) {
+        inferred_ty = op_map_infer_ty[op](call, temp_builder);
+      } else if (auto opt = call->op.as<relax::FuncType>()) {
         auto temp_builder = relax::BlockBuilder::Create(std::nullopt);
-        inferred_sinfo =
-            DeriveCallRetStructInfo(opt.value(), call, temp_builder, temp_builder->GetAnalyzer());
+        inferred_ty =
+            DeriveCallRetType(opt.value(), call, temp_builder, temp_builder->GetAnalyzer());
       }
 
     } else if (const auto* tuple = rhs.as<relax::TupleNode>()) {
-      inferred_sinfo = relax::TupleStructInfo(tuple->fields.Map(relax::GetStructInfo));
+      inferred_ty = relax::TupleType(tuple->fields.Map(relax::GetType));
 
     } else if (const auto* get_item = rhs.as<relax::TupleGetItemNode>()) {
-      if (auto ptr = get_item->tuple->struct_info_.as<relax::TupleStructInfoNode>();
+      if (auto ptr = get_item->tuple->ty.as<relax::TupleTypeNode>();
           ptr && get_item->index < static_cast<int>(ptr->fields.size())) {
-        inferred_sinfo = ptr->fields[get_item->index];
+        inferred_ty = ptr->fields[get_item->index];
       }
 
-    } else if (const auto* trivial_binding = rhs.as<relax::VarNode>()) {
-      inferred_sinfo = trivial_binding->struct_info_.as<relax::StructInfo>();
+    } else if (const auto* trivial_binding = rhs.as<tvm::VarNode>()) {
+      inferred_ty = trivial_binding->ty.as<tvm::Type>();
     }
 
-    if (inferred_sinfo && ffi::StructuralEqual()(inferred_sinfo, v->struct_info_)) {
+    if (inferred_ty && ffi::StructuralEqual()(inferred_ty, v->ty)) {
       return std::nullopt;
     }
   }
-  return d->AsDoc<ExprDoc>(v->struct_info_, v_p->Attr("struct_info_"));
+  return d->AsDoc<ExprDoc>(v->ty, v_p->Attr("ty"));
 }
 
 ffi::Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p,
                                  const IRDocsifier& d, bool use_ret);
 
+Doc PrintRelaxVar(tvm::Var n, AccessPath p, IRDocsifier d);
+
 ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifier& d);
 
-inline int FindVDeviceIndexByTargetKind(const VDevice& vdevice, const IRDocsifier& d) {
+inline int FindVDeviceIndexByTargetKind(const relax::VDevice& vdevice, const IRDocsifier& d) {
   ffi::Array<GlobalInfo> vdevices = d->global_infos["vdevice"];
   int kind_index = 0;
   for (size_t i = 0; i < vdevices.size(); ++i) {
-    auto vdev = Downcast<VDevice>(vdevices[i]);
+    auto vdev = vdevices[i].as_or_throw<relax::VDevice>();
     if (vdev.same_as(vdevice)) {
       return kind_index;
     }

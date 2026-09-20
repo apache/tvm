@@ -24,6 +24,7 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 try:
     from ml_dtypes import float4_e2m1fn
@@ -34,7 +35,8 @@ except ImportError:
 
 
 @pytest.mark.parametrize("promoted_dtype", ["float32x2", "float16x2"])
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_e2m1_vector_conversions(promoted_dtype):
     native_dtype = "float4_e2m1fnx2"
     vector_length = 64
@@ -61,7 +63,6 @@ def test_e2m1_vector_conversions(promoted_dtype):
 
     target = "cuda"
     fadd = tvm.compile(Module, target=target)
-    dev = tvm.device(target, 0)
 
     if "x" in native_dtype:
         lanes = int(native_dtype.split("x")[-1])
@@ -86,27 +87,29 @@ def test_e2m1_vector_conversions(promoted_dtype):
         a_np = np.random.choice(valid_fp4_values, size=np_shape).astype(np.int8)
         b_np = np.random.choice(valid_fp4_values, size=np_shape).astype(np.int8)
 
-    a = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
-    a.copyfrom(a_np)
-    b = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
-    b.copyfrom(b_np)
-    c = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
-    fadd(a, b, c)
+    def run_and_check():
+        dev = tvm.cuda(0)
+        a = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+        a.copyfrom(a_np)
+        b = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+        b.copyfrom(b_np)
+        c = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+        fadd(a, b, c)
+        # For the comparison, we will convert result to the promoted dtype and compare
+        # Note: When ml_dtypes is not available, we skip the numpy-level computation comparison
+        # and just verify that the CUDA kernel compiles and executes without error
+        c_result = c.numpy().astype(promoted_base_dtype)
+        if ML_DTYPES_AVAILABLE:
+            # Full comparison when ml_dtypes is available
+            expected = (a_np + b_np).astype(promoted_base_dtype)
+            tvm.testing.assert_allclose(c_result, expected)
+        else:
+            # When ml_dtypes is not available, we just verify the comparison ran successfully
+            # by checking that we got a result with the expected shape and dtype
+            assert c_result.shape == np_shape
+            assert c_result.dtype == promoted_base_dtype
 
-    # For the comparison, we will convert result to the promoted dtype and compare
-    # Note: When ml_dtypes is not available, we skip the numpy-level computation comparison
-    # and just verify that the CUDA kernel compiles and executes without error
-    c_result = c.numpy().astype(promoted_base_dtype)
-
-    if ML_DTYPES_AVAILABLE:
-        # Full comparison when ml_dtypes is available
-        expected = (a_np + b_np).astype(promoted_base_dtype)
-        tvm.testing.assert_allclose(c_result, expected)
-    else:
-        # When ml_dtypes is not available, we just verify the comparison ran successfully
-        # by checking that we got a result with the expected shape and dtype
-        assert c_result.shape == np_shape
-        assert c_result.dtype == promoted_base_dtype
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storage):
@@ -180,11 +183,12 @@ def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storag
     return Module
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_e2m1_dequantize():
     n = 128
 
-    dev = tvm.device("cuda", 0)
+    dev = tvm.cuda(0)
     target = tvm.target.Target.from_device(dev)
     num_elem_per_storage = 32 // 4
 
@@ -204,7 +208,8 @@ def test_e2m1_dequantize():
         tvm.compile(mod, target=target)
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_e2m1_scalar_buffer_offset():
     """Regression test: float4_e2m1fn scalar buffer access uses correct byte offset.
 
@@ -238,7 +243,6 @@ def test_e2m1_scalar_buffer_offset():
     sch.bind(tx, "threadIdx.x")
 
     target = "cuda"
-    dev = tvm.device(target, 0)
     fadd = tvm.compile(sch.mod, target=target)
 
     # float4_e2m1fn: 4-bit values 0..15, two packed per byte.
@@ -259,13 +263,15 @@ def test_e2m1_scalar_buffer_offset():
 
     expected = fp4_to_fp16[fp4_elements]
 
-    a = tvm.runtime.empty(shape=(n // 2,), dtype="uint8", device=dev)
-    a.copyfrom(packed)
-    b = tvm.runtime.empty(shape=(n,), dtype="float16", device=dev)
-    fadd(a, b)
+    def run_and_check():
+        dev = tvm.cuda(0)
+        a = tvm.runtime.empty(shape=(n // 2,), dtype="uint8", device=dev)
+        a.copyfrom(packed)
+        b = tvm.runtime.empty(shape=(n,), dtype="float16", device=dev)
+        fadd(a, b)
+        tvm.testing.assert_allclose(b.numpy(), expected)
 
-    result = b.numpy()
-    tvm.testing.assert_allclose(result, expected)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

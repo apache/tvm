@@ -24,10 +24,12 @@
 #ifndef TVM_TOPI_DETAIL_EXTERN_H_
 #define TVM_TOPI_DETAIL_EXTERN_H_
 
+#include <tvm/ir/prim/builtin.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
 
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -41,7 +43,7 @@ using namespace tvm::te;
  * function. The function expects two arguments: an array of Buffers holding the input
  * tensor values, and a pre-allocated array of Buffers to be filled with the outputs.
  */
-using FExtern = std::function<PrimExpr(ffi::Array<Buffer>, ffi::Array<Buffer>)>;
+using FExtern = std::function<PrimExpr(ffi::Array<BufferVar>, ffi::Array<BufferVar>)>;
 
 /*!
  * \brief Create tensors representing the result of invoking an external function.
@@ -61,18 +63,18 @@ using FExtern = std::function<PrimExpr(ffi::Array<Buffer>, ffi::Array<Buffer>)>;
  * element of out_types.
  */
 inline ffi::Array<Tensor> make_extern(const ffi::Array<ffi::Array<PrimExpr>>& out_shapes,
-                                      const std::vector<DataType>& out_types,
+                                      const std::vector<PrimType>& out_types,
                                       const ffi::Array<Tensor>& inputs, FExtern fextern,
                                       std::string name, std::string tag,
                                       ::tvm::ffi::Map<ffi::String, ffi::Any> attrs) {
   TVM_FFI_ICHECK_EQ(out_shapes.size(), out_types.size())
       << "make_extern: out_shapes and out_types must have equal size";
 
-  ffi::Array<Buffer> input_placeholders;
+  ffi::Array<BufferVar> input_placeholders;
   for (auto t : inputs) {
     input_placeholders.push_back(tvm::tirx::decl_buffer(t->shape, t->dtype, t->op->name));
   }
-  ffi::Array<Buffer> output_placeholders;
+  ffi::Array<BufferVar> output_placeholders;
   for (size_t i = 0; i < out_shapes.size(); ++i) {
     output_placeholders.push_back(tvm::tirx::decl_buffer(out_shapes[i], out_types[i], name));
   }
@@ -97,25 +99,25 @@ inline ffi::Array<Tensor> make_extern(const ffi::Array<ffi::Array<PrimExpr>>& ou
  *
  * \return An expression representing the pack operation
  */
-inline PrimExpr pack_buffer(Buffer buf) {
+inline Expr pack_buffer(BufferVar buf) {
+  using namespace tvm::prim;
   TVM_FFI_ICHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
-  auto shape =
-      tvm::tirx::Call(DataType::Handle(), tvm::tirx::builtin::tvm_stack_make_shape(), buf->shape);
-  PrimExpr strides;
+  Expr shape =
+      Call(PointerType(PrimType::Int(64)), tvm::tirx::builtin::tvm_stack_make_shape(), buf->shape);
+  Expr strides;
   if (buf->strides.size() > 0) {
-    strides = tvm::tirx::Call(DataType::Handle(), tvm::tirx::builtin::tvm_stack_make_shape(),
-                              buf->strides);
+    strides = Call(PointerType(PrimType::Int(64)), tvm::tirx::builtin::tvm_stack_make_shape(),
+                   buf->strides);
   } else {
-    strides = 0;
+    strides = PrimExpr(0);
   }
-  ffi::Array<PrimExpr> pack_args{
-      buf->data,
-      shape,
-      strides,
-      make_const(DataType::Int(32), static_cast<int64_t>(buf->shape.size())),
-      make_const(buf->dtype, 0),
-      buf->elem_offset};
-  return tvm::tirx::Call(DataType::Handle(), tvm::tirx::builtin::tvm_stack_make_array(), pack_args);
+  ffi::Array<Expr> pack_args{buf->data,
+                             shape,
+                             strides,
+                             IntImm::Int32(static_cast<int64_t>(buf->shape.size())),
+                             MakeConst(PrimType(buf->dtype), 0),
+                             buf->elem_offset};
+  return Call(PointerType::VoidPointerTy(), tvm::tirx::builtin::tvm_stack_make_array(), pack_args);
 }
 
 /*!
@@ -127,8 +129,9 @@ inline PrimExpr pack_buffer(Buffer buf) {
  *
  * \return An expression representing the invocation
  */
-inline PrimExpr call_packed(ffi::Array<PrimExpr> args) {
-  return tvm::tirx::Call(DataType::Int(32), tvm::tirx::builtin::tvm_call_packed(), args);
+inline PrimExpr call_packed(ffi::Array<Expr> args) {
+  return Call(PrimType::Int(32), tvm::tirx::builtin::tvm_call_packed(), args)
+      .as_or_throw<PrimExpr>();
 }
 
 }  // namespace detail

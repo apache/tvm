@@ -216,6 +216,17 @@ def test_fp8_compute_legalize(dtype, promote_dtype):
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_fp8_compute_legalize_preserves_opaque_buffer_access(dtype, promote_dtype):
+    @T.prim_func(s_tir=True)
+    def before():
+        buffer = T.alloc_buffer((16,), dtype)
+        T.evaluate(T.call_extern("void", "consume", buffer.data))
+
+    before_mod = tvm.IRModule.from_expr(before)
+    after = tvm.tirx.transform.FP8ComputeLegalize(promote_dtype)(before_mod)
+    tvm.ir.assert_structural_equal(after, before_mod)
+
+
 def test_fp8_storage_legalize(dtype, promote_dtype):
     target = Target("nvidia/nvidia-a100")
     before = BindTarget(target)(get_after_compute_legalize(dtype, promote_dtype))

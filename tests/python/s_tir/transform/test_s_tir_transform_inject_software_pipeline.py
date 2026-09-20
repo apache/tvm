@@ -34,6 +34,7 @@ from tvm.s_tir.tensor_intrin.cuda import (
     shared_16x16_to_ldmatrix_32x8_layout,
 )
 from tvm.script import tirx as T
+from tvm.testing import env
 from tvm.testing.tir import mma_schedule
 
 
@@ -41,7 +42,7 @@ def _check(original, transformed):
     func = original
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(mod)
-    mod = tvm.tirx.transform.StmtSimplify()(mod)
+    mod = tvm.s_tir.transform.StmtSimplify()(mod)
     tvm.ir.assert_structural_equal(
         mod["main"], transformed.with_attr("global_symbol", "main"), True
     )
@@ -1536,18 +1537,23 @@ def build_and_run(sch):
         with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
             f = tvm.compile(sch.mod["main"], target="cuda")
 
-        dev = tvm.device("cuda", 0)
         a_np = np.random.uniform(size=(N, K)).astype("float16")
         b_np = np.random.uniform(size=(K, M)).astype("float16")
         c_np = np.dot(a_np.astype("float32"), b_np.astype("float32"))
-        a = tvm.runtime.tensor(a_np, dev)
-        b = tvm.runtime.tensor(b_np, dev)
-        c = tvm.runtime.tensor(np.zeros((N, M), dtype="float32"), dev)
-        f(a, b, c)
-        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            a = tvm.runtime.tensor(a_np, dev)
+            b = tvm.runtime.tensor(b_np, dev)
+            c = tvm.runtime.tensor(np.zeros((N, M), dtype="float32"), dev)
+            f(a, b, c)
+            tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_async_pipelined_mma_gemm_simple():
     sch = get_mma_schedule()
 
@@ -1588,7 +1594,8 @@ def test_async_pipelined_mma_gemm_simple():
     build_and_run(sch)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_async_nested_pipeline_mma_gemm_ideal_annotation():
     sch = get_mma_schedule()
 

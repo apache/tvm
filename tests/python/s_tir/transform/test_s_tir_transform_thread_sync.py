@@ -15,10 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F401, F821, F841
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def run_passes(func: tvm.tirx.PrimFunc):
@@ -34,7 +37,8 @@ def run_passes(func: tvm.tirx.PrimFunc):
     return tvm.s_tir.transform.ThreadSync("shared")(mod)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_sync_read_thread_id_independent_location():
     @T.prim_func(check_well_formed=False, s_tir=True)
     def func(p0_arg: T.Buffer((1, 2, 1, 1), "float32"), p1: T.Buffer(2, "float32")) -> None:
@@ -98,7 +102,31 @@ def test_sync_shared_dyn():
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
-@tvm.testing.requires_cuda
+def test_sync_shared_aliasing_buffer_views():
+    @T.prim_func(private=True, s_tir=True)
+    def func(A: T.Buffer((64,), "float32")):
+        blockIdx_x = T.launch_thread("blockIdx.x", 1)
+        shared_storage = T.alloc_buffer((32,), "float16", scope="shared")
+        local = T.alloc_buffer((1,), "float32", scope="local")
+        threadIdx_x = T.launch_thread("threadIdx.x", 32)
+        shared_half = T.decl_buffer((32,), "float16", data=shared_storage.data, scope="shared")
+        shared_float = T.decl_buffer((16,), "float32", data=shared_storage.data, scope="shared")
+        for i in range(2):
+            shared_half[threadIdx_x] = T.Cast("float16", A[i * 32 + threadIdx_x])
+            T.tvm_storage_sync("shared")
+            local[0] = shared_float[threadIdx_x % 16]
+            A[i * 32 + threadIdx_x] = local[0]
+
+    mod = tvm.IRModule({"main": func})
+    mod = tvm.s_tir.transform.ThreadSync("shared")(mod)
+
+    # In addition to the explicit write-to-read barrier, the shared physical
+    # storage needs a read-to-next-write barrier across loop iterations.
+    assert str(mod["main"]).count("T.tvm_storage_sync") == 2
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_sync_bind():
     @T.prim_func(private=True, s_tir=True)
     def func(A: T.Buffer((16 * 512), "float32")):
@@ -124,7 +152,7 @@ def test_sync_bind():
         with T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
             "reduce_scope",
-            T.reinterpret("handle", T.uint64(0)),
+            T.int32(0),
         ):
             T.tvm_thread_allreduce(
                 T.uint32(1),
@@ -161,7 +189,7 @@ def test_sync_bind():
         T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
             "reduce_scope",
-            T.reinterpret("handle", T.uint64(0)),
+            T.int32(0),
         )
         T.tvm_thread_allreduce(
             T.uint32(1),

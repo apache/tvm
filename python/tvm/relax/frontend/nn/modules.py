@@ -43,7 +43,7 @@ class IOEffect(Effect):
 
     def create(self, name_hint: str) -> list[rx.Var]:
         assert self.effect is None
-        effect = rx.Var(f"{name_hint}.io", struct_info=rx.ObjectStructInfo())
+        effect = rx.Var(f"{name_hint}.io", ty=rx.AnyType())
         return [effect]
 
     def set_state(self, state_vars: list[rx.Var]) -> None:
@@ -99,10 +99,10 @@ class Linear(Module):
 
     Parameters
     ----------
-    in_features : Union[int, str, tirx.PrimExpr]
+    in_features : Union[int, str, tirx.Expr]
         Size of each input sample. Can be symbolic.
 
-    out_features : Union[int, str, tirx.PrimExpr]
+    out_features : Union[int, str, tirx.Expr]
         Size of each output sample. Can be symbolic.
 
     bias : bool
@@ -120,8 +120,8 @@ class Linear(Module):
 
     def __init__(
         self,
-        in_features: int | str | tirx.PrimExpr,
-        out_features: int | str | tirx.PrimExpr,
+        in_features: int | str | tirx.Expr,
+        out_features: int | str | tirx.Expr,
         bias: bool = True,
         dtype: str | None = None,
         out_dtype: str | None = None,
@@ -811,8 +811,8 @@ class KVCache(Effect):
                     "vm.builtin.attention_kv_cache_create",
                     rx.op.zeros(init_shape, self.dtype),
                     init_shape,
-                    rx.PrimValue(0),
-                    sinfo_args=rx.ObjectStructInfo(),
+                    rx.prim_value(0),
+                    ty_args=rx.ObjectType(),
                 ),
                 name_hint=name_hint,
             )
@@ -832,7 +832,7 @@ class KVCache(Effect):
         ret : List[relax.Var]
             The relax.Var for KVCache.
         """
-        cache = rx.Var(name_hint, struct_info=rx.ObjectStructInfo())
+        cache = rx.Var(name_hint, ty=rx.AnyType())
         return [cache]
 
     def set_state(self, state_vars: list[rx.Var]) -> None:
@@ -884,7 +884,7 @@ class KVCache(Effect):
                     "vm.builtin.attention_kv_cache_view",
                     self.cache,
                     shape,
-                    sinfo_args=rx.TensorStructInfo(shape, self.dtype),
+                    ty_args=rx.TensorType(shape, self.dtype),
                 )
             )
         )
@@ -908,7 +908,7 @@ class KVCache(Effect):
                 self.cache,
                 new_element._expr,
                 inplace_indices=[0],
-                sinfo_args=rx.ObjectStructInfo(),
+                ty_args=rx.AnyType(),
             )
         )
 
@@ -918,10 +918,10 @@ class Embedding(Module):
 
     Parameters
     ----------
-    num : Union[int, str, tirx.PrimExpr]
+    num : Union[int, str, tirx.Expr]
         Size of the embedding dictionary (vocabulary size). Can be symbolic.
 
-    dim : Union[int, str, tirx.PrimExpr]
+    dim : Union[int, str, tirx.Expr]
         Size of each embedding vector. Can be symbolic.
 
     dtype : Optional[str]
@@ -930,8 +930,8 @@ class Embedding(Module):
 
     def __init__(
         self,
-        num: int | str | tirx.PrimExpr,
-        dim: int | str | tirx.PrimExpr,
+        num: int | str | tirx.Expr,
+        dim: int | str | tirx.Expr,
         dtype: str | None = None,
     ):
         self.num = num

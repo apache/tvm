@@ -21,6 +21,7 @@
  * \file src/runtime/contrib/cudnn/softmax.cc
  * \brief Use external cudnn softmax function
  */
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
@@ -29,8 +30,6 @@
 
 namespace tvm {
 namespace contrib {
-
-using namespace runtime;
 
 void softmax_impl(cudnnSoftmaxAlgorithm_t alg, ffi::PackedArgs args, ffi::Any* ret) {
   auto x = args[0].cast<DLTensor*>();
@@ -41,7 +40,7 @@ void softmax_impl(cudnnSoftmaxAlgorithm_t alg, ffi::PackedArgs args, ffi::Any* r
   if (axis < 0) axis += ndim;
   TVM_FFI_ICHECK(axis >= 0 && axis < ndim);
   int device_id;
-  CUDA_CALL(cudaGetDevice(&device_id));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
   entry_ptr->softmax_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(x->dtype);
 

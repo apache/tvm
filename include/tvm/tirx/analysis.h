@@ -25,10 +25,9 @@
 #define TVM_TIR_ANALYSIS_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
-#include <tvm/s_tir/analysis.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
@@ -38,26 +37,6 @@
 namespace tvm {
 
 namespace tirx {
-
-/*!
- * \brief Compare two expressions recursively and check if they are equal
- *        to each other without var remapping.
- *
- *  This function does not remap variable bindings, it will not
- *  return true for (let x = 1 in x + 1) vs (let y = 1 in y + 1), unless x.same_as(y).
- *
- *  Use StructuralEqual for such cases.
- *
- *  Due to the restriction of not remapping variables, this function can run
- *  faster than StructuralEqual and can be used as a utility function during arithmetic
- *  simplifications.
- *
- * \sa StructuralEqual
- */
-struct ExprDeepEqual {
- public:
-  TVM_DLL bool operator()(const PrimExpr& lhs, const PrimExpr& rhs) const;
-};
 
 /*!
  * \brief Visit the PrimFuncs in the IRModule
@@ -97,30 +76,6 @@ TVM_DLL ffi::Array<Var> UndefinedVars(const PrimExpr& expr);
  * \return Array of undefined vars.
  */
 TVM_DLL ffi::Array<Var> UndefinedVars(const PrimExpr& expr, const ffi::Array<Var>& defs);
-
-/*!
- * \brief Analyze the side effect of an expression
- * \param expr The expression to be checked.
- *
- * \return CallEffectKind, can be kPure, kReadState or kUpdateState
- */
-TVM_DLL CallEffectKind SideEffect(const PrimExpr& expr);
-
-/*!
- * \brief Whether the given Stmt uses any var in the given variable set.
- * \param stmt The Stmt to be checked.
- * \param vset_contains The check function to see if a var is in the variable set.
- * \return Whether `stmt` uses any var in the given variable set.
- */
-TVM_DLL bool UsesVar(const Stmt& stmt, std::function<bool(const VarNode*)> vset_contains);
-
-/*!
- * \brief Whether the given PrimExpr uses any var in the given variable set.
- * \param expr The PrimExpr to be checked.
- * \param vset_contains The check function to see if var is in the variable set.
- * \return Whether `expr` uses any var in the given variable set.
- */
-TVM_DLL bool UsesVar(const PrimExpr& expr, std::function<bool(const VarNode*)> vset_contains);
 
 /*!
  * \brief Verifies whether the IR stmt or Expr is in SSA form.
@@ -175,12 +130,7 @@ TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func, int64_t workspace_b
  *
  * - Each variable has a single point of definition.
  *
- * - Expressions within a tirx::SBlock may not reference variables
- *   defined outside the block.  For example, for a block with iter
- *   vars `vi, vj = T.axis.remap('SS', [i,j])`, the statement
- *   `B[i,j] = A[i,j]` would be ill-formed, because it uses the loop
- *   variables `i` and `j` instead of the block variables `vi` and
- *   `vj`.
+ * Dialect statements require their dialect-specific verifier.
  *
  * \param func The PrimFunc to be verified.
  * \param assert_mode The indicator if it raises an error when the function is not well-formed.

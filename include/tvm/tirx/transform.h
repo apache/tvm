@@ -24,9 +24,9 @@
 #ifndef TVM_TIR_TRANSFORM_H_
 #define TVM_TIR_TRANSFORM_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 
 #include <string>
@@ -154,15 +154,6 @@ TVM_DLL Pass MakePackedAPI();
 TVM_DLL Pass RemapThreadAxis(ffi::Map<ffi::String, IterVar> axis_map);
 
 /*!
- * \brief Lower custom datatypes.
- *
- * See tvm::datatypes::Registry for more information on adding custom datatypes.
- *
- * \return The pass.
- */
-TVM_DLL Pass LowerCustomDatatypes();
-
-/*!
  * \brief Annotate, split, and lower host/device functions.
  *
  * This pass first annotates device regions within host functions,
@@ -278,7 +269,7 @@ TVM_DLL Pass InlinePrivateFunctions();
 TVM_DLL Pass PointerValueTypeRewrite();
 
 /*!
- * \brief Flatten the multi-dimensional BufferLoad and BufferStore to single dimensional
+ * \brief Flatten the multi-dimensional TensorLoad and BufferStore to single dimensional
  *        BufferLoad/BufferStore for the TIR not contains opaque block.
  * \return The pass.
  */

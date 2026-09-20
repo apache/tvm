@@ -58,8 +58,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   })
       .def_packed("topi.reverse_sequence",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
+                    int batch_axis = args.size() >= 4 ? args[3].cast<int>() : 0;
                     *rv = reverse_sequence(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(),
-                                           args[2].cast<int>());
+                                           args[2].cast<int>(), batch_axis);
                   })
       .def_packed("topi.reshape",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -85,11 +86,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   })
       .def_packed("topi.shape",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = shape(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
+                    *rv = shape(args[0].cast<te::Tensor>(), args[1].cast<PrimType>());
                   })
       .def_packed("topi.tensor_size",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = tensor_size(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
+                    *rv = tensor_size(args[0].cast<te::Tensor>(), args[1].cast<PrimType>());
                   })
       .def_packed("topi.split",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -139,8 +140,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   })
       .def_packed("topi.arange",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = arange(args[0].cast<PrimExpr>(), args[1].cast<PrimExpr>(),
-                                 args[2].cast<PrimExpr>(), args[3].cast<DataType>());
+                    auto start_tensor = args[0].try_cast<te::Tensor>();
+                    auto stop_tensor = args[1].try_cast<te::Tensor>();
+                    auto step_tensor = args[2].try_cast<te::Tensor>();
+                    PrimExpr start = start_tensor ? start_tensor.value()(ffi::Array<PrimExpr>{})
+                                                  : args[0].cast<PrimExpr>();
+                    PrimExpr stop = stop_tensor ? stop_tensor.value()(ffi::Array<PrimExpr>{})
+                                                : args[1].cast<PrimExpr>();
+                    PrimExpr step = step_tensor ? step_tensor.value()(ffi::Array<PrimExpr>{})
+                                                : args[2].cast<PrimExpr>();
+                    *rv = arange(start, stop, step, args[3].cast<PrimType>());
                   })
       .def_packed("topi.meshgrid",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -178,9 +187,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   })
       .def_packed("topi.sparse_to_dense",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
+                    auto default_value_tensor = args[3].try_cast<te::Tensor>();
+                    PrimExpr default_value =
+                        default_value_tensor ? default_value_tensor.value()(ffi::Array<PrimExpr>{})
+                                             : args[3].cast<PrimExpr>();
                     *rv = sparse_to_dense(args[0].cast<te::Tensor>(),
                                           args[1].cast<ffi::Array<PrimExpr>>(),
-                                          args[2].cast<te::Tensor>(), args[3].cast<PrimExpr>());
+                                          args[2].cast<te::Tensor>(), default_value);
                   })
       .def_packed("topi.matmul",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -256,14 +269,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               ffi::Array<PrimExpr> output_shape) {
              return relax::dynamic_strided_slice(x, begin, end, strides, output_shape);
            })
-      .def_packed("topi.one_hot",
-                  [](ffi::PackedArgs args, ffi::Any* rv) {
-                    int depth = args[3].cast<int>();
-                    int axis = args[4].cast<int>();
-                    DataType dtype = args[5].cast<DataType>();
-                    *rv = one_hot(args[0].cast<te::Tensor>(), args[1].cast<PrimExpr>(),
-                                  args[2].cast<PrimExpr>(), depth, axis, dtype);
-                  })
+      .def_packed(
+          "topi.one_hot",
+          [](ffi::PackedArgs args, ffi::Any* rv) {
+            int depth = args[3].cast<int>();
+            int axis = args[4].cast<int>();
+            PrimType dtype = args[5].cast<PrimType>();
+            auto on_value_tensor = args[1].try_cast<te::Tensor>();
+            auto off_value_tensor = args[2].try_cast<te::Tensor>();
+            PrimExpr on_value = on_value_tensor ? on_value_tensor.value()(ffi::Array<PrimExpr>{})
+                                                : args[1].cast<PrimExpr>();
+            PrimExpr off_value = off_value_tensor ? off_value_tensor.value()(ffi::Array<PrimExpr>{})
+                                                  : args[2].cast<PrimExpr>();
+            *rv = one_hot(args[0].cast<te::Tensor>(), on_value, off_value, depth, axis, dtype);
+          })
       .def_packed("topi.matrix_set_diag",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     int k1 = args[2].cast<int>();

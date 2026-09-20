@@ -28,6 +28,7 @@
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 namespace meta_schedule {
 
 using namespace tvm::tirx;
@@ -55,12 +56,12 @@ std::function<ExprRV(int64_t)> MakeFactorSampler(Schedule sch, ffi::Array<int64_
     }
     int n = extents.size();
     if (n == 0) {
-      return IntImm(DataType::Int(32), max_extent);
+      return IntImm::Int32(max_extent);
     }
     if (n == 1) {
-      return IntImm(DataType::Int(32), extents[0]);
+      return IntImm::Int32(extents[0]);
     }
-    ffi::Array<FloatImm> probs(n, FloatImm(DataType::Float(32), 1.0 / n));
+    ffi::Array<FloatImm> probs(n, FloatImm(PrimType::Float(32), 1.0 / n));
     return sch->SampleCategorical(extents, probs);
   };
 }
@@ -69,7 +70,8 @@ ffi::Array<LoopRV> BindSpatialLoop(Schedule sch, LoopRV loop, int64_t max_thread
                                    int64_t max_threads_per_block,
                                    std::function<ExprRV(int64_t)> get_factor) {
   int64_t extent = -1;
-  if (const int64_t* e = as_const_int(sch->Get(loop)->extent)) {
+  const auto* e_imm = sch->Get(loop)->extent.as<IntImmNode>();
+  if (auto e = e_imm ? e_imm->value.as<int64_t>() : std::nullopt; e.has_value()) {
     extent = *e;
   } else {
     extent = std::numeric_limits<int64_t>::max();
@@ -85,9 +87,8 @@ ffi::Array<LoopRV> BindSpatialLoop(Schedule sch, LoopRV loop, int64_t max_thread
     sch->Bind(splits[1], "threadIdx.x");
     return {splits[0], splits[1]};
   } else {
-    ffi::Array<LoopRV> splits =
-        sch->Split(loop, {std::nullopt, IntImm(DataType::Int(32), max_threadblocks),  //
-                          IntImm(DataType::Int(32), max_threads_per_block)});
+    ffi::Array<LoopRV> splits = sch->Split(loop, {std::nullopt, IntImm::Int32(max_threadblocks),  //
+                                                  IntImm::Int32(max_threads_per_block)});
     TVM_FFI_ICHECK_EQ(splits.size(), 3);
     sch->Reorder({splits[1], splits[2], splits[0]});
     sch->Bind(splits[1], "blockIdx.x");

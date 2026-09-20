@@ -64,7 +64,7 @@ TensorCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const json::Objec
   TensorCacheMetadata::FileRecord::ParamRecord result;
   std::string dtype = json["dtype"].cast<ffi::String>();
   result.name = json["name"].cast<ffi::String>();
-  result.dtype = DataType(ffi::StringToDLDataType(dtype));
+  result.dtype = ffi::StringToDLDataType(dtype);
   result.format = json["format"].cast<ffi::String>();
   result.nbytes = json["nbytes"].cast<int64_t>();
   result.byte_offset = json["byteOffset"].cast<int64_t>();
@@ -136,13 +136,13 @@ void CopyTensorFromBytes(Tensor param, const void* data, size_t nbytes,
   // Special handle for OpenCL runtime.
   // It creates a host side memory mirror, for every cl_mem that tries to copy data from host
   // which can cause memory issue. Her we use a large staging buffer to postpone deallocation
-  if (staging_buffer->defined()) {
+  if (staging_buffer->has_value()) {
     size_t curr_size = ffi::GetDataSize(*(staging_buffer->value().operator->()));
     if (curr_size < nbytes) {
       *staging_buffer = std::nullopt;
     }
   }
-  if (!staging_buffer->defined()) {
+  if (!staging_buffer->has_value()) {
     *staging_buffer = Tensor::Empty(param.Shape(), param->dtype, param->device);
   }
   Tensor staging_view = staging_buffer->value().CreateView(param.Shape(), param->dtype);
@@ -154,7 +154,7 @@ void CopyTensorFromBytes(Tensor param, const void* data, size_t nbytes,
 Tensor TensorCacheMetadata::FileRecord::ParamRecord::Load(
     Device device, const std::string* raw_data, ffi::Optional<Tensor>* staging_buffer) const {
   Tensor arr = Tensor::Empty(shape, dtype, device);
-  if (dtype == DataType::Float(32) && format == "f32-to-bf16") {
+  if (dtype == DLDataType{kDLFloat, 32, 1} && format == "f32-to-bf16") {
     // decode bf16 to f32
     std::vector<uint16_t> buffer(nbytes / 2);
     std::vector<uint32_t> decoded(nbytes / 2);

@@ -18,7 +18,7 @@
 
 import tvm_ffi
 
-from tvm import arith, s_tir, tirx
+from tvm import s_tir, sym, tirx
 
 from .common_analysis import (
     SBlockInfo,
@@ -28,7 +28,7 @@ from .common_analysis import (
 )
 
 
-def get_reduction_expr(block: tirx.SBlock) -> tirx.PrimExpr | None:
+def get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     """Extracts the reduction expression from a TIR block.
 
     This function checks whether the given TIR block follows a reduction pattern
@@ -36,12 +36,12 @@ def get_reduction_expr(block: tirx.SBlock) -> tirx.PrimExpr | None:
 
     Parameters:
     ----------
-    block : tirx.SBlock
+    block : s_tir.SBlock
         The TIR block to analyze.
 
     Returns:
     -------
-    Optional[tirx.PrimExpr]
+    Optional[tirx.Expr]
         The reduction expression (`Y`) if detected, otherwise None.
     """
 
@@ -93,7 +93,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
 
     iter_num = len(block_stmt.iter_vars)
     ret = [
-        read.buffer
+        read.source
         for read in block_stmt.reads
         if len(collect_block_iter_vars_used_in_access_region(block_stmt, read.region)) < iter_num
         and len(collect_block_iter_vars_used_in_access_region(block_stmt, read.region)) > 0
@@ -106,8 +106,8 @@ def normalize(
     block_info: SBlockInfo,
 ) -> bool | None:
     """Normalize the main block."""
-    block_stmt: tirx.SBlock = sch.get(block_info.block_rv)
-    access = arith.normalize_to_iter_sum(
+    block_stmt: s_tir.SBlock = sch.get(block_info.block_rv)
+    access = sym.normalize_to_iter_sum(
         detect_dominant_read(block_stmt),
         input_iters={i.var: i.dom for i in block_stmt.iter_vars},
     )
@@ -126,6 +126,10 @@ def normalize(
     ):
         return None
     iter_to_info = {i.var: i for i in block_info.iters}
+    if not access.args or any(
+        split_expr.source.source not in iter_to_info for split_expr in access.args
+    ):
+        return None
     batch_loops, s_loops, r_loops, c_loops = [], [], [], []
     inner_axis = access.args[-1].source.source
     is_inner_reduction = iter_to_info[inner_axis].kind == "R"

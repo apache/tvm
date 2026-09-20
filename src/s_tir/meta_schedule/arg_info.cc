@@ -96,10 +96,9 @@ ffi::Array<ArgInfo> ArgInfo::FromPrimFunc(const tirx::PrimFunc& func) {
   ffi::Array<ArgInfo> result;
   result.reserve(func->params.size());
   for (const tirx::Var& arg : func->params) {
-    if (ffi::Optional<tirx::Buffer> _buffer = func->buffer_map.Get(arg)) {
-      tirx::Buffer buffer = _buffer.value();
-      result.push_back(TensorInfo(/*dtype=*/buffer->dtype,
-                                  /*shape=*/AsVector<PrimExpr, int64_t>(buffer->shape)));
+    if (auto buffer = arg.as<tirx::BufferVar>()) {
+      result.push_back(TensorInfo(/*dtype=*/buffer.value()->dtype->dtype,
+                                  /*shape=*/AsVector<PrimExpr, int64_t>(buffer.value()->shape)));
     } else {
       TVM_FFI_THROW(ValueError) << "Unsupported argument type: " << arg;
     }
@@ -117,11 +116,33 @@ ffi::Array<ArgInfo> ArgInfo::FromEntryFunc(const IRModule& mod, bool remove_prep
 
 /******** TensorInfo ********/
 
-TensorInfo::TensorInfo(runtime::DataType dtype, ffi::Shape shape) {
+TensorInfo::TensorInfo(DLDataType dtype, ffi::Shape shape) {
   ffi::ObjectPtr<TensorInfoNode> n = ffi::make_object<TensorInfoNode>();
   n->dtype = dtype;
   n->shape = shape;
   this->data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  TensorInfoNode::RegisterReflection();
+  refl::TypeAttrDef<TensorInfoNode>().def(refl::type_attr::kRepr,
+                                          [](TensorInfo ti, ffi::Function fn_repr) -> ffi::String {
+                                            std::ostringstream os;
+                                            os << "TensorInfo(\"" << ti->dtype << "\", [";
+                                            bool first = true;
+                                            for (int64_t v : ti->shape) {
+                                              if (!first) os << ", ";
+                                              os << v;
+                                              first = false;
+                                            }
+                                            os << "])";
+                                            return os.str();
+                                          });
+
+  refl::GlobalDef().def(
+      "s_tir.meta_schedule.TensorInfo",
+      [](DLDataType dtype, ffi::Shape shape) -> TensorInfo { return TensorInfo(dtype, shape); });
 }
 
 ffi::ObjectRef TensorInfoNode::AsJSON() const {
@@ -150,30 +171,12 @@ TensorInfo TensorInfo::FromJSON(const ffi::ObjectRef& json_obj) {
   }
   std::vector<int64_t> s;
   std::transform(shape.begin(), shape.end(), std::back_inserter(s), [](int64_t i) { return i; });
-  return TensorInfo(DataType(dtype), ffi::Shape(s.begin(), s.end()));
+  return TensorInfo(dtype, ffi::Shape(s.begin(), s.end()));
 }
 
 /******** Repr ********/
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::TypeAttrDef<TensorInfoNode>().def(refl::type_attr::kRepr,
-                                          [](TensorInfo ti, ffi::Function fn_repr) -> ffi::String {
-                                            std::ostringstream os;
-                                            os << "TensorInfo(\"" << ti->dtype << "\", [";
-                                            bool first = true;
-                                            for (int64_t v : ti->shape) {
-                                              if (!first) os << ", ";
-                                              os << v;
-                                              first = false;
-                                            }
-                                            os << "])";
-                                            return os.str();
-                                          });
-}
-
 /******** FFI ********/
-TVM_FFI_STATIC_INIT_BLOCK() { TensorInfoNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -181,11 +184,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("s_tir.meta_schedule.ArgInfoAsJSON", &ArgInfoNode::AsJSON)
       .def("s_tir.meta_schedule.ArgInfoFromPrimFunc", ArgInfo::FromPrimFunc)
       .def("s_tir.meta_schedule.ArgInfoFromEntryFunc", ArgInfo::FromEntryFunc)
-      .def("s_tir.meta_schedule.ArgInfoFromJSON", ArgInfo::FromJSON)
-      .def("s_tir.meta_schedule.TensorInfo",
-           [](runtime::DataType dtype, ffi::Shape shape) -> TensorInfo {
-             return TensorInfo(dtype, shape);
-           });
+      .def("s_tir.meta_schedule.ArgInfoFromJSON", ArgInfo::FromJSON);
 }
 
 }  // namespace meta_schedule

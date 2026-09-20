@@ -19,14 +19,15 @@
 """Default legalization function for manipulate operators."""
 
 import tvm
-from tvm import relax, s_tir, te, tirx, topi
+from tvm import DataTypeCode, relax, te, tirx, topi
+from tvm.ir import Call
 from tvm.relax.op.base import call_tir
-from tvm.relax.struct_info import TensorStructInfo
+from tvm.relax.type import TensorType
 from tvm.relax.utils import gen_call_tir_inputs
 from tvm.tirx.expr import IntImm
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, ShapeExpr, Tuple, TupleGetItem, Var
+from ...expr import Expr, ShapeExpr, Tuple, TupleGetItem, Var
 from .common import LegalizeFunc, TEFunc, register_legalize
 
 
@@ -34,7 +35,7 @@ def _reshape(
     te_func: TEFunc, primfunc_name: str, is_collapse_sum_like: bool = False
 ) -> LegalizeFunc:
     def reshape_call_te(bb: BlockBuilder, call: Call):
-        tgt_shape = call.args[1].struct_info.shape if is_collapse_sum_like else call.args[1]
+        tgt_shape = call.args[1].ty.shape if is_collapse_sum_like else call.args[1]
         # If target shape is Var, pass its bound expr only when it is ShapeExpr
         if isinstance(tgt_shape, Var):
             tgt_shape = bb.lookup_binding(tgt_shape)
@@ -57,7 +58,7 @@ register_legalize("relax.collapse_sum_to", _reshape(topi.collapse_sum, "collapse
 @register_legalize("relax.concat")
 def _concat(bb: BlockBuilder, call: Call) -> Expr:
     t = call.args[0]
-    n_field = len(t.struct_info.fields)
+    n_field = len(t.ty.fields)
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
         if not isinstance(binding, Tuple | Var):
@@ -76,9 +77,9 @@ def _concat(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.expand_dims")
 def _expand_dims(bb: BlockBuilder, call: Call) -> Expr:
     def te_expand_dims(data, axis):
-        data_relax = relax.Var("data", relax.TensorStructInfo(data.shape))
-        f_infer_sinfo = call.op.get_attr("FInferStructInfo")
-        output_shape = f_infer_sinfo(relax.op.expand_dims(data_relax, axis), bb).shape
+        data_relax = relax.Var("data", relax.TensorType(data.shape))
+        f_infer_ty = call.op.get_attr("FInferType")
+        output_shape = f_infer_ty(relax.op.expand_dims(data_relax, axis), bb).shape
         output_ndim = len(output_shape)
 
         data_dims = []
@@ -98,7 +99,7 @@ def _expand_dims(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.flatten")
 def _flatten(bb: BlockBuilder, call: Call) -> Expr:
-    return bb.call_te(topi.reshape, call.args[0], call.struct_info.shape.values)
+    return bb.call_te(topi.reshape, call.args[0], call.ty.shape.values)
 
 
 @register_legalize("relax.permute_dims")
@@ -123,7 +124,7 @@ def _squeeze(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.stack")
 def _stack(bb: BlockBuilder, call: Call) -> Expr:
     t = call.args[0]
-    n_field = len(t.struct_info.fields)
+    n_field = len(t.ty.fields)
 
     # Follow bindings to find the actual tuple
     while isinstance(t, Var):
@@ -170,6 +171,18 @@ def _flip(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.flip, call.args[0], int(call.attrs.axis))
 
 
+@register_legalize("relax.reverse_sequence")
+def _reverse_sequence(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        topi.reverse_sequence,
+        call.args[0],
+        call.args[1],
+        int(call.attrs.seq_axis),
+        int(call.attrs.batch_axis),
+        primfunc_name_hint="reverse_sequence",
+    )
+
+
 @register_legalize("relax.gather_elements")
 def _gather_elements(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.gather, call.args[0], int(call.attrs.axis), call.args[1])
@@ -189,7 +202,7 @@ def _gather_nd(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.index_tensor")
 def _index_tensor(bb: BlockBuilder, call: Call) -> Expr:
     t = call.args[1]
-    n_field = len(t.struct_info.fields)
+    n_field = len(t.ty.fields)
     fields = [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     return bb.call_te(topi.index_tensor, call.args[0], fields)
 
@@ -219,7 +232,7 @@ def _index_put(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.meshgrid")
 def _meshgrid(bb: BlockBuilder, call: Call) -> Expr:
     t = call.args[0]
-    n_field = len(t.struct_info.fields)
+    n_field = len(t.ty.fields)
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
         if not isinstance(binding, Tuple | Var):
@@ -288,10 +301,9 @@ def _slice_scatter(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.one_hot")
 def _one_hot(bb: BlockBuilder, call: Call) -> Expr:
     indices, on_value, off_value = call.args
-    if not (isinstance(on_value, relax.PrimValue) and isinstance(off_value, relax.PrimValue)):
-        raise ValueError("on_value and off_value must be PrimValue")
-    on_value, off_value = on_value.value, off_value.value
-    if on_value.dtype != off_value.dtype:
+    if not (tvm.ir.is_prim_expr(on_value) and tvm.ir.is_prim_expr(off_value)):
+        raise ValueError("on_value and off_value must be Expr")
+    if on_value.ty != off_value.ty:
         raise ValueError("on_value and off_value must have the same dtype")
     return bb.call_te(
         topi.one_hot,
@@ -300,7 +312,7 @@ def _one_hot(bb: BlockBuilder, call: Call) -> Expr:
         off_value,
         call.attrs.depth,
         call.attrs.axis,
-        on_value.dtype,
+        on_value.ty,
     )
 
 
@@ -309,7 +321,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     def te_layout_transform(data, name):
         """
         Returns a passthrough TE compute with appropriate name. This is needed to generate
-        TIR function, output shape info, TIR vars from gen_call_tir_inputs function.
+        TIR function and output shape info from gen_call_tir_inputs function.
         """
         return te.compute(
             data.shape,
@@ -317,41 +329,26 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
             name=name,
         )
 
-    def set_axis_sep(axis_sep: list, sch: s_tir.schedule, buffer_type: str):
-        sch.set_axis_separator(primfunc_name, (buffer_type, 0), axis_separators=axis_sep)
-
     index_map: tvm.tirx.IndexMap = call.attrs.index_map
     pad_value = call.attrs.pad_value
     if pad_value is not None:
         pad_value = pad_value.value
     else:
-        if "int" in call.args[0].struct_info.dtype:
+        if call.args[0].ty.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT):
             pad_value = 0
         else:
             pad_value = 0.0
 
-    axis_separators: tvm.tirx.IndexMap.AXIS_SEPARATOR = call.attrs.axis_separators
-    input_axis_separators: tvm.tirx.IndexMap.AXIS_SEPARATOR = call.attrs.input_axis_separators
-
-    # Convert to list from array
-    axis_separators = [int(sep) for sep in axis_separators]
     primfunc_name = "te_layout_transform"
-    _, padding_predicate = index_map.non_surjective_inverse(call.args[0].struct_info.shape)
+    _, padding_predicate = index_map.non_surjective_inverse(call.args[0].ty.shape)
     if not isinstance(padding_predicate, tvm.tirx.expr.IntImm):
         primfunc_name += "_with_pad"
-    if len(axis_separators) != 0:
-        primfunc_name += "_axis_separator"
-    tir_func, call_args, _, tir_vars = gen_call_tir_inputs(
-        te_layout_transform, call.args[0], primfunc_name
-    )
-    # Create TIR schedule to apply layout changes with axis separators
+    tir_func, call_args, _ = gen_call_tir_inputs(te_layout_transform, call.args[0], primfunc_name)
+    # Create a TIR schedule to apply the layout change.
     sch = tvm.s_tir.Schedule(tir_func)
     sch.transform_layout(primfunc_name, ("write", 0), index_map, pad_value)
-    set_axis_sep(axis_separators, sch, "write")
-    if input_axis_separators is not None:
-        set_axis_sep(input_axis_separators, sch, "read")
     gvar = bb.add_func(sch.mod["main"], primfunc_name)
-    output_shape = index_map.map_shape(list(call_args[0].struct_info.shape))
-    output_dtype = call_args[0].struct_info.dtype
-    output_sinfo = [TensorStructInfo(output_shape, output_dtype)]
-    return call_tir(gvar, call_args, output_sinfo, tir_vars)
+    output_shape = index_map.map_shape(list(call_args[0].ty.shape))
+    output_dtype = call_args[0].ty.dtype
+    output_ty = [TensorType(output_shape, output_dtype)]
+    return call_tir(gvar, call_args, output_ty)

@@ -16,6 +16,7 @@
 # under the License.
 # ruff: noqa: F841
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -79,7 +80,7 @@ def test_vectorize_vector_scalable_error():
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer((25,), "float32")):
             for j in T.vectorized(T.vscale() * 4):
-                A[j * 4 : j * 4 + 4] = T.Broadcast(T.float32(1), 4)
+                A[T.ramp(j * 4, 1, 4)] = T.Broadcast(T.float32(1), 4)
 
     error_msg = "Creating scalable vectors from existing vectors is not supported."
     with tvm.target.Target(sve_target):
@@ -106,7 +107,7 @@ def test_vectorize_vector_scalable_error3():
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer((25,), "float32")):
             for j in T.vectorized(4):
-                A[j * T.vscale() * 4 : j * T.vscale() * 4 + T.vscale() * 4] = T.Broadcast(
+                A[T.ramp(j * T.vscale() * 4, 1, T.vscale() * 4)] = T.Broadcast(
                     T.float32(1), T.vscale() * 4
                 )
 
@@ -122,7 +123,7 @@ def test_vectorize_vector_scalable_error4():
         @T.prim_func(private=True, s_tir=True)
         def main(A: T.Buffer((25,), "float32")):
             for j in T.vectorized(T.vscale() * 4):
-                A[j * T.vscale() * 4 : j * T.vscale() * 4 + T.vscale() * 4] = T.Broadcast(
+                A[T.ramp(j * T.vscale() * 4, 1, T.vscale() * 4)] = T.Broadcast(
                     T.float32(1), T.vscale() * 4
                 )
 
@@ -193,10 +194,15 @@ def test_vectorize_if_scalable_extent():
                     T.float32(1), extent
                 )
             else:
-                A.vstore(
-                    [T.Ramp(0, 1, T.vscale() * 4)],
-                    T.Broadcast(T.float32(2), T.vscale() * 4),
-                    predicate=T.get_active_lane_mask("uint1xvscalex4", 0, n),
+                T.evaluate(
+                    T.call_intrin(
+                        "void",
+                        "tirx.masked_store",
+                        A,
+                        T.Broadcast(T.float32(2), T.vscale() * 4),
+                        T.Ramp(0, 1, T.vscale() * 4),
+                        T.get_active_lane_mask("uint1xvscalex4", 0, n),
+                    )
                 )
 
     with tvm.target.Target(target):
@@ -496,11 +502,11 @@ def test_illegal_extent():
     class Mod:
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer((25,), "int32")):
-            n = T.Var("n", dtype="int32")
+            n = T.Var("n", ty="int32")
             for j in T.vectorized(n):
                 A[j] = 3
 
-    error_msg = "Failed to vectorize loop with extent n for target None"
+    error_msg = r"Failed to vectorize loop with extent n for target None"
     with pytest.raises(tvm.error.InternalError, match=error_msg):
         tvm.tirx.transform.VectorizeLoop()(Mod)
 
@@ -537,16 +543,24 @@ def test_vectorize_and_predicate_all_buffer_loads_stores():
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0 in range(4):
             load_a = T.meta_var(
-                A.vload(
-                    [T.Ramp(i_0 * 4, 1, 4)],
-                    predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                T.call_intrin(
+                    "float32x4",
+                    "tirx.masked_load",
+                    A,
+                    T.Ramp(i_0 * 4, 1, 4),
+                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
                 )
             )
             add_1 = T.meta_var(load_a + T.Broadcast(T.float32(1), 4))
-            B.vstore(
-                [T.Ramp(i_0 * 4, 1, 4)],
-                add_1,
-                predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+            T.evaluate(
+                T.call_intrin(
+                    "void",
+                    "tirx.masked_store",
+                    B,
+                    add_1,
+                    T.Ramp(i_0 * 4, 1, 4),
+                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                )
             )
 
     mod = tvm.IRModule.from_expr(before)
@@ -601,21 +615,59 @@ def test_vectorize_and_predicate_multiple_access_statements():
         B = T.match_buffer(b, (16,), "float32")
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0 in range(4):
-            A.vstore(
-                [T.Ramp(i_0 * 4, 1, 4)],
-                T.Broadcast(T.float32(2), 4),
-                predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+            T.evaluate(
+                T.call_intrin(
+                    "void",
+                    "tirx.masked_store",
+                    A,
+                    T.Broadcast(T.float32(2), 4),
+                    T.Ramp(i_0 * 4, 1, 4),
+                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                )
             )
-            B.vstore(
-                [T.Ramp(i_0 * 4, 1, 4)],
-                T.Broadcast(T.float32(1), 4),
-                predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+            T.evaluate(
+                T.call_intrin(
+                    "void",
+                    "tirx.masked_store",
+                    B,
+                    T.Broadcast(T.float32(1), 4),
+                    T.Ramp(i_0 * 4, 1, 4),
+                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                )
             )
 
     before_mod = tvm.IRModule.from_expr(before)
     with tvm.transform.PassContext(config={"tirx.enable_buffer_level_predication": True}):
         after = tvm.tirx.transform.VectorizeLoop()(before_mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_vectorize_nested_predicates_preserve_both_masks():
+    rvv_target = tvm.target.Target(
+        {"kind": "llvm", "mtriple": "riscv64-unknown-linux-gnu", "mattr": ["+v"]}
+    )
+
+    @T.prim_func(s_tir=True)
+    def before(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+        for i_0 in T.serial(4):
+            for i_1 in T.vectorized(4):
+                if i_0 * 4 + i_1 < 15:
+                    if i_0 * 4 + i_1 < 14:
+                        A[i_0 * 4 + i_1] = T.float32(1)
+                    B[i_0 * 4 + i_1] = T.float32(2)
+
+    with tvm.target.Target(rvv_target):
+        after = tvm.tirx.transform.VectorizeLoop()(tvm.IRModule.from_expr(before))["before"]
+
+    predicates = []
+
+    def collect_predicates(node):
+        if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.masked_store":
+            predicates.append(node.args[-1])
+
+    tvm_ffi.structural_walk(after.body, (tvm.ir.Call, collect_predicates))
+    assert len(predicates) == 2
+    assert any(isinstance(predicate, tvm.tirx.BitwiseAnd) for predicate in predicates)
 
 
 def test_vectorize_and_predicate_invalid_conditions():
@@ -703,16 +755,24 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_func_attr_target():
         T.func_attr({"global_symbol": "main", "tirx.noalias": True, "target": sve_target})
         for i_0 in range(4):
             load_a = T.meta_var(
-                A.vload(
-                    [T.Ramp(i_0 * 4, 1, 4)],
-                    predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                T.call_intrin(
+                    "float32x4",
+                    "tirx.masked_load",
+                    A,
+                    T.Ramp(i_0 * 4, 1, 4),
+                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
                 )
             )
             add_1 = T.meta_var(load_a + T.Broadcast(T.float32(1), 4))
-            B.vstore(
-                [T.Ramp(i_0 * 4, 1, 4)],
-                add_1,
-                predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+            T.evaluate(
+                T.call_intrin(
+                    "void",
+                    "tirx.masked_store",
+                    B,
+                    add_1,
+                    T.Ramp(i_0 * 4, 1, 4),
+                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                )
             )
 
     mod = tvm.IRModule.from_expr(before)
@@ -740,16 +800,24 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_attr_scope_target()
         with T.attr(sve_target, "target", 0):
             for i_0 in range(4):
                 load_a = T.meta_var(
-                    A.vload(
-                        [T.Ramp(i_0 * 4, 1, 4)],
-                        predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                    T.call_intrin(
+                        "float32x4",
+                        "tirx.masked_load",
+                        A,
+                        T.Ramp(i_0 * 4, 1, 4),
+                        T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
                     )
                 )
                 add_1 = T.meta_var(load_a + T.Broadcast(T.float32(1), 4))
-                B.vstore(
-                    [T.Ramp(i_0 * 4, 1, 4)],
-                    add_1,
-                    predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                T.evaluate(
+                    T.call_intrin(
+                        "void",
+                        "tirx.masked_store",
+                        B,
+                        add_1,
+                        T.Ramp(i_0 * 4, 1, 4),
+                        T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                    )
                 )
 
     mod = tvm.IRModule.from_expr(before)

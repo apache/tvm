@@ -40,50 +40,56 @@ namespace tirx {
  *  bounds.
  * - The data type of the binary and ternary expressions must be consistent with the data types of
  * each of their operands.
- * - The data type of the bounds and binding values of block iter vars must be consistent with the
- * data type of the block iter vars.
  *
  * Usually we enforce the consistency of data types when constructing the IR nodes. However, such
  * inconsistency may happen as a result of IR mutation in some passes. This class can be used as
  * base class of such passes to ensure the consistency of data types.
  */
 class DataTypeLegalizer : public StmtExprMutator {
- protected:
-  Stmt VisitStmt_(const ForNode* op) override;
-  Stmt VisitStmt_(const AttrStmtNode* op) override;
-  Stmt VisitStmt_(const SBlockRealizeNode* op) override;
-  Stmt VisitStmt_(const SBlockNode* op) override;
-  Stmt VisitStmt_(const BindNode* op) override;
-  PrimExpr VisitExpr_(const VarNode* op) override;
-  PrimExpr VisitExpr_(const SelectNode* op) override;
-  PrimExpr VisitExpr_(const RampNode* op) override;
-  PrimExpr VisitExpr_(const AddNode* op) override;
-  PrimExpr VisitExpr_(const SubNode* op) override;
-  PrimExpr VisitExpr_(const MulNode* op) override;
-  PrimExpr VisitExpr_(const DivNode* op) override;
-  PrimExpr VisitExpr_(const ModNode* op) override;
-  PrimExpr VisitExpr_(const FloorDivNode* op) override;
-  PrimExpr VisitExpr_(const FloorModNode* op) override;
-  PrimExpr VisitExpr_(const MinNode* op) override;
-  PrimExpr VisitExpr_(const MaxNode* op) override;
-  PrimExpr VisitExpr_(const EQNode* op) override;
-  PrimExpr VisitExpr_(const NENode* op) override;
-  PrimExpr VisitExpr_(const LTNode* op) override;
-  PrimExpr VisitExpr_(const LENode* op) override;
-  PrimExpr VisitExpr_(const GTNode* op) override;
-  PrimExpr VisitExpr_(const GENode* op) override;
-  PrimExpr VisitExpr_(const CallNode* op) override;
-  PrimExpr VisitExpr_(const CastNode* op) override;
-  PrimExpr VisitExpr_(const LetNode* op) override;
+ public:
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(DataTypeLegalizer, StmtExprMutator)
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
-  using StmtExprMutator::VisitExpr_;
-  using StmtExprMutator::VisitStmt_;
+ protected:
+  explicit DataTypeLegalizer(const VTable* vtable) : StmtExprMutator(vtable) {}
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::RampNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::BroadcastNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::ShuffleNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LShiftNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::RShiftNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::BitwiseAndNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::BitwiseOrNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::BitwiseXorNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::BitwiseNotNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::SubNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::MulNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::DivNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::ModNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::MinNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::MaxNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::NENode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LTNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LENode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::GTNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::GENode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) override;
+
+  /*! \brief Whether to clamp shift amounts after narrowing signed integers. */
+  virtual bool ShouldClampShiftAmounts() const { return false; }
 
   // a map from IterVar before rewrite to that after rewrite,
   // ensures one old IterVar maps to exactly one new IterVar
   std::unordered_map<const IterVarNode*, IterVar> ivmap_;
-  // a map from original vars to ones with new dtype
-  std::unordered_map<const VarNode*, Var> var_remap_;
 };
 
 /*!
@@ -96,36 +102,32 @@ class DataTypeLegalizer : public StmtExprMutator {
  * implement different rewriting rules.
  */
 class IndexDataTypeRewriter : public DataTypeLegalizer {
+ public:
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IndexDataTypeRewriter, DataTypeLegalizer)
+  using DataTypeLegalizer::Mutate;
+  using DataTypeLegalizer::Mutate_;
+
  protected:
+  explicit IndexDataTypeRewriter(const VTable* vtable) : DataTypeLegalizer(vtable) {}
   using Parent = DataTypeLegalizer;
-  using Parent::VisitExpr_;
-  using Parent::VisitStmt_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) override;
+  ffi::Array<PrimExpr> VisitIndices(const ffi::Array<PrimExpr>& indices, InplaceMode inplace_mode);
+  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::NENode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LTNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::LENode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::GTNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::GENode* op, InplaceMode inplace_mode) override;
 
-  Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) override;
-  Buffer VisitBufferUse(const Buffer& buffer) override;
-  Stmt VisitStmt_(const SBlockRealizeNode* op) override;
-  Stmt VisitStmt_(const SBlockNode* op) override;
-  Stmt VisitStmt_(const BufferStoreNode* op) override;
-  Stmt VisitStmt_(const AttrStmtNode* op) override;
-  PrimExpr VisitExpr_(const BufferLoadNode* op) override;
-  ffi::Array<PrimExpr> VisitIndices(ffi::Array<PrimExpr> indices);
-  Stmt VisitStmt_(const IfThenElseNode* op) override;
-  Stmt VisitStmt_(const BindNode* op) override;
-  PrimExpr VisitExpr_(const EQNode* op) override;
-  PrimExpr VisitExpr_(const NENode* op) override;
-  PrimExpr VisitExpr_(const LTNode* op) override;
-  PrimExpr VisitExpr_(const LENode* op) override;
-  PrimExpr VisitExpr_(const GTNode* op) override;
-  PrimExpr VisitExpr_(const GENode* op) override;
-  PrimExpr VisitExpr_(const CallNode* op) override;
-  PrimExpr VisitExpr_(const SelectNode* op) override;
+  UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override;
 
-  Stmt VisitStmt_(const ForNode* op) override;
-
-  ffi::Map<ffi::String, ffi::Any> VisitBlockAnnotations(
-      const ffi::Map<ffi::String, ffi::Any>& annotations);
-  BufferRegion VisitBufferRegion(const BufferRegion& region);
-  IterVar VisitIterVar(const IterVar& iter_var);
   // indicator of index expr to rewrite
   bool is_enabled_{false};
   // indicator of condition
@@ -141,21 +143,23 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
  */
 class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
  public:
-  explicit IndexDataTypeNormalizer(DataType target_data_type);
+  using IndexDataTypeRewriter::Mutate;
+  using IndexDataTypeRewriter::Mutate_;
+  explicit IndexDataTypeNormalizer(PrimType target_data_type);
   PrimFunc Rewrite(PrimFunc func);
 
  protected:
+  IndexDataTypeNormalizer(PrimType target_data_type, const VTable* vtable);
   using Parent = IndexDataTypeRewriter;
-  using Parent::VisitExpr_;
-  using Parent::VisitStmt_;
-  PrimExpr VisitExpr_(const IntImmNode* op) override;
-  PrimExpr VisitExpr_(const VarNode* op) override;
-  PrimExpr VisitExpr_(const CastNode* op) override;
+
+  UnchangedOr<PrimExpr> Mutate_(const IntImmNode* op, InplaceMode inplace_mode) override;
+
+  UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* op, InplaceMode inplace_mode) override;
 
   /*! \brief Specifies which data type we can rewrite */
-  virtual bool CanRewriteDType(DataType dtype) const;
+  virtual bool CanRewriteDType(PrimType dtype) const;
 
-  DataType target_data_type_ = DataType::Int(64);
+  PrimType target_data_type_ = PrimType::Int(64);
 };
 
 }  // namespace tirx

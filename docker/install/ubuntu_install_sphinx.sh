@@ -29,5 +29,5 @@ uv pip install \
     sphinx==8.1.3 \
     sphinx_autodoc_annotation~=1.0 \
     sphinx-gallery==0.20.0 \
-    sphinx_rtd_theme==3.1.0 \
-    git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@99c6947b05b1ae26ff5003277fb7cff57ce78353
+    sphinx-book-theme==1.1.4 \
+    pydata-sphinx-theme==0.15.4

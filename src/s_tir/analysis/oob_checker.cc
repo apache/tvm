@@ -24,7 +24,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/transform.h>
 
-#include "../../arith/ir_visitor_with_analyzer.h"
+#include "../../s_tir/ir/ir_visitor_with_analyzer.h"
 #include "../schedule/error.h"
 
 namespace tvm {
@@ -32,14 +32,14 @@ namespace s_tir {
 using namespace tvm::tirx;
 namespace transform {
 struct OOBLocation {
-  Buffer buf;
+  BufferVar buf;
   size_t dimension;
   ffi::ObjectRef index;
-  arith::IntSet index_bounds;
-  arith::IntSet shape_bounds;
+  sym::IntSet index_bounds;
+  sym::IntSet shape_bounds;
 };
 
-class OOBError : public s_tir::ScheduleError {
+class OOBError : public s_tir::ScheduleErrorContextObj {
  public:
   OOBError(IRModule mod, std::vector<OOBLocation> locations) : mod_(mod), locations_(locations) {}
   ffi::String FastErrorString() const final { return "Out of bound memory access"; }
@@ -47,7 +47,7 @@ class OOBError : public s_tir::ScheduleError {
   ffi::String DetailRenderTemplate() const final {
     std::stringstream s;
     for (const auto& oob : locations_) {
-      s << "Out of bounds memory access on buffer " << oob.buf->name << " dimension "
+      s << "Out of bounds memory access on buffer " << oob.buf.name() << " dimension "
         << oob.dimension << ".";
       s << " index " << oob.index << " with bounds [" << oob.index_bounds.min() << ", "
         << oob.index_bounds.max() << "] is outside the range [0, " << oob.shape_bounds.min()
@@ -69,28 +69,28 @@ class OOBError : public s_tir::ScheduleError {
   IRModule mod_;
   std::vector<OOBLocation> locations_;
 };
-class OOBCheckerVisitor final : public arith::IRVisitorWithAnalyzer {
-  using IRVisitorWithAnalyzer::VisitExpr_;
-  using IRVisitorWithAnalyzer::VisitStmt_;
-
+class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
  public:
-  void VisitStmt_(const BufferStoreNode* node) final {
+  using s_tir::IRVisitorWithAnalyzer::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* node) final {
     for (size_t i = 0; i < node->buffer->shape.size(); i++) {
-      CheckBounds(node, i);
+      CheckBounds(node, node->buffer, i);
     }
-    IRVisitorWithAnalyzer::VisitStmt_(node);
+    return IRVisitorWithAnalyzer::Visit_(node);
   }
-  void VisitExpr_(const BufferLoadNode* node) final {
-    for (size_t i = 0; i < node->buffer->shape.size(); i++) {
-      CheckBounds(node, i);
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* node) final {
+    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    for (size_t i = 0; i < buffer->shape.size(); i++) {
+      CheckBounds(node, buffer, i);
     }
-    IRVisitorWithAnalyzer::VisitExpr_(node);
+    return IRVisitorWithAnalyzer::Visit_(node);
   }
 
   template <class T>
-  void CheckBounds(const T* node, size_t i) {
+  void CheckBounds(const T* node, const BufferVar& buffer, size_t i) {
     auto ind_bounds = analyzer_->int_set(node->indices[i]);
-    auto shape_bounds = analyzer_->int_set(node->buffer->shape[i]);
+    auto shape_bounds = analyzer_->int_set(buffer->shape[i]);
     // We would expect that
     // `analyzer_.CanProve(node->indices[i] < 0 || node->indices[i] >= node->buffer->shape[i])`
     // would be the way to check if any out of bounds access occurs here, but `CanProve` checks if
@@ -104,7 +104,7 @@ class OOBCheckerVisitor final : public arith::IRVisitorWithAnalyzer {
     // us to the following check: are the bounds of the index outside the bounds of the shape.
     if (analyzer_->CanProve(ind_bounds.max() >= shape_bounds.min()) ||
         analyzer_->CanProve(ind_bounds.min() < 0)) {
-      errors.push_back({node->buffer, i, node->indices[i], ind_bounds, shape_bounds});
+      errors.push_back({buffer, i, node->indices[i], ind_bounds, shape_bounds});
     }
   }
 
@@ -113,13 +113,13 @@ class OOBCheckerVisitor final : public arith::IRVisitorWithAnalyzer {
 
 tvm::transform::Pass OOBChecker() {
   auto pass_func = [=](tirx::PrimFunc func, IRModule mod, tvm::transform::PassContext ctx) {
-    OOBCheckerVisitor checker;
-    checker(func->body);
-    if (checker.errors.size() > 0) {
+    auto checker = ffi::make_object<OOBCheckerVisitor>();
+    checker->Visit(func->body);
+    if (checker->errors.size() > 0) {
       // mod doesn't contain our function, so we construct a new mod with out function
       IRModule func_mod({{GlobalVar("main"), func}});
       TVM_FFI_THROW(ScheduleError)
-          << OOBError(func_mod, checker.errors).RenderReport("Out of bounds checker");
+          << OOBError(func_mod, checker->errors).RenderReport("Out of bounds checker");
     }
     return func;
   };

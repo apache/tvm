@@ -24,6 +24,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx.layout import S, TileLayout
 
 
@@ -65,12 +66,13 @@ from tvm.tirx.layout import S, TileLayout
         ),
     ],
 )
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize(
     "dtype", ["int8", "float8_e4m3fn", "float8_e5m2", "float16", "bfloat16", "float32"]
 )
 def test_copy_g2s_s2g_cta_vec_load(task, dtype):
     g_shape, s_shape, g_st, g_extent, thread_cnt, layoutA, layoutB, layoutS = task
-    dev = tvm.cuda(0)
 
     r_smem = list(slice(None) for i in range(len(s_shape)))
     r_gmem = list(slice(g_st[i], g_st[i] + g_extent[i]) for i in range(len(g_shape)))
@@ -87,8 +89,8 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
         A_smem = T.alloc_buffer(s_shape, dtype, scope="shared", layout=layoutS)
 
         Tx.cta.copy_async(A_smem[tuple(r_smem)], A[tuple(r_gmem)], dispatch="ldgsts")
-        T.ptx.cp_async.commit_group()
-        T.ptx.cp_async.wait_group()
+        T.ptx.cp.async_.commit_group()
+        T.ptx.cp.async_.wait_group(0)
         T.cuda.cta_sync()
         Tx.cta.copy(B[tuple(r_gmem)], A_smem[tuple(r_smem)])
         # fmt: on
@@ -104,13 +106,50 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
         A_np = np.random.rand(*g_shape).astype(np_dtype)
         B_np = np.zeros(g_shape, dtype=np_dtype)
 
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
-        mod(A, B)
-
         B_ref = B_np.copy()
         B_ref[tuple(r_gmem)] = A_np[tuple(r_gmem)]
-        np.testing.assert_allclose(B_ref, B.numpy())
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            np.testing.assert_allclose(B_ref, B.numpy())
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+def test_copy_ldgsts_predicate_zero_fill_codegen():
+    """ldgsts direct mode forwards predicate/zero-fill/prefetch without partition temps."""
+
+    @T.prim_func
+    def copy_async(A_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, (32, 16), "uint8", layout=TileLayout(S[32, 16]))
+
+        T.device_entry()
+        tid = T.thread_id([32])
+        A_smem = T.alloc_buffer((32, 16), "uint8", scope="shared", layout=TileLayout(S[32, 16]))
+
+        Tx.copy_async(
+            A_smem[tid, :],
+            A[tid, :],
+            dispatch="ldgsts",
+            direct=True,
+            prefetch_size=128,
+            predicate=tid < 16,
+            fill_mode="zero",
+        )
+
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    with target:
+        mod = tvm.compile(tvm.IRModule({"main": copy_async}), target=target, tir_pipeline="tirx")
+    src = mod.mod.imports[0].inspect_source()
+    assert "cp.async.cg.shared.global.L2::128B" in src
+    # the src-size arity: four operands, the last the zero-fill boundary
+    assert "cp.async.cg.shared.global.L2::128B [%0], [%1], 16, %2;" in src
+    assert "condval" in src
+    assert "s_ptr_ptr" not in src
+    assert "g_ptr_ptr" not in src
 
 
 if __name__ == "__main__":

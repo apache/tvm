@@ -27,7 +27,7 @@
 #ifndef TVM_TIR_TRANSFORM_REPLACE_SELECTED_EXPR_H_
 #define TVM_TIR_TRANSFORM_REPLACE_SELECTED_EXPR_H_
 
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>  // For the class StmtExprMutator
@@ -42,6 +42,8 @@ namespace tirx {
  */
 class ReplaceSelectedExpr : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   // Toplevel (static) functions
   static PrimExpr ReplaceSelectedExprInExpr(
       const PrimExpr& expr, std::function<bool(const PrimExpr&)> predicate_selector,
@@ -50,14 +52,12 @@ class ReplaceSelectedExpr : public StmtExprMutator {
                                         std::function<bool(const PrimExpr&)> predicate_selector,
                                         const PrimExpr& new_expr,
                                         std::function<bool(const PrimExpr&)> can_replace_inside);
-
- protected:
-  // Constructor
   ReplaceSelectedExpr(std::function<bool(const PrimExpr&)> predicate_selector,
                       const PrimExpr& new_expr,
                       std::function<bool(const PrimExpr&)> can_replace_inside);
 
-  PrimExpr VisitExpr(const PrimExpr& expr) override;
+ protected:
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override;
 
  private:
   // The predicate used for selecting what will be replaced

@@ -23,13 +23,19 @@ Installing TVM
 .. toctree::
    :maxdepth: 1
 
+   pypi
    from_source
    docker
 
-Visit the :ref:`install TVM from source <install-from-source>` page to install TVM from the source code. Installing
-from source gives you the maximum flexibility to configure the build effectively from the official source releases.
-If you are interested in deploying to mobile or embedded devices, you do not need to
-install the entire TVM stack on your device. Instead, you only need the runtime.
+For most Python users, the quickest way to get started is to
+:ref:`install the Apache TVM wheel from PyPI <install-from-pypi>`.
+
+Visit the :ref:`install TVM from source <install-from-source>` page to install
+TVM from the source code. Installing from source gives you the maximum
+flexibility to configure the build effectively from the official source
+releases. If you are interested in deploying to mobile or embedded devices,
+you do not need to install the entire TVM stack on your device. Instead, you
+only need the runtime.
 
 If you would like to quickly try out TVM or run some demo and tutorials, you
 can :ref:`install from Docker <docker-images>`.

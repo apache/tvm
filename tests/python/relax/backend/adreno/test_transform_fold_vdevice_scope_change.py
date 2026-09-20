@@ -134,14 +134,14 @@ def test_maxpool2d_scope_folding():
                 lv = R.call_tir(
                     cls.te_layout_transform,
                     (x,),
-                    out_sinfo=R.Tensor(
+                    out_ty=R.Tensor(
                         (2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
                     ),
                 )
                 lv2 = R.call_tir(
                     cls.max_pool2d_opencl,
                     (lv,),
-                    out_sinfo=R.Tensor(
+                    out_ty=R.Tensor(
                         (2, 1, 13, 13, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
                     ),
                 )
@@ -151,7 +151,7 @@ def test_maxpool2d_scope_folding():
                 gv2 = R.call_tir(
                     cls.te_layout_transform2,
                     (lv5,),
-                    out_sinfo=R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"),
+                    out_ty=R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"),
                 )
                 R.output(gv2)
             return gv2
@@ -259,21 +259,19 @@ def test_maxpool2d_scope_folding():
                 lv = R.call_tir(
                     cls.te_layout_transform,
                     (x,),
-                    out_sinfo=R.Tensor(
+                    out_ty=R.Tensor(
                         (2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
                     ),
                 )
                 lv5 = R.call_tir(
                     cls.max_pool2d_opencl,
                     (lv,),
-                    out_sinfo=R.Tensor(
-                        (2, 1, 13, 13, 4), dtype="float32", vdevice="opencl:1:global"
-                    ),
+                    out_ty=R.Tensor((2, 1, 13, 13, 4), dtype="float32", vdevice="opencl:1:global"),
                 )
                 gv2 = R.call_tir(
                     cls.te_layout_transform2,
                     (lv5,),
-                    out_sinfo=R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"),
+                    out_ty=R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"),
                 )
                 R.output(gv2)
             return gv2

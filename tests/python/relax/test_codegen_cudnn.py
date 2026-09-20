@@ -20,6 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.testing import env
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
@@ -38,7 +39,10 @@ def reset_seed():
     np.random.seed(0)
 
 
-pytestmark = tvm.testing.requires_cudnn.marks()
+pytestmark = [
+    pytest.mark.gpu,
+    pytest.mark.skipif(not env.has_cudnn(), reason="need cudnn"),
+]
 
 
 _activation_table = {
@@ -107,7 +111,6 @@ def get_result_with_relax_cudnn_offload(mod, np_inputs, cuda_graph=False):
 
 
 def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
-    dev = tvm.device(target, 0)
     with tvm.transform.PassContext(
         config={
             "relax.backend.use_cuda_graph": cuda_graph,
@@ -115,16 +118,23 @@ def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
         }
     ):
         ex = tvm.compile(mod, target)
-    vm = relax.VirtualMachine(ex, dev)
-    f = vm["main"]
-    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
 
-    # For cuda graph, run the compiled function twice to make sure that we can launch the cached
-    # graph on the second run.
-    if cuda_graph:
-        f(*inputs)
+    def run_and_check():
+        dev = tvm.device_from_target(target, 0)
+        vm = relax.VirtualMachine(ex, dev)
+        f = vm["main"]
+        inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
 
-    return f(*inputs).numpy()
+        # For cuda graph, run the compiled function twice to make sure that we can launch the
+        # cached graph on the second run.
+        if cuda_graph:
+            f(*inputs)
+
+        return f(*inputs).numpy()
+
+    if tvm.target.Target(target).kind.name == "cuda":
+        return tvm.testing.run_with_gpu_lock(run_and_check)
+    return run_and_check()
 
 
 @pytest.mark.parametrize(
@@ -287,6 +297,37 @@ def get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, qk_scale, dtype
 )
 def stacked_attention_size(request):
     return request.param
+
+
+def _is_offloaded_to_cudnn(mod):
+    return any("cudnn" in gv.name_hint for gv, _ in mod.functions_items())
+
+
+def _get_stacked_attention_module(dtype, causal_mask=None):
+    b, s, n, h, h_v = 4, 8, 32, 64, 64
+    qkv = np.random.randn(b, s, n * h * 2 + n * h_v).astype(dtype)
+    return get_relax_stacked_attention_module(
+        qkv, b, s, n, h, h_v, "split", causal_mask=causal_mask
+    )
+
+
+def test_stacked_attention_partition():
+    mod = _get_stacked_attention_module("float16")
+    assert _is_offloaded_to_cudnn(partition_for_cudnn(mod))
+
+
+@pytest.mark.parametrize("causal_mask", ["TopLeft", "BottomRight"])
+def test_stacked_attention_causal_not_partitioned(causal_mask):
+    # The cuDNN runtime builds an unmasked SDPA graph, offloading here would silently drop
+    # the causal mask.
+    mod = _get_stacked_attention_module("float16", causal_mask=causal_mask)
+    assert not _is_offloaded_to_cudnn(partition_for_cudnn(mod))
+
+
+def test_stacked_attention_fp32_not_partitioned():
+    # attention.cc only builds a half-precision graph and ICHECKs at module init otherwise.
+    mod = _get_stacked_attention_module("float32")
+    assert not _is_offloaded_to_cudnn(partition_for_cudnn(mod))
 
 
 @pytest.mark.skip(reason="require cudnn frontend")

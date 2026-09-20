@@ -20,9 +20,20 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
+def _lower_blocks(value):
+    """Use the same block-to-statement boundary as the S-TIR pipeline."""
+    is_func = isinstance(value, tvm.tirx.PrimFunc)
+    mod = tvm.IRModule.from_expr(value) if is_func else value
+    mod = tvm.s_tir.transform.ConvertBlocksToOpaque()(mod)
+    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
+    return mod["main"] if is_func else mod
+
+
 def _transform():
     return tvm.transform.Sequential(
         [
+            tvm.s_tir.transform.ConvertBlocksToOpaque(),
+            tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.tirx.transform.FlattenBuffer(),
             tvm.tirx.transform.StmtSimplify(),
         ]
@@ -57,7 +68,7 @@ def test_elementwise():
                     C_1[((i * 16) + j)] = B_new[j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_elementwise_without_decl_buffer():
@@ -76,7 +87,7 @@ def test_elementwise_without_decl_buffer():
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             for i in T.serial(0, 16):
                 B_new_buf = T.alloc_buffer((1, 16), "float32")
-                B_new = T.Buffer([1, 16], "float32", data=B_new_buf.data)
+                B_new = T.decl_buffer([1, 16], "float32", data=B_new_buf.data)
                 for j in T.serial(0, 16):
                     B_new[0, j] = A[i, j] + 1.0
                 for j in T.serial(0, 16):
@@ -90,14 +101,14 @@ def test_elementwise_without_decl_buffer():
             C = T.decl_buffer(256, dtype="float32", data=input_C.data)
             for i in T.serial(0, 16):
                 B_new_buf = T.alloc_buffer((16,), "float32")
-                B_new = T.Buffer(16, "float32", data=B_new_buf.data)
+                B_new = T.decl_buffer(16, "float32", data=B_new_buf.data)
                 for j in T.serial(0, 16):
                     B_new[j] = A[((i * 16) + j)] + 1.0
                 for j in T.serial(0, 16):
                     C[((i * 16) + j)] = B_new[j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_gpu():
@@ -141,7 +152,7 @@ def test_gpu():
                 C_1[i0 * 64 + i1 * 32 + i2 * 16 + j] = B[j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_symbolic():
@@ -178,7 +189,7 @@ def test_symbolic():
                     C_1[i * m + j] = B[j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_fused_symbolic():
@@ -209,7 +220,7 @@ def test_fused_symbolic():
                 B[i] = A[i]
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_fused_symbolic_with_predicate():
@@ -247,7 +258,7 @@ def test_fused_symbolic_with_predicate():
                     B[bx * 64 + tx] = A[bx * 64 + tx]
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_multi_alloc():
@@ -279,7 +290,7 @@ def test_multi_alloc():
                 D_1[i * 32 + j] = C[i * 32 + j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_strided():
@@ -314,11 +325,11 @@ def test_strided():
                         C_1[i0 * 64 + i1 * 16 + j] = B_1[i1 * 17 + j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_boolean():
-    """Boolean buffers should be replaced by a backing int8 array"""
+    """Boolean buffers are flattened but kept as bool (no int8 backing array)"""
 
     @I.ir_module(s_tir=True)
     class Before:
@@ -331,18 +342,18 @@ def test_boolean():
     class Expected:
         @T.prim_func(s_tir=True)
         def main(input_A: T.Buffer(10, "bool"), input_B: T.Buffer(10, "bool")) -> None:
-            A = T.decl_buffer(10, dtype="int8", data=input_A.data)
-            B = T.decl_buffer(10, dtype="int8", data=input_B.data)
+            A = T.decl_buffer(10, dtype="bool", data=input_A.data)
+            B = T.decl_buffer(10, dtype="bool", data=input_B.data)
             # body
             for i0 in T.serial(10):
-                B[i0] = T.cast(T.cast(A[i0], "bool"), "int8")
+                B[i0] = A[i0]
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
 def test_flatten_inside_block():
-    """Flattening access inside a block flattens the accessed region."""
+    """Flatten allocations and accesses after lowering a schedulable block."""
 
     @I.ir_module(s_tir=True)
     class Before:
@@ -365,75 +376,27 @@ def test_flatten_inside_block():
                     T.evaluate(A[i * 32 + j])
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, _lower_blocks(Expected))
 
 
-def test_no_change_to_2d_physical_buffer():
-    """Flattening preserves axis separators."""
+def test_build_with_optional_pragma_unroll_explicit():
+    def check(value):
+        @I.ir_module(s_tir=True)
+        class Module:
+            @T.prim_func(s_tir=True)
+            def main(A: T.Buffer((4, 5, 6), "int16"), B: T.Buffer((4, 5, 6), "int16")):
+                for ax0 in T.serial(4, annotations={"pragma_unroll_explicit": value}):
+                    for ax1, ax2 in T.grid(5, 6):
+                        with T.sblock("copy"):
+                            v0, v1, v2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                            T.reads(A[v0, v1, v2])
+                            T.writes(B[v0, v1, v2])
+                            B[v0, v1, v2] = A[v0, v1, v2]
 
-    @I.ir_module(s_tir=True)
-    class Before:
-        @T.prim_func(s_tir=True)
-        def main():
-            A = T.sblock_alloc_buffer([32, 32], axis_separators=[1])
-            for i, j in T.grid(32, 32):
-                T.evaluate(A[i, j])
+        tvm.build(Module, target="llvm")
 
-    Expected = Before
-
-    After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-
-
-def test_flatten_alloc_buffer_with_axis_separators():
-    """Flattening preserves axis separators"""
-
-    @I.ir_module(s_tir=True)
-    class Before:
-        @T.prim_func(s_tir=True)
-        def main():
-            A = T.sblock_alloc_buffer([2, 3, 5, 7, 11, 13], axis_separators=[3])
-            for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
-                T.evaluate(A[i0, i1, i2, i3, i4, i5])
-
-    @I.ir_module(s_tir=True)
-    class Expected:
-        @T.prim_func(s_tir=True)
-        def main():
-            A = T.sblock_alloc_buffer([30, 1001], axis_separators=[1])
-            for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
-                T.evaluate(A[i0 * 15 + i1 * 5 + i2, i3 * 143 + i4 * 13 + i5])
-
-    After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-
-
-def test_flatten_decl_buffer_with_axis_separators():
-    """Flattening preserves axis separators
-
-    Like test_flatten_alloc_buffer_with_axis_separators, but the allocations
-    is done using Allocate/DeclBuffer, rather than through
-    BlockNode::alloc_buffers.
-    """
-
-    @I.ir_module(s_tir=True)
-    class Before:
-        @T.prim_func(s_tir=True)
-        def main():
-            A = T.decl_buffer([2, 3, 5, 7, 11, 13], axis_separators=[3])
-            for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
-                T.evaluate(A[i0, i1, i2, i3, i4, i5])
-
-    @I.ir_module(s_tir=True)
-    class Expected:
-        @T.prim_func(s_tir=True)
-        def main():
-            A = T.decl_buffer([30, 1001], axis_separators=[1])
-            for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
-                T.evaluate(A[i0 * 15 + i1 * 5 + i2, i3 * 143 + i4 * 13 + i5])
-
-    After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    for value in [None, True, False]:
+        check(value)
 
 
 if __name__ == "__main__":

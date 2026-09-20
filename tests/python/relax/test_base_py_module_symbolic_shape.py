@@ -107,9 +107,9 @@ def test_base_py_module_tir_symbolic_end_to_end():
     b = np.random.randn(5).astype("float32")
 
     n = tirx.Var("n", "int64")
-    out_sinfo = relax.TensorStructInfo((n,), "float32")
+    out_ty = relax.TensorType((n,), "float32")
 
-    out = bpm.call_tir("add_tir", [a, b], out_sinfo)
+    out = bpm.call_tir("add_tir", [a, b], out_ty)
     out_np = out if isinstance(out, np.ndarray) else out.numpy()
     tvm.testing.assert_allclose(out_np, a + b, rtol=1e-6, atol=1e-6)
 
@@ -232,8 +232,8 @@ def test_base_py_module_multiple_symbolic_dims():
 
     # Test TIR function with multiple symbolic dims
     # Use concrete shapes for TIR function to avoid constraint issues
-    out_sinfo = relax.TensorStructInfo((2, 4), "float32")
-    out_tir = bpm.call_tir("matmul_tir", [a, b], out_sinfo)
+    out_ty = relax.TensorType((2, 4), "float32")
+    out_tir = bpm.call_tir("matmul_tir", [a, b], out_ty)
     out_tir_np = out_tir if isinstance(out_tir, np.ndarray) else out_tir.numpy()
     tvm.testing.assert_allclose(out_tir_np, expected, rtol=1e-6, atol=1e-6)
 
@@ -257,9 +257,9 @@ def test_base_py_module_call_dps_packed_symbolic():
         b = np.random.randn(5).astype("float32")
 
         n = tirx.Var("n", "int64")
-        out_sinfo = relax.TensorStructInfo((n,), "float32")
+        out_ty = relax.TensorType((n,), "float32")
 
-        out = bpm.call_dps_packed("test_add_packed", [a, b], out_sinfo)
+        out = bpm.call_dps_packed("test_add_packed", [a, b], out_ty)
         out_np = out if isinstance(out, np.ndarray) else out.numpy()
         tvm.testing.assert_allclose(out_np, a + b, rtol=1e-6, atol=1e-6)
 
@@ -285,9 +285,9 @@ def test_base_py_module_call_dps_packed_multiple_args():
         a = np.random.randn(2, 3).astype("float32")
         b = np.random.randn(3, 4).astype("float32")
 
-        out_sinfo = relax.TensorStructInfo((2, 4), "float32")
+        out_ty = relax.TensorType((2, 4), "float32")
 
-        out = bpm.call_dps_packed("test_matmul_packed", [a, b], out_sinfo)
+        out = bpm.call_dps_packed("test_matmul_packed", [a, b], out_ty)
         out_np = out if isinstance(out, np.ndarray) else out.numpy()
         expected = np.matmul(a, b)
         tvm.testing.assert_allclose(out_np, expected, rtol=1e-6, atol=1e-6)
@@ -318,9 +318,9 @@ def test_base_py_module_call_dps_packed_scalar_args():
         scalar = 2.5
 
         n = tirx.Var("n", "int64")
-        out_sinfo = relax.TensorStructInfo((n,), "float32")
+        out_ty = relax.TensorType((n,), "float32")
 
-        out = bpm.call_dps_packed("test_add_scalar_packed", [x, scalar], out_sinfo)
+        out = bpm.call_dps_packed("test_add_scalar_packed", [x, scalar], out_ty)
         out_np = out if isinstance(out, np.ndarray) else out.numpy()
         expected = x + scalar
         tvm.testing.assert_allclose(out_np, expected, rtol=1e-6, atol=1e-6)

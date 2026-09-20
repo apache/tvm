@@ -26,12 +26,13 @@
 #ifndef TVM_TIRX_STMT_FUNCTOR_H_
 #define TVM_TIRX_STMT_FUNCTOR_H_
 
-#include <tvm/ir/node_functor.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/expr_functor.h>
+#include <tvm/ir/object_functor.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/tirx_stmt.h>
+#include <tvm/tirx/tile_primitive.h>
 
 #include <unordered_map>
 #include <utility>
@@ -39,508 +40,261 @@
 namespace tvm {
 namespace tirx {
 /*!
- * \brief Same as ExprFunctor except it is applied on statements
+ * \brief Type-dispatched statement functor with a caller-selected signature.
+ *
+ * Override Dispatch_ for a node type or DispatchDefault_ for default behavior.
+ * This functor does not traverse children automatically. Dispatch may use a
+ * registered ancestor. Derived extensions can initialize a fresh inherited
+ * table with InitVTable and register additional hooks with SetDispatch.
  * \tparam FType The function signature.
  * \sa ExprFunctor
  */
 template <typename FType>
 class StmtFunctor;
 
-#define STMT_FUNCTOR_DEFAULT                                   \
-  {                                                            \
-    return VisitStmtDefault_(op, std::forward<Args>(args)...); \
-  }
-
-#define IR_STMT_FUNCTOR_DISPATCH(OP)                                                        \
-  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
-    return self->VisitStmt_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...);  \
-  });
-
 template <typename R, typename... Args>
-class StmtFunctor<R(const Stmt& n, Args... args)> {
+class StmtFunctor<R(const Stmt&, Args...)> {
  private:
-  using TSelf = StmtFunctor<R(const Stmt& n, Args... args)>;
-  using FType = NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args... args)>;
+  using TSelf = StmtFunctor<R(const Stmt&, Args...)>;
 
  public:
-  /*! \brief the result type of this functor */
+  /*! \brief The result type of this functor. */
   using result_type = R;
-  /*! \brief virtual destructor */
-  virtual ~StmtFunctor() {}
-  /*!
-   * \brief Same as call.
-   * \param n The stmt node.
-   * \param args Additional arguments.
-   * \return The result of the call
-   */
-  R operator()(const Stmt& n, Args... args) { return VisitStmt(n, std::forward<Args>(args)...); }
-  /*!
-   * \brief The functor call.
-   * \param n The stmt node.
-   * \param args Additional arguments.
-   * \return The result of the call
-   */
-  virtual R VisitStmt(const Stmt& n, Args... args) {
-    static FType vtable = InitVTable();
-    return vtable(n, this, std::forward<Args>(args)...);
+  /*! \brief Construct a functor with the TIRx statement hooks. */
+  StmtFunctor() : StmtFunctor(GlobalVTable()) {}
+  /*! \brief Destroy through the statement functor base. */
+  virtual ~StmtFunctor() = default;
+  /*! \brief Dispatch a statement, forwarding additional arguments to its hook. */
+  TVM_FFI_INLINE R operator()(const Stmt& node, Args... args) {
+    return Dispatch(node, std::forward<Args>(args)...);
   }
-  // Functions that can be overriden by subclass
-  virtual R VisitStmt_(const BindNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const AttrStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const IfThenElseNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const ForNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const WhileNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const BreakNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const ContinueNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const AllocBufferNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const DeclBufferNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const BufferStoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const AssertStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const SeqStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const EvaluateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const SBlockNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const SBlockRealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const ScopeIdDefStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const tirx::TilePrimitiveCallNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmtDefault_(const ffi::Object* op, Args...) {
-    TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
+  /*! \brief Dispatch to a node hook, including registered ancestor hooks. */
+  TVM_FFI_INLINE virtual R Dispatch(const Stmt& node, Args... args) {
+    TVM_FFI_ICHECK(node.defined()) << "Cannot dispatch a null statement";
+    return (*vtable_)(node, this, std::forward<Args>(args)...);
+  }
+
+  virtual R Dispatch_(const BindNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  virtual R Dispatch_(const AttrStmtNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  virtual R Dispatch_(const IfThenElseNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  virtual R Dispatch_(const ForNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  virtual R Dispatch_(const WhileNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  virtual R Dispatch_(const ReturnNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  virtual R Dispatch_(const BreakNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  virtual R Dispatch_(const ContinueNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  virtual R Dispatch_(const AllocBufferNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  virtual R Dispatch_(const DeclBufferNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  virtual R Dispatch_(const BufferStoreNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  virtual R Dispatch_(const AssertStmtNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  virtual R Dispatch_(const SeqStmtNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  virtual R Dispatch_(const EvaluateNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  virtual R Dispatch_(const ScopeIdDefStmtNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  virtual R Dispatch_(const tirx::TilePrimitiveCallNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
+  /*! \brief Default behavior for statement hooks not overridden by a subclass. */
+  virtual R DispatchDefault_(const ffi::Object* node, Args...) {
+    TVM_FFI_THROW(InternalError) << "Do not have a default for " << node->GetTypeKey();
     TVM_FFI_UNREACHABLE();
   }
 
+ protected:
+  /*! \brief Dispatch table shared by this signature and its subclasses. */
+  using VTable = ObjectFunctor<R(const ffi::ObjectRef&, TSelf*, Args...)>;
+  /*! \brief Construct with a finalized table that outlives the functor. */
+  explicit StmtFunctor(const VTable* vtable) : vtable_(vtable) {}
+  /*! \brief Register statement hooks in a fresh mutable table. */
+  static void InitVTable(VTable* vtable) {
+    vtable->template SetDispatch<StmtNode>(
+        [](const ffi::ObjectRef& node, TSelf* self, Args... args) -> R {
+          return self->DispatchDefault_(node.get(), std::forward<Args>(args)...);
+        });
+    SetDispatch<TSelf, BindNode>(vtable);
+    SetDispatch<TSelf, AttrStmtNode>(vtable);
+    SetDispatch<TSelf, IfThenElseNode>(vtable);
+    SetDispatch<TSelf, ForNode>(vtable);
+    SetDispatch<TSelf, WhileNode>(vtable);
+    SetDispatch<TSelf, ReturnNode>(vtable);
+    SetDispatch<TSelf, BreakNode>(vtable);
+    SetDispatch<TSelf, ContinueNode>(vtable);
+    SetDispatch<TSelf, AllocBufferNode>(vtable);
+    SetDispatch<TSelf, DeclBufferNode>(vtable);
+    SetDispatch<TSelf, BufferStoreNode>(vtable);
+    SetDispatch<TSelf, AssertStmtNode>(vtable);
+    SetDispatch<TSelf, SeqStmtNode>(vtable);
+    SetDispatch<TSelf, EvaluateNode>(vtable);
+    SetDispatch<TSelf, ScopeIdDefStmtNode>(vtable);
+    SetDispatch<TSelf, tirx::TilePrimitiveCallNode>(vtable);
+  }
+  /*! \brief Register an additional node hook implemented by Self. */
+  template <typename Self, typename Node>
+  static void SetDispatch(VTable* vtable) {
+    vtable->template SetDispatch<Node>(
+        [](const ffi::ObjectRef& node, TSelf* self, Args... args) -> R {
+          return static_cast<Self*>(self)->Dispatch_(static_cast<const Node*>(node.get()),
+                                                     std::forward<Args>(args)...);
+        });
+  }
+
  private:
-  // initialize the vtable.
-  static FType InitVTable() {
-    FType vtable;
-    IR_STMT_FUNCTOR_DISPATCH(BindNode);
-    IR_STMT_FUNCTOR_DISPATCH(AttrStmtNode);
-    IR_STMT_FUNCTOR_DISPATCH(IfThenElseNode);
-    IR_STMT_FUNCTOR_DISPATCH(ForNode);
-    IR_STMT_FUNCTOR_DISPATCH(WhileNode);
-    IR_STMT_FUNCTOR_DISPATCH(BreakNode);
-    IR_STMT_FUNCTOR_DISPATCH(ContinueNode);
-    IR_STMT_FUNCTOR_DISPATCH(AllocBufferNode);
-    IR_STMT_FUNCTOR_DISPATCH(DeclBufferNode);
-    IR_STMT_FUNCTOR_DISPATCH(AssertStmtNode);
-    IR_STMT_FUNCTOR_DISPATCH(SeqStmtNode);
-    IR_STMT_FUNCTOR_DISPATCH(EvaluateNode);
-    IR_STMT_FUNCTOR_DISPATCH(BufferStoreNode);
-    IR_STMT_FUNCTOR_DISPATCH(SBlockNode);
-    IR_STMT_FUNCTOR_DISPATCH(SBlockRealizeNode);
-    IR_STMT_FUNCTOR_DISPATCH(ScopeIdDefStmtNode);
-    IR_STMT_FUNCTOR_DISPATCH(tirx::TilePrimitiveCallNode);
-    vtable.Finalize();
-    return vtable;
+  static const VTable* GlobalVTable() {
+    static const VTable table = [] {
+      VTable table;
+      InitVTable(&table);
+      table.Finalize();
+      return table;
+    }();
+    return &table;
   }
-};
-
-#undef IR_STMT_FUNCTOR_DISPATCH
-#undef STMT_FUNCTOR_DEFAULT
-
-/*!
- * \brief StmtVisitor.
- */
-class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
- public:
-  using StmtFunctor::operator();
-
- protected:
-  using StmtFunctor::VisitStmt;
-  /*!
-   * \brief Visitor to Exprs, can be overriden
-   *        to do recursive changes to Exprs.
-   * \note A common pattern is to call ExprVisitor here,
-   *       or have a class sub-class both StmtVisitor and ExprVisitor
-   *       and redirect Visit to ExprMutator::VisitExpr(Expr)
-   */
-  virtual void VisitExpr(const PrimExpr& e) {}
-  /*!
-   * \brief Visit buffer at definition site (AllocBuffer, DeclBuffer, SBlock alloc_buffers).
-   *  Visits buffer shape, strides, elem_offset via VisitExpr.
-   * \param buffer The buffer being defined.
-   * \param alloc_data If true, the buffer's data pointer is a new allocation (AllocBuffer);
-   *              if false, data references an existing variable (DeclBuffer).
-   */
-  virtual void VisitBufferDef(const Buffer& buffer, bool alloc_data);
-  /*!
-   * \brief Visit buffer at use site (BufferStore, BufferLoad, SBlock reads/writes).
-   *  By default, this is a no-op, as buffer fields (shape, strides, elem_offset)
-   *  are visited at their definition site.
-   */
-  virtual void VisitBufferUse(const Buffer& buffer);
-  // statement visitor
-  void VisitStmt_(const BindNode* op) override;
-  void VisitStmt_(const AttrStmtNode* op) override;
-  void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const ForNode* op) override;
-  void VisitStmt_(const WhileNode* op) override;
-  void VisitStmt_(const BreakNode* op) override;
-  void VisitStmt_(const ContinueNode* op) override;
-  void VisitStmt_(const AllocBufferNode* op) override;
-  void VisitStmt_(const DeclBufferNode* op) override;
-  void VisitStmt_(const BufferStoreNode* op) override;
-  void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const EvaluateNode* op) override;
-  void VisitStmt_(const SBlockNode* op) override;
-  void VisitStmt_(const SBlockRealizeNode* op) override;
-  void VisitStmt_(const ScopeIdDefStmtNode* op) override;
-  void VisitStmt_(const tirx::TilePrimitiveCallNode* op) override;
+  const VTable* vtable_;
 };
 
 /*!
- * \brief StmtMutator that mutates the statements.
+ * \brief Native visitor for TIRx statements and their expression operands.
+ *
+ * Inherits core expression dispatch and preserves TIRx traversal order and
+ * buffer definition/use boundaries. Allocate visitors with ffi::make_object;
+ * hooks return the first interrupt or throw on failure.
+ * To preserve thrown ffi::Error subclasses, keep child traversal native:
+ * Visit(array) crosses structural callbacks that may erase the C++ subtype.
+ *
+ * Native hooks match exact types. Unregistered OpaqueExprNode subclasses use
+ * structural traversal; leaf types register non-descending structural hooks.
  */
-class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
+class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
  public:
-  /*!
-   * \brief Mutate stmt.
-   * \param stmt The input statement to be mutated.
-   * \return The result of the call
-   * \note It is important that stmt is passed by value.
-   *       so copy on write can be triggered correctly.
-   *       do mutator(std::move(stmt)) or when copy elison is triggered.
-   */
-  Stmt operator()(Stmt stmt) {
-    allow_copy_on_write_ = true;
-    return VisitStmt(stmt);
-  }
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprVisitor, tvm::ExprVisitor)
+
+  using tvm::ExprVisitor::Visit;
+  using tvm::ExprVisitor::Visit_;
+
+  virtual ffi::Optional<VisitInterrupt> Visit_(const BindNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const ForNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const ReturnNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const BreakNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const ContinueNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const AssertStmtNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const ScopeIdDefStmtNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const TilePrimitiveCallNode* op);
+
+  // Preserve TIRx operand traversal where it differs from the shared defaults.
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const OpaqueExprNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const TupleNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const TupleGetItemNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const prim::RampNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const prim::BroadcastNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const prim::ShuffleNode* op) override;
+
+  /*! \brief Visit definition metadata as uses, separately from the buffer Var definition. */
+  ffi::Optional<VisitInterrupt> VisitBufferMetadata(const BufferVar& buffer);
 
  protected:
-  /*! \brief Map from old buffer to new buffer, populated by VisitBufferDef. */
-  ffi::Map<Buffer, Buffer> buffer_remap_;
-  // We perform copy on write optimizations on the StmtMutator
-  // so that an unique copy of parent can be mutated inplace
-  // when some of its children changed.
-  // We only do such optimization for Stmt nests(instead of Exprs) for now
-  // as Stmt's parent state is more likely remain unchanged when one of
-  // its child block changes.
-  /*!
-   * \brief Internal state to indicate whether copy on write is enabled.
-   *  COW is enabled iff all the parents of the node are unique.
-   */
-  bool allow_copy_on_write_{false};
-  /*!
-   * \brief Perform copy on write on node.
-   *
-   *  If CopyOnWrite is allowed, directly return
-   *  a strong reference to the node container.
-   *  Otherwise, return a copy of the node.
-   *
-   * \return The result object pointer.
-   */
-  template <typename TNode>
-  ffi::ObjectPtr<TNode> CopyOnWrite(const TNode* node) {
-    static_assert(std::is_base_of<StmtNode, TNode>::value,
-                  "StmtMutator:: CopyOnWrite requires us to track uniqueness of all parent "
-                  "nodes during the recursion. Because the child classes do not necessarily "
-                  "check the Array, Expr and other structures during the visit, it is only safe to "
-                  "call this function with StmtNodes for now. "
-                  "Please create a new node directly in other cases.");
-    if (allow_copy_on_write_) {
-      // return the old node.
-      return ffi::GetObjectPtr<TNode>(const_cast<TNode*>(node));
-    } else {
-      // Make a new copy of the node.
-      // need to rely on the default copy constructor
-      return ffi::make_object<TNode>(*node);
-    }
-  }
-  /*!
-   * \brief Internal mutator that everyone calls.
-   * \note To override mutate's behavior, override VisitExpr instead.
-   * \param stmt The input stmt.
-   * \return The mutated results.
-   */
-  Stmt VisitStmt(const Stmt& stmt) override {
-    if (allow_copy_on_write_ && !stmt.unique()) {
-      allow_copy_on_write_ = false;
-      Stmt ret = StmtFunctor::VisitStmt(stmt);
-      allow_copy_on_write_ = true;
-      return ret;
-    } else {
-      return StmtFunctor::VisitStmt(stmt);
-    }
-  }
-  /*!
-   * \brief Visitor to Exprs, can be overriden
-   *        to do recursive changes to Exprs.
-   * \note A common pattern is to call ExprMutator here,
-   *       or have a class sub-class both StmtMutator and ExprMutator
-   *       and redirect Mutate to ExprMutator::Mutate(Expr)
-   */
-  virtual PrimExpr VisitExpr(const PrimExpr& e) { return e; }
-  /*!
-   * \brief Visit buffer at definition site. Visits shape/strides/elem_offset via VisitExpr.
-   *  If any field changes, creates a new buffer and records it in buffer_remap_.
-   * \param buffer The buffer being defined.
-   * \param alloc_data If true, the buffer's data pointer is a new allocation (AllocBuffer);
-   *              if false, data references an existing variable (DeclBuffer).
-   * \return The (possibly new) buffer.
-   */
-  virtual Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data);
-  /*!
-   * \brief Visit buffer at use site (BufferStore, BufferLoad, SBlock reads/writes).
-   *  By default, returns the remapped buffer from buffer_remap_ if exists, otherwise
-   *  returns the original buffer. Buffer fields are visited at their definition site.
-   * \return The (possibly remapped) buffer.
-   */
-  virtual Buffer VisitBufferUse(const Buffer& buffer);
-  // statement visitor
-  Stmt VisitStmt_(const BindNode* op) override;
-  Stmt VisitStmt_(const AttrStmtNode* op) override;
-  Stmt VisitStmt_(const IfThenElseNode* op) override;
-  Stmt VisitStmt_(const ForNode* op) override;
-  Stmt VisitStmt_(const WhileNode* op) override;
-  Stmt VisitStmt_(const BreakNode* op) override;
-  Stmt VisitStmt_(const ContinueNode* op) override;
-  Stmt VisitStmt_(const AllocBufferNode* op) override;
-  Stmt VisitStmt_(const DeclBufferNode* op) override;
-  Stmt VisitStmt_(const BufferStoreNode* op) override;
-  Stmt VisitStmt_(const AssertStmtNode* op) override;
-  Stmt VisitStmt_(const SeqStmtNode* op) override;
-  Stmt VisitStmt_(const EvaluateNode* op) override;
-  Stmt VisitStmt_(const SBlockNode* op) override;
-  Stmt VisitStmt_(const SBlockRealizeNode* op) override;
-  Stmt VisitStmt_(const ScopeIdDefStmtNode* op) override;
-  Stmt VisitStmt_(const tirx::TilePrimitiveCallNode* op) override;
-  /*!
-   * \brief Alternative advance method for SeqStmtNode.
-   *
-   *  This function can be called when a child class override
-   *  VisitStmt_(const SeqStmtNode*) to introduce
-   *  the special behavior to visit
-   *
-   * \param op The sequence.
-   * \param flatten_before_visit Whether to flatten the sequence before visit.
-   * \param fmutate The mutate function, can be nullptr, which defaults to Visit.
-   * \return The mutated result.
-   */
-  Stmt VisitSeqStmt_(const SeqStmtNode* op, bool flatten_before_visit,
-                     std::function<Stmt(const Stmt&)> fmutate = nullptr);
-
-  // internal helper.
-  class Internal;
-};
-
-/*!
- * \brief Visitor that recursively visit stmts and exprs on them.
- */
-class TVM_DLL StmtExprVisitor : public ExprVisitor, public StmtVisitor {
- public:
-  using StmtVisitor::operator();
-  using ExprVisitor::operator();
-
- protected:
-  using ExprVisitor::VisitExpr;
-  using ExprVisitor::VisitExpr_;
-  using StmtVisitor::VisitStmt;
-
-  void VisitExpr(const PrimExpr& e) override { return ExprVisitor::VisitExpr(e); }
-  void VisitExpr_(const BufferLoadNode* op) override;
+  explicit StmtExprVisitor(const VTable* vtable) : tvm::ExprVisitor(vtable) {}
+  static void InitVTable(VTable* vtable);
 };
 
 /*!
  * \brief Mutator that recursively mutates stmts and exprs on them.
+ *
+ * Base hooks preserve stored types and derived fields. They rewrite structural
+ * children without re-inferring types or repeating constructor validation,
+ * including on in-place writes. Passes that change dtypes or index lanes must
+ * provide the corresponding TensorLoad, BufferStore, or TensorRegion inference.
  */
-class TVM_DLL StmtExprMutator : public ExprMutator, public StmtMutator {
+class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
  public:
-  using StmtMutator::operator();
-  using ExprMutator::operator();
+  TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprMutator, tvm::ExprMutator)
+  using tvm::ExprMutator::Mutate;
+  using tvm::ExprMutator::Mutate_;
 
- protected:
-  using ExprMutator::VisitExpr;
-  using ExprMutator::VisitExpr_;
-  using StmtMutator::VisitStmt;
-
-  PrimExpr VisitExpr(const PrimExpr& e) override { return ExprMutator::VisitExpr(e); }
-  PrimExpr VisitExpr_(const BufferLoadNode* op) override;
-};
-
-/*!
- * \brief recursively visit the ir nodes in post DFS order, and transform it
- *
- * \param stmt The ir to be transformed.
- * \param preorder The function called in before recursive mutation
- *          If preorder returns None, then the transform will proceed to recursive call.
- *          If preorder returns a not None Stmt/Expr, the transformer will simply return it and
- *          won't do further recursion.
- * \param postorder The function called after recursive mutation.
- *          The recursive mutation result is passed to postorder for further mutation.
- * \param only_enable List of String.
- *          If it is null, all IRNode will call preorder/postorder
- *          If it is not null, preorder/postorder will only be called
- *          when the IRNode's type key is in the list.
- */
-TVM_DLL Stmt IRTransform(Stmt stmt, const ffi::Function& preorder, const ffi::Function& postorder,
-                         ffi::Optional<ffi::Array<ffi::String>> only_enable = std::nullopt);
-
-/*!
- * \brief Recursively visit the ir in post DFS order node, apply fvisit
- * Each node is guaranteed to be visited only once.
- * \param node The ir to be visited.
- * \param fvisit The visitor function to be applied.
- */
-TVM_DLL void PostOrderVisit(const ffi::ObjectRef& node,
-                            std::function<void(const ffi::ObjectRef&)> fvisit);
-
-/*!
- * \brief Substitute the var specified by vmap.
- * \param stmt The source statement to be substituted
- * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
- * \return The converted form.
- */
-TVM_DLL Stmt Substitute(Stmt stmt, std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap);
-
-/*!
- * \brief Substitute the var specified by vmap.
- * \param expr The source statement to be substituted
- * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
- * \return The result.
- */
-TVM_DLL PrimExpr Substitute(PrimExpr expr,
-                            std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap);
-
-/*!
- * \brief Substitute the var specified by vmap.
- * \param arr The array of Stmt/PrimExpr to be substituted
- * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
- * \return The result.
- */
-template <typename T>
-ffi::Array<T> Substitute(const ffi::Array<T>& arr,
-                         std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap) {
-  return arr.Map([&vmap](const auto& elem) { return Substitute(elem, vmap); });
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- * \param range The array of Stmt/PrimExpr to be substituted
- * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
- * \return The modified Range.
- */
-inline Range Substitute(const Range& range,
-                        std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap) {
-  return Range::FromMinExtent(Substitute(range->min, vmap), Substitute(range->extent, vmap));
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- *
- * Delegates to the Substitute methods that use std::function.  This
- * overload allows braced-initialization of the Map, whereas the
- * template<typename Expr> overload cannot.
- *
- * \param obj The object in which TIR variables should be substituted
- * \param vmap Map defining the TIR variables to be replaced
- * \return The modified object.
- */
-template <typename Obj>
-auto Substitute(Obj&& obj, const ffi::Map<Var, PrimExpr>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> { return vmap.Get(var); };
-  return Substitute(std::forward<Obj>(obj), func);
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- *
- * Delegates to the Substitute methods that use std::function.
- *
- * \param obj The object in which TIR variables should be substituted
- * \param vmap Map defining the TIR variables to be replaced
- * \return The modified object.
- */
-template <typename Obj, typename Expr,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
-auto Substitute(Obj&& obj, const ffi::Map<Var, Expr>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
-    if (auto opt = vmap.Get(var)) {
-      return opt.value();
-    } else {
-      return std::nullopt;
-    }
-  };
-  return Substitute(std::forward<Obj>(obj), func);
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- *
- * Delegates to the Substitute methods that use std::function.
- *
- * \param obj The object in which TIR variables should be substituted
- * \param vmap Map defining the TIR variables to be replaced
- * \return The modified object.
- */
-template <typename Obj, typename Expr,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
-auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
-    if (auto it = vmap.find(var.get()); it != vmap.end()) {
-      return it->second;
-    } else {
-      return std::nullopt;
-    }
-  };
-  return Substitute(std::forward<Obj>(obj), func);
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- *
- * Delegates to the Substitute methods that use std::function.
- *
- * \param obj The object in which TIR variables should be substituted
- * \param vmap Map defining the TIR variables to be replaced
- * \return The modified object.
- */
-template <typename Obj, typename Expr, typename Hasher, typename EqualityChecker,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
-auto Substitute(Obj&& obj, const std::unordered_map<Var, Expr, Hasher, EqualityChecker>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
-    if (auto it = vmap.find(var); it != vmap.end()) {
-      return it->second;
-    } else {
-      return std::nullopt;
-    }
-  };
-  return Substitute(std::forward<Obj>(obj), func);
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- *
- * Delegates to the Substitute methods that use std::function.
- *
- * \param obj The object in which TIR variables should be substituted
- * \param iter_vmap Map defining the TIR variables to be replaced
- * \return The modified object.
- */
-template <typename Obj, typename Expr,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
-auto Substitute(Obj&& obj, const std::unordered_map<IterVar, Expr>& iter_vmap) {
-  std::unordered_map<const VarNode*, PrimExpr> vmap;
-  for (const auto& [iter_var, expr] : iter_vmap) {
-    vmap[iter_var->var.get()] = expr;
+  /*! \brief Mutate a borrowed statement through the virtual generic entry.
+   * \param stmt The borrowed statement.
+   * \param inplace_mode Inherited permission along the complete ownership chain.
+   * \return Unchanged or an owning statement replacement.
+   * \note Entry overrides must preserve the statement category. Result storage
+   *       is transferred without a runtime category check, as for Expr/PrimExpr.
+   */
+  TVM_FFI_INLINE UnchangedOr<Stmt> Mutate(const Stmt& stmt,
+                                          InplaceMode inplace_mode = InplaceMode::kDisallow) {
+    return ffi::details::UnchangedOrUnsafe::MoveFromTVMFFIAny<Stmt>(
+        ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(Mutate(ffi::AnyView(stmt), inplace_mode)));
   }
 
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
-    if (auto it = vmap.find(var.get()); it != vmap.end()) {
-      return it->second;
-    } else {
-      return std::nullopt;
-    }
-  };
-  return Substitute(std::forward<Obj>(obj), func);
-}
+  virtual UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const ReturnNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const BreakNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const ContinueNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const AssertStmtNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const ScopeIdDefStmtNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const TilePrimitiveCallNode* op, InplaceMode inplace_mode);
+
+ protected:
+  explicit StmtExprMutator(const VTable* vtable) : tvm::ExprMutator(vtable) {}
+  static void InitVTable(VTable* vtable);
+};
 
 /*!
  * \brief Substitute the var specified by vmap and legalize data types after substitution.
  * \param stmt The source statement to be substituted
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
  *
- * Unlike `Substitute`, this allows the substitution to change the data type of the expression.
+ * This statement overload legalizes only core TIRX nodes.  Dtype-changing
+ * substitutions must be applied after lowering dialect blocks: structural
+ * traversal of extension statements does not legalize their iterator domains or
+ * bindings.  Type-preserving mappings continue to traverse schedulable blocks
+ * structurally before lowering.
  *
- * \sa Substitute
  * \return The result.
  */
 TVM_DLL Stmt SubstituteWithDataTypeLegalization(
@@ -551,23 +305,12 @@ TVM_DLL Stmt SubstituteWithDataTypeLegalization(
  * \param expr The source statement to be substituted
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
  *
- * Unlike `Substitute`, this allows the substitution to change the data type of the expression.
+ * Substitution may change the data type of the expression.
  *
- * \sa Substitute
  * \return The result.
  */
 TVM_DLL PrimExpr SubstituteWithDataTypeLegalization(
     PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap);
-
-/*!
- * \brief Recursively visit the IR in pre DFS order node, apply fvisit.
- * If fvisit returns false, it won't visit the children of the node.
- * \param stmt_or_expr The ir to be visited.
- * \param fvisit The visitor function to be applied. If fvisit returns false, it won't visit the
- * children of the node
- */
-TVM_DLL void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,
-                           const std::function<bool(const ffi::ObjectRef&)>& fvisit);
 
 /*!
  * \brief Check if the statement contains the specified node type.
@@ -581,23 +324,25 @@ TVM_DLL void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,
  */
 template <typename Node, typename = std::enable_if_t<std::is_base_of_v<StmtNode, Node>>>
 bool ContainsNode(const Stmt& stmt) {
-  struct Visitor : StmtVisitor {
-    // Early bail-out, if we already found the node.
-    void VisitStmt(const Stmt& stmt) final {
-      if (contains_node) {
-        return;
+  struct Visitor : StmtExprVisitor {
+    // Early bail-out, if we already found the node. Skip expression operands.
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
+      if (contains_node || value.as<ExprNode>()) {
+        return std::nullopt;
       }
-      StmtVisitor::VisitStmt(stmt);
+      if (value.as<Node>()) {
+        contains_node = true;
+        return std::nullopt;
+      }
+      return StmtExprVisitor::Visit(value);
     }
-
-    void VisitStmt_(const Node* block) override { contains_node = true; }
 
     bool contains_node{false};
   };
 
-  Visitor visitor;
-  visitor(stmt);
-  return visitor.contains_node;
+  auto visitor = ffi::make_object<Visitor>();
+  visitor->Visit(stmt);
+  return visitor->contains_node;
 }
 
 }  // namespace tirx

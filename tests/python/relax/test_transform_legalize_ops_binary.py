@@ -697,7 +697,7 @@ def test_power():
 
         @R.function
         def main(x: R.Tensor((1, 2, 3), dtype="float32"), y: R.Tensor((4, 3, 2, 1), dtype="float32")) -> R.Tensor((4, 3, 2, 3), dtype="float32"):
-            gv = R.call_tir(Expected.power, (x, y), out_sinfo=R.Tensor((4, 3, 2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.power, (x, y), out_ty=R.Tensor((4, 3, 2, 3), dtype="float32"))
             return gv
 
     # fmt: on
@@ -745,7 +745,7 @@ def test_power_symbolic():
             b = T.int64()
             c = T.int64()
             d = T.int64()
-            gv = R.call_tir(Expected.power, (x, y), out_sinfo=R.Tensor((a, b, c, d), dtype="float32"))
+            gv = R.call_tir(Expected.power, (x, y), out_ty=R.Tensor((a, b, c, d), dtype="float32"))
             return gv
     # fmt: on
 
@@ -815,7 +815,7 @@ def test_atan2():
 
         @R.function
         def main(x: R.Tensor((1, 2, 3), dtype="float32"), y: R.Tensor((4, 3, 2, 1), dtype="float32")) -> R.Tensor((4, 3, 2, 3), dtype="float32"):
-            gv = R.call_tir(Expected.atan2, (x, y), out_sinfo=R.Tensor((4, 3, 2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.atan2, (x, y), out_ty=R.Tensor((4, 3, 2, 3), dtype="float32"))
             return gv
 
     # fmt: on
@@ -862,7 +862,7 @@ def test_atan2_symbolic():
             b = T.int64()
             c = T.int64()
             d = T.int64()
-            gv = R.call_tir(Expected.atan2, (x, y), out_sinfo=R.Tensor((a, b, c, d), dtype="float32"))
+            gv = R.call_tir(Expected.atan2, (x, y), out_ty=R.Tensor((a, b, c, d), dtype="float32"))
             return gv
     # fmt: on
 

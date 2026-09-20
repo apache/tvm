@@ -26,7 +26,7 @@
 #ifndef TVM_TIR_ANALYSIS_CHECK_CONTAINS_H_
 #define TVM_TIR_ANALYSIS_CHECK_CONTAINS_H_
 
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/stmt_functor.h>  // For the class StmtExprVisitor
 
 namespace tvm {
@@ -42,12 +42,10 @@ class CheckContains : public StmtExprVisitor {
   static bool ExprContains(const PrimExpr& expr, std::function<bool(const PrimExpr&)> predicate);
   static bool StmtContains(const Stmt& stmt, std::function<bool(const PrimExpr&)> predicate);
 
- protected:
   // Constructor
   explicit CheckContains(std::function<bool(const PrimExpr&)> predicate);
 
-  void VisitExpr(const PrimExpr& expr) override;
-  void VisitStmt(const Stmt& stmt) override;
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override;
 
  private:
   std::function<bool(const PrimExpr&)> predicate_;

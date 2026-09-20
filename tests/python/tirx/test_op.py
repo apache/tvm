@@ -14,11 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pickle
+
 import pytest
 
-from tvm.ir import Op
+from tvm.ir import Op, assert_structural_equal
 from tvm.tirx.buffer import decl_buffer
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.exec_scope import ExecScope
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 
 def _test(op: str, *args):
@@ -44,6 +47,32 @@ def test_gemm():
     _test("gemm", D[:, :], A[:, :], B[:, :], C[:, :], True, False, 1.0, 0.0)
 
 
+def test_tile_primitive_call_pickle_roundtrip():
+    """TilePrimitiveCall reflection must provide a deserialization creator."""
+    A = decl_buffer((64,), "float32", scope="local")
+    workspace = decl_buffer((16,), "float32", scope="shared")
+    call = TilePrimitiveCall(
+        A[:],
+        1.0,
+        op=Op.get("tirx.tile.fill"),
+        workspace={"scratch": workspace},
+        config={"hint": "roundtrip", "stages": 2},
+        dispatch="reg",
+        scope=ExecScope("warpgroup"),
+    )
+    restored = pickle.loads(pickle.dumps(call))
+
+    # Buffer values are ordinary free Vars.  Pickle reconstructs their
+    # identities, so compare them under the standard free-Var mapping.
+    assert_structural_equal(restored, call, map_free_vars=True)
+    assert restored.op.same_as(call.op)
+    assert_structural_equal(restored.args, call.args, map_free_vars=True)
+    assert_structural_equal(restored.workspace, call.workspace, map_free_vars=True)
+    assert_structural_equal(restored.config, call.config)
+    assert restored.dispatch == call.dispatch
+    assert_structural_equal(restored.scope, call.scope)
+
+
 def test_buffer_replacer_no_shared_default():
     """Regression test for F4: BufferReplacer default dicts must not be shared."""
     from tvm.tirx.transform.common import BufferReplacer
@@ -55,6 +84,21 @@ def test_buffer_replacer_no_shared_default():
     r1.buffer_map[A] = B
     # r2 must not see r1's mutation
     assert len(r2.buffer_map) == 0
+
+
+def test_buffer_replacer_replaces_strides_and_elem_offset():
+    """Vars in buffer strides/elem_offset must be replaced, not passed through."""
+    from tvm.tirx import BufferStore, Var
+    from tvm.tirx.transform.common import BufferReplacer
+
+    n = Var("n", "int32")
+    m = Var("m", "int32")
+    A = decl_buffer((64,), "float32", strides=[n], elem_offset=n)
+    store = BufferStore(A, 1.0, [0])
+
+    new = BufferReplacer(var_map={n: m})(store)
+    assert new.buffer.strides[0].same_as(m)
+    assert new.buffer.elem_offset.same_as(m)
 
 
 def test_gemm_async_partial_scale_factor():

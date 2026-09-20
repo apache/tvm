@@ -39,7 +39,8 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
-from tvm.tirx.layout import ComposeLayout, S, SwizzleLayout, TileLayout, laneid, tid_in_wg, tx
+from tvm.testing import env
+from tvm.tirx.layout import ComposeLayout, S, TileLayout, laneid, tid_in_wg, tx
 
 
 def _compile_src(kernel):
@@ -78,13 +79,19 @@ def _s_layout_warpgroup_or_cta(num, trans):
 
 
 # 128b swizzle for fp16 (p=3 ⇒ 8 fp16 chunk; sw=at=3 ⇒ 8-row swizzle period).
-_SWIZZLE_128B = SwizzleLayout(per_element=3, swizzle_len=3, atom_len=3)
+_SWIZZLE_128B = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
 
 
 def _maybe_wrap_swizzle(tile_layout, enable: bool):
     if not enable:
         return tile_layout
-    return ComposeLayout(_SWIZZLE_128B, tile_layout)
+    return ComposeLayout(
+        _SWIZZLE_128B.per_element,
+        _SWIZZLE_128B.swizzle_len,
+        _SWIZZLE_128B.atom_len,
+        tile_layout,
+        _SWIZZLE_128B.swizzle_inner,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -319,7 +326,8 @@ _BUILDERS = {
 @pytest.mark.parametrize("trans", [False, True])
 @pytest.mark.parametrize("direction", ["ld", "st"])
 @pytest.mark.parametrize("num", [1, 2, 4])
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ldstmatrix(scope, trans, direction, num):
     kernel, (M, N) = _BUILDERS[scope](num, direction, trans)
     compiled, src = _compile_src(kernel)
@@ -329,27 +337,30 @@ def test_ldstmatrix(scope, trans, direction, num):
     expected = f"{inst}.sync.aligned.m8n8.x{num}{trans_inst}.shared.b16"
     assert expected in src, f"{expected} not emitted; src=\n{src}"
 
-    DEV = tvm.cuda(0)
     A_np = np.arange(M * N, dtype="float16").reshape(M, N)
     B_np = np.zeros((M, N), dtype="float16")
-    A = tvm.runtime.tensor(A_np, device=DEV)
-    B = tvm.runtime.tensor(B_np, device=DEV)
-    compiled(A, B)
-    np.testing.assert_allclose(B.numpy(), A_np)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(B_np, device=dev)
+        compiled(A, B)
+        np.testing.assert_allclose(B.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ---------------------------------------------------------------------------
-# Swizzled-S round-trip. Verifies the ldstmatrix dispatch's swizzle fast
-# path (when recognized) and slow path (fallback) both produce correct
-# A == B. The 128b swizzle (p=sw=at=3) is the most common fp16 SMEM
-# swizzle; with it the dispatch's per-tile S offset goes through
-# ``swizzle.apply`` (or its precomputed signed-stride lowering) per mm.
+# Swizzled-S round-trip. The 128b swizzle (p=sw=at=3) is the most common
+# fp16 SMEM swizzle; the dispatch passes the complete structured layout to
+# ComposeLayout for each matrix address.
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("scope", ["warp", "warpgroup", "cta"])
 @pytest.mark.parametrize("trans", [False, True])
 @pytest.mark.parametrize("direction", ["ld", "st"])
 @pytest.mark.parametrize("num", [1, 2, 4])
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ldstmatrix_swizzle(scope, trans, direction, num):
     kernel, (M, N) = _BUILDERS[scope](num, direction, trans, swizzle=True)
     compiled, src = _compile_src(kernel)
@@ -359,33 +370,24 @@ def test_ldstmatrix_swizzle(scope, trans, direction, num):
     expected = f"{inst}.sync.aligned.m8n8.x{num}{trans_inst}.shared.b16"
     assert expected in src, f"{expected} not emitted; src=\n{src}"
 
-    DEV = tvm.cuda(0)
     A_np = np.arange(M * N, dtype="float16").reshape(M, N)
     B_np = np.zeros((M, N), dtype="float16")
-    A = tvm.runtime.tensor(A_np, device=DEV)
-    B = tvm.runtime.tensor(B_np, device=DEV)
-    compiled(A, B)
-    np.testing.assert_allclose(B.numpy(), A_np)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(B_np, device=dev)
+        compiled(A, B)
+        np.testing.assert_allclose(B.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ---------------------------------------------------------------------------
-# Multi-iter outer (m_outer > 1) fast-path round-trip. The existing 128b
-# swizzle tests above all have m_outer = 1 (only base_off, no signed_strides
-# bits). These two cover the non-trivial outer iter case:
-#
-#   pow2 case (32x64):  R outermost mem ext = 4 (pow2).
-#                       m_outer iters on S 6D seg 3 = [(4, 512), (2, 32)].
-#                       Binary split → bjs [7, 6, 2]. All BitIter.
-#                       signed_strides buffer has 3 slots.
-#
-#   linear case (40x64): R outermost mem ext = 5 (non-pow2). Stride lands
-#                       the outermost S 6D seg 3 iter at (5, 512). 512 is
-#                       exactly 2^(p+at+sw) = swizzle period → Case 1.D pure,
-#                       so the LinearIter relaxation accepts it.
-#                       outer_iters = [LinearIter(5, 512), BitIter(2, ...)].
-#                       Inner BitIter (bj=2 Case 1.A) is the only slot in
-#                       signed_strides; the outer LinearIter contributes
-#                       ``c * 512`` per mm as a compile-time constant.
+# Multi-iter outer (m_outer > 1) round-trip. The existing 128b swizzle tests
+# above all have m_outer = 1. These two cover power-of-two and non-power-of-two
+# outer extents while checking that the emitted matrix addresses use the
+# structured atom-phase form instead of a full address swizzle.
 # ---------------------------------------------------------------------------
 def _build_multi_iter_kernel(outer_ext: int):
     """Warp + R=(outer_ext, 8, 2, 4, 4, 2):(16, 4@laneid, 8, 2, 1@laneid, 1)
@@ -394,7 +396,7 @@ def _build_multi_iter_kernel(outer_ext: int):
     = outer_ext*16 - 1, matching extent product = 16*outer_ext."""
     shape = (outer_ext, 8, 2, 4, 4, 2)
     r_layout = TileLayout(S[shape : (16, 4 @ laneid, 8, 2, 1 @ laneid, 1)])
-    s_layout = SwizzleLayout(3, 3, 3)
+    s_layout = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
     full = tuple(slice(0, e) for e in shape)
 
     @T.prim_func
@@ -424,61 +426,105 @@ def _build_multi_iter_kernel(outer_ext: int):
     return kernel, shape
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ldstmatrix_swizzle_multi_iter_pow2():
-    """32x64 fp16 warp; outer m_outer split into multiple BitIters (no
-    LinearIter). Fast path must fire with a 3-slot signed_strides buffer."""
-    import re
+    """32x64 fp16 warp with a power-of-two outer extent."""
 
     kernel, shape = _build_multi_iter_kernel(outer_ext=4)
     compiled, src = _compile_src(kernel)
     assert "ldmatrix.sync.aligned.m8n8.x4.shared.b16" in src
 
-    # Fast-path fingerprint: 3-slot signed_strides + bit-select uses.
-    assert re.search(r"alignas\(\d+\) int v_\d+\[3\]", src), (
-        "expected 3-slot signed_strides buffer for bjs [7, 6, 2]"
-    )
-    bitsel = re.findall(r"& 1\) \* v_\d+\[", src)
-    assert bitsel, "fast-path bit-select pattern '& 1) * v_<n>[' missing"
+    address_lines = [
+        line for line in src.splitlines() if "smem_off_ptr" in line and "[0] =" in line
+    ]
+    assert len(address_lines) == 8
+    assert all("& 7) << 3" in line for line in address_lines)
+    assert all("& 56) >> 3" not in line for line in address_lines)
 
-    DEV = tvm.cuda(0)
     n_elem = 1
     for e in shape:
         n_elem *= e
     A_np = np.arange(n_elem, dtype="float16").reshape(shape)
     B_np = np.zeros(shape, dtype="float16")
-    A = tvm.runtime.tensor(A_np, device=DEV)
-    B = tvm.runtime.tensor(B_np, device=DEV)
-    compiled(A, B)
-    np.testing.assert_allclose(B.numpy(), A_np)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(B_np, device=dev)
+        compiled(A, B)
+        np.testing.assert_allclose(B.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+def test_ldstmatrix_tcgen05_warpgroup_atom_emits_ldmatrix():
+    """Regression: a warpgroup ``.16x256b`` tcgen05 register atom loaded from a
+    128B-swizzled SMEM tile must dispatch to ``ldmatrix.x4``.
+
+    The atom's laneid is split across two shard iters (stride 4 and stride 1)
+    plus ``wid_in_wg`` — it only fuses to a single ``tid_in_wg`` thread axis
+    after the slice. With the redundant pre-slice ``canonicalize()`` removed,
+    Step 2 relies on ``TileLayout.Slice``'s built-in global pre-canonicalize, so
+    the slice no longer leaves an ill-formed split-laneid sub-layout that
+    ``GetScope`` would reject (which silently fell back to a scalar reg path).
+    Compile-only (no GPU): asserts the instruction appears in generated source.
+    """
+    from tvm.tirx.cuda.tile_primitive.tma_utils import mma_shared_layout
+    from tvm.tirx.layout import tcgen05_atom_layout
+
+    m, k = 64, 64
+    # bf16 payload carrying the *fp32* atom layout (mirrors the tf32-prenorm
+    # cast warp's ``a_bf16``: one element per 32-bit slot).
+    reg_layout = tcgen05_atom_layout("16x256b", (m, k), "float32")
+    smem_layout = mma_shared_layout("bfloat16", 3, (m, k))
+
+    @T.prim_func
+    def kernel(s_ptr: T.handle) -> None:
+        smem = T.match_buffer(s_ptr, (m, k), "bfloat16", scope="shared", layout=smem_layout)
+        T.device_entry()
+        T.cta_id([1])
+        T.warpgroup_id([1])
+        T.warp_id_in_wg([4])
+        T.lane_id([32])
+        T.thread_id_in_wg([128])
+        a_reg = T.alloc_buffer((m, k), "bfloat16", scope="local", layout=reg_layout)
+        Tx.wg.copy(a_reg, smem)
+
+    _, src = _compile_src(kernel)
+    assert "ldmatrix.sync.aligned.m8n8.x4.shared.b16" in src, (
+        f"warpgroup tcgen05 atom did not emit ldmatrix.x4; src=\n{src}"
+    )
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ldstmatrix_swizzle_multi_iter_linear():
-    """40x64 fp16 warp; outer ext=5 is non-pow2 but stride lands on swizzle
-    period (Case 1.D pure) so the LinearIter relaxation fires. Pattern has
-    a 1-slot signed_strides (inner BitIter bj=2 Case 1.A); outer iter
-    contributes ``c * 512`` per mm as a compile-time constant."""
-    import re
+    """40x64 fp16 warp with a non-power-of-two outer extent."""
 
     kernel, shape = _build_multi_iter_kernel(outer_ext=5)
     compiled, src = _compile_src(kernel)
     assert "ldmatrix.sync.aligned.m8n8.x4.shared.b16" in src
 
-    # Fast-path fingerprint: 1-slot signed_strides (just the inner BitIter).
-    assert re.search(r"alignas\(\d+\) int v_\d+\[1\]", src), (
-        "expected 1-slot signed_strides buffer (only the inner Case-1.A bj=2)"
-    )
-    bitsel = re.findall(r"& 1\) \* v_\d+\[", src)
-    assert bitsel, "fast-path bit-select pattern missing"
+    address_lines = [
+        line for line in src.splitlines() if "smem_off_ptr" in line and "[0] =" in line
+    ]
+    assert len(address_lines) == 10
+    assert all("& 7) << 3" in line for line in address_lines)
+    assert all("& 56) >> 3" not in line for line in address_lines)
 
-    DEV = tvm.cuda(0)
     n_elem = 1
     for e in shape:
         n_elem *= e
     A_np = np.arange(n_elem, dtype="float16").reshape(shape)
     B_np = np.zeros(shape, dtype="float16")
-    A = tvm.runtime.tensor(A_np, device=DEV)
-    B = tvm.runtime.tensor(B_np, device=DEV)
-    compiled(A, B)
-    np.testing.assert_allclose(B.numpy(), A_np)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(B_np, device=dev)
+        compiled(A, B)
+        np.testing.assert_allclose(B.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)

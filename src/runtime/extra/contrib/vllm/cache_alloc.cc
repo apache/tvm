@@ -39,9 +39,9 @@ ffi::Array<Tensor> AllocateKVCache(int head_size, int num_layers, int num_heads,
   for (int i = 0; i < num_layers; ++i) {
     Tensor key_blocks =
         Tensor::Empty({num_blocks, num_heads, head_size / vec_size, block_size, vec_size},
-                      runtime::DataType::Float(16), dev);
+                      DLDataType{kDLFloat, 16, 1}, dev);
     Tensor value_blocks = Tensor::Empty({num_blocks, num_heads, head_size, block_size},
-                                        runtime::DataType::Float(16), dev);
+                                        DLDataType{kDLFloat, 16, 1}, dev);
     cache.push_back(key_blocks);
     cache.push_back(value_blocks);
   }

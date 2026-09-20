@@ -160,7 +160,7 @@ def test_extra_params():
 
 
 def test_error_return_value_vs_parameter():
-    # StructInfo not match
+    # Type not match
     # fmt: off
     @I.ir_module
     class Module1:

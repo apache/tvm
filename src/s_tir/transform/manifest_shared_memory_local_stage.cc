@@ -26,14 +26,15 @@
  * memory. This is similar to the schedule primitive cache_read, but it bypasses the limitation
  * of requiring buffer access to be contiguous in each dimension.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
 
@@ -53,14 +54,14 @@ class IntermediateStageRewriter {
   explicit IntermediateStageRewriter(const std::vector<Stmt>& ancestor_loop_or_blocks)
       : ancestor_loop_or_blocks_(ancestor_loop_or_blocks) {}
 
-  std::tuple<Buffer, Buffer, SBlock, Stmt> Rewrite(const SBlockNode* block) {
+  std::tuple<BufferVar, BufferVar, SBlock, Stmt> Rewrite(const SBlockNode* block) {
     const BufferStoreNode* store = block->body.as<BufferStoreNode>();
     TVM_FFI_CHECK(store != nullptr && runtime::StorageScope::Create(store->buffer.scope()).rank ==
                                           runtime::StorageRank::kShared,
                   ValueError)
         << "Expect the body of the block to be BufferStore to shared memory.";
 
-    const Buffer& target_buffer = store->buffer;
+    const BufferVar& target_buffer = store->buffer;
 
     // Step 0: Collect relaxed loops
     std::vector<const ForNode*> relaxed_loops = CollectRelaxedOuterLoops(block, target_buffer);
@@ -71,12 +72,9 @@ class IntermediateStageRewriter {
     // Step 2: Create the local stage block
     Stmt local_stage = MakeLocalStage(block, new_buffer, buffer_indices, relaxed_loops, store);
 
-    // Step 3: Create BufferLoad from the intermediate buffer
-    TVM_FFI_ICHECK(!store->predicate.defined())
-        << "Predicated buffer store is not currently supported in "
-           "manifest shared memory local stage pass.";
-    BufferLoad new_buffer_load = BufferLoad(new_buffer, buffer_indices);
-    BufferStore new_buffer_store = Downcast<BufferStore>(block->body);
+    // Step 3: Create TensorLoad from the intermediate buffer
+    TensorLoad new_buffer_load = BufferLoad(new_buffer, buffer_indices);
+    BufferStore new_buffer_store = block->body.as_or_throw<BufferStore>();
     new_buffer_store.CopyOnWrite()->value = new_buffer_load;
     SBlock new_block = ffi::GetRef<SBlock>(block);
     new_block.CopyOnWrite()->body = std::move(new_buffer_store);
@@ -87,7 +85,7 @@ class IntermediateStageRewriter {
  private:
   /*! \brief Collect relaxed outer loops from innermost to outermost */
   std::vector<const ForNode*> CollectRelaxedOuterLoops(const SBlockNode* block,
-                                                       const Buffer& target_buffer) {
+                                                       const BufferVar& target_buffer) {
     std::vector<const ForNode*> relaxed_loops;
     for (int n = static_cast<int>(ancestor_loop_or_blocks_.size()) - 1, i = n - 1; i >= 0; --i) {
       const Stmt& ancestor = ancestor_loop_or_blocks_[i];
@@ -113,7 +111,7 @@ class IntermediateStageRewriter {
         const SBlockNode* ancestor_block = ancestor_block_realize->block.get();
         auto it = std::find_if(
             ancestor_block->alloc_buffers.begin(), ancestor_block->alloc_buffers.end(),
-            [&target_buffer](const Buffer& buffer) { return buffer.same_as(target_buffer); });
+            [&target_buffer](const BufferVar& buffer) { return buffer.same_as(target_buffer); });
         TVM_FFI_CHECK(it != ancestor_block->alloc_buffers.end(), ValueError)
             << "Expect the shared memory allocation to be in the parent block.";
         break;
@@ -123,38 +121,43 @@ class IntermediateStageRewriter {
   }
 
   /*! \brief Create the intermediate stage. */
-  Stmt MakeLocalStage(const SBlockNode* block, const Buffer& new_buffer,
+  Stmt MakeLocalStage(const SBlockNode* block, const BufferVar& new_buffer,
                       ffi::Array<PrimExpr> local_stage_indices,
                       std::vector<const ForNode*> relaxed_loops, const BufferStoreNode* store) {
     // Step 0: Create the body of the local stage, which is BufferStore to the intermediate buffer.
     Stmt local_stage = BufferStore(new_buffer, store->value, local_stage_indices);
 
     // Step 1: Make block and block realize
-    BufferRegion write_buffer_region = BufferRegion::FromPoint(new_buffer, local_stage_indices);
+    TensorRegion write_buffer_region = BufferRegionFromPoint(new_buffer, local_stage_indices);
     local_stage =
         SBlock(/*iter_vars=*/{}, /*reads=*/block->reads, /*writes=*/{write_buffer_region}, "",
                /*body=*/std::move(local_stage));
     local_stage = SBlockRealize(
         /*iter_values=*/{},
         /*predicate=*/ancestor_loop_or_blocks_.back().as<SBlockRealizeNode>()->predicate,
-        Downcast<SBlock>(local_stage));
+        local_stage.as_or_throw<SBlock>());
 
     // Step 2: Add outer loops
     ffi::Map<Var, Var> subst_map;
     for (const ForNode* relaxed_loop : relaxed_loops) {
       ffi::ObjectPtr<ForNode> for_node = ffi::make_object<ForNode>(*relaxed_loop);
-      for_node->loop_var = for_node->loop_var.copy_with_suffix("");
+      for_node->loop_var = for_node->loop_var.CopyWithSuffix("");
       for_node->body = std::move(local_stage);
       local_stage = For(for_node);
       subst_map.Set(relaxed_loop->loop_var, for_node->loop_var);
     }
-    local_stage = Substitute(local_stage, subst_map);
+    auto f_substitute = [&subst_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = subst_map.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
+    local_stage = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(local_stage, f_substitute)
+                      .as_or_throw<Stmt>();
     return local_stage;
   }
 
   /*! \brief Create the intermediate buffer with the extents of the relaxed outer loops. */
-  std::pair<Buffer, ffi::Array<PrimExpr>> CreateIntermediateBuffer(
-      const std::vector<const ForNode*> relaxed_loops, const Buffer& buffer) const {
+  std::pair<BufferVar, ffi::Array<PrimExpr>> CreateIntermediateBuffer(
+      const std::vector<const ForNode*> relaxed_loops, const BufferVar& buffer) const {
     ffi::Array<PrimExpr> buffer_indices;
     ffi::Array<PrimExpr> new_buffer_shape;
 
@@ -166,31 +169,42 @@ class IntermediateStageRewriter {
       buffer_indices.push_back(relaxed_loop->min + relaxed_loop->loop_var);
       new_buffer_shape.push_back(relaxed_loop->extent);
     }
-    Buffer new_buffer = WithScope(buffer, "local");
-    new_buffer.CopyOnWrite()->shape = new_buffer_shape;
+    BufferVar new_buffer = WithScope(buffer, "local");
+    ffi::ObjectPtr<BufferTypeNode> type = CopyBufferType(new_buffer);
+    type->shape = new_buffer_shape;
+    new_buffer = RebuildBufferVar(new_buffer, std::move(type));
     return {new_buffer, buffer_indices};
   }
 
   const std::vector<Stmt>& ancestor_loop_or_blocks_;
 };
 
-class SharedMemoryLocalStageInserter : public StmtMutator {
+class SharedMemoryLocalStageInserter : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const ForNode* op) final {
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     ancestor_loop_or_blocks_.push_back(ffi::GetRef<Stmt>(op));
-    Stmt new_stmt = StmtMutator::VisitStmt_(op);
+    Stmt new_stmt = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
+                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     ancestor_loop_or_blocks_.pop_back();
     return new_stmt;
   }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     ancestor_loop_or_blocks_.push_back(ffi::GetRef<Stmt>(op));
-    Stmt new_stmt = StmtMutator::VisitStmt_(op);
+    Stmt new_stmt = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
+                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     ancestor_loop_or_blocks_.pop_back();
     return new_stmt;
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     if (op->annotations.count(s_tir::attr::manifest_shared_memory_local_stage)) {
       // Rewrite the shared memory access to load from the intermediate buffer.
       // The annotated block must be a leaf block (will be checked during rewriting). No need to
@@ -207,11 +221,11 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
       return new_block;
     }
 
-    std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocated_buffers(
+    std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocated_buffers(
         op->alloc_buffers.begin(), op->alloc_buffers.end());
 
     // Visit children and insert local stages (if any) to the proper location.
-    ffi::Array<Buffer> new_alloc_buffers;
+    ffi::Array<BufferVar> new_alloc_buffers;
     ffi::Array<Stmt> new_seq;
 
     // Helper function to check if the subtree (body of the block) contains any target buffers.
@@ -219,7 +233,7 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
     // block.
     auto f_check_subtree = [&](int start, int end) {
       for (int i = start; i < end; ++i) {
-        const Buffer& buffer = target_buffers_[i];
+        const BufferVar& buffer = target_buffers_[i];
         if (allocated_buffers.count(buffer)) {
           new_seq.push_back(buffer_local_stage_.at(buffer));
           new_alloc_buffers.push_back(buffer_remap_.at(buffer));
@@ -232,24 +246,29 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
       bool changed = false;  // whether the SeqStmt has been changed
       for (int i = 0, n = seq->seq.size(); i < n; ++i) {
         int subtree_start = target_buffers_.size();
-        Stmt new_seq_elem = VisitStmt(seq->seq[i]);
+        auto new_seq_elem_result = Mutate(seq->seq[i]);
+        bool new_seq_elem_unchanged = new_seq_elem_result.UnchangedOrSameAs(seq->seq[i]);
+        Stmt new_seq_elem =
+            std::move(new_seq_elem_result).ValueOrUnchanged(seq->seq[i]).as_or_throw<Stmt>();
         int subtree_end = target_buffers_.size();
         f_check_subtree(subtree_start, subtree_end);
         new_seq.push_back(new_seq_elem);
-        if (!new_seq_elem.same_as(seq->seq[i])) {
+        if (!new_seq_elem_unchanged) {
           changed = true;
         }
       }
       if (!changed) {
-        return ffi::GetRef<Stmt>(op);
+        return ffi::Unchanged();
       }
     } else {
       int subtree_start = target_buffers_.size();
-      Stmt body = VisitStmt(op->body);
+      auto body_result = Mutate(op->body, inplace_mode);
+      bool body_unchanged = body_result.UnchangedOrSameAs(op->body);
+      Stmt body = std::move(body_result).ValueOrUnchanged(op->body);
       int subtree_end = target_buffers_.size();
       f_check_subtree(subtree_start, subtree_end);
-      if (body.same_as(op->body)) {
-        return ffi::GetRef<Stmt>(op);
+      if (body_unchanged) {
+        return ffi::Unchanged();
       }
       new_seq.push_back(body);
     }
@@ -265,10 +284,11 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
   }
 
   std::vector<Stmt> ancestor_loop_or_blocks_;  // ancestor loops or block realize
-  ffi::Map<Buffer, Buffer>
+  ffi::Map<BufferVar, BufferVar>
       buffer_remap_;  // mapping from the target buffer to the intermediate buffer
-  ffi::Map<Buffer, Stmt> buffer_local_stage_;  // mapping from the target buffer to the local stage
-  ffi::Array<Buffer> target_buffers_;          // the target buffers for rewriting
+  ffi::Map<BufferVar, Stmt>
+      buffer_local_stage_;                // mapping from the target buffer to the local stage
+  ffi::Array<BufferVar> target_buffers_;  // the target buffers for rewriting
 };
 
 namespace transform {
@@ -276,7 +296,9 @@ namespace transform {
 Pass ManifestSharedMemoryLocalStage() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = SharedMemoryLocalStageInserter()(std::move(n->body));
+    n->body = ffi::make_object<SharedMemoryLocalStageInserter>()
+                  ->Mutate(n->body, InplaceMode::kAllow)
+                  .ValueOrUnchanged(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.ManifestSharedMemoryLocalStage", {});

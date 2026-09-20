@@ -804,6 +804,26 @@ def test_print_function_doc(args, decorators, body, return_type, expected):
     assert to_python_script(doc) == format_script(expected)  # test
 
 
+def test_print_function_doc_with_type_params():
+    doc = FunctionDoc(
+        IdDoc("func"),
+        [],
+        [],
+        None,
+        [ReturnDoc(IdDoc("T"))],
+        type_params=[
+            IdDoc("T"),
+            AssignDoc(IdDoc("U"), rhs=None, annotation=IdDoc("int")),
+        ],
+    )
+    assert to_python_script(doc) == format_script(
+        """
+        def func[T, U: int]():
+            return T
+        """
+    )
+
+
 def get_func_doc_for_class(name):
     args = [
         AssignDoc(IdDoc("x"), rhs=None, annotation=IdDoc("int")),
@@ -909,6 +929,10 @@ def test_print_class_doc(decorators, body, expected):
 def test_print_comment_doc(comment, expected):
     doc = CommentDoc(comment)
     assert to_python_script(doc) == format_script(expected)
+
+
+def test_print_comment_doc_preserves_trailing_tab():
+    assert to_python_script(CommentDoc("test comment\t")) == "# test comment\t"
 
 
 @pytest.mark.parametrize(

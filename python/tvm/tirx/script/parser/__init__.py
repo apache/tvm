@@ -24,7 +24,7 @@ from tvm.tirx.script.builder import ir as _tir
 
 from . import operation as _operation
 from . import parser as _parser
-from .entry import Buffer, Ptr, constexpr
+from .entry import Buffer, Optional, Ptr, constexpr
 
 if TYPE_CHECKING:
     # pylint: disable=invalid-name
@@ -37,10 +37,10 @@ else:
 
 __all__ = _tir.__all__ + [
     "Buffer",
+    "Optional",
     "Ptr",
     "SMEMPool",
     "TMEMPool",
-    "TMEMStages",
     "bool",
     "constexpr",
     "inline",

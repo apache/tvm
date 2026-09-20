@@ -35,6 +35,7 @@
 
 namespace tvm {
 namespace relax {
+
 namespace backend {
 
 /*!
@@ -47,8 +48,9 @@ namespace backend {
 inline std::vector<int64_t> GetIntShape(const ffi::Array<PrimExpr>& shape) {
   std::vector<int64_t> ret;
   for (const auto& dim : shape) {
-    const int64_t* pval = tirx::as_const_int(dim);
-    ret.push_back(pval ? *pval : -1);
+    const auto* imm = dim.as<IntImmNode>();
+    auto pval = imm ? imm->value.as<int64_t>() : std::nullopt;
+    ret.push_back(pval.has_value() ? *pval : -1);
   }
   return ret;
 }
@@ -59,9 +61,7 @@ inline std::vector<int64_t> GetIntShape(const ffi::Array<PrimExpr>& shape) {
  * \param typ
  * \return std::string string format of type
  */
-inline std::string DType2String(const tvm::DataType dtype) {
-  return tvm::ffi::DLDataTypeToString(dtype);
-}
+inline std::string DType2String(DLDataType dtype) { return tvm::ffi::DLDataTypeToString(dtype); }
 
 /*!
  * \brief Check if a call node is calling an op with the given name
@@ -73,7 +73,7 @@ inline bool IsOp(const CallNode* call, const std::string& op_name) {
   const auto* op_node = call->op.as<OpNode>();
   if (!op_node) return false;
   Op op = ffi::GetRef<Op>(op_node);
-  return op == Op::Get(op_name);
+  return op.same_as(Op::Get(op_name));
 }
 
 /*!

@@ -1,3 +1,6 @@
+name: Setup TVM CI environment
+description: Set up the cached conda build environment and install tvm-ffi.
+
 runs:
  using: "composite"
  steps:

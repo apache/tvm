@@ -135,11 +135,11 @@ class TVMScriptModule:
         R.func_attr({"num_input": 1})
         with R.dataflow():
             permute_dims = R.permute_dims(fc1_weight, axes=None)
-            matmul = R.matmul(x, permute_dims, out_dtype="void")
+            matmul = R.matmul(x, permute_dims, out_dtype=None)
             add = R.add(matmul, fc1_bias)
             relu = R.nn.relu(add)
             permute_dims1 = R.permute_dims(fc2_weight, axes=None)
-            matmul1 = R.matmul(relu, permute_dims1, out_dtype="void")
+            matmul1 = R.matmul(relu, permute_dims1, out_dtype=None)
             add1 = R.add(matmul1, fc2_bias)
             gv = add1
             R.output(gv)
@@ -265,7 +265,7 @@ with tvm.target.Target("cuda"):
 # Now we can compile the IRModule on GPU, the similar way as we did on CPU.
 
 exec = tvm.compile(gpu_mod, target="cuda")
-dev = tvm.device("cuda", 0)
+dev = tvm.cuda(0)
 vm = relax.VirtualMachine(exec, dev)
 # Need to allocate data and params on GPU device
 data = tvm.runtime.tensor(raw_data, dev)

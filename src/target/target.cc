@@ -23,13 +23,13 @@
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/tag.h>
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
-#include <tvm/tirx/expr.h>
 
 #include <algorithm>
 #include <sstream>
@@ -39,8 +39,6 @@
 #include <vector>
 
 namespace tvm {
-
-TVM_FFI_STATIC_INIT_BLOCK() { TargetNode::RegisterReflection(); }
 
 class TargetInternal {
  public:
@@ -92,7 +90,7 @@ static std::vector<ffi::String> DeduplicateKeys(const std::vector<ffi::String>& 
 
 static TargetKind GetTargetKind(const ffi::String& name) {
   ffi::Optional<TargetKind> kind = TargetKind::Get(name);
-  if (!kind.defined()) {
+  if (!kind.has_value()) {
     TVM_FFI_THROW(TypeError) << "Target kind \"" + name + "\" is not defined";
   }
   return kind.value();
@@ -148,13 +146,22 @@ Target::Target(TargetKind kind, ffi::Optional<ffi::ObjectRef> host, ffi::String 
   data_ = std::move(data);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  TargetNode::RegisterReflection();
+  // Register __ffi_repr__ so that ffi.ReprPrint uses JSON format for Target
+  refl::TypeAttrDef<TargetNode>().def(
+      refl::type_attr::kRepr,
+      [](Target target, ffi::Function) -> ffi::String { return target->str(); });
+}
+
 ffi::Map<ffi::String, ffi::Any> TargetNode::ToConfig() const {
   ffi::Map<ffi::String, ffi::Any> result = {
       {"kind", this->kind->name},
       {"tag", this->tag},
       {"keys", this->keys},
   };
-  if (this->host.defined()) {
+  if (this->host.has_value()) {
     result.Set("host", this->GetHost().value_or(Target())->ToConfig());
   }
   for (const auto& kv : attrs) {
@@ -177,7 +184,7 @@ Target Target::WithoutHost() const {
 
 int TargetNode::GetTargetDeviceType() const {
   if (ffi::Optional<int64_t> device_type = GetAttr<int64_t>("target_device_type")) {
-    return Downcast<IntImm>(device_type)->value;
+    return static_cast<int>(device_type.value());
   }
   return kind->default_device_type;
 }
@@ -376,7 +383,7 @@ ffi::ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi:
     std::vector<ffi::String> keys;
     bool has_keys = resolved.count(kKeys);
     if (has_keys) {
-      ffi::Array<ffi::String> cfg_keys = Downcast<ffi::Array<ffi::String>>(resolved.at(kKeys));
+      ffi::Array<ffi::String> cfg_keys = resolved.at(kKeys).as_or_throw<ffi::Array<ffi::String>>();
       for (const ffi::String& key : cfg_keys) {
         keys.push_back(key);
       }
@@ -483,10 +490,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("target.TargetAsJSON",
            [](const Target& target) -> ffi::String { return target->str(); });
-  // Register __ffi_repr__ so that ffi.ReprPrint uses JSON format for Target
-  refl::TypeAttrDef<TargetNode>().def(
-      refl::type_attr::kRepr,
-      [](Target target, ffi::Function) -> ffi::String { return target->str(); });
 }
 
 // AC: kRepr already registered above at refl::TypeAttrDef<TargetNode>().def(kRepr, ...)

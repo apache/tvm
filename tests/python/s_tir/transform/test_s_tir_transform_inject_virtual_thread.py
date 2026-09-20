@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F841
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -60,9 +62,9 @@ def test_vthread():
         if isinstance(node, tvm.tirx.AllocBuffer):
             allocates.append(node)
 
-    tvm.tirx.stmt_functor.post_order_visit(stmt.body, find_allocates)
+    tvm_ffi.structural_walk(stmt.body, find_allocates)
     assert len(allocates) == 1
-    assert list(allocates[0].buffer.shape) == [B_expected_alloc]
+    assert list(allocates[0].buffer.ty.shape) == [B_expected_alloc]
 
 
 def test_vthread_extern():
@@ -109,10 +111,10 @@ def test_vthread_extern():
         if isinstance(node, tvm.tirx.AllocBuffer):
             allocates.append(node)
 
-    tvm.tirx.stmt_functor.post_order_visit(stmt.body, find_allocates)
+    tvm_ffi.structural_walk(stmt.body, find_allocates)
     assert len(allocates) == 3
     # Check that we have the expected extents (order may vary)
-    extents = sorted([int(a.buffer.shape[0]) for a in allocates])
+    extents = sorted([int(a.buffer.ty.shape[0]) for a in allocates])
     assert extents == sorted([A_expected_alloc, A_expected_alloc, C_expected_alloc])
 
 
@@ -145,7 +147,7 @@ def test_vthread_if_then_else():
         if isinstance(node, tvm.tirx.IfThenElse):
             if_nodes.append(node)
 
-    tvm.tirx.stmt_functor.post_order_visit(stmt.body, find_ifs)
+    tvm_ffi.structural_walk(stmt.body, find_ifs)
 
     assert len(if_nodes) == 2
     # First if has else_case, second does not
@@ -165,18 +167,17 @@ def test_vthread_simplified():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
         B = T.alloc_buffer((4,), "int32", scope="shared")
-        B[0:4] = T.broadcast(vthread, 4)
+        B[T.ramp(0, 1, 4)] = T.broadcast(vthread, 4)
 
-    @T.prim_func(check_well_formed=False, s_tir=True)
+    @T.prim_func(s_tir=True)
     def expected_func():
         B = T.alloc_buffer((16,), "int32", scope="shared")
-        B_1 = T.Buffer([16], "int32", data=B.data, scope="shared")
         # The indices for B should each be a single Ramp node, and
         # should not be the sum of a Ramp and Broadcast node.
-        B_1[T.Mul(0, 4) : T.Mul(0, 4) + 4] = T.broadcast(0, 4)
-        B_1[T.Mul(1, 4) : T.Mul(1, 4) + 4] = T.broadcast(1, 4)
-        B_1[T.Mul(2, 4) : T.Mul(2, 4) + 4] = T.broadcast(2, 4)
-        B_1[T.Mul(3, 4) : T.Mul(3, 4) + 4] = T.broadcast(3, 4)
+        B[T.ramp(T.Mul(0, 4), 1, 4)] = T.broadcast(0, 4)
+        B[T.ramp(T.Mul(1, 4), 1, 4)] = T.broadcast(1, 4)
+        B[T.ramp(T.Mul(2, 4), 1, 4)] = T.broadcast(2, 4)
+        B[T.ramp(T.Mul(3, 4), 1, 4)] = T.broadcast(3, 4)
 
     before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
     after_mod = tvm.s_tir.transform.InjectVirtualThread()(before_mod)
@@ -193,7 +194,7 @@ def test_vthread_vectorized():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
         B = T.alloc_buffer((4,), "int32", scope="shared")
-        B[0:4] = T.broadcast(vthread, 4)
+        B[T.ramp(0, 1, 4)] = T.broadcast(vthread, 4)
 
     before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
     intermediate_mod = tvm.s_tir.transform.InjectVirtualThread()(before_mod)
@@ -205,13 +206,48 @@ def test_vthread_vectorized():
 
     def visitor(op):
         nonlocal allocate_node
-        if isinstance(op, tvm.tirx.AllocBuffer) and "shared" in str(op.buffer.data.type_annotation):
+        if isinstance(op, tvm.tirx.AllocBuffer) and "shared" in str(op.buffer.data.ty):
             allocate_node = op
 
-    tvm.tirx.stmt_functor.post_order_visit(after_func.body, visitor)
+    tvm_ffi.structural_walk(after_func.body, visitor)
     assert allocate_node is not None
-    assert list(allocate_node.buffer.shape) == [4]
-    assert allocate_node.buffer.dtype == "int32x4"
+    assert list(allocate_node.buffer.ty.shape) == [4]
+    assert allocate_node.buffer.ty.dtype == "int32x4"
+
+
+def test_vthread_rewrites_masked_accesses():
+    @T.prim_func(s_tir=True)
+    def before_func():
+        vthread = T.env_thread("vthread")
+        T.launch_thread(vthread, 2)
+        B = T.alloc_buffer((4,), "float32", scope="shared")
+        mask = T.meta_var(T.Broadcast(T.bool(True), 4))
+        loaded = T.meta_var(T.masked_load("float32x4", B, T.Ramp(0, 1, 4), mask))
+        value = T.meta_var(loaded + T.Broadcast(T.Cast("float32", vthread), 4))
+        T.masked_store(B, value, T.Ramp(0, 1, 4), mask)
+
+    after = tvm.s_tir.transform.InjectVirtualThread()(
+        tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
+    )["main"]
+    masked_calls = []
+
+    def visitor(node):
+        if isinstance(node, tvm.ir.Call) and node.op.name in {
+            "tirx.masked_load",
+            "tirx.masked_store",
+        }:
+            masked_calls.append(node)
+
+    tvm_ffi.structural_walk(after.body, visitor)
+    assert len(masked_calls) == 4
+    assert all(list(call.args[0].ty.shape) == [8] for call in masked_calls)
+    analyzer = tvm.sym.Analyzer()
+    assert sorted(int(analyzer.simplify(call.args[-2].base)) for call in masked_calls) == [
+        0,
+        0,
+        4,
+        4,
+    ]
 
 
 if __name__ == "__main__":

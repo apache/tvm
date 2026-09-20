@@ -21,11 +21,11 @@
  * \brief External computation rule.
  * \file extern_op.cc
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/expr.h>
 
 namespace tvm {
 namespace te {
@@ -37,15 +37,17 @@ TVM_FFI_STATIC_INIT_BLOCK() { ExternOpNode::RegisterReflection(); }
 
 int ExternOpNode::num_outputs() const { return static_cast<int>(output_placeholders.size()); }
 
-DataType ExternOpNode::output_dtype(size_t i) const { return output_placeholders[i]->dtype; }
+PrimType ExternOpNode::output_dtype(size_t i) const {
+  return output_placeholders[i]->ElementType();
+}
 
 ffi::Array<PrimExpr> ExternOpNode::output_shape(size_t i) const {
   return output_placeholders[i]->shape;
 }
 
 ExternOp::ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
-                   ffi::Array<Tensor> inputs, ffi::Array<Buffer> input_placeholders,
-                   ffi::Array<Buffer> output_placeholders, Stmt body) {
+                   ffi::Array<Tensor> inputs, ffi::Array<BufferVar> input_placeholders,
+                   ffi::Array<BufferVar> output_placeholders, Stmt body) {
   if (!attrs.defined()) {
     attrs = ffi::Map<ffi::String, ffi::Any>();
   }
@@ -74,8 +76,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "te.ExternOp",
       [](std::string name, std::string tag, ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs,
-         ffi::Array<Tensor> inputs, ffi::Array<Buffer> input_placeholders,
-         ffi::Array<Buffer> output_placeholders, Stmt body) {
+         ffi::Array<Tensor> inputs, ffi::Array<BufferVar> input_placeholders,
+         ffi::Array<BufferVar> output_placeholders, Stmt body) {
         return ExternOp(name, tag, attrs.value_or({}), inputs, input_placeholders,
                         output_placeholders, body);
       });

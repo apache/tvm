@@ -153,7 +153,7 @@ TVM_DLL Pass AttachGlobalSymbol();
 
 /*!
  * \brief Transform Relax IR to normal form: transform AST to A-normal form, and fill the
- * struct_info_ of expressions.
+ * ty of expressions.
  *
  * \return The Pass.
  */
@@ -215,7 +215,7 @@ TVM_DLL Pass BindParams(ffi::String func_name, ffi::Map<Any, ffi::ObjectRef> par
  *
  * \return The Pass.
  */
-TVM_DLL Pass BindSymbolicVars(ffi::Map<ffi::Variant<tirx::Var, ffi::String>, PrimExpr> binding_map,
+TVM_DLL Pass BindSymbolicVars(ffi::Map<ffi::Variant<PrimVar, ffi::String>, PrimExpr> binding_map,
                               ffi::Optional<ffi::String> func_name = std::nullopt);
 
 /*!
@@ -594,16 +594,11 @@ TVM_DLL Pass DecomposeOpsForTraining(ffi::Optional<ffi::String> func_name);
  * \param op_impl_map Map from kOperatorName attr (e.g., relax.conv2d) to replacement PrimFunc
  * \param op_buffer_transforms Map from kOperatorName attr to layout transformations on each of the
  * PrimFunc i/o buffers.
- * \param axis_separators Map from kOperatorName attr to axis_separators of each buffer_transforms
- * \param input_axis_separators Map from kOperatorName attr to axis_separator for input buffer
  * \return The Pass.
  */
-TVM_DLL Pass AlterOpImpl(
-    const ffi::Map<ffi::String, tirx::PrimFunc>& op_impl_map,
-    const ffi::Map<ffi::String, ffi::Array<tirx::IndexMap>>& op_buffer_transforms,
-    const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>& axis_separators,
-    const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>&
-        input_axis_separators);
+TVM_DLL Pass
+AlterOpImpl(const ffi::Map<ffi::String, tirx::PrimFunc>& op_impl_map,
+            const ffi::Map<ffi::String, ffi::Array<tirx::IndexMap>>& op_buffer_transforms);
 
 /*!
  * \brief Layout conversion pass.
@@ -663,9 +658,8 @@ TVM_DLL Pass DataflowUseInplaceCalls();
  *
  * \note Mainly operates within dataflow blocks. ConvertToDataflow may need to be called first.
  */
-TVM_DLL Pass
-ToMixedPrecision(const DataType& out_dtype,
-                 ffi::Optional<ffi::Array<ffi::String>> fp16_input_names = std::nullopt);
+TVM_DLL Pass ToMixedPrecision(
+    DLDataType out_dtype, ffi::Optional<ffi::Array<ffi::String>> fp16_input_names = std::nullopt);
 
 /*!
  * \brief Rewrite a Relax module for executing with CUDA graph. This pass identifies

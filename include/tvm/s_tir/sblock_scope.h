@@ -26,9 +26,10 @@
 #define TVM_S_TIR_SBLOCK_SCOPE_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <utility>
@@ -41,7 +42,7 @@ namespace tirx {
  * \brief An object that refers to schedulable elements (block/for-loop) in TensorIR, aka "sref".
  *
  * Glossary
- * - SBlock sref: A StmtSRef that points to a TensorIR SBlock.
+ * - s_tir::SBlock sref: A StmtSRef that points to a TensorIR s_tir::SBlock.
  * - Loop sref: A StmtSRef that points to a TensorIR for loop.
  * - Parent sref: The parent reference of an sref is the block or loop reference to the closest
  schedulable statement. We define closest to be the nearest schedulable statement of an ancestor in
@@ -87,7 +88,7 @@ class StmtSRefNode : public ffi::Object {
    * It serves the same purpose as `ffi::ObjectRef::as`, but does not acquire strong reference to
    * `stmt`
    * \tparam StmtType The type that `this->stmt` to be downcasted to. Presumably
-   * tvm::tirx::SBlockNode or tvm::tirx::ForNode
+   * tvm::s_tir::SBlockNode or tvm::tirx::ForNode
    * \return nullptr if type check fails, otherwise the casted result for `this->stmt`
    */
   template <typename StmtType>
@@ -144,8 +145,15 @@ class StmtSRef : public ffi::ObjectRef {
   TVM_DLL static StmtSRef RootMark();
 };
 
-class SRefTreeCreator : private StmtVisitor {
+class SRefTreeCreator : public s_tir::StmtExprVisitor {
  public:
+  using s_tir::StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return s_tir::StmtExprVisitor::Visit(value);
+  }
+
   /*!
    * \brief StmtSRef Tree Creator
    * \param mod The module being scheduled.
@@ -153,20 +161,20 @@ class SRefTreeCreator : private StmtVisitor {
    */
   static std::unordered_map<const StmtNode*, StmtSRef> Create(IRModule mod,
                                                               bool include_loops = true) {
-    SRefTreeCreator creator(include_loops);
+    auto creator = ffi::make_object<SRefTreeCreator>(include_loops);
     for (const auto& kv : mod->functions) {
       const BaseFunc& base_func = kv.second;
       if (auto opt = base_func.as<PrimFunc>()) {
         auto func = opt.value();
-        creator.VisitStmt(func->body);
+        creator->Visit(func->body);
       }
     }
-    return std::move(creator.stmt2ref_);
+    return std::move(creator->stmt2ref_);
   }
 
- private:
   explicit SRefTreeCreator(bool include_loops) : include_loops_(include_loops) {}
 
+ private:
   /*!
    * \brief Add a new statement to the stack, which becomes the current scope
    * \param stmt A for-loop statement or a block statement
@@ -176,11 +184,11 @@ class SRefTreeCreator : private StmtVisitor {
   /*! \brief Pop the top of the scope and record it in stmt2ref map */
   void PopAndRecordSRef();
 
-  void VisitStmt_(const ForNode* loop) final;
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final;
 
-  void VisitStmt_(const SBlockRealizeNode* realize) final;
+  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockRealizeNode* realize) final;
 
-  void VisitStmt_(const SeqStmtNode* seq_stmt) final;
+  ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final;
 
   bool include_loops_;
   /*! \brief The result ScheduleStateNode */
@@ -244,7 +252,7 @@ class Dependency : public ffi::ObjectRef {
  * For example even leaf nodes have a scope node, even though they have no dependencies.
  *
  * Glossary:
- * - SBlock scope: A contiguous subtree of the sref tree, rooted at each SBlock sref,
+ * - s_tir::SBlock scope: A contiguous subtree of the sref tree, rooted at each s_tir::SBlock sref,
  * whose components are:
  *   - scope root: a block sref
  *   - internal srefs: loop srefs
@@ -264,7 +272,7 @@ class SBlockScopeNode : public ffi::Object {
   std::unordered_map<StmtSRef, ffi::Array<Dependency>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       dst2deps;
   /*! \brief The mapping from the buffer to the blocks who write it */
-  std::unordered_map<Buffer, ffi::Array<StmtSRef>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<BufferVar, ffi::Array<StmtSRef>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       buffer_writers;
 
   static void RegisterReflection() {

@@ -1439,7 +1439,6 @@ def test_conv2d_resize2d():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="void",
                 )
                 gv2: R.Tensor((2, 4, 52, 52), dtype="float32") = R.permute_dims(
                     lv2, axes=[0, 3, 1, 2]
@@ -1482,7 +1481,6 @@ def test_resize2d_conv2d():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="void",
                 )
                 lv1: R.Tensor((4, 3, 3, 3), dtype="float32") = R.permute_dims(w, axes=[0, 2, 3, 1])
                 lv2: R.Tensor((2, 50, 50, 4), dtype="float32") = R.nn.conv2d(
@@ -1678,8 +1676,6 @@ def test_conv2d_NCHW_sub_indexed():
                         lambda i0, i1, i2, i3: (i0, i1 // 4, i2, i3, i1 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv1: R.Tensor((1, 16, 3, 3, 4), dtype="float32") = R.layout_transform(
                     w,
@@ -1687,8 +1683,6 @@ def test_conv2d_NCHW_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i1, i2, i3, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv2: R.Tensor((2, 1, 26, 26, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -1708,8 +1702,6 @@ def test_conv2d_NCHW_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i1 * 4 + i4, i2, i3), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 R.output(gv)
             return gv
@@ -1730,8 +1722,6 @@ def test_conv2d_NCHW_sub_indexed():
                         lambda i0, i1, i2, i3: (i0, i2, i3, i1 // 4, i1 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv1: R.Tensor((1, 3, 3, 16, 4), dtype="float32") = R.layout_transform(
                     w,
@@ -1739,8 +1729,6 @@ def test_conv2d_NCHW_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i2, i3, i1, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv2: R.Tensor((2, 26, 26, 1, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -1760,8 +1748,6 @@ def test_conv2d_NCHW_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i3 * 4 + i4, i1, i2), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 R.output(gv)
             return gv
@@ -1801,8 +1787,6 @@ def test_conv2d_NHWC_sub_indexed():
                         lambda i0, i1, i2, i3: (i0, i3 // 4, i1, i2, i3 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv1: R.Tensor((1, 16, 3, 3, 4), dtype="float32") = R.layout_transform(
                     w,
@@ -1810,8 +1794,6 @@ def test_conv2d_NHWC_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i3, i1, i2, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv2: R.Tensor((2, 1, 26, 26, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -1831,8 +1813,6 @@ def test_conv2d_NHWC_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i2, i3, i1 * 4 + i4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 R.output(gv)
             return gv
@@ -1853,8 +1833,6 @@ def test_conv2d_NHWC_sub_indexed():
                         lambda i0, i1, i2, i3: (i0, i1, i2, i3 // 4, i3 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv1: R.Tensor((1, 3, 3, 16, 4), dtype="float32") = R.layout_transform(
                     w,
@@ -1862,8 +1840,6 @@ def test_conv2d_NHWC_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i1, i2, i3, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv2: R.Tensor((2, 26, 26, 1, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -1883,8 +1859,6 @@ def test_conv2d_NHWC_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i1, i2, i3 * 4 + i4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 R.output(gv)
             return gv
@@ -1942,8 +1916,13 @@ def test_conv2d_symbolic_sub_indexed():
             "float32", ndim=4
         ):
             with R.dataflow():
-                N, C, H, W = T.int64(), T.int64(16), T.int64(), T.int64()
-                Nw, Cw, Hw, Ww = T.int64(4), T.int64(16), T.int64(), T.int64()
+                N, C, H, W = T.int64(), I.meta_var(T.int64(16)), T.int64(), T.int64()
+                Nw, Cw, Hw, Ww = (
+                    I.meta_var(T.int64(4)),
+                    I.meta_var(T.int64(16)),
+                    T.int64(),
+                    T.int64(),
+                )
                 lv0 = R.match_cast(x, R.Tensor((N, C, H, W), "float32"))
                 lv1 = R.match_cast(w, R.Tensor((Nw, Cw, Hw, Ww), "float32"))
                 gv: R.Tensor(
@@ -1976,8 +1955,6 @@ def test_conv2d_symbolic_sub_indexed():
                         lambda i0, i1, i2, i3: (i0, i1 // 4, i2, i3, i1 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv1_1: R.Tensor((1, 16, Hw, Ww, 4), dtype="float32") = R.layout_transform(
                     lv1,
@@ -1985,8 +1962,6 @@ def test_conv2d_symbolic_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i1, i2, i3, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv2: R.Tensor((N, 1, H + 1 - Hw, W + 1 - Ww, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -2006,8 +1981,6 @@ def test_conv2d_symbolic_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i1 * 4 + i4, i2, i3), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 R.output(gv)
             return gv
@@ -2025,8 +1998,13 @@ def test_conv2d_matchcast_bias_sub_indexed():
             bias: R.Tensor("float32", ndim=4),
         ) -> R.Tensor(None, "float32", ndim=4):
             with R.dataflow():
-                N, C, H, W = T.int64(), T.int64(16), T.int64(), T.int64()
-                Nw, Cw, Hw, Ww = T.int64(4), T.int64(16), T.int64(), T.int64()
+                N, C, H, W = T.int64(), I.meta_var(T.int64(16)), T.int64(), T.int64()
+                Nw, Cw, Hw, Ww = (
+                    I.meta_var(T.int64(4)),
+                    I.meta_var(T.int64(16)),
+                    T.int64(),
+                    T.int64(),
+                )
                 lv0 = R.match_cast(x, R.Tensor((N, C, H, W), "float32"))
                 lv1 = R.match_cast(w, R.Tensor((Nw, Cw, Hw, Ww), "float32"))
                 lv2: R.Tensor("float32", ndim=4) = R.nn.conv2d(lv0, lv1, out_dtype="float32")
@@ -2044,8 +2022,13 @@ def test_conv2d_matchcast_bias_sub_indexed():
             w: R.Tensor(dtype="float32", ndim=4),
             bias: R.Tensor(dtype="float32", ndim=4),
         ) -> R.Tensor(dtype="float32", ndim=4):
-            N, C, H, W = T.int64(), T.int64(16), T.int64(), T.int64()
-            Nw, Cw, Hw, Ww = T.int64(4), T.int64(16), T.int64(), T.int64()
+            N, C, H, W = T.int64(), I.meta_var(T.int64(16)), T.int64(), T.int64()
+            Nw, Cw, Hw, Ww = (
+                I.meta_var(T.int64(4)),
+                I.meta_var(T.int64(16)),
+                T.int64(),
+                T.int64(),
+            )
             Nb, Cb, Hb, Wb = T.int64(), T.int64(), T.int64(), T.int64()
             with R.dataflow():
                 lv0: R.Tensor((N, 16, H, W), dtype="float32") = R.match_cast(
@@ -2060,8 +2043,6 @@ def test_conv2d_matchcast_bias_sub_indexed():
                         lambda i0, i1, i2, i3: (i0, i2, i3, i1 // 4, i1 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv1_1: R.Tensor((1, Hw, Ww, 16, 4), dtype="float32") = R.layout_transform(
                     lv1,
@@ -2069,8 +2050,6 @@ def test_conv2d_matchcast_bias_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i2, i3, i1, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv2: R.Tensor((N, H + 1 - Hw, W + 1 - Ww, 1, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -2095,8 +2074,6 @@ def test_conv2d_matchcast_bias_sub_indexed():
                             index_dtype="int32",
                         ),
                         pad_value=None,
-                        axis_separators=[],
-                        input_axis_separators=[],
                     )
                 )
                 lv3: R.Tensor(dtype="float32", ndim=5) = R.add(lv2, lv2_1)
@@ -2106,8 +2083,6 @@ def test_conv2d_matchcast_bias_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i3 * 4 + i4, i1, i2), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 R.output(gv)
             return gv
@@ -2120,8 +2095,13 @@ def test_conv2d_matchcast_bias_sub_indexed():
             w: R.Tensor(dtype="float32", ndim=4),
             bias: R.Tensor(dtype="float32", ndim=4),
         ) -> R.Tensor(dtype="float32", ndim=4):
-            N, C, H, W = T.int64(), T.int64(16), T.int64(), T.int64()
-            Nw, Cw, Hw, Ww = T.int64(4), T.int64(16), T.int64(), T.int64()
+            N, C, H, W = T.int64(), I.meta_var(T.int64(16)), T.int64(), T.int64()
+            Nw, Cw, Hw, Ww = (
+                I.meta_var(T.int64(4)),
+                I.meta_var(T.int64(16)),
+                T.int64(),
+                T.int64(),
+            )
             Nb, Cb, Hb, Wb = T.int64(), T.int64(), T.int64(), T.int64()
             with R.dataflow():
                 lv0: R.Tensor((N, 16, H, W), dtype="float32") = R.match_cast(
@@ -2190,8 +2170,13 @@ def test_conv2d_layout_incompatible_fallback():
             bias: R.Tensor("float32", ndim=4),
         ) -> R.Tensor(None, "float32", ndim=4):
             with R.dataflow():
-                N, C, H, W = T.int64(), T.int64(15), T.int64(), T.int64()
-                Nw, Cw, Hw, Ww = T.int64(4), T.int64(15), T.int64(), T.int64()
+                N, C, H, W = T.int64(), I.meta_var(T.int64(15)), T.int64(), T.int64()
+                Nw, Cw, Hw, Ww = (
+                    I.meta_var(T.int64(4)),
+                    I.meta_var(T.int64(15)),
+                    T.int64(),
+                    T.int64(),
+                )
                 lv0 = R.match_cast(x, R.Tensor((N, C, H, W), "float32"))
                 lv1 = R.match_cast(w, R.Tensor((Nw, Cw, Hw, Ww), "float32"))
                 lv2: R.Tensor("float32", ndim=4) = R.nn.conv2d(lv0, lv1, out_dtype="float32")
@@ -2209,8 +2194,13 @@ def test_conv2d_layout_incompatible_fallback():
             w: R.Tensor(dtype="float32", ndim=4),
             bias: R.Tensor(dtype="float32", ndim=4),
         ) -> R.Tensor(dtype="float32", ndim=4):
-            N, C, H, W = T.int64(), T.int64(15), T.int64(), T.int64()
-            Nw, Cw, Hw, Ww = T.int64(4), T.int64(15), T.int64(), T.int64()
+            N, C, H, W = T.int64(), I.meta_var(T.int64(15)), T.int64(), T.int64()
+            Nw, Cw, Hw, Ww = (
+                I.meta_var(T.int64(4)),
+                I.meta_var(T.int64(15)),
+                T.int64(),
+                T.int64(),
+            )
             Nb, Cb, Hb, Wb = T.int64(), T.int64(), T.int64(), T.int64()
             with R.dataflow():
                 lv0: R.Tensor((N, 15, H, W), dtype="float32") = R.match_cast(
@@ -2409,8 +2399,6 @@ def test_relu_conv2d_relu_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i2, i3, i1, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 gv: R.Tensor((2, 26, 26, 1, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -2427,8 +2415,6 @@ def test_relu_conv2d_relu_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i3 * 4 + i4, i1, i2), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 R.output(gv2)
             return gv2
@@ -3394,8 +3380,6 @@ def test_conv2d_squeeze_sub_indexed():
                         lambda i0, i1, i2, i3: (i0, i2, i3, i1 // 4, i1 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv1: R.Tensor((1, 3, 3, 16, 4), dtype="float32") = R.layout_transform(
                     w,
@@ -3403,8 +3387,6 @@ def test_conv2d_squeeze_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i2, i3, i1, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 gv: R.Tensor((1, 26, 26, 1, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -3424,8 +3406,6 @@ def test_conv2d_squeeze_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i3 * 4 + i4, i1, i2), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 gv2: R.Tensor((4, 26, 26), dtype="float32") = R.squeeze(lv2, axis=[0])
                 R.output(gv2)

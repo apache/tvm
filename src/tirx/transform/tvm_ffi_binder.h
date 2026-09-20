@@ -28,10 +28,10 @@
 #ifndef TVM_TIR_TRANSFORM_TVM_FFI_BINDER_H_
 #define TVM_TIR_TRANSFORM_TVM_FFI_BINDER_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/access_path.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/buffer.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt.h>
 
 #include <string>
@@ -62,11 +62,11 @@ namespace tirx {
  * - init_nest: Binds, DeclBuffers for shape/strides arrays, AttrStmts —
  *   all value-loading code that defines variables.
  * - asserts: AssertStmts — all validation checks.
- * - decl_buffers: DeclBuffer for buffer_map entries — buffer declarations.
+ * - decl_buffers: DeclBuffer for buffer-typed parameters — buffer declarations.
  *
  * ## Calling Protocol
  *
- * 1. Construct with function metadata (func_name, params, buffer_map, v_packed_args,
+ * 1. Construct with function metadata (func_name, params, v_packed_args,
  *    v_num_packed_args). The constructor emits arg count and null-pointer checks.
  * 2. Call DecodeAllParams(device_type, device_id)
  *    - Decodes, type-checks, and binds all packed arguments
@@ -88,7 +88,7 @@ class TVMFFIABIBuilder {
   /*! \brief Variable definition info: bound value and the ffi::reflection::AccessPath where first
    * defined. */
   struct VarDefInfo {
-    PrimExpr value;
+    Expr value;
     ffi::reflection::AccessPath first_def_path;
   };
 
@@ -100,7 +100,7 @@ class TVMFFIABIBuilder {
     std::vector<Stmt> init_nest;
     /*! \brief Validation checks (all AssertStmts). */
     std::vector<Stmt> asserts;
-    /*! \brief Buffer declarations for buffer_map entries. */
+    /*! \brief BufferVar declarations for buffer-typed parameters. */
     std::vector<Stmt> decl_buffers;
   };
 
@@ -112,16 +112,14 @@ class TVMFFIABIBuilder {
    *
    * \param func_name The function name.
    * \param params The function parameters.
-   * \param buffer_map The buffer map from parameters to buffers.
    * \param v_packed_args The packed args variable (used for struct_get calls).
    * \param v_num_packed_args The variable holding the actual number of packed args.
    * \param device_type The expected device type expression.
    * \param device_id The device id variable (may be defined during buffer binding).
    */
   TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Array<Var>& params,
-                   const ffi::Map<Var, Buffer>& buffer_map, const Var& v_packed_args,
-                   const Var& v_num_packed_args, const PrimExpr& device_type,
-                   const PrimExpr& device_id);
+                   const Var& v_packed_args, const Var& v_num_packed_args,
+                   const PrimExpr& device_type, const PrimExpr& device_id);
 
   /*!
    * \brief Decode all packed arguments: type-check, load values, bind buffers.
@@ -179,8 +177,12 @@ class TVMFFIABIBuilder {
   void DecodeParam(int param_index);
 
   /*! \brief Load the i-th packed argument as the given type from the union value. */
+  static Expr LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int param_index, Type arg_type);
   static PrimExpr LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int param_index,
-                                          DataType arg_type);
+                                          PrimType arg_type) {
+    return LoadTVMFFIAnyUnionValue(v_packed_args, param_index, Type(arg_type))
+        .as_or_throw<PrimExpr>();
+  }
 
   // ── Per-dtype type-check + value-load methods ──────────────────
   //
@@ -194,7 +196,7 @@ class TVMFFIABIBuilder {
    * \param type_index The variable holding the FFI type index.
    * \return The loaded argument value.
    */
-  PrimExpr DecodeParamOpaqueHandle(int param_index, const Var& type_index);
+  Expr DecodeParamOpaqueHandle(int param_index, const PrimExpr& type_index);
 
   /*!
    * \brief Type-check and load a boolean argument.
@@ -202,7 +204,7 @@ class TVMFFIABIBuilder {
    * \param type_index The variable holding the FFI type index.
    * \return The loaded argument value.
    */
-  PrimExpr DecodeParamBool(int param_index, const Var& type_index);
+  PrimExpr DecodeParamBool(int param_index, const PrimExpr& type_index);
 
   /*!
    * \brief Type-check and load an integer argument.
@@ -211,7 +213,7 @@ class TVMFFIABIBuilder {
    * \param dtype The expected data type for this parameter.
    * \return The loaded argument value.
    */
-  PrimExpr DecodeParamInt(int param_index, const Var& type_index, DataType dtype);
+  PrimExpr DecodeParamInt(int param_index, const PrimExpr& type_index, PrimType dtype);
 
   /*!
    * \brief Type-check and load a float argument.
@@ -220,7 +222,7 @@ class TVMFFIABIBuilder {
    * \param dtype The expected data type for this parameter.
    * \return The loaded argument value.
    */
-  PrimExpr DecodeParamFloat(int param_index, const Var& type_index, DataType dtype);
+  PrimExpr DecodeParamFloat(int param_index, const PrimExpr& type_index, PrimType dtype);
 
   // ── Private binding submethods (all take ffi::reflection::AccessPath) ───────────
 
@@ -244,6 +246,10 @@ class TVMFFIABIBuilder {
   bool BindScalar(const PrimExpr& arg, const PrimExpr& value,
                   const ffi::reflection::AccessPath& path, bool with_lets);
 
+  /*! \brief Bind an exact pointer-typed variable to a pointer-valued expression. */
+  bool BindPointer(const Var& arg, const Expr& value, const ffi::reflection::AccessPath& path,
+                   bool with_lets);
+
   /*!
    * \brief Array bind: binds element-wise with ffi::reflection::AccessPath[k] for each element.
    *
@@ -255,7 +261,7 @@ class TVMFFIABIBuilder {
                  const ffi::reflection::AccessPath& base_path);
 
   /*!
-   * \brief Buffer-to-buffer bind with ffi::reflection::AccessPath.
+   * \brief BufferVar-to-buffer bind with ffi::reflection::AccessPath.
    *
    * Binds data, elem_offset, shape, and strides of \p arg against \p value,
    * emitting assertions for any mismatches.
@@ -265,8 +271,8 @@ class TVMFFIABIBuilder {
    * \param base_path Base ffi::reflection::AccessPath for the buffer parameter.
    * \param fuzzy_match If true, allow value to have more dimensions than arg.
    */
-  void BindBuffer(const Buffer& arg, const Buffer& value, ffi::reflection::AccessPath base_path,
-                  bool fuzzy_match);
+  void BindBuffer(const BufferVar& arg, const BufferVar& value,
+                  ffi::reflection::AccessPath base_path, bool fuzzy_match);
 
   /*!
    * \brief DLTensor bind: ndim/dtype/shape/strides/data/device assertions.
@@ -278,7 +284,7 @@ class TVMFFIABIBuilder {
    * \param arg_name Human-readable name for error messages.
    * \param base_path Base ffi::reflection::AccessPath for the tensor parameter.
    */
-  void DecodeParamDLTensor(const Buffer& buffer, const PrimExpr& device_type,
+  Expr DecodeParamDLTensor(const BufferVar& buffer, const PrimExpr& device_type,
                            const PrimExpr& device_id, const Var& handle,
                            const std::string& arg_name, ffi::reflection::AccessPath base_path);
 
@@ -313,21 +319,9 @@ class TVMFFIABIBuilder {
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
    * \param param_path ffi::reflection::AccessPath for the tensor parameter.
    */
-  void BindCompactStrides(const Buffer& buffer, const Var& strides_ptr,
+  void BindCompactStrides(const BufferVar& buffer, const Var& strides_ptr,
                           const PrimExpr& v_strides_is_null,
                           const ffi::reflection::AccessPath& param_path);
-
-  /*!
-   * \brief Bind strides for auto-broadcast buffers: stride=0 for shape==1 dims.
-   *
-   * \param buffer The expected buffer definition.
-   * \param strides_ptr The strides pointer variable.
-   * \param v_strides_is_null Expression checking if strides pointer is NULL.
-   * \param param_path ffi::reflection::AccessPath for the tensor parameter.
-   */
-  void BindAutoBroadcastStrides(const Buffer& buffer, const Var& strides_ptr,
-                                const PrimExpr& v_strides_is_null,
-                                const ffi::reflection::AccessPath& param_path);
 
   /*!
    * \brief Bind strides with C-contiguous fallback when strides pointer is NULL.
@@ -338,7 +332,7 @@ class TVMFFIABIBuilder {
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
    * \param param_path ffi::reflection::AccessPath for the tensor parameter.
    */
-  void BindRegularStrides(const Buffer& buffer, const Var& strides_ptr, const Var& shape_ptr,
+  void BindRegularStrides(const BufferVar& buffer, const Var& strides_ptr, const Var& shape_ptr,
                           const PrimExpr& v_strides_is_null,
                           const ffi::reflection::AccessPath& param_path);
 
@@ -395,12 +389,12 @@ class TVMFFIABIBuilder {
   std::vector<Stmt> init_nest_;
   /*! \brief Validation checks: all AssertStmts. */
   std::vector<Stmt> asserts_;
-  /*! \brief Buffer declarations for buffer_map entries. */
+  /*! \brief BufferVar declarations for buffer-typed parameters. */
   std::vector<Stmt> decl_buffers_;
   /*! \brief Deferred constant-expression assertions for display-var substitution. */
   std::vector<PendingConstAssert> pending_const_asserts_;
   /*! \brief internal analyzer. */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 
   // Function metadata
   /*! \brief function name for error messages. */
@@ -409,8 +403,8 @@ class TVMFFIABIBuilder {
   std::string func_signature_;
   /*! \brief The function parameters. */
   ffi::Array<Var> params_;
-  /*! \brief The buffer map from parameters to buffers. */
-  ffi::Map<Var, Buffer> buffer_map_;
+  /*! \brief Raw packed-ABI handles decoded for buffer-typed parameters. */
+  std::unordered_map<const VarNode*, Var> buffer_handles_;
   /*! \brief The packed args variable. */
   Var v_packed_args_;
   /*! \brief The expected device type expression. */

@@ -24,26 +24,34 @@ from tvm.topi.nn.pooling import pool2d
 
 
 def test_tensor():
-    m = te.size_var("m")
-    n = te.size_var("n")
-    l = te.size_var("l")
+    m = te.var("m")
+    n = te.var("n")
+    l = te.var("l")
     A = te.placeholder((m, l), name="A")
     B = te.placeholder((n, l), name="B")
     T = te.compute((m, n, l), lambda i, j, k: A[i, k] * B[j, k])
     print(T)
     print(T.op.body)
     assert tuple(T.shape) == (m, n, l)
+    assert isinstance(A, tvm.ir.OpaqueExpr)
+    assert isinstance(A.ty, tvm.ir.OpaqueType)
     assert isinstance(A.op, tvm.te.PlaceholderOp)
     assert A == A
     assert T.op.output(0) == T
     assert T.op.output(0).__hash__() == T.__hash__()
     d = {T.op.output(0): 1}
     assert d[T] == 1
-    assert T[0][0][0].astype("float16").dtype == "float16"
+    load = T[0][0][0].asobject()
+    assert isinstance(load, tvm.ir.Call)
+    assert load.op.same_as(tvm.ir.Op.get("te.tensor_load"))
+    assert load.args[0].same_as(T)
+    assert list(load.args[1:]) == [0, 0, 0]
+    assert load.ty == T.dtype
+    assert load.astype("float16").ty == tvm.ir.PrimType("float16")
 
 
 def test_rank_zero():
-    m = te.size_var("m")
+    m = te.var("m")
     A = te.placeholder((m,), name="A")
     scale = te.placeholder((), name="s")
     k = te.reduce_axis((0, m), name="k")
@@ -54,7 +62,7 @@ def test_rank_zero():
 
 
 def test_conv1d():
-    n = te.size_var("n")
+    n = te.var("n")
     A = te.placeholder((n + 2), name="A")
 
     def computeB(ii):
@@ -65,14 +73,14 @@ def test_conv1d():
 
 
 def test_tensor_slice():
-    n = te.size_var("n")
+    n = te.var("n")
     A = te.compute((n, n), lambda i, j: 1)
     B = te.compute((n,), lambda i: A[0][i] + A[0][i])
 
 
 def test_tensor_reduce_multi_axis():
-    m = te.size_var("m")
-    n = te.size_var("n")
+    m = te.var("m")
+    n = te.var("n")
     A = te.placeholder((m, n), name="A")
     k1 = te.reduce_axis((0, n), "k")
     k2 = te.reduce_axis((0, m), "k")
@@ -81,8 +89,8 @@ def test_tensor_reduce_multi_axis():
 
 
 def test_tensor_comm_reducer():
-    m = te.size_var("m")
-    n = te.size_var("n")
+    m = te.var("m")
+    n = te.var("n")
     A = te.placeholder((m, n), name="A")
     k = te.reduce_axis((0, n), "k")
     mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm.tirx.const(0, dtype=t))
@@ -90,16 +98,16 @@ def test_tensor_comm_reducer():
 
 
 def test_tensor_comm_reducer_overload():
-    m = te.size_var("m")
-    n = te.size_var("n")
+    m = te.var("m")
+    n = te.var("n")
     mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm.tirx.const(0, dtype=t))
     sum_res = mysum(m, n)
 
 
 def test_tensor_reduce():
-    m = te.size_var("m")
-    n = te.size_var("n")
-    l = te.size_var("l")
+    m = te.var("m")
+    n = te.var("n")
+    l = te.var("l")
     A = te.placeholder((m, l), name="A")
     B = te.placeholder((n, l), name="B")
     T = te.compute((m, n, l), lambda i, j, k: A[i, k] * B[j, k])
@@ -131,8 +139,8 @@ def test_tensor_reduce_multiout_with_cond():
 
 
 def test_tensor_scan():
-    m = te.size_var("m")
-    n = te.size_var("n")
+    m = te.var("m")
+    n = te.var("n")
     x = te.placeholder((m, n))
     s = te.placeholder((m, n))
     res = tvm.te.scan(
@@ -144,8 +152,8 @@ def test_tensor_scan():
 
 
 def test_scan_multi_out():
-    m = te.size_var("m")
-    n = te.size_var("n")
+    m = te.var("m")
+    n = te.var("n")
     x1 = te.placeholder((m, n))
     s1 = te.placeholder((m, n))
     x2 = te.placeholder((m, n))
@@ -164,11 +172,11 @@ def test_scan_multi_out():
 
 
 def test_extern():
-    m = te.size_var("m")
+    m = te.var("m")
     A = te.placeholder((m,), name="A")
 
     def extern_func(ins, outs):
-        assert isinstance(ins[0], tvm.tirx.Buffer)
+        assert tvm.tirx.is_buffer_var(ins[0])
         return tvm.tirx.call_packed("myadd", ins[0].data, outs[0].data, m)
 
     B = te.extern((m,), [A], extern_func)
@@ -176,12 +184,12 @@ def test_extern():
 
 
 def test_extern_multi_out():
-    m = te.size_var("m")
+    m = te.var("m")
     A = te.placeholder((m,), name="A")
     B = te.compute((m,), lambda i: A[i] * 10)
 
     def extern_func(ins, outs):
-        assert isinstance(ins[0], tvm.tirx.Buffer)
+        assert tvm.tirx.is_buffer_var(ins[0])
         return tvm.tirx.call_packed("myadd", ins[0].data, outs[0].data, outs[1].data, m)
 
     res = te.extern([A.shape, A.shape], [A, B], extern_func)
@@ -190,8 +198,8 @@ def test_extern_multi_out():
 
 
 def test_tuple_inputs():
-    m = te.size_var("m")
-    n = te.size_var("n")
+    m = te.var("m")
+    n = te.var("n")
     A0 = te.placeholder((m, n), name="A0")
     A1 = te.placeholder((m, n), name="A1")
     T0, T1 = te.compute((m, n), lambda i, j: (A0[i, j] * 2, A1[i, j] * 3), name="T")
@@ -199,8 +207,8 @@ def test_tuple_inputs():
 
 
 def test_tuple_with_different_deps():
-    m = te.size_var("m")
-    n = te.size_var("n")
+    m = te.var("m")
+    n = te.var("n")
     A0 = te.placeholder((m, n), name="A1")
     A1 = te.placeholder((m, n), name="A2")
     B0, B1 = te.compute((m, n), lambda i, j: (A0[i, j] * 2, A1[i, j] * 3), name="B")

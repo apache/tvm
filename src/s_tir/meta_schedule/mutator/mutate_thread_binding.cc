@@ -93,7 +93,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
   static InstructionKind inst_bind = InstructionKind::Get("Bind");
 
   std::vector<MutateThreadBindingNode::Candidate> candidates;
-  std::unordered_map<const PrimExprNode*, const s_tir::InstructionNode*> sample_insts;
+  std::unordered_map<const ExprNode*, const s_tir::InstructionNode*> sample_insts;
   std::unordered_map<const s_tir::LoopRVNode*, const s_tir::InstructionNode*> sampled_split_insts;
   std::vector<const InstructionNode*> bind_insts;
 
@@ -105,7 +105,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     if (inst->inputs.size() != 3 || inst->inputs[1] != nullptr) return false;
     TVM_FFI_ICHECK(inst->inputs[2] != nullptr);
 
-    return sample_insts.find(Downcast<PrimExpr>(inst->inputs[2]).get()) != sample_insts.end();
+    return sample_insts.find(inst->inputs[2].as_or_throw<PrimExpr>().get()) != sample_insts.end();
   };
 
   auto is_thread_binding_by_sample = [&sampled_split_insts](const Instruction& inst) -> bool {
@@ -114,16 +114,16 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     }
     TVM_FFI_ICHECK_EQ(inst->inputs.size(), 1);
     TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
-    if (Downcast<ffi::String>(inst->attrs[0]) != "threadIdx.x") return false;
+    if (inst->attrs[0].as_or_throw<ffi::String>() != "threadIdx.x") return false;
 
-    return sampled_split_insts.find(Downcast<s_tir::LoopRV>(inst->inputs[0]).get()) !=
+    return sampled_split_insts.find(inst->inputs[0].as_or_throw<s_tir::LoopRV>().get()) !=
            sampled_split_insts.end();
   };
 
   for (const Instruction& inst : trace->insts) {
     if (inst->kind.same_as(inst_sample_categorical)) {
       TVM_FFI_ICHECK_EQ(inst->outputs.size(), 1);
-      const PrimExprNode* var_rv = TVM_TYPE_AS(inst->outputs[0], PrimExprNode);
+      const ExprNode* var_rv = TVM_TYPE_AS(inst->outputs[0], ExprNode);
       sample_insts[var_rv] = inst.get();
     } else if (is_split_by_sample(inst)) {
       TVM_FFI_ICHECK_EQ(inst->outputs.size(), 2);
@@ -141,7 +141,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     TVM_FFI_ICHECK(split_it != sampled_split_insts.end());
     const InstructionNode* split_inst = split_it->second;
 
-    const auto* expr_rv = TVM_TYPE_AS(split_inst->inputs[2], PrimExprNode);
+    const auto* expr_rv = TVM_TYPE_AS(split_inst->inputs[2], ExprNode);
     auto sample_it = sample_insts.find(expr_rv);
     TVM_FFI_ICHECK(sample_it != sample_insts.end());
     const InstructionNode* sample_inst = sample_it->second;
@@ -149,8 +149,8 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     // SampleCategorical decision is Optional<int64_t> after the Integer phase-out.
     int decision = trace->decisions[ffi::GetRef<Instruction>(sample_inst)].cast<int64_t>();
 
-    std::vector<double> probs =
-        support::AsVector<FloatImm, double>(Downcast<ffi::Array<FloatImm>>(sample_inst->attrs[1]));
+    std::vector<double> probs = support::AsVector<FloatImm, double>(
+        sample_inst->attrs[1].as_or_throw<ffi::Array<FloatImm>>());
 
     candidates.emplace_back(ffi::GetRef<Instruction>(sample_inst), probs, decision);
   }

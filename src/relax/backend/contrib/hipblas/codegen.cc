@@ -41,7 +41,7 @@ using backend::contrib::NodeEntries;
 
 class HipblasJSONSerializer : public JSONSerializer {
  public:
-  HipblasJSONSerializer(ffi::Map<Constant, ffi::String> constant_names,
+  HipblasJSONSerializer(ffi::Map<GenericConst, ffi::String> constant_names,
                         ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
@@ -50,7 +50,7 @@ class HipblasJSONSerializer : public JSONSerializer {
   NodeEntries VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
     TVM_FFI_ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    const auto fn = bindings_[ffi::GetRef<Var>(fn_var)].as_or_throw<Function>();
     TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
     auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
@@ -68,10 +68,10 @@ class HipblasJSONSerializer : public JSONSerializer {
     NodeEntries inputs(inputs_tmp.size());
 
     auto arg_idx = backend::ExtractArgIdx(composite_name, fn);
-    inputs[0] = inputs_tmp[arg_idx["lhs"]->value];
-    inputs[1] = inputs_tmp[arg_idx["rhs"]->value];
+    inputs[0] = inputs_tmp[static_cast<int64_t>(arg_idx["lhs"]->value)];
+    inputs[1] = inputs_tmp[static_cast<int64_t>(arg_idx["rhs"]->value)];
     if (inputs_tmp.size() == 3) {
-      inputs[2] = inputs_tmp[arg_idx["bias"]->value];
+      inputs[2] = inputs_tmp[static_cast<int64_t>(arg_idx["bias"]->value)];
     }
 
     auto node = std::make_shared<JSONGraphNode>(composite_name, /* name_ */
@@ -90,7 +90,7 @@ class HipblasJSONSerializer : public JSONSerializer {
 
 ffi::Array<ffi::Module> HipblasCompiler(ffi::Array<Function> functions,
                                         ffi::Map<ffi::String, ffi::Any> /*unused*/,
-                                        ffi::Map<Constant, ffi::String> constant_names) {
+                                        ffi::Map<GenericConst, ffi::String> constant_names) {
   ffi::Array<ffi::Module> compiled_functions;
 
   for (const auto& func : functions) {

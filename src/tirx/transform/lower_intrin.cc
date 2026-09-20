@@ -24,29 +24,115 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
+#include <tvm/tirx/buffer.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/transform.h>
 
 #include <limits>
 #include <unordered_set>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
-#include "../../arith/pattern_match.h"
+#include "../../sym/pattern_match.h"
+#include "../ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
-class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
+struct AccessPtrBufferAlias {
+  BufferVar buffer;
+  Expr data;
+};
+
+static Expr LowerAccessPtr(const CallNode* call,
+                           std::vector<AccessPtrBufferAlias>* buffer_aliases) {
+  TVM_FFI_ICHECK_EQ(call->args.size(), 5U);
+  PrimType dtype = call->args[0].as_or_throw<PrimExpr>().ty();
+  PrimExpr offset = call->args[2].as_or_throw<PrimExpr>();
+  TVM_FFI_ICHECK(call->ty.as<PointerTypeNode>());
+
+  // An access pointer may itself be used as the base of another access
+  // pointer.  Fold those offsets before constructing the synthetic
+  // TensorLoad so lowering never assumes that args[1] is immediately a Var.
+  Expr buffer = call->args[1];
+  while (const auto* inner = buffer.as<CallNode>()) {
+    if (!inner->op.same_as(builtin::tvm_access_ptr())) break;
+    TVM_FFI_ICHECK_EQ(inner->args.size(), 5U);
+    PrimType inner_dtype = inner->args[0].as_or_throw<PrimExpr>().ty();
+    TVM_FFI_ICHECK_EQ(inner_dtype, dtype)
+        << "Nested tvm_access_ptr calls must use the same element type";
+    PrimExpr inner_offset = inner->args[2].as_or_throw<PrimExpr>();
+    if (inner_offset.ty() != offset.ty()) {
+      inner_offset = prim::Cast(offset.ty(), inner_offset);
+    }
+    offset = inner_offset + offset;
+    buffer = inner->args[1];
+  }
+
+  const auto* buffer_data = buffer.as<CallNode>();
+  if (buffer_data && buffer_data->op.same_as(builtin::buffer_data())) {
+    TVM_FFI_ICHECK_EQ(buffer_data->args.size(), 1U);
+    buffer = buffer_data->args[0];
+  }
+
+  const auto* buffer_node = buffer.as<VarNode>();
+  TVM_FFI_ICHECK(buffer_node)
+      << "tvm_access_ptr expects a buffer Var or nested tvm_access_ptr as args[1], but got "
+      << buffer;
+  Var buffer_var = ffi::GetRef<Var>(buffer_node);
+  PrimExpr scalar_extent = offset + IntImm(offset.ty(), 1);
+  if (dtype.lanes() != 1) {
+    PrimType offset_ty = offset.ty();
+    offset = offset * IntImm(offset_ty, dtype.lanes());
+    scalar_extent = offset + IntImm(offset_ty, dtype.lanes());
+    offset = prim::Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
+  }
+
+  PrimType scalar_dtype = dtype.WithLanes(1);
+  BufferVar access_buffer{nullptr};
+  ffi::String storage_scope;
+  Expr access_data;
+  if (buffer_var->ty.as<BufferTypeNode>()) {
+    BufferVar source_buffer(buffer_var);
+    if (source_buffer->dtype == scalar_dtype && source_buffer->shape.size() == 1) {
+      access_buffer = source_buffer;
+    } else {
+      TVM_FFI_ICHECK_EQ(source_buffer->dtype.WithLanes(1), scalar_dtype)
+          << "tvm_access_ptr element type must match the source buffer";
+      storage_scope = source_buffer.scope();
+      access_data = source_buffer.data();
+    }
+  } else {
+    auto pointer_type = buffer_var->ty.as_or_throw<PointerType>();
+    storage_scope = pointer_type->storage_scope;
+    access_data = buffer_var;
+  }
+
+  if (!access_buffer.defined()) {
+    // BufferVar identity includes its immutable BufferType.  Bind an explicit
+    // scalar physical view instead of retyping a vector, padded, or packed source.
+    access_buffer =
+        BufferVar(buffer_var->name + "_access",
+                  BufferType(storage_scope, scalar_dtype, {scalar_extent}, {}, 0, 0, 0));
+    buffer_aliases->push_back({access_buffer, access_data});
+  }
+  TensorLoad buf_load = BufferLoad(access_buffer, {offset});
+  return Call(call->ty, builtin::address_of(), {buf_load});
+}
+
+class IntrinInjecter : public IRMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::VisitExpr_;
-  using IRMutatorWithAnalyzer::VisitStmt_;
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
+
   using FLowerGeneral = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
-  IntrinInjecter(arith::AnalyzerObj* analyzer, const Target& tgt, bool enable_fast_math)
+  IntrinInjecter(const sym::Analyzer& analyzer, const Target& tgt, bool enable_fast_math)
       : IRMutatorWithAnalyzer(analyzer) {
     std::string target = tgt->kind->name;
     ffi::String mtriple = tgt->GetAttr<ffi::String>("mtriple").value_or("");
@@ -73,54 +159,77 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       if (Op::HasAttrMap(pattern)) {
         attr_maps_.push_back(Op::GetAttrMap<FLowerGeneral>(pattern));
         if (fma_ == nullptr) {
-          fma_ = (*attr_maps_.rbegin()).get(Op::Get("tirx.fma"), nullptr);
+          static const Op& fma_op = Op::Get("tirx.fma");
+          fma_ = (*attr_maps_.rbegin()).get(fma_op, nullptr);
         }
       }
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) final {
+    if (!input.as<StmtNode>()) return IRMutatorWithAnalyzer::Mutate(input, inplace_mode);
+    size_t alias_begin = access_ptr_buffer_aliases_.size();
+    UnchangedOr<ffi::Any> mutated = IRMutatorWithAnalyzer::Mutate(input, inplace_mode);
+    if (access_ptr_buffer_aliases_.size() == alias_begin) return mutated;
+    Stmt result = std::move(mutated).ValueOrUnchanged(input).as_or_throw<Stmt>();
+    for (size_t i = access_ptr_buffer_aliases_.size(); i > alias_begin; --i) {
+      const auto& alias = access_ptr_buffer_aliases_[i - 1];
+      result = SeqStmt::Flatten(DeclBuffer(alias.buffer, alias.data), std::move(result));
+    }
+    access_ptr_buffer_aliases_.resize(alias_begin);
+    return result;
+  }
+
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    if (op->op.same_as(builtin::tvm_access_ptr())) {
+      Expr lowered = LowerAccessPtr(op, &access_ptr_buffer_aliases_);
+      return this->Mutate(lowered, inplace_mode).ValueOrUnchanged(std::move(lowered));
+    }
     if (auto* ptr_op = op->op.as<OpNode>()) {
-      for (const auto& f_attr_map : attr_maps_) {
-        FLowerGeneral f = f_attr_map.get(ffi::GetRef<Op>(ptr_op), nullptr);
-        if (f != nullptr) {
-          PrimExpr e = ffi::GetRef<PrimExpr>(op);
-          PrimExpr r = f(e);
-          TVM_FFI_ICHECK(r.defined()) << "intrinsic rule must always return valid Expr";
-          if (!r.same_as(e)) {
-            r = this->VisitExpr(r);
-            if (r.defined()) {
-              return r;
+      Op op_ref = ffi::GetRef<Op>(ptr_op);
+      Expr e = ffi::GetRef<Call>(op);
+      if (auto prim_e = e.as<PrimExpr>()) {
+        for (const auto& f_attr_map : attr_maps_) {
+          FLowerGeneral f = f_attr_map.get(op_ref, nullptr);
+          if (f != nullptr) {
+            PrimExpr r = f(prim_e.value());
+            TVM_FFI_ICHECK(r.defined()) << "intrinsic rule must always return valid Expr";
+            if (!r.same_as(prim_e.value())) {
+              r = this->Mutate(r, inplace_mode).ValueOrUnchanged(r);
+              if (r.defined()) {
+                return r;
+              }
             }
           }
         }
       }
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  PrimExpr VisitExpr_(const AddNode* op) final {
-    if (const MulNode* mb = op->b.as<MulNode>()) {
+  UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode inplace_mode) final {
+    if (const prim::MulNode* mb = op->b.as<prim::MulNode>()) {
       return MakeFMA(mb->a, mb->b, op->a, op);
-    } else if (const MulNode* ma = op->a.as<MulNode>()) {
+    } else if (const prim::MulNode* ma = op->a.as<prim::MulNode>()) {
       return MakeFMA(ma->a, ma->b, op->b, op);
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   // We use floordiv for integer analysis,
   // but will need to lower them to native truncdiv instructions
-  PrimExpr VisitExpr_(const FloorDivNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) final {
     auto e = ffi::GetRef<PrimExpr>(op);
-    PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-    op = ret.as<FloorDivNode>();
+    PrimExpr ret = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
+    op = ret.as<prim::FloorDivNode>();
     if (op == nullptr) return ret;
     int shift;
-    const DataType& dtype = op->dtype;
-    TVM_FFI_ICHECK(dtype.is_int() || dtype.is_uint());
+    PrimType dtype = op->ty.as_or_throw<PrimType>();
+    TVM_FFI_ICHECK(dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt));
 
     if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
       // lower to right shift if possible.
-      return op->a >> make_const(dtype, shift);
+      return op->a >> IntImm(dtype, shift);
     }
 
     if (analyzer_->CanProveGreaterEqual(op->b, 0)) {
@@ -128,13 +237,15 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       if (analyzer_->CanProveGreaterEqual(op->a, 0) || analyzer_->CanProveGreaterEqual(e, 0)) {
         return truncdiv(op->a, op->b);
       }
-      if (const IntImmNode* b_as_intimm = op->b.as<IntImmNode>()) {
-        int64_t b_value = b_as_intimm->value;
-        if (auto opt_c_value = TryFindShiftCoefficientForPositiveRange(op->a, b_value)) {
+      const auto* b_as_intimm = op->b.as<IntImmNode>();
+      if (auto b_value = b_as_intimm ? b_as_intimm->value.as<int64_t>() : std::nullopt;
+          b_value.has_value()) {
+        if (auto opt_c_value = TryFindShiftCoefficientForPositiveRange(op->a, *b_value);
+            opt_c_value.has_value()) {
           int64_t c_value = *opt_c_value;
           // now we can safely lower to truncdiv
-          return truncdiv(op->a + make_const(dtype, b_value * c_value), op->b) -
-                 make_const(dtype, c_value);
+          return truncdiv(op->a + IntImm(dtype, b_as_intimm->value * c_value), op->b) -
+                 IntImm(dtype, c_value);
         }
       }
       DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divident";
@@ -143,46 +254,48 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // condition on b >= 0.
       // truncmod(a, b) < 0 will implies ceildiv,
       // So we need to correct these cases.
-      if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
+      if ((dtype == PrimType::Int(32) || dtype == PrimType::Int(64)) && support_bitwise_op_) {
         // equivalent to rdiv + (rmod >= 0 ? 0: -1);
-        return rdiv + (rmod >> make_const(dtype, dtype.bits() - 1));
+        return rdiv + (rmod >> IntImm(dtype, dtype.bits() - 1));
       } else {
-        return tirx::Select(rmod >= 0, rdiv, rdiv - make_const(dtype, 1));
+        return prim::Select(rmod >= 0, rdiv, rdiv - MakeConst(dtype, 1));
       }
 
     } else {
-      if (dtype.is_float()) {
+      if (dtype.code() == DLDataTypeCode::kDLFloat) {
         // floor(a / b)
-        return VisitExpr_(tvm::floor(op->a / op->b).as<CallNode>());
+        PrimExpr lowered = tvm::prim::floor(op->a / op->b);
+        return Mutate(lowered, inplace_mode).ValueOrUnchanged(lowered);
       } else {
         // uncommon case
         DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divisor";
-        auto rmod = tirx::Var("rmod", dtype);
-        auto rdiv = tirx::Var("rdiv", dtype);
+        PrimVar rmod("rmod", dtype);
+        PrimVar rdiv("rdiv", dtype);
         // b >= 0 => (rmod >=0 ? rdiv : rdiv - 1)
         // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
         PrimExpr let_rdiv =
-            tirx::Let(rdiv, truncdiv(op->a, op->b),
-                      tirx::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv,
-                                   rdiv - make_const(dtype, 1)));
-        return Let(rmod, truncmod(op->a, op->b), let_rdiv);
+            prim::Let(rdiv, truncdiv(op->a, op->b),
+                      prim::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv,
+                                   rdiv - MakeConst(dtype, 1)));
+        return prim::Let(rmod, truncmod(op->a, op->b), let_rdiv);
       }
     }
   }
 
-  PrimExpr VisitExpr_(const FloorModNode* op) final {
-    PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-    op = ret.as<FloorModNode>();
+  UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) final {
+    PrimExpr ret = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
+    op = ret.as<prim::FloorModNode>();
     if (op == nullptr) return ret;
     // Lower floordiv to native truncdiv.
     int shift;
-    const DataType& dtype = op->dtype;
-    TVM_FFI_ICHECK(dtype.is_int() || dtype.is_uint());
+    PrimType dtype = op->ty.as_or_throw<PrimType>();
+    TVM_FFI_ICHECK(dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt));
 
     if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
       // lower to masking if possible.
-      int64_t mask = (static_cast<int64_t>(1) << static_cast<int64_t>(shift)) - 1;
-      return op->a & make_const(dtype, mask);
+      ffi::BigInt mask = (ffi::BigInt(1) << shift) - 1;
+      return op->a & IntImm(dtype, mask);
     }
 
     if (analyzer_->CanProveGreaterEqual(op->b, 0)) {
@@ -190,12 +303,14 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       if (analyzer_->CanProveGreaterEqual(op->a, 0)) {
         return truncmod(op->a, op->b);
       }
-      if (const IntImmNode* b_as_intimm = op->b.as<IntImmNode>()) {
-        int64_t b_value = b_as_intimm->value;
-        if (auto opt_c_value = TryFindShiftCoefficientForPositiveRange(op->a, b_value)) {
+      const auto* b_as_intimm = op->b.as<IntImmNode>();
+      if (auto b_value = b_as_intimm ? b_as_intimm->value.as<int64_t>() : std::nullopt;
+          b_value.has_value()) {
+        if (auto opt_c_value = TryFindShiftCoefficientForPositiveRange(op->a, *b_value);
+            opt_c_value.has_value()) {
           int64_t c_value = *opt_c_value;
           // floormod(a, b) == floormod(a + b*c, b)  == truncmod(a + b*c, b)
-          return truncmod(op->a + make_const(dtype, c_value * b_value), op->b);
+          return truncmod(op->a + IntImm(dtype, b_as_intimm->value * c_value), op->b);
         }
       }
       DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divident";
@@ -203,114 +318,126 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // mod(a, b) < 0 will imply we are doing ceildiv,
       // So we need to correct these cases.
       PrimExpr rmod = truncmod(op->a, op->b);
-      if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
+      if ((dtype == PrimType::Int(32) || dtype == PrimType::Int(64)) && support_bitwise_op_) {
         // (rmod >> shift) & b
         // -> (rmod >= 0 ? 0: -1) & b
         // -> rmod >= 0 ? 0 : b
-        return rmod + (op->b & (rmod >> make_const(dtype, dtype.bits() - 1)));
+        return rmod + (op->b & (rmod >> IntImm(dtype, dtype.bits() - 1)));
       } else {
-        return tirx::Select(rmod >= 0, rmod, rmod + op->b);
+        return prim::Select(rmod >= 0, rmod, rmod + op->b);
       }
 
     } else {
-      if (dtype.is_float()) {
+      if (dtype.code() == DLDataTypeCode::kDLFloat) {
         // a - floor(a / b) * b
-        return op->a - (VisitExpr_(tvm::floor(op->a / op->b).as<CallNode>()) * op->b);
+        PrimExpr lowered = tvm::prim::floor(op->a / op->b);
+        return op->a - (Mutate(lowered, inplace_mode).ValueOrUnchanged(lowered) * op->b);
       } else {
         // uncommon case
         DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divsor and divident";
-        auto rmod = tirx::Var("rmod", dtype);
+        PrimVar rmod("rmod", dtype);
         // b > 0 && rmod >= 0 -> rmod
         // b > 0 && rmod < 0  -> rmod + b
         // b < 0 && rmod < 0 -> rmod
         // b < 0 && rmod > 0 -> rmod + b
-        return Let(
-            rmod, truncmod(op->a, op->b),
-            Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod, rmod + op->b));
+        return prim::Let(rmod, truncmod(op->a, op->b),
+                         prim::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod,
+                                      rmod + op->b));
       }
     }
   }
 
-  PrimExpr VisitExpr_(const MaxNode* op) final {
-    using namespace arith;
+  UnchangedOr<PrimExpr> Mutate_(const prim::MaxNode* op, InplaceMode inplace_mode) final {
+    using namespace sym;
     PVar<PrimExpr> x, y;
     PVar<IntImm> c;
     auto e = ffi::GetRef<PrimExpr>(op);
     if (max(floordiv(x, y), c).Match(e) && c.Eval()->value >= 0 &&
         analyzer_->CanProveGreaterEqual(y.Eval(), 0)) {
-      return max(VisitExpr(truncdiv(x, y).Eval()), c.Eval());
+      PrimExpr input = truncdiv(x, y).Eval();
+      return max(Mutate(input, inplace_mode).ValueOrUnchanged(input), c.Eval());
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  PrimExpr VisitExpr_(const EQNode* op) final {
-    using namespace arith;
+  UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* op, InplaceMode inplace_mode) final {
+    using namespace sym;
     PVar<PrimExpr> x, y;
     auto e = ffi::GetRef<PrimExpr>(op);
     if ((floormod(x, y) == 0).Match(e)) {
-      return VisitExpr((truncmod(x, y) == 0).Eval());
+      PrimExpr input = (truncmod(x, y) == 0).Eval();
+      return Mutate(input, inplace_mode).ValueOrUnchanged(input);
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  PrimExpr VisitExpr_(const NENode* op) final {
-    using namespace arith;
+  UnchangedOr<PrimExpr> Mutate_(const prim::NENode* op, InplaceMode inplace_mode) final {
+    using namespace sym;
     PVar<PrimExpr> x, y;
     auto e = ffi::GetRef<PrimExpr>(op);
     if ((floormod(x, y) != 0).Match(e)) {
-      return VisitExpr((truncmod(x, y) != 0).Eval());
+      PrimExpr input = (truncmod(x, y) != 0).Eval();
+      return Mutate(input, inplace_mode).ValueOrUnchanged(input);
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
  private:
   PrimExpr SwapBroadcastCast(const PrimExpr& e) {
-    // Try to change broadcast(cast(x)) to cast(broadcast(x))
+    // Try to change broadcast(prim::cast(x)) to prim::cast(broadcast(x))
     // For some targets, LLVM will generate more efficient FMA
     // instruction with the latter. For example, vmla vs. vmlal
     // on ARM.
-    if (const BroadcastNode* bcast = e.as<BroadcastNode>()) {
-      if (const CastNode* cast = bcast->value.as<CastNode>()) {
+    if (const prim::BroadcastNode* bcast = e.as<prim::BroadcastNode>()) {
+      if (const prim::CastNode* cast = bcast->value.as<prim::CastNode>()) {
         auto should_swap = [&]() {
+          PrimType cast_ty = cast->ty.as_or_throw<PrimType>();
+          PrimType value_ty = cast->value.ty();
           // Maintain behaviour (int8 -> int16, fp16 -> fp32).
-          if (cast->dtype.bits() == cast->value.dtype().bits() * 2) {
+          if (cast_ty.bits() == value_ty.bits() * 2) {
             return true;
           }
           // Check both operands are integer-like.
-          if (!cast->dtype.is_uint() && !cast->dtype.is_int()) {
+          if (cast_ty.code() != DLDataTypeCode::kDLUInt &&
+              cast_ty.code() != DLDataTypeCode::kDLInt) {
             return false;
           }
-          if (!cast->value.dtype().is_uint() && !cast->value.dtype().is_int()) {
+          if (value_ty.code() != DLDataTypeCode::kDLUInt &&
+              value_ty.code() != DLDataTypeCode::kDLInt) {
             return false;
           }
           // If both are integer-like, swap if we have a widening cast.
-          return cast->dtype.bits() > cast->value.dtype().bits();
+          return cast_ty.bits() > value_ty.bits();
         };
 
         if (should_swap()) {
-          PrimExpr new_bcast = Broadcast(cast->value, bcast->lanes);
-          return Cast(bcast->dtype, new_bcast);
+          PrimExpr new_bcast = prim::Broadcast(cast->value, bcast->lanes);
+          return prim::Cast(bcast->ty.as_or_throw<PrimType>(), new_bcast);
         }
       }
     }
     return e;
   }
 
-  PrimExpr MakeFMA(const PrimExpr& a, const PrimExpr& b, const PrimExpr& c, const AddNode* op) {
+  PrimExpr MakeFMA(const PrimExpr& a, const PrimExpr& b, const PrimExpr& c,
+                   const prim::AddNode* op) {
     // emit fma instruction: a * b + c
     PrimExpr lhs = SwapBroadcastCast(a);
     PrimExpr rhs = SwapBroadcastCast(b);
 
-    if (fma_ != nullptr && op->dtype.is_float()) {
-      PrimExpr r = fma_(Call(op->dtype, builtin::fma(), {lhs, rhs, c}));
-      if (r.defined()) return this->VisitExpr(r);
+    if (fma_ != nullptr && op->ty.as_or_throw<PrimType>().code() == DLDataTypeCode::kDLFloat) {
+      PrimExpr r = fma_(Call(op->ty.as_or_throw<PrimType>(), builtin::fma(), {lhs, rhs, c})
+                            .as_or_throw<PrimExpr>());
+      if (r.defined()) return this->Mutate(r, InplaceMode::kDisallow).ValueOrUnchanged(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {
-        PrimExpr mul = this->VisitExpr(Mul(lhs, rhs));
-        return Add(mul, this->VisitExpr(c));
+        PrimExpr input = prim::Mul(lhs, rhs);
+        PrimExpr mul = this->Mutate(input, InplaceMode::kDisallow).ValueOrUnchanged(input);
+        return prim::Add(mul, this->Mutate(c, InplaceMode::kDisallow).ValueOrUnchanged(c));
       }
     }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
+    return IRMutatorWithAnalyzer::Mutate_(op, InplaceMode::kDisallow)
+        .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   }
 
   /*!
@@ -328,12 +455,17 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     // NOTE: we need to be very careful in the checks below, to make sure
     // all the intermediate calculations in both compiler checks and runtime checks
     // do not overflow
-    arith::ConstIntBound const_int_bound_a = analyzer_->const_int_bound(a);
+    sym::ConstIntBound const_int_bound_a = analyzer_->const_int_bound(a);
     if (const_int_bound_a->min_value >= 0) {
       return std::nullopt;
     }
-    const int64_t max_value_of_dtype =
-        Downcast<IntImm>(tvm::max_value(a->dtype.element_of()))->value;
+    PrimType a_ty = a.ty();
+    // This overflow check is scalar element based. Lane count is intentionally ignored.
+    auto dtype_max = tvm::prim::max_value(PrimType(a_ty.code(), a_ty.bits()))
+                         .as_or_throw<IntImm>()
+                         ->value.as<int64_t>();
+    if (!dtype_max.has_value()) return std::nullopt;
+    const int64_t max_value_of_dtype = *dtype_max;
 
     // NOTE: ensures that (b-1) - a_min does not overflow
     // also note: max_value_of_dtype + const_int_bound_a->min_value won't overflow
@@ -356,18 +488,19 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     return c_value;
   }
 
-  // attribute maps, shared only when FLegalize == FLowerIntrinsic
   std::vector<OpAttrMap<FLowerGeneral>> attr_maps_;
+  std::vector<AccessPtrBufferAlias> access_ptr_buffer_aliases_;
   FLowerGeneral fma_{nullptr};
   bool support_bitwise_op_{true};
 };
 
 Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   bool enable_fast_math =
       transform::PassContext::Current()->GetConfig<bool>("tirx.enable_fast_math", false).value();
-  return IntrinInjecter(analyzer.get(), Target(ffi::String(target)),
-                        enable_fast_math)(std::move(stmt));
+  return ffi::make_object<IntrinInjecter>(analyzer, Target(ffi::String(target)), enable_fast_math)
+      ->Mutate(stmt, InplaceMode::kAllow)
+      .ValueOrUnchanged(stmt);
 }
 
 namespace transform {
@@ -376,10 +509,12 @@ Pass LowerIntrin() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
-    TVM_FFI_ICHECK(target.defined()) << "LowerIntrin: Require the target attribute";
-    arith::Analyzer analyzer;
+    TVM_FFI_ICHECK(target.has_value()) << "LowerIntrin: Require the target attribute";
+    sym::Analyzer analyzer;
     bool enable_fast_math = ctx->GetConfig<bool>("tirx.enable_fast_math", false).value();
-    n->body = IntrinInjecter(analyzer.get(), target.value(), enable_fast_math)(std::move(n->body));
+    n->body = ffi::make_object<IntrinInjecter>(analyzer, target.value(), enable_fast_math)
+                  ->Mutate(n->body, InplaceMode::kAllow)
+                  .ValueOrUnchanged(n->body);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.LowerIntrin", {});

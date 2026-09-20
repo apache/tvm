@@ -17,6 +17,7 @@
 """codegen related to bool types"""
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -24,9 +25,12 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
-@tvm.testing.uses_gpu
-@tvm.testing.exclude_targets("nvptx")
-def test_cmp_load_store(target, dev):
+@pytest.mark.gpu
+@pytest.mark.parametrize("target", ["llvm", "cuda", "rocm", "vulkan", "metal", "opencl"])
+def test_cmp_load_store(target):
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+
     @I.ir_module(s_tir=True)
     class GPUModule:
         @T.prim_func(s_tir=True)
@@ -83,14 +87,22 @@ def test_cmp_load_store(target, dev):
 
     a_np = np.random.uniform(size=arr_size).astype("float32")
     b_np = np.random.uniform(size=arr_size).astype("float32")
-    a = tvm.runtime.tensor(a_np, dev)
-    b = tvm.runtime.tensor(b_np, dev)
-    d = tvm.runtime.tensor(np.zeros(arr_size, dtype="float32"), dev)
-    f(a, b, d)
-    np.testing.assert_equal(
-        d.numpy(),
-        np.logical_and(a_np > b_np, a_np > 1).astype("float32"),
-    )
+
+    def run_and_check():
+        dev = tvm.device_from_target(target)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(b_np, dev)
+        d = tvm.runtime.tensor(np.zeros(arr_size, dtype="float32"), dev)
+        f(a, b, d)
+        np.testing.assert_equal(
+            d.numpy(),
+            np.logical_and(a_np > b_np, a_np > 1).astype("float32"),
+        )
+
+    if is_gpu:
+        tvm.testing.run_with_gpu_lock(run_and_check)
+    else:
+        run_and_check()
 
 
 if __name__ == "__main__":

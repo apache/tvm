@@ -23,7 +23,7 @@ from tvm_ffi import register_object
 from tvm.runtime import Object
 
 from . import _ffi_api
-from .expr import PrimExpr, Var
+from .expr import Expr, Var
 
 
 @register_object("tirx.ScopeIdDef")
@@ -40,16 +40,16 @@ class ScopeIdDef(Object):
     """
 
     def_ids: list[Var]
-    extents: list[PrimExpr] | None
+    extents: list[Expr] | None
     scope: int
 
     def __init__(
         self,
         def_ids: list[Var],
-        extents: list[PrimExpr] | None,
+        extents: list[Expr] | None,
         parent: str,
         cur: str,
-        preferred_extents: list[PrimExpr] | None = None,
+        preferred_extents: list[Expr] | None = None,
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.ScopeIdDef, def_ids, extents, parent, cur, preferred_extents
@@ -68,7 +68,7 @@ _SCOPE_KIND_TO_NAME = {
 # Mirror of ``enum class ScopeBinding`` in tvm/tirx/exec_scope.h. Maps the
 # ``int`` value of ``ScopeIdDef.scope`` back to the ``(parent, cur)`` pair
 # that ``ScopeIdDef.__init__`` accepts — needed when Python code wants to
-# rebuild a ``ScopeIdDef`` from an existing one (e.g. a StmtMutator
+# rebuild a ``ScopeIdDef`` from an existing one (e.g. a structural map
 # walking and rewriting extents).
 _SCOPE_BINDING_TO_PARENT_CUR = {
     0: ("kernel", "cluster"),

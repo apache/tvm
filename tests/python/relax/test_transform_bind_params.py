@@ -17,6 +17,7 @@
 # ruff: noqa: F841
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.script
@@ -84,16 +85,16 @@ def test_bind_params_symbolic_vars():
             w1: R.Tensor(("k", "n"), dtype="float32"),
             b1: R.Tensor(("k",), dtype="float32"),
         ) -> R.Tensor(("batch", "k"), dtype="float32"):
-            batch = T.Var("batch", "int64")
-            k = T.Var("k", "int64")
-            m = T.Var("m", "int64")
-            n = T.Var("n", "int64")
+            batch = T.int64()
+            k = T.int64()
+            m = T.int64()
+            n = T.int64()
             with R.dataflow():
                 lv0 = R.call_dps_packed(
-                    "linear0", (x, w0, b0), out_sinfo=R.Tensor((batch, n), dtype="float32")
+                    "linear0", (x, w0, b0), out_ty=R.Tensor((batch, n), dtype="float32")
                 )
                 out = R.call_dps_packed(
-                    "linear1", (lv0, w1, b1), out_sinfo=R.Tensor((batch, k), dtype="float32")
+                    "linear1", (lv0, w1, b1), out_ty=R.Tensor((batch, k), dtype="float32")
                 )
                 R.output(out)
             return out
@@ -109,20 +110,71 @@ def test_bind_params_symbolic_vars():
     # Since it contains ConstantNode, it's hard to check with structural equality.
     func = mod["main"]
     assert len(func.params) == 1
-    batch = func.params[0].struct_info.shape[0]
-    tvm.ir.assert_structural_equal(
-        func.params[0].struct_info, relax.TensorStructInfo((batch, 4), "float32")
-    )
-    tvm.ir.assert_structural_equal(
-        func.ret_struct_info, relax.TensorStructInfo((batch, 8), "float32")
-    )
+    batch = func.params[0].ty.shape[0]
+    tvm.ir.assert_structural_equal(func.params[0].ty, relax.TensorType((batch, 4), "float32"))
+    tvm.ir.assert_structural_equal(func.ret_ty, relax.TensorType((batch, 8), "float32"))
     bindings = func.body.blocks[0].bindings
-    tvm.ir.assert_structural_equal(
-        bindings[0].var.struct_info, relax.TensorStructInfo((batch, 6), "float32")
-    )
-    tvm.ir.assert_structural_equal(
-        bindings[1].var.struct_info, relax.TensorStructInfo((batch, 8), "float32")
-    )
+    tvm.ir.assert_structural_equal(bindings[0].var.ty, relax.TensorType((batch, 6), "float32"))
+    tvm.ir.assert_structural_equal(bindings[1].var.ty, relax.TensorType((batch, 8), "float32"))
+
+
+def test_bind_params_consistent_explicit_and_inferred_symbolic_var():
+    prim_type = tvm.ir.PrimType("int64")
+    n = relax.Var("n", prim_type)
+    data = relax.Var("data", relax.TensorType([n], "float32"))
+    before = relax.Function([n, data], n, prim_type)
+    explicit_value = tvm.tirx.Add(tvm.tirx.const(2, "int64"), tvm.tirx.const(3, "int64"))
+
+    after = before.bind_params({n: explicit_value, data: np.zeros([5], "float32")})
+
+    assert not after.params
+    assert after.body.body.same_as(explicit_value)
+
+
+def test_bind_params_conflicting_explicit_and_inferred_symbolic_var():
+    prim_type = tvm.ir.PrimType("int64")
+    n = relax.Var("n", prim_type)
+    data = relax.Var("data", relax.TensorType([n], "float32"))
+    before = relax.Function([n, data], n, prim_type)
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "Explicit binding for symbolic variable n conflicts with the value inferred from a "
+            "parameter shape"
+        ),
+    ):
+        before.bind_params({n: 5, data: np.zeros([7], "float32")})
+
+
+def test_bind_params_rejects_non_primitive_explicit_symbolic_var():
+    prim_type = tvm.ir.PrimType("int64")
+    n = relax.Var("n", prim_type)
+    data = relax.Var("data", relax.TensorType([n], "float32"))
+    before = relax.Function([n, data], n, prim_type)
+
+    with pytest.raises(
+        ValueError,
+        match="Explicit binding for symbolic variable n must be a primitive expression",
+    ):
+        before.bind_params(
+            {
+                n: relax.const(np.array(5, dtype="int64")),
+                data: np.zeros([5], "float32"),
+            }
+        )
+
+
+def test_bind_params_rejects_non_primitive_standalone_symbolic_var():
+    prim_type = tvm.ir.PrimType("int64")
+    n = relax.Var("n", prim_type)
+    before = relax.Function([n], n, prim_type)
+
+    with pytest.raises(
+        ValueError,
+        match="Explicit binding for symbolic variable n must be a primitive expression",
+    ):
+        before.bind_params({n: relax.const(np.array(5, dtype="int64"))})
 
 
 param_specification = tvm.testing.parameter("by_string", "by_var")

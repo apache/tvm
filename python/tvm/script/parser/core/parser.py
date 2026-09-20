@@ -17,17 +17,20 @@
 """The core parser"""
 
 import abc
+import ast
 import inspect
 from collections import defaultdict
 from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, TypeVar
 
 import numpy as np
 
 from tvm.error import DiagnosticError
-from tvm.ir import GlobalVar
+from tvm.ir import GlobalVar, Var
+from tvm.runtime import Object
 
+from ...ir_builder import IRBuilder
 from . import dispatch, doc
 from .diagnostics import Diagnostics, Source
 from .evaluator import eval_assign, eval_expr
@@ -38,6 +41,74 @@ DEFAULT_VISIT = {
     "Expression",
     "Pass",
 }
+
+
+def collect_signature_type_vars(parser: "Parser", node: doc.FunctionDef) -> dict[str, Var]:
+    """Collect symbolic variables declared by function type-parameter syntax."""
+
+    annotation_names = set()
+    parameter_names = {arg.arg for arg in node.args.args}
+
+    class AnnotationNameCollector(doc.NodeVisitor):
+        def visit_Name(self, name):  # pylint: disable=invalid-name
+            annotation_names.add(name.id)
+
+        def visit_Constant(self, constant):  # pylint: disable=invalid-name
+            if not isinstance(constant.value, str):
+                return
+            try:
+                expression = ast.parse(constant.value, mode="eval")
+            except SyntaxError:
+                return
+            annotation_names.update(
+                child.id for child in ast.walk(expression) if isinstance(child, ast.Name)
+            )
+
+    name_collector = AnnotationNameCollector()
+    for arg in node.args.args:
+        name_collector.visit(arg.annotation)
+    name_collector.visit(node.returns)
+
+    symbolic_vars = {}
+    for binding_name, value in parser.var_table.get().items():
+        if (
+            binding_name not in annotation_names
+            or binding_name in parameter_names
+            or not isinstance(value, TypeVar)
+        ):
+            continue
+        if value.__name__ != binding_name:
+            parser.report_error(
+                node,
+                f"TypeVar binding {binding_name!r} must match its declared name {value.__name__!r}",
+            )
+        if value.__constraints__ or value.__bound__ is not None:
+            parser.report_error(
+                node,
+                f"Symbolic TypeVar {binding_name!r} must not have constraints or a bound",
+            )
+        symbolic_vars[binding_name] = Var(binding_name, "int64")
+
+    for type_param in node.type_params or []:
+        if not isinstance(type_param, doc.TypeVar):
+            parser.report_error(type_param, "Only PEP 695 TypeVar parameters are supported")
+        # Both a bare parameter and the optional ``int`` bound declare the
+        # int64 PrimVar represented by this type parameter.  The printer uses
+        # the bare spelling, while accepting the bound as explicit input.
+        if type_param.bound is not None and not (
+            isinstance(type_param.bound, doc.Name) and type_param.bound.id == "int"
+        ):
+            parser.report_error(
+                type_param,
+                f"Symbolic TypeVar {type_param.name!r} must be unannotated or annotated as int",
+            )
+        if type_param.default_value is not None:
+            parser.report_error(
+                type_param,
+                f"Symbolic TypeVar {type_param.name!r} must not have a default",
+            )
+        symbolic_vars[type_param.name] = Var(type_param.name, "int64")
+    return symbolic_vars
 
 
 def _deferred(exit_f: Callable[[], None]):
@@ -262,9 +333,13 @@ class VarTable:
         """
         # Skip if the key and value are equal to those in the var_table
         if self.name2value[var] and isinstance(self.name2value[var][-1], type(value)):
-            if isinstance(value, np.ndarray) and (self.name2value[var][-1] == value).all():
+            old_value = self.name2value[var][-1]
+            if isinstance(value, np.ndarray) and (old_value == value).all():
                 return
-            elif self.name2value[var][-1] == value:
+            if isinstance(old_value, Object):
+                if old_value.same_as(value):
+                    return
+            elif old_value == value:
                 return
         if allow_shadowing and var in self.frames[-1].vars:
             # Shadowing
@@ -282,6 +357,10 @@ class VarTable:
             The variable dictionary copy of latest variables.
         """
         return {key: values[-1] for key, values in self.name2value.items() if values}
+
+    def contains_in_current_frame(self, name: str) -> bool:
+        """Check whether a variable name exists in the current frame."""
+        return bool(self.frames) and name in self.frames[-1].vars
 
     def get_at_depth(self, depth: int) -> dict[str, Any]:
         """Get variables visible at the given frame depth, using current values.
@@ -363,11 +442,15 @@ class Parser(doc.NodeVisitor):
 
     var_table : VarTable
         The variable table for parsing.
+
+    absent_params : Dict[str, None]
+        Function parameters removed by a compile-time specialization.
     """
 
     diag: Diagnostics
     dispatch_tokens: list[str]
     function_annotations: dict[str, dict[str, Any]] | None
+    absent_params: dict[str, None]
     var_table: VarTable
     inside_function: bool  # whether we are within a function
     current_class: str | None = None  # current class being parsed
@@ -377,10 +460,12 @@ class Parser(doc.NodeVisitor):
         self,
         source: Source,
         function_annotations: dict[str, dict[str, Any]],
+        absent_params: dict[str, None] | None = None,
     ) -> None:
         self.diag = Diagnostics(source)
         self.dispatch_tokens = ["default"]
         self.function_annotations = function_annotations
+        self.absent_params = absent_params or {}
         self.var_table = VarTable()
         self.inside_function = False
 
@@ -498,6 +583,25 @@ class Parser(doc.NodeVisitor):
 
         return _deferred(pop_source)
 
+    @contextmanager
+    def with_source_span(self, node: doc.AST):
+        """Make ``node``'s source range active while constructing its IR."""
+        if (
+            not IRBuilder.is_in_scope()
+            or getattr(node, "lineno", None) is None
+            or getattr(node, "col_offset", None) is None
+        ):
+            yield
+            return
+        with IRBuilder.current().with_source_span(self.diag.source.to_span(node)):
+            yield
+
+    def annotate_current_source_span(self, value: Any) -> Any:
+        """Attach the active parser span to an expression result, when applicable."""
+        if isinstance(value, Object) and IRBuilder.is_in_scope():
+            return IRBuilder.current()._set_current_source_span(value)  # pylint: disable=protected-access
+        return value
+
     def eval_expr(
         self,
         node: doc.Expression | doc.expr,
@@ -523,7 +627,9 @@ class Parser(doc.NodeVisitor):
             for k, v in extra_vars.items():
                 var_values[k] = v
         var_values[ScriptMacro.parser_object_name] = self
-        return eval_expr(self, node, var_values)
+        value = eval_expr(self, node, var_values)
+
+        return self.annotate_current_source_span(value)
 
     def _duplicate_lhs_check(self, target: doc.expr) -> bool | set[str]:
         """Check whether duplicate lhs exists in assignment.
@@ -662,7 +768,8 @@ class Parser(doc.NodeVisitor):
         if func is None:
             raise NotImplementedError(f"Visitor of AST node is not implemented: {name}")
         try:
-            func(node)
+            with self.with_source_span(node):
+                func(node)
         except Exception as err:  # pylint: disable=broad-except
             self.report_error(node, err)
 
@@ -740,6 +847,18 @@ class Parser(doc.NodeVisitor):
         if func is None:
             self.report_error(node, "The parser does not understand the decorator")
         _dispatch_wrapper(func)(self, node)
+
+    def visit_ImportFrom(self, node: doc.ImportFrom) -> None:  # pylint: disable=invalid-name
+        """Accept postponed annotations emitted by the PEP 695 printer."""
+        is_future_annotations = (
+            node.module == "__future__"
+            and node.level == 0
+            and len(node.names) == 1
+            and node.names[0].name == "annotations"
+            and node.names[0].asname is None
+        )
+        if not is_future_annotations:
+            self.report_error(node, "Only 'from __future__ import annotations' is supported")
 
     def visit_arguments(self, node: doc.arguments) -> Any:
         """The general arguments visiting method.

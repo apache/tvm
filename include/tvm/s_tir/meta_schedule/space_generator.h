@@ -23,6 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/meta_schedule/mutator.h>
 #include <tvm/s_tir/meta_schedule/postproc.h>
 #include <tvm/s_tir/meta_schedule/schedule_rule.h>

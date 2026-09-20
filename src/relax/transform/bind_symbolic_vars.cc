@@ -19,7 +19,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 
@@ -32,7 +31,7 @@ namespace tvm {
 namespace relax {
 
 Function FunctionBindSymbolicVars(
-    Function func, ffi::Map<ffi::Variant<tirx::Var, ffi::String>, PrimExpr> obj_remap) {
+    Function func, ffi::Map<ffi::Variant<PrimVar, ffi::String>, PrimExpr> obj_remap) {
   // Early bail-out if no updates need to be made.
   if (obj_remap.empty()) {
     return func;
@@ -44,12 +43,12 @@ Function FunctionBindSymbolicVars(
   std::unordered_map<std::string, ffi::Array<tirx::Var>> string_lookup;
   std::unordered_set<const tirx::VarNode*> symbolic_var_set;
   for (const auto& var : old_symbolic_vars) {
-    string_lookup[var->name_hint].push_back(var);
+    string_lookup[var->name].push_back(var);
     symbolic_var_set.insert(var.get());
   }
 
   // Replacement map to be used when rewriting the function.
-  ffi::Map<tirx::Var, PrimExpr> var_remap;
+  ffi::Map<Var, Expr> var_remap;
   for (const auto& [key, replacement] : obj_remap) {
     if (auto opt = key.as<ffi::String>()) {
       ffi::String string_key = opt.value();
@@ -66,7 +65,7 @@ Function FunctionBindSymbolicVars(
       TVM_FFI_ICHECK(!var_remap.count(var))
           << "Remap of variable " << var << " was defined multiple times";
       var_remap.Set(var, replacement);
-    } else if (auto opt = key.as<tirx::Var>()) {
+    } else if (auto opt = key.as<PrimVar>()) {
       auto var = opt.value();
 
       TVM_FFI_ICHECK(!var_remap.count(var))
@@ -82,7 +81,7 @@ Function FunctionBindSymbolicVars(
     }
   }
 
-  auto new_func = Downcast<Function>(Bind(func, {}, var_remap));
+  auto new_func = Bind(func, var_remap).as_or_throw<Function>();
 
   auto free_symbolic_vars = FreeSymbolicVars(new_func);
 
@@ -95,7 +94,7 @@ Function FunctionBindSymbolicVars(
 
 namespace {
 IRModule ModuleBindSymbolicVars(
-    IRModule mod, ffi::Map<ffi::Variant<tirx::Var, ffi::String>, PrimExpr> binding_map) {
+    IRModule mod, ffi::Map<ffi::Variant<PrimVar, ffi::String>, PrimExpr> binding_map) {
   std::unordered_set<ffi::Any, ffi::AnyHash, ffi::AnyEqual> used;
   IRModule updates;
   for (const auto& [gvar, base_func] : mod->functions) {
@@ -103,21 +102,21 @@ IRModule ModuleBindSymbolicVars(
       auto func = opt.value();
 
       // Collect bindings that are used by this function.
-      auto func_binding_map = [&]() -> ffi::Map<ffi::Variant<tirx::Var, ffi::String>, PrimExpr> {
+      auto func_binding_map = [&]() -> ffi::Map<ffi::Variant<PrimVar, ffi::String>, PrimExpr> {
         std::unordered_set<std::string> var_names;
         std::unordered_set<const tirx::VarNode*> vars;
         for (const auto& var : DefinedSymbolicVars(func)) {
-          var_names.insert(var->name_hint);
+          var_names.insert(var->name);
           vars.insert(var.get());
         }
 
-        ffi::Map<ffi::Variant<tirx::Var, ffi::String>, PrimExpr> out;
+        ffi::Map<ffi::Variant<PrimVar, ffi::String>, PrimExpr> out;
         for (const auto& [key, replacement] : binding_map) {
           bool used_by_function = false;
           if (auto opt = key.as<ffi::String>()) {
             used_by_function = var_names.count(opt.value());
-          } else if (auto ptr = key.as<tirx::VarNode>()) {
-            used_by_function = vars.count(ptr);
+          } else if (auto var = key.as<PrimVar>()) {
+            used_by_function = vars.count(var.value().get());
           } else {
             TVM_FFI_THROW(InternalError)
                 << "Expected symbolic variable to be a tirx::Var "
@@ -162,12 +161,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 namespace transform {
 
-Pass BindSymbolicVars(ffi::Map<ffi::Variant<tirx::Var, ffi::String>, PrimExpr> binding_map,
+Pass BindSymbolicVars(ffi::Map<ffi::Variant<PrimVar, ffi::String>, PrimExpr> binding_map,
                       ffi::Optional<ffi::String> func_name) {
   auto pass_func = [=](IRModule mod, PassContext context) -> IRModule {
     if (func_name) {
       auto gvar = mod->GetGlobalVar(func_name.value());
-      auto func = Downcast<Function>(mod->Lookup(gvar));
+      auto func = mod->Lookup(gvar).as_or_throw<Function>();
       auto new_func = FunctionBindSymbolicVars(func, binding_map);
       if (!func.same_as(new_func)) {
         mod.CopyOnWrite()->Update(gvar, new_func);

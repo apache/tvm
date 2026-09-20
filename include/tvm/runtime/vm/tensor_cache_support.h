@@ -54,7 +54,7 @@ struct TensorCacheMetadata {
       /*! \brief Shape of the parameter */
       ffi::Shape shape;
       /*! \brief Data type of the parameter */
-      DataType dtype;
+      DLDataType dtype;
       /*! \brief Format of the parameter */
       std::string format;
       /*! \brief Number of bytes */

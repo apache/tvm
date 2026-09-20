@@ -36,7 +36,7 @@ def test_vm_builtin_lower_mem_alloc_storage():
             storage = R.memory.alloc_storage(R.shape([m * n * 4]), 0, "global", "uint8")
             alloc = R.memory.alloc_tensor(storage, 0, R.shape([m, n]), "float32")
             _ = R.call_packed(
-                "test.op.identity", x, alloc, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
+                "test.op.identity", x, alloc, ty_args=(R.Tensor(ndim=2, dtype="float32"))
             )
             gv0 = alloc
             return gv0
@@ -53,7 +53,7 @@ def test_vm_builtin_lower_mem_alloc_storage():
             alloc = R.vm.alloc_tensor(storage, R.prim_value(0), R.shape([m, n]), "float32")
 
             _ = R.call_packed(
-                "test.op.identity", x, alloc, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
+                "test.op.identity", x, alloc, ty_args=(R.Tensor(ndim=2, dtype="float32"))
             )
             gv0 = alloc
             return gv0
@@ -74,7 +74,7 @@ def test_vm_builtin_alloc_tensor_raises_error():
 
             alloc = R.builtin.alloc_tensor(R.shape([m, n]), runtime_device_index=0, dtype="float32")
             _ = R.call_packed(
-                "test.op.identity", x, alloc, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
+                "test.op.identity", x, alloc, ty_args=(R.Tensor(ndim=2, dtype="float32"))
             )
             gv0 = alloc
             return gv0
@@ -103,7 +103,7 @@ def test_vm_reshape_may_be_var():
                 "vm.builtin.reshape",
                 A,
                 shape,
-                sinfo_args=R.Tensor(shape, dtype="float32"),
+                ty_args=R.Tensor(shape, dtype="float32"),
             )
             return reshape
 
@@ -133,13 +133,13 @@ def test_vm_reshape_using_tensor_to_shape():
             shape = R.call_packed(
                 "vm.builtin.tensor_to_shape",
                 shape_tensor,
-                sinfo_args=R.Shape(ndim=2),
+                ty_args=R.Shape(ndim=2),
             )
             reshape = R.call_packed(
                 "vm.builtin.reshape",
                 A,
                 shape,
-                sinfo_args=R.Tensor(shape, dtype="float32"),
+                ty_args=R.Tensor(shape, dtype="float32"),
             )
             return reshape
 

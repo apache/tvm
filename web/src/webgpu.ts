@@ -30,6 +30,23 @@ export interface GPUDeviceDetectOutput {
   device: GPUDevice;
 }
 
+function roundUpToFourBytes(nbytes: number): number {
+  if (!Number.isSafeInteger(nbytes) || nbytes < 0) {
+    throw new Error(`Invalid WebGPU buffer size: ${nbytes}`);
+  }
+  const aligned = Math.ceil(nbytes / 4) * 4;
+  if (!Number.isSafeInteger(aligned)) {
+    throw new Error(`WebGPU buffer size is too large to align: ${nbytes}`);
+  }
+  return aligned;
+}
+
+function validateWebGPUCopyOffset(offset: number, name: string): void {
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset % 4 != 0) {
+    throw new Error(`${name} must be a nonnegative multiple of four: ${offset}`);
+  }
+}
+
 /**
  * DetectGPU device in the environment.
  */
@@ -169,9 +186,20 @@ function tryCreateBuffer(device: GPUDevice, descriptor: GPUBufferDescriptor) {
 
   const buffer = device.createBuffer(descriptor);
 
-  device.popErrorScope().then((error) => {if (error) {device.destroy(); console.error(error);}});
-  device.popErrorScope().then((error) => {if (error) {device.destroy(); console.error(error);}});
-  device.popErrorScope().then((error) => {if (error) {device.destroy(); console.error(error);}});
+  // Destroy at most once even if multiple error types fire.
+  Promise.all([
+    device.popErrorScope(),
+    device.popErrorScope(),
+    device.popErrorScope(),
+  ]).then((errors) => {
+    const captured = errors.filter((error): error is GPUError => error !== null);
+    if (captured.length > 0) {
+      device.destroy();
+      captured.forEach((error) => console.error(error));
+    }
+  }).catch((err) => {
+    console.error("Failed to pop error scopes:", err);
+  });
 
   return buffer;
 }
@@ -408,14 +436,12 @@ export class WebGPUContext {
   // Pool of MAP_READ staging buffers to avoid per-copy create/destroy overhead
   private readStagingBufferPool: Array<{ buffer: GPUBuffer; size: number }> = [];
   private maxReadStagingBuffers = 4;
-  // Pending mapAsync promise from the last GPU→CPU copy.
-  // Used in sync() as a fast path: if the last queue operation was a
-  // GPU→CPU copy, awaiting its mapAsync is sufficient (no need for
-  // the heavier onSubmittedWorkDone). Reset to null after any non-copy
-  // queue submission so we fall back to onSubmittedWorkDone.
+  // Pending GPU→CPU copies, including storing the mapped data in WASM memory.
   private pendingGPUToCPUCopy: Promise<void> | null = null;
-  // Batched command encoding: accumulate compute passes in a single encoder,
-  // submit only on flush to reduce JS-native transition overhead.
+  // Whether a pending GPU→CPU copy is still the last queue operation.
+  private pendingGPUToCPUCopyIsQueueTail = false;
+  // Batched command encoding: accumulate compute passes and GPU copies in a
+  // single encoder, and submit only on flush to reduce JS-native transition overhead.
   private pendingEncoder: GPUCommandEncoder | null = null;
   // Pool of uniform buffers reused across flushes. Each dispatch in a batch
   // gets its own buffer (indexed by pendingDispatchCount). The pool grows
@@ -444,14 +470,14 @@ export class WebGPUContext {
   }
 
   /**
-   * Flush all pending compute passes by finishing and submitting the
+   * Flush all pending GPU commands by finishing and submitting the
    * accumulated command encoder.
    *
    * Must be called before:
    * - GPU→CPU readback (deviceCopyFromGPU)
    * - CPU→GPU writes (deviceCopyToGPU, copyRawBytesToBuffer)
-   * - GPU↔GPU copies (deviceCopyWithinGPU)
    * - Buffer deallocation (deviceFreeDataSpace)
+   * - Canvas drawing (drawImageFromBuffer)
    * - Queue sync (sync)
    */
   flushCommands(): void {
@@ -459,9 +485,7 @@ export class WebGPUContext {
       this.device.queue.submit([this.pendingEncoder.finish()]);
       this.pendingEncoder = null;
       this.pendingDispatchCount = 0;
-      // A compute submission is now the last queue operation, so the
-      // GPU→CPU copy fast path in sync() is no longer valid.
-      this.pendingGPUToCPUCopy = null;
+      this.pendingGPUToCPUCopyIsQueueTail = false;
     }
   }
 
@@ -491,14 +515,22 @@ export class WebGPUContext {
    * Wait for all pending GPU tasks to complete
    */
   async sync(): Promise<void> {
-    // Flush any batched compute passes before waiting on the queue.
     this.flushCommands();
-    if (this.pendingGPUToCPUCopy) {
-      const p = this.pendingGPUToCPUCopy;
-      this.pendingGPUToCPUCopy = null;
-      await p;
+
+    const pendingRead = this.pendingGPUToCPUCopy;
+    const pendingReadIsQueueTail = this.pendingGPUToCPUCopyIsQueueTail;
+    this.pendingGPUToCPUCopy = null;
+    this.pendingGPUToCPUCopyIsQueueTail = false;
+
+    if (pendingRead && pendingReadIsQueueTail) {
+      await pendingRead;
     } else {
-      await this.device.queue.onSubmittedWorkDone();
+      const queueDone = this.device.queue.onSubmittedWorkDone();
+      if (pendingRead) {
+        await Promise.all([pendingRead, queueDone]);
+      } else {
+        await queueDone;
+      }
     }
   }
 
@@ -522,7 +554,9 @@ export class WebGPUContext {
     if (this.canvasRenderManager == undefined) {
       throw Error("Do not have a canvas context, call bindCanvas first");
     }
+    this.flushCommands();
     this.canvasRenderManager.draw(this.gpuBufferFromPtr(ptr), height, width);
+    this.pendingGPUToCPUCopyIsQueueTail = false;
   }
 
   /**
@@ -548,12 +582,16 @@ export class WebGPUContext {
       0,
       nbytes
     );
+    this.pendingGPUToCPUCopyIsQueueTail = false;
   }
   /**
    * Clear canvas
    */
   clearCanvas() {
-    this.canvasRenderManager?.clear();
+    if (this.canvasRenderManager) {
+      this.canvasRenderManager.clear();
+      this.pendingGPUToCPUCopyIsQueueTail = false;
+    }
   }
 
   /**
@@ -893,16 +931,14 @@ export class WebGPUContext {
 
   // DeviceAPI
   private deviceAllocDataSpace(nbytes: number): GPUPointer {
-    // allocate 0 bytes buffer as 1 bytes buffer.
-    if (nbytes == 0) {
-      nbytes = 1;
-    }
+    // WebGPU buffer copies and queue writes operate in four-byte units.
+    const allocationBytes = Math.max(4, roundUpToFourBytes(nbytes));
     const buffer = tryCreateBuffer(this.device, {
-      size: nbytes,
+      size: allocationBytes,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
     });
-    this.currAllocatedBytes += nbytes;
-    this.allAllocatedBytes += nbytes;
+    this.currAllocatedBytes += buffer.size;
+    this.allAllocatedBytes += buffer.size;
     if (this.currAllocatedBytes > this.peakAllocatedBytes) {
       this.peakAllocatedBytes = this.currAllocatedBytes;
     }
@@ -930,11 +966,12 @@ export class WebGPUContext {
     toOffset: number,
     nbytes: number
   ): void {
+    validateWebGPUCopyOffset(toOffset, "WebGPU destination offset");
     // Flush batched compute passes before writing to a GPU buffer,
     // otherwise the write may be reordered before pending dispatches
     // that read from the same buffer.
     this.flushCommands();
-    let rawBytes = this.memory.loadRawBytes(from, nbytes);
+    let rawBytes = this.memory.viewRawBytes(from, nbytes);
     if (rawBytes.length % 4 !== 0) {
       // writeBuffer requires length to be multiples of 4, so we pad here
       const toPad = 4 - rawBytes.length % 4;
@@ -950,6 +987,7 @@ export class WebGPUContext {
       0,
       nbytes
     );
+    this.pendingGPUToCPUCopyIsQueueTail = false;
   }
 
   /**
@@ -994,9 +1032,15 @@ export class WebGPUContext {
     to: Pointer,
     nbytes: number
   ): void {
+    validateWebGPUCopyOffset(fromOffset, "WebGPU source offset");
     // Flush batched compute passes before the readback copy.
     this.flushCommands();
-    const gpuTemp = this.getOrCreateReadStagingBuffer(nbytes);
+    if (nbytes == 0) {
+      this.memory.storeRawBytes(to, new Uint8Array(0));
+      return;
+    }
+    const copyBytes = roundUpToFourBytes(nbytes);
+    const gpuTemp = this.getOrCreateReadStagingBuffer(copyBytes);
 
     const copyEncoder = this.device.createCommandEncoder();
     copyEncoder.copyBufferToBuffer(
@@ -1004,20 +1048,21 @@ export class WebGPUContext {
       fromOffset,
       gpuTemp,
       0,
-      nbytes
+      copyBytes
     );
     const copyCommands = copyEncoder.finish();
     this.device.queue.submit([copyCommands]);
 
     const readPromise = gpuTemp.mapAsync(GPUMapMode.READ).then(() => {
-      const data = gpuTemp.getMappedRange(0, nbytes);
-      this.memory.storeRawBytes(to, new Uint8Array(data));
+      const data = gpuTemp.getMappedRange(0, copyBytes);
+      this.memory.storeRawBytes(to, new Uint8Array(data).subarray(0, nbytes));
       this.recycleReadStagingBuffer(gpuTemp);
     });
     // Chain with any existing pending read so sync() awaits all of them.
     this.pendingGPUToCPUCopy = this.pendingGPUToCPUCopy
       ? this.pendingGPUToCPUCopy.then(() => readPromise)
       : readPromise;
+    this.pendingGPUToCPUCopyIsQueueTail = true;
   }
 
   private deviceCopyWithinGPU(
@@ -1027,18 +1072,19 @@ export class WebGPUContext {
     toOffset: number,
     nbytes: number
   ): void {
-    // Flush batched compute passes before the GPU-to-GPU copy.
-    this.flushCommands();
-    const copyEncoder = this.device.createCommandEncoder();
-    copyEncoder.copyBufferToBuffer(
+    // Keep copies in the same command encoder as compute dispatches. Command
+    // ordering within the encoder preserves dependencies, while a later
+    // readback, CPU write, deallocation, or sync provides the flush point.
+    if (!this.pendingEncoder) {
+      this.pendingEncoder = this.device.createCommandEncoder();
+    }
+    this.pendingEncoder.copyBufferToBuffer(
       this.gpuBufferFromPtr(from),
       fromOffset,
       this.gpuBufferFromPtr(to),
       toOffset,
       nbytes
     );
-    const copyCommands = copyEncoder.finish();
-    this.device.queue.submit([copyCommands]);
   }
 
   private gpuBufferFromPtr(ptr: GPUPointer): GPUBuffer {

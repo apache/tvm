@@ -168,7 +168,7 @@ in the TVM build:
 - `__init__.py` - Registers the backend and its BYOC entry points with TVM so the compiler can discover and use the example NPU.
 
 ### Runtime Implementation
-- `src/runtime/contrib/example_npu/example_npu_runtime.cc` - C++ runtime implementation that handles JSON-based graph execution for the NPU backend.
+- `src/runtime/extra/contrib/example_npu/example_npu_runtime.cc` - C++ runtime implementation that handles JSON-based graph execution for the NPU backend.
 
 ### Tests and Examples
 - `tests/python/contrib/test_example_npu.py` - Comprehensive test suite containing example IRModules (e.g. `MatmulReLU`, `Conv2dReLU`) and demonstrating the complete BYOC flow from pattern registration to runtime execution.
@@ -230,7 +230,7 @@ This shows the registered patterns and that matched subgraphs were turned into c
 - **Power management**: Support for different power modes (high_performance, balanced, low_power)
 
 ### Pattern Matching Features
-- **Memory constraint checking**: Validates tensor sizes against NPU memory limits
+- **Memory constraint hooks**: Placeholder checks where a real backend would reject tensors that exceed on-chip memory; the example accepts all
 - **Fusion opportunities**: Identifies conv+activation and other beneficial fusions
 - **Layout preferences**: NHWC channel-last layouts preferred by NPUs
 

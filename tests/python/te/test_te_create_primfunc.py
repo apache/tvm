@@ -293,6 +293,43 @@ def test_extern():
     _check_workload(te_extern, tir_extern)
 
 
+def te_extern_epilogue():
+    A = te.placeholder((4, 3), name="A")
+    B = te.placeholder((3, 2), name="B")
+    C = te.extern(
+        (4, 2),
+        [A, B],
+        lambda ins, outs: tvm.tirx.call_packed("testing.echo", ins[0], ins[1], outs[0]),
+        name="C",
+    )
+    D = te.compute(C.shape, lambda i, j: C[i, j] + 1.0, name="D")
+    return [A, B, D]
+
+
+@T.prim_func(s_tir=True)
+def tir_extern_epilogue(var_A: T.handle, var_B: T.handle, D: T.Buffer((4, 2), "float32")):
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
+    A = T.match_buffer(var_A, (4, 3), offset_factor=1)
+    B = T.match_buffer(var_B, (3, 2), offset_factor=1)
+    C = T.sblock_alloc_buffer((4, 2), elem_offset=0, offset_factor=1)
+    with T.sblock("C"):
+        T.reads()
+        T.writes()
+        T.call_packed("testing.echo", A, B, C)
+    for i, j in T.grid(4, 2):
+        with T.sblock("D"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(C[vi, vj])
+            T.writes(D[vi, vj])
+            D[vi, vj] = C[vi, vj] + T.float32(1)
+
+
+def test_extern_epilogue():
+    _check_workload(te_extern_epilogue, tir_extern_epilogue)
+    func = te.create_prim_func(te_extern_epilogue()).with_attr("global_symbol", "extern_epilogue")
+    tvm.compile(func, target="llvm")
+
+
 def te_reordered_matmul():
     k = te.reduce_axis((0, 128), "k")
     A = te.placeholder((128, 128), name="A")
@@ -346,15 +383,12 @@ def test_constant():
     M = 11
     A = te.placeholder((M,), name="A")
     B = te.compute(tuple(), lambda: 2, name="B")
-    # Manually craft ProducerLoad because `B[]` is not allowed.
-    C = te.compute(
-        (M,), lambda x: A[x] + tvm.tirx.expr.ProducerLoad(B, []), name="C", tag="broadcast"
-    )
+    C = te.compute((M,), lambda x: A[x] + B(), name="C", tag="broadcast")
 
     func = te.create_prim_func([C, A])
     func = tvm.compile(func)
-    a_np = np.random.uniform(size=(M,)).astype(A.dtype)
-    c = tvm.runtime.tensor(np.zeros(M, dtype=C.dtype))
+    a_np = np.random.uniform(size=(M,)).astype(A.dtype.dtype)
+    c = tvm.runtime.tensor(np.zeros(M, dtype=C.dtype.dtype))
     x = func(c, tvm.runtime.tensor(a_np))
     tvm.testing.assert_allclose(a_np + 2, c.numpy())
 
@@ -393,9 +427,9 @@ def test_data_dependent_access():
     func = te.create_prim_func([C, A, B])
     func = tvm.compile(func)
 
-    a_np = np.random.uniform(size=(10,)).astype(A.dtype)
-    b_np = np.arange(10, dtype=B.dtype)
-    c = tvm.runtime.tensor(np.zeros(10, dtype=C.dtype))
+    a_np = np.random.uniform(size=(10,)).astype(A.dtype.dtype)
+    b_np = np.arange(10, dtype=B.dtype.dtype)
+    c = tvm.runtime.tensor(np.zeros(10, dtype=C.dtype.dtype))
     func(c, tvm.runtime.tensor(a_np), tvm.runtime.tensor(b_np))
     tvm.testing.assert_allclose(a_np[b_np], c.numpy())
 
@@ -612,9 +646,9 @@ def test_int64_indices():
     B = te.compute(A.shape, lambda *i: A(*i) + 1, name="B")
     prim_func = te.create_prim_func([A, B])
     loop = prim_func.body.block.body
-    assert loop.loop_var.dtype == "int64"
-    assert loop.min.dtype == "int64"
-    assert loop.extent.dtype == "int64"
+    assert loop.loop_var.ty.dtype == "int64"
+    assert loop.min.ty.dtype == "int64"
+    assert loop.extent.ty.dtype == "int64"
 
 
 def test_zero_dim_add():
@@ -884,11 +918,11 @@ def test_adaptive_pooling_window():
         # fmt: off
         adaptive_pool_sum = T.sblock_alloc_buffer((1, 1024, 12, 30))
         for ax0, ax1, ax2, ax3 in T.grid(1, 1024, 12, 30):
-            with T.sblock("adaptive_pool_sum_1"):
+            with T.sblock("adaptive_pool_sum_l1"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(x[v_ax0, v_ax1, v_ax2 * 16 // 12:v_ax2 * 16 // 12 + ((v_ax2 % 3 * 4 + 16) // 12 + 1), v_ax3 * 40 // 30:v_ax3 * 40 // 30 + ((v_ax3 % 3 * 10 + 40) // 30 + 1)])
                 T.writes(adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
-                for rv0, rv1 in T.grid((v_ax2 % 3 * 4 + 16) // 12 + 1, (v_ax3 % 3 * 10 + 40) // 30 + 1):
+                for rv0, rv1 in T.grid(T.Select((v_ax2 * 16 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12, T.Select((v_ax3 * 40 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30):
                     with T.sblock("adaptive_pool_sum"):
                         v_ax0_1 = T.axis.spatial((v_ax0, v_ax0 + 1), v_ax0)
                         v_ax1_1 = T.axis.spatial((v_ax1, v_ax1 + 1), v_ax1)
@@ -906,7 +940,7 @@ def test_adaptive_pooling_window():
                 T.reads(adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
                 T.writes(adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
                 T.sblock_attr({"schedule_rule": "meta_schedule.adaptive_pool_avg"})
-                adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / (T.Cast("float32", (v_ax2 % 3 * 4 + 16) // 12 + 1) * T.Cast("float32", (v_ax3 % 3 * 10 + 40) // 30 + 1))
+                adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / (T.Cast("float32", T.Select((v_ax2 * 16 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12) * T.Cast("float32", T.Select((v_ax3 * 40 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30))
         # fmt: on
 
     def te_workload():
@@ -916,6 +950,28 @@ def test_adaptive_pooling_window():
         return [x, y]
 
     _check_workload(te_workload, tir_workload)
+
+
+@pytest.mark.parametrize(
+    ("input_shape", "expected"),
+    [
+        ((3, 4), [[12.5, 14.5], [16.5, 18.5]]),
+        ((4, 3), [[12.0, 13.0], [18.0, 19.0]]),
+    ],
+)
+def test_adaptive_pooling_mixed_reduction_levels(input_shape, expected):
+    data = te.placeholder((1, 1, *input_shape), "float32", "data")
+    output = topi.nn.adaptive_pool(data, [2, 2], pool_type="avg")
+    prim_func = te.create_prim_func([data, output])
+    compiled = tvm.compile(prim_func)
+
+    input_data = np.arange(10, 10 + np.prod(input_shape), dtype="float32").reshape(
+        1, 1, *input_shape
+    )
+    actual = tvm.runtime.tensor(np.empty((1, 1, 2, 2), dtype="float32"))
+    compiled(tvm.runtime.tensor(input_data), actual)
+
+    tvm.testing.assert_allclose(actual.numpy()[0, 0], np.array(expected, dtype="float32"))
 
 
 def test_global_pool():
@@ -954,10 +1010,11 @@ def test_nested_reduce_domain_dependency():
                                 v_i2_2 = T.axis.spatial((v_i2_1, v_i2_1 + 1), v_i2_1)
                                 v_rv_1 = T.axis.reduce((v_rv, v_rv + 1), v_rv)
                                 v_rv_2 = T.axis.reduce(v_rv, rv_1)
-                                T.reads(x[v_i0_2, v_i1_2, v_i2_2, v_rv_1, v_rv_2])
+                                T.reads(
+                                    compute[v_i0_2, v_i1_2, v_i2_2],
+                                    x[v_i0_2, v_i1_2, v_i2_2, v_rv_1, v_rv_2],
+                                )
                                 T.writes(compute[v_i0_2, v_i1_2, v_i2_2])
-                                with T.init():
-                                    compute[v_i0_2, v_i1_2, v_i2_2] = T.float32(0.0)
                                 compute[v_i0_2, v_i1_2, v_i2_2] = (
                                     compute[v_i0_2, v_i1_2, v_i2_2]
                                     + x[v_i0_2, v_i1_2, v_i2_2, v_rv_1, v_rv_2]

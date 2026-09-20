@@ -81,7 +81,7 @@ void CustomAllReduce(DLTensor* send, int strategy, DLTensor* recv) {
     // Dispatch to nccl AllReduce if the customized all-reduce cannot apply.
     deviceStream_t stream = ctx->GetDefaultStream();
     NCCL_CALL(ncclAllReduce(send->data, recv->data, num_elements,
-                            /*datatype=*/nccl::AsNCCLDataType(DataType(send->dtype)),
+                            /*datatype=*/nccl::AsNCCLDataType(send->dtype),
                             /*op=*/ncclSum, ctx->global_comm, stream));
     return;
   }

@@ -413,7 +413,7 @@ class Conv2dx2_partitioned:
                     data_layout="NHWC",
                     kernel_layout="OHWI",
                     out_layout="NHWC",
-                    out_dtype="void",
+                    out_dtype=None,
                 )
                 R.output(gv_2)
             return gv_2
@@ -524,7 +524,7 @@ def test_bind_params():
     for gvar, f in mod.functions.items():
         if gvar.name_hint == "fused_relax_nn_conv2d_relax_nn_relu":
             conv2d = f.body.blocks[0].bindings[0].value
-            assert isinstance(conv2d.args[1], relax.Constant)
+            assert isinstance(conv2d.args[1], tvm.ir.GenericConst)
 
 
 def test_annotate_codegen():
@@ -591,8 +591,8 @@ def test_unmatched_calls_may_include_lambda_functions(annotate_codegen):
 
 
 def test_compare_with_merge_composite_path():
-    x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 10], "float32"))
+    y = relax.Var("y", relax.TensorType([10, 10], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x, y]):
         with bb.dataflow():
@@ -769,7 +769,7 @@ def test_ignore_call_tir():
                 relu1 = R.call_tir(
                     cls.relu,
                     (lv,),
-                    out_sinfo=R.Tensor((1, 64, 56, 56), dtype="float32"),
+                    out_ty=R.Tensor((1, 64, 56, 56), dtype="float32"),
                 )
                 R.output(relu1)
             return relu1
@@ -836,9 +836,9 @@ def test_check_pattern():
         lhs = context.annotated_expr["lhs"]
         rhs = context.annotated_expr["rhs"]
         expr = context.annotated_expr["root"]
-        assert isinstance(lhs, relax.expr.Var) and lhs.name_hint == "data"
-        assert isinstance(rhs, relax.expr.Var) and rhs.name_hint == "weight1"
-        assert isinstance(expr, relax.expr.Call) and expr.op.name == "relax.nn.conv2d"
+        assert isinstance(lhs, relax.expr.Var) and lhs.name == "data"
+        assert isinstance(rhs, relax.expr.Var) and rhs.name == "weight1"
+        assert isinstance(expr, tvm.ir.Call) and expr.op.name == "relax.nn.conv2d"
         return False
 
     check(
@@ -1420,6 +1420,84 @@ def test_concat():
 
     pat_clip = is_op("relax.concat")(wildcard())
     check(mod, [("x.concat", pat_clip)], Expected2)
+
+
+def test_unique_boundary_output_precedes_last_group_binding():
+    """Export a sole boundary output even when a dead internal binding follows it."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tensor((2, 4), "float32"):
+            with R.dataflow():
+                first = R.nn.relu(x)
+                kept = R.nn.relu(first)
+                dead = R.nn.relu(kept)
+                R.output(kept)
+            return kept
+
+    pattern = is_op("relax.nn.relu")(is_op("relax.nn.relu")(is_op("relax.nn.relu")(wildcard())))
+    after = relax.transform.FuseOpsByPattern(
+        [("compiler_A.relu_chain", pattern)], annotate_codegen=True
+    )(Before)
+
+    relax.analysis.well_formed(after)
+    assert not relax.analysis.free_vars(after["main"])
+
+    calls = [
+        binding
+        for block in after["main"].body.blocks
+        for binding in block.bindings
+        if isinstance(binding.value, relax.Call)
+        and isinstance(binding.value.op, relax.GlobalVar)
+        and after[binding.value.op].attrs.get("Codegen") == "compiler_A"
+    ]
+    assert len(calls) == 1
+    grouped_result = calls[0].var
+    assert not isinstance(grouped_result, relax.DataflowVar)
+    assert after["main"].body.body.same_as(grouped_result)
+
+
+def test_inline_bound_static_shape_argument():
+    """A static leaf binding should not become a grouped-function parameter."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((4,), "float32")) -> R.Tensor((2, 2), "float32"):
+            shape: R.Shape([2, 2]) = R.shape([2, 2])
+            with R.dataflow():
+                out: R.Tensor((2, 2), "float32") = R.reshape(x, shape)
+                R.output(out)
+            return out
+
+    pattern = is_op("relax.reshape")(wildcard(), wildcard())
+    after = relax.transform.FuseOpsByPattern([("compiler_A.reshape", pattern)])(Before)
+    grouped = [
+        func
+        for func in after.functions.values()
+        if isinstance(func, relax.Function)
+        and func.attrs is not None
+        and func.attrs.get("Composite") == "compiler_A.reshape"
+    ]
+    assert len(grouped) == 1
+    assert len(grouped[0].params) == 1
+
+    reshape_calls = []
+    relax.analysis.post_order_visit(
+        grouped[0],
+        lambda expr: (
+            reshape_calls.append(expr)
+            if isinstance(expr, relax.Call)
+            and isinstance(expr.op, tvm.ir.Op)
+            and expr.op.name == "relax.reshape"
+            else None
+        ),
+    )
+    assert len(reshape_calls) == 1
+    assert isinstance(reshape_calls[0].args[1], relax.ShapeExpr)
 
 
 if __name__ == "__main__":

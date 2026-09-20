@@ -34,11 +34,11 @@ from . import cpp
 
 from .math import *
 from .tensor import *
-from .generic_op_impl import *
 from .index_put import *
 from .reduction import *
 from .transform import *
 from .broadcast import *
+from . import _te_tensor_overload
 from .sort import *
 from .scatter import *
 from .scatter_elements import *

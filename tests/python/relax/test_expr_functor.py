@@ -19,27 +19,22 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import relax, tirx
-from tvm.ir import Op
+from tvm import relax, te, tirx
+from tvm.ir import Call, GenericConst, Op, StringImm
 from tvm.ir.base import assert_structural_equal
 from tvm.relax import PyExprMutator, PyExprVisitor
 from tvm.relax.expr import (
     BindingBlock,
-    Call,
-    Constant,
     DataflowBlock,
     DataflowVar,
-    DataTypeImm,
     Expr,
     ExternFunc,
     Function,
     GlobalVar,
     If,
     MatchCast,
-    PrimValue,
     SeqExpr,
     ShapeExpr,
-    StringImm,
     Tuple,
     TupleGetItem,
     Var,
@@ -87,8 +82,8 @@ class ASTPrinter(PyExprVisitor):
         super().__init__()
         self.log = ASTLog()
 
-    def visit_constant_(self, op: Constant) -> None:
-        self.log.add("Constant")
+    def visit_generic_const_(self, op: GenericConst) -> None:
+        self.log.add("GenericConst")
 
     def visit_global_var_(self, op: GlobalVar) -> None:
         self.log.add("GlobalVar")
@@ -141,14 +136,11 @@ class ASTPrinter(PyExprVisitor):
         self.visit_expr(op.tuple_value)
         self.log.pop_scope()
 
-    def visit_prim_value_(self, op: PrimValue) -> None:
-        self.log.add("PrimValue")
+    def visit_expr_fallback_(self, op: Expr) -> None:
+        self.log.add("ExprFallback")
 
     def visit_string_imm_(self, op: StringImm) -> None:
         self.log.add("StringImm")
-
-    def visit_data_type_imm_(self, op: DataTypeImm) -> None:
-        self.log.add("DataTypeImm")
 
     def visit_shape_expr_(self, op: ShapeExpr) -> None:
         self.log.add("ShapeExpr")
@@ -212,9 +204,9 @@ class ASTPostPrinterMutator(PyExprMutator):
         super().__init__()
         self.log = ASTLog()
 
-    def visit_constant_(self, op: Constant) -> Expr:
+    def visit_generic_const_(self, op: GenericConst) -> Expr:
         op = self.visit_expr_post_order(op)
-        self.log.add("Constant")
+        self.log.add("GenericConst")
         return op
 
     def visit_global_var_(self, op: GlobalVar) -> Expr:
@@ -262,19 +254,14 @@ class ASTPostPrinterMutator(PyExprMutator):
         self.log.add("TupleGetItem")
         return op
 
-    def visit_prim_value_(self, op: PrimValue) -> Expr:
+    def visit_expr_fallback_(self, op: Expr) -> Expr:
         op = self.visit_expr_post_order(op)
-        self.log.add("PrimValue")
+        self.log.add("ExprFallback")
         return op
 
     def visit_string_imm_(self, op: StringImm) -> Expr:
         op = self.visit_expr_post_order(op)
         self.log.add("StringImm")
-        return op
-
-    def visit_data_type_imm_(self, op: DataTypeImm) -> Expr:
-        op = self.visit_expr_post_order(op)
-        self.log.add("DataTypeImm")
         return op
 
     def visit_shape_expr_(self, op: ShapeExpr) -> Expr:
@@ -302,10 +289,10 @@ class ASTPostPrinterMutator(PyExprMutator):
             self.builder_.emit_normalized(binding)
             return
 
-        temp = self.with_struct_info(new_var, new_value.struct_info)
+        temp = self.with_type(new_var, new_value.ty)
         if not temp.same_as(new_var):
             new_var = temp
-            self.set_var_remap(binding.var.vid, new_var)
+            self.set_var_remap(binding.var, new_var)
 
         self.builder_.emit_normalized(VarBinding(new_var, new_value))
 
@@ -314,13 +301,13 @@ class ASTPostPrinterMutator(PyExprMutator):
         new_var = self.visit_var_def(binding.var)
         new_value = self.visit_expr(binding.value)
 
-        temp = self.with_struct_info(new_var, binding.struct_info)
+        temp = self.with_type(new_var, binding.ty)
         if not temp.same_as(new_var):
             new_var = temp
-            self.set_var_remap(binding.var.vid, new_var)
+            self.set_var_remap(binding.var, new_var)
 
         self.log.add("MatchCast")
-        self.builder_.emit_normalized(MatchCast(new_var, new_value, binding.struct_info))
+        self.builder_.emit_normalized(MatchCast(new_var, new_value, binding.ty))
 
     def visit_binding_block_(self, block: BindingBlock) -> BindingBlock:
         """Identical with ExprMutator::VisitBindingBlock_(const BindingBlockNode* block) on the C++ side."""
@@ -367,7 +354,7 @@ def basic_check(expr, visitor_str, mutator_str):
 
     # check no overloading case
     basic_mutator = BasicMutator()
-    # skip normalize GlobalVar since it requires context IRModule to get the struct_info_
+    # skip normalize GlobalVar since it requires context IRModule to get ty
     if isinstance(expr, relax.Expr) and not isinstance(expr, relax.GlobalVar):
         expr = bb.normalize(expr)
         assert_structural_equal(visit(basic_mutator, expr), expr)
@@ -381,7 +368,7 @@ def basic_check(expr, visitor_str, mutator_str):
 
 
 def test_constant():
-    basic_check(relax.const(1.0), "Constant", "Constant")
+    basic_check(relax.const(1.0), "GenericConst", "GenericConst")
 
 
 def test_var():
@@ -414,18 +401,29 @@ def test_seq_expr():
                 "SeqExpr",
                 "\tBindingBlock",
                 "\t\tVarBinding",
-                "\t\t\tConstant",
+                "\t\t\tGenericConst",
                 "\t\t\tVarDef",
                 "\tVar",
             ]
         ),
-        "\n".join(["Constant", "VarDef", "VarBinding", "BindingBlock", "Var", "SeqExpr"]),
+        "\n".join(["GenericConst", "VarDef", "VarBinding", "BindingBlock", "Var", "SeqExpr"]),
     )
 
 
 def test_shape_expr():
     x = relax.ShapeExpr([m, n])
-    basic_check(x, "ShapeExpr", "ShapeExpr")
+    basic_check(x, "ShapeExpr", "\n".join(["Var", "Var", "ShapeExpr"]))
+
+
+def test_prim_expr():
+    basic_check(tvm.tirx.IntImm("int64", 1), "", "")
+    basic_check(tvm.tirx.FloatImm("float32", 1.0), "", "")
+    basic_check(m + n, "\n".join(["Var", "Var"]), "\n".join(["Var", "Var"]))
+    basic_check(
+        tvm.tirx.call_extern("int32", "test"),
+        "\n".join(["Call", "\tOp", "\tStringImm"]),
+        "\n".join(["Op", "StringImm", "Call"]),
+    )
 
 
 def test_call():
@@ -433,8 +431,20 @@ def test_call():
     basic_check(
         call_node,
         "\n".join(["Call", "\tOp", "\tVar", "\tVar"]),
-        "\n".join(["Op", "Var", "Var", "ShapeExpr", "Call"]),
+        "\n".join(["Op", "Var", "Var", "Var", "Var", "ShapeExpr", "Call"]),
     )
+
+    tensor_load = te.placeholder((1,), name="A")(0)
+    BasicVisitor().visit_expr(tensor_load)
+    assert BasicMutator().visit_expr(tensor_load).same_as(tensor_load)
+
+    visitor = ASTPrinter()
+    visitor.visit_expr(tensor_load)
+    assert str(visitor.log) == "\n".join(["Call", "\tOp", "\tExprFallback"])
+
+    mutator = ASTPostPrinterMutator()
+    assert mutator.visit_expr(tensor_load).same_as(tensor_load)
+    assert str(mutator.log) == "\n".join(["Op", "ExprFallback", "Call"])
 
 
 def test_if():
@@ -551,7 +561,7 @@ def test_function():
                 "\tSeqExpr",
                 "\t\tBindingBlock",
                 "\t\t\tVarBinding",
-                "\t\t\t\tConstant",
+                "\t\t\t\tGenericConst",
                 "\t\t\t\tVarDef",
                 "\t\tVar",
             ]
@@ -559,7 +569,7 @@ def test_function():
         "\n".join(
             [
                 "VarDef",
-                "Constant",
+                "GenericConst",
                 "VarDef",
                 "VarBinding",
                 "BindingBlock",
@@ -811,7 +821,7 @@ def test_call_mutator_super():
 
     lm = LeafMutator()
     lm.visit_expr(call_node)
-    assert str(lm.log) == "\n".join(["LeafCall", "InternalCall", "Op", "Var", "Var"])
+    assert str(lm.log) == "\n".join(["LeafCall", "InternalCall", "Op", "Var", "Var", "Var", "Var"])
 
     lm = LeafMutator()
     lm.visit_expr(dummy)
@@ -842,10 +852,10 @@ def test_function_parameter_mutation():
             self.shape_replacements = shape_replacements
 
         def visit_var_def_(self, var):
-            if var.name_hint in self.shape_replacements:
-                new_shape = self.shape_replacements[var.name_hint]
-                new_sinfo = relax.TensorStructInfo(new_shape, dtype=var.struct_info.dtype)
-                return relax.Var(f"{var.name_hint}_with_new_shape", new_sinfo)
+            if var.name in self.shape_replacements:
+                new_shape = self.shape_replacements[var.name]
+                new_ty = relax.TensorType(new_shape, dtype=var.ty.dtype)
+                return relax.Var(f"{var.name}_with_new_shape", new_ty)
             else:
                 return var
 

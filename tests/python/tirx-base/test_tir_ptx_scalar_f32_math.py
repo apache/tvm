@@ -16,10 +16,12 @@
 # under the License.
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @T.prim_func(s_tir=True)
@@ -38,12 +40,13 @@ def ptx_scalar_f32_math(
     with T.sblock():
         T.reads(A[0:32], B[0:32])
         T.writes(C_add[0:32], C_mul[0:32], C_max[0:32])
-        T.evaluate(T.ptx.add_f32(T.address_of(C_add[tx]), A[tx], B[tx]))
-        T.evaluate(T.ptx.mul_f32(T.address_of(C_mul[tx]), A[tx], B[tx]))
-        C_max[tx] = T.ptx.max_f32(A[tx], B[tx])
+        T.ptx.add.rn.f32(C_add[tx], A[tx], B[tx])
+        T.ptx.mul.rn.f32(C_mul[tx], A[tx], B[tx])
+        T.ptx.max.f32(C_max[tx], A[tx], B[tx])
 
 
-@tvm.testing.requires_cuda_compute_version(7)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(7), reason="need cuda compute >= 7.0")
 def test_ptx_scalar_f32_math():
     f = ptx_scalar_f32_math
     mod = tvm.compile(f, target="cuda")
@@ -51,16 +54,20 @@ def test_ptx_scalar_f32_math():
     A_np = rng.standard_normal(32).astype("float32")
     B_np = rng.standard_normal(32).astype("float32")
     Z = np.zeros((32,), dtype="float32")
-    dev = tvm.cuda(0)
-    A_nd = tvm.runtime.tensor(A_np, device=dev)
-    B_nd = tvm.runtime.tensor(B_np, device=dev)
-    Cadd = tvm.runtime.tensor(Z.copy(), device=dev)
-    Cmul = tvm.runtime.tensor(Z.copy(), device=dev)
-    Cmax = tvm.runtime.tensor(Z.copy(), device=dev)
-    mod(A_nd, B_nd, Cadd, Cmul, Cmax)
-    tvm.testing.assert_allclose(Cadd.numpy(), A_np + B_np, rtol=0, atol=0)
-    tvm.testing.assert_allclose(Cmul.numpy(), A_np * B_np, rtol=0, atol=0)
-    tvm.testing.assert_allclose(Cmax.numpy(), np.maximum(A_np, B_np), rtol=0, atol=0)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A_nd = tvm.runtime.tensor(A_np, device=dev)
+        B_nd = tvm.runtime.tensor(B_np, device=dev)
+        Cadd = tvm.runtime.tensor(Z.copy(), device=dev)
+        Cmul = tvm.runtime.tensor(Z.copy(), device=dev)
+        Cmax = tvm.runtime.tensor(Z.copy(), device=dev)
+        mod(A_nd, B_nd, Cadd, Cmul, Cmax)
+        tvm.testing.assert_allclose(Cadd.numpy(), A_np + B_np, rtol=0, atol=0)
+        tvm.testing.assert_allclose(Cmul.numpy(), A_np * B_np, rtol=0, atol=0)
+        tvm.testing.assert_allclose(Cmax.numpy(), np.maximum(A_np, B_np), rtol=0, atol=0)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

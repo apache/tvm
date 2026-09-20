@@ -129,7 +129,7 @@ def lowered_loop_split(a: T.handle, b: T.handle) -> None:
                 T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret(T.uint64(0), dtype="handle"),
+                    T.int32(0),
                 )
                 T.evaluate(
                     T.tvm_thread_allreduce(

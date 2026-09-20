@@ -20,16 +20,20 @@
 #include <gtest/gtest.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/ir/source_map.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
+
+#include <type_traits>
 
 TEST(Expr, Basic) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   auto z = max(x + 1 + 2, 100);
   ffi::ObjectRef tmp = z;
-  PrimExpr zz = Downcast<PrimExpr>(tmp);
+  PrimExpr zz = tmp.as_or_throw<PrimExpr>();
   std::ostringstream os;
   os << z;
   TVM_FFI_ICHECK(zz.same_as(z));
@@ -39,18 +43,75 @@ TEST(Expr, Basic) {
 TEST(Expr, VarTypeAnnotation) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x", DataType::Float(32));
-  Var y("y", PrimType(DataType::Float(32)));
+  PrimVar x("x", PrimType::Float(32));
+  PrimVar y("y", PrimType::Float(32));
   tvm::ffi::StructuralEqual checker;
-  TVM_FFI_ICHECK(checker(x->dtype, y->dtype));
-  TVM_FFI_ICHECK(checker(x->type_annotation, y->type_annotation));
+  TVM_FFI_ICHECK(checker(x.ty(), y.ty()));
+  TVM_FFI_ICHECK(checker(x->ty, y->ty));
+}
+
+TEST(Expr, VarCopyHelpers) {
+  using namespace tvm;
+  using namespace tvm::tirx;
+
+  Span span(SourceName::Get("test.cc"), 1, 1, 1, 10);
+  Type pointer_type = PointerType(PrimType::Float(32), "global");
+  Var var("x", pointer_type, span);
+
+  Var renamed = var.CopyWithName("y");
+  EXPECT_FALSE(renamed.same_as(var));
+  EXPECT_EQ(renamed->name, "y");
+  EXPECT_TRUE(renamed->ty.same_as(pointer_type));
+  EXPECT_TRUE(renamed->span.same_as(span));
+
+  PrimType dtype = PrimType::Int(64);
+  Var retyped = var.CopyWithDType(dtype);
+  EXPECT_FALSE(retyped.same_as(var));
+  EXPECT_EQ(retyped->name, "x");
+  EXPECT_TRUE(retyped->ty.same_as(dtype));
+  EXPECT_TRUE(retyped->span.same_as(span));
+
+  PrimVar prim_var("i", PrimType::Int(32), span);
+  static_assert(std::is_same_v<decltype(prim_var.CopyWithDType(PrimType::Float(32))), PrimVar>);
+  PrimType prim_dtype = PrimType::Float(32);
+  PrimVar retyped_prim_var = prim_var.CopyWithDType(prim_dtype);
+  EXPECT_FALSE(retyped_prim_var.same_as(prim_var));
+  EXPECT_EQ(retyped_prim_var->name, "i");
+  EXPECT_TRUE(retyped_prim_var.ty().same_as(prim_dtype));
+  EXPECT_TRUE(retyped_prim_var->span.same_as(span));
+}
+
+TEST(Expr, PrimTypeBoolLanes) {
+  using namespace tvm;
+  PrimType boolx4 = PrimType::Bool(4);
+  TVM_FFI_ICHECK(boolx4.IsFixedLengthVector());
+  TVM_FFI_ICHECK(boolx4.MatchesCode(DLDataTypeCode::kDLBool));
+  TVM_FFI_ICHECK_EQ(boolx4.lanes(), 4);
+  TVM_FFI_ICHECK(boolx4.MatchesElementType(DLDataTypeCode::kDLBool, 8));
 }
 
 TEST(ExprNodeRef, Basic) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   PrimExpr z = max(x + 1 + 2, 100);
-  const tirx::MaxNode* op = z.as<tirx::MaxNode>();
+  const prim::MaxNode* op = z.as<prim::MaxNode>();
   TVM_FFI_ICHECK(ffi::GetRef<ffi::ObjectRef>(op).same_as(z));
+}
+
+TEST(Expr, DeepEqualTensorLoadSourceIdentity) {
+  using namespace tvm;
+  Var source("source", PointerType(PrimType::Float(32)));
+  Var other_source("source", PointerType(PrimType::Float(32)));
+  auto load = [](Expr source, PrimExpr index) {
+    auto node = ffi::make_object<TensorLoadNode>();
+    node->ty = PrimType::Float(32);
+    node->source = source;
+    node->indices = {index};
+    return TensorLoad(node);
+  };
+  prim::ExprDeepEqual equal;
+  EXPECT_TRUE(equal(load(source, 0), load(source, 0)));
+  EXPECT_FALSE(equal(load(source, 0), load(other_source, 0)));
+  EXPECT_FALSE(equal(load(source, 0), load(source, 1)));
 }

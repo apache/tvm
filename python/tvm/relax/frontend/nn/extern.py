@@ -24,7 +24,10 @@ import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
-from tvm import tirx
+import tvm_ffi
+
+import tvm
+from tvm import libinfo, tirx
 from tvm.runtime import Module, load_static_library
 from tvm.support import cc as _cc
 
@@ -53,20 +56,20 @@ class ExternModule:
                 if isinstance(arg, core.Tensor):
                     return arg._expr  # pylint: disable=protected-access
                 if isinstance(arg, int):
-                    return rx.PrimValue(tirx.IntImm("int64", arg))
+                    return rx.prim_value(tirx.IntImm("int64", arg))
                 if isinstance(arg, float):
-                    return rx.PrimValue(tirx.FloatImm("float64", arg))
+                    return rx.prim_value(tirx.FloatImm("float64", arg))
                 if isinstance(arg, str):
-                    return rx.StringImm(arg)
-                if isinstance(arg, tirx.PrimExpr):
-                    return rx.PrimValue(arg)
+                    return tvm.ir.StringImm(arg)
+                if tvm.ir.is_prim_expr(arg):
+                    return rx.prim_value(arg)
                 if isinstance(arg, tuple | list):
                     return rx.Tuple([_convert(e, f"{name}_{i}") for i, e in enumerate(arg)])
                 raise TypeError(f"Unsupported input type: {type(arg)}")
 
             rx_inputs = _convert(input_args, "input")
-            rx_outputs_sinfo = _convert(_inference_function(*input_args), "dummy").struct_info
-            return wrap_nested(call_dps_packed(func_name, rx_inputs, rx_outputs_sinfo), func_name)
+            rx_outputs_ty = _convert(_inference_function(*input_args), "dummy").ty
+            return wrap_nested(call_dps_packed(func_name, rx_inputs, rx_outputs_ty), func_name)
 
         return _call
 
@@ -143,7 +146,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
 
         // those headers are guaranteed to be available
         #include <dlpack/dlpack.h>
-        #include <tvm/runtime/data_type.h>
+        #include <tvm/ffi/dtype.h>
         #include <tvm/ffi/function.h>
 
         namespace {
@@ -306,15 +309,16 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         includes : List[pathlib.Path]
             The list of include paths.
         """
-        tvm_home = SourceModule.tvm_home()
         results = [
-            tvm_home / "include",
-            tvm_home / "3rdparty/tvm-ffi/include",
-            tvm_home / "3rdparty/tvm-ffi/3rdparty/dlpack/include",
+            Path(libinfo.find_include_path()),
+            Path(tvm_ffi.libinfo.find_include_path()),
+            Path(tvm_ffi.libinfo.find_dlpack_include_path()),
         ]
         if tvm_pkg:
+            tvm_home = SourceModule.tvm_home()
             for relative in tvm_pkg:
                 results.append(tvm_home / "3rdparty" / relative)
+        results = list(dict.fromkeys(results))
         for path in results:
             assert path.exists(), f"Not found: {path!s}"
             assert path.is_dir(), f"Not a directory: {path!s}"

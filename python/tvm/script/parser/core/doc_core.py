@@ -77,6 +77,7 @@ class FunctionDef(stmt):
         "body",
         "decorator_list",
         "returns",
+        "type_params",
         "lineno",
         "col_offset",
         "end_lineno",
@@ -90,6 +91,7 @@ class FunctionDef(stmt):
         body,
         decorator_list,
         returns,
+        type_params,
         lineno,
         col_offset,
         end_lineno,
@@ -101,6 +103,7 @@ class FunctionDef(stmt):
         self.body = body
         self.decorator_list = decorator_list
         self.returns = returns
+        self.type_params = type_params
 
 
 class ClassDef(stmt):
@@ -354,6 +357,67 @@ class expr(AST):
         self.col_offset = col_offset
         self.end_lineno = end_lineno
         self.end_col_offset = end_col_offset
+
+
+class type_param(AST):
+    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+
+    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
+        super().__init__()
+        self.lineno = lineno
+        self.col_offset = col_offset
+        self.end_lineno = end_lineno
+        self.end_col_offset = end_col_offset
+
+
+class TypeVar(type_param):
+    _FIELDS = [
+        "name",
+        "bound",
+        "default_value",
+        "lineno",
+        "col_offset",
+        "end_lineno",
+        "end_col_offset",
+    ]
+
+    def __init__(self, name, bound, default_value, lineno, col_offset, end_lineno, end_col_offset):
+        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+        self.name = name
+        self.bound = bound
+        self.default_value = default_value
+
+
+class ParamSpec(type_param):
+    _FIELDS = [
+        "name",
+        "default_value",
+        "lineno",
+        "col_offset",
+        "end_lineno",
+        "end_col_offset",
+    ]
+
+    def __init__(self, name, default_value, lineno, col_offset, end_lineno, end_col_offset):
+        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+        self.name = name
+        self.default_value = default_value
+
+
+class TypeVarTuple(type_param):
+    _FIELDS = [
+        "name",
+        "default_value",
+        "lineno",
+        "col_offset",
+        "end_lineno",
+        "end_col_offset",
+    ]
+
+    def __init__(self, name, default_value, lineno, col_offset, end_lineno, end_col_offset):
+        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+        self.name = name
+        self.default_value = default_value
 
 
 class BoolOp(expr):
@@ -1016,6 +1080,7 @@ __all__ = [
     "NotEq",
     "NotIn",
     "Or",
+    "ParamSpec",
     "Pass",
     "Pow",
     "RShift",
@@ -1030,6 +1095,8 @@ __all__ = [
     "Subscript",
     "Try",
     "Tuple",
+    "TypeVar",
+    "TypeVarTuple",
     "UAdd",
     "USub",
     "UnaryOp",
@@ -1050,6 +1117,7 @@ __all__ = [
     "mod",
     "operator",
     "stmt",
+    "type_param",
     "unaryop",
     "withitem",
 ]

@@ -23,12 +23,13 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -45,7 +46,7 @@ namespace {
  *  This pass performs such verification by checking if all
  *  memory accesses are bound with threads when device type is GPU.
  */
-class MemoryAccessVerifier final : protected StmtExprVisitor {
+class MemoryAccessVerifier final : public StmtExprVisitor {
  public:
   /// Special member functions
   //@{
@@ -60,7 +61,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   /// Interface to perform memory access verification
   void Run() {
     if (!IsGPUDevice(dev_type_)) return;
-    StmtExprVisitor::VisitStmt(func_->body);
+    StmtExprVisitor::Visit(func_->body);
   }
 
   /// Verification result
@@ -69,42 +70,48 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
  protected:
   /// Visitor implementation
   //@{
-  void VisitExpr(const PrimExpr& n) final { StmtExprVisitor::VisitExpr(n); }
 
-  void VisitStmt(const Stmt& n) final { StmtExprVisitor::VisitStmt(n); }
-
-  void VisitStmt_(const BindNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     // Book keep definitions
     defs_[op->var.get()] = op->value;
-    return StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     if (!InThreadEnv() && op->attr_key == attr::thread_extent) {
       EnterThreadEnv();
-      StmtExprVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       ExitThreadEnv();
     } else {
-      StmtExprVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const BufferLoadNode* op) final {
-    HandleLoadStoreToVariable(op->buffer->data);
-    return StmtExprVisitor::VisitExpr_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+    HandleLoadStoreToVariable(op->source.as_or_throw<tvm::tirx::BufferVar>().var());
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const BufferStoreNode* op) final {
-    HandleLoadStoreToVariable(op->buffer->data);
-    return StmtExprVisitor::VisitStmt_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+    HandleLoadStoreToVariable(op->buffer.var());
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
+    if ((op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) &&
+        !op->args.empty()) {
+      HandleLoadStoreToVariable(op->args[0].as_or_throw<Var>());
+    }
+    return StmtExprVisitor::Visit_(op);
   }
   //@}
 
   /// Check if the value of a Variable comes from function argument.
   bool IsFromFunctionArgs(const VarNode* var) const {
     const VarNode* V = var;
-    for (auto kv : func_->buffer_map) {
-      if (V == kv.second->data.get()) return true;
+    for (const Var& param : func_->params) {
+      if (param->ty.as<BufferTypeNode>() && V == param.get()) return true;
     }
 
     while (true) {
@@ -160,9 +167,9 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   bool in_thread_env_{false};
   std::vector<ffi::String> errs_;
   //@}
-  tirx::PrimFunc func_{nullptr};                       ///< Function to be verified.
-  int dev_type_{kDLCPU};                               ///< Device type
-  std::unordered_map<const VarNode*, PrimExpr> defs_;  ///< Variable definitions
+  tirx::PrimFunc func_{nullptr};                   ///< Function to be verified.
+  int dev_type_{kDLCPU};                           ///< Device type
+  std::unordered_map<const VarNode*, Expr> defs_;  ///< Variable definitions
 };
 }  // namespace
 
@@ -171,17 +178,17 @@ std::vector<ffi::String> VerifyMemory_(const PrimFunc& func) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   // Skip verification for functions without a target attribute, as they are
   // typically host-only helper functions that do not have device-memory constraints.
-  if (!target.defined()) return {};
+  if (!target.has_value()) return {};
 
   VLOG(1) << "verifying memory for target '" << target.value()->str()
           << "' for primitive:" << std::endl
           << func;
 
-  if (func->GetAttr<int64_t>(tvm::attr::kCallingConv, static_cast<int64_t>(CallingConv::kDefault))
-          .value() == static_cast<int64_t>(CallingConv::kDefault)) {
-    MemoryAccessVerifier v(func, target.value()->GetTargetDeviceType());
-    v.Run();
-    return v.Errors();
+  if (func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value() ==
+      CallingConv::kDefault) {
+    auto v = ffi::make_object<MemoryAccessVerifier>(func, target.value()->GetTargetDeviceType());
+    v->Run();
+    return v->Errors();
   } else {
     return {};
   }

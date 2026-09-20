@@ -95,7 +95,7 @@ def conv3d_ndhwc(
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
 
-    meta_schedule_origin_shape: Optional[List[PrimExpr]] = None
+    meta_schedule_origin_shape: Optional[List[Expr]] = None
         The original shape of the input tensor.
 
     Returns

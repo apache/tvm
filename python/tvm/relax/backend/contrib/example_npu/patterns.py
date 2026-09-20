@@ -63,7 +63,7 @@ def _check_npu_memory_constraints(
     Placeholder for NPU memory hierarchy constraint checking.
 
     A real implementation would inspect the annotated expression's
-    TensorStructInfo to verify the tensor fits within the NPU's
+    TensorType to verify the tensor fits within the NPU's
     on-chip SRAM (L1) or compute memory (L2/CMX). Tensors that
     exceed on-chip capacity require tiling before offload.
     """

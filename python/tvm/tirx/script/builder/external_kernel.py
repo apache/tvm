@@ -28,6 +28,7 @@ import tvm_ffi
 
 from tvm import __version__ as tvm_version
 from tvm import tirx
+from tvm.ir import Expr, PointerType, is_prim_expr
 from tvm.runtime import Module, const
 from tvm.support import nvcc
 
@@ -115,7 +116,7 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
 
     def compile_to_device_module(  # pylint: disable=arguments-differ
         self,
-        grid: list[list[int | tirx.PrimExpr]],
+        grid: list[list[int | tirx.Expr]],
         *args: list[Any],
         **kwargs: dict[str, Any],
     ) -> tuple[str, Module, list[Any]]:
@@ -136,8 +137,14 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
             "threadIdx.y",
             "threadIdx.z",
         ][: len(grid[1])]
-        runtime_args = [arg if hasattr(arg, "dtype") else const(arg) for arg in args]
-        kernel_arg_types = [arg.dtype for arg in runtime_args]
+        runtime_args = [arg if isinstance(arg, Expr) else const(arg) for arg in args]
+        kernel_arg_types = []
+        for arg in runtime_args:
+            if isinstance(arg.ty, PointerType):
+                kernel_arg_types.append("handle")
+            else:
+                assert is_prim_expr(arg)
+                kernel_arg_types.append(str(arg.ty.dtype))
         runtime_args = runtime_args + list(grid[0]) + list(grid[1])
 
         # Reuse compilation path from SourceModule
@@ -159,7 +166,7 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
             target_format = "cubin" if use_nvshmem else "ptx"
             output_path = f"{temp_dir}/{kernel_name}.{target_format}"
 
-            compiler = os.environ.get("TVM_CUDA_COMPILE_MODE", "nvcc")
+            compiler = os.environ.get("TVM_CUDA_COMPILE_MODE", "nvrtc")
             nvcc.compile_cuda(
                 source_code,
                 target_format=target_format,
@@ -184,7 +191,7 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
 
 def call_kernel(
     kernel,
-    launch_args: list[int | tirx.PrimExpr | list[int | tirx.PrimExpr]],
+    launch_args: list[int | tirx.Expr | list[int | tirx.Expr]],
     *args: list[Any],
     **kwargs: dict[str, Any],
 ):
@@ -196,11 +203,11 @@ def call_kernel(
     kernel : Any
         The external kernel to call.
 
-    launch_args : List[Union[int, tirx.PrimExpr, List[Union[int, tirx.PrimExpr]]]]
+    launch_args : List[Union[int, tirx.Expr, List[Union[int, tirx.Expr]]]]
         The launch arguments. A list of integers for grid size, block size, and shared memory size.
         The actual requirements depend on the kernel.
 
-    args : List[tirx.PrimExpr]
+    args : List[tirx.Expr]
         The arguments to pass to the kernel.
 
     kwargs : Dict[str, Any]

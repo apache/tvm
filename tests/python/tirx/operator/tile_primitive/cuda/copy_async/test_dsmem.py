@@ -25,19 +25,20 @@ import functools
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx import IntImm, Var
+from tvm.tirx.cuda.tile_primitive.copy_async.dsmem import copy_dsmem_impl
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
-from tvm.tirx.operator.tile_primitive.cuda.copy_async.dsmem import copy_dsmem_impl
-from tvm.tirx.operator.tile_primitive.dispatch_context import DispatchContext
 from tvm.tirx.operator.tile_primitive.dispatcher import DispatchFail
 from tvm.tirx.operator.tile_primitive.ops import CopyAsync
-from tvm.tirx.stmt_functor import StmtExprVisitor
+from tvm.tirx.tile_primitive import DispatchContext
 
 
 def _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout):
@@ -55,32 +56,31 @@ def _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout):
     return copy_dsmem_impl(op_call, sctx)
 
 
-class _S2CCounter(StmtExprVisitor):
-    """Count cp.async.bulk.shared_to_cluster calls including loop iterations."""
-
-    def __init__(self):
-        super().__init__()
-        self._loop_extents = []
-        self.total = 0
-
-    def visit_for_(self, op):
-        self._loop_extents.append(op.extent)
-        self.visit_stmt(op.body)
-        self._loop_extents.pop()
-
-    def visit_evaluate_(self, op):
-        if isinstance(op.value, tvm.tirx.Call):
-            if op.value.op.name == "tirx.ptx.cp_async_bulk_shared_to_cluster":
-                n = 1
-                for e in self._loop_extents:
-                    n *= e
-                self.total += n
-
-
 def _count_s2c_ops(impl):
-    c = _S2CCounter()
-    c.visit_stmt(impl.body)
-    return c.total
+    """Count cp.async.bulk.shared_to_cluster calls including loop iterations."""
+    loop_extents = []
+    total = 0
+
+    def visit_for(op, visitor):
+        loop_extents.append(op.extent)
+        visitor.default_visit(op)
+        loop_extents.pop()
+
+    def visit_evaluate(op, visitor):
+        nonlocal total
+        if isinstance(op.value, tvm.ir.Call):
+            if op.value.op.name == "tirx.ptx.cp_async_bulk_s2c":
+                n = 1
+                for e in loop_extents:
+                    n *= e
+                total += n
+        visitor.default_visit(op)
+
+    tvm_ffi.structural_visit(
+        impl.body,
+        [(tvm.tirx.For, visit_for), (tvm.tirx.Evaluate, visit_evaluate)],
+    )
+    return total
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +122,8 @@ def _layout_physical_elements(layout):
     return max_offset + 1
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize("shape,dtype,src_spec,dst_spec,expected", DSMEM_CONFIGS)
 def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
     """Dispatch assertion + GPU correctness for DSMEM copy.
@@ -184,13 +185,13 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
         pool.commit()
 
         mbar.init(1)
-        T.ptx.fence.mbarrier_init()
+        T.ptx.fence.mbarrier_init.release.cluster()
         T.cuda.cluster_sync()
 
         if tid == 0:
             if cbx == 0:
                 Tx.copy(src_smem[r], A[r])
-                T.ptx.fence.proxy_async("shared::cta")
+                T.ptx.fence.proxy.async_.shared__cta()
 
                 Tx.copy_async(
                     dst_smem[r], src_smem[r],
@@ -199,14 +200,13 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
                     remote_cta_id=T.int32(1),
                 )
             else:
-                T.ptx.mbarrier.arrive.expect_tx(mbar.ptr_to([0]), copy_bytes)
+                T.ptx.mbarrier.arrive.expect_tx.shared.b64(mbar.ptr_to([0]), T.uint32(copy_bytes))
                 mbar.wait(0, 0)
 
                 Tx.copy(B[r], dst_smem[r])
         # fmt: on
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
-    dev = tvm.cuda(0)
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": dsmem_copy})
@@ -219,10 +219,14 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
         A_np = tvm.testing.generate_random_array(dtype, shape)
         B_np = np.zeros(shape, dtype=np_dtype)
 
+    def run_and_check():
+        dev = tvm.cuda(0)
         A_tvm = tvm.runtime.tensor(A_np, dev)
         B_tvm = tvm.runtime.tensor(B_np, dev)
         mod(A_tvm, B_tvm)
         np.testing.assert_allclose(A_np, B_tvm.numpy())
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_dsmem_dispatch_missing_config():

@@ -30,9 +30,15 @@ from ..utils import ceil_div, prod, swap
 
 
 def _get_threads(nthread_tx, nthread_bx, nthread_by):
+    target = tvm.target.Target.current(allow_none=True)
+    is_cuda = target is not None and target.kind.name == "cuda"
     tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    by = te.thread_axis("blockIdx.y")
+    if is_cuda:
+        bx = te.thread_axis("blockIdx.y")
+        by = te.thread_axis("blockIdx.x")
+    else:
+        bx = te.thread_axis("blockIdx.x")
+        by = te.thread_axis("blockIdx.y")
     return tx, bx, by, nthread_tx, nthread_bx, nthread_by
 
 
@@ -136,7 +142,9 @@ def _odd_even_sort(
                             [tid + n],
                         )
 
-        T.evaluate(tvm.tirx.Call(None, "tirx.tvm_storage_sync", tvm.runtime.convert(["shared"])))
+        T.evaluate(
+            tvm.ir.Call("tirx.tvm_storage_sync", [tvm.ir.StringImm("shared")], ret_ty="void")
+        )
 
         idxm = tvm.tirx.indexmod
         # OddEvenTransposeSort
@@ -165,7 +173,7 @@ def _odd_even_sort(
                                 )
                                 T.buffer_store(tmp_values_swap, temp_values[0], [tid + n + 1])
             T.evaluate(
-                tvm.tirx.Call(None, "tirx.tvm_storage_sync", tvm.runtime.convert(["shared"]))
+                tvm.ir.Call("tirx.tvm_storage_sync", [tvm.ir.StringImm("shared")], ret_ty="void")
             )
 
         ## Copy sorted data to output
@@ -492,24 +500,31 @@ def _sort_common(
         target = tvm.target.Target.current()
         if "vulkan" in str(target):
             ntx = max_threads
-            nbx = tvm.tirx.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
-            nbz = tvm.tirx.generic.cast(ceil_div(size, width), "int32")
+            nbx = cast(ceil_div(width, max_threads * thread_work), "int32")
+            nbz = cast(ceil_div(size, width), "int32")
         else:
-            ntx = tvm.tirx.generic.cast(tvm.te.min(max_threads, width), "int32")
-            nbx = tvm.tirx.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
-            nbz = tvm.tirx.generic.cast(ceil_div(size, width), "int32")
+            ntx = cast(tvm.te.min(max_threads, width), "int32")
+            nbx = cast(ceil_div(width, max_threads * thread_work), "int32")
+            nbz = cast(ceil_div(size, width), "int32")
 
-        tx, bx, by, _, _, _ = _get_threads(ntx, nbx, nthread_by * nbz)
+        is_cuda = target.kind.name == "cuda"
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.z")  # nbx
+        if is_cuda:
+            by = te.thread_axis("blockIdx.x")  # batch
+            bz = te.thread_axis("blockIdx.y")  # nbz
+        else:
+            by = te.thread_axis("blockIdx.y")  # batch
+            bz = te.thread_axis("blockIdx.x")  # nbz
         with T.frame_scope(
             [
                 T.attr(tx, "thread_extent", ntx),
                 T.attr(bx, "thread_extent", nbx),
-                T.attr(by, "thread_extent", nthread_by * nbz),
+                T.attr(by, "thread_extent", nthread_by),
+                T.attr(bz, "thread_extent", nbz),
             ]
         ):
-            by_val = by % nthread_by
-            bz = by // nthread_by
-            base_idx = by_val * size
+            base_idx = by * size
 
             # calculate the start, mid, and end points of this section
             start_pos = width * bz
@@ -633,9 +648,7 @@ def sort_ir(
                     indices_out,
                     value_init_func=(
                         lambda _, tid: (
-                            tvm.tirx.generic.cast(tid, indices_out_orig.dtype)
-                            if indices_out is not None
-                            else None
+                            cast(tid, indices_out_orig.dtype) if indices_out is not None else None
                         )
                     ),
                 )
@@ -965,7 +978,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
     strides = [1] * ndim
     for i in range(ndim):
         if i == axis:
-            end.append(k if isinstance(k, int) else tvm.te.size_var("dim"))
+            end.append(k if isinstance(k, int) else tvm.te.var("dim"))
         else:
             end.append(dshape[i])
     if ret_type == "both":
@@ -1065,7 +1078,7 @@ def topk_thrust(
 
     if not isinstance(k, int) or k > 0:
         beg = [0] * ndim
-        end = data.shape[:-1] + [k if isinstance(k, int) else tvm.te.size_var("dim")]
+        end = data.shape[:-1] + [k if isinstance(k, int) else tvm.te.var("dim")]
         strides = [1] * ndim
         out = [strided_slice(o, beg, end, strides) for o in out]
 

@@ -20,22 +20,23 @@
 #define TVM_SCRIPT_PRINTER_TIR_UTILS_H_
 
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/script/printer/ir_docsifier.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/exec_scope.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/predicate.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
-#include <tvm/tirx/tirx_op.h>
+#include <tvm/tirx/tile_primitive.h>
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -43,6 +44,7 @@
 
 namespace tvm {
 namespace script {
+
 namespace printer {
 
 using tvm::ffi::StructuralEqual;
@@ -91,7 +93,7 @@ inline ExprDoc DefineVar(const tirx::Var& var, const Frame& frame, const IRDocsi
   if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(var)) {
     return doc.value();
   }
-  return d->Define(var, frame, var->name_hint.empty() ? "v" : var->name_hint);
+  return d->Define(var, frame, var->name.empty() ? "v" : var->name);
 }
 
 /*!
@@ -102,8 +104,8 @@ inline ExprDoc DefineVar(const tirx::Var& var, const Frame& frame, const IRDocsi
  * \param d The IRDocsifier
  * \return The IdDoc corresponding to the buffer
  */
-inline IdDoc DefineBuffer(const tirx::Buffer& buffer, const Frame& frame, const IRDocsifier& d) {
-  return d->Define(buffer, frame, buffer->name.empty() ? "buffer" : buffer->name);
+inline IdDoc DefineBuffer(const tirx::BufferVar& buffer, const Frame& frame, const IRDocsifier& d) {
+  return d->Define(buffer, frame, buffer.name().empty() ? "buffer" : buffer.name());
 }
 
 /*!
@@ -116,16 +118,23 @@ inline IdDoc DefineBuffer(const tirx::Buffer& buffer, const Frame& frame, const 
 inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, const IRDocsifier& d) {
   if (const auto* seq_stmt = stmt.as<tirx::SeqStmtNode>()) {
     ffi::Array<tirx::Stmt> body = seq_stmt->seq;
-    auto value_refs_buffer = [](const PrimExpr& value, const tirx::Buffer& buffer) {
-      bool found = false;
-      tirx::PostOrderVisit(value, [&](const ffi::ObjectRef& node) {
-        if (const auto* load = node.as<tirx::BufferLoadNode>()) {
-          if (load->buffer.same_as(buffer)) {
-            found = true;
+    auto value_refs_buffer = [](const PrimExpr& value, const tirx::BufferVar& buffer) {
+      auto visit_load = [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
+        if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
+          return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
+        }
+        return ffi::WalkResult::Advance();
+      };
+      auto visit_call = [&](const Call& call) -> ffi::Expected<ffi::WalkResult> {
+        if (call->op.same_as(tirx::builtin::masked_load()) && !call->args.empty()) {
+          if (auto var = call->args[0].as<Var>(); var && var.value().same_as(buffer.var())) {
+            return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
           }
         }
-      });
-      return found;
+        return ffi::WalkResult::Advance();
+      };
+      auto result = ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(value, visit_load, visit_call);
+      return result.has_value() ? result.value()->value.cast<bool>() : false;
     };
 
     for (int i = 0, n = body.size(); i < n;) {
@@ -137,13 +146,12 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
       if (d->cfg->syntax_sugar && alloc != nullptr && alloc->buffer.IsScalar(true) && i + 1 < n) {
         const auto* store = body[i + 1].as<tirx::BufferStoreNode>();
         bool can_merge_init = store != nullptr && store->buffer.same_as(alloc->buffer) &&
-                              !store->predicate.defined() && store->indices.size() == 1 &&
-                              tirx::is_zero(store->indices[0]) &&
+                              store->indices.size() == 1 && tvm::prim::is_zero(store->indices[0]) &&
                               !value_refs_buffer(store->value, alloc->buffer);
         if (can_merge_init) {
           Doc alloc_doc = d->AsDoc(body[i], item_p);
           if (const auto* assign = alloc_doc.as<AssignDocNode>()) {
-            if (assign->annotation.defined() && !assign->rhs.defined()) {
+            if (assign->annotation.has_value() && !assign->rhs.has_value()) {
               ExprDoc init_rhs =
                   d->AsDoc<ExprDoc>(store->value, p->Attr("seq")->ArrayItem(i + 1)->Attr("value"));
               auto fused = AssignDoc(assign->lhs, init_rhs, assign->annotation);
@@ -178,7 +186,7 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
       if (const auto* block = doc.as<StmtBlockDocNode>()) {
         f->stmts.insert(f->stmts.end(), block->stmts.begin(), block->stmts.end());
       } else {
-        f->stmts.push_back(Downcast<StmtDoc>(doc));
+        f->stmts.push_back(doc.as_or_throw<StmtDoc>());
       }
       i += consumed;
     }
@@ -188,7 +196,7 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
     if (const auto* block = doc.as<StmtBlockDocNode>()) {
       f->stmts.insert(f->stmts.end(), block->stmts.begin(), block->stmts.end());
     } else {
-      f->stmts.push_back(Downcast<StmtDoc>(doc));
+      f->stmts.push_back(doc.as_or_throw<StmtDoc>());
     }
   }
 }
@@ -259,12 +267,14 @@ inline ffi::Optional<Frame> FindLowestVarDef(const ffi::ObjectRef& var, const IR
 inline std::string ReprPrintTIR(const ffi::ObjectRef& obj, const PrinterConfig& cfg) {
   IRDocsifier d(cfg);
   d->SetCommonPrefix(obj, [](const ffi::ObjectRef& obj) {
-    return obj->IsInstance<tirx::VarNode>() || obj->IsInstance<tirx::BufferNode>();
+    return obj->IsInstance<tirx::VarNode>() || obj->IsInstance<tirx::BufferTypeNode>();
   });
   With<TIRFrame> f(d, ffi::ObjectRef{nullptr});
   (*f)->AddDispatchToken(d, "tirx");
   return Docsify(obj, d, *f, cfg);
 }
+
+Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d);
 
 /* \brief Specify which variables are defined along with the buffer
  *
@@ -285,7 +295,7 @@ enum class BufferVarDefinition {
   // The data pointer is defined along with the buffer, along with any
   // buffer parameters (shape/stride/elem_offset) that have not
   // previously been defined.  For example,
-  // `BlockNode::match_buffers`, or the `PrimFuncNode::buffer_map`.
+  // `BlockNode::match_buffers`, or a BufferType-annotated PrimFunc parameter.
   MatchBuffer,
 };
 
@@ -301,9 +311,10 @@ enum class BufferVarDefinition {
  *     the buffer.
  * \return The ExprDoc corresponding to the buffer declaration
  */
-ExprDoc BufferDecl(const tirx::Buffer& buffer, const ffi::String& method,
+ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
                    const ffi::Array<ExprDoc>& args, const AccessPath& p, const Frame& frame,
-                   const IRDocsifier& d, BufferVarDefinition var_definitions);
+                   const IRDocsifier& d, BufferVarDefinition var_definitions,
+                   ffi::Optional<Expr> data = std::nullopt);
 
 /*!
  * \brief Declare and define a buffer as annotation
@@ -311,10 +322,15 @@ ExprDoc BufferDecl(const tirx::Buffer& buffer, const ffi::String& method,
  * \param p The object path
  * \param f The frame
  * \param d The IRDocsifier
+ * \param stringify_shape_vars Variables whose first shape use must be stringified.  The set is
+ *     passed by value so entries can be consumed as dimensions are emitted.
+ * \param stringify_compound_shape_vars Variables whose compound shape expressions must be
+ *     stringified while their bare-name uses remain direct.
  * \return The ExprDoc corresponding to the buffer declaration
  */
-ExprDoc BufferAttn(const tirx::Buffer& buffer, const AccessPath& p, const Frame& frame,
-                   const IRDocsifier& d);
+ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
+                   const IRDocsifier& d, std::unordered_set<tirx::Var> stringify_shape_vars = {},
+                   std::unordered_set<tirx::Var> stringify_compound_shape_vars = {});
 
 /*!
  * \brief Print the creation of a Var
@@ -325,54 +341,13 @@ ExprDoc BufferAttn(const tirx::Buffer& buffer, const AccessPath& p, const Frame&
  */
 ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d);
 
-/*! \brief A Var occurrence counter visitor */
-class OccurrenceCounter : public tirx::StmtExprVisitor {
- public:
-  /*! \brief The occurrence counter */
-  int count = 0;
-  /*! \brief The Var to count occurrence */
-  const tirx::VarNode* v = nullptr;
+/*! \brief Print a reified lambda ``(vars, body)`` as a ``LambdaDoc``.
 
-  void VisitExpr_(const tirx::VarNode* op) final {
-    if (op == v) {
-      ++count;
-    }
-    tirx::StmtExprVisitor::VisitExpr_(op);
-  }
-
-  void VisitStmt_(const tirx::BufferStoreNode* op) final {
-    VisitBuffer(op->buffer.get());
-    tirx::StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitExpr_(const tirx::BufferLoadNode* op) final {
-    VisitBuffer(op->buffer.get());
-    tirx::StmtExprVisitor::VisitExpr_(op);
-  }
-
-  void VisitStmt_(const tirx::AllocBufferNode* op) final {
-    VisitBuffer(op->buffer.get());
-    tirx::StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitStmt_(const tirx::DeclBufferNode* op) final {
-    VisitBuffer(op->buffer.get());
-    tirx::StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitBuffer(const tirx::BufferNode* buffer) {
-    VisitExpr(buffer->data);
-    for (const PrimExpr& shape_i : buffer->shape) {
-      VisitExpr(shape_i);
-    }
-    for (const PrimExpr& stride_i : buffer->strides) {
-      VisitExpr(stride_i);
-    }
-    VisitExpr(buffer->elem_offset);
-  }
-
-  explicit OccurrenceCounter(const tirx::VarNode* var) { v = var; }
-};
+Used by the ``tirx.tile.select`` printer specialization. Defined in expr.cc.
+*/
+LambdaDoc PrintLambda(const ffi::ObjectRef& pred, const ffi::Array<tirx::Var>& vs,
+                      const AccessPath& vs_p, const PrimExpr& p, const AccessPath& p_p,
+                      const IRDocsifier& d);
 
 #ifndef TVM_SCRIPT_REPR
 #define TVM_SCRIPT_REPR(ObjectType, Method) TVM_REGISTER_SCRIPT_AS_REPR(ObjectType, Method)

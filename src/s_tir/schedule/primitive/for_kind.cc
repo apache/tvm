@@ -17,6 +17,8 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 
@@ -24,7 +26,7 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class WrongBlockIterTypeError : public ScheduleError {
+class WrongBlockIterTypeError : public ScheduleErrorContextObj {
  public:
   explicit WrongBlockIterTypeError(IRModule mod, ForKind for_kind, Var loop_var, SBlock block)
       : mod_(std::move(mod)), loop_var_(std::move(loop_var)), block_(std::move(block)) {
@@ -96,7 +98,11 @@ void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
     const IterVar& iter_var = block->iter_vars[i];
     const PrimExpr& binding = block_realize->iter_values[i];
 
-    if (!UsesVar(binding, [v = loop_var.get()](const VarNode* var) { return var == v; })) {
+    auto walkfn = [v = loop_var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      return var.get() == v ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
+                            : ffi::WalkResult::Advance();
+    };
+    if (!ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(binding, walkfn).has_value()) {
       continue;
     }
     // Only two cases are allowed:
@@ -106,7 +112,7 @@ void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
     IterVarType iter_type = iter_var->iter_type;
     if (!(iter_type == kDataPar ||
           (iter_type == kCommReduce && thread_scope.rank == 1 && thread_scope.dim_index != -1))) {
-      throw WrongBlockIterTypeError(self->mod, for_kind, loop_var, block);
+      throw MakeScheduleError<WrongBlockIterTypeError>(self->mod, for_kind, loop_var, block);
     }
   }
 }
@@ -123,18 +129,16 @@ void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
  */
 void CheckParallelizability(const ScheduleState& self, const For& loop, ForKind for_kind,
                             runtime::ThreadScope thread_scope) {
-  PreOrderVisit(loop, [&](const ffi::ObjectRef& node) {
-    if (const auto* realize = node.as<SBlockRealizeNode>()) {
-      // If this block doesn't have corresponding StmtSRef in the schedule state, it must be a block
-      // inside `tirx.init()`. We don't check the condition for such blocks.
-      if (!self->stmt2ref.count(realize->block.get())) {
-        return false;
-      }
-      CheckLoopParallelizableInBlock(self, for_kind, loop->loop_var,
-                                     ffi::GetRef<SBlockRealize>(realize), thread_scope);
+  auto walk_fn = [&](const SBlockRealize& realize) -> ffi::Expected<ffi::WalkResult> {
+    // If this block doesn't have corresponding StmtSRef in the schedule state, it must be a
+    // block inside `tirx.init()`. We don't check the condition for such blocks.
+    if (!self->stmt2ref.count(realize->block.get())) {
+      return ffi::WalkResult::Skip();
     }
-    return true;
-  });
+    CheckLoopParallelizableInBlock(self, for_kind, loop->loop_var, realize, thread_scope);
+    return ffi::WalkResult::Advance();
+  };
+  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(loop, walk_fn);
 }
 
 /*!
@@ -174,9 +178,11 @@ void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref
   ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
   new_loop->kind = for_kind;
   if (thread_axis.has_value()) {
-    new_loop->thread_binding = IterVar(/*dom=*/Range(nullptr),                                    //
-                                       /*var=*/Var(thread_axis.value(), loop->loop_var.dtype()),  //
-                                       /*iter_type=*/kThreadIndex,                                //
+    new_loop->thread_binding = IterVar(/*dom=*/Range(nullptr),        //
+                                                                      /*var=*/
+                                       PrimVar(thread_axis.value(),   //
+                                               loop->loop_var.ty()),  //
+                                       /*iter_type=*/kThreadIndex,    //
                                        /*thread_tag=*/thread_axis.value());
   } else {
     new_loop->thread_binding = std::nullopt;

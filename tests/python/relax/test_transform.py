@@ -27,6 +27,54 @@ from tvm.script import relax as R
 from tvm.script import tirx as T
 
 
+def _make_dataflow_block_with_dual_role_var():
+    prim_ty = tvm.ir.PrimType("int64")
+    source = tvm.ir.Var("source", prim_ty)
+    data = tvm.ir.Var("data", relax.TensorType(dtype="float32", ndim=1))
+    extent = tvm.ir.Var("extent", prim_ty)
+    matched_ty = relax.TensorType([extent], "float32")
+    matched = relax.DataflowVar("matched", matched_ty)
+
+    block = relax.DataflowBlock(
+        [
+            relax.VarBinding(extent, source),
+            relax.MatchCast(matched, data, matched_ty),
+        ]
+    )
+    func = relax.Function([source, data], relax.SeqExpr([block], extent), prim_ty)
+    return relax.transform.Normalize()(tvm.IRModule.from_expr(func))
+
+
+def test_dataflowblock_pass_rejects_deleting_binding_role_of_symbolic_var():
+    mod = _make_dataflow_block_with_dual_role_var()
+
+    @relax.transform.dataflowblock_pass(opt_level=0)
+    def delete_ordinary_binding(block, _mod, _ctx):
+        return relax.DataflowBlock([block.bindings[1]])
+
+    with pytest.raises(tvm.error.InternalError, match="global-scope Var"):
+        delete_ordinary_binding(mod)
+
+
+def test_dataflowblock_pass_rejects_rewriting_match_cast_role_of_binding_var():
+    mod = _make_dataflow_block_with_dual_role_var()
+
+    @relax.transform.dataflowblock_pass(opt_level=0)
+    def rewrite_match_cast_symbol(block, _mod, _ctx):
+        old_match_cast = block.bindings[1]
+        replacement = tvm.ir.Var("replacement", "int64")
+        replacement_ty = relax.TensorType([replacement], "float32")
+        new_match_cast = relax.MatchCast(
+            relax.DataflowVar(old_match_cast.var.name, replacement_ty),
+            old_match_cast.value,
+            replacement_ty,
+        )
+        return relax.DataflowBlock([block.bindings[0], new_match_cast])
+
+    with pytest.raises(tvm.error.InternalError, match="symbolic Var declared by a MatchCast"):
+        rewrite_match_cast_symbol(mod)
+
+
 def test_to_non_dataflow():
     @tvm.script.ir_module
     class TestToNonDataflow:
@@ -58,7 +106,7 @@ def test_to_non_dataflow():
     old_vars = []
 
     def fvisit(e):
-        if isinstance(e, relax.Var):
+        if isinstance(e, relax.Var) and not tvm.ir.is_prim_expr(e):
             nonlocal old_vars
             old_vars.append(e)
 
@@ -70,7 +118,7 @@ def test_to_non_dataflow():
     new_vars = []
 
     def fvisit(e):
-        if isinstance(e, relax.Var):
+        if isinstance(e, relax.Var) and not tvm.ir.is_prim_expr(e):
             nonlocal new_vars
             new_vars.append(e)
 
@@ -124,10 +172,46 @@ def test_call_tir_rewrite():
     assert isinstance(s1, relax.Call)
     assert s1.op.name == "relax.builtin.alloc_tensor"
     assert isinstance(s1.args[0], relax.ShapeExpr)
-    tvm.ir.assert_structural_equal(s1.args[0], s0.sinfo_args[0].shape)
+    tvm.ir.assert_structural_equal(s1.args[0], s0.ty_args[0].shape)
     s2 = block.bindings[1].value
     tvm.ir.expr.GlobalVar
     assert s2.op.name_hint == "exp"
+
+
+def test_call_tir_rewrite_with_interspersed_primitive_argument():
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def scale_add(
+            A: T.Buffer((16,), "float32"),
+            scale: T.float32,
+            C: T.Buffer((16,), "float32"),
+            B: T.Buffer((16,), "float32"),
+        ):
+            for i in range(16):
+                B[i] = A[i] + scale * C[i]
+
+        @R.function
+        def main(
+            A: R.Tensor((16,), "float32"),
+            scale: R.Prim("float32"),
+            C: R.Tensor((16,), "float32"),
+        ) -> R.Tensor((16,), "float32"):
+            R.func_attr({"relax.force_pure": True})
+            B = R.call_tir(Module.scale_add, (A, scale, C), R.Tensor((16,), "float32"))
+            return B
+
+    after = relax.transform.CallTIRRewrite()(Module)
+    func = after["main"]
+    bindings = func.body.blocks[0].bindings
+    output_buffer = bindings[0].var
+    call = bindings[1].value
+
+    assert call.op.name_hint == "scale_add"
+    tvm.ir.assert_structural_equal(
+        call.args,
+        [func.params[0], func.params[1], func.params[2], output_buffer],
+    )
 
 
 def test_transform_remove_purity_checking():
@@ -142,17 +226,17 @@ def test_transform_remove_purity_checking():
         @R.function
         def use_call_pure_packed(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             y = R.add(x, x)
-            z = R.call_pure_packed("vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32")))
+            z = R.call_pure_packed("vm.builtin.copy", y, ty_args=(R.Tensor((), dtype="int32")))
             return z
 
         @R.function
         def use_invoke_pure_closure(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             closure = R.make_closure(Before.base, ())
-            res = R.invoke_pure_closure(closure, (x,), sinfo_args=R.Tensor((), "int32"))
+            res = R.invoke_pure_closure(closure, (x,), ty_args=R.Tensor((), "int32"))
             return res
 
         @R.function(pure=False)
-        def impure_func() -> R.Object:
+        def impure_func() -> R.Any:
             y = R.print(format="I am impure!")
             return y
 
@@ -161,9 +245,7 @@ def test_transform_remove_purity_checking():
             @R.function
             def nested(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
                 y = R.add(x, x)
-                q = R.call_pure_packed(
-                    "vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32"))
-                )
+                q = R.call_pure_packed("vm.builtin.copy", y, ty_args=(R.Tensor((), dtype="int32")))
                 return q
 
             z = R.const(1, dtype="int32")
@@ -173,7 +255,7 @@ def test_transform_remove_purity_checking():
         @R.function(pure=False)
         def nested_impure_func() -> R.Tensor((), "int32"):
             @R.function(pure=False)
-            def nested() -> R.Object:
+            def nested() -> R.Any:
                 x = R.print(format="Oops!")
                 return x
 
@@ -194,18 +276,18 @@ def test_transform_remove_purity_checking():
         def use_call_pure_packed(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             R.func_attr({"relax.force_pure": True})
             y = R.add(x, x)
-            z = R.call_packed("vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32")))
+            z = R.call_packed("vm.builtin.copy", y, ty_args=(R.Tensor((), dtype="int32")))
             return z
 
         @R.function
         def use_invoke_pure_closure(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             R.func_attr({"relax.force_pure": True})
             closure = R.make_closure(Expected.base, ())
-            res = R.invoke_closure(closure, (x,), sinfo_args=R.Tensor((), "int32"))
+            res = R.invoke_closure(closure, (x,), ty_args=R.Tensor((), "int32"))
             return res
 
         @R.function(pure=False)
-        def impure_func() -> R.Object:
+        def impure_func() -> R.Any:
             y = R.print(format="I am impure!")
             return y
 
@@ -217,7 +299,7 @@ def test_transform_remove_purity_checking():
             def nested(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
                 R.func_attr({"relax.force_pure": True})
                 y = R.add(x, x)
-                q = R.call_packed("vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32")))
+                q = R.call_packed("vm.builtin.copy", y, ty_args=(R.Tensor((), dtype="int32")))
                 return q
 
             z = R.const(1, dtype="int32")
@@ -227,7 +309,7 @@ def test_transform_remove_purity_checking():
         @R.function(pure=False)
         def nested_impure_func() -> R.Tensor((), "int32"):
             @R.function(pure=False)
-            def nested() -> R.Object:
+            def nested() -> R.Any:
                 x = R.print(format="Oops!")
                 return x
 
@@ -269,9 +351,53 @@ def test_call_dps_packed_rewrite():
     assert isinstance(s1, relax.Call)
     assert s1.op.name == "relax.builtin.alloc_tensor"
     assert isinstance(s1.args[0], relax.ShapeExpr)
-    tvm.ir.assert_structural_equal(s1.args[0], s0.sinfo_args[0].shape)
+    tvm.ir.assert_structural_equal(s1.args[0], s0.ty_args[0].shape)
     s2 = block.bindings[1].value
     assert s2.op.global_symbol == "test.op.identity"
+
+
+def test_call_dps_packed_rewrite_nested_tuple_output():
+    """Flatten nested outputs for the packed ABI, then rebuild their Relax structure."""
+    input_ty = relax.TensorType((2, 3), "float32")
+    flat_output_types = [
+        relax.TensorType((2, 3), "float32"),
+        relax.TensorType((4,), "int32"),
+        relax.TensorType((5, 6), "float16"),
+    ]
+    output_ty = tvm.ir.TupleType([flat_output_types[0], tvm.ir.TupleType(flat_output_types[1:])])
+
+    x = relax.Var("x", input_ty)
+    call = relax.Call(
+        tvm.ir.Op.get("relax.call_dps_packed"),
+        [relax.ExternFunc("test.op.nested_outputs"), relax.Tuple([x])],
+        ty_args=[output_ty],
+    )
+    builder = relax.BlockBuilder()
+    with builder.function("main", [x], attrs={"relax.force_pure": True}):
+        out = builder.emit(call)
+        builder.emit_func_output(out)
+
+    after = relax.transform.CallTIRRewrite()(builder.get())
+    relax.analysis.well_formed(after)
+    func = after["main"]
+    block = func.body.blocks[0]
+
+    alloc_bindings = block.bindings[:3]
+    for binding, expected_ty in zip(alloc_bindings, flat_output_types):
+        assert binding.value.op.name == "relax.builtin.alloc_tensor"
+        tvm.ir.assert_structural_equal(binding.var.ty, expected_ty)
+
+    packed_call = block.bindings[3].value
+    assert packed_call.op.global_symbol == "test.op.nested_outputs"
+    assert packed_call.args[0].same_as(func.params[0])
+    assert all(
+        arg.same_as(binding.var) for arg, binding in zip(packed_call.args[1:], alloc_bindings)
+    )
+
+    rebuilt = block.bindings[4].value
+    assert rebuilt.fields[0].same_as(alloc_bindings[0].var)
+    assert rebuilt.fields[1].fields[0].same_as(alloc_bindings[1].var)
+    assert rebuilt.fields[1].fields[1].same_as(alloc_bindings[2].var)
 
 
 def test_call_tir_inplace_simple():
@@ -444,12 +570,12 @@ def test_call_tir_inplace_some_new():
             R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32"), R.Tensor((2, 3), dtype="int32")
         ):
             R.func_attr({"relax.force_pure": True})
-            gv0: R.Tensor((2, 3), dtype="int32") = R.emit_with_sinfo(
+            gv0: R.Tensor((2, 3), dtype="int32") = R.emit_with_ty(
                 "relax.builtin.alloc_tensor",
                 (R.shape([2, 3]), R.dtype("int32"), R.prim_value(0), R.str("global")),
                 (R.Tensor((2, 3), dtype="int32"),),
             )
-            gv1: R.Tensor((2, 3), dtype="int32") = R.emit_with_sinfo(
+            gv1: R.Tensor((2, 3), dtype="int32") = R.emit_with_ty(
                 "relax.builtin.alloc_tensor",
                 (R.shape([2, 3]), R.dtype("int32"), R.prim_value(0), R.str("global")),
                 (R.Tensor((2, 3), dtype="int32"),),
@@ -532,7 +658,7 @@ def test_inplace_mutation_with_tuple_argument_raises_error():
                 gv1 = R.call_tir_inplace(
                     cls.multiply_by_two,
                     [[A]],
-                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    out_ty=R.Tensor((16,), dtype="float32"),
                     inplace_indices=[0],
                 )
                 return gv1
@@ -559,11 +685,11 @@ def test_inplace_mutation_with_non_tensor_argument_raises_error():
         @I.ir_module(s_tir=True)
         class Module:
             @R.function
-            def main(A: R.Object):
+            def main(A: R.Any):
                 gv1 = R.call_tir_inplace(
                     Module.multiply_by_two,
                     [A],
-                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    out_ty=R.Tensor((16,), dtype="float32"),
                     inplace_indices=[0],
                 )
                 return gv1
@@ -592,7 +718,7 @@ def test_inplace_mutation_with_incompatible_tensor_shape_raises_error():
                 gv1 = R.call_tir_inplace(
                     Module.multiply_by_two,
                     [A],
-                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    out_ty=R.Tensor((16,), dtype="float32"),
                     inplace_indices=[0],
                 )
                 return gv1
@@ -621,7 +747,7 @@ def test_inplace_mutation_with_incompatible_tensor_dtype_raises_error():
                 gv1 = R.call_tir_inplace(
                     Module.multiply_by_two,
                     [A],
-                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    out_ty=R.Tensor((16,), dtype="float32"),
                     inplace_indices=[0],
                 )
                 return gv1

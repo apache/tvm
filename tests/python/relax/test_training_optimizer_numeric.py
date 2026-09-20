@@ -19,6 +19,7 @@
 from collections.abc import Callable
 
 import numpy as np
+import pytest
 import tvm_ffi
 
 import tvm
@@ -30,9 +31,9 @@ from tvm.script.parser import relax as R
 from tvm.testing import assert_allclose
 
 
-def _legalize_and_build(mod: IRModule, target, dev):
+def _legalize_and_build(mod: IRModule, target):
     ex = tvm.compile(mod, target)
-    vm = VirtualMachine(ex, dev)
+    vm = VirtualMachine(ex, tvm.device_from_target(target))
     return vm
 
 
@@ -64,13 +65,12 @@ def _assert_run_result_same(tvm_func: Callable, np_func: Callable, np_inputs: li
     _assert_allclose_nested(result, expected)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def _test_optimizer(target, dev, np_func, opt_type, *args, **kwargs):
+def _test_optimizer(target, np_func, opt_type, *args, **kwargs):
     x = relax.Var("x", R.Tensor((3, 3), "float32"))
     y = relax.Var("y", R.Tensor((3,), "float32"))
     opt = opt_type(*args, **kwargs).init([x, y])
     mod = IRModule.from_expr(opt.get_function().with_attr("global_symbol", "main"))
-    tvm_func = _legalize_and_build(mod, target, dev)["main"]
+    tvm_func = _legalize_and_build(mod, target)["main"]
 
     param_arr = [np.random.rand(3, 3).astype(np.float32), np.random.rand(3).astype(np.float32)]
     grad_arr = [np.random.rand(3, 3).astype(np.float32), np.random.rand(3).astype(np.float32)]
@@ -79,14 +79,17 @@ def _test_optimizer(target, dev, np_func, opt_type, *args, **kwargs):
     _assert_run_result_same(tvm_func, np_func, [param_arr, grad_arr, state_arr])
 
 
-lr, weight_decay = tvm.testing.parameters(
-    (0.01, 0),
-    (0.01, 0.02),
+@pytest.mark.parametrize(
+    "lr,weight_decay",
+    [
+        (0.01, 0),
+        (0.01, 0.02),
+    ],
 )
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_sgd(lr, weight_decay):
+    target = "llvm"
 
-
-@tvm.testing.parametrize_targets("llvm")
-def test_sgd(target, dev, lr, weight_decay):
     def np_func(param_tuple, grad_tuple, state_tuple):
         num_steps = state_tuple[0]
         param_tuple_new, state_tuple_new = [], []
@@ -97,18 +100,21 @@ def test_sgd(target, dev, lr, weight_decay):
             param_tuple_new.append(param - lr * (grad + weight_decay * param))
         return param_tuple_new, state_tuple_new
 
-    _test_optimizer(target, dev, np_func, SGD, lr, weight_decay)
+    _test_optimizer(target, np_func, SGD, lr, weight_decay)
 
 
-lr, momentum, dampening, weight_decay, nesterov = tvm.testing.parameters(
-    (0.01, 0.9, 0, 0, False),
-    (0.01, 0.9, 0.85, 0.02, False),
-    (0.01, 0.9, 0.85, 0.02, True),
+@pytest.mark.parametrize(
+    "lr,momentum,dampening,weight_decay,nesterov",
+    [
+        (0.01, 0.9, 0, 0, False),
+        (0.01, 0.9, 0.85, 0.02, False),
+        (0.01, 0.9, 0.85, 0.02, True),
+    ],
 )
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_momentum_sgd(lr, momentum, dampening, weight_decay, nesterov):
+    target = "llvm"
 
-
-@tvm.testing.parametrize_targets("llvm")
-def test_momentum_sgd(target, dev, lr, momentum, dampening, weight_decay, nesterov):
     def np_func(param_tuple, grad_tuple, state_tuple):
         num_steps = state_tuple[0]
         param_tuple_new, state_tuple_new = [], []
@@ -129,19 +135,20 @@ def test_momentum_sgd(target, dev, lr, momentum, dampening, weight_decay, nester
 
         return param_tuple_new, state_tuple_new
 
-    _test_optimizer(
-        target, dev, np_func, MomentumSGD, lr, momentum, dampening, weight_decay, nesterov
-    )
+    _test_optimizer(target, np_func, MomentumSGD, lr, momentum, dampening, weight_decay, nesterov)
 
 
-lr, betas, eps, weight_decay = tvm.testing.parameters(
-    (0.01, (0.9, 0.999), 1e-08, 0),
-    (0.01, (0.8, 0.85), 1e-07, 0.1),
+@pytest.mark.parametrize(
+    "lr,betas,eps,weight_decay",
+    [
+        (0.01, (0.9, 0.999), 1e-08, 0),
+        (0.01, (0.8, 0.85), 1e-07, 0.1),
+    ],
 )
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_adam(lr, betas, eps, weight_decay):
+    target = "llvm"
 
-
-@tvm.testing.parametrize_targets("llvm")
-def test_adam(target, dev, lr, betas, eps, weight_decay):
     def np_func(param_tuple, grad_tuple, state_tuple):
         num_steps = state_tuple[0]
         num_steps_new = num_steps + 1
@@ -169,7 +176,7 @@ def test_adam(target, dev, lr, betas, eps, weight_decay):
 
         return param_tuple_new, state_tuple_new
 
-    _test_optimizer(target, dev, np_func, Adam, lr, betas, eps, weight_decay)
+    _test_optimizer(target, np_func, Adam, lr, betas, eps, weight_decay)
 
 
 if __name__ == "__main__":

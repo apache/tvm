@@ -26,7 +26,7 @@
 #define TVM_S_TIR_DATA_LAYOUT_H_
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/op.h>
 
 #include <algorithm>
@@ -46,7 +46,7 @@ class SLayoutAxis {
  public:
   static const SLayoutAxis& Get(const char name);
 
-  // Get the singleton SLayoutAxis using itvar->var->name_hint
+  // Get the singleton SLayoutAxis using itvar->var->name
   static const SLayoutAxis& Get(const tirx::IterVar& itvar);
 
   // Get the singleton SLayoutAxis using name[0] (size of name must be 1).
@@ -140,10 +140,10 @@ class SLayout : public ffi::ObjectRef {
    *        the corresponding lower case with factor size
    *        indicates the split dimension.
    *        return undefined layout if "__undef__" is passed.
-   * \param dtype The dtype of generated axes vars in the returned layout.
+   * \param index_ty The type of generated axes vars in the returned layout.
    *        It is required to be integer type.
    */
-  TVM_DLL SLayout(const std::string& name, DataType dtype = DataType::Int(32));  // NOLINT(*)
+  TVM_DLL SLayout(const std::string& name, PrimType index_ty = PrimType::Int(32));  // NOLINT(*)
 
   /*!
    * \brief access the internal node container
@@ -230,7 +230,7 @@ class SLayout : public ffi::ObjectRef {
       for (auto dst_axis : iter_vars) {
         if (SLayoutAxis::Get(dst_axis).IsPrimal()) {
           if (!this->Contains(SLayoutAxis::Get(dst_axis))) {
-            new_src_layout_str += dst_axis->var->name_hint;
+            new_src_layout_str += dst_axis->var->name;
           }
         }
       }
@@ -252,7 +252,7 @@ class SLayout : public ffi::ObjectRef {
     if (!this->defined()) return -1;
     const auto axes = operator->()->axes;
     for (size_t i = 0; i < axes.size(); ++i) {
-      if (axes[i]->var->name_hint == axis) return static_cast<int32_t>(i);
+      if (axes[i]->var->name == axis) return static_cast<int32_t>(i);
     }
     return -1;
   }
@@ -273,7 +273,7 @@ class SLayout : public ffi::ObjectRef {
    * \param iter the input iter var.
    * \return the index or -1 if not found.
    */
-  inline int32_t IndexOf(const tirx::IterVar& iter) const { return IndexOf(iter->var->name_hint); }
+  inline int32_t IndexOf(const tirx::IterVar& iter) const { return IndexOf(iter->var->name); }
 
   /*!
    * \brief Get the factor size of the subordinate axis.
@@ -294,7 +294,7 @@ class SLayout : public ffi::ObjectRef {
     for (const tirx::IterVar packed_var : operator->()->axes) {
       auto iter_vars = UnpackIterVar(packed_var);
       for (auto var : iter_vars) {
-        if (var->var->name_hint == axis.name()) {
+        if (var->var->name == axis.name()) {
           return true;
         }
       }

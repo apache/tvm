@@ -17,17 +17,21 @@
 # under the License.
 """The ir module parser"""
 
-from tvm.ir import Range
+from tvm.ir import Range, StringType, StringImm, GenericConst
 from ...ir_builder.ir import *  # pylint: disable=redefined-builtin
 from . import parser as _parser
 from .entry import ir_module, pyfunc
 
 
 __all__ = [
+    "GenericConst",
     "Range",
+    "StringImm",
+    "StringType",
     "dummy_global_info",
     "ir_module",
     "lookup_vdevice",
+    "meta_var",
     "module_attrs",
     "module_global_infos",
     "pyfunc",

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -22,22 +23,20 @@ from tvm.ir import assert_structural_equal as _assert_structural_equal
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import F, P, S, TileLayout
-from tvm.tirx.stmt_functor import ir_transform
 
 target = tvm.target.Target("aws/trn1/trn1.2xlarge")
 
 
 def _strip_exec_scope_stmt(stmt):
-    def _postorder(node):
-        if isinstance(node, tvm.tirx.AttrStmt) and node.attr_key == "tirx.device_entry":
+    def _strip_attr(node: tvm.tirx.AttrStmt):
+        if node.attr_key == "tirx.device_entry":
             return node.body
         return node
 
-    return ir_transform(
+    return tvm_ffi.structural_map(
         stmt,
-        preorder=lambda _node: None,
-        postorder=_postorder,
-        only_enable=["tirx.AttrStmt"],
+        (tvm.tirx.AttrStmt, _strip_attr),
+        order="post",
     )
 
 
@@ -130,7 +129,7 @@ def test_unary_in_a_loop(op_type):
                     if op_type == "reciprocal":
                         T.nki.reciprocal(B_sbuf_view[p_loop, i * 512 + f_loop], A_sbuf_view[p_loop, i * 1024 + f_loop])  # noqa: E501
                     elif op_type == "memset":
-                        T.nki.memset(B_sbuf[p_loop, i * 512 + f_loop], 0.0)
+                        T.nki.memset(B_sbuf_view[p_loop, i * 512 + f_loop], 0.0)
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": unary})
@@ -239,7 +238,7 @@ def test_unary_with_bias_scale_2(op_type):
             # fmt: off
     with target:
         mod = tvm.IRModule({"main": unary})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 

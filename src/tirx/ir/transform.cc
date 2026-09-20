@@ -47,7 +47,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tirx.use_async_copy", bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.merge_static_smem", bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.instrument_lwp", bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.vtcm_capacity", int64_t);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.ptx.ldg32", bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tirx.s_tir.ldg32", bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.enable_fast_math", bool);
 
 /*!
@@ -123,7 +123,7 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
       func = pass_func(std::move(func), mod, pass_ctx);
       kv.second = Any(std::move(func));
       if (kv.second == nullptr) {
-        deleted_list.push_back(Downcast<GlobalVar>(kv.first));
+        deleted_list.push_back(kv.first.as_or_throw<GlobalVar>());
       }
     }
   }

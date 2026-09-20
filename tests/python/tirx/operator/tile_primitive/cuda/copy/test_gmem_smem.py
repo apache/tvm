@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring
-"""Round-trip tests for the ``gmem_smem`` copy dispatch (synthesized partition).
+"""Round-trip tests for the ``vec_auto`` global ↔ shared path.
 
 Pipeline: A_gmem --G2S--> A_smem --S2G--> B_gmem. If either direction is
 wrong the round trip leaves B mismatched against A.
@@ -23,12 +23,14 @@ wrong the round trip leaves B mismatched against A.
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
-from tvm.tirx.layout import ComposeLayout, S, SwizzleLayout, TileLayout
+from tvm.testing import env
+from tvm.tirx.layout import ComposeLayout, S, TileLayout
 
 
 def _build_kernel(scope, n_threads, shape, dtype):
@@ -102,6 +104,8 @@ TASKS = [
 ]
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize(
     "scope,n_threads,shape",
     [pytest.param(*t, id=f"{t[0]}-{t[1]}-{'x'.join(map(str, t[2]))}") for t in TASKS],
@@ -110,7 +114,6 @@ TASKS = [
 def test_gmem_smem_roundtrip(scope, n_threads, shape, dtype):
     kernel = _build_kernel(scope, n_threads, shape, dtype)
 
-    dev = tvm.cuda(0)
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
@@ -119,15 +122,20 @@ def test_gmem_smem_roundtrip(scope, n_threads, shape, dtype):
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     A_np = tvm.testing.generate_random_array(dtype, shape)
     B_np = np.zeros(shape, dtype=np_dtype)
-    A = tvm.runtime.tensor(A_np, dev)
-    B = tvm.runtime.tensor(B_np, dev)
-    compiled(A, B)
-    np.testing.assert_array_equal(B.numpy(), A_np)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, dev)
+        B = tvm.runtime.tensor(B_np, dev)
+        compiled(A, B)
+        np.testing.assert_array_equal(B.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ----------------------------------------------------------------------------
 # Migrated from test_copy_sync.py: sync G↔S copy via the user-facing
-# Tx.copy() (which dispatches to gmem_smem).
+# Tx.copy() (which dispatches to the vec_auto global ↔ shared path).
 # ----------------------------------------------------------------------------
 
 
@@ -143,7 +151,6 @@ def test_gmem_smem_roundtrip(scope, n_threads, shape, dtype):
             TileLayout(S[128, 32]),
             TileLayout(S[128, 32]),
             TileLayout(S[128, 32]),
-            tvm.cuda(0),
         ),
         # A[32:64, 32:64] -> A_smem[0:32, 0:32] -> B[32:64, 32:64]
         (
@@ -154,7 +161,6 @@ def test_gmem_smem_roundtrip(scope, n_threads, shape, dtype):
             TileLayout(S[64, 64]),
             TileLayout(S[64, 64]),
             TileLayout(S[32, 32]),
-            tvm.cuda(0),
         ),
         # A[0:1, 0:32, 0:32] -> A_smem[0:32, 0:32] -> B[0:1, 0:32, 0:32]
         (
@@ -165,7 +171,6 @@ def test_gmem_smem_roundtrip(scope, n_threads, shape, dtype):
             TileLayout(S[4, 32, 32]),
             TileLayout(S[4, 32, 32]),
             TileLayout(S[32, 32]),
-            tvm.cuda(0),
         ),
         # A[0:8, 0:8] -> A_smem[0:8, 0:8] -> B[0:8, 0:8]
         (
@@ -176,7 +181,6 @@ def test_gmem_smem_roundtrip(scope, n_threads, shape, dtype):
             TileLayout(S[16, 16]),
             TileLayout(S[16, 16]),
             TileLayout(S[8, 8]),
-            tvm.cuda(0),
         ),
         # A[32:96, 256:512] -> A_smem[0:32, 0:256] -> B[32:96, 256:512] (swizzled)
         (
@@ -186,19 +190,20 @@ def test_gmem_smem_roundtrip(scope, n_threads, shape, dtype):
             32,
             TileLayout(S[96, 512]),
             TileLayout(S[96, 512]),
-            ComposeLayout(SwizzleLayout(3, 3, 3), TileLayout(S[8, 64]))
+            ComposeLayout(3, 3, 3, TileLayout(S[8, 64]))
             .tile_to((16, 128), (8, 64))
             .tile_to((32, 256), (16, 128)),
-            tvm.cuda(0),
         ),
     ],
 )
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize(
     "dtype", ["int8", "float8_e4m3fn", "float8_e5m2", "float16", "bfloat16", "float32"]
 )
 @pytest.mark.parametrize("scope", ["cta", "thread"])
 def test_copy_g2s_s2g(task, dtype, scope):
-    g_shape, s_shape, g_region, thread_cnt, layoutA, layoutB, layoutS, dev = task
+    g_shape, s_shape, g_region, thread_cnt, layoutA, layoutB, layoutS = task
 
     r_smem = tuple(slice(None) for _ in range(len(s_shape)))
     r_gmem = tuple(slice(g_region[i][0], g_region[i][1]) for i in range(len(g_shape)))
@@ -232,13 +237,17 @@ def test_copy_g2s_s2g(task, dtype, scope):
         A_np = tvm.testing.generate_random_array(dtype, g_shape)
         B_np = np.zeros(g_shape, dtype=np_dtype)
 
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
-        mod(A, B)
-
         B_ref = B_np.copy()
         B_ref[r_gmem] = A_np[r_gmem]
-        np.testing.assert_allclose(B_ref, B.numpy())
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            np.testing.assert_allclose(B_ref, B.numpy())
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ----------------------------------------------------------------------------
@@ -253,7 +262,7 @@ def test_copy_g2s_s2g(task, dtype, scope):
 def _align(
     g_layout, g_shape, s_layout, s_shape, elem_bits, thread_cnt, g_region=None, s_region=None
 ):
-    from tvm.tirx.operator.tile_primitive.cuda.copy._common import align_layouts_gs
+    from tvm.tirx.cuda.tile_primitive.copy._common import align_layouts_gs
 
     target = tvm.target.Target("cuda")
     if g_region is None:
@@ -279,17 +288,17 @@ def _align(
 )
 @pytest.mark.parametrize("per_element,expected_max_vec", [(2, 4), (1, 2), (0, 1)])
 def test_swizzled_smem_vec_len_must_fit_chunk(per_element, expected_max_vec):
-    """``SwizzleLayout(per_element, ...)`` keeps the bottom ``per_element``
+    """A swizzled ``ComposeLayout`` keeps the bottom ``per_element``
     bits unswizzled. vec must stay within that chunk or it crosses an XOR
     boundary and reads/writes the wrong physical bytes."""
     shape = (32, 32)  # 1024 fp16 elements total
     g_layout = TileLayout(S[shape])
-    s_layout = ComposeLayout(SwizzleLayout(per_element, 3, 3), TileLayout(S[shape]))
+    s_layout = ComposeLayout(per_element, 3, 3, TileLayout(S[shape]))
     _g, _s, vec_len = _align(g_layout, shape, s_layout, shape, elem_bits=16, thread_cnt=32)
     chunk_elems = 1 << per_element
     assert vec_len <= chunk_elems, (
         f"vec_len={vec_len} crosses swizzle chunk size={chunk_elems} "
-        f"(SwizzleLayout(per_element={per_element}, ...))"
+        f"(swizzle per_element={per_element}, ...)"
     )
 
 
@@ -340,16 +349,16 @@ def test_unaligned_region_offset_must_clamp_vec_len():
 
 
 def test_swizzled_smem_emit_must_be_swizzle_aware():
-    """Codegen-level: emitted S address should go through the SwizzleLayout's
+    """Codegen-level: emitted S address should go through the swizzle's
     Apply so the XOR scrambling is honored. Currently emit uses
     ``s_buf.ptr_to([0,..,0]) + linear_offset`` which only matches a
     non-swizzled storage layout."""
     import tvm
     from tvm.script import tirx as T
-    from tvm.tirx.layout import ComposeLayout, S, SwizzleLayout, TileLayout
+    from tvm.tirx.layout import ComposeLayout, S, TileLayout
 
     shape = (128, 32)
-    s_layout = ComposeLayout(SwizzleLayout(3, 3, 3), TileLayout(S[shape]))
+    s_layout = ComposeLayout(3, 3, 3, TileLayout(S[shape]))
 
     @T.prim_func
     def kernel(A_ptr: T.handle) -> None:
@@ -379,18 +388,11 @@ def test_swizzled_smem_emit_must_be_swizzle_aware():
     #      to a ``^`` (XOR) somewhere in the S-offset computation
     #      (typically on a separate ``s_off_ptr[0] = ...`` line, not on
     #      the ``tvm_builtin_pointer_offset`` line itself).
-    #   2. fast path precomputes a ``signed_strides[N]`` register array
-    #      (one per binary outer iter), so each per-iter offset is a
-    #      sum of those strides — fingerprintable by the ``1 - 2 *``
-    #      sign-computation idiom emit_init writes.
-    # XOR-less code paired with no signed_strides init means swizzle
-    # was silently dropped.
-    has_xor = "^" in src
-    has_signed_strides_init = "1 - 2 *" in src or "(1 - 2 *" in src
-    assert has_xor or has_signed_strides_init, (
-        "emitted s_ptr address shows no swizzle handling — no XOR (fallback "
-        "path) and no signed_strides init (fast path)"
-    )
+    #   2. fast path computes the swizzled base once and XORs compile-time
+    #      constants per iter — also containing a ``^`` somewhere in the
+    #      S-offset computation.
+    # XOR-less code means swizzle was silently dropped.
+    assert "^" in src, "emitted s_ptr address shows no swizzle handling — no XOR anywhere"
 
 
 def test_layout_permute_copy_preserves_smem_strides():
@@ -478,14 +480,21 @@ def test_layout_permute_copy_preserves_smem_strides():
     # S is K-tiled : s_off(tid) = (tid // 8) * 8 + (tid % 8) * 1024.
     # For tid=1 the two MUST differ — they're identical iff S was
     # collapsed to row-major (the regression).
-    from tvm.tirx import stmt_functor
-
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
+    value_map = {tid_var: _IntImm("int32", 1)}
     s_off_at_1 = analyzer.simplify(
-        stmt_functor.substitute(s_off_expr, {tid_var: _IntImm("int32", 1)})
+        tvm_ffi.structural_map(
+            s_off_expr,
+            (tvm.tirx.Var, lambda var: value_map.get(var, var)),
+            order="post",
+        )
     )
     g_off_at_1 = analyzer.simplify(
-        stmt_functor.substitute(g_off_expr, {tid_var: _IntImm("int32", 1)})
+        tvm_ffi.structural_map(
+            g_off_expr,
+            (tvm.tirx.Var, lambda var: value_map.get(var, var)),
+            order="post",
+        )
     )
     assert int(s_off_at_1) == 1024, (
         f"s_p.apply at tid=1 produced offset {s_off_at_1}, expected 1024 "
@@ -497,29 +506,24 @@ def test_layout_permute_copy_preserves_smem_strides():
 
 
 # ----------------------------------------------------------------------------
-# Fast-path firing test (positive). Pairs with the var_bounds wiring inside
-# ``gmem_smem._emit_gmem_smem``.
-#
-# Setup: warp-scope 32x64 fp16 G2S/S2G with 128b swizzled SMEM. The outer
-# iter stride is ``thread_cnt * vec_len = 32 * 8 = 256``, which puts the
-# binary-split bj's at {5, 6, 7} — well above the swizzle XOR region (so
-# Case 1.D, signed_stride = +T). The (C1) analyzer check
-# ``bit_bj(s_off // C) == 0`` needs the placeholder var bounded to
-# laneid ∈ [0, 32); the dispatch passes ``var_bounds`` so it can discharge,
-# recognizer accepts, and emit lowers to the
-# ``base_off + sum_j bit_j(f) · signed_strides[j]`` precomputed form.
+# Structured ComposeLayout lowering test. The transformed S TileLayout is
+# recomposed with the original swizzle and applied directly to (f, tid, 0).
 # ----------------------------------------------------------------------------
-@tvm.testing.requires_cuda_compute_version(9)
-def test_gmem_smem_swizzle_fast_path_fires_with_var_bounds():
-    """Warp-scope 32x64 fp16 G2S/S2G with 128b swizzled SMEM. Fast path
-    must fire: a 3-slot ``v_<n>[]`` signed_strides buffer + bit-select adds
-    per outer iter, no per-iter ``swizzle.apply`` XOR splice in the hot path."""
-    import re
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
+def test_gmem_smem_swizzle_uses_structured_compose_apply():
+    """The hot copy loops use the structured P/XOR-low/ADD-high address form."""
 
-    swizzle = SwizzleLayout(3, 3, 3)
+    swizzle = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
     shape = (32, 64)
     g_layout = TileLayout(S[shape])
-    s_layout = ComposeLayout(swizzle, TileLayout(S[shape]))
+    s_layout = ComposeLayout(
+        swizzle.per_element,
+        swizzle.swizzle_len,
+        swizzle.atom_len,
+        TileLayout(S[shape]),
+        swizzle.swizzle_inner,
+    )
 
     @T.prim_func
     def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
@@ -540,25 +544,32 @@ def test_gmem_smem_swizzle_fast_path_fires_with_var_bounds():
         ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
-    bitsel = re.findall(r"& 1\) \* v_\d+\[", src)
-    v_decls = re.findall(r"alignas\(\d+\) int v_\d+\[(\d+)\]", src)
-    assert bitsel, (
-        "expected fast-path ``(bit & 1) * v_<n>[i]`` adds; if missing, "
-        "var_bounds wiring may have regressed"
+    s_off_lines = [
+        line
+        for line in src.splitlines()
+        if line.strip().startswith("s_off_ptr") and "[0] =" in line
+    ]
+    assert len(s_off_lines) == 2, "expected one structured S offset in each copy direction"
+    assert all("^" in line for line in s_off_lines)
+    assert all("/" not in line and "%" not in line for line in s_off_lines), (
+        "structured hot-loop offsets must not contain full quotient/mod decomposition"
     )
-    assert "3" in v_decls, (
-        f"expected at least one 3-slot signed_strides buffer for bjs "
-        f"[7, 6, 5]; got decl sizes {v_decls}"
+    assert all("* 256" in line for line in s_off_lines), (
+        "the atom-aligned outer contribution must remain a direct add"
     )
 
     # Round-trip correctness.
-    dev = tvm.cuda(0)
     A_np = np.arange(32 * 64, dtype="float16").reshape(shape)
     B_np = np.zeros(shape, dtype="float16")
-    A = tvm.runtime.tensor(A_np, device=dev)
-    B = tvm.runtime.tensor(B_np, device=dev)
-    ex(A, B)
-    np.testing.assert_allclose(B.numpy(), A_np)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(B_np, device=dev)
+        ex(A, B)
+        np.testing.assert_allclose(B.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

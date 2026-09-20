@@ -40,35 +40,40 @@ namespace tirx {
 #define TVM_INDEX_DEFAULT_I64 1
 #endif
 /*! \brief if TVM_INDEX_DEFAULT_I64 is set, return int64, otherwise return int32 */
-inline DataType DefaultIndexType() {
+inline PrimType DefaultIndexPrimType() {
 #if TVM_INDEX_DEFAULT_I64
-  return DataType::Int(64);
+  static const PrimType default_index_ty = PrimType::Int(64);
 #else
-  return DataType::Int(32);
+  static const PrimType default_index_ty = PrimType::Int(32);
+#endif
+  return default_index_ty;
+}
+
+inline DLDataType DefaultIndexType() {
+#if TVM_INDEX_DEFAULT_I64
+  return DLDataType{kDLInt, 64, 1};
+#else
+  return DLDataType{kDLInt, 32, 1};
 #endif
 }
 
 // forward declare Stmt
 class Stmt;
 
-/*! \brief buffer type */
-enum BufferType : int {
-  kDefault = 1,
-  // Maps buffer[i][j][k] -> buffer[i][0][k] if dimension i's shape equals 1.
-  kAutoBroadcast = 2,
-};
-
-/*! \brief Node to represent a buffer */
-class BufferNode : public ffi::Object {
+/*!
+ * \brief Structural type of a TIRx buffer variable.
+ *
+ * A buffer value is an ordinary VarNode whose ExprNode::ty is BufferType.
+ * BufferType owns the immutable access contract.  The physical pointer is
+ * deliberately not stored here; it is obtained with buffer_data(BufferVar)
+ * and is bound by the surrounding buffer definition.
+ */
+class BufferTypeNode : public TypeNode {
  public:
-  // Data fields.
-  /*!
-   * \brief The pointer to the head of the data
-   * \sa data_alignment The alignment of data in bytes.
-   */
-  Var data;
-  /*! \brief data type in the content of the tensor */
-  DataType dtype;
+  /*! \brief dtype in the content of the tensor */
+  PrimType dtype = PrimType::Void();
+  /*! \brief Storage scope/address space of the buffer. */
+  ffi::String storage_scope;
   /*! \brief The type of the buffer prior to flattening
    *
    * This contains the shape as it is accessed by
@@ -77,24 +82,12 @@ class BufferNode : public ffi::Object {
    */
   ffi::Array<PrimExpr> shape;
   /*!
-   * \brief Separators between input axes when generating flattened output axes
-   *
-   * For buffers representing flat 1-d memory (e.g. any buffer in
-   * RAM), this should be an empty array.  For buffers representing
-   * non-flat memory, each entry in axis_separators should be the
-   * first input axis that is part of a new flattened axis.
-   */
-  ffi::Array<IntImm> axis_separators;
-  /*!
    * \brief The strides of each dimension
    *  This can be an empty array, indicating array is contiguous
    */
   ffi::Array<PrimExpr> strides;
   /*! \brief The offset in terms of number of dtype elements (including lanes) */
   PrimExpr elem_offset;
-  // Meta data
-  /*! \brief optional name of the buffer */
-  ffi::String name;
   /*! \brief Alignment requirement of data pointer in bytes. */
   int data_alignment;
   /*!
@@ -102,14 +95,6 @@ class BufferNode : public ffi::Object {
    *  elem_offset is guaranteed to be multiple of offset_factor.
    */
   int offset_factor;
-  /*! \brief buffer type */
-  BufferType buffer_type;
-  /*!
-   * \brief Span that points to the original source code.
-   *        Reserved debug information.
-   */
-  mutable Span span;
-
   /*! \brief The layout of the buffer */
   ffi::Optional<Layout> layout;
 
@@ -120,36 +105,36 @@ class BufferNode : public ffi::Object {
   ffi::Array<PrimExpr> allocated_addr;
 
   /*! \brief constructor */
-  BufferNode() {}
+  BufferTypeNode() {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BufferNode>()
-        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
-        .def_ro("data", &BufferNode::data, refl::AttachFieldFlag::SEqHashDefRecursive())
-        .def_ro("dtype", &BufferNode::dtype)
-        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
-        .def_ro("shape", &BufferNode::shape, refl::AttachFieldFlag::SEqHashDefRecursive())
-        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
-        .def_ro("strides", &BufferNode::strides, refl::AttachFieldFlag::SEqHashDefRecursive())
-        .def_ro("axis_separators", &BufferNode::axis_separators,
-                refl::AttachFieldFlag::SEqHashDefRecursive())
-        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
-        .def_ro("elem_offset", &BufferNode::elem_offset,
-                refl::AttachFieldFlag::SEqHashDefRecursive())
-        .def_ro("name", &BufferNode::name, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("data_alignment", &BufferNode::data_alignment)
-        .def_ro("offset_factor", &BufferNode::offset_factor)
-        .def_ro("buffer_type", &BufferNode::buffer_type)
-        .def_ro("span", &BufferNode::span, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("layout", &BufferNode::layout)
-        .def_ro("allocated_addr", &BufferNode::allocated_addr);
+    refl::ObjectDef<BufferTypeNode>()
+        .def_ro("dtype", &BufferTypeNode::dtype)
+        .def_ro("storage_scope", &BufferTypeNode::storage_scope)
+        // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
+        .def_ro("shape", &BufferTypeNode::shape, refl::AttachFieldFlag::SEqHashDefPattern())
+        // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
+        .def_ro("strides", &BufferTypeNode::strides, refl::AttachFieldFlag::SEqHashDefPattern())
+        // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
+        .def_ro("elem_offset", &BufferTypeNode::elem_offset,
+                refl::AttachFieldFlag::SEqHashDefPattern())
+        .def_ro("data_alignment", &BufferTypeNode::data_alignment)
+        .def_ro("offset_factor", &BufferTypeNode::offset_factor)
+        .def_ro("layout", &BufferTypeNode::layout)
+        .def_ro("allocated_addr", &BufferTypeNode::allocated_addr);
   }
 
   /*! \return preferred index type for this buffer node */
-  DataType DefaultIndexType() const {
-    return shape.size() != 0 ? shape[0].dtype() : tvm::tirx::DefaultIndexType();
+  DLDataType DefaultIndexType() const {
+    return shape.size() != 0 ? shape[0].ty()->dtype : tvm::tirx::DefaultIndexType();
   }
+
+  /*! \return primitive element type for compiler-side uses. */
+  PrimType ElementType() const { return dtype; }
+
+  /*! \return type of the physical pointer projected by buffer_data. */
+  PointerType DataPointerType() const { return PointerType(dtype, storage_scope); }
 
   /*! \brief Determine the offset in the buffer of the given index.
    *
@@ -162,32 +147,67 @@ class BufferNode : public ffi::Object {
    */
   ffi::Array<PrimExpr> ElemOffset(ffi::Array<PrimExpr> index, bool inner = false) const;
 
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Buffer", BufferNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferType", BufferTypeNode, TypeNode);
 };
 
 /*!
- * \brief Buffer is a symbolic n-darray structure.
- *  It is a composition of primitive symbolic types,
- *  used to specify the memory layout of the Tensor used in program input.
+ * \brief Managed reference to BufferTypeNode.
  */
-class Buffer : public ffi::ObjectRef {
+class BufferType : public Type {
  public:
-  // User can specify data_alignment and offset_factor to be 0
-  // A default value will be picked.
-  TVM_DLL Buffer(Var data, DataType dtype, ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
-                 PrimExpr elem_offset, ffi::String name, int data_alignment, int offset_factor,
-                 BufferType buffer_type, ffi::Array<IntImm> axis_separators = {},
-                 Span span = Span(), ffi::Optional<Layout> layout = std::nullopt,
-                 ffi::Array<PrimExpr> allocated_addr = {});
+  TVM_DLL BufferType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
+                     ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment,
+                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
+                     ffi::Array<PrimExpr> allocated_addr = {}, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BufferType, Type, BufferTypeNode);
+
+  explicit BufferType(ffi::ObjectPtr<BufferTypeNode> n) : Type(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+};
+
+/*!
+ * \brief Checked zero-state view over an ordinary VarNode with BufferType.
+ *
+ * BufferVar does not introduce a runtime object or a second identity.  It
+ * safely widens to Var, and get() returns the underlying VarNode used by
+ * identity-sensitive maps.  operator-> exposes the immutable BufferType
+ * access contract for concise compiler-side metadata access.
+ */
+class BufferVar : public Var {
+ public:
+  /*! \brief Construct a fresh buffer variable from an explicit BufferType. */
+  TVM_DLL explicit BufferVar(ffi::String name, BufferType type, Span span = Span());
+
+  /*! \brief Create a checked buffer view over an existing ordinary Var. */
+  explicit BufferVar(Var var) : Var(std::move(var)) {
+    TVM_FFI_ICHECK(get() != nullptr && get()->ty.as<BufferTypeNode>())
+        << "Expected a non-null Var with BufferType";
+  }
+
+  /*! \brief Return the ordinary variable view over the same identity. */
+  Var var() const { return ffi::GetRef<Var>(get()); }
+
+  /*! \brief Return the buffer type carried by the ordinary variable. */
+  BufferType type() const { return get()->ty.as_or_throw<BufferType>(); }
+
+  /*! \brief Return the buffer's diagnostic name. */
+  const ffi::String& name() const { return get()->name; }
+
+  /*! \brief Return the source span carried by the ordinary Var. */
+  const Span& span() const { return get()->span; }
+
+  /*! \brief Project the physical pointer established by the definition site. */
+  TVM_DLL Expr data() const;
 
   /*!
    * \brief Return a new buffer that is equivalent with current one
    *  but always add stride field.
    * \return The strided version of the buffer.
    */
-  TVM_DLL Buffer MakeStrideView() const;
+  TVM_DLL BufferVar MakeStrideView() const;
   /*!
    * \brief Make a new symbolic buffer representing a slice of the buffer.
    * \param begins The beginning position of each dimension.
@@ -196,7 +216,7 @@ class Buffer : public ffi::ObjectRef {
    *  If stride is not needed in the slice, it won't be presented
    * \return the result buffer.
    */
-  TVM_DLL Buffer MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> extents) const;
+  TVM_DLL BufferVar MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> extents) const;
   /*!
    * \brief Get access ptr to the entire buffer.
    * \param access_mask The access mask
@@ -205,32 +225,30 @@ class Buffer : public ffi::ObjectRef {
    * \param offset The offset of ptr.
    * \param input_extent The extent of ptr.
    */
-  TVM_DLL PrimExpr access_ptr(int access_mask, DataType ptr_type = DataType::Handle(),
-                              int content_lanes = 1, PrimExpr offset = IntImm(DataType::Int(32), 0),
-                              ffi::Optional<PrimExpr> input_extent = std::nullopt) const;
+  TVM_DLL Expr access_ptr(int access_mask, PointerType ptr_type = PointerType::VoidPointerTy(),
+                          int content_lanes = 1, PrimExpr offset = IntImm::Int32(0),
+                          ffi::Optional<PrimExpr> input_extent = std::nullopt) const;
   /*!
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index
    * \param dtype The data type to be loaded.
-   * \param predicate A vector mask of boolean values indicating which lanes of a vector are to be
-   * loaded. The number lanes of the mask must be equal to the number of lanes in being loaded.
    */
-  TVM_DLL PrimExpr vload(ffi::Array<PrimExpr> begin, DataType dtype,
-                         ffi::Optional<PrimExpr> predicate = std::nullopt) const;
+  TVM_DLL PrimExpr vload(ffi::Array<PrimExpr> begin, PrimType dtype) const;
   /*!
    * \brief Create a Stmt that does a vector store at begin index.
    * \param begin The beginning index
    * \param value The value to be stored.
-   * \param predicate A vector mask of boolean values indicating which lanes of a vector are to be
-   * stored. The number lanes of the mask must be equal to the number of lanes in value.
    */
-  TVM_DLL Stmt vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
-                      ffi::Optional<PrimExpr> predicate = std::nullopt) const;
+  TVM_DLL Stmt vstore(ffi::Array<PrimExpr> begin, PrimExpr value) const;
 
   /*!
-   * \brief Get a flattened version of the buffer
+   * \brief Get a flattened version of the buffer.
+   *
+   * If flattening changes the type, the result is a fresh BufferVar.  Callers
+   * that use it as a view over this buffer must bind the returned variable with
+   * `DeclBuffer(flattened, this->data())`.
    */
-  Buffer GetFlattenedBuffer() const;
+  BufferVar GetFlattenedBuffer() const;
 
   /*! \brief Determine the offset in the buffer of the given index.
    *
@@ -255,7 +273,7 @@ class Buffer : public ffi::ObjectRef {
   /*!
    * \brief Return a new buffer with the allocated address.
    */
-  TVM_DLL Buffer with_allocated_addr(ffi::Array<PrimExpr> allocated_addr) const;
+  TVM_DLL BufferVar with_allocated_addr(ffi::Array<PrimExpr> allocated_addr) const;
 
   /*!
    * \brief Return true if the buffer is a scalar.
@@ -267,16 +285,52 @@ class Buffer : public ffi::ObjectRef {
   /*!
    * \brief Return a new buffer with the dtype.
    */
-  TVM_DLL Buffer with_dtype(DataType dtype) const;
+  TVM_DLL BufferVar with_dtype(PrimType dtype) const;
 
-  /*!
-   * \brief Return a new buffer with the data.
-   */
-  TVM_DLL Buffer with_data(Var data) const;
+  /*! \return primitive element type for compiler-side uses. */
+  PrimType ElementType() const { return (*this)->ElementType(); }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Buffer, ffi::ObjectRef, BufferNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferNode);
+  /*! \return type of the physical pointer projected by buffer_data. */
+  PointerType DataPointerType() const { return (*this)->DataPointerType(); }
+
+  BufferVar() = default;
+  explicit BufferVar(ffi::ObjectPtr<VarNode> n) : Var(std::move(n)) {}
+  explicit BufferVar(ffi::UnsafeInit tag) : Var(tag) {}
+  TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(BufferVar);
+
+  const BufferTypeNode* operator->() const {
+    const auto* var_node = static_cast<const VarNode*>(data_.get());
+    TVM_FFI_ICHECK(var_node != nullptr);
+    const auto* type_node = var_node->ty.as<BufferTypeNode>();
+    TVM_FFI_ICHECK(type_node != nullptr)
+        << "Expected a Var with BufferType, but " << var_node->name << " has type " << var_node->ty;
+    return type_node;
+  }
+
+  const VarNode* get() const { return static_cast<const VarNode*>(data_.get()); }
+
+  [[maybe_unused]] static constexpr bool _type_is_nullable = false;
+  static constexpr bool _type_container_is_exact = false;
+  using ContainerType = VarNode;
 };
+
+// Preserve ObjectRef-style identity comparison for exact BufferVar operands.
+// Comparisons widened to Var or Expr continue to build symbolic expressions.
+inline bool operator==(const BufferVar& lhs, const BufferVar& rhs) { return lhs.same_as(rhs); }
+
+inline bool operator!=(const BufferVar& lhs, const BufferVar& rhs) { return !lhs.same_as(rhs); }
+
+/*! \brief Recover a checked buffer view from an ordinary VarNode pointer. */
+inline BufferVar GetBufferVar(const VarNode* var) { return BufferVar(ffi::GetRef<Var>(var)); }
+
+inline ffi::ObjectPtr<BufferTypeNode> CopyBufferType(const BufferVar& var) {
+  return ffi::make_object<BufferTypeNode>(*var.operator->());
+}
+
+inline BufferVar RebuildBufferVar(const BufferVar& var, ffi::ObjectPtr<BufferTypeNode> type,
+                                  ffi::Optional<ffi::String> name = std::nullopt) {
+  return BufferVar(name.value_or(var.name()), BufferType(std::move(type)), var.span());
+}
 
 /*!
  * \brief Construct a new buffer given shape, and dtype.
@@ -284,61 +338,16 @@ class Buffer : public ffi::ObjectRef {
  * \param dtype The content data type.
  * \param name The name of the buffer
  * \param storage_scope The storage scope associated with this buffer
- * \param axis_separators Divisions defining the groups of axes that will be flattened together.
  * \param span The location of this object in the source code.
  * \return The created buffer.
- * \sa Buffer for complete constructor.
+ * \sa BufferVar for complete constructor.
  */
-TVM_DLL Buffer decl_buffer(ffi::Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                           ffi::String name = "buffer", ffi::String storage_scope = "",
-                           ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt,
-                           Span span = Span());
+TVM_DLL BufferVar decl_buffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
+                              ffi::String name = "buffer", ffi::String storage_scope = "",
+                              Span span = Span());
 
 /*!
- * \brief Base node for data producers.
- *
- *  A DataProducer stores necessary information(e.g. a tensor expression) to produce
- *  a multi-dimensional array. The stored information is opaque to the TIR.
- *  DataProducer can appear in high-level DSLs that are built on top of the TIR.
- *
- *  A valid TIR PrimFunc should not contain any DataProducer, high level DSLs should lower
- *  all DataProducers to Buffers before TIR transformations.
- *
- * \sa tvm::te::Tensor
- */
-class DataProducerNode : public PrimExprConvertibleNode {
- public:
-  /*! \brief destructor. */
-  virtual ~DataProducerNode() {}
-  /*!
-   * \brief Get the shape of the result.
-   * \return The shape.
-   */
-  virtual ffi::Array<PrimExpr> GetShape() const = 0;
-  /*!
-   * \brief Get the data type of the result.
-   * \return The data type.
-   */
-  virtual DataType GetDataType() const = 0;
-  /*!
-   * \brief Get the name hint of the data producer.
-   * \return The data type.
-   */
-  virtual ffi::String GetNameHint() const = 0;
-  TVM_FFI_DECLARE_OBJECT_INFO("tirx.DataProducer", DataProducerNode, PrimExprConvertibleNode);
-};
-
-/*!
- * \brief Managed reference to DataProducerNode.
- * \sa DataProducerNode
- */
-class DataProducer : public PrimExprConvertible {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataProducer, PrimExprConvertible, DataProducerNode);
-};
-
-/*!
- * \brief Creates TIR Buffer for provided parameters
+ * \brief Creates a TIR buffer for the provided parameters.
  * \param shape shape of the buffer
  * \param dtype data type
  * \param name buffer name
@@ -347,13 +356,60 @@ class DataProducer : public PrimExprConvertible {
  *                      multiple of offset_factor
                         User can specify data_alignment and offset_factor to be 0
  *                      A default value will be picked.
- * \param compact If the statement has already bound to a compact buffer.
  * \param memory_scope memory scope of the buffer
  */
-TVM_DLL tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, DataType dtype,
-                                               std::string name, int data_alignment,
-                                               int offset_factor, bool compact,
-                                               std::string memory_scope = "");
+TVM_DLL tirx::BufferVar BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
+                                                  std::string name, int data_alignment,
+                                                  int offset_factor, std::string memory_scope = "");
+
+/*!
+ * \brief Construct a TensorLoad from a BufferVar.
+ *
+ * This is the sole typed construction path for tirx loads.  The result type
+ * is derived from the buffer element type and index lanes, and every tirx
+ * TensorLoad is required to have a BufferVar source.
+ */
+TVM_DLL TensorLoad BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, Span span = Span());
 }  // namespace tirx
 }  // namespace tvm
+
+namespace tvm::ffi {
+
+template <>
+inline constexpr bool use_default_type_traits_v<tirx::BufferVar> = false;
+
+template <>
+struct TypeTraits<tirx::BufferVar> : public ObjectRefTypeTraitsBase<tirx::BufferVar> {
+  using Base = ObjectRefTypeTraitsBase<tirx::BufferVar>;
+  using Base::CopyFromAnyViewAfterCheck;
+  using Base::CopyToAnyView;
+  using Base::GetMismatchTypeInfo;
+  using Base::MoveFromAnyAfterCheck;
+  using Base::MoveToAny;
+  using Base::TypeSchema;
+  using Base::TypeStr;
+
+  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFINone) {
+      return false;
+    }
+    if (src->type_index != tirx::VarNode::RuntimeTypeIndex()) {
+      return false;
+    }
+    const auto* var = static_cast<const tirx::VarNode*>(
+        details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj).get());
+    return details::AnyUnsafe::CheckAnyStrict<tirx::BufferType>(var->ExprNode::ty);
+  }
+
+  TVM_FFI_INLINE static std::optional<tirx::BufferVar> TryCastFromAnyView(const TVMFFIAny* src) {
+    if (CheckAnyStrict(src)) {
+      return details::ObjectUnsafe::ObjectRefFromObjectPtr<tirx::BufferVar>(
+          details::ObjectUnsafe::ObjectPtrFromUnowned<tirx::VarNode>(src->v_obj));
+    }
+    return std::nullopt;
+  }
+};
+
+}  // namespace tvm::ffi
+
 #endif  // TVM_TIR_BUFFER_H_

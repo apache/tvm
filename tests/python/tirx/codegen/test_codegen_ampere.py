@@ -17,7 +17,7 @@
 # pylint: disable=missing-function-docstring
 """Codegen tests for Ampere (sm_80) warp-level ``mma.sync`` tensor cores.
 
-These exercise the ``T.ptx.mma`` intrinsic directly (not via the gemm
+These exercise the ``T.ptx.mma`` chain directly (not via the gemm
 dispatch). ``ptx.mma`` takes one pointer per 32-bit register for each operand
 (``d_ptrs`` / ``a_ptrs`` / ``b_ptrs`` / ``c_ptrs``), enumerated in the fixed
 PTX register order, so the b32 registers may be scattered in the register file
@@ -35,8 +35,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
-
-DEV = tvm.device("cuda")
+from tvm.testing import env
 
 
 def _get_source(func: tvm.tirx.PrimFunc):
@@ -59,18 +58,24 @@ def _run_mma(mod, K, no_c_ptr, np_in):
     A_np = np.random.randn(16, K).astype(np_in)
     B_np = np.random.randn(K, 8).astype(np_in)
     C_np = np.random.randn(16, 8).astype(np.float32)
-    D = tvm.runtime.tensor(np.zeros((16, 8), np.float32), device=DEV)
-    A = tvm.runtime.tensor(A_np, device=DEV)
-    B = tvm.runtime.tensor(B_np, device=DEV)
-    C = tvm.runtime.tensor(C_np, device=DEV)
-    mod(D, A, B, C)
     ref = A_np.astype(np.float32) @ B_np.astype(np.float32)
     if not no_c_ptr:
         ref = ref + C_np
-    np.testing.assert_allclose(D.numpy(), ref, atol=1e-2, rtol=1e-2)
+
+    def run_and_check():
+        dev = tvm.cuda()
+        D = tvm.runtime.tensor(np.zeros((16, 8), np.float32), device=dev)
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(B_np, device=dev)
+        C = tvm.runtime.tensor(C_np, device=dev)
+        mod(D, A, B, C)
+        np.testing.assert_allclose(D.numpy(), ref, atol=1e-2, rtol=1e-2)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("a_type", ["float16", "bfloat16"])
 @pytest.mark.parametrize("no_c_ptr", [False, True])
 def test_ptx_mma_m16n8k16(a_type, no_c_ptr):
@@ -79,6 +84,8 @@ def test_ptx_mma_m16n8k16(a_type, no_c_ptr):
     if a_type == "bfloat16":
         pytest.importorskip("ml_dtypes")
     b_type = a_type
+
+    _elem = "f16" if a_type == "float16" else "bf16"
 
     # fmt: off
     @T.prim_func
@@ -116,17 +123,21 @@ def test_ptx_mma_m16n8k16(a_type, no_c_ptr):
         G2L(B_local, B, 2, "col")
         G2L(C_local, C, 2)
 
-        # One pointer per b32 register, in PTX order: A=4, B=2, D/C=4.
-        d_ptrs = [D_local.ptr_to([i]) for i in range(4)]
-        a_ptrs = [A_local.ptr_to([2 * i]) for i in range(4)]
-        b_ptrs = [B_local.ptr_to([2 * i]) for i in range(2)]
+        # One register per b32, in PTX order: A=4, B=2, D/C=4. The 16-bit
+        # multiplicands are packed two per b32, so they ride a uint32 view.
+        A_words = A_local.view("uint32")
+        B_words = B_local.view("uint32")
+        # ptx takes the accumulator as an operand; the legacy "omit c" form
+        # fed literal zeros, which is now spelled at the call site.
         if no_c_ptr:
-            T.ptx.mma("m16n8k16", "row", "col", "float32", a_type, b_type, "float32",
-                       d_ptrs, a_ptrs, b_ptrs)
-        else:
-            c_ptrs = [C_local.ptr_to([i]) for i in range(4)]
-            T.ptx.mma("m16n8k16", "row", "col", "float32", a_type, b_type, "float32",
-                       d_ptrs, a_ptrs, b_ptrs, c_ptrs)
+            for i in range(4):
+                C_local[i] = T.float32(0)
+        T.ptx[f"mma.sync.aligned.m16n8k16.row.col.f32.{_elem}.{_elem}.f32"](
+            *[D_local[i] for i in range(4)],
+            *[A_words[i] for i in range(4)],
+            *[B_words[i] for i in range(2)],
+            *[C_local[i] for i in range(4)],
+        )
 
         for i in range(2):
             row = T.meta_var(i % 2 * 8 + tx // 4)
@@ -140,7 +151,8 @@ def test_ptx_mma_m16n8k16(a_type, no_c_ptr):
     _run_mma(mod, 16, no_c_ptr, _np_in(a_type))
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("a_type", ["float16", "bfloat16"])
 @pytest.mark.parametrize("no_c_ptr", [False, True])
 def test_ptx_mma_m16n8k8(a_type, no_c_ptr):
@@ -149,6 +161,8 @@ def test_ptx_mma_m16n8k8(a_type, no_c_ptr):
     if a_type == "bfloat16":
         pytest.importorskip("ml_dtypes")
     b_type = a_type
+
+    _elem = "f16" if a_type == "float16" else "bf16"
 
     # fmt: off
     @T.prim_func
@@ -186,17 +200,20 @@ def test_ptx_mma_m16n8k8(a_type, no_c_ptr):
         G2L(B_local, B, 1, "col")
         G2L(C_local, C, 2)
 
-        # One pointer per b32 register, in PTX order: A=2, B=1, D/C=4.
-        d_ptrs = [D_local.ptr_to([i]) for i in range(4)]
-        a_ptrs = [A_local.ptr_to([2 * i]) for i in range(2)]
-        b_ptrs = [B_local.ptr_to([0])]
+        # One register per b32, in PTX order: A=2, B=1, D/C=4.
+        A_words = A_local.view("uint32")
+        B_words = B_local.view("uint32")
+        # ptx takes the accumulator as an operand; the legacy "omit c" form
+        # fed literal zeros, which is now spelled at the call site.
         if no_c_ptr:
-            T.ptx.mma("m16n8k8", "row", "col", "float32", a_type, b_type, "float32",
-                       d_ptrs, a_ptrs, b_ptrs)
-        else:
-            c_ptrs = [C_local.ptr_to([i]) for i in range(4)]
-            T.ptx.mma("m16n8k8", "row", "col", "float32", a_type, b_type, "float32",
-                       d_ptrs, a_ptrs, b_ptrs, c_ptrs)
+            for i in range(4):
+                C_local[i] = T.float32(0)
+        T.ptx[f"mma.sync.aligned.m16n8k8.row.col.f32.{_elem}.{_elem}.f32"](
+            *[D_local[i] for i in range(4)],
+            *[A_words[i] for i in range(2)],
+            *[B_words[i] for i in range(1)],
+            *[C_local[i] for i in range(4)],
+        )
 
         for i in range(2):
             row = T.meta_var(i % 2 * 8 + tx // 4)

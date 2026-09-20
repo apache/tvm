@@ -16,10 +16,12 @@
 # under the License.
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @T.prim_func(s_tir=True)
@@ -36,31 +38,36 @@ def ptx_cp_async(A: T.Buffer((32, 128), "float16"), B: T.Buffer((32, 128), "floa
 
         for i in range(16):
             T.evaluate(
-                T.ptx.cp_async.legacy(
+                T.s_tir.cp_async_raw.legacy(
                     A_shared.data, tx * 128 + 8 * i, A.data, tx * 128 + 8 * i, 16, dtype="float16"
                 )
             )
 
         # TODO(masahi): Remove dtype requirement from TVMScript parser
-        T.evaluate(T.ptx.cp_async.commit_group(dtype=""))
-        T.evaluate(T.ptx.cp_async.wait_group(0, dtype=""))
+        T.evaluate(T.ptx.cp.async_.commit_group())
+        T.evaluate(T.ptx.cp.async_.wait_group(0))
 
         for i in range(128):
             B[tx, i] = A_shared[tx, i]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_ptx_cp_async():
     f = ptx_cp_async
 
     mod = tvm.compile(f, target="cuda")
     A_np = np.random.rand(32, 128).astype("float16")
     B_np = np.zeros((32, 128)).astype("float16")
-    dev = tvm.cuda(0)
-    A_nd = tvm.runtime.tensor(A_np, device=dev)
-    B_nd = tvm.runtime.tensor(B_np, device=dev)
-    mod(A_nd, B_nd)
-    tvm.testing.assert_allclose(B_nd.numpy(), A_np)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A_nd = tvm.runtime.tensor(A_np, device=dev)
+        B_nd = tvm.runtime.tensor(B_np, device=dev)
+        mod(A_nd, B_nd)
+        tvm.testing.assert_allclose(B_nd.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # Note: tests for the indexed barrier API (`create_barriers`,

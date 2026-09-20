@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/schedule/schedule.h>
 
 namespace tvm {

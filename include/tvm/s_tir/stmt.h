@@ -18,7 +18,7 @@
  */
 /*!
  * \file tvm/s_tir/stmt.h
- * \brief S-TIR (Schedulable TIR) statement attribute declarations.
+ * \brief S-TIR (Schedulable TIR) statements and attributes.
  *
  * This file contains attribute keys that are specific to the schedulable TIR
  * (S-TIR) layer, including meta_schedule annotations and schedule primitive /
@@ -27,21 +27,193 @@
 #ifndef TVM_S_TIR_STMT_H_
 #define TVM_S_TIR_STMT_H_
 
+#include <tvm/tirx/stmt.h>
+
 namespace tvm {
 namespace s_tir {
+
+/*!
+ * \brief Match introduces a constraint that the source buffer region can be remapped to the data
+ * layout specified by the buffer field. The constraint can be checked in later part of lowering (or
+ * optionally during runtime).
+ *
+ * MatchBufferRegion provides a mechanism to represent data layout and compactness constraints in
+ * low-level hardware primitives in the IR and defer the check after the sequence of
+ * transformations.
+ */
+class MatchBufferRegionNode : public ffi::Object {
+ public:
+  /*! \brief The target buffer. */
+  tirx::BufferVar buffer;
+  /*! \brief The source buffer region. */
+  TensorRegion source;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MatchBufferRegionNode>()
+        .def_ro("buffer", &MatchBufferRegionNode::buffer, refl::AttachFieldFlag::SEqHashDefSimple())
+        .def_ro("source", &MatchBufferRegionNode::source);
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.MatchBufferRegion", MatchBufferRegionNode, ffi::Object);
+};
+
+/*!
+ * \brief Managed reference to MatchBufferRegionNode.
+ * \sa MatchBufferRegionNode
+ */
+class MatchBufferRegion : public ffi::ObjectRef {
+ public:
+  TVM_DLL explicit MatchBufferRegion(tirx::BufferVar buffer, TensorRegion source);
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchBufferRegion, ffi::ObjectRef,
+                                             MatchBufferRegionNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchBufferRegionNode);
+};
+
+/*!
+ * \brief A block is a basic schedule unit in TIR.
+ * \note SBlock's body is parameterized by iter vars.
+ * \code
+ *
+ *  with T.sblock(name):
+ *      v0 = T.axis.S(domain, value0)
+ *      v1 = T.axis.R(domain, value1)
+ *      ...
+ *      T.reads([buffer0[start:end, ...], ...])
+ *      T.writes([buffer1[start:end, ...], ...])
+ *      T.where(predicate)
+ *      buffer2 = T.alloc_buffer(shape, dtype)
+ *      buffer3 = T.match_buffer(source_buffer[start:end, ...])
+ *      T.attr({attr_key: attr_value, ...})
+ *      with T.init():
+ *          // init body
+ *      // body
+ *
+ * \endcode
+ */
+class SBlockNode : public tirx::StmtNode {
+ public:
+  /*! \brief The variables of the block. */
+  ffi::Array<tirx::IterVar> iter_vars;
+  /*! \brief The read buffer regions of the block. */
+  ffi::Array<TensorRegion> reads;
+  /*! \brief The write buffer regions of the block. */
+  ffi::Array<TensorRegion> writes;
+  /*! \brief The name_hint of the block. */
+  ffi::String name_hint;
+  /*! \brief The buffer allocated in the block. */
+  ffi::Array<tirx::BufferVar> alloc_buffers;
+  /*! \brief The match buffer regions. */
+  ffi::Array<MatchBufferRegion> match_buffers;
+  /*! \brief The annotation of the block. */
+  ffi::Map<ffi::String, ffi::Any> annotations;
+  /*!
+   * \brief The init statement is executed during the first iteration of reduction loops in a
+   *  reduction block. The optional init field allows us to represent initialization and
+   *  reduction update in a single block and transform them collectively.
+   *  We also provide primitives to decompose the init into a separate block during scheduling.
+   *  Init field is `std::nullopt` if there is no reduction iter_vars
+   */
+  ffi::Optional<tirx::Stmt> init;
+  /*! \brief The body of the block. */
+  tirx::Stmt body;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SBlockNode>()
+        .def_ro("iter_vars", &SBlockNode::iter_vars)
+        .def_ro("reads", &SBlockNode::reads)
+        .def_ro("writes", &SBlockNode::writes)
+        .def_ro("name_hint", &SBlockNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("alloc_buffers", &SBlockNode::alloc_buffers,
+                refl::AttachFieldFlag::SEqHashDefSimple())
+        .def_ro("match_buffers", &SBlockNode::match_buffers)
+        .def_ro("annotations", &SBlockNode::annotations)
+        .def_ro("init", &SBlockNode::init)
+        .def_ro("body", &SBlockNode::body);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlock", SBlockNode, tirx::StmtNode);
+};
+
+/*!
+ * \brief Managed reference to SBlockNode.
+ * \sa SBlockNode
+ */
+class SBlock : public tirx::Stmt {
+ public:
+  TVM_DLL explicit SBlock(
+      ffi::Array<tirx::IterVar> iter_vars, ffi::Array<TensorRegion> reads,
+      ffi::Array<TensorRegion> writes, ffi::String name_hint, tirx::Stmt body,
+      ffi::Optional<tirx::Stmt> init = std::nullopt,
+      ffi::Array<tirx::BufferVar> alloc_buffers = ffi::Array<tirx::BufferVar>(),
+      ffi::Array<MatchBufferRegion> match_buffers = ffi::Array<MatchBufferRegion>(),
+      ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
+      Span span = Span());
+
+  TVM_DLL explicit SBlock(ffi::String name_hint, tirx::Stmt body,
+                          ffi::Array<tirx::BufferVar> alloc_buffers = ffi::Array<tirx::BufferVar>(),
+                          Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SBlock, tirx::Stmt, SBlockNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockNode);
+};
+
+/*!
+ * \brief A block realization node represents execution of the block at the binding values.
+ */
+class SBlockRealizeNode : public tirx::StmtNode {
+ public:
+  /*! \brief The corresponding values of the iter vars. */
+  ffi::Array<PrimExpr> iter_values;
+  /*!
+   * \brief The predicate of the block realization, the block will only be executed when the
+   * predicate is true.
+   */
+  PrimExpr predicate;
+  /*! \brief The block to be realized. */
+  SBlock block;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SBlockRealizeNode>()
+        .def_ro("iter_values", &SBlockRealizeNode::iter_values)
+        .def_ro("predicate", &SBlockRealizeNode::predicate)
+        .def_ro("block", &SBlockRealizeNode::block);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlockRealize", SBlockRealizeNode, tirx::StmtNode);
+};
+
+/*!
+ * \brief Managed reference to BlockRealizeNode
+ * \sa BlockRealizeNode
+ */
+class SBlockRealize : public tirx::Stmt {
+ public:
+  TVM_DLL explicit SBlockRealize(ffi::Array<PrimExpr> iter_values, PrimExpr predicate, SBlock block,
+                                 Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SBlockRealize, tirx::Stmt, SBlockRealizeNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockRealizeNode);
+};
+
 namespace attr {
 
 /*!
  * \brief Annotations for invoking and synchronizing asynchronous operations.
  */
 constexpr const char* async_commit_queue_scope = "async_commit_queue_scope";
-constexpr const char* async_wait_queue_scope = "async_wait_queue_scope";
-constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
+constexpr const char* async_wait_queue_scope = tirx::attr::async_wait_queue_scope;
+constexpr const char* async_wait_inflight_count = tirx::attr::async_wait_inflight_count;
 
 /*!
  * \brief Mark that the attached statement runs asynchronously.
  */
 constexpr const char* async_scope = "async_scope";
+
+/*! \brief Mark stores/loads with their bounds. */
+constexpr const char* buffer_bound = "buffer_bound";
 
 /*!
  * \brief Marks production of double buffer data
@@ -72,7 +244,7 @@ constexpr const char* pragma_loop_partition_hint = "pragma_loop_partition_hint";
 constexpr const char* reduce_scope = "reduce_scope";
 
 /*! \brief Mark launching of a virtual thread. */
-constexpr const char* virtual_thread = "virtual_thread";
+constexpr const char* virtual_thread = tirx::attr::virtual_thread;
 
 // -----------------------------------------------------------------------
 // meta_schedule annotations
@@ -121,23 +293,6 @@ constexpr const char* meta_schedule_layout_rewrite_preproc = "meta_schedule.layo
  * \brief Mark that the init statement of a block should be further rewritten using tensorization.
  */
 constexpr const char* meta_schedule_auto_tensorize_init = "meta_schedule.auto_tensorize_init";
-
-/*! \brief Mark that tensor core is enabled in the PrimExpr */
-constexpr const char* meta_schedule_tensor_core_enabled = "meta_schedule.tensor_core_enabled";
-
-/*!
- * \brief Mark a block as generated by cache_read or cache_write block.
- * 0 means cache_read; 1 means cache_write.
- * \sa meta_schedule_cache_type_read
- * \sa meta_schedule_cache_type_write
- */
-constexpr const char* meta_schedule_cache_type = "meta_schedule.cache_type";
-
-/*! \sa meta_schedule_cache_type */
-constexpr const int meta_schedule_cache_type_read = 0;
-
-/*! \sa meta_schedule_cache_type */
-constexpr const int meta_schedule_cache_type_write = 1;
 
 /*! \brief Mark that a block is disallowed in auto inline. */
 constexpr const char* meta_schedule_inline_rule = "meta_schedule.inline_rule";
@@ -218,19 +373,10 @@ constexpr const char* warp_execution = "warp_execution";
 /*!
  * \brief Marks the layout transforms to be used for a tensor.
  *
- * Only applies to a DataProducer, as it should be made part of the
+ * Only applies to a tensor-like input, as it should be made part of the
  * PrimFunc attributes for TIR.
  */
 constexpr const char* layout_transforms = "layout_transforms";
-
-/*!
- * \brief Marks the physical axis separators
- *
- * Only applies to a DataProducer, as it should be made part of the
- * Buffer definition in a PrimFunc.  See `BufferNode::axis_separators`
- * for more details.
- */
-constexpr const char* axis_separators = "axis_separators";
 
 /*!
  * \brief Mark that the kernel is hand threaded and doesn't need syncs inserted

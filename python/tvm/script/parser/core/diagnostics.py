@@ -21,6 +21,7 @@ import inspect
 import sys
 
 from tvm.error import DiagnosticError
+from tvm.ir import SourceName, Span
 
 from . import doc
 
@@ -99,6 +100,31 @@ class Source:
         """
         return doc.parse(self.source)
 
+    def location(self, node: doc.AST) -> tuple[int, int, int, int]:
+        """Return the absolute 1-based source range of an AST node."""
+        lineno = getattr(node, "lineno", 1) or 1
+        col_offset = getattr(node, "col_offset", self.start_column)
+        col_offset = self.start_column if col_offset is None else col_offset
+        end_lineno = getattr(node, "end_lineno", lineno) or lineno
+        end_col_offset = getattr(node, "end_col_offset", col_offset)
+        end_col_offset = col_offset if end_col_offset is None else end_col_offset
+        lineno += self.start_line - 1
+        end_lineno += self.start_line - 1
+        col_offset += self.start_column + 1
+        end_col_offset += self.start_column + 1
+        return lineno, col_offset, end_lineno, end_col_offset
+
+    def to_span(self, node: doc.AST) -> Span:
+        """Convert an AST node to the canonical IR source span."""
+        lineno, col_offset, end_lineno, end_col_offset = self.location(node)
+        return Span(
+            SourceName(self.source_name or "<unknown>"),
+            lineno,
+            end_lineno,
+            col_offset,
+            end_col_offset,
+        )
+
 
 _getfile = inspect.getfile  # pylint: disable=invalid-name
 _findsource = inspect.findsource  # pylint: disable=invalid-name
@@ -160,7 +186,7 @@ def findsource(obj):
         if len(tokens) > 1:
             name = None
             if tokens[0] == "def":
-                name = tokens[1].split(":")[0].split("(")[0] + "<locals>"
+                name = tokens[1].split(":")[0].split("(")[0].split("[")[0] + "<locals>"
             elif tokens[0] == "class":
                 name = tokens[1].split(":")[0].split("(")[0]
             # pop scope if we are less indented
@@ -286,14 +312,7 @@ class Diagnostics:
         message : str
             The diagnostic message.
         """
-        lineno = getattr(node, "lineno", 1)
-        col_offset = getattr(node, "col_offset", self.source.start_column)
-        end_lineno = getattr(node, "end_lineno", lineno)
-        end_col_offset = getattr(node, "end_col_offset", col_offset)
-        lineno += self.source.start_line - 1
-        end_lineno += self.source.start_line - 1
-        col_offset += self.source.start_column + 1
-        end_col_offset += self.source.start_column + 1
+        lineno, col_offset, end_lineno, end_col_offset = self.source.location(node)
 
         source_lines = self.source.full_source.splitlines(keepends=True)
         snippet = _format_source_snippet(

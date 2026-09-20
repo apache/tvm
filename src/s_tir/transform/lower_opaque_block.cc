@@ -24,13 +24,14 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/stmt_functor.h>
 
-#include "../../tirx/transform/ir_utils.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -38,21 +39,25 @@ using namespace tvm::tirx;
  */
 class OpaqueBlockLower : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   static Stmt Rewrite(Stmt body) {
-    OpaqueBlockLower lower;
-    lower.storage_align_ = CollectStorageAlignAnnotation(body);
-    return lower(std::move(body));
+    auto lower = ffi::make_object<OpaqueBlockLower>();
+    lower->storage_align_ = CollectStorageAlignAnnotation(body);
+    return lower->Mutate(body, InplaceMode::kAllow).ValueOrUnchanged(std::move(body));
   }
 
  private:
-  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     // We have convert blocks into opaque blocks in previous passes.
     TVM_FFI_ICHECK(op->iter_values.empty())
         << "Non-opaque blocks are not allowed in FlattenBuffer. Please "
            "call pass ConvertBlocksToOpaque before.";
     // Step 1. Visit the body
-    SBlock new_block = Downcast<SBlock>(this->VisitStmt(op->block));
-    PrimExpr predicate = this->VisitExpr(op->predicate);
+    SBlock new_block =
+        this->Mutate(op->block, inplace_mode).ValueOrUnchanged(op->block).as_or_throw<SBlock>();
+    PrimExpr predicate = this->Mutate(op->predicate, inplace_mode).ValueOrUnchanged(op->predicate);
     // Step 2. Transform the `predicate` to if-then-else
     Stmt body = new_block->body;
     if (!is_one(predicate)) {
@@ -60,9 +65,9 @@ class OpaqueBlockLower : public StmtExprMutator {
     }
     // Step 3. Handle allocations in reverse order
     for (size_t i = new_block->alloc_buffers.size(); i > 0; --i) {
-      const Buffer& buffer = new_block->alloc_buffers[i - 1];
+      const BufferVar& buffer = new_block->alloc_buffers[i - 1];
       ffi::Map<ffi::String, ffi::Any> allocate_annotations;
-      auto it = storage_align_.find(buffer->data);
+      auto it = storage_align_.find(buffer.var());
       if (it != storage_align_.end()) {
         StorageAlignAnnotation allocate_aligns;
         for (auto tuple : it->second) {
@@ -72,39 +77,39 @@ class OpaqueBlockLower : public StmtExprMutator {
         allocate_annotations.Set(s_tir::attr::buffer_dim_align, allocate_aligns);
       }
       allocate_annotations.Set(tirx::attr::buffer_data_alignment,
-                               IntImm(DataType::Int(32), buffer->data_alignment));
+                               IntImm::Int32(buffer->data_alignment));
       allocate_annotations.Set(tirx::attr::buffer_allocated_addr, buffer->allocated_addr);
       body = SeqStmt::Flatten(AllocBuffer(buffer, allocate_annotations), std::move(body));
     }
     // Step 4. Handle annotations, block annotations are not preserved by default.
-    std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
+    std::vector<std::pair<std::string, Expr>> pragma_attrs;
     HandleAnnotations(new_block->annotations, &pragma_attrs, /*is_block=*/true);
     for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {
-      body = AttrStmt(IntImm(DataType::Int(32), 0), it->first, it->second, std::move(body));
+      body = AttrStmt(0, it->first, it->second, std::move(body));
     }
     return body;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Step 1. Update unit loop info.
-    PrimExpr min = this->VisitExpr(op->min);
-    PrimExpr extent = this->VisitExpr(op->extent);
+    PrimExpr min = this->Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
+    PrimExpr extent = this->Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
     if (is_one(extent) && op->annotations.empty()) {
       // handling unit loop
-      unit_loop_vars_[op->loop_var] = min;
+      VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
     }
 
     // Step 2. Visit recursively
-    Stmt body = this->VisitStmt(op->body);
+    Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
 
     // Step 3. Handle annotations
-    std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
+    std::vector<std::pair<std::string, Expr>> pragma_attrs;
     ffi::Map<ffi::String, ffi::Any> new_annotations =
         HandleAnnotations(op->annotations, &pragma_attrs, /*is_block=*/false);
     // Step 4. Create new For loop accordingly
     if (op->kind == ForKind::kThreadBinding) {
       // Case 1. Thread binding
-      TVM_FFI_ICHECK(op->thread_binding.defined());
+      TVM_FFI_ICHECK(op->thread_binding.has_value());
       ffi::String thread_tag = op->thread_binding.value()->thread_tag;
       body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
     } else if (is_one(extent) && op->annotations.empty() &&
@@ -123,25 +128,10 @@ class OpaqueBlockLower : public StmtExprMutator {
     return body;
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
-    Var var = ffi::GetRef<Var>(op);
-    auto it = unit_loop_vars_.find(var);
-    if (it == unit_loop_vars_.end()) {
-      return var;
-
-    } else {
-      PrimExpr expr = it->second;
-      if (expr.dtype() != var.dtype()) {
-        expr = tvm::cast(var.dtype(), std::move(expr));
-      }
-      return expr;
-    }
-  }
-
   static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, ffi::String thread_tag,
                                Stmt body) {
     IterVar iter_var(/*dom=*/Range::FromMinExtent(min, extent),
-                     /*var=*/std::move(var),
+                     /*var=*/std::move(var).as_or_throw<PrimVar>(),
                      /*iter_type=*/IterVarType::kThreadIndex,
                      /*thread_tag=*/thread_tag);
     ffi::String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||
@@ -154,18 +144,16 @@ class OpaqueBlockLower : public StmtExprMutator {
                     /*body=*/std::move(body));
   }
 
-  /*! \brief Convert attr value from annotation map into PrimExpr. */
-  PrimExpr ConvertAttrValue(const ffi::String& key, const Any& obj) {
-    if (obj == nullptr) {
-      return PrimExpr();
-    } else if (auto expr = obj.try_cast<PrimExpr>()) {
+  /*! \brief Convert attr value from annotation map into Expr. */
+  Expr ConvertAttrValue(const ffi::String& key, const Any& obj) {
+    if (auto expr = obj.try_cast<Expr>()) {
       return expr.value();
     } else if (auto str = obj.try_cast<ffi::String>()) {
       return std::move(StringImm(str.value()));
     } else {
       TVM_FFI_THROW(InternalError) << "Illegal attribute of key " << key << ", value type "
                                    << obj.GetTypeKey() << " not supported";
-      return PrimExpr();
+      return Expr();
     }
   }
 
@@ -179,12 +167,16 @@ class OpaqueBlockLower : public StmtExprMutator {
    */
   ffi::Map<ffi::String, ffi::Any> HandleAnnotations(
       const ffi::Map<ffi::String, ffi::Any>& annotations,
-      std::vector<std::pair<std::string, PrimExpr>>* pragma_attrs, bool is_block) {
+      std::vector<std::pair<std::string, Expr>>* pragma_attrs, bool is_block) {
     ffi::Map<ffi::String, ffi::Any> preserved_annotations;
     pragma_attrs->clear();
     for (const auto& kv : annotations) {
       const ffi::String& key = kv.first;
       if (tirx::attr::IsPragmaKey(key)) {
+        if (kv.second == nullptr) {
+          continue;
+        }
+
         pragma_attrs->emplace_back(key, ConvertAttrValue(key, kv.second));
       } else if (!is_block) {
         // the loop annotation is preserved
@@ -197,7 +189,6 @@ class OpaqueBlockLower : public StmtExprMutator {
   }
 
   /*! \brief Record the loop_var and loop start value of unit loops, whose extent is one. */
-  std::unordered_map<Var, PrimExpr> unit_loop_vars_;
 
   /*! \brief Attr keys to preserve into loop annotations. */
   std::unordered_set<std::string> preserved_annotations_;

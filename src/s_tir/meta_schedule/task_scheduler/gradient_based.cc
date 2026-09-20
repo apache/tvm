@@ -68,7 +68,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
     }
     if (round_robin_rounds_ == n_tasks) {
       for (int i = 0; i < n_tasks; ++i) {
-        if (this->tasks_[i]->runner_futures.defined()) {
+        if (this->tasks_[i]->runner_futures.has_value()) {
           this->JoinRunningTask(i);
         }
       }
@@ -116,7 +116,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
     } else {
       task_id = tasks_alive[std::distance(grad.begin(), max_grad)];
     }
-    if (this->tasks_[task_id]->runner_futures.defined()) {
+    if (this->tasks_[task_id]->runner_futures.has_value()) {
       JoinRunningTask(task_id);
     }
     return task_id;

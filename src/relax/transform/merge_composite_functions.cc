@@ -56,9 +56,10 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 #include <tvm/tirx/function.h>
 
 #include "../../support/arena.h"
@@ -66,6 +67,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 namespace {
 
@@ -81,17 +83,19 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   CompositeGroupsBuilder(IRModule mod, support::Arena* arena) : mod_(mod), arena_(arena) {}
 
   GroupMap Run(Function func) {
+    var_usage_ = CollectVarUsage(func);
+    for (const auto& [var, value] : var_usage_.bound_values) {
+      value_to_bound_vars_[value.get()].push_back(var);
+    }
+
     for (const auto& param : func->params) {
       memo_[param] = arena_->make<Group>();
     }
 
-    PostOrderVisit(func, [this](Expr e) {
-      // Make default groups for dataflow nodes other than CallNode.
-      // Groups for CallNode are created in its visitor.
-      if (e->IsInstance<ConstantNode>() || e->IsInstance<ShapeExprNode>() ||
-          e->IsInstance<TupleNode>() || e->IsInstance<TupleGetItemNode>() ||
-          e->IsInstance<PrimValueNode>()) {
-        memo_[e] = arena_->make<Group>();
+    PostOrderVisit(func, [this](const Expr& expr) {
+      if (expr->IsInstance<GenericConstNode>() || expr->IsInstance<ShapeExprNode>() ||
+          (!expr->IsInstance<CallNode>() && !expr->IsInstance<VarNode>() && expr.as<PrimExpr>())) {
+        memo_[expr] = arena_->make<Group>();
       }
     });
 
@@ -143,6 +147,9 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   }
 
   Group* VisitExpr_(const CallNode* call) {
+    for (const Expr& arg : call->args) {
+      EnsureVisited(arg);
+    }
     std::vector<Group*> groups_to_merge = GetGroupsToMerge(call);
     Group* group;
 
@@ -166,7 +173,65 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     return group;
   }
 
+  Group* VisitExpr_(const TupleNode* tuple) {
+    Expr tuple_expr = ffi::GetRef<Tuple>(tuple);
+    if (!IsFlatTensorTuple(tuple_expr)) return arena_->make<Group>();
+
+    for (const Expr& field : tuple->fields) {
+      EnsureVisited(field);
+    }
+    if (HasOnlyTupleGetItemUsers(tuple_expr)) {
+      Group* tuple_group = nullptr;
+      for (const Expr& field : tuple->fields) {
+        auto it = memo_.find(field);
+        if (it == memo_.end()) {
+          tuple_group = nullptr;
+          break;
+        }
+        Group* field_group = it->second->FindRoot();
+        if (tuple_group == nullptr) {
+          tuple_group = field_group;
+        } else if (tuple_group != field_group) {
+          tuple_group = nullptr;
+          break;
+        }
+      }
+      if (tuple_group != nullptr && CanAbsorbTupleNodes(tuple_group)) {
+        tuple_group->num_nodes += 1;
+        return tuple_group;
+      }
+    }
+
+    Group* group = arena_->make<Group>();
+    UpdateGroupDependencies(group, tuple->fields);
+    return group;
+  }
+
+  Group* VisitExpr_(const TupleGetItemNode* tuple_get_item) {
+    if (!IsFlatTensorTuple(tuple_get_item->tuple)) return arena_->make<Group>();
+
+    EnsureVisited(tuple_get_item->tuple);
+    auto it = memo_.find(tuple_get_item->tuple);
+    if (it != memo_.end() && HasOnlyTupleGetItemUsers(tuple_get_item->tuple)) {
+      Group* tuple_group = it->second->FindRoot();
+      if (CanAbsorbTupleNodes(tuple_group)) {
+        tuple_group->num_nodes += 1;
+        return tuple_group;
+      }
+    }
+
+    Group* group = arena_->make<Group>();
+    UpdateGroupDependencies(group, {tuple_get_item->tuple});
+    return group;
+  }
+
  private:
+  void EnsureVisited(const Expr& expr) {
+    if (!expr.as<GlobalVarNode>() && !memo_.count(expr)) {
+      VisitExpr(expr);
+    }
+  }
+
   ffi::Optional<ffi::String> GetCodegenName(const Expr& callee) {
     auto const* gvar = callee.as<GlobalVarNode>();
     if (!gvar) {
@@ -184,9 +249,82 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
 
   ffi::Optional<ffi::String> GetCodegenName(Group* group) {
     if (auto opt_str = group->attrs.Get(attr::kCodegen)) {
-      return Downcast<ffi::String>(opt_str.value());
+      return opt_str.value().as_or_throw<ffi::String>();
     }
     return std::nullopt;
+  }
+
+  bool CanAbsorbTupleNodes(Group* group) { return GetCodegenName(group->FindRoot()).has_value(); }
+
+  bool IsFlatTensorTuple(const Expr& expr) {
+    const auto* tuple_type = GetType(expr).as<TupleTypeNode>();
+    if (tuple_type == nullptr || tuple_type->fields.empty()) return false;
+    return std::all_of(tuple_type->fields.begin(), tuple_type->fields.end(),
+                       [](const Type& field) { return field->IsInstance<TensorTypeNode>(); });
+  }
+
+  bool HasOnlyTupleGetItemUsers(const Expr& tuple_expr) {
+    if (auto it = tuple_get_item_only_usage_.find(tuple_expr.get());
+        it != tuple_get_item_only_usage_.end()) {
+      return it->second;
+    }
+
+    bool result = ComputeHasOnlyTupleGetItemUsers(tuple_expr);
+    tuple_get_item_only_usage_[tuple_expr.get()] = result;
+    return result;
+  }
+
+  bool ComputeHasOnlyTupleGetItemUsers(const Expr& tuple_expr) {
+    ffi::Optional<Var> tuple_var;
+    if (const auto* var = tuple_expr.as<VarNode>()) {
+      tuple_var = ffi::GetRef<Var>(var);
+    } else if (auto it = value_to_bound_vars_.find(tuple_expr.get());
+               it != value_to_bound_vars_.end() && it->second.size() == 1) {
+      tuple_var = it->second[0];
+    }
+    if (!tuple_var.has_value()) return false;
+
+    // Follow aliases in both directions.  Checking only tuple_var would allow an alias to be used
+    // exclusively by TupleGetItem while the original tuple still escapes from the external region.
+    std::vector<Var> pending{tuple_var.value()};
+    std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> aliases;
+    bool has_tuple_get_item = false;
+    while (!pending.empty()) {
+      Var current = pending.back();
+      pending.pop_back();
+      if (!aliases.insert(current).second) continue;
+
+      if (std::any_of(var_usage_.outputs.begin(), var_usage_.outputs.end(),
+                      [&](const Var& output) { return output.same_as(current); })) {
+        return false;
+      }
+
+      // Walk toward the original tuple value when current is itself an alias.
+      if (auto binding_it = var_usage_.bound_values.find(current);
+          binding_it != var_usage_.bound_values.end()) {
+        if (const auto* source = (*binding_it).second.as<VarNode>()) {
+          pending.push_back(ffi::GetRef<Var>(source));
+        }
+      }
+
+      auto uses_it = var_usage_.downstream_usage.find(current);
+      if (uses_it == var_usage_.downstream_usage.end()) continue;
+      for (const Var& user : (*uses_it).second) {
+        auto binding_it = var_usage_.bound_values.find(user);
+        if (binding_it == var_usage_.bound_values.end()) return false;
+        const Expr& bound_value = (*binding_it).second;
+        if (const auto* tuple_get_item = bound_value.as<TupleGetItemNode>()) {
+          if (!tuple_get_item->tuple.same_as(current)) return false;
+          has_tuple_get_item = true;
+        } else if (const auto* source = bound_value.as<VarNode>()) {
+          if (!ffi::GetRef<Var>(source).same_as(current)) return false;
+          pending.push_back(user);
+        } else {
+          return false;
+        }
+      }
+    }
+    return has_tuple_get_item;
   }
 
   Group* CreateNewGroup(const CallNode* call) {
@@ -226,6 +364,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     std::unordered_set<Group*> dependencies;
 
     for (const auto& arg : args) {
+      if (arg.as<GlobalVarNode>()) continue;
       for (auto dep : group_deps_[memo_[arg]->FindRoot()]) {
         dependencies.insert(dep);
       }
@@ -279,6 +418,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     std::unordered_set<Group*> parent_dependencies = GetParentGroupDependencies(call->args);
 
     for (const auto& arg : call->args) {
+      if (arg.as<GlobalVarNode>()) continue;
       auto arg_group = memo_[arg];
       ffi::Optional<ffi::String> arg_codegen_name = GetCodegenName(arg_group);
       if (arg_codegen_name == codegen_name && !parent_dependencies.count(arg_group->FindRoot())) {
@@ -294,6 +434,9 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
 
   IRModule mod_;
   support::Arena* arena_;
+  VarUsageInfo var_usage_;
+  std::unordered_map<const ffi::Object*, std::vector<Var>> value_to_bound_vars_;
+  std::unordered_map<const ffi::Object*, bool> tuple_get_item_only_usage_;
   // Map from group to its dependencies. All groups in this map, whether it's
   // the key or in value, should be root node (that is, group->parent == nullptr).
   std::unordered_map<Group*, std::unordered_set<Group*>> group_deps_;
@@ -311,22 +454,22 @@ class CompositeInliner : public ExprMutator {
   Function Run(Function func) {
     inlined_functions_ = ffi::Map<Function, Function>();
     auto new_body = VisitExpr(ToNonDataflow(func->body));
-    auto new_func = Function(func->params, new_body, func->ret_struct_info, func->is_pure,
-                             func->attrs, func->span);
+    auto new_func =
+        Function(func->params, new_body, func->ret_ty, func->is_pure, func->attrs, func->span);
     return new_func;
   }
 
   Expr VisitExpr_(const CallNode* call) {
     if (call->op->IsInstance<GlobalVarNode>()) {
-      auto gvar = Downcast<GlobalVar>(call->op);
-      auto func = Downcast<Function>(mod_->Lookup(gvar));
+      auto gvar = call->op.as_or_throw<GlobalVar>();
+      auto func = mod_->Lookup(gvar).as_or_throw<Function>();
       if (func->GetAttr<ffi::String>(attr::kComposite)) {
         if (!inlined_functions_.count(func)) {
           auto new_func = CopyWithNewVars(func);
           new_func = WithoutAttr(new_func, tvm::relax::attr::kPrimitive);
           inlined_functions_.Set(func, new_func);
         }
-        return Call(inlined_functions_[func], call->args);
+        return Call(Type::Missing(), inlined_functions_[func], call->args);
       }
     }
 
@@ -353,15 +496,15 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
   IRModule update() {
     auto gvar = mod_->GetGlobalVar("main");
-    auto func = Downcast<Function>(mod_->Lookup(gvar));
-    builder_->UpdateFunction(gvar, Downcast<Function>(VisitExpr(func)));
+    auto func = mod_->Lookup(gvar).as_or_throw<Function>();
+    builder_->UpdateFunction(gvar, VisitExpr(func).as_or_throw<Function>());
     return builder_->GetContextIRModule();
   }
 
   Expr VisitExpr_(const CallNode* call) {
     if (call->op->IsInstance<GlobalVarNode>()) {
-      GlobalVar cur_var = Downcast<GlobalVar>(call->op);
-      auto func = Downcast<Function>(mod_->Lookup(cur_var));
+      GlobalVar cur_var = call->op.as_or_throw<GlobalVar>();
+      auto func = mod_->Lookup(cur_var).as_or_throw<Function>();
       if (auto codegen_name = func->GetAttr<ffi::String>(attr::kCodegen)) {
         GlobalVar new_var;
         if (var_map_.count(cur_var) > 0) {
@@ -376,7 +519,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
           // rename the function.
           ffi::String new_func_name = cur_var->name_hint + "_" + codegen_name.value();
-          Function new_func = inliner.Run(Downcast<Function>(func));
+          Function new_func = inliner.Run(func.as_or_throw<Function>());
           new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol, new_func_name);
           new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive);
           // add a function with a new name.
@@ -386,7 +529,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
         // we call new var instead of the old one.
         // we don't have to update args since we are just updating the function to call,
         // without any change in the arguments.
-        return Call(new_var, call->args);
+        return Call(Type::Missing(), new_var, call->args);
       }
     }
     return ffi::GetRef<Call>(call);
@@ -402,7 +545,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
 IRModule MergeCompositeFunctions(IRModule mod) {
   auto gvar = mod->GetGlobalVar("main");
-  auto func = Downcast<Function>(mod->Lookup(gvar));
+  auto func = mod->Lookup(gvar).as_or_throw<Function>();
   support::Arena arena;
   auto group_map = CompositeGroupsBuilder(mod, &arena).Run(func);
   auto new_mod = MakeGroupedFunctions(mod, group_map);

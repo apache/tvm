@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E741, F821
+# ruff: noqa: E741
 """A rule for low-batch GEMM / decode-GEMM using GEMV schedule."""
 
 from functools import reduce
@@ -22,7 +22,7 @@ from typing import Literal
 
 import tvm_ffi
 
-from tvm import arith, s_tir, tirx
+from tvm import s_tir, sym, tirx
 from tvm.target import Target
 
 from ..analysis import (
@@ -37,7 +37,7 @@ from ..base import auto_vectorize, get_bytes, get_extent, try_inline_contiguous_
 from .base import GPUScheduleRule
 
 
-def _get_reduction_expr(block: tirx.SBlock) -> tirx.PrimExpr | None:
+def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     # Detect and return `Y` in `X[...] = X[...] + Y`
     buffer_store = block.body
     if not isinstance(buffer_store, tirx.BufferStore):
@@ -51,6 +51,17 @@ def _get_reduction_expr(block: tirx.SBlock) -> tirx.PrimExpr | None:
     ):
         return None
     return buffer_store.value.b
+
+
+def _has_pad_einsum_compatible_access(block: s_tir.SBlock) -> bool:
+    """Check the point-access restriction required by ``Schedule.pad_einsum``."""
+    return all(
+        isinstance(dim.extent, tirx.IntImm)
+        and int(dim.extent) == 1
+        and isinstance(dim.min, tirx.IntImm | tirx.Var)
+        for region in [*block.reads, *block.writes]
+        for dim in region.region
+    )
 
 
 def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | None:
@@ -79,6 +90,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
     conditions.append(len(block_stmt.reads) >= 2)
     conditions.append(len(block_stmt.writes) == 1)
     conditions.append(_get_reduction_expr(block_stmt) is not None)
+    conditions.append(_has_pad_einsum_compatible_access(block_stmt))
     conditions.append(
         len(collect_block_iter_vars_used_in_access_region(block_stmt, block_stmt.writes[0].region))
         > 0
@@ -100,7 +112,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
     if symbolic_iter_var.iter_type != tirx.stmt.IterVar.DataPar:
         return None
     ret = [
-        read.buffer
+        read.source
         for read in block_stmt.reads
         if len(
             collect_block_iter_vars_used_in_access_region(block_stmt, read.region) & const_iter_vars
@@ -114,7 +126,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
     return ret if 0 < len(ret) < len(block_stmt.reads) else None
 
 
-def detect_dominant_read(block: tirx.SBlock, const_iter_vars: set[tirx.Var]) -> tirx.PrimExpr:
+def detect_dominant_read(block: s_tir.SBlock, const_iter_vars: set[tirx.Var]) -> tirx.Expr:
     """Detect the dominant read indices in the block."""
     dominant_read = None
     num_read_iters = -1
@@ -127,7 +139,7 @@ def detect_dominant_read(block: tirx.SBlock, const_iter_vars: set[tirx.Var]) -> 
             num_read_iters = len(tir_vars)
             dominant_read = buffer_region
     assert dominant_read is not None
-    (result,) = dominant_read.buffer.offset_of([e.min for e in dominant_read.region])
+    (result,) = dominant_read.source.offset_of([e.min for e in dominant_read.region])
     return result
 
 
@@ -136,7 +148,7 @@ def normalize(
     block_info: SBlockInfo,
 ) -> bool | None:
     """Normalize the main block."""
-    block_stmt: tirx.SBlock = sch.get(block_info.block_rv)
+    block_stmt: s_tir.SBlock = sch.get(block_info.block_rv)
     const_iter_vars = set(
         iter_var.var
         for iter_var in block_stmt.iter_vars
@@ -145,7 +157,7 @@ def normalize(
     dynamic_iter_vars = set(
         iter_var.var for iter_var in block_stmt.iter_vars if iter_var.var not in const_iter_vars
     )
-    access = arith.normalize_to_iter_sum(
+    access = sym.normalize_to_iter_sum(
         detect_dominant_read(block_stmt, const_iter_vars),
         input_iters={i.var: i.dom for i in block_stmt.iter_vars},
     )
@@ -354,7 +366,7 @@ class LowBatchGEMV(GPUScheduleRule):
             shared_mem_usage = 0
             for buf in vector_input_buffers:
                 buf_size = reduce(
-                    lambda x, y: x * y, buf.shape, tirx.IntImm(buf.shape[0].dtype, 1)
+                    lambda x, y: x * y, buf.shape, tirx.IntImm(buf.shape[0].ty, 1)
                 ) * get_bytes(buf.dtype)
                 shared_mem_usage += buf_size
             max_smem = get_max_shared_memory_per_block(target)
@@ -492,7 +504,7 @@ class LowBatchGEMV(GPUScheduleRule):
                     sch.reverse_compute_at(epilogue, bx)
                     sch.set_scope(block, 0, "shared")
                     _, _, _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
-                    _, tx = sch.split(sch.fuse(*s), factors=[None, TX])
+                    _, tx = sch.split(sch.fuse(*s), factors=[None, TS])
                     sch.bind(tx, TAG_S)
                 else:
                     sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)

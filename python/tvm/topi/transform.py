@@ -254,7 +254,7 @@ def dynamic_strided_slice(a, begin, end, strides, output_shape):
         in that case, the input tensor will be reversed
         in that particular axis.
 
-    output_shape: list of PrimExpr
+    output_shape: list of Expr
         Specifies the output shape
 
     Returns
@@ -668,7 +668,7 @@ def dyn_tile(a, new_shape, rdim):
     a : tvm.te.Tensor
         The tensor to be tiled.
 
-    new_shape : tuple of PrimExpr
+    new_shape : tuple of Expr
         The output shape after tiling.
 
     rdim : int
@@ -1060,7 +1060,7 @@ def trilu(data, k, upper):
              [0, 0, 8]]
     """
     # Make sure datatype is consistent.
-    if k.dtype != "int32":
+    if k.ty != tvm.ir.PrimType("int32"):
         k = tvm.tirx.Cast("int32", k)
 
     # Check either above or below diagonal depending on upper.
@@ -1072,9 +1072,9 @@ def trilu(data, k, upper):
         row_index = indices[-2]
         col_index = indices[-1]
         # promote row & col indices
-        if row_index.dtype != col_index.dtype:
-            target_type = (col_index + row_index).dtype
-            if row_index.dtype != target_type:
+        if row_index.ty != col_index.ty:
+            target_type = (col_index + row_index).ty
+            if row_index.ty != target_type:
                 row_index = tvm.tirx.Cast(target_type, row_index)
             else:
                 col_index = tvm.tirx.Cast(target_type, col_index)

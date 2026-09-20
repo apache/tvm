@@ -15,28 +15,28 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal as _assert_structural_equal
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import F, P, S, TileLayout
-from tvm.tirx.stmt_functor import ir_transform
 
 target = tvm.target.Target("aws/trn1/trn1.2xlarge")
 
 
 def _strip_exec_scope_stmt(stmt):
-    def _postorder(node):
-        if isinstance(node, tvm.tirx.AttrStmt) and node.attr_key == "tirx.device_entry":
+    def _strip_attr(node: tvm.tirx.AttrStmt):
+        if node.attr_key == "tirx.device_entry":
             return node.body
         return node
 
-    return ir_transform(
+    return tvm_ffi.structural_map(
         stmt,
-        preorder=lambda _node: None,
-        postorder=_postorder,
-        only_enable=["tirx.AttrStmt"],
+        (tvm.tirx.AttrStmt, _strip_attr),
+        order="post",
     )
 
 
@@ -172,7 +172,7 @@ def test_copy_in_a_loop_2():
         _A_flat = T.decl_buffer((262144,), data=A.data, layout=None)
         A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
         A_sbuf_view = T.decl_buffer((128, 2048), data=A_sbuf.data, scope="trn.sbuf", layout=None)
-        A_view = T.decl_buffer((262144,), data=A.data, layout=None)
+        A_view = T.decl_buffer((262144,), data=_A_flat.data, layout=None)
         for i, b_loop in T.grid(4, 1):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
@@ -229,7 +229,7 @@ def test_copy_transpose():
 
     with target:
         mod = tvm.IRModule({"main": copy})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
@@ -276,7 +276,7 @@ def test_copy_transpose_2():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": copy})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
@@ -337,13 +337,13 @@ def test_copy_different_shape():
         T.func_attr({"global_symbol": "copy"})
         A_sbuf = T.alloc_buffer((128, 256), scope="trn.sbuf")
         B_sbuf = T.alloc_buffer((128, 16), scope="trn.sbuf")
-        _B_sbuf_view = T.decl_buffer((128, 16), data=B_sbuf.data, scope="trn.sbuf", layout=None)
+        B_sbuf_view = T.decl_buffer((128, 16), data=B_sbuf.data, scope="trn.sbuf", layout=None)
         for b_loop in T.serial(0, 4):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(0, 4, annotations={"nki_dim": "F"}):
                     T.nki.tensor_copy(
-                        B_sbuf[p_loop, b_loop * 4 + f_loop],
+                        B_sbuf_view[p_loop, b_loop * 4 + f_loop],
                         A_sbuf[p_loop, b_loop * 64 + f_loop],
                     )
 
@@ -759,7 +759,7 @@ def test_copy_transpose_with_guard():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": copy})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
@@ -831,7 +831,7 @@ def test_copy_transpose_with_extended_f():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": copy})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)

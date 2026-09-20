@@ -20,7 +20,7 @@
 /*!
  * \file tvm/relax/transform/normalize.cc
  * \brief Pass for transforming Relax IR to normal form, i.e., the expressions are normalized(no
- * nesting and hence the AST is in ANF), and all struct_info_ of expressions are
+ * nesting and hence the AST is in ANF), and all ty of expressions are
  * available.
  */
 
@@ -28,8 +28,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 
 namespace tvm {
 namespace relax {
@@ -49,7 +49,7 @@ class NormalizeMutator : public ExprMutatorBase {
     if (body.same_as(op->body)) {
       return ffi::GetRef<Expr>(op);
     } else {
-      return Function(op->params, body, op->ret_struct_info, op->is_pure, op->attrs);
+      return Function(op->params, body, op->ret_ty, op->is_pure, op->attrs);
     }
   }
 
@@ -67,7 +67,7 @@ class NormalizeMutator : public ExprMutatorBase {
 
   Expr VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<Var>> params = std::nullopt) {
     builder_->BeginBindingBlock();
-    if (params.defined()) {
+    if (params.has_value()) {
       builder_->BeginScope(params);
     } else {
       builder_->BeginInnerScope();
@@ -147,8 +147,8 @@ class NormalizeMutator : public ExprMutatorBase {
 
   void VisitBinding_(const VarBindingNode* binding) {
     Expr new_value = this->VisitExpr(binding->value);
-    if (!binding->var->struct_info_.defined()) {
-      UpdateStructInfo(binding->var, GetStructInfo(new_value));
+    if (binding->var->ty.IsMissing()) {
+      UpdateType(binding->var, GetType(new_value));
     }
 
     if (new_value.same_as(binding->value)) {
@@ -165,7 +165,7 @@ class NormalizeMutator : public ExprMutatorBase {
       builder_->EmitNormalized(ffi::GetRef<MatchCast>(binding));
     } else {
       builder_->EmitNormalized(
-          MatchCast(binding->var, builder_->NormalizeArgument(new_value), binding->struct_info));
+          MatchCast(binding->var, builder_->NormalizeArgument(new_value), binding->ty));
     }
   }
 
@@ -204,7 +204,7 @@ class GlobalVarNormalizer : private ExprMutator {
       if (!func->IsInstance<FunctionNode>()) {
         continue;
       }
-      auto new_func = Downcast<BaseFunc>(this->VisitExpr(func));
+      auto new_func = this->VisitExpr(func).as_or_throw<BaseFunc>();
       builder_->UpdateFunction(gvar_map_[gvar], new_func);
     }
 
@@ -268,7 +268,7 @@ class GlobalVarNormalizer : private ExprMutator {
   }
 
   IRModule module_;
-  NameSupply name_supply_;
+  UniqueNameSupply name_supply_;
   ffi::Map<GlobalVar, GlobalVar> gvar_map_;
 };
 
@@ -276,7 +276,7 @@ namespace transform {
 
 Pass Normalize() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(Normalize(f));
+    return Normalize(f).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, 1, "Normalize", {});
 }

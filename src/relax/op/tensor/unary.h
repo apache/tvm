@@ -42,12 +42,12 @@ namespace relax {
   RELAX_REGISTER_UNARY_OP(#OpName)
 
 #define RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(OpName, RequireFloatDtype) \
-  RELAX_REGISTER_UNARY_OP_AND_IMPL(OpName).set_attr<FInferStructInfo>(    \
-      "FInferStructInfo", InferStructInfoUnaryArith<RequireFloatDtype>)
+  RELAX_REGISTER_UNARY_OP_AND_IMPL(OpName).set_attr<FInferType>(          \
+      "FInferType", InferTypeUnaryArith<RequireFloatDtype>)
 
-#define RELAX_REGISTER_UNARY_CHECK_OP_AND_IMPL(OpName)                 \
-  RELAX_REGISTER_UNARY_OP_AND_IMPL(OpName).set_attr<FInferStructInfo>( \
-      "FInferStructInfo", InferStructInfoUnaryCheck)  // require_float_dtype=false for check op
+#define RELAX_REGISTER_UNARY_CHECK_OP_AND_IMPL(OpName)           \
+  RELAX_REGISTER_UNARY_OP_AND_IMPL(OpName).set_attr<FInferType>( \
+      "FInferType", InferTypeUnaryCheck)  // require_float_dtype=false for check op
 
 /***************** Arithmetic operators *****************/
 

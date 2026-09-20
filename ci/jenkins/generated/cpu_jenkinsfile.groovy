@@ -60,12 +60,11 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2026-06-09T19:52:01.232631
+// Generated at 2026-07-05T01:05:57.741181
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
 // image tags in that file
-ci_lint = ''
 ci_gpu = ''
 ci_cpu = ''
 ci_minimal = ''
@@ -82,7 +81,6 @@ properties([
     string(name: 'ci_arm_param', defaultValue: ''),
     string(name: 'ci_cpu_param', defaultValue: ''),
     string(name: 'ci_gpu_param', defaultValue: ''),
-    string(name: 'ci_lint_param', defaultValue: ''),
     string(name: 'ci_wasm_param', defaultValue: ''),
   ])
 ])
@@ -92,7 +90,6 @@ properties([
   built_ci_arm = null;
   built_ci_cpu = null;
   built_ci_gpu = null;
-  built_ci_lint = null;
   built_ci_wasm = null;
 
 // Global variable assigned during Sanity Check that holds the sha1 which should be
@@ -100,7 +97,7 @@ properties([
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
+docker_run = 'docker/bash.sh --env CI --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 180
@@ -339,34 +336,15 @@ def should_skip_ci(pr_number) {
   return git_skip_ci_code == 0
 }
 
-def check_pr(pr_number) {
-  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
-    // never skip CI on build sourced from a branch
-    return false
-  }
-  withCredentials([string(
-    credentialsId: 'tvm-bot-jenkins-reader',
-    variable: 'GITHUB_TOKEN',
-    )]) {
-    sh (
-      script: "python3 ${jenkins_scripts_root}/check_pr.py --pr ${pr_number}",
-      label: 'Check PR title and body',
-    )
-  }
-
-}
-
 def prepare(node_type) {
   stage('Prepare') {
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
         init_git()
 
-        check_pr(env.CHANGE_ID)
-
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cpu ci_gpu ci_lint ci_wasm ",
+            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cpu ci_gpu ci_wasm ",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
@@ -385,11 +363,6 @@ def prepare(node_type) {
             label: "Find docker image name for ci_gpu",
             returnStdout: true,
           ).trim()
-          ci_lint = sh(
-            script: "cat .docker-image-names/ci_lint",
-            label: "Find docker image name for ci_lint",
-            returnStdout: true,
-          ).trim()
           ci_wasm = sh(
             script: "cat .docker-image-names/ci_wasm",
             label: "Find docker image name for ci_wasm",
@@ -400,7 +373,6 @@ def prepare(node_type) {
         ci_arm = params.ci_arm_param ?: ci_arm
         ci_cpu = params.ci_cpu_param ?: ci_cpu
         ci_gpu = params.ci_gpu_param ?: ci_gpu
-        ci_lint = params.ci_lint_param ?: ci_lint
         ci_wasm = params.ci_wasm_param ?: ci_wasm
 
         sh (script: """
@@ -408,7 +380,6 @@ def prepare(node_type) {
           echo " ci_arm = ${ci_arm}"
           echo " ci_cpu = ${ci_cpu}"
           echo " ci_gpu = ${ci_gpu}"
-          echo " ci_lint = ${ci_lint}"
           echo " ci_wasm = ${ci_wasm}"
         """, label: 'Docker image names')
 
@@ -433,13 +404,6 @@ def prepare(node_type) {
     }
   }
 }
-def ci_setup(image) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_clear_pytest.sh",
-    label: 'Clean up old workspace',
-  )
-}
-
 def python_unittest(image) {
   sh (
     script: "${docker_run} ${image} ./tests/scripts/task_python_unittest.sh",
@@ -539,8 +503,7 @@ build()
 
 
 
-
-def shard_run_unittest_CPU_1_of_2(node_type) {
+def run_unittest_CPU(node_type) {
   echo 'Begin running on node_type ' + node_type
   if (!skip_ci && is_docs_only_build != 1) {
     node(node_type) {
@@ -552,79 +515,21 @@ def shard_run_unittest_CPU_1_of_2(node_type) {
           withEnv([
             'PLATFORM=cpu',
             'TEST_STEP_NAME=unittest: CPU',
-            'TVM_NUM_SHARDS=2',
-            'TVM_SHARD_INDEX=0',
             "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
             sh(
                   script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu",
                   label: 'Download artifacts from S3',
                 )
 
-              ci_setup(ci_cpu)
               cpp_unittest(ci_cpu)
               python_unittest(ci_cpu)
           })
-        }
-        // only run upload if things are successful
-        try {
-          sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/unittest_CPU --items build/pytest-results",
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        } catch (Exception e) {
-          echo 'Exception during JUnit upload: ' + e.toString()
         }
       }
     }
     echo 'End running on node_type ' + node_type
   } else {
-    Utils.markStageSkippedForConditional('unittest: CPU 1 of 2')
-  }
-}
-
-def shard_run_unittest_CPU_2_of_2(node_type) {
-  echo 'Begin running on node_type ' + node_type
-  if (!skip_ci && is_docs_only_build != 1) {
-    node(node_type) {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-cpu") {
-        // NOTE: if exception happens, it will be caught outside
-        init_git()
-        docker_init(ci_cpu)
-        timeout(time: max_time, unit: 'MINUTES') {
-          withEnv([
-            'PLATFORM=cpu',
-            'TEST_STEP_NAME=unittest: CPU',
-            'TVM_NUM_SHARDS=2',
-            'TVM_SHARD_INDEX=1',
-            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-            sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_cpu)
-              cpp_unittest(ci_cpu)
-              python_unittest(ci_cpu)
-          })
-        }
-        // only run upload if things are successful
-        try {
-          sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/unittest_CPU --items build/pytest-results",
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        } catch (Exception e) {
-          echo 'Exception during JUnit upload: ' + e.toString()
-        }
-      }
-    }
-    echo 'End running on node_type ' + node_type
-  } else {
-    Utils.markStageSkippedForConditional('unittest: CPU 2 of 2')
+    Utils.markStageSkippedForConditional('unittest: CPU')
   }
 }
 
@@ -635,9 +540,9 @@ def test() {
       SKIP_SLOW_TESTS = "${skip_slow_tests}"
     }
     parallel(
-    'unittest: CPU 1 of 2': {
+    'unittest: CPU': {
       try {
-      shard_run_unittest_CPU_1_of_2('CPU-SMALL-SPOT')
+      run_unittest_CPU('CPU-SMALL-SPOT')
       } catch (Throwable ex) {
         echo 'Exception during SPOT run ' + ex.toString()
         if (is_last_build()) {
@@ -646,25 +551,7 @@ def test() {
           // and try again via on demand node
           echo 'Retry on-demand given it is last build'
           currentBuild.result = 'SUCCESS'
-          shard_run_unittest_CPU_1_of_2('CPU-SMALL')
-        } else {
-          echo 'Exit since it is not last build'
-          throw ex
-        }
-      }
-    },
-    'unittest: CPU 2 of 2': {
-      try {
-      shard_run_unittest_CPU_2_of_2('CPU-SMALL-SPOT')
-      } catch (Throwable ex) {
-        echo 'Exception during SPOT run ' + ex.toString()
-        if (is_last_build()) {
-          // retry if at last build
-          // mark the current stage as success
-          // and try again via on demand node
-          echo 'Retry on-demand given it is last build'
-          currentBuild.result = 'SUCCESS'
-          shard_run_unittest_CPU_2_of_2('CPU-SMALL')
+          run_unittest_CPU('CPU-SMALL')
         } else {
           echo 'Exit since it is not last build'
           throw ex

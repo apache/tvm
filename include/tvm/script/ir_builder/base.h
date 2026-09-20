@@ -20,10 +20,9 @@
 #define TVM_SCRIPT_IR_BUILDER_BASE_H_
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/cast.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
-#include <tvm/ir/node_functor.h>
+#include <tvm/ir/object_functor.h>
 
 #include <vector>
 
@@ -40,7 +39,7 @@ namespace ir_builder {
  *
  * \example
  *
- * The `T::MatchBuffer` below adds an element in `PrimFuncNode::buffer_map`:
+ * The `T::MatchBuffer` below annotates a PrimFunc parameter with BufferType:
  *
  * \code {.cpp}
  *
@@ -50,7 +49,7 @@ namespace ir_builder {
  *
  * \endcode
  *
- * The `T::MatchBuffer` below instead generates `MatchBufferRegion` in a TIR block:
+ * The `T::MatchBuffer` below instead generates `s_tir::MatchBufferRegion` in a TIR block:
  *
  * \code {.cpp}
  *
@@ -162,6 +161,8 @@ class IRBuilderNode : public ffi::Object {
   ffi::Array<IRBuilderFrame> frames;
   /*! \brief The outcome of IR construction */
   ffi::Optional<ffi::ObjectRef> result;
+  /*! \brief Active frontend source spans, from outermost to innermost. */
+  std::vector<Span> source_spans;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -196,6 +197,14 @@ class IRBuilderNode : public ffi::Object {
    */
   template <typename TObjectRef>
   inline TObjectRef Get() const;
+  /*! \brief Push a frontend source span for IR constructed in the nested scope. */
+  void PushSourceSpan(Span span);
+  /*! \brief Pop the innermost frontend source span. */
+  void PopSourceSpan();
+  /*! \brief Return the normalized active source span, including expansion history. */
+  Span GetCurrentSourceSpan() const;
+  /*! \brief Attach the active source span to an expression that has no span yet. */
+  ffi::ObjectRef SetCurrentSourceSpan(ffi::ObjectRef obj) const;
 };
 
 /*!
@@ -260,7 +269,7 @@ namespace details {
 
 class Namer {
  public:
-  using FType = NodeFunctor<void(const ffi::ObjectRef&, ffi::String)>;
+  using FType = ObjectFunctor<void(const ffi::ObjectRef&, ffi::String)>;
   static FType& vtable();
   static void Name(ffi::ObjectRef node, ffi::String name);
 };
@@ -270,7 +279,7 @@ class Namer {
 template <class TObjectRef>
 inline TObjectRef IRBuilder::Name(ffi::String name, TObjectRef obj) {
   details::Namer::Name(obj, name);
-  return Downcast<TObjectRef>(obj);
+  return obj.template as_or_throw<TObjectRef>();
 }
 
 template <typename TFrame>
@@ -288,7 +297,7 @@ template <typename TFrame>
 inline ffi::Optional<TFrame> IRBuilderNode::GetLastFrame() const {
   using TFrameNode = typename TFrame::ContainerType;
   if (!frames.empty() && frames.back()->IsInstance<TFrameNode>()) {
-    return Downcast<TFrame>(frames.back());
+    return frames.back().as_or_throw<TFrame>();
   }
   return std::nullopt;
 }
@@ -296,7 +305,7 @@ inline ffi::Optional<TFrame> IRBuilderNode::GetLastFrame() const {
 template <typename TObjectRef>
 inline TObjectRef IRBuilderNode::Get() const {
   using TObject = typename TObjectRef::ContainerType;
-  TVM_FFI_CHECK(result.defined(), IndexError) << "No result exists in IRBuilder yet";
+  TVM_FFI_CHECK(result.has_value(), IndexError) << "No result exists in IRBuilder yet";
   const auto* n = result.as<TObject>();
   TVM_FFI_CHECK(n != nullptr, TypeError)
       << "IRBuilder result is not of type: " << TObject::_type_key;

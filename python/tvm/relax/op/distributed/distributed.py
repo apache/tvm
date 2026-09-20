@@ -17,11 +17,10 @@
 # pylint: disable=redefined-builtin
 """Operators for distributed Relax."""
 
-from tvm.ir import PrimExpr
-from tvm.relax.distributed import DTensorStructInfo
-from tvm.relax.distributed.struct_info import DeviceMesh, Placement
+from tvm.ir import Call
+from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
 
-from ...expr import Call, Expr, GlobalVar, ShapeExpr
+from ...expr import Expr, GlobalVar
 from ...expr import Tuple as RxTuple
 from ...utils import convert_to_expr
 from . import _ffi_api
@@ -69,8 +68,7 @@ def redistribute(input: Expr, device_mesh: DeviceMesh, placement: Placement) -> 
 def call_tir_local_view(
     gvar: GlobalVar,
     args: Expr,
-    out_sinfo: DTensorStructInfo | list[DTensorStructInfo],
-    tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
+    out_ty: DTensorType | list[DTensorType],
 ) -> Call:
     """
     Call a tirx.prim_func and return the output. The prim_func should be a worker-local function
@@ -83,15 +81,13 @@ def call_tir_local_view(
         The GlobalVar referring to a tirx PrimFunc.
 
     args : Expr
-        The input arguments.
+        The ordered distributed-tensor and primitive input arguments.  These
+        correspond positionally to the leading parameters of the PrimFunc.
 
-    out_sinfo : Union[DTensorStructInfo, List[DTensorStructInfo]]
-        The structure info of the call_tir output.
-        It should be a single or a list of DTensorStructInfo. Each one denotes the
-        structure info of a returned tensor.
-
-    tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
-        ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
+    out_ty : Union[DTensorType, List[DTensorType]]
+        The type information of the call_tir output.
+        It should be a single or a list of DTensorType. Each one denotes the
+        type information of a returned tensor.
 
     Returns
     -------
@@ -103,19 +99,16 @@ def call_tir_local_view(
     elif isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
         args = RxTuple((args,))
 
-    if not isinstance(out_sinfo, list):
-        out_sinfo = [out_sinfo]
+    if not isinstance(out_ty, list):
+        out_ty = [out_ty]
 
-    if isinstance(tir_vars, list | tuple):
-        tir_vars = ShapeExpr(tir_vars)
-
-    return _ffi_api.call_tir_local_view(gvar, args, out_sinfo, tir_vars)  # type: ignore
+    return _ffi_api.call_tir_local_view(gvar, args, out_ty)  # type: ignore
 
 
 def redistribute_replica_to_shard(input: Expr, num_workers: int, axis: int) -> Expr:
     """Slice tensor into several parts along one axis,
         and each worker takes one part.
-        input.struct_info.shape[axis] % num_workers == 0 is required.
+        input.ty.shape[axis] % num_workers == 0 is required.
         Each worker must have an identical copy of the input.
         This is a specialized version of redistribute op.
 

@@ -43,7 +43,7 @@ def benchmark(
     mod_or_func: PrimFunc | IRModule,
     *,
     dym_var_sample: dict[str, int],
-    args: list[relax.TensorStructInfo | tuple[tuple[int | str, ...], str]] | None,
+    args: list[relax.TensorType | tuple[tuple[int | str, ...], str]] | None,
     target: str | tvm.target.Target | None = None,
     func_name: str | None = None,
     evaluator_config: Optional["EvaluatorConfig"] = None,
@@ -57,7 +57,7 @@ def benchmark(
         The PrimFunc or IRModule to be benchmarked.
     dym_var_sample : Optional[Dict[str, int]]
         The dynamic shape variable sample, e.g., {"n": 64, "m": 128}.
-    args : Optional[List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str], ...], str]]]]
+    args : Optional[List[Union[relax.TensorType, Tuple[Tuple[Union[int, str], ...], str]]]]
         The input tensor information, including shape and dtype. If none, will use
         the input information from the PrimFunc or IRModule.
     target : Optional[Union[str, tvm.target.Target]]
@@ -156,7 +156,7 @@ def benchmark_prim_func(
     mod_or_func: PrimFunc | IRModule,
     *,
     dym_var_sample_func: Callable[[dict[str, str]], dict[str, int]] = default_dym_var_sample_func,
-    args: list[relax.TensorStructInfo | tuple[tuple[int | str, ...], str]] | None = None,
+    args: list[relax.TensorType | tuple[tuple[int | str, ...], str]] | None = None,
     dym_var_dict: dict[str, str] | None = None,
     sample_number: int = 5,
     target: str | tvm.target.Target | None = None,
@@ -179,7 +179,7 @@ def benchmark_prim_func(
     dym_var_dict : Optional[Dict[str, str]]
         Dynamic shape variable dictionary, e.g., {"n": "int32", "m": "int32"}. If none, will use
         the input information from the PrimFunc or IRModule.
-    args : Optional[List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str], ...], str]]]]
+    args : Optional[List[Union[relax.TensorType, Tuple[Tuple[Union[int, str], ...], str]]]]
         The input tensor information, including shape and dtype. If none, will use
         the input information from the PrimFunc or IRModule.
     sample_number : int

@@ -25,6 +25,7 @@ from . import _ffi_api
 from . import expr as _expr
 from .attrs import DictAttrs
 from .base import Node
+from .function import BaseFunc
 
 
 @tvm_ffi.register_object("ir.IRModule")
@@ -94,7 +95,7 @@ class IRModule(Node, Scriptable):
         return self._add(var, val, True)
 
     def _add(self, var, val, update=True):
-        if isinstance(val, _expr.RelaxExpr):
+        if isinstance(val, BaseFunc):
             if isinstance(var, str):
                 if _ffi_api.Module_ContainGlobalVar(self, var):
                     var = _ffi_api.Module_GetGlobalVar(self, var)
@@ -201,7 +202,7 @@ class IRModule(Node, Scriptable):
 
         Parameters
         ----------
-        expr: RelaxExpr
+        expr: Expr
             The starting expression
 
         global_funcs: Optional[dict]

@@ -37,24 +37,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ScanopAttrs::RegisterReflection();
 }
 
-StructInfo InferStructInfoStatistical(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+Type InferTypeStatistical(const Call& call, const BlockBuilder& ctx) {
+  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
 
   std::vector<int> axes;
-  if (!data_sinfo->IsUnknownNdim() && attrs->axis.defined()) {
-    axes = NormalizeAxes(call, ctx, data_sinfo->ndim, attrs->axis.value());
+  if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
+    axes = NormalizeAxes(call, ctx, data_ty->ndim, attrs->axis.value());
   }
 
   int out_ndim;
   if (attrs->keepdims) {
-    out_ndim = data_sinfo->ndim;
-  } else if (!attrs->axis.defined()) {
+    out_ndim = data_ty->ndim;
+  } else if (!attrs->axis.has_value()) {
     out_ndim = 0;
-  } else if (data_sinfo->IsUnknownNdim()) {
+  } else if (data_ty->IsUnknownNdim()) {
     out_ndim = kUnknownNDim;
   } else {
-    out_ndim = data_sinfo->ndim - axes.size();
+    out_ndim = data_ty->ndim - axes.size();
     TVM_FFI_ICHECK_GE(out_ndim, 0);
   }
 
@@ -65,30 +65,29 @@ StructInfo InferStructInfoStatistical(const Call& call, const BlockBuilder& ctx)
   // - axes is not None, keepdims is false -> the returned shape does not contain the input axes.
   // - axes is not None, keepdims is true -> the returned shape has value 1 at the positions of the
   // input axes
-  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
-    if (!attrs->axis.defined() && attrs->keepdims && out_ndim != kUnknownNDim) {
-      return TensorStructInfo(
-          ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm(DataType::Int(64), /*value=*/1))),
-          data_sinfo->dtype, data_sinfo->vdevice);
+    if (!attrs->axis.has_value() && attrs->keepdims && out_ndim != kUnknownNDim) {
+      return TensorType(ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm::Int64(/*value=*/1))),
+                        data_ty->dtype, data_ty->vdevice);
     } else {
-      return out_ndim == 0 ? TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>()), data_sinfo->dtype,
-                                              data_sinfo->vdevice)
-                           : TensorStructInfo(data_sinfo->dtype, out_ndim, data_sinfo->vdevice);
+      return out_ndim == 0
+                 ? TensorType(ShapeExpr(ffi::Array<PrimExpr>()), data_ty->dtype, data_ty->vdevice)
+                 : TensorType(data_ty->dtype, out_ndim, data_ty->vdevice);
     }
   }
 
   ffi::Array<PrimExpr> out_shape;
   out_shape.reserve(out_ndim);
-  for (int i = 0; i < data_sinfo->ndim; ++i) {
-    if (attrs->axis.defined() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
+  for (int i = 0; i < data_ty->ndim; ++i) {
+    if (attrs->axis.has_value() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
       out_shape.push_back(data_shape->values[i]);
     } else if (attrs->keepdims) {
-      out_shape.push_back(IntImm(DataType::Int(64), /*value=*/1));
+      out_shape.push_back(IntImm::Int64(/*value=*/1));
     }
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
-  return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
+  return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
 }
 
 InferLayoutOutput InferLayoutStatistical(
@@ -98,13 +97,13 @@ InferLayoutOutput InferLayoutStatistical(
 
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
-  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-  TVM_FFI_ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
-  int ndim = tensor_sinfo->ndim;
+  const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
+  TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
+  TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support known ndim";
+  int ndim = tensor_ty->ndim;
 
   ffi::Array<int64_t> axis;
-  if (attrs->axis.defined()) {
+  if (attrs->axis.has_value()) {
     axis = attrs->axis.value();
   } else {
     axis.reserve(ndim);
@@ -152,52 +151,53 @@ InferLayoutOutput InferLayoutStatistical(
                            Attrs(new_attrs));
 }
 
-StructInfo InferStructInfoScan(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+Type InferTypeScan(const Call& call, const BlockBuilder& ctx) {
+  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<ScanopAttrs>();
 
-  DataType out_type = attrs->dtype.is_void() ? data_sinfo->dtype : attrs->dtype;
+  ffi::Optional<PrimType> out_type = attrs->dtype.has_value()
+                                         ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
+                                         : data_ty->dtype;
 
   if (!attrs->axis.has_value()) {
     // flattened
-    const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+    const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
     if (data_shape == nullptr) {
-      return TensorStructInfo(out_type, data_sinfo->ndim, data_sinfo->vdevice);
+      return TensorType(out_type, data_ty->ndim, data_ty->vdevice);
     } else {
       PrimExpr flattened_d = 1;
       for (const auto v : data_shape->values) {
         flattened_d *= v;
       }
-      return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>({flattened_d})), out_type,
-                              data_sinfo->vdevice);
+      return TensorType(ShapeExpr(ffi::Array<PrimExpr>({flattened_d})), out_type, data_ty->vdevice);
     }
   }
 
-  if (data_sinfo->shape.defined()) {
-    return TensorStructInfo(data_sinfo->shape.value(), out_type, data_sinfo->vdevice);
+  if (data_ty->shape.has_value()) {
+    return TensorType(data_ty->shape.value(), out_type, data_ty->vdevice);
   } else {
-    return TensorStructInfo(out_type, data_sinfo->ndim, data_sinfo->vdevice);
+    return TensorType(out_type, data_ty->ndim, data_ty->vdevice);
   }
 }
 
-StructInfo InferStructInfoStatisticalExtension(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+Type InferTypeStatisticalExtension(const Call& call, const BlockBuilder& ctx) {
+  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
 
   std::vector<int> axes;
-  if (!data_sinfo->IsUnknownNdim() && attrs->axis.defined()) {
-    axes = NormalizeAxes(call, ctx, data_sinfo->ndim, attrs->axis.value());
+  if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
+    axes = NormalizeAxes(call, ctx, data_ty->ndim, attrs->axis.value());
   }
 
   int out_ndim;
   if (attrs->keepdims) {
-    out_ndim = data_sinfo->ndim;
-  } else if (!attrs->axis.defined()) {
+    out_ndim = data_ty->ndim;
+  } else if (!attrs->axis.has_value()) {
     out_ndim = 0;
-  } else if (data_sinfo->IsUnknownNdim()) {
+  } else if (data_ty->IsUnknownNdim()) {
     out_ndim = kUnknownNDim;
   } else {
-    out_ndim = data_sinfo->ndim - axes.size();
+    out_ndim = data_ty->ndim - axes.size();
     TVM_FFI_ICHECK_GE(out_ndim, 0);
   }
 
@@ -208,50 +208,47 @@ StructInfo InferStructInfoStatisticalExtension(const Call& call, const BlockBuil
   // - len(axes) == 1, keepdims is false -> the returned shape does not contain the input axis.
   // - len(axes) == 1, keepdims is true -> the returned shape has value 1 at the positions of the
   // input axis
-  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
-    if (!attrs->axis.defined() && attrs->keepdims && out_ndim != kUnknownNDim) {
-      return TensorStructInfo(
-          ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm(DataType::Int(64), /*value=*/1))),
-          data_sinfo->dtype, data_sinfo->vdevice);
+    if (!attrs->axis.has_value() && attrs->keepdims && out_ndim != kUnknownNDim) {
+      return TensorType(ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm::Int64(/*value=*/1))),
+                        data_ty->dtype, data_ty->vdevice);
     }
     if (out_ndim == 0) {
-      return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>()), data_sinfo->dtype,
-                              data_sinfo->vdevice);
+      return TensorType(ShapeExpr(ffi::Array<PrimExpr>()), data_ty->dtype, data_ty->vdevice);
     }
-    return TupleStructInfo({TensorStructInfo(data_sinfo->dtype, out_ndim, data_sinfo->vdevice),
-                            TensorStructInfo(DataType::Int(64), out_ndim, data_sinfo->vdevice)});
+    return TupleType({TensorType(data_ty->dtype, out_ndim, data_ty->vdevice),
+                      TensorType(PrimType::Int(64), out_ndim, data_ty->vdevice)});
   }
 
   ffi::Array<PrimExpr> out_shape;
   out_shape.reserve(out_ndim);
-  for (int i = 0; i < data_sinfo->ndim; ++i) {
-    if (attrs->axis.defined() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
+  for (int i = 0; i < data_ty->ndim; ++i) {
+    if (attrs->axis.has_value() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
       out_shape.push_back(data_shape->values[i]);
     } else if (attrs->keepdims) {
-      out_shape.push_back(IntImm(DataType::Int(64), /*value=*/1));
+      out_shape.push_back(IntImm::Int64(/*value=*/1));
     }
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
 
-  if (!attrs->axis.defined() || axes.size() > 1)
-    return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
+  if (!attrs->axis.has_value() || axes.size() > 1)
+    return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
   else
-    return TupleStructInfo(
-        {TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice),
-         TensorStructInfo(ShapeExpr(out_shape), DataType::Int(64), data_sinfo->vdevice)});
+    return TupleType({TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice),
+                      TensorType(ShapeExpr(out_shape), PrimType::Int(64), data_ty->vdevice)});
 }
 
 /* relax.cumprod */
-Expr cumprod(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DataType> dtype,
+Expr cumprod(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DLDataType> dtype,
              bool exclusive) {
   auto attrs = ffi::make_object<ScanopAttrs>();
   attrs->axis = std::move(axis);
-  attrs->dtype = std::move(dtype.value_or(DataType::Void()));
+  attrs->dtype = dtype;
   attrs->exclusive = exclusive;
 
   static const Op& op = Op::Get("relax.cumprod");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -263,18 +260,19 @@ TVM_REGISTER_OP("relax.cumprod")
     .set_attrs_type<ScanopAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScan)
+    .set_attr<FInferType>("FInferType", InferTypeScan)
     .set_attr<bool>("FPurity", true);
 
 /* relax.cumsum */
-Expr cumsum(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DataType> dtype, bool exclusive) {
+Expr cumsum(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DLDataType> dtype,
+            bool exclusive) {
   auto attrs = ffi::make_object<ScanopAttrs>();
   attrs->axis = std::move(axis);
-  attrs->dtype = std::move(dtype.value_or(DataType::Void()));
+  attrs->dtype = dtype;
   attrs->exclusive = exclusive;
 
   static const Op& op = Op::Get("relax.cumsum");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -286,7 +284,7 @@ TVM_REGISTER_OP("relax.cumsum")
     .set_attrs_type<ScanopAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScan)
+    .set_attr<FInferType>("FInferType", InferTypeScan)
     .set_attr<bool>("FPurity", true);
 
 /* relax.median */
@@ -295,7 +293,7 @@ Expr median(Expr data, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op& op = Op::Get("relax.median");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -306,7 +304,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_REGISTER_OP("relax.median")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStatisticalExtension)
+    .set_attr<FInferType>("FInferType", InferTypeStatisticalExtension)
     .set_attr<bool>("FPurity", true);
 
 RELAX_REGISTER_STATISTICAL_OP_INTERFACE(max);

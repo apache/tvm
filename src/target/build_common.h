@@ -27,10 +27,12 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/codegen.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/type.h>
 
 #include <string>
 
@@ -45,18 +47,25 @@ inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModu
   for (auto kv : mod->functions) {
     TVM_FFI_ICHECK(kv.second->IsInstance<tirx::PrimFuncNode>())
         << "Can only lower IR Module with PrimFuncs";
-    auto f = Downcast<tirx::PrimFunc>(kv.second);
+    auto f = kv.second.as_or_throw<tirx::PrimFunc>();
 
     ffi::Array<DLDataType> arg_types;
     ffi::Array<runtime::ArgExtraTags> arg_extra_tags;
     for (size_t i = 0; i < f->params.size(); ++i) {
-      arg_types.push_back(f->params[i].dtype());
+      Type param_type = f->params[i]->ty;
+      if (auto prim_type = param_type.as<PrimType>()) {
+        arg_types.push_back(prim_type.value()->dtype);
+      } else if (param_type.as<PointerTypeNode>()) {
+        arg_types.push_back(DLDataType{kDLOpaqueHandle, 64, 1});
+      } else {
+        TVM_FFI_THROW(InternalError) << "Unsupported PrimFunc parameter type " << param_type;
+      }
       auto is_tensormap = [](const tirx::Var& var) -> bool {
-        const auto* type = var->type_annotation.as<PointerTypeNode>();
+        const auto* type = var->ty.as<PointerTypeNode>();
         if (type == nullptr) {
           return false;
         }
-        return type->element_type.as<TensorMapTypeNode>() != nullptr;
+        return type->element_type.as<tirx::TensorMapTypeNode>() != nullptr;
       };
       arg_extra_tags.push_back(is_tensormap(f->params[i]) ? runtime::ArgExtraTags::kTensorMap
                                                           : runtime::ArgExtraTags::kNone);

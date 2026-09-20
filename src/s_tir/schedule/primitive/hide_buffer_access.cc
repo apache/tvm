@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <set>
 
@@ -30,7 +31,7 @@ using namespace tvm::tirx;
 /******** Error Classes ********/
 
 namespace {
-class BufTypeError : public ScheduleError {
+class BufTypeError : public ScheduleErrorContextObj {
  public:
   explicit BufTypeError(IRModule mod, const ffi::String& buf_type)
       : mod_(std::move(mod)), buf_type_(buf_type) {}
@@ -53,7 +54,7 @@ class BufTypeError : public ScheduleError {
   ffi::String buf_type_;
 };
 
-class InvalidIndexError : public ScheduleError {
+class InvalidIndexError : public ScheduleErrorContextObj {
  public:
   explicit InvalidIndexError(IRModule mod, int num_access_regions, int buf_idx)
       : mod_(std::move(mod)), num_access_regions_(num_access_regions), buf_idx_(buf_idx) {}
@@ -98,22 +99,22 @@ void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
   } else if (buf_type == "write") {
     num_access_regions = block->writes.size();
   } else {
-    throw BufTypeError(self->mod, buf_type);
+    throw MakeScheduleError<BufTypeError>(self->mod, buf_type);
   }
 
   std::set<int> buf_indices;
   for (const IntImm& buf_idx : buf_index_array) {
-    int buf_idx_val = buf_idx->value;
+    int buf_idx_val = buf_idx->value.as<int>().value();
     if (buf_idx_val >= 0 && buf_idx_val < num_access_regions) {
       buf_indices.insert(buf_idx_val);
     } else {
-      throw InvalidIndexError(self->mod, num_access_regions, buf_idx_val);
+      throw MakeScheduleError<InvalidIndexError>(self->mod, num_access_regions, buf_idx_val);
     }
   }
 
   /* Step 0: Collect new buffer access regions. */
 
-  ffi::Array<BufferRegion> reads, writes;
+  ffi::Array<TensorRegion> reads, writes;
 
   if (buf_type == "read") {
     for (size_t i = 0; i < block->reads.size(); ++i) {

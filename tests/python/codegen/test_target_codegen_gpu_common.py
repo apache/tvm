@@ -23,14 +23,24 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.parametrize_targets(
-    "cuda", "metal", {"kind": "vulkan", "supports_int64": True}, "opencl"
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param("metal", marks=pytest.mark.gpu),
+        pytest.param({"kind": "vulkan", "supports_int64": True}, marks=pytest.mark.gpu),
+        pytest.param("opencl", marks=pytest.mark.gpu),
+    ],
 )
 @pytest.mark.parametrize("dtype", ["int32", "uint32", "int64", "uint64"])
-def test_int_intrin(target, dev, dtype):
+def test_int_intrin(target, dtype):
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
     test_funcs = [
         (T.clz, lambda x, dtype: int(dtype[-2:]) - (len(bin(x)) - 2)),
     ]
@@ -54,11 +64,16 @@ def test_int_intrin(target, dev, dtype):
                         B[v_i0] = tvm_intrin(A[v_i0])
 
         f = tvm.compile(Module, target=target)
-        a = tvm.runtime.tensor(np.random.randint(0, 100000, size=n).astype(dtype), dev)
-        b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(dtype), dev)
-        f(a, b)
-        ref = np.vectorize(partial(np_func, dtype=dtype))(a.numpy())
-        tvm.testing.assert_allclose(b.numpy(), ref)
+
+        def run_and_check():
+            dev = tvm.device_from_target(target)
+            a = tvm.runtime.tensor(np.random.randint(0, 100000, size=n).astype(dtype), dev)
+            b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(dtype), dev)
+            f(a, b)
+            ref = np.vectorize(partial(np_func, dtype=dtype))(a.numpy())
+            tvm.testing.assert_allclose(b.numpy(), ref)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

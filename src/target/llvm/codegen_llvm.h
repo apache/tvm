@@ -40,11 +40,11 @@
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Support/Casting.h>
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
@@ -91,9 +91,12 @@ using namespace tirx;
 /*!
  * \brief A base class to generate a LLVM.
  */
-class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
+class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
                     public StmtFunctor<void(const Stmt&)> {
  public:
+  using tirx::ExprFunctor<llvm::Value*(const Expr&)>::Dispatch;
+  using StmtFunctor::Dispatch;
+
   CodeGenLLVM();           // Do not make it default here.
   virtual ~CodeGenLLVM();  // Do not make it default here.
 
@@ -181,7 +184,15 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param e The expression to be created value for.
    * \return created value.
    */
-  llvm::Value* MakeValue(const PrimExpr& e) { return VisitExpr(e); }
+  llvm::Value* MakeValue(const PrimExpr& e) { return Dispatch(e); }
+  llvm::Value* MakeValue(const Expr& e) {
+    if (auto prim = e.as<PrimExpr>()) return MakeValue(prim.value());
+    if (const auto* var = e.as<VarNode>()) return GetVarValue(var);
+    if (const auto* call = e.as<CallNode>()) return Dispatch_(call);
+    if (const auto* str = e.as<StringImmNode>()) return Dispatch_(str);
+    TVM_FFI_THROW(TypeError) << "Cannot lower non-primitive expression " << e->GetTypeKey();
+    TVM_FFI_UNREACHABLE();
+  }
   // Short hande code to get a constant int 32
   llvm::Constant* ConstInt32(int64_t value) const {
     return llvm::ConstantInt::getSigned(t_int32_, value);
@@ -191,46 +202,53 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
     return llvm::ConstantInt::getSigned(t_int64_, value);
   }
   // override codegen
-  llvm::Value* VisitExpr_(const VarNode* op) override;
-  llvm::Value* VisitExpr_(const CastNode* op) override;
-  llvm::Value* VisitExpr_(const IntImmNode* op) override;
-  llvm::Value* VisitExpr_(const FloatImmNode* op) override;
-  llvm::Value* VisitExpr_(const StringImmNode* op) override;
-  llvm::Value* VisitExpr_(const AddNode* op) override;
-  llvm::Value* VisitExpr_(const SubNode* op) override;
-  llvm::Value* VisitExpr_(const MulNode* op) override;
-  llvm::Value* VisitExpr_(const DivNode* op) override;
-  llvm::Value* VisitExpr_(const ModNode* op) override;
-  llvm::Value* VisitExpr_(const MinNode* op) override;
-  llvm::Value* VisitExpr_(const MaxNode* op) override;
-  llvm::Value* VisitExpr_(const LTNode* op) override;
-  llvm::Value* VisitExpr_(const LENode* op) override;
-  llvm::Value* VisitExpr_(const GTNode* op) override;
-  llvm::Value* VisitExpr_(const GENode* op) override;
-  llvm::Value* VisitExpr_(const EQNode* op) override;
-  llvm::Value* VisitExpr_(const NENode* op) override;
-  llvm::Value* VisitExpr_(const AndNode* op) override;
-  llvm::Value* VisitExpr_(const OrNode* op) override;
-  llvm::Value* VisitExpr_(const NotNode* op) override;
-  llvm::Value* VisitExpr_(const SelectNode* op) override;
-  llvm::Value* VisitExpr_(const LetNode* op) override;
-  llvm::Value* VisitExpr_(const BufferLoadNode* op) override;
-  llvm::Value* VisitExpr_(const CallNode* op) override;
-  llvm::Value* VisitExpr_(const RampNode* op) override;
-  llvm::Value* VisitExpr_(const ShuffleNode* op) override;
-  llvm::Value* VisitExpr_(const BroadcastNode* op) override;
+  llvm::Value* Dispatch_(const VarNode* op) override;
+  llvm::Value* Dispatch_(const prim::CastNode* op) override;
+  llvm::Value* Dispatch_(const IntImmNode* op) override;
+  llvm::Value* Dispatch_(const FloatImmNode* op) override;
+  llvm::Value* Dispatch_(const StringImmNode* op) override;
+  llvm::Value* Dispatch_(const prim::AddNode* op) override;
+  llvm::Value* Dispatch_(const prim::SubNode* op) override;
+  llvm::Value* Dispatch_(const prim::MulNode* op) override;
+  llvm::Value* Dispatch_(const prim::DivNode* op) override;
+  llvm::Value* Dispatch_(const prim::ModNode* op) override;
+  llvm::Value* Dispatch_(const prim::MinNode* op) override;
+  llvm::Value* Dispatch_(const prim::MaxNode* op) override;
+  llvm::Value* Dispatch_(const prim::LTNode* op) override;
+  llvm::Value* Dispatch_(const prim::LENode* op) override;
+  llvm::Value* Dispatch_(const prim::GTNode* op) override;
+  llvm::Value* Dispatch_(const prim::GENode* op) override;
+  llvm::Value* Dispatch_(const prim::EQNode* op) override;
+  llvm::Value* Dispatch_(const prim::NENode* op) override;
+  llvm::Value* Dispatch_(const prim::AndNode* op) override;
+  llvm::Value* Dispatch_(const prim::OrNode* op) override;
+  llvm::Value* Dispatch_(const prim::NotNode* op) override;
+  llvm::Value* Dispatch_(const prim::LShiftNode* op) override;
+  llvm::Value* Dispatch_(const prim::RShiftNode* op) override;
+  llvm::Value* Dispatch_(const prim::BitwiseAndNode* op) override;
+  llvm::Value* Dispatch_(const prim::BitwiseOrNode* op) override;
+  llvm::Value* Dispatch_(const prim::BitwiseXorNode* op) override;
+  llvm::Value* Dispatch_(const prim::BitwiseNotNode* op) override;
+  llvm::Value* Dispatch_(const prim::SelectNode* op) override;
+  llvm::Value* Dispatch_(const prim::LetNode* op) override;
+  llvm::Value* Dispatch_(const TensorLoadNode* op) override;
+  llvm::Value* Dispatch_(const CallNode* op) override;
+  llvm::Value* Dispatch_(const prim::RampNode* op) override;
+  llvm::Value* Dispatch_(const prim::ShuffleNode* op) override;
+  llvm::Value* Dispatch_(const prim::BroadcastNode* op) override;
   // stmt
-  void VisitStmt_(const BufferStoreNode* op) override;
-  void VisitStmt_(const ForNode* op) override;
-  void VisitStmt_(const WhileNode* op) override;
-  void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const AllocBufferNode* op) override;
-  void VisitStmt_(const AttrStmtNode* op) override;
-  void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const BindNode* op) override;
-  void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const EvaluateNode* op) override;
-  void VisitStmt_(const DeclBufferNode* op) override;
+  void Dispatch_(const BufferStoreNode* op) override;
+  void Dispatch_(const ForNode* op) override;
+  void Dispatch_(const WhileNode* op) override;
+  void Dispatch_(const ReturnNode* op) override;
+  void Dispatch_(const IfThenElseNode* op) override;
+  void Dispatch_(const AllocBufferNode* op) override;
+  void Dispatch_(const AttrStmtNode* op) override;
+  void Dispatch_(const AssertStmtNode* op) override;
+  void Dispatch_(const BindNode* op) override;
+  void Dispatch_(const SeqStmtNode* op) override;
+  void Dispatch_(const EvaluateNode* op) override;
+  void Dispatch_(const DeclBufferNode* op) override;
 
   // Get constant string
   llvm::Constant* GetConstString(const std::string& str);
@@ -285,7 +303,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // create extern function call
   // skip first arg mode used for call extern intrinsic.
   virtual llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
-                                        const ffi::Array<PrimExpr>& args, bool skip_first_arg);
+                                        const ffi::Array<Expr>& args, bool skip_first_arg);
 
   /*! \brief Insert a printf() call to the generated LLVM
    *
@@ -350,11 +368,14 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *       - Should return the generated expression.
    */
   void BufferAccessHelper(
-      Buffer buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
-      DataType value_dtype,
+      BufferVar buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
+      PrimType value_dtype,
       std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                        llvm::Value* predicate, int alignment, bool is_volatile)>
           make_instruction);
+  llvm::Value* CreateMaskedLoad(const CallNode* op);
+  llvm::Value* CreateMaskedStore(const CallNode* op);
+  const VarNode* GetBufferPhysicalRoot(const VarNode* buffer) const;
   // Initialize target
   virtual void InitTarget();
   // Add module startup function if needed.
@@ -400,7 +421,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *
    * \return LLVM type of dtype
    */
-  llvm::Type* DTypeToLLVMType(const DataType& dtype) const;
+  llvm::Type* DTypeToLLVMType(const PrimType& dtype) const;
   /*!
    * \brief Get the LLVM Type for a given type.
    * \param dtype The runtime dtype.
@@ -450,28 +471,28 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // initialize the function state.
   void InitFuncState();
   // Get alignment given index.
-  void GetAlignment(DataType t, const VarNode* buf_var, const PrimExpr& index, int* p_alignment,
+  void GetAlignment(PrimType t, const VarNode* buf_var, const PrimExpr& index, int* p_alignment,
                     int* p_native_bits);
   // Returns whether the LLVM type has padding for alignment
-  bool HasAlignmentPadding(DataType dtype);
+  bool HasAlignmentPadding(PrimType dtype);
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(const CallNode* op, llvm::Function* f,
                                     const std::vector<llvm::Value*>& args);
   // handle module import
   void HandleImport(const std::string& code);
   // cast operatpr
-  llvm::Value* CreateCast(DataType from, DataType to, llvm::Value* value);
+  llvm::Value* CreateCast(PrimType from, PrimType to, llvm::Value* value);
   // comparison op
   llvm::Value* GetVarValue(const VarNode* v) const;
-  llvm::Value* CreateLT(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateLE(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateGT(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateGE(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateAdd(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateSub(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateMul(DataType t, llvm::Value* a, llvm::Value* b);
-  virtual TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
-                                       llvm::ArrayRef<llvm::Value*> indices, DataType value_dtype);
+  llvm::Value* CreateLT(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateLE(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateGT(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateGE(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateAdd(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateSub(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateMul(PrimType t, llvm::Value* a, llvm::Value* b);
+  virtual TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, Type buffer_element_type,
+                                       llvm::ArrayRef<llvm::Value*> indices, Type value_type);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);
@@ -479,12 +500,12 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateVecPad(llvm::Value* vec, int target_lanes);
   // Create serial for
   void CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
-                       const Var& loop_var, const Stmt& body);
+                       const PrimVar& loop_var, const Stmt& body);
   // add alias information.
   void AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_var, PrimExpr index,
-                    DataType access_dtype);
+                    PrimType access_dtype);
 
-  llvm::GlobalVariable* AllocateSharedMemory(DataType dtype, size_t size,
+  llvm::GlobalVariable* AllocateSharedMemory(PrimType dtype, size_t size,
                                              unsigned int shared_address_space, int alignment,
                                              llvm::GlobalValue::LinkageTypes linkage);
 
@@ -540,6 +561,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   std::unordered_map<const VarNode*, StorageInfo> alloc_storage_info_;
   // The definition of local variable.
   std::unordered_map<const VarNode*, llvm::Value*> var_map_;
+  // Canonical physical storage identity for DeclBuffer aliases.
+  std::unordered_map<const VarNode*, const VarNode*> buffer_physical_root_;
   // global strings
   std::unordered_map<std::string, llvm::Constant*> str_map_;
 
@@ -547,18 +570,21 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // that function.
   std::unordered_map<const GlobalVarNode*, llvm::Function*> functions_;
 
+  // Map from the generated LLVM function symbol to the GlobalVar that owns it.
+  std::unordered_map<std::string, std::string> function_symbol_owners_;
+
   // Whether current function is restricted
   bool is_restricted_{true};
   // The analyzer information
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   // set of var that are not restricted(can alias)
   std::unordered_set<const VarNode*> alias_var_set_;
   // set of volatile buffer.
   std::unordered_set<const VarNode*> volatile_buf_;
   // deep comparison of PrimExpr
-  ExprDeepEqual deep_equal_;
+  prim::ExprDeepEqual deep_equal_;
   // binding of let variables. Enables duplicate var defs that map to same value
-  std::unordered_map<Var, const LetNode*> let_binding_;
+  std::unordered_map<Var, const prim::LetNode*> let_binding_;
   // debug info for function being compiled
   llvm::DISubprogram* di_subprogram_{nullptr};
   // Cache potential common path ops to slightly improve lookup time.
@@ -621,7 +647,7 @@ void CodeGenLLVM::AddFunctionsOrdered(IterType begin, IterType end, ConvType pfu
   for (auto it = begin; it != end; ++it) {
     auto [gvar, func] = *it;
     auto converted = pfunc(func);
-    funcs.push_back({gvar, Downcast<PrimFunc>(converted)});
+    funcs.push_back({gvar, converted.template as_or_throw<PrimFunc>()});
   }
   std::sort(funcs.begin(), funcs.end(), [this](const auto& pair_a, const auto& pair_b) {
     const auto& [gvar_a, func_a] = pair_a;

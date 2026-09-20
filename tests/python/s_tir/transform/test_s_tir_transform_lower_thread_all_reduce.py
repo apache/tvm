@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F401, F841
 
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm import s_tir
@@ -31,7 +33,7 @@ def _has_volatile_alloc_buffer(mod):
         if isinstance(node, tvm.tirx.AllocBuffer) and "tirx.volatile" in node.annotations:
             has_volatile_alloc = has_volatile_alloc or node.annotations["tirx.volatile"] is True
 
-    tvm.tirx.stmt_functor.post_order_visit(mod["main"].body, visit)
+    tvm_ffi.structural_walk(mod["main"].body, visit)
     return has_volatile_alloc
 
 
@@ -54,7 +56,7 @@ def test_basic():
                 with T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret("handle", T.uint64(0)),
+                    T.int32(0),
                 ):
                     T.tvm_thread_allreduce(
                         T.uint32(1),
@@ -93,7 +95,7 @@ def test_basic_with_decl_buffer():
                 with T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret("handle", T.uint64(0)),
+                    T.int32(0),
                 ):
                     T.tvm_thread_allreduce(
                         T.uint32(1),
@@ -107,6 +109,7 @@ def test_basic_with_decl_buffer():
 
     After = transform(Before)
     assert After is not None
+    assert tvm.tirx.analysis.verify_well_formed(After)
     After_script = After.script()
     assert "tvm_warp_shuffle" in After_script
 
@@ -140,7 +143,7 @@ def test_reduce_summation():
                 with T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret("handle", T.uint64(0)),
+                    T.int32(0),
                 ):
                     T.tvm_thread_allreduce(
                         T.uint32(1),
@@ -173,7 +176,7 @@ def test_multi_group_reduction():
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
-                T.reinterpret("handle", T.uint64(0)),
+                T.int32(0),
             ):
                 A_1 = T.decl_buffer((1024,), data=A.data)
                 T.tvm_thread_allreduce(
@@ -193,6 +196,86 @@ def test_multi_group_reduction():
     assert "tvm_warp_shuffle" in After_script
 
 
+def test_multi_group_reduction_consumed_through_alias():
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True, s_tir=True)
+        def main(A: T.Buffer((4, 128), "float32"), B: T.Buffer((4,), "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            threadIdx_y = T.launch_thread("threadIdx.y", 4)
+            cross_thread_B = T.alloc_buffer((1,), scope="local")
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
+            cross_thread_B_alias = T.decl_buffer((1,), data=cross_thread_B.data, scope="local")
+            with T.attr(
+                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
+                "reduce_scope",
+                T.int32(0),
+            ):
+                A_flat = T.decl_buffer((512,), data=A.data)
+                T.tvm_thread_allreduce(
+                    T.uint32(1),
+                    A_flat[threadIdx_y * 128 + threadIdx_x],
+                    T.bool(True),
+                    cross_thread_B[0],
+                    threadIdx_x,
+                )
+            cross_thread_B_alias[0] = cross_thread_B[0]
+            if threadIdx_x == 0:
+                B_flat = T.decl_buffer((4,), data=B.data)
+                B_flat[threadIdx_y] = cross_thread_B_alias[0]
+
+    After = transform(Before)
+    assert tvm.tirx.analysis.verify_well_formed(After)
+    After_script = After.script()
+    assert "red_result[threadIdx_y] = red_result[threadIdx_y]" in After_script
+    assert "B_flat[threadIdx_y] = red_result[threadIdx_y]" in After_script
+    assert "B_flat[threadIdx_y] = red_result[0]" not in After_script
+    assert "red_result[0] = red_result[threadIdx_y]" not in After_script
+    assert "cross_thread_B_alias" not in After_script
+
+
+def test_multi_group_reduction_with_alias_declared_after_allreduce():
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True, s_tir=True)
+        def main(A: T.Buffer((4, 128), "float32"), B: T.Buffer((4,), "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            threadIdx_y = T.launch_thread("threadIdx.y", 4)
+            cross_thread_B = T.alloc_buffer((1,), scope="local")
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
+            with T.attr(
+                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
+                "reduce_scope",
+                T.int32(0),
+            ):
+                A_flat = T.decl_buffer((512,), data=A.data)
+                T.tvm_thread_allreduce(
+                    T.uint32(1),
+                    A_flat[threadIdx_y * 128 + threadIdx_x],
+                    T.bool(True),
+                    cross_thread_B[0],
+                    threadIdx_x,
+                )
+            cross_thread_B_alias = T.decl_buffer((1,), data=cross_thread_B.data, scope="local")
+            cross_thread_B[0] = cross_thread_B_alias[0]
+            if threadIdx_x == 0:
+                B_flat = T.decl_buffer((4,), data=B.data)
+                B_flat[threadIdx_y] = cross_thread_B_alias[0]
+
+    After = transform(Before)
+    assert tvm.tirx.analysis.verify_well_formed(After)
+    After_script = After.script()
+    assert "red_result[threadIdx_y] = red_result[threadIdx_y]" in After_script
+    assert "B_flat[threadIdx_y] = red_result[threadIdx_y]" in After_script
+    assert "B_flat[threadIdx_y] = red_result[0]" not in After_script
+    assert "red_result[0] = red_result[threadIdx_y]" not in After_script
+    assert "cross_thread_B_alias" not in After_script
+
+
 def test_multi_group_mask1():
     transform = tvm.s_tir.transform.LowerThreadAllreduce()
 
@@ -208,7 +291,7 @@ def test_multi_group_mask1():
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
-                T.reinterpret("handle", T.uint64(0)),
+                T.int32(0),
             ):
                 A_1 = T.decl_buffer((256,), data=A.data)
                 T.tvm_thread_allreduce(
@@ -243,7 +326,7 @@ def test_multi_warp_reduce1():
                 with T.attr(
                     T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret("handle", T.uint64(0)),
+                    T.int32(0),
                 ):
                     A_1 = T.decl_buffer((16384,), data=A.data)
                     T.tvm_thread_allreduce(
@@ -278,7 +361,7 @@ def test_multi_warp_reduce2():
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
-                T.reinterpret("handle", T.uint64(0)),
+                T.int32(0),
             ):
                 A_1 = T.decl_buffer((1024,), data=A.data)
                 T.tvm_thread_allreduce(
@@ -310,7 +393,7 @@ def test_multi_group_multi_warp_reduction():
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
-                T.reinterpret("handle", T.uint64(0)),
+                T.int32(0),
             ):
                 A_1 = T.decl_buffer((512,), data=A.data)
                 T.tvm_thread_allreduce(
@@ -352,7 +435,7 @@ def test_multi_group_multi_warp_predicated_reduction():
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
-                T.reinterpret("handle", T.uint64(0)),
+                T.int32(0),
             ):
                 T.tvm_thread_allreduce(
                     T.uint32(1), in_thread_B_1[0], T.bool(True), cross_thread_B_1[0], threadIdx_x
@@ -396,7 +479,7 @@ def test_metal_no_mask():
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
-                T.reinterpret("handle", T.uint64(0)),
+                T.int32(0),
             ):
                 A_1 = T.decl_buffer((256,), data=A.data)
                 T.tvm_thread_allreduce(
@@ -443,24 +526,26 @@ def test_webgpu_warp_reduce():
 
                 reduce_data = T.alloc_buffer((1,), "float32", scope="local")
                 reduce = T.decl_buffer(1, data=reduce_data.data, scope="local")
+                reduce_alias = T.decl_buffer(1, data=reduce.data, scope="local")
 
                 with T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret("handle", T.uint64(0)),
+                    T.int32(0),
                 ):
                     T.tvm_thread_allreduce(
                         T.uint32(1),
                         A_flat[0],
                         T.bool(True),
-                        reduce[0],
+                        reduce_alias[0],
                         threadIdx_x,
                     )
                 if threadIdx_x == 0:
-                    B[i] = reduce[0]
+                    B[i] = reduce_alias[0]
 
     After = transform(Before)
     assert After is not None
+    assert tvm.tirx.analysis.verify_well_formed(After)
     After_script = After.script()
     assert "tvm_warp_shuffle_down" in After_script
     assert "tvm_warp_shuffle(" in After_script
@@ -496,7 +581,7 @@ def test_webgpu_multi_warp_reduce():
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
-                T.reinterpret("handle", T.uint64(0)),
+                T.int32(0),
             ):
                 A_1 = T.decl_buffer((256,), data=A.data)
                 T.tvm_thread_allreduce(

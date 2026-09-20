@@ -96,6 +96,22 @@ def test_if_likely():
     assert not isinstance(body.body.body.then_case, tvm.tirx.IfThenElse)
 
 
+def test_loop_body_knows_dynamic_extent_is_positive():
+    @T.prim_func(private=True, s_tir=True)
+    def before(A: T.Buffer((1,), "float32"), m: T.int32, n: T.int32):
+        for i in T.serial(m, n // 4):
+            if n // 4 - m > 0:
+                A[0] = 1.0
+
+    @T.prim_func(private=True, s_tir=True)
+    def expected(A: T.Buffer((1,), "float32"), m: T.int32, n: T.int32):
+        for i in T.serial(m, n // 4):
+            A[0] = 1.0
+
+    after = tvm.tirx.transform.StmtSimplify()(tvm.IRModule.from_expr(before))["main"]
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 def _apply_simplify(
     func,
     transitively_prove_inequalities=False,
@@ -694,7 +710,7 @@ def test_remove_transitively_provable_condition():
         (tvm.tirx.all(i < j + 5, j < k + 7), i < k + 10, False),
     ]
 
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
 
     for priors, postulate, provable in test_cases:
         # well formed checker complains of undefined variables in condition
@@ -1220,7 +1236,7 @@ def test_simplify_trivial_let_stride():
 def test_simplify_buffer_identity_well_formed():
     """Regression: Simplify must not diverge buffer identity between DeclBuffer and BufferLoad.
 
-    The simplifier's VisitExpr calls analyzer_->Simplify() directly, bypassing
+    The simplifier's Dispatch calls analyzer_->Simplify() directly, bypassing
     normal ExprMutator dispatch.  If VisitBufferDef remaps a buffer at a DeclBuffer
     site (e.g. inlining n_val -> n in the shape), BufferLoad inside a BufferStore
     value would NOT pick up the remap because VisitBufferUse is never called.

@@ -32,11 +32,11 @@ class UpdateCostModelNode : public MeasureCallbackNode {
              const ffi::Array<RunnerResult>& runner_results) final {
     auto _ = Profiler::TimedScope("MeasureCallback/UpdateCostModel");
     const TaskRecord& task = task_scheduler->tasks_[task_id];
-    if (!task_scheduler->cost_model_.defined()) {
+    if (!task_scheduler->cost_model_.has_value()) {
       return;
     }
     CostModel cost_model = task_scheduler->cost_model_.value();
-    TVM_FFI_ICHECK(task->measure_candidates.defined())
+    TVM_FFI_ICHECK(task->measure_candidates.has_value())
         << "Task's measure candidates must be present!";
     TVM_FFI_ICHECK_EQ(measure_candidates.size(), builder_results.size());
     TVM_FFI_ICHECK_EQ(runner_results.size(), builder_results.size());
@@ -48,7 +48,7 @@ class UpdateCostModelNode : public MeasureCallbackNode {
     for (int i = 0; i < n; i++) {
       if (!builder_results[i]->error_msg.has_value() &&  //
           (runner_results[i]->error_msg.has_value() ||   //
-           (runner_results[i]->run_secs.defined() &&
+           (runner_results[i]->run_secs.has_value() &&
             Sum(runner_results[i]->run_secs.value()) > 0))) {
         pruned_candidate.push_back(measure_candidates[i]);
         pruned_runner_result.push_back(runner_results[i]);

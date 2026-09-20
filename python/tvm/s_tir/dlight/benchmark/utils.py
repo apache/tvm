@@ -24,6 +24,12 @@ from tvm import relax
 INPUT_SHAPE_TYPE = list[tuple[tuple[int, ...], str]]  # pylint: disable=invalid-name
 
 
+def _dtype_str(dtype) -> str:
+    if isinstance(dtype, tvm.ir.PrimType):
+        dtype = dtype.dtype
+    return str(dtype)
+
+
 def get_func_name_from_gv(gv: tvm.ir.GlobalVar) -> str:  # pylint: disable=invalid-name
     """Get function name from a global variable.
 
@@ -40,12 +46,12 @@ def get_func_name_from_gv(gv: tvm.ir.GlobalVar) -> str:  # pylint: disable=inval
     return gv.name_hint
 
 
-def dym_var_sample_str(sample: dict[str | tvm.relax.expr.Call, int]) -> str:
+def dym_var_sample_str(sample: dict[str | tvm.ir.Call, int]) -> str:
     """Convert a variable value sample to a string.
 
     Parameters
     ----------
-    sample : Dict[Union[str, tvm.relax.expr.Call], int]
+    sample : Dict[Union[str, tvm.ir.Call], int]
         Variable value sample, e.g., {n: 64, m: 128} or {"n": 64, "m": 128}
 
     Returns
@@ -57,7 +63,7 @@ def dym_var_sample_str(sample: dict[str | tvm.relax.expr.Call, int]) -> str:
 
 
 def populuate_input_shape(
-    input_infos: list[relax.TensorStructInfo | tuple[tuple[int | str, ...], str]],
+    input_infos: list[relax.TensorType | tuple[tuple[int | str, ...], str]],
     dym_var_sample: dict[str, int],
 ) -> INPUT_SHAPE_TYPE:
     """
@@ -65,7 +71,7 @@ def populuate_input_shape(
 
     Parameters
     ----------
-    input_infos : List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str], ...], str]]]
+    input_infos : List[Union[relax.TensorType, Tuple[Tuple[Union[int, str], ...], str]]]
         Input tensor information, including shape and dtype,
         e.g., [..., Shape(1, n, 128) with dtype="int32", ...]
     dym_var_sample : Dict[str, int]
@@ -81,11 +87,13 @@ def populuate_input_shape(
     results: INPUT_SHAPE_TYPE = []
     for input_info in input_infos:
         shape = []
-        if isinstance(input_info, relax.struct_info.ShapeStructInfo):
+        if isinstance(input_info, relax.ShapeType):
             # scalar input
-            results.append(((dym_var_sample[str(input_info.values[0])],), "scalar"))
+            value = input_info.values[0]
+            key = value.name if isinstance(value, tvm.ir.Var) else str(value)
+            results.append(((dym_var_sample[key],), "scalar"))
         else:
-            if isinstance(input_info, relax.TensorStructInfo):
+            if isinstance(input_info, relax.TensorType):
                 tensor_shape = input_info.shape
                 tensor_dtype = input_info.dtype
             else:
@@ -96,8 +104,9 @@ def populuate_input_shape(
                 elif isinstance(dim, tvm.tirx.IntImm):
                     shape.append(dim.value)
                 else:
-                    shape.append(dym_var_sample[str(dim)])
-            results.append(((*shape,), tensor_dtype))
+                    key = dim.name if isinstance(dim, tvm.ir.Var) else str(dim)
+                    shape.append(dym_var_sample[key])
+            results.append(((*shape,), _dtype_str(tensor_dtype)))
     return results
 
 

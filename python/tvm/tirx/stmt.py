@@ -29,21 +29,17 @@ Each statement node have subfields that can be visited from python side.
 
 from collections.abc import Mapping
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import Op, PrimExpr, Range, Span
-from tvm.runtime import Object, Scriptable, const
-from tvm.tirx import FloatImm
+from tvm.ir import Expr, Range, Span, StringImm, TensorRegion, Type
+from tvm.runtime import Object, Scriptable
 
 from . import _ffi_api
 from .buffer import Buffer
-from .exec_scope import ExecScope, ScopeIdDef
-from .expr import IterVar, StringImm, Var
-
-if TYPE_CHECKING:
-    from tvm.tirx.operator.tile_primitive.dispatch_context import DispatchContext
+from .exec_scope import ScopeIdDef
+from .expr import IterVar, Var
 
 
 @tvm_ffi.register_object("tirx.Stmt")
@@ -66,7 +62,7 @@ def _normalize_legacy_stmt(stmt: Stmt | None) -> Stmt | None:
     cur = stmt
     while True:
         if isinstance(cur, DeclBuffer) and hasattr(cur, "body"):
-            prefix.append(DeclBuffer(cur.buffer, cur.span))
+            prefix.append(DeclBuffer(cur.buffer, data=cur.data, span=cur.span))
             cur = cur.body
             continue
         if isinstance(cur, AllocBuffer) and hasattr(cur, "body"):
@@ -100,7 +96,7 @@ class Bind(Stmt):
     var : Var
         The variable in the binding.
 
-    value : PrimExpr
+    value : Expr
         The value to be bound.
 
     span : Optional[Span]
@@ -108,10 +104,10 @@ class Bind(Stmt):
     """
 
     var: Var
-    value: PrimExpr
+    value: Expr
     span: Span | None
 
-    def __init__(self, var: Var, value: PrimExpr, span: Span | None = None) -> None:
+    def __init__(self, var: Var, value: Expr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.Bind,
             var,
@@ -129,7 +125,7 @@ class AssertStmt(Stmt):
     kind : StringImm
         The error kind, e.g. "RuntimeError", "TypeError", "ValueError".
 
-    condition : PrimExpr
+    condition : Expr
         The assert condition.
 
     message_parts : list[StringImm]
@@ -140,14 +136,14 @@ class AssertStmt(Stmt):
     """
 
     kind: StringImm
-    condition: PrimExpr
+    condition: Expr
     message_parts: list
     span: Span | None
 
     def __init__(
         self,
         kind: StringImm,
-        condition: PrimExpr,
+        condition: Expr,
         message_parts: list | None = None,
         span: Span | None = None,
     ) -> None:
@@ -187,10 +183,10 @@ class For(Stmt):
     loop_var : Var
         The loop variable.
 
-    min : PrimExpr
+    min : Expr
         The beginning value.
 
-    extent : PrimExpr
+    extent : Expr
         The length of the loop.
 
     kind : ForKind
@@ -203,7 +199,7 @@ class For(Stmt):
         The thread this loop binds to. Only valid
         if kind is ThreadBinding
 
-    step : PrimExpr
+    step : Expr
         The loop step. Default to none which
         represent one.
 
@@ -215,25 +211,25 @@ class For(Stmt):
     """
 
     loop_var: Var
-    min: PrimExpr
-    extent: PrimExpr
+    min: Expr
+    extent: Expr
     kind: ForKind
     body: Stmt
     thread_binding: IterVar | None
     annotations: Mapping[str, Object]
-    step: PrimExpr | None
+    step: Expr | None
     span: Span | None
 
     def __init__(
         self,
         loop_var: Var,
-        min: PrimExpr,  # pylint: disable=redefined-builtin
-        extent: PrimExpr,
+        min: Expr,  # pylint: disable=redefined-builtin
+        extent: Expr,
         kind: ForKind,
         body: Stmt,
         thread_binding: IterVar | None = None,
         annotations: Mapping[str, Object] | None = None,
-        step: PrimExpr | None = None,
+        step: Expr | None = None,
         span: Span | None = None,
     ) -> None:
         body = _normalize_legacy_stmt(body)
@@ -257,7 +253,7 @@ class While(Stmt):
 
     Parameters
     ----------
-    condition : PrimExpr
+    condition : Expr
         The termination condition.
 
     body : Stmt
@@ -267,11 +263,11 @@ class While(Stmt):
         The location of the stmt in the source code.
     """
 
-    condition: PrimExpr
+    condition: Expr
     body: Stmt
     span: Span | None
 
-    def __init__(self, condition: PrimExpr, body: Stmt, span: Span | None = None) -> None:
+    def __init__(self, condition: Expr, body: Stmt, span: Span | None = None) -> None:
         body = _normalize_legacy_stmt(body)
         self.__init_handle_by_constructor__(_ffi_api.While, condition, body, span)  # type: ignore
 
@@ -285,33 +281,26 @@ class BufferStore(Stmt):
     buffer : Buffer
         The buffer.
 
-    value : PrimExpr
+    value : Expr
         The value we to be stored.
 
-    indices : List[PrimExpr]
+    indices : List[Expr]
         The indices location to be stored.
-
-    predicate : Optional[PrimExpr]
-        A vector mask of boolean values indicating which lanes of a vector are to be
-        stored. The number lanes of the mask must be equal to the number of lanes in
-        value.
 
     span : Optional[Span]
         The location of the stmt in the source code.
     """
 
     buffer: Buffer
-    value: PrimExpr
-    indices: list[PrimExpr]
-    predicate: PrimExpr | None
+    value: Expr
+    indices: list[Expr]
     span: Span | None
 
     def __init__(
         self,
         buffer: Buffer,
-        value: PrimExpr,
-        indices: list[PrimExpr],
-        predicate: PrimExpr | None = None,
+        value: Expr,
+        indices: list[Expr],
         span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
@@ -319,7 +308,6 @@ class BufferStore(Stmt):
             buffer,
             value,
             indices,
-            predicate,
             span,  # type: ignore
         )
 
@@ -430,15 +418,20 @@ class DeclBuffer(Stmt):
     buffer: Buffer
         The buffer being declared.
 
+    data: Expr
+        The physical data expression bound to the buffer view.
+
     span: Optional[Span]
         The location of this DeclBuffer in the source code.
     """
 
     buffer: Buffer
+    data: Expr
     span: Span | None
 
     def __init__(self, buffer: Buffer, *args, **kwargs) -> None:
         body: Stmt | None = None
+        data: Expr | None = kwargs.pop("data", None)
         span: Span | None = None
 
         if len(args) == 1:
@@ -479,7 +472,9 @@ class DeclBuffer(Stmt):
                     raise TypeError("DeclBuffer span specified by both args and kwargs")
                 span = kw_span if kw_span is not None else span
 
-        self.__init_handle_by_constructor__(_ffi_api.DeclBuffer, buffer, span)
+        if data is None:
+            raise TypeError("DeclBuffer requires a physical data binding")
+        self.__init_handle_by_constructor__(_ffi_api.DeclBuffer, buffer, data, span)
         # Legacy compatibility. Body is carried on python side only.
         if body is not None:
             self.body = body
@@ -491,13 +486,13 @@ class AttrStmt(Stmt):
 
     Parameters
     ----------
-    node : Object
+    node : Any
         The node to annotate the attribute
 
     attr_key : str
         Attribute type key.
 
-    value : PrimExpr
+    value : Expr
         The value of the attribute
 
     body : Stmt
@@ -507,14 +502,14 @@ class AttrStmt(Stmt):
         The location of the stmt in the source code.
     """
 
-    node: Object
+    node: Any
     attr_key: str
-    value: PrimExpr
+    value: Expr
     body: Stmt
     span: Span | None
 
     def __init__(
-        self, node: Object, attr_key: str, value: PrimExpr, body: Stmt, span: Span | None = None
+        self, node: Any, attr_key: str, value: Expr, body: Stmt, span: Span | None = None
     ) -> None:
         body = _normalize_legacy_stmt(body)
         self.__init_handle_by_constructor__(
@@ -560,7 +555,7 @@ class IfThenElse(Stmt):
 
     Parameters
     ----------
-    condition : PrimExpr
+    condition : Expr
         The expression
 
     then_case : Stmt
@@ -573,12 +568,12 @@ class IfThenElse(Stmt):
         The location of the stmt in the source code.
     """
 
-    condition: PrimExpr
+    condition: Expr
     then_case: Stmt
     else_case: Stmt | None
 
     def __init__(
-        self, condition: PrimExpr, then_case: Stmt, else_case: Stmt | None, span: Span | None = None
+        self, condition: Expr, then_case: Stmt, else_case: Stmt | None, span: Span | None = None
     ) -> None:
         then_case = _normalize_legacy_stmt(then_case)
         else_case = _normalize_legacy_stmt(else_case)
@@ -597,222 +592,40 @@ class Evaluate(Stmt):
 
     Parameters
     ----------
-    value : PrimExpr
+    value : Expr
         The expression to be evaluated.
 
     span : Optional[Span]
         The location of the stmt in the source code.
     """
 
-    value: PrimExpr
+    value: Expr
     span: Span | None
 
-    def __init__(self, value: PrimExpr, span: Span | None = None) -> None:
+    def __init__(self, value: Expr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Evaluate, value, span)  # type: ignore
 
 
-@tvm_ffi.register_object("tirx.BufferRegion")
-class BufferRegion(Object, Scriptable):
-    """BufferRegion node.
+@tvm_ffi.register_object("tirx.BufferRegionType")
+class BufferRegionType(Type):
+    """The TIRX subscript type of a buffer-backed :class:`tvm.ir.TensorRegion`."""
+
+    def __init__(self) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.BufferRegionType)  # type: ignore
+
+
+def BufferRegion(buffer: Buffer, region: list[Range]) -> TensorRegion:
+    """Construct a buffer-backed tensor region with TIRX subscript semantics.
 
     Parameters
     ----------
     buffer : Buffer
-        The buffer of the buffer region
+        The source buffer.
 
     region : List[Range]
-        The region array of the buffer region
+        The ranges, with one entry for each buffer dimension.
     """
-
-    buffer: Buffer
-    region: list[Range]
-
-    def __init__(self, buffer: Buffer, region: list[Range]) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.BufferRegion, buffer, region)  # type: ignore
-
-    def __getitem__(self, indices):
-        from ..arith import Analyzer
-
-        if not isinstance(indices, tuple | list):
-            indices = [indices]
-
-        has_step = any(
-            isinstance(i, slice) and (i.step is not None and i.step != 1) for i in indices
-        )
-        if has_step:
-            raise ValueError("BufferRegion slicing does not support steps")
-
-        analyzer = Analyzer()
-        new_region = []
-        for i, index in enumerate(indices):
-            old_range = self.region[i]
-            if isinstance(index, slice):
-                start = 0 if index.start is None else index.start
-                stop = old_range.extent if index.stop is None else index.stop
-                new_min = old_range.min + start
-                new_extent = analyzer.simplify(stop - start)
-                new_region.append(Range.from_min_extent(new_min, new_extent))
-            else:
-                new_min = old_range.min + index
-                new_region.append(
-                    Range.from_min_extent(
-                        new_min, const(1, index.dtype) if isinstance(index, PrimExpr) else 1
-                    )
-                )
-        # Fill remaining dimensions with their original ranges
-        for i in range(len(indices), len(self.region)):
-            new_region.append(self.region[i])
-        return BufferRegion(self.buffer, new_region)
-
-
-@tvm_ffi.register_object("tirx.MatchBufferRegion")
-class MatchBufferRegion(Object, Scriptable):
-    """MatchBufferRegion node.
-
-    Parameters
-    ----------
-    buffer : Buffer
-        The target buffer
-
-    source : BufferRegion
-        The region of source buffer
-    """
-
-    buffer: Buffer
-    source: BufferRegion
-
-    def __init__(self, buffer: Buffer, source: BufferRegion) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.MatchBufferRegion,
-            buffer,
-            source,  # type: ignore
-        )
-
-
-@tvm_ffi.register_object("tirx.SBlock")
-class SBlock(Stmt):
-    """SBlock node.
-
-    Parameters
-    ----------
-    iter_vars : List[IterVar]
-        The block Variable.
-
-    reads : List[BufferRegion]
-        The read buffer regions of the block.
-
-    writes: List[BufferRegion]
-        The write buffer regions of the block.
-
-    name_hint: str
-        the name_hint of the block.
-
-    body: Stmt
-        The body of the block.
-
-    init: Optional[Stmt]
-        The init block of the reduction block
-
-    alloc_buffers: Optional[list[Buffer]]
-        The buffer allocations
-
-    match_buffers: Optional[List[MatchBufferRegion]]
-        The subregion buffer match
-
-    annotations: Optional[Mapping[str, Object]]
-        Additional annotation hints.
-
-    span : Optional[Span]
-        The location of this block in the source code.
-    """
-
-    iter_vars: list[IterVar]
-    reads: list[BufferRegion]
-    writes: list[BufferRegion]
-    name_hint: str
-    body: Stmt
-    init: Stmt | None
-    alloc_buffers: list[Buffer]
-    match_buffers: list[MatchBufferRegion]
-    annotations: Mapping[str, Object]
-    span: Span | None
-
-    def __init__(
-        self,
-        iter_vars: list[IterVar],
-        reads: list[BufferRegion],
-        writes: list[BufferRegion],
-        name_hint: str,
-        body: Stmt,
-        init: Stmt | None = None,
-        alloc_buffers: list[Buffer] | None = None,
-        match_buffers: list[MatchBufferRegion] | None = None,
-        annotations: Mapping[str, Object] | None = None,
-        span: Span | None = None,
-    ) -> None:
-        if alloc_buffers is None:
-            alloc_buffers = []
-        if match_buffers is None:
-            match_buffers = []
-        if annotations is None:
-            annotations = {}
-        body = _normalize_legacy_stmt(body)
-        init = _normalize_legacy_stmt(init)
-        self.__init_handle_by_constructor__(
-            _ffi_api.SBlock,  # type: ignore
-            iter_vars,
-            reads,
-            writes,
-            name_hint,
-            body,
-            init,
-            alloc_buffers,
-            match_buffers,
-            annotations,
-            span,
-        )  # type: ignore
-
-
-@tvm_ffi.register_object("tirx.SBlockRealize")
-class SBlockRealize(Stmt):
-    """SBlockRealize node.
-
-    Parameters
-    ----------
-    iter_values : List[PrimExpr]
-        The binding values of the block var.
-
-    predicate : Union[PrimExpr, bool]
-        The predicate of the block.
-
-    block : SBlock
-        The block to realize
-
-    span : Optional[Span]
-        The location of this block_realize in the source code.
-    """
-
-    iter_values: list[PrimExpr]
-    predicate: PrimExpr
-    block: SBlock
-    span: Span | None
-
-    def __init__(
-        self,
-        iter_values: list[PrimExpr],
-        predicate: PrimExpr | bool,
-        block: SBlock,
-        span: Span | None = None,
-    ) -> None:
-        if isinstance(predicate, bool):
-            predicate = const(predicate, "bool")
-        self.__init_handle_by_constructor__(
-            _ffi_api.SBlockRealize,  # type: ignore
-            iter_values,
-            predicate,
-            block,
-            span,
-        )  # type: ignore
+    return _ffi_api.BufferRegion(buffer, region)
 
 
 @tvm_ffi.register_object("tirx.ScopeIdDefStmt")
@@ -860,6 +673,26 @@ class Break(Stmt):
         self.__init_handle_by_constructor__(_ffi_api.Break, span)  # type: ignore
 
 
+@tvm_ffi.register_object("tirx.Return")
+class Return(Stmt):
+    """Return node.
+
+    Parameters
+    ----------
+    value : Expr
+        The value to return.
+
+    span : Optional[Span]
+        The location of this statement in the source code.
+    """
+
+    value: Expr
+    span: Span | None
+
+    def __init__(self, value: Expr, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.Return, value, span)  # type: ignore
+
+
 @tvm_ffi.register_object("tirx.Continue")
 class Continue(Stmt):
     """Continue node.
@@ -872,12 +705,12 @@ class Continue(Stmt):
         self.__init_handle_by_constructor__(_ffi_api.Continue, span)  # type: ignore
 
 
-def stmt_seq(*args: PrimExpr | Stmt) -> SeqStmt:
+def stmt_seq(*args: Expr | Stmt) -> SeqStmt:
     """Make sequence of statements
 
     Parameters
     ----------
-    *args : Union[PrimExpr, Stmt]
+    *args : Union[Expr, Stmt]
         List of statements to be combined as sequence.
 
     Returns
@@ -916,178 +749,7 @@ def stmt_list(stmt: Stmt) -> list[Stmt]:
     return [stmt]
 
 
-def normalize_const_arg(arg) -> PrimExpr:
-    if isinstance(arg, float):
-        return FloatImm("float32", arg)
-    return arg
-
-
-@tvm_ffi.register_object("tirx.TilePrimitiveCall")
-class TilePrimitiveCall(Stmt):
-    """TilePrimitiveCall node.
-
-    Parameters
-    ----------
-    op : Op
-        The operator.
-
-    args : List[PrimExpr]
-        The arguments.
-
-    workspace : Map[str, Buffer]
-        The workspace.
-
-    config : Map[str, ObjectRef]
-        The scheduler/config dictionary.
-
-    dispatch : Optional[str]
-        The explicit variant name to dispatch to.
-
-    scope : ExecScope
-        The cooperation scope of this call. Defaults to ``thread`` (an unscoped call).
-    """
-
-    args: list[PrimExpr]
-    workspace: dict[str, Buffer]
-    config: dict[str, Any]
-    dispatch: str | None
-    scope: ExecScope
-    _registry: ClassVar[dict[Op, type["TilePrimitiveCall"]]] = {}
-
-    def __init__(
-        self,
-        *args: list[PrimExpr],
-        op: Op | None = None,
-        workspace: dict[str, Buffer] | None = None,
-        config: dict[str, Any] | None = None,
-        dispatch: str | None = None,
-        scope: ExecScope | None = None,
-    ) -> None:
-        if workspace is None:
-            workspace = {}
-        if config is None:
-            config = {}
-        if scope is None:
-            scope = ExecScope("thread")
-        if op is None:
-            assert self.__class__ != TilePrimitiveCall, (
-                "Directly instantiating TilePrimitiveCall needs to specify the op"
-            )
-            op = self.__class__.op
-        args = list(map(normalize_const_arg, args))
-        self.__init_handle_by_constructor__(
-            _ffi_api.TilePrimitiveCall,
-            op,
-            args,
-            workspace,
-            config,
-            dispatch,
-            scope,  # pylint: disable=no-member
-        )
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        if hasattr(cls, "op"):
-            cls._registry[cls.op] = cls
-
-    @classmethod
-    def downcast(cls, instance: "TilePrimitiveCall") -> "TilePrimitiveCall":
-        subclass = cls._registry.get(instance.op)
-        if subclass is None:
-            return instance  # Unknown op: return as-is
-        new_instance = subclass.__new__(subclass)
-        new_instance.__init_handle_by_constructor__(
-            _ffi_api.TilePrimitiveCallCopyHandle,
-            instance,  # pylint: disable=no-member
-        )
-        return new_instance
-
-    def replace(self, **changes: Any) -> "TilePrimitiveCall":
-        """Return a copy of this call with selected fields replaced.
-
-        Every field that is not overridden in ``changes`` is preserved from
-        ``self`` (including ``scope``), so rebuilds never silently drop fields.
-        The returned node is downcast to the registered subclass for ``op``.
-
-        Parameters
-        ----------
-        **changes : Any
-            Field overrides; any of ``op``, ``args``, ``workspace``, ``config``,
-            ``dispatch``, ``scope``.
-
-        Returns
-        -------
-        new_call : TilePrimitiveCall
-            A new call with the requested fields replaced.
-        """
-        unknown = set(changes) - {"op", "args", "workspace", "config", "dispatch", "scope"}
-        if unknown:
-            raise TypeError(f"Unknown field(s) for TilePrimitiveCall.replace: {sorted(unknown)}")
-        new_call = TilePrimitiveCall(
-            *changes.get("args", self.args),
-            op=changes.get("op", self.op),
-            workspace=changes.get("workspace", self.workspace),
-            config=changes.get("config", self.config),
-            dispatch=changes.get("dispatch", self.dispatch),
-            scope=changes.get("scope", self.scope),
-        )
-        return TilePrimitiveCall.downcast(new_call)
-
-    def with_workspace(self, workspace: dict[str, Buffer]) -> "TilePrimitiveCall":
-        """Return a copy with ``workspace`` replaced, preserving all other fields."""
-        return self.replace(workspace=workspace)
-
-    @property
-    def srcs(self) -> list[PrimExpr]:
-        raise NotImplementedError("Subclass must implement this method")
-
-    @property
-    def dsts(self) -> list[PrimExpr]:
-        raise NotImplementedError("Subclass must implement this method")
-
-    def get_private_buffers(
-        self, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: "DispatchContext"
-    ) -> dict[str, Any]:
-        """
-        Create private (intermediate) buffers needed in this operator.
-
-        Parameters
-        ----------
-        buffer_dict: Dict[Any, Tuple[Buffer, Optional[Stmt]]]
-            A dictionary containing private buffers (and their init stmts) in other operators.
-            Key can be anything to reference the buffer.
-            This is used to reuse private buffers in other operators (like identity tensor etc.).
-            If the buffer is not found in the buffer_dict, it will be created and added to
-            the buffer_dict.
-            If the buffer is found in the buffer_dict but smaller than required, it will be
-            enlarged and updated.
-
-        sctx: DispatchContext
-            The dispatch context.
-            This is used to get the target and reuse op dispatch implementations.
-
-        Returns:
-            private_buffer_refs: Dict[str, Any]
-            The references to private buffers created in this operator.
-            Key will be the name to add into workspace.
-            private buffer can be accessed by buffer_dict[private_buffer_refs[name]]
-        """
-        if sctx.target.kind.name == "trn":
-            return self.get_private_buffers_trn(buffer_dict, sctx)
-        elif sctx.target.kind.name == "cuda":
-            return self.get_private_buffers_cuda(buffer_dict, sctx)
-        else:
-            raise ValueError(f"Unsupported target: {sctx.target.kind.name}")
-
-    def get_private_buffers_trn(
-        self, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: "DispatchContext"
-    ) -> dict[str, Any]:
-        return {}
-
-    def get_private_buffers_cuda(
-        self, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: "DispatchContext"
-    ) -> dict[str, Any]:
-        return {}
-
-    def validate(self) -> None:
-        pass
+# Source-compatibility re-export: TilePrimitiveCall lives in tile_primitive.py
+# after the tile-primitive module merge. Imported last to avoid a cycle with
+# tile_primitive's own ``from .stmt import Stmt``.
+from .tile_primitive import TilePrimitiveCall  # noqa: E402,F401  isort: skip

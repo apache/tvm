@@ -63,11 +63,29 @@ def test_rewrite_Select():
             )
 
     aa = tvm.s_tir.transform.RewriteUnsafeSelect()(ModuleA)["main"].body.seq[-1].value
-    builtin_if_then_else = tvm.ir.Op.get("tirx.if_then_else")
+    builtin_if_then_else = tvm.ir.Op.get("prim.if_then_else")
 
     assert yy.op.same_as(builtin_if_then_else)
     assert yy.op.same_as(builtin_if_then_else)
     assert isinstance(aa, tvm.tirx.Select)
+
+
+def test_scalar_address_survives_generic_transforms():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(value: T.uint32, condition: T.bool):
+            T.evaluate(T.Select(condition, T.isnullptr(T.address_of(value)), T.bool(False)))
+
+    transforms = [
+        tvm.s_tir.transform.RewriteUnsafeSelect(),
+        tvm.s_tir.transform.ThreadSync("shared"),
+        tvm.s_tir.transform.MergeSharedMemoryAllocations(),
+        tvm.tirx.transform.StorageRewrite(),
+    ]
+    for transform in transforms:
+        transformed = transform(Before)
+        assert transformed["main"] is not None
 
 
 if __name__ == "__main__":

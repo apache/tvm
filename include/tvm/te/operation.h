@@ -24,21 +24,120 @@
 #ifndef TVM_TE_OPERATION_H_
 #define TVM_TE_OPERATION_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/cow.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tirx/buffer.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace tvm {
 /*! \brief Tensor expression language DSL. */
 namespace te {
+
+// Reduce operator
+/*!
+ * \brief A commutative reducer node to represent a commutative
+ *  binary operator with identity element
+ */
+class CommReducerNode : public ffi::Object {
+ public:
+  /*! \brief The left argument of reducer */
+  ffi::Array<PrimVar> lhs;
+  /*! \brief The right argument of reducer */
+  ffi::Array<PrimVar> rhs;
+  /*! \brief The result of reducer */
+  ffi::Array<PrimExpr> result;
+  /*!
+   * \brief The identity element of reducer, which leaves other
+   *  elements unchanged when combined with it, with respect to
+   *  the binary operation of this reducer uses.
+   */
+  ffi::Array<PrimExpr> identity_element;
+  /*! \brief Function call operator to combine a and b */
+  ffi::Array<PrimExpr> operator()(ffi::Array<PrimExpr> a, ffi::Array<PrimExpr> b) const;
+  /*!
+   * \brief Span that points to the original source code.
+   *        Reserved debug information.
+   */
+  mutable Span span;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<CommReducerNode>()
+        .def_ro("lhs", &CommReducerNode::lhs, refl::AttachFieldFlag::SEqHashDefPattern())
+        .def_ro("rhs", &CommReducerNode::rhs, refl::AttachFieldFlag::SEqHashDefPattern())
+        .def_ro("result", &CommReducerNode::result)
+        .def_ro("identity_element", &CommReducerNode::identity_element)
+        .def_ro("span", &CommReducerNode::span, refl::AttachFieldFlag::SEqHashIgnore());
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.CommReducer", CommReducerNode, ffi::Object);
+};
+
+/*!
+ * \brief Managed reference to CommReducerNode
+ * \sa CommReducerNode
+ */
+class CommReducer : public ffi::ObjectRef {
+ public:
+  TVM_DLL CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs, ffi::Array<PrimExpr> result,
+                      ffi::Array<PrimExpr> identity_element, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CommReducer, ffi::ObjectRef, CommReducerNode);
+};
+
+/*! \brief Reduction operator */
+class ReduceNode : public OpaqueExprNode {
+ public:
+  /*! \brief The commutative combiner */
+  CommReducer combiner;
+  /*! \brief The source operand */
+  ffi::Array<PrimExpr> source;
+  /*! \brief The init operand */
+  ffi::Array<PrimExpr> init;
+  /*! \brief The reduction axis */
+  ffi::Array<tirx::IterVar> axis;
+  /*!
+   * \brief Predicate on the reduction
+   *  Only add the body to reduction if condition is true.
+   */
+  PrimExpr condition;
+  /*! \brief the index of this reduce node */
+  int value_index;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ReduceNode>()
+        .def_ro("combiner", &ReduceNode::combiner)
+        .def_ro("source", &ReduceNode::source)
+        .def_ro("init", &ReduceNode::init)
+        .def_ro("axis", &ReduceNode::axis)
+        .def_ro("condition", &ReduceNode::condition)
+        .def_ro("value_index", &ReduceNode::value_index);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.Reduce", ReduceNode, OpaqueExprNode);
+};
+
+/*!
+ * \brief Managed reference to ReduceNode
+ * \sa ReduceNode
+ */
+class Reduce : public PrimExpr {
+ public:
+  TVM_DLL Reduce(CommReducer combiner, ffi::Array<PrimExpr> src, ffi::Array<tirx::IterVar> rdom,
+                 PrimExpr condition, int value_index, ffi::Array<PrimExpr> init,
+                 Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Reduce, PrimExpr, ReduceNode);
+  static constexpr bool _type_container_is_exact = true;
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ReduceNode);
+};
 
 /*!
  * \brief Temporary data structure to store union
@@ -67,11 +166,11 @@ class TVM_DLL OperationNode : public ffi::Object {
   /*! \return number of outputs */
   virtual int num_outputs() const = 0;
   /*!
-   * \brief Get data type. i-th output tensor.
+   * \brief Get the primitive element type of the i-th output tensor.
    * \param i The output index.
-   * \return type of i-th output.
+   * \return primitive element type of i-th output.
    */
-  virtual DataType output_dtype(size_t i) const = 0;
+  virtual PrimType output_dtype(size_t i) const = 0;
   /*!
    * \brief Get shape of i-th output tensor.
    * \param i The output index.
@@ -101,11 +200,11 @@ class PlaceholderOpNode : public OperationNode {
  public:
   /*! \brief The shape of the input */
   ffi::Array<PrimExpr> shape;
-  /*! \brief The data type of the input. */
-  DataType dtype;
+  /*! \brief The dtype of the input. */
+  PrimType dtype = PrimType::Void();
   // override behavior.
   int num_outputs() const final;
-  DataType output_dtype(size_t i) const final;
+  PrimType output_dtype(size_t i) const final;
   ffi::Array<PrimExpr> output_shape(size_t i) const final;
   ffi::Array<Tensor> InputTensors() const final;
 
@@ -124,7 +223,7 @@ class PlaceholderOpNode : public OperationNode {
  */
 class PlaceholderOp : public Operation {
  public:
-  TVM_DLL PlaceholderOp(std::string name, ffi::Array<PrimExpr> shape, DataType dtype);
+  TVM_DLL PlaceholderOp(std::string name, ffi::Array<PrimExpr> shape, PrimType dtype);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PlaceholderOp, Operation, PlaceholderOpNode);
 };
@@ -162,7 +261,7 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
   ComputeOpNode() {}
   // override functions
   int num_outputs() const final;
-  DataType output_dtype(size_t i) const final;
+  PrimType output_dtype(size_t i) const final;
   ffi::Array<Tensor> InputTensors() const final;
 
   static void RegisterReflection() {
@@ -217,7 +316,7 @@ class ScanOpNode : public OperationNode {
   ScanOpNode() {}
   // override behavior.
   int num_outputs() const final;
-  DataType output_dtype(size_t i) const final;
+  PrimType output_dtype(size_t i) const final;
   ffi::Array<PrimExpr> output_shape(size_t i) const final;
   ffi::Array<Tensor> InputTensors() const final;
 
@@ -256,9 +355,9 @@ class ExternOpNode : public OperationNode {
   /*! \brief The input tensors */
   ffi::Array<Tensor> inputs;
   /*! \brief Symbolic placeholder representation of inputs */
-  ffi::Array<Buffer> input_placeholders;
+  ffi::Array<BufferVar> input_placeholders;
   /*! \brief Symbolic placeholder representation of outputs */
-  ffi::Array<Buffer> output_placeholders;
+  ffi::Array<BufferVar> output_placeholders;
   /*! \brief the statement that generates the computation. */
   Stmt body;
 
@@ -266,7 +365,7 @@ class ExternOpNode : public OperationNode {
   ExternOpNode() {}
   // override functions
   int num_outputs() const final;
-  DataType output_dtype(size_t i) const final;
+  PrimType output_dtype(size_t i) const final;
   ffi::Array<PrimExpr> output_shape(size_t i) const final;
   ffi::Array<Tensor> InputTensors() const final;
 
@@ -288,8 +387,8 @@ class ExternOpNode : public OperationNode {
 class ExternOp : public Operation {
  public:
   TVM_DLL ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
-                   ffi::Array<Tensor> inputs, ffi::Array<Buffer> input_placeholders,
-                   ffi::Array<Buffer> output_placeholders, Stmt body);
+                   ffi::Array<Tensor> inputs, ffi::Array<BufferVar> input_placeholders,
+                   ffi::Array<BufferVar> output_placeholders, Stmt body);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExternOp, Operation, ExternOpNode);
 };
@@ -299,7 +398,7 @@ class ExternOp : public Operation {
  * \param name_hint The name hint for the expression
  * \param t The type of the expression
  */
-TVM_DLL Var var(std::string name_hint, DataType t = DataType::Int(32));
+TVM_DLL PrimVar var(std::string name_hint, PrimType t = PrimType::Int(32));
 
 /*!
  * \brief Create a new IterVar that represents an axis in thread.
@@ -318,10 +417,10 @@ TVM_DLL IterVar thread_axis(Range dom, std::string tag);
 TVM_DLL IterVar reduce_axis(Range dom, std::string name = "rv");
 
 /*! \brief The compute function to specify the input source of a Tensor */
-using FCompute = std::function<PrimExpr(const ffi::Array<Var>& i)>;
+using FCompute = std::function<PrimExpr(const ffi::Array<PrimVar>& i)>;
 
 /*! \brief The compute function to specify the inputs source of Tensors */
-using FBatchCompute = std::function<ffi::Array<PrimExpr>(const ffi::Array<Var>& i)>;
+using FBatchCompute = std::function<ffi::Array<PrimExpr>(const ffi::Array<PrimVar>& i)>;
 
 /*!
  * \brief create a place holder tensor.
@@ -329,7 +428,7 @@ using FBatchCompute = std::function<ffi::Array<PrimExpr>(const ffi::Array<Var>& 
  * \param dtype the data type of the tensor.
  * \param name The name of the Tensor.
  */
-TVM_DLL Tensor placeholder(ffi::Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
+TVM_DLL Tensor placeholder(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                            std::string name = "placeholder");
 
 /*!
@@ -376,28 +475,30 @@ TVM_DLL ffi::Array<Tensor> scan(ffi::Array<Tensor> init, ffi::Array<Tensor> upda
                                 ffi::Map<ffi::String, ffi::Any> attrs = {});
 
 // same as compute, specialized for different fcompute function
-inline Tensor compute(ffi::Array<PrimExpr> shape, std::function<PrimExpr(Var)> f,
+inline Tensor compute(ffi::Array<PrimExpr> shape, std::function<PrimExpr(PrimVar)> f,
                       std::string name = "tensor", std::string tag = "",
                       ffi::Map<ffi::String, ffi::Any> attrs = {}) {
-  FCompute fc = [f](const ffi::Array<Var>& i) { return f(i[0]); };
+  FCompute fc = [f](const ffi::Array<PrimVar>& i) { return f(i[0]); };
   return compute(shape, fc, name, tag, attrs);
 }
-inline Tensor compute(ffi::Array<PrimExpr> shape, std::function<PrimExpr(Var, Var)> f,
+inline Tensor compute(ffi::Array<PrimExpr> shape, std::function<PrimExpr(PrimVar, PrimVar)> f,
                       std::string name = "tensor", std::string tag = "",
                       ffi::Map<ffi::String, ffi::Any> attrs = {}) {
-  FCompute fc = [f](const ffi::Array<Var>& i) { return f(i[0], i[1]); };
+  FCompute fc = [f](const ffi::Array<PrimVar>& i) { return f(i[0], i[1]); };
   return compute(shape, fc, name, tag, attrs);
 }
-inline Tensor compute(ffi::Array<PrimExpr> shape, std::function<PrimExpr(Var, Var, Var)> f,
+inline Tensor compute(ffi::Array<PrimExpr> shape,
+                      std::function<PrimExpr(PrimVar, PrimVar, PrimVar)> f,
                       std::string name = "tensor", std::string tag = "",
                       ffi::Map<ffi::String, ffi::Any> attrs = {}) {
-  FCompute fc = [f](const ffi::Array<Var>& i) { return f(i[0], i[1], i[2]); };
+  FCompute fc = [f](const ffi::Array<PrimVar>& i) { return f(i[0], i[1], i[2]); };
   return compute(shape, fc, name, tag, attrs);
 }
-inline Tensor compute(ffi::Array<PrimExpr> shape, std::function<PrimExpr(Var, Var, Var, Var)> f,
+inline Tensor compute(ffi::Array<PrimExpr> shape,
+                      std::function<PrimExpr(PrimVar, PrimVar, PrimVar, PrimVar)> f,
                       std::string name = "tensor", std::string tag = "",
                       ffi::Map<ffi::String, ffi::Any> attrs = {}) {
-  FCompute fc = [f](const ffi::Array<Var>& i) { return f(i[0], i[1], i[2], i[3]); };
+  FCompute fc = [f](const ffi::Array<PrimVar>& i) { return f(i[0], i[1], i[2], i[3]); };
   return compute(shape, fc, name, tag, attrs);
 }
 
@@ -406,5 +507,12 @@ inline const OperationNode* Operation::operator->() const {
   return static_cast<const OperationNode*>(get());
 }
 }  // namespace te
+
+namespace ffi {
+
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, te::ReduceNode> = true;
+
+}  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_TE_OPERATION_H_

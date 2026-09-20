@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -116,10 +119,29 @@ def test_split_host_device_on_cpu():
                 }
             )
             T.evaluate(n)
-            T.ret(0)
+            return 0
 
     After = tvm.tirx.transform.SplitHostDevice()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_device_kernel_nonzero_return_is_rejected():
+    """A device kernel may only return the zero success code."""
+
+    device_target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm.target.Target(device_target, host="llvm")
+    body = tvm.tirx.AttrStmt(
+        device_target,
+        "target",
+        0,
+        tvm.tirx.Return(tvm.tirx.IntImm("int32", 1)),
+    )
+    func = tvm.tirx.PrimFunc([], body)
+    func = func.with_attr("global_symbol", "main")
+    func = func.with_attr("target", target)
+
+    with pytest.raises(tvm.error.InternalError, match="successful return"):
+        tvm.tirx.transform.SplitHostDevice()(tvm.IRModule({"main": func}))
 
 
 def test_split_host_device_without_func_host_attribute():
@@ -304,13 +326,13 @@ def test_dynamic_launch_thread():
     tvm.ir.assert_structural_equal(expected, after)
 
 
-def test_size_var():
+def test_symbolic_var_parameter():
     @I.ir_module
     class Module:
         @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"target": T.target("cuda")})
-            m = T.int64(is_size_var=True)
+            m = T.int64()
             A = T.match_buffer(var_A, (m,))
             B = T.match_buffer(var_B, (m,))
             T.attr(T.target("cuda"), "target", 0)
@@ -321,7 +343,29 @@ def test_size_var():
 
     after = tvm.tirx.transform.SplitHostDevice()(Module)
     assert len(after["main_kernel"].params) == 3
-    assert isinstance(after["main_kernel"].params[2], tvm.tirx.SizeVar)
+    assert isinstance(after["main_kernel"].params[2], tvm.tirx.Var)
+
+
+def test_buffer_used_only_through_data_projection():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((16,), "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            with T.attr(T.target("cuda"), "target", 0):
+                T.evaluate(T.call_extern("consume", A.data, dtype="int32"))
+
+    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    kernel = after["main_kernel"]
+    declared_buffers = []
+
+    def collect(node):
+        if isinstance(node, tvm.tirx.DeclBuffer):
+            declared_buffers.append(node.buffer)
+
+    tvm_ffi.structural_walk(kernel.body, collect)
+    assert len(declared_buffers) == 1
+    assert not tvm.tirx.analysis.undefined_vars(kernel.body, kernel.params)
 
 
 def test_thread_extent_region_extracted_as_device_kernel():
@@ -360,6 +404,99 @@ def test_thread_extent_region_extracted_as_device_kernel():
 
     After = tvm.tirx.transform.SplitHostDevice()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_cuda_launch_preserves_flag_metadata():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(16, "float32")):
+            T.func_attr(
+                {
+                    "target": T.target("cuda", host="llvm"),
+                    "tirx.kernel_launch_params": [
+                        "threadIdx.x",
+                        "tirx.use_programtic_dependent_launch",
+                    ],
+                }
+            )
+            T.attr(T.target("cuda"), "target", 0)
+            tx = T.launch_thread("threadIdx.x", 16)
+            A[tx] = 0.0
+
+    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    kernel = after["main_kernel"]
+    assert list(kernel.attrs["tirx.kernel_launch_params"]) == [
+        "threadIdx.x",
+        "tirx.use_programtic_dependent_launch",
+    ]
+
+    launch = after["main"].body.value
+    assert isinstance(launch, tvm.ir.Call)
+    # Programmatic launch is flag-only and therefore adds no packed operand.
+    assert len(launch.args) == 3
+    assert int(launch.args[-1]) == 16
+
+
+def test_cuda_required_block_size_coexists_with_launch_bounds():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(4, "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            T.attr(T.target("cuda"), "target", 0)
+            T.attr(0, "tirx.required_block_size", 1)
+            with T.attr(0, "tirx.launch_bounds_min_blocks_per_sm", 1):
+                bx = T.launch_thread("blockIdx.x", 4)
+                tx = T.launch_thread("threadIdx.x", 128)
+                if tx == 0:
+                    A[bx] = 0.0
+
+    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    kernel = after["main_kernel"]
+    assert int(kernel.attrs["tirx.required_block_size"]) == 1
+    assert int(kernel.attrs["tirx.launch_bounds_min_blocks_per_sm"]) == 1
+    assert list(kernel.attrs["tirx.kernel_launch_params"]) == [
+        "blockIdx.x",
+        "threadIdx.x",
+        "tirx.use_required_block_dimension",
+    ]
+
+    launch = after["main"].body.value
+    assert isinstance(launch, tvm.ir.Call)
+    # The required-block flag reaches FunctionInfo metadata but adds no packed operand.
+    assert len(launch.args) == 4
+    assert int(launch.args[-2]) == 4
+    assert int(launch.args[-1]) == 128
+
+
+def test_cuda_launch_preserves_singleton_cluster_dimensions():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            with T.attr(T.target("cuda"), "target", 0):
+                T.launch_thread("blockIdx.x", 4)
+                T.launch_thread("clusterCtaIdx.x", 1)
+                T.launch_thread("clusterCtaIdx.y", 1)
+                T.launch_thread("clusterCtaIdx.z", 1)
+                T.launch_thread("threadIdx.x", 32)
+                A[0] = 0.0
+
+    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    kernel = after["main_kernel"]
+    assert list(kernel.attrs["tirx.kernel_launch_params"]) == [
+        "blockIdx.x",
+        "clusterCtaIdx.x",
+        "clusterCtaIdx.y",
+        "clusterCtaIdx.z",
+        "threadIdx.x",
+    ]
+
+    launch = after["main"].body.value
+    assert isinstance(launch, tvm.ir.Call)
+    assert [int(arg) for arg in launch.args[-5:]] == [4, 1, 1, 1, 32]
 
 
 def test_device_scope_region_extracted_as_device_kernel():

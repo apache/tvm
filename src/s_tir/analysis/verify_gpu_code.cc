@@ -26,21 +26,25 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 class GPUCodeVerifier : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   std::vector<ffi::String> Verify(Stmt stmt, int64_t max_local_memory_per_block,
                                   int64_t max_shared_memory_per_block,
                                   int64_t max_threads_per_block, int64_t max_thread_x,
@@ -58,44 +62,45 @@ class GPUCodeVerifier : public StmtExprVisitor {
     Reset_();
 
     // TODO(jcf94): Add support of detecting CUDA Misaligned Address error
-    this->VisitStmt(stmt);
+    this->Visit(stmt);
 
     return errors_;
   }
 
-  void VisitStmt_(const AllocBufferNode* op) final {
-    StmtVisitor::VisitStmt_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     auto scope = op->buffer.scope();
     runtime::StorageScope storage_scope = runtime::StorageScope::Create(scope);
     int64_t const_size = 1;
     for (const PrimExpr& e : op->buffer->shape) {
       if (auto* imm = e.as<IntImmNode>()) {
-        const_size *= imm->value;
+        const_size = static_cast<int64_t>(const_size * imm->value);
       } else {
         const_size = 0;
         break;
       }
     }
+    PrimType dtype_ty = op->buffer->dtype;
+    TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
+        << "Cannot verify GPU memory usage for scalable vector dtype " << dtype_ty;
     if (storage_scope.rank == runtime::StorageRank::kLocal) {
-      local_memory_per_block_ +=
-          static_cast<size_t>(const_size) * op->buffer->dtype.bytes() * op->buffer->dtype.lanes();
+      local_memory_per_block_ += static_cast<size_t>(const_size) * ElementBytes(dtype_ty);
     } else if (storage_scope.rank == runtime::StorageRank::kShared) {
-      shared_memory_per_block_ +=
-          static_cast<size_t>(const_size) * op->buffer->dtype.bytes() * op->buffer->dtype.lanes();
+      shared_memory_per_block_ += static_cast<size_t>(const_size) * ElementBytes(dtype_ty);
     }
-    if (op->buffer->dtype.is_vector()) {
-      if (static_cast<size_t>(op->buffer->dtype.lanes() * op->buffer->dtype.bytes()) >
-          max_vector_bytes_) {
+    if (dtype_ty.IsFixedLengthVector()) {
+      if (ElementBytes(dtype_ty) > max_vector_bytes_) {
         std::stringstream s;
-        s << "Number of lanes (" << op->buffer->dtype.lanes() << ") times number of bytes ("
-          << op->buffer->dtype.bytes() << ") for dtype " << op->buffer->dtype
+        s << "Number of lanes (" << dtype_ty.lanes() << ") times number of bytes ("
+          << dtype_ty.StorageBytes() << ") for dtype " << dtype_ty
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
     if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       if (nest_level_ == 0) {
         // enter a new kernel, reset statistics
@@ -107,11 +112,11 @@ class GPUCodeVerifier : public StmtExprVisitor {
       const auto* extent = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(extent);
 
-      std::string name = var.get()->name_hint;
+      std::string name = var.get()->name;
       // record the number of threads in a block
       if (name == "threadIdx.x" || name == "threadIdx.y" || name == "threadIdx.z" ||
           name == "vthread") {
-        size_t length = static_cast<size_t>(extent->value);
+        size_t length = extent->value.as<size_t>().value();
         if (!visited_threads_.count(name)) {
           visited_threads_.insert(name);
           thread_per_block_ *= length;
@@ -153,7 +158,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
       }
 
       nest_level_++;
-      StmtVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       nest_level_--;
 
       if (nest_level_ == 0) {
@@ -178,16 +183,17 @@ class GPUCodeVerifier : public StmtExprVisitor {
         }
       }
     } else {
-      StmtVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const ForNode* op) {
-    if (op->loop_var->name_hint == "vthread.s") {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) {
+    if (op->loop_var->name == "vthread.s") {
       const auto* extent = op->extent.as<IntImmNode>();
       TVM_FFI_ICHECK(extent);
 
-      size_t num_vthread = static_cast<size_t>(extent->value);
+      size_t num_vthread = extent->value.as<size_t>().value();
       if (num_vthread > max_vthread_) {
         std::stringstream s;
         s << "Number of vthreads (" << num_vthread << ") is greater than the allowed maximum ("
@@ -196,17 +202,18 @@ class GPUCodeVerifier : public StmtExprVisitor {
       }
     }
 
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
   void CheckBufferIndicesVectorizable(const ffi::Array<PrimExpr> indices) {
     for (const auto index : indices) {
       if (const auto* ramp = index.as<RampNode>()) {
-        if (!is_one(ramp->stride) &&
-            static_cast<size_t>(ramp->dtype.lanes() * ramp->dtype.bytes()) > max_vector_bytes_) {
+        PrimType ramp_ty = ramp->ty.as_or_throw<PrimType>();
+        if (!is_one(ramp->stride) && ramp_ty.IsFixedLengthVector() &&
+            ElementBytes(ramp_ty) > max_vector_bytes_) {
           std::stringstream s;
-          s << "Number of lanes (" << ramp->dtype.lanes() << ") times number of bytes ("
-            << ramp->dtype.bytes() << ") for dtype " << ramp->dtype
+          s << "Number of lanes (" << ramp_ty.lanes() << ") times number of bytes ("
+            << ramp_ty.StorageBytes() << ") for dtype " << ramp_ty
             << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
           errors_.push_back(s.str());
         }
@@ -214,46 +221,48 @@ class GPUCodeVerifier : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const CastNode* op) {
-    if (op->dtype.is_vector()) {
-      if (static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {
+  ffi::Optional<VisitInterrupt> Visit_(const CastNode* op) {
+    PrimType op_ty = op->ty.as_or_throw<PrimType>();
+    if (op_ty.IsFixedLengthVector()) {
+      if (ElementBytes(op_ty) > max_vector_bytes_) {
         std::stringstream s;
-        s << "Number of lanes (" << op->dtype.lanes() << ") times number of bytes ("
-          << op->dtype.bytes() << ") for dtype " << op->dtype
+        s << "Number of lanes (" << op_ty.lanes() << ") times number of bytes ("
+          << op_ty.StorageBytes() << ") for dtype " << op_ty
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
     }
-    ExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitExpr_(const BufferLoadNode* op) {
-    if (op->dtype.is_vector()) {
-      if (static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) {
+    PrimType op_ty = op->ty.as_or_throw<PrimType>();
+    if (op_ty.IsFixedLengthVector()) {
+      if (ElementBytes(op_ty) > max_vector_bytes_) {
         std::stringstream s;
-        s << "Number of lanes (" << op->dtype.lanes() << ") times number of bytes ("
-          << op->dtype.bytes() << ") for dtype " << op->dtype
+        s << "Number of lanes (" << op_ty.lanes() << ") times number of bytes ("
+          << op_ty.StorageBytes() << ") for dtype " << op_ty
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
       CheckBufferIndicesVectorizable(op->indices);
     }
-    ExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const BufferStoreNode* op) {
-    if (op->value->dtype.is_vector()) {
-      if (static_cast<size_t>(op->value->dtype.lanes() * op->value->dtype.bytes()) >
-          max_vector_bytes_) {
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) {
+    PrimType value_ty = op->value.ty();
+    if (value_ty.IsFixedLengthVector()) {
+      if (ElementBytes(value_ty) > max_vector_bytes_) {
         std::stringstream s;
-        s << "Number of lanes (" << op->value->dtype.lanes() << ") times number of bytes ("
-          << op->value->dtype.bytes() << ") for dtype " << op->value->dtype
+        s << "Number of lanes (" << value_ty.lanes() << ") times number of bytes ("
+          << value_ty.StorageBytes() << ") for dtype " << value_ty
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
       CheckBufferIndicesVectorizable(op->indices);
     }
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
  private:
@@ -277,6 +286,8 @@ class GPUCodeVerifier : public StmtExprVisitor {
 
   std::vector<ffi::String> errors_;
 
+  static size_t ElementBytes(const PrimType& ty) { return ty.StorageBytes(); }
+
   void Reset_() {
     local_memory_per_block_ = 0;
     shared_memory_per_block_ = 0;
@@ -288,7 +299,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
 
 std::vector<ffi::String> VerifyGPUCode_(const PrimFunc& func,
                                         ffi::Map<ffi::String, PrimExpr> constraints) {
-  GPUCodeVerifier verifier;
+  auto verifier = ffi::make_object<GPUCodeVerifier>();
 
   int64_t max_local_memory_per_block = INT64_MAX;
   int64_t max_shared_memory_per_block = INT64_MAX;
@@ -303,31 +314,31 @@ std::vector<ffi::String> VerifyGPUCode_(const PrimFunc& func,
   for (auto iter : constraints) {
     const IntImmNode* val = iter.second.as<IntImmNode>();
     if (iter.first == "max_local_memory_per_block") {
-      max_local_memory_per_block = val->value;
+      max_local_memory_per_block = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_shared_memory_per_block") {
-      max_shared_memory_per_block = val->value;
+      max_shared_memory_per_block = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_threads_per_block") {
-      max_threads_per_block = val->value;
+      max_threads_per_block = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_thread_x") {
-      max_thread_x = val->value;
+      max_thread_x = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_thread_y") {
-      max_thread_y = val->value;
+      max_thread_y = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_thread_z") {
-      max_thread_z = val->value;
+      max_thread_z = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_vthread") {
-      max_vthread = val->value;
+      max_vthread = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_vector_bytes") {
-      max_vector_bytes = val->value;
+      max_vector_bytes = static_cast<int64_t>(val->value);
     } else if (iter.first == "max_kernels") {
-      max_kernels = val->value;
+      max_kernels = static_cast<int64_t>(val->value);
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid check item: " << iter.first;
     }
   }
 
-  return verifier.Verify(func->body, max_local_memory_per_block, max_shared_memory_per_block,
-                         max_threads_per_block, max_thread_x, max_thread_y, max_thread_z,
-                         max_vthread, max_vector_bytes, max_kernels);
+  return verifier->Verify(func->body, max_local_memory_per_block, max_shared_memory_per_block,
+                          max_threads_per_block, max_thread_x, max_thread_y, max_thread_z,
+                          max_vthread, max_vector_bytes, max_kernels);
 }
 
 bool VerifyGPUCode(const PrimFunc& func, ffi::Map<ffi::String, PrimExpr> constraints) {

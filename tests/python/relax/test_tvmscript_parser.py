@@ -24,7 +24,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tirx, topi
-from tvm.ir import DummyGlobalInfo, VDevice
+from tvm.relax import DummyGlobalInfo, VDevice
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -262,7 +262,7 @@ def test_emit_te():
             return out
 
     bb = relax.BlockBuilder()
-    x = relax.Var("x", relax.TensorStructInfo([10, 20], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 20], "float32"))
     with bb.function("main", [x], {"global_symbol": "main"}):
         lv1 = bb.emit_te(topi.add, x, x)
         out = bb.emit_te(topi.multiply, lv1, lv1)
@@ -489,8 +489,8 @@ def test_match_cast():
 
     x = relax.Var("x", R.Tensor("float32"))
     y = relax.Var("y", R.Tensor("float32"))
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     y2 = relax.Var("y", R.Tensor([n], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x, y)):
@@ -631,8 +631,8 @@ def test_dataflow_block_advanced():
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     with bb.function("foo", (x,)):
         gv0 = bb.emit(
             relax.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
@@ -832,7 +832,7 @@ def test_direct_return():
 def test_call_packed():
     @R.function(pure=False)
     def foo(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
-        z = R.call_packed("vm.builtin.copy", x, sinfo_args=R.Tensor((32, 32), "float32"))
+        z = R.call_packed("vm.builtin.copy", x, ty_args=R.Tensor((32, 32), "float32"))
         return z
 
     x = relax.Var("x", R.Tensor((32, 32), "float32"))
@@ -843,7 +843,7 @@ def test_call_packed():
                 relax.ExternFunc("vm.builtin.copy"),
                 (x,),
                 None,
-                sinfo_args=[R.Tensor((32, 32), "float32")],
+                ty_args=[R.Tensor((32, 32), "float32")],
             )
         )
         bb.emit_func_output(z)
@@ -851,13 +851,13 @@ def test_call_packed():
     _check(foo, bb.get()["foo"])
 
 
-def test_call_packed_without_sinfo_args():
+def test_call_packed_without_ty_args():
     @R.function(pure=False)
-    def foo(x: R.Object) -> R.Object:
+    def foo(x: R.Any) -> R.Any:
         z = R.call_packed("test", x)
         return z
 
-    x = relax.Var("x", R.Object())
+    x = relax.Var("x", R.Any())
     bb = relax.BlockBuilder()
     with bb.function("foo", (x), pure=False):
         z = bb.emit(
@@ -865,12 +865,20 @@ def test_call_packed_without_sinfo_args():
                 relax.ExternFunc("test"),
                 (x,),
                 None,
-                sinfo_args=[],
+                ty_args=[],
             )
         )
         bb.emit_func_output(z)
 
     _check(foo, bb.get()["foo"])
+
+
+def test_object_proxy_compat_alias():
+    @R.function
+    def foo(x: R.Object) -> R.Object:
+        return x
+
+    assert isinstance(foo.ret_ty, relax.AnyType)
 
 
 def test_annotation():
@@ -879,67 +887,67 @@ def test_annotation():
         x: R.Tensor((32, "m"), "float32"),
         y: R.Tensor(("m",), "float32"),
         r: R.Tensor(dtype="int64"),
-    ) -> R.Object:
+    ) -> R.Any:
         m = T.int64()
         z: R.Tensor((32, m), "float32") = R.multiply(x, y)
         w: R.Tensor(ndim=2) = R.multiply(z, z)
         q: R.Tensor = R.add(w, w)
         t = R.add(w, z)
-        sh: R.Shape = R.call_packed("shape_of", x, sinfo_args=R.Shape)
+        sh: R.Shape = R.call_packed("shape_of", x, ty_args=R.Shape)
         lv: R.Tensor(sh, dtype="float32") = R.reshape(x, sh)
-        o: R.Object = R.call_packed("contrib.tensor_array_stack", x, y, sinfo_args=R.Object)
+        o: R.Any = R.call_packed("contrib.tensor_array_stack", x, y, ty_args=R.Any)
         return o
 
-    def _check_struct_info(binding, expected_sinfo):
-        tvm.ir.assert_structural_equal(binding.var.struct_info, expected_sinfo)
-        tvm.ir.assert_structural_equal(binding.value.struct_info, expected_sinfo)
+    def _check_ty(binding, expected_ty):
+        tvm.ir.assert_structural_equal(binding.var.ty, expected_ty)
+        tvm.ir.assert_structural_equal(binding.value.ty, expected_ty)
 
     # Cannot use block builder here because we need to check the annotated type,
     # which may be inconsistent with deduced type.
-    assert isinstance(foo.ret_struct_info, relax.ObjectStructInfo)
+    assert isinstance(foo.ret_ty, relax.AnyType)
     m = relax.get_shape_of(foo.params[0])[1]
     bindings = foo.body.blocks[0].bindings
     sh = bindings[4].var
 
-    _check_struct_info(bindings[0], relax.TensorStructInfo([32, m], "float32"))
-    _check_struct_info(bindings[1], relax.TensorStructInfo(dtype="", ndim=2))
-    _check_struct_info(bindings[2], relax.TensorStructInfo(dtype="", ndim=-1))
-    _check_struct_info(bindings[3], relax.TensorStructInfo(dtype="", ndim=2))
-    _check_struct_info(bindings[4], relax.ShapeStructInfo(ndim=-1))
-    _check_struct_info(bindings[5], relax.TensorStructInfo(sh))
-    _check_struct_info(bindings[6], relax.ObjectStructInfo())
+    _check_ty(bindings[0], relax.TensorType([32, m], "float32"))
+    _check_ty(bindings[1], relax.TensorType(dtype=None, ndim=2))
+    _check_ty(bindings[2], relax.TensorType(dtype=None, ndim=-1))
+    _check_ty(bindings[3], relax.TensorType(dtype=None, ndim=2))
+    _check_ty(bindings[4], relax.ShapeType(ndim=-1))
+    _check_ty(bindings[5], relax.TensorType(sh))
+    _check_ty(bindings[6], relax.AnyType())
 
 
 def test_annotate_override():
     @R.function
     def foo(x: R.Tensor):
         y = x
-        # z will be treated as object type even though it's a tensor
-        z: R.Object = R.add(x, y)
+        # z will be treated as Any even though it's a tensor
+        z: R.Any = R.add(x, y)
         return z
 
-    assert isinstance(foo.ret_struct_info, relax.ObjectStructInfo)
+    assert isinstance(foo.ret_ty, relax.AnyType)
     y_bind, z_bind = foo.body.blocks[0].bindings
-    assert isinstance(y_bind.var.struct_info, relax.TensorStructInfo)
-    assert isinstance(z_bind.var.struct_info, relax.ObjectStructInfo)
+    assert isinstance(y_bind.var.ty, relax.TensorType)
+    assert isinstance(z_bind.var.ty, relax.AnyType)
 
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
         def test(x: R.Tensor):
-            # Error: x is of Tensor StructInfo, which can not annotate to R.Shape.
+            # Error: x is of Tensor Type, which can not annotate to R.Shape.
             z: R.Shape = x
             return z
 
     @R.function
     def bar(x: R.Tensor):
-        # x is of Tensor StructInfo, the annotation of `z` is ignored.
-        z: R.Object = x
+        # x is of Tensor Type, the annotation of `z` is ignored.
+        z: R.Any = x
         return z
 
-    assert isinstance(bar.ret_struct_info, relax.TensorStructInfo)
+    assert isinstance(bar.ret_ty, relax.TensorType)
     (z_bind,) = bar.body.blocks[0].bindings
-    assert isinstance(z_bind.var.struct_info, relax.TensorStructInfo)
+    assert isinstance(z_bind.var.ty, relax.TensorType)
 
 
 def test_call_dps_packed_empty_shape():
@@ -949,7 +957,7 @@ def test_call_dps_packed_empty_shape():
         return z
 
     (z_bind,) = foo.body.blocks[0].bindings
-    shape_expr = z_bind.value.sinfo_args[0].shape
+    shape_expr = z_bind.value.ty_args[0].shape
 
     assert isinstance(shape_expr, relax.ShapeExpr)
     assert len(shape_expr.values) == 0
@@ -974,11 +982,11 @@ def test_call_tir_with_tir_var():
         ) -> R.Tensor(("n * 2",), "float32"):
             n = T.int64()
             cls = Module
-            y = R.call_tir(cls.copy, x, R.Tensor((n * 2,), dtype="float32"), tir_vars=(n,))
+            y = R.call_tir(cls.copy, (x, n), R.Tensor((n * 2,), dtype="float32"))
             return y
 
         @T.prim_func(s_tir=True)
-        def copy(var_x: T.handle, var_y: T.handle, n: T.int64):
+        def copy(var_x: T.handle, n: T.int64, var_y: T.handle):
             X = T.match_buffer(var_x, (n * 2,), dtype="float32")
             Y = T.match_buffer(var_y, (n * 2,), dtype="float32")
             for i in T.grid(n * 2):
@@ -987,6 +995,8 @@ def test_call_tir_with_tir_var():
                     Y[vi] = X[vi]
 
     _check(Module)
+    portable = Module.script(show_meta=True, extra_config={"script.use_pep695": False})
+    tvm.ir.assert_structural_equal(Module, tvm.script.from_source(portable))
 
 
 def test_call_tir_with_grad():
@@ -1067,7 +1077,7 @@ def test_call_tir_inplace_with_tuple_var_raises_error():
                     # caught and raised during parsing.
                     args,
                     inplace_indices=[0, -1],
-                    out_sinfo=[R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")],
+                    out_ty=[R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")],
                 )
                 return res
 
@@ -1189,7 +1199,7 @@ def test_if_branch():
     y, ite = y_bind.var, y_bind.value
 
     assert isinstance(y, relax.Var)
-    assert y.name_hint == "y"
+    assert y.name == "y"
 
     assert isinstance(ite, relax.If)
     assert isinstance(ite.true_branch, relax.SeqExpr)
@@ -1207,13 +1217,13 @@ def test_if_branch():
     # the seq exprts in the branches are normalized to bind any call
     # in the seq expr "body" to a var
     y_bind = ite.true_branch.blocks[-1].bindings[-1]
-    assert w_bind.var.name_hint == "w"
+    assert w_bind.var.name == "w"
     check_call(w_bind.value, "relax.add", [x, x])
     check_call(y_bind.value, "relax.multiply", [w_bind.var, w_bind.var])
 
     w_bind = ite.false_branch.blocks[0].bindings[0]
     y_bind = ite.false_branch.blocks[-1].bindings[-1]
-    assert w_bind.var.name_hint == "w"
+    assert w_bind.var.name == "w"
     check_call(w_bind.value, "relax.multiply", [x, x])
     check_call(y_bind.value, "relax.add", [w_bind.var, w_bind.var])
 
@@ -1241,7 +1251,7 @@ def test_if_branch_with_match_cast():
 
     B_var = B_binding.var
     assert isinstance(B_var, relax.Var)
-    assert B_var.name_hint == "B"
+    assert B_var.name == "B"
 
     if_then_else = B_binding.value
     assert isinstance(if_then_else, relax.If)
@@ -1256,7 +1266,7 @@ def test_if_branch_with_match_cast():
     # If the `R.match_cast` were removed, the function would infer the
     # return value as `R.Tensor([16,16])`, with an unknown dtype.
     # With the `R.match_cast` retained, the output dtype is known.
-    tvm.ir.assert_structural_equal(func.ret_struct_info, R.Tensor([16, 16], "float16"))
+    tvm.ir.assert_structural_equal(func.ret_ty, R.Tensor([16, 16], "float16"))
 
 
 def test_if_inside_dataflow():
@@ -1302,7 +1312,15 @@ def test_scalar_tensor_as_branch_condition():
 
     if_else = func.body.blocks[0].bindings[0].value
     assert isinstance(if_else.cond, relax.Var)
-    tvm.ir.assert_structural_equal(if_else.cond.struct_info, R.Tensor([], "bool"))
+    tvm.ir.assert_structural_equal(if_else.cond.ty, R.Tensor([], "bool"))
+
+
+def test_prim_annotation_requires_dtype():
+    with pytest.raises(TypeError, match="missing 1 required positional argument: 'dtype'"):
+        R.Prim()
+
+    with pytest.raises(TypeError, match="unexpected keyword argument 'value'"):
+        R.Prim(value="n")
 
 
 def test_prim_value_as_branch_condition():
@@ -1318,7 +1336,7 @@ def test_prim_value_as_branch_condition():
 
     if_else = func.body.blocks[0].bindings[0].value
     assert isinstance(if_else.cond, relax.Var)
-    tvm.ir.assert_structural_equal(if_else.cond.struct_info, R.Prim("bool"))
+    tvm.ir.assert_structural_equal(if_else.cond.ty, R.Prim("bool"))
 
 
 def test_computed_prim_value_as_branch_condition():
@@ -1328,37 +1346,37 @@ def test_computed_prim_value_as_branch_condition():
     def func(x: R.Tensor(["N"], "float32")):
         N = T.int64()
         if R.prim_value(N % 16 == 0):
-            out = R.call_pure_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+            out = R.call_pure_packed("fast_vectorized_impl", x, ty_args=[x.ty])
         else:
-            out = R.call_pure_packed("slow_non_vectorized_impl", x, sinfo_args=[x.struct_info])
+            out = R.call_pure_packed("slow_non_vectorized_impl", x, ty_args=[x.ty])
         return out
 
-    N = func.params[0].struct_info.shape[0]
+    N = func.params[0].ty.shape[0]
     if_else = func.body.blocks[0].bindings[0].value
-    assert isinstance(if_else.cond, relax.PrimValue)
-    tvm.ir.assert_structural_equal(N % 16 == 0, if_else.cond.value)
-    tvm.ir.assert_structural_equal(if_else.cond.struct_info, R.Prim(value=N % 16 == 0))
+    assert tvm.ir.is_prim_expr(if_else.cond)
+    tvm.ir.assert_structural_equal(N % 16 == 0, if_else.cond)
+    tvm.ir.assert_structural_equal(if_else.cond.ty, R.Prim("bool"))
 
 
 def test_tir_expr_as_branch_condition():
-    """Syntactic sugar, wrap PrimExpr as PrimValue"""
+    """Syntactic sugar, use Expr directly"""
 
     @R.function(private=True)
     def sugared(x: R.Tensor(["N"], "float32")):
         N = T.int64()
         if N % 16 == 0:
-            out = R.call_pure_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+            out = R.call_pure_packed("fast_vectorized_impl", x, ty_args=[x.ty])
         else:
-            out = R.call_pure_packed("slow_non_vectorized_impl", x, sinfo_args=[x.struct_info])
+            out = R.call_pure_packed("slow_non_vectorized_impl", x, ty_args=[x.ty])
         return out
 
     @R.function(private=True)
     def unsugared(x: R.Tensor(["N"], "float32")):
         N = T.int64()
         if R.prim_value(N % 16 == 0):
-            out = R.call_pure_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+            out = R.call_pure_packed("fast_vectorized_impl", x, ty_args=[x.ty])
         else:
-            out = R.call_pure_packed("slow_non_vectorized_impl", x, sinfo_args=[x.struct_info])
+            out = R.call_pure_packed("slow_non_vectorized_impl", x, ty_args=[x.ty])
         return out
 
     tvm.ir.assert_structural_equal(unsugared, sugared)
@@ -1376,7 +1394,7 @@ def test_scalar_tensor_as_assert_condition():
     assert_op = func.body.blocks[0].bindings[0].value
     condition = assert_op.args[0]
     assert isinstance(condition, relax.Var)
-    tvm.ir.assert_structural_equal(condition.struct_info, R.Tensor([], "bool"))
+    tvm.ir.assert_structural_equal(condition.ty, R.Tensor([], "bool"))
 
 
 def test_prim_value_as_assert_condition():
@@ -1391,7 +1409,7 @@ def test_prim_value_as_assert_condition():
     assert_op = func.body.blocks[0].bindings[0].value
     condition = assert_op.args[0]
     assert isinstance(condition, relax.Var)
-    tvm.ir.assert_structural_equal(condition.struct_info, R.Prim("bool"))
+    tvm.ir.assert_structural_equal(condition.ty, R.Prim("bool"))
 
 
 def test_computed_prim_value_as_assert_condition():
@@ -1401,32 +1419,32 @@ def test_computed_prim_value_as_assert_condition():
     def func(x: R.Tensor(["N"], "float32")):
         N = T.int64()
         _ = R.assert_op(R.prim_value(N % 16 == 0))
-        out = R.call_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+        out = R.call_packed("fast_vectorized_impl", x, ty_args=[x.ty])
         return out
 
-    N = func.params[0].struct_info.shape[0]
+    N = func.params[0].ty.shape[0]
     assert_op = func.body.blocks[0].bindings[0].value
     condition = assert_op.args[0]
-    assert isinstance(condition, relax.PrimValue)
-    tvm.ir.assert_structural_equal(N % 16 == 0, condition.value)
-    tvm.ir.assert_structural_equal(condition.struct_info, R.Prim(value=N % 16 == 0))
+    assert tvm.ir.is_prim_expr(condition)
+    tvm.ir.assert_structural_equal(N % 16 == 0, condition)
+    tvm.ir.assert_structural_equal(condition.ty, R.Prim("bool"))
 
 
 def test_tir_expr_as_assert_condition():
-    """Syntactic sugar, wrap PrimExpr as PrimValue"""
+    """Syntactic sugar, use Expr directly"""
 
     @R.function(pure=False, private=True)
     def sugared(x: R.Tensor(["N"], "float32")):
         N = T.int64()
         _ = R.assert_op(N % 16 == 0)
-        out = R.call_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+        out = R.call_packed("fast_vectorized_impl", x, ty_args=[x.ty])
         return out
 
     @R.function(pure=False, private=True)
     def unsugared(x: R.Tensor(["N"], "float32")):
         N = T.int64()
         _ = R.assert_op(R.prim_value(N % 16 == 0))
-        out = R.call_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+        out = R.call_packed("fast_vectorized_impl", x, ty_args=[x.ty])
         return out
 
     tvm.ir.assert_structural_equal(unsugared, sugared)
@@ -1441,8 +1459,8 @@ def test_erase_to_well_defined_removes_internal_vars():
         w = z
         return w
 
-    tvm.ir.assert_structural_equal(foo.ret_struct_info, R.Tensor(ndim=2))
-    assert foo.ret_struct_info.shape is None
+    tvm.ir.assert_structural_equal(foo.ret_ty, R.Tensor(ndim=2))
+    assert foo.ret_ty.shape is None
     _check(foo)
 
 
@@ -1455,7 +1473,7 @@ def test_erase_to_well_defined_keeps_variables_exposed_by_tensor_shape():
         w = z
         return w
 
-    assert foo.ret_struct_info.shape is not None
+    assert foo.ret_ty.shape is not None
     _check(foo)
 
 
@@ -1468,20 +1486,7 @@ def test_erase_to_well_defined_keeps_variants_exposed_by_shape_expr():
         w = z
         return w
 
-    assert foo.ret_struct_info.shape is not None
-    _check(foo)
-
-
-def test_erase_to_well_defined_keeps_variants_exposed_by_prim_value():
-    @R.function
-    def foo(x: R.Tensor, _m: R.Prim(value="m"), _n: R.Prim(value="n")):
-        q = x
-        m, n = T.int64(), T.int64()
-        z = R.match_cast(q, R.Tensor((m, n)))
-        w = z
-        return w
-
-    assert foo.ret_struct_info.shape is not None
+    assert foo.ret_ty.shape is not None
     _check(foo)
 
 
@@ -1506,34 +1511,7 @@ def test_erase_to_well_defined_infers_from_shape_expr():
             output = Module.subroutine(x, shape)
             return output
 
-    assert Module["main"].ret_struct_info.shape is not None
-    _check(Module)
-
-
-def test_erase_to_well_defined_infers_from_prim_value():
-    @I.ir_module(s_tir=True)
-    class Module:
-        # The subroutine's symbolic variables are only in-scope for the subroutine.
-        @R.function
-        def subroutine(x: R.Tensor, _m: R.Prim(value="m"), _n: R.Prim(value="n")) -> R.Tensor(
-            ["m", "n"]
-        ):
-            q = x
-            m, n = T.int64(), T.int64()
-            z = R.match_cast(q, R.Tensor((m, n)))
-            w = z
-            return w
-
-        # However, struct inference can make the symbolic variables in
-        # the main function to the symbolic variables in the
-        # subroutine.  Therefore, the shape of the tensor returned
-        # from main can have a well-defined shape.
-        @R.function
-        def main(x: R.Tensor, relax_m: R.Prim(value="m"), relax_n: R.Prim(value="n")):
-            output = Module.subroutine(x, relax_m, relax_n)
-            return output
-
-    assert Module["main"].ret_struct_info.shape is not None
+    assert Module["main"].ret_ty.shape is not None
     _check(Module)
 
 
@@ -1543,7 +1521,7 @@ def test_empty_tuple():
         y: R.Tuple() = R.tuple()
         return y
 
-    x = relax.Var("x", relax.TupleStructInfo([]))
+    x = relax.Var("x", relax.TupleType([]))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
         y = bb.emit(relax.Tuple([]))
@@ -1561,8 +1539,8 @@ def test_symbolic_vars_in_tensor_shape_with_usage_first():
         return z
 
     m = tirx.Var("m", "int64")
-    x = relax.Var("x", relax.TensorStructInfo([m + 1], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([m, 1], "float32"))
+    x = relax.Var("x", relax.TensorType([m + 1], "float32"))
+    y = relax.Var("y", relax.TensorType([m, 1], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x, y)):
         z = bb.emit(relax.op.add(x, y))
@@ -1583,8 +1561,8 @@ def test_symbolic_vars_in_tensor_shape_with_definition_first():
         return z
 
     m = tirx.Var("m", "int64")
-    x = relax.Var("x", relax.TensorStructInfo([m], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([tirx.max(m, 20)], "float32"))
+    x = relax.Var("x", relax.TensorType([m], "float32"))
+    y = relax.Var("y", relax.TensorType([tirx.max(m, 20)], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("bar", (x, y)):
         z = bb.emit(
@@ -1597,6 +1575,100 @@ def test_symbolic_vars_in_tensor_shape_with_definition_first():
     _check(bar, bb.get()["bar"])
 
 
+def test_bound_prim_param_reused_in_dependent_annotations():
+    func = tvm.script.from_source(
+        """
+@R.function
+def main(
+    n: R.Prim("int64"),
+    direct: R.Tensor([n], "float32"),
+    string_direct: R.Tensor(["n"], "float32"),
+    shape: R.Shape(["n"]),
+    compound: R.Tensor(["n + 1"], "float32"),
+) -> R.Tensor(["n + 1"], "float32"):
+    return compound
+"""
+    )
+
+    n, direct, string_direct, shape, compound = func.params
+    assert direct.ty.shape[0].same_as(n)
+    assert string_direct.ty.shape[0].same_as(n)
+    assert shape.ty.values[0].same_as(n)
+    assert compound.ty.shape[0].a.same_as(n)
+    assert func.ret_ty.shape[0].a.same_as(n)
+    _check(func)
+
+
+def test_bound_prim_param_reused_in_declared_function_signature():
+    mod = tvm.script.from_source(
+        """
+@I.ir_module
+class Module:
+    @R.function
+    def main(n: R.Prim("int64"), x: R.Tensor(["n + 1"], "float32")) -> R.Tensor(
+        ["n + 1"], "float32"
+    ):
+        return x
+"""
+    )
+
+    func = mod["main"]
+    n, x = func.params
+    assert x.ty.shape[0].a.same_as(n)
+    assert func.ret_ty.shape[0].a.same_as(n)
+    _check(mod)
+
+
+def test_later_prim_param_not_adopted_by_usage_first_symbol():
+    with pytest.raises(tvm.error.DiagnosticError):
+        tvm.script.from_source(
+            """
+@R.function
+def main(x: R.Tensor(["n"], "float32"), n: R.Prim("int64")):
+    return x
+"""
+        )
+
+
+def test_non_int64_prim_param_rejected_in_shape_annotation():
+    with pytest.raises(tvm.error.DiagnosticError):
+        tvm.script.from_source(
+            """
+@R.function
+def main(n: R.Prim("int32"), x: R.Tensor(["n"], "float32")):
+    return x
+"""
+        )
+
+
+def test_recursive_local_function_reuses_earlier_prim_param_in_signature():
+    func = tvm.script.from_source(
+        """
+@R.function
+def main(n: R.Prim("int64"), x: R.Tensor([n], "float32")):
+    @R.function
+    def recurse(current: R.Prim("int64"), value: R.Tensor([current], "float32")) -> R.Tensor(
+        [current], "float32"
+    ):
+        return recurse(current, value)
+
+    return recurse(n, x)
+"""
+    )
+
+    recursive_binding = next(
+        binding
+        for block in func.body.blocks
+        for binding in block.bindings
+        if isinstance(binding.value, relax.Function)
+    )
+    recursive_func = recursive_binding.value
+    current, value = recursive_func.params
+    assert value.ty.shape[0].same_as(current)
+    assert recursive_func.ret_ty.shape[0].same_as(current)
+    relax.analysis.well_formed(func)
+
+
 def test_symbolic_vars_in_shape():
     """Symbolic variable may be defined in R.Shape"""
 
@@ -1607,28 +1679,8 @@ def test_symbolic_vars_in_shape():
         return z
 
     m = tirx.Var("m", "int64")
-    x = relax.Var("x", relax.ShapeStructInfo([m]))
-    y = relax.Var("y", relax.TensorStructInfo([m * 2], "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("baz", (x, y)):
-        z = bb.emit(relax.call_dps_packed("test_intrin", (y), R.Tensor((m * 2,), dtype="float32")))
-        bb.emit_func_output(z)
-
-    _check(baz, bb.get()["baz"])
-
-
-def test_symbolic_vars_in_prim_value():
-    """Symbolic variable may be defined in R.Prim"""
-
-    @R.function
-    def baz(x: R.Prim(value="m"), y: R.Tensor(("m * 2",), "float32")):
-        m = T.int64()
-        z = R.call_dps_packed("test_intrin", y, R.Tensor((m * 2,), dtype="float32"))
-        return z
-
-    m = tirx.Var("m", "int64")
-    x = relax.Var("x", relax.PrimStructInfo(value=m))
-    y = relax.Var("y", relax.TensorStructInfo([m * 2], "float32"))
+    x = relax.Var("x", relax.ShapeType([m]))
+    y = relax.Var("y", relax.TensorType([m * 2], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("baz", (x, y)):
         z = bb.emit(relax.call_dps_packed("test_intrin", (y), R.Tensor((m * 2,), dtype="float32")))
@@ -1678,8 +1730,8 @@ def test_arith_operators():
 
     m = tirx.Var("m", "int64")
     n = tirx.Var("n", "int64")
-    x = relax.Var("x", relax.TensorStructInfo([m, n], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([m, n], "float32"))
+    x = relax.Var("x", relax.TensorType([m, n], "float32"))
+    y = relax.Var("y", relax.TensorType([m, n], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x, y)):
         a0 = bb.emit(relax.op.negative(x))
@@ -1748,7 +1800,7 @@ def test_builtin_ops():
 def test_prim_value():
     @R.function(pure=False)
     def foo():
-        gv = R.call_packed("test", 1, sinfo_args=R.Tensor((32, 32), "float32"))
+        gv = R.call_packed("test", 1, ty_args=R.Tensor((32, 32), "float32"))
         return gv
 
     _check(foo)
@@ -1757,7 +1809,7 @@ def test_prim_value():
 def test_string_imm():
     @R.function(pure=False)
     def foo():
-        gv = R.call_packed("test", "hello", sinfo_args=R.Tensor((32, 32), "float32"))
+        gv = R.call_packed("test", "hello", ty_args=R.Tensor((32, 32), "float32"))
         return gv
 
     _check(foo)
@@ -1766,7 +1818,7 @@ def test_string_imm():
 def test_datatype_imm():
     @R.function(pure=False)
     def foo():
-        gv = R.call_packed("test", R.dtype("float32"), sinfo_args=R.Tensor((32, 32), "float32"))
+        gv = R.call_packed("test", R.dtype("float32"), ty_args=R.Tensor((32, 32), "float32"))
         return gv
 
     _check(foo)
@@ -1788,8 +1840,8 @@ def test_function_void_return_type():
     _check(Foo)
     # Since the return type of function `mul` is not annotated,
     # the function `main` regards it as a generic return type.
-    assert isinstance(Foo["main"].ret_struct_info, relax.ObjectStructInfo)
-    assert isinstance(Foo["mul"].ret_struct_info, relax.TensorStructInfo)
+    assert isinstance(Foo["main"].ret_ty, relax.AnyType)
+    assert isinstance(Foo["mul"].ret_ty, relax.TensorType)
 
     @tvm.script.ir_module
     class Bar:
@@ -1806,8 +1858,8 @@ def test_function_void_return_type():
     # Since the return type of function `mul` is not annotated,
     # the function `main` regards it as a generic return type.
     _check(Bar)
-    tvm.ir.assert_structural_equal(Bar["main"].ret_struct_info, relax.TupleStructInfo([]))
-    tvm.ir.assert_structural_equal(Bar["mul"].ret_struct_info, relax.TupleStructInfo([]))
+    tvm.ir.assert_structural_equal(Bar["main"].ret_ty, relax.TupleType([]))
+    tvm.ir.assert_structural_equal(Bar["mul"].ret_ty, relax.TupleType([]))
 
 
 def test_class_normalize():
@@ -1881,7 +1933,7 @@ def test_empty_tuple_on_rhs_of_assign():
     _check(Module)
 
 
-def test_global_var_sinfo():
+def test_global_var_ty():
     @I.ir_module(s_tir=True)
     class Module:
         @R.function
@@ -1889,12 +1941,12 @@ def test_global_var_sinfo():
             gv0 = R.emit_te(topi.add, x, x)
             return gv0
 
-    target_sinfo = R.Callable(
+    target_ty = R.Callable(
         (R.Tensor((128, 128), dtype="float32"),), R.Tensor((128, 128), dtype="float32")
     )
     gv = Module.get_global_var("foo")
-    tvm.ir.assert_structural_equal(gv.struct_info, target_sinfo)
-    tvm.ir.assert_structural_equal(Module["foo"].struct_info, target_sinfo)
+    tvm.ir.assert_structural_equal(gv.ty, target_ty)
+    tvm.ir.assert_structural_equal(Module["foo"].ty, target_ty)
     _check(Module)
 
 
@@ -2068,14 +2120,14 @@ def test_function_with_void_return_type_in_if_else():
 def test_call_pure_packed():
     @R.function
     def foo(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
-        z = R.call_pure_packed("vm.builtin.copy", x, sinfo_args=R.Tensor((32, 32), "float32"))
+        z = R.call_pure_packed("vm.builtin.copy", x, ty_args=R.Tensor((32, 32), "float32"))
         return z
 
     x = relax.Var("x", R.Tensor((32, 32), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x)):
         z = bb.emit(
-            R.call_pure_packed("vm.builtin.copy", x, sinfo_args=[R.Tensor((32, 32), "float32")])
+            R.call_pure_packed("vm.builtin.copy", x, ty_args=[R.Tensor((32, 32), "float32")])
         )
         bb.emit_func_output(z)
 
@@ -2084,13 +2136,13 @@ def test_call_pure_packed():
 
 def test_call_pure_packed_returning_object():
     @R.function
-    def foo() -> R.Object:
-        z = R.call_pure_packed("dummy_func", sinfo_args=R.Object)
+    def foo() -> R.Any:
+        z = R.call_pure_packed("dummy_func", ty_args=R.Any)
         return z
 
     bb = relax.BlockBuilder()
     with bb.function("foo", params=[]):
-        z = bb.emit(R.call_pure_packed("dummy_func", sinfo_args=[relax.ObjectStructInfo()]))
+        z = bb.emit(R.call_pure_packed("dummy_func", ty_args=[relax.AnyType()]))
         bb.emit_func_output(z)
 
     _check(foo, bb.get()["foo"])
@@ -2236,8 +2288,8 @@ def test_reused_extern_func():
     bb = relax.BlockBuilder()
     with bb.function("main", [x], private=True):
         func = bb.emit(relax.ExternFunc("extern_func"))
-        y = bb.emit(relax.call_dps_packed(func, x, out_sinfo=R.Tensor((128, 128), "float32")))
-        z = bb.emit(relax.call_dps_packed(func, y, out_sinfo=R.Tensor((128, 128), "float32")))
+        y = bb.emit(relax.call_dps_packed(func, x, out_ty=R.Tensor((128, 128), "float32")))
+        z = bb.emit(relax.call_dps_packed(func, y, out_ty=R.Tensor((128, 128), "float32")))
         bb.emit_func_output(z)
 
     expected = bb.get()["main"]
@@ -2334,7 +2386,7 @@ def test_function_symbolic_variables_are_annotated():
     """
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor(["extent"])):
+    def inferred_ty(A: R.Tensor(["extent"])):
         extent = T.int64()
         output = R.strided_slice(A, [0], [0], [extent - 1])
         return output
@@ -2345,7 +2397,128 @@ def test_function_symbolic_variables_are_annotated():
         output: R.Tensor([extent - 1]) = R.strided_slice(A, [0], [0], [extent - 1])
         return output
 
-    tvm.ir.assert_structural_equal(inferred_sinfo, expected)
+    tvm.ir.assert_structural_equal(inferred_ty, expected)
+
+
+def test_non_declaration_prim_expr_emits_binding():
+    """Only zero-argument dtype calls declare symbolic variables."""
+
+    @R.function(private=True)
+    def func(A: R.Tensor(["extent"], "float32")):
+        extent = T.int64(4)
+        output = A
+        return output
+
+    symbolic_extent = func.params[0].ty.shape[0]
+    extent_binding = func.body.blocks[0].bindings[0]
+    assert isinstance(extent_binding, relax.VarBinding)
+    assert tvm.ir.is_prim_var(symbolic_extent)
+    assert tvm.ir.is_prim_var(extent_binding.var)
+    assert not symbolic_extent.same_as(extent_binding.var)
+    tvm.ir.assert_structural_equal(extent_binding.value, T.int64(4))
+    _check(func)
+
+
+def test_primitive_assignments_emit_fresh_bindings():
+    """Primitive expressions follow ordinary Relax assignment semantics."""
+
+    @R.function(private=True)
+    def func(scalar: R.Prim("int64"), tensor: R.Tensor([1], "float32")):
+        alias = scalar
+        arithmetic = alias + 1
+        integer: R.Prim("int32") = 2
+        floating: R.Prim("float32") = 2.5
+        boolean: R.Prim("bool") = True
+        compatibility = R.prim_value(arithmetic)
+        tensor_alias = tensor
+        return tensor_alias
+
+    bindings = func.body.blocks[0].bindings
+    assert len(bindings) == 7
+    for binding in bindings:
+        assert isinstance(binding, relax.VarBinding)
+        assert not binding.var.same_as(binding.value)
+
+    alias, arithmetic, integer, floating, boolean, compatibility, tensor_alias = bindings
+    assert alias.value.same_as(func.params[0])
+    assert compatibility.value.same_as(arithmetic.var)
+    assert tensor_alias.value.same_as(func.params[1])
+    for binding, dtype in [
+        (integer, "int32"),
+        (floating, "float32"),
+        (boolean, "bool"),
+    ]:
+        assert isinstance(binding.var.ty, tvm.ir.PrimType)
+        assert binding.var.ty.dtype == dtype
+        assert tvm.ir.is_prim_expr(binding.value)
+        assert not isinstance(binding.value, tvm.ir.GenericConst)
+
+    source = func.script(show_all_ty=False)
+    assert "R.prim_value" not in source
+    for annotation in [
+        "alias: T.int64",
+        "integer: T.int32",
+        "floating: T.float32",
+        "boolean: T.bool",
+    ]:
+        assert annotation in source
+    _check(func)
+
+
+def test_shared_meta_var_skips_relax_bindings():
+    """I.meta_var and T.meta_var are one explicit parser-time escape."""
+
+    assert I.meta_var is T.meta_var
+
+    @R.function(private=True)
+    def func(A: R.Tensor(["N"], "float32")):
+        N: R.Prim("int64") = T.int64()
+        via_i = I.meta_var(N)
+        via_t = T.meta_var(via_i)
+        output = R.reshape(A, R.shape([via_t]))
+        return output
+
+    assert len(func.body.blocks[0].bindings) == 1
+    source = func.script(show_all_ty=False)
+    assert "meta_var" not in source
+    _check(func)
+
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function(private=True)
+        def mismatched_declaration():
+            value: R.Prim("float32") = T.int64()
+            return value
+
+
+def test_primitive_if_emits_fresh_result():
+    """A primitive If has a fresh Relax result and typed branch terminators."""
+
+    @R.function(private=True)
+    def func(cond: R.Prim("bool"), lhs: R.Prim("int64"), rhs: R.Prim("int64")):
+        if cond:
+            output = lhs
+        else:
+            output = rhs
+        return output
+
+    outer_binding = func.body.blocks[0].bindings[0]
+    assert isinstance(outer_binding, relax.VarBinding)
+    assert isinstance(outer_binding.value, relax.If)
+    assert isinstance(outer_binding.var.ty, tvm.ir.PrimType)
+    assert not outer_binding.var.same_as(func.params[1])
+    assert not outer_binding.var.same_as(func.params[2])
+    for branch, param in [
+        (outer_binding.value.true_branch, func.params[1]),
+        (outer_binding.value.false_branch, func.params[2]),
+    ]:
+        assert not branch.blocks
+        assert branch.body.same_as(param)
+
+    source = func.script(show_all_ty=False)
+    assert "R.prim_value" not in source
+    assert source.count("output: T.int64") == 2
+    _check(func)
 
 
 def test_conditional_may_use_symbolic_variables_from_function_scope():
@@ -2362,7 +2535,7 @@ def test_conditional_may_use_symbolic_variables_from_function_scope():
     """
 
     @R.function(private=True)
-    def explicit_sinfo(
+    def explicit_ty(
         A: R.Tensor(["N"], "float32"),
         B: R.Tensor(["N"], "float32"),
         cond: R.Prim("bool"),
@@ -2377,7 +2550,7 @@ def test_conditional_may_use_symbolic_variables_from_function_scope():
         return out
 
     @R.function(private=True)
-    def inferred_sinfo(
+    def inferred_ty(
         A: R.Tensor(["N"], "float32"),
         B: R.Tensor(["N"], "float32"),
         cond: R.Prim("bool"),
@@ -2390,7 +2563,7 @@ def test_conditional_may_use_symbolic_variables_from_function_scope():
 
         return out
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_return_from_dataflow_block():

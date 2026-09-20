@@ -14,12 +14,31 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F811, F841
+# ruff: noqa: F841
 import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+
+
+def _lower_blocks(value):
+    """Use the same block-to-statement boundary as the S-TIR pipeline."""
+    is_func = isinstance(value, tvm.tirx.PrimFunc)
+    mod = tvm.IRModule.from_expr(value) if is_func else value
+    mod = tvm.s_tir.transform.ConvertBlocksToOpaque()(mod)
+    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
+    return mod["main"] if is_func else mod
+
+
+def _transform():
+    return tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.ConvertBlocksToOpaque(),
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.tirx.transform.ForceNarrowIndexToInt32(),
+        ]
+    )
 
 
 def test_thread_axis1():
@@ -42,8 +61,8 @@ def test_thread_axis1():
         B[blockIdx_x * 32 + threadIdx_x] = A[blockIdx_x * 32 + threadIdx_x] + T.float32(1)
 
     mod = tvm.IRModule.from_expr(before)
-    func = tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
-    tvm.ir.assert_structural_equal(func, expected)
+    func = _transform()(mod)["main"]
+    tvm.ir.assert_structural_equal(func, _lower_blocks(expected))
 
 
 def test_thread_axis2():
@@ -157,8 +176,8 @@ def test_thread_axis2():
                         )
 
     mod = tvm.IRModule.from_expr(before)
-    func = tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
-    tvm.ir.assert_structural_equal(func, expected)
+    func = _transform()(mod)["main"]
+    tvm.ir.assert_structural_equal(func, _lower_blocks(expected))
 
 
 def test_block():
@@ -179,8 +198,8 @@ def test_block():
                     B[vi] = A[vi] + T.float32(1)
 
     mod = tvm.IRModule.from_expr(before)
-    func = tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
-    tvm.ir.assert_structural_equal(func, expected)
+    func = _transform()(mod)["main"]
+    tvm.ir.assert_structural_equal(func, _lower_blocks(expected))
 
 
 def test_i16_buffer():
@@ -201,11 +220,11 @@ def test_i16_buffer():
                     B[vi] = A[vi] + T.int16(1)
 
     mod = tvm.IRModule.from_expr(before)
-    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
-    tvm.ir.assert_structural_equal(after, expected)
+    after = _transform()(mod)["main"]
+    tvm.ir.assert_structural_equal(after, _lower_blocks(expected))
 
 
-def test_fail_on_buffer_map():
+def test_fail_on_buffer_param():
     @T.prim_func(private=True, s_tir=True)
     def func(A: T.Buffer((128,), "int64"), B: T.Buffer((128,), "int64")):
         for i in T.serial(0, 16):
@@ -216,10 +235,10 @@ def test_fail_on_buffer_map():
 
     mod = tvm.IRModule.from_expr(func)
     with pytest.raises(RuntimeError):
-        tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
+        _transform()(mod)["main"]
 
 
-def test_fail_on_buffer_map():
+def test_fail_on_internal_buffer():
     @T.prim_func(private=True, s_tir=True)
     def func(A: T.Buffer((128,), "int32"), B: T.Buffer((128,), "int32")):
         C = T.sblock_alloc_buffer((128,), "int64")
@@ -236,7 +255,7 @@ def test_fail_on_buffer_map():
 
     mod = tvm.IRModule.from_expr(func)
     with pytest.raises(RuntimeError):
-        tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
+        _transform()(mod)["main"]
 
 
 def test_pod_params_and_select():
@@ -256,8 +275,50 @@ def test_pod_params_and_select():
             for i in range(4):
                 B[i] = T.Select(1 <= i, A[i + n], T.Cast("float32", i))
 
-    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
-    tvm.ir.assert_structural_equal(Expected, after)
+    after = _transform()(Before)
+    tvm.ir.assert_structural_equal(_lower_blocks(Expected), after)
+
+
+def test_if_then_else_index():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((T.int64(4),), "float32"), B: T.Buffer((1,), "float32"), n: T.int64):
+            B[0] = A[T.if_then_else(n < T.int64(0), n + T.int64(1), n)]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((4,), "float32"), B: T.Buffer((1,), "float32"), n: T.int32):
+            B[0] = A[T.if_then_else(n < 0, n + 1, n)]
+
+    after = _transform()(Before)
+    tvm.ir.assert_structural_equal(_lower_blocks(Expected), after)
+
+
+def test_conditional_index_mixed_width_branches():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((T.int64(4),), "float32"), B: T.Buffer((4,), "float32"), n: T.int64):
+            opaque_index = T.call_extern("opaque_index", n, dtype="int64")
+            B[0] = A[T.if_then_else(n < T.int64(0), opaque_index, n)]
+            B[1] = A[T.if_then_else(n < T.int64(0), n, opaque_index)]
+            B[2] = A[T.Select(n < T.int64(0), opaque_index, n)]
+            B[3] = A[T.Select(n < T.int64(0), n, opaque_index)]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32"), n: T.int32):
+            opaque_index = T.call_extern("opaque_index", n, dtype="int64")
+            B[0] = A[T.if_then_else(n < 0, opaque_index, T.Cast("int64", n))]
+            B[1] = A[T.if_then_else(n < 0, T.Cast("int64", n), opaque_index)]
+            B[2] = A[T.Select(n < 0, opaque_index, T.Cast("int64", n))]
+            B[3] = A[T.Select(n < 0, T.Cast("int64", n), opaque_index)]
+
+    after = _transform()(Before)
+    tvm.ir.assert_structural_equal(_lower_blocks(Expected), after)
 
 
 def test_clz():
@@ -275,8 +336,106 @@ def test_clz():
             for i in range(4):
                 B[i] = T.clz(i) - 32 + 64
 
-    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
-    tvm.ir.assert_structural_equal(Expected, after)
+    after = _transform()(Before)
+    tvm.ir.assert_structural_equal(_lower_blocks(Expected), after)
+
+
+def test_right_shift_preserves_sign_extension_after_narrowing():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((T.int64(6),), "float32"), B: T.Buffer((1,), "float32"), n: T.int64):
+            B[0] = A[T.shift_right(T.truncmod(n - T.int64(8), T.int64(6)), T.int64(63))]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((6,), "float32"), B: T.Buffer((1,), "float32"), n: T.int32):
+            B[0] = A[T.shift_right(T.truncmod(n - 8, 6), 31)]
+
+    # ForceNarrowIndexToInt32 assumes that index values fit in int32.  Under
+    # that precondition, shifting the original int64 value by 63 and shifting
+    # the narrowed value by its sign-bit position have the same result.
+    after = _transform()(Before)
+    tvm.ir.assert_structural_equal(_lower_blocks(Expected), after)
+
+
+def test_right_shift_dynamic_and_vector_amounts():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((T.int64(6),), "float32"),
+            B: T.Buffer((T.int64(5),), "float32"),
+            n: T.int64,
+            shift: T.int64,
+        ):
+            B[0] = A[T.shift_right(T.truncmod(n - T.int64(8), T.int64(6)), shift)]
+            B[T.Ramp(T.int64(1), T.int64(1), 4)] = A[
+                T.shift_right(
+                    T.Broadcast(T.truncmod(n - T.int64(8), T.int64(6)), 4),
+                    T.Ramp(T.int64(30), T.int64(1), 4),
+                )
+            ]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((6,), "float32"),
+            B: T.Buffer((5,), "float32"),
+            n: T.int32,
+            shift: T.int32,
+        ):
+            B[0] = A[T.shift_right(T.truncmod(n - 8, 6), T.min(shift, 31))]
+            B[T.Ramp(1, 1, 4)] = A[
+                T.shift_right(
+                    T.Broadcast(T.truncmod(n - 8, 6), 4),
+                    T.min(T.Ramp(30, 1, 4), T.Broadcast(31, 4)),
+                )
+            ]
+
+    after = _transform()(Before)
+    tvm.ir.assert_structural_equal(_lower_blocks(Expected), after)
+
+
+def test_left_shift_dynamic_and_vector_amounts_remain_valid():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((T.int64(1),), "float32"),
+            B: T.Buffer((T.int64(5),), "float32"),
+            n: T.int64,
+            shift: T.int64,
+        ):
+            B[0] = A[T.shift_left(T.truncmod(n, T.int64(1)), shift)]
+            B[T.Ramp(T.int64(1), T.int64(1), 4)] = A[
+                T.shift_left(
+                    T.Broadcast(T.truncmod(n, T.int64(1)), 4),
+                    T.Ramp(T.int64(30), T.int64(1), 4),
+                )
+            ]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((1,), "float32"),
+            B: T.Buffer((5,), "float32"),
+            n: T.int32,
+            shift: T.int32,
+        ):
+            B[0] = A[T.shift_left(T.truncmod(n, 1), T.min(shift, 31))]
+            B[T.Ramp(1, 1, 4)] = A[
+                T.shift_left(
+                    T.Broadcast(T.truncmod(n, 1), 4),
+                    T.min(T.Ramp(30, 1, 4), T.Broadcast(31, 4)),
+                )
+            ]
+
+    after = _transform()(Before)
+    tvm.ir.assert_structural_equal(_lower_blocks(Expected), after)
 
 
 def test_let_binding():
@@ -303,8 +462,8 @@ def test_let_binding():
             for i in range(T.Cast("int32", ceil_log2)):
                 T.evaluate(0)
 
-    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
-    tvm.ir.assert_structural_equal(Expected, after)
+    after = _transform()(Before)
+    tvm.ir.assert_structural_equal(_lower_blocks(Expected), after)
 
 
 if __name__ == "__main__":

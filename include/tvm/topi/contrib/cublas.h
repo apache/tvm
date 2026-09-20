@@ -48,10 +48,11 @@ inline Tensor cublas_matmul(const Tensor& lhs, const Tensor& rhs, bool transa, b
   auto m = transb ? rhs->shape[0] : rhs->shape[1];
 
   return make_extern(
-      {{n, m}}, {lhs->dtype}, {lhs, rhs},
-      [&](ffi::Array<Buffer> ins, ffi::Array<Buffer> outs) {
+      {{n, m}}, {lhs->GetDataType()}, {lhs, rhs},
+      [&](ffi::Array<BufferVar> ins, ffi::Array<BufferVar> outs) {
         return call_packed({StringImm("tvm.contrib.cublas.matmul"), pack_buffer(ins[0]),
-                            pack_buffer(ins[1]), pack_buffer(outs[0]), transa, transb});
+                            pack_buffer(ins[1]), pack_buffer(outs[0]), IntImm::Int32(transa),
+                            IntImm::Int32(transb)});
       },
       "C", "", {})[0];
 }
@@ -73,10 +74,11 @@ inline Tensor cublas_batch_matmul(const Tensor& lhs, const Tensor& rhs, bool tra
   auto m = transb ? rhs->shape[1] : rhs->shape[2];
 
   return make_extern(
-      {{b, n, m}}, {lhs->dtype}, {lhs, rhs},
-      [&](ffi::Array<Buffer> ins, ffi::Array<Buffer> outs) {
+      {{b, n, m}}, {lhs->GetDataType()}, {lhs, rhs},
+      [&](ffi::Array<BufferVar> ins, ffi::Array<BufferVar> outs) {
         return call_packed({StringImm("tvm.contrib.cublas.batch_matmul"), pack_buffer(ins[0]),
-                            pack_buffer(ins[1]), pack_buffer(outs[0]), transa, transb});
+                            pack_buffer(ins[1]), pack_buffer(outs[0]), IntImm::Int32(transa),
+                            IntImm::Int32(transb)});
       },
       "C", "", {})[0];
 }

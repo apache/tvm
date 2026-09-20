@@ -18,8 +18,8 @@
 """Operators to implement operaor gradients. Used in `_op_gradient.py`.
 
 We are trying to keep grad operators as simple as possible, and hope they are only used for finding
-gradients for forward operators. The struct_info inference for grad operators just returns the
-struct_info of the input.
+gradients for forward operators. The ty inference for grad operators just returns the
+ty of the input.
 """
 
 from ...expr import Expr
@@ -52,8 +52,8 @@ def start_checkpoint(input: Expr) -> Expr:
 
     For instance,
     ```
-    a = relax.Var("a", relax.TensorStructInfo((2, 2), "float32"))
-    b = relax.Var("b", relax.TensorStructInfo((2, 2), "float32"))
+    a = relax.Var("a", relax.TensorType((2, 2), "float32"))
+    b = relax.Var("b", relax.TensorType((2, 2), "float32"))
     c = a * 2
     d = b * 2
     c_cp = start_checkpoint(c)

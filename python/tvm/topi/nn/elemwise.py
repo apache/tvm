@@ -60,7 +60,7 @@ def leaky_relu(x, alpha):
 
     def _compute(*indices):
         value = x(*indices)
-        calpha = tvm.tirx.const(alpha, value.dtype)
+        calpha = tvm.tirx.const(alpha, value.ty)
         return tvm.tirx.Select(value > 0, value, value * calpha)
 
     return te.compute(x.shape, _compute)
@@ -89,8 +89,8 @@ def softplus(x, beta=1.0, threshold=20.0):
 
     def _compute(*indices):
         value = x(*indices)
-        b = tvm.tirx.const(beta, value.dtype)
-        t = tvm.tirx.const(threshold, value.dtype)
+        b = tvm.tirx.const(beta, value.ty)
+        t = tvm.tirx.const(threshold, value.ty)
 
         return tvm.tirx.Select(
             b * value > t, value, (1 / b) * tvm.tirx.log(1 + tvm.tirx.exp(b * value))

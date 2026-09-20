@@ -23,18 +23,28 @@ import tvm.script
 tvm.script.register_dialect("tirx", "tvm.tirx.script")
 
 
-from tvm.ir import PrimExpr
+from tvm.ir import Expr
 from tvm.runtime import const
 
-from .buffer import Buffer, decl_buffer, DataProducer
+from .buffer import (
+    Buffer,
+    BufferAccessKind,
+    BufferType,
+    buffer_data,
+    buffer_data_pointer_type,
+    decl_buffer,
+    is_buffer_var,
+)
+from .type import TensorMapType
 from .expr import convert
-from .expr import Var, SizeVar, Reduce, FloatImm, IntImm, StringImm, Cast
+from .expr import Var, Reduce, FloatImm, IntImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
+from .expr import LShift, RShift, BitwiseAnd, BitwiseOr, BitwiseXor, BitwiseNot
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
-from .expr import Select, BufferLoad, ProducerLoad, Ramp, Broadcast, Shuffle
-from .expr import Call, CallEffectKind, Let, IterVar, CommReducer
+from .expr import Select, BufferLoad, Ramp, Broadcast, Shuffle
+from .expr import CallEffectKind, Let, IterVar, CommReducer
 
-from .stmt import Stmt, Bind, AssertStmt, ForKind, For, While
+from .stmt import Stmt, Bind, AssertStmt, ForKind, For, While, Return, Break, Continue
 
 # Legacy alias: LetStmt was folded into Bind (which now accepts an optional body)
 LetStmt = Bind
@@ -43,14 +53,15 @@ from .stmt import BufferStore, AllocBuffer, AttrStmt, DeclBuffer
 
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
-from .stmt import BufferRegion, MatchBufferRegion, SBlock, SBlockRealize
-from .stmt import TilePrimitiveCall, ScopeIdDefStmt
+from .stmt import BufferRegion, BufferRegionType
+from .stmt import ScopeIdDefStmt
+from .tile_primitive import DispatchContext, LambdaExpr, TilePrimitiveCall
 
-from .function import PrimFunc, TensorIntrin, IndexMap
+from .function import PrimFunc, IndexMap
 
-from .op import call_packed_lowered, call_cpacked_lowered, call_tir
+from .op import call_packed_lowered, call_cpacked_lowered, register_intrin_lowering
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
-from .op import call_llvm_intrin, call_llvm_pure_intrin, ret, all, any, min_value, max_value, trace
+from .op import call_llvm_intrin, call_llvm_pure_intrin, all, any, min_value, max_value, trace
 from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
 from .op import tvm_tuple, handle_add_byte_offset, tvm_struct_get, tvm_struct_set
 from .op import address_of, lookup_param, assume, undef
@@ -63,16 +74,6 @@ from .op import (
     tvm_mma_sync,
     tvm_bmma_sync,
     tvm_fill_fragment,
-)
-from .op import ptx_mma, ptx_mma_sp, mma_store, mma_fill
-from .op import ptx_mma_legacy, ptx_mma_sp_legacy, mma_store_legacy, mma_fill_legacy
-from .op import ptx_ldmatrix, ptx_cp_async, ptx_cp_async_bulk, ptx_cp_async_bulk_shared_to_cluster
-from .op import ptx_ldmatrix_legacy, ptx_cp_async_legacy
-from .op import (
-    make_filled_simdgroup_matrix,
-    simdgroup_load,
-    simdgroup_multiply_accumulate,
-    simdgroup_store,
 )
 from .op import vectorlow, vectorhigh, vectorcombine
 from .op import infinity, reinterpret
@@ -92,20 +93,13 @@ from .op import start_profile_intrinsic, end_profile_intrinsic
 from .op import vscale, get_active_lane_mask, get_vscale_expr
 from .op import dp4a
 from .op import ignore_loop_partition
-from .generic import add, subtract, multiply
 
 # TIRX-specific imports (must come before subpackage imports to avoid circular imports)
 from .exec_scope import ExecScope, ScopeIdDef
-from .layout import TileLayout, Layout, SwizzleLayout, ComposeLayout
-from .predicate import Predicate
-from .expr_functor import ExprFunctor
-
+from .layout import TileLayout, Layout, ComposeLayout
 from . import transform
 from . import analysis
 from . import backend
-from . import stmt_functor
-
-from .functor import PyStmtExprVisitor, PyStmtExprMutator
 
 # Compiler-only submodules. Skip under `TVM_USE_RUNTIME_LIB=1` since they
 # perform compiler-side FFI at module load (schema engine looks up
@@ -113,16 +107,11 @@ from .functor import PyStmtExprVisitor, PyStmtExprMutator
 from tvm.base import _RUNTIME_ONLY as _RUNTIME_ONLY_TIRX  # pylint: disable=wrong-import-position
 
 if not _RUNTIME_ONLY_TIRX:
-    # CUDA codegen registration. Each family module registers codegen via
-    # @register_codegen (hand-written ops) and ptx_intrinsic /
-    # cuda_helper_intrinsic (schema-declared ops); the schema declarations
-    # also inject Python wrappers into `tvm.tirx.op`. Must come before
-    # anything downstream that looks up wrappers or the codegen registry.
-    from .operator.intrinsics import cuda as _intrinsics_cuda
     from .build import build
     from .compilation_pipeline import (
         get_tir_pipeline,
         get_default_tir_pipeline,
+        register_tir_pipeline,
     )
 
 import tvm.script

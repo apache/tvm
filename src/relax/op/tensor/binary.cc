@@ -31,45 +31,42 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 template <typename FType>
-StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
-                                    FType f_compute_out_dtype) {
-  Op op = Downcast<Op>(call->op);
+Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compute_out_dtype) {
+  Op op = call->op.as_or_throw<Op>();
   size_t n_input = op->arguments.size();
   if (call->args.size() != n_input) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << call->op << " op should have " << n_input << " arguments";
   }
 
-  auto lhs_sinfo = GetStructInfo(call->args[0]);
-  auto rhs_sinfo = GetStructInfo(call->args[1]);
+  auto lhs_ty = GetType(call->args[0]);
+  auto rhs_ty = GetType(call->args[1]);
 
-  TVM_FFI_CHECK(lhs_sinfo.as<PrimStructInfoNode>() || lhs_sinfo.as<TensorStructInfoNode>(),
-                TypeError)
+  TVM_FFI_CHECK(lhs_ty.as<PrimTypeNode>() || lhs_ty.as<TensorTypeNode>(), TypeError)
       << "Arguments to binary operators must be either R.Tensor or R.Prim types, "
-      << "but expression " << call << " has LHS " << call->args[0] << ", which has StructInfo "
-      << lhs_sinfo;
-  TVM_FFI_CHECK(rhs_sinfo.as<PrimStructInfoNode>() || rhs_sinfo.as<TensorStructInfoNode>(),
-                TypeError)
+      << "but expression " << call << " has LHS " << call->args[0] << ", which has Type " << lhs_ty;
+  TVM_FFI_CHECK(rhs_ty.as<PrimTypeNode>() || rhs_ty.as<TensorTypeNode>(), TypeError)
       << "Arguments to binary operators must be either R.Tensor or R.Prim types, "
-      << "but expression " << call << " has RHS " << call->args[1] << ", which has StructInfo "
-      << rhs_sinfo;
+      << "but expression " << call << " has RHS " << call->args[1] << ", which has Type " << rhs_ty;
 
-  // DateType
-  DataType output_dtype = f_compute_out_dtype(call, ctx, lhs_sinfo, rhs_sinfo);
+  // Dtype
+  ffi::Optional<PrimType> output_dtype = f_compute_out_dtype(call, ctx, lhs_ty, rhs_ty);
 
-  if (lhs_sinfo.as<PrimStructInfoNode>() && rhs_sinfo.as<PrimStructInfoNode>()) {
-    return PrimStructInfo(output_dtype);
+  if (lhs_ty.as<PrimTypeNode>() && rhs_ty.as<PrimTypeNode>()) {
+    TVM_FFI_ICHECK(output_dtype.has_value());
+    return output_dtype.value();
   }
 
   // VDevice
-  ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, lhs_sinfo, rhs_sinfo);
+  ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, lhs_ty, rhs_ty);
 
-  auto get_ndim = [&](const StructInfo& sinfo) -> int {
-    if (sinfo.as<PrimStructInfoNode>()) {
+  auto get_ndim = [&](const Type& ty) -> int {
+    if (ty.as<PrimTypeNode>()) {
       return 1;
-    } else if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
+    } else if (const auto* tensor = ty.as<TensorTypeNode>()) {
       return tensor->ndim;
     } else {
       return kUnknownNDim;
@@ -78,8 +75,8 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
 
   // ndims
   int output_ndim = [&]() {
-    int lhs_ndim = get_ndim(lhs_sinfo);
-    int rhs_ndim = get_ndim(rhs_sinfo);
+    int lhs_ndim = get_ndim(lhs_ty);
+    int rhs_ndim = get_ndim(rhs_ty);
     if (lhs_ndim == kUnknownNDim || rhs_ndim == kUnknownNDim) {
       return kUnknownNDim;
     } else {
@@ -89,10 +86,10 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
 
   // Shapes
 
-  auto get_shape = [](const StructInfo& sinfo) -> ffi::Optional<ffi::Array<PrimExpr>> {
-    if (sinfo.as<PrimStructInfoNode>()) {
-      return ffi::Array<PrimExpr>{IntImm(DataType::Int(64), 1)};
-    } else if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
+  auto get_shape = [](const Type& ty) -> ffi::Optional<ffi::Array<PrimExpr>> {
+    if (ty.as<PrimTypeNode>()) {
+      return ffi::Array<PrimExpr>{IntImm::Int64(1)};
+    } else if (const auto* tensor = ty.as<TensorTypeNode>()) {
       return tensor->GetShape();
     } else {
       return std::nullopt;
@@ -101,19 +98,19 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
 
   // If both inputs have a known shape, directly infer the shape of
   // the output.
-  auto lhs_shape = get_shape(lhs_sinfo);
-  auto rhs_shape = get_shape(rhs_sinfo);
+  auto lhs_shape = get_shape(lhs_ty);
+  auto rhs_shape = get_shape(rhs_ty);
   if (lhs_shape && rhs_shape) {
     ffi::Optional<ffi::Array<PrimExpr>> output_shape =
         InferBinaryBroadcastShape(call, ctx, lhs_shape.value(), rhs_shape.value());
-    if (output_shape.defined()) {
+    if (output_shape.has_value()) {
       TVM_FFI_ICHECK_EQ(static_cast<int>(output_shape.value().size()), output_ndim);
-      return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype, vdevice);
+      return TensorType(ShapeExpr(output_shape.value()), output_dtype, vdevice);
     }
   }
 
-  auto get_shape_expr = [](const StructInfo& sinfo) -> ffi::Optional<Expr> {
-    if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
+  auto get_shape_expr = [](const Type& ty) -> ffi::Optional<Expr> {
+    if (const auto* tensor = ty.as<TensorTypeNode>()) {
       return tensor->shape;
     } else {
       return std::nullopt;
@@ -121,28 +118,27 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
   };
 
   // If the input shape is unknown, but both inputs have the same
-  // `ShapeStructInfo`variable for their shape, then propagate that
+  // `ShapeType`variable for their shape, then propagate that
   // variable to the output.
-  auto lhs_shape_expr = get_shape_expr(lhs_sinfo);
-  auto rhs_shape_expr = get_shape_expr(rhs_sinfo);
-  if (lhs_shape_expr.defined() && lhs_shape_expr.same_as(rhs_shape_expr)) {
-    return TensorStructInfo(lhs_shape_expr.value(), output_dtype, vdevice);
+  auto lhs_shape_expr = get_shape_expr(lhs_ty);
+  auto rhs_shape_expr = get_shape_expr(rhs_ty);
+  if (lhs_shape_expr.has_value() && lhs_shape_expr.same_as(rhs_shape_expr)) {
+    return TensorType(lhs_shape_expr.value(), output_dtype, vdevice);
   }
 
   // If neither of those cases holds, then fall back to an unknown
   // shape with `output_ndim` dimensionality.
-  return TensorStructInfo(output_dtype, output_ndim, vdevice);
+  return TensorType(output_dtype, output_ndim, vdevice);
 }
 
-StructInfo InferStructInfoBroadcastArith(const Call& call, const BlockBuilder& ctx) {
-  return InferStructInfoBroadcast(call, ctx, InferBinaryArithOpOutDtype);
+Type InferTypeBroadcastArith(const Call& call, const BlockBuilder& ctx) {
+  return InferTypeBroadcast(call, ctx, InferBinaryArithOpOutDtype);
 }
 
-StructInfo InferStructInfoBroadcastCMP(const Call& call, const BlockBuilder& ctx) {
-  return InferStructInfoBroadcast(
-      call, ctx,
-      [](const Call& call, const BlockBuilder& ctx, const StructInfo& lhs_sinfo,
-         const StructInfo& rhs_sinfo) { return DataType::Bool(); });
+Type InferTypeBroadcastCMP(const Call& call, const BlockBuilder& ctx) {
+  return InferTypeBroadcast(call, ctx,
+                            [](const Call& call, const BlockBuilder& ctx, const Type& lhs_ty,
+                               const Type& rhs_ty) { return PrimType::Bool(); });
 }
 
 InferLayoutOutput InferLayoutBinaryEwise(
@@ -152,24 +148,24 @@ InferLayoutOutput InferLayoutBinaryEwise(
   LayoutDecision layout1 = GetLayoutDecision(var_layout_map, call->args[0]);
   LayoutDecision layout2 = GetLayoutDecision(var_layout_map, call->args[1]);
 
-  auto* x1_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  auto* x2_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  auto* x1_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
+  auto* x2_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
 
-  TVM_FFI_ICHECK(!x1_sinfo->IsUnknownNdim() && !x2_sinfo->IsUnknownNdim())
+  TVM_FFI_ICHECK(!x1_ty->IsUnknownNdim() && !x2_ty->IsUnknownNdim())
       << "Unknown dim tensors should not be handled by this function";
 
-  ffi::Optional<ShapeExpr> shape1 = ffi::GetRef<ShapeExpr>(x1_sinfo->shape.as<ShapeExprNode>());
-  ffi::Optional<ShapeExpr> shape2 = ffi::GetRef<ShapeExpr>(x2_sinfo->shape.as<ShapeExprNode>());
+  ffi::Optional<ShapeExpr> shape1 = ffi::GetRef<ShapeExpr>(x1_ty->shape.as<ShapeExprNode>());
+  ffi::Optional<ShapeExpr> shape2 = ffi::GetRef<ShapeExpr>(x2_ty->shape.as<ShapeExprNode>());
   // Lets handle sub indexing as long as primal dims are matching
   if ((layout1->layout.ndim() != layout1->layout.ndim_primal()) ||
       (layout2->layout.ndim() != layout2->layout.ndim_primal())) {
     if (layout1->layout.ndim_primal() == layout2->layout.ndim_primal()) {
-      if ((layout1->layout.ndim() >= layout2->layout.ndim()) && shape2.defined()) {
+      if ((layout1->layout.ndim() >= layout2->layout.ndim()) && shape2.has_value()) {
         if (CanProveLayoutTransform(InitialLayout(shape2.value()->values.size()), layout1->layout,
                                     shape2.value()->values)) {
           return InferLayoutOutput({layout1, layout1}, {layout1}, Attrs(call->attrs));
         }
-      } else if (shape1.defined()) {
+      } else if (shape1.has_value()) {
         if (CanProveLayoutTransform(InitialLayout(shape1.value()->values.size()), layout2->layout,
                                     shape1.value()->values)) {
           return InferLayoutOutput({layout2, layout2}, {layout2}, Attrs(call->attrs));
@@ -178,19 +174,19 @@ InferLayoutOutput InferLayoutBinaryEwise(
     }
   }
 
-  if (x1_sinfo->ndim <= x2_sinfo->ndim) {
-    if (x1_sinfo->ndim == 0) {
+  if (x1_ty->ndim <= x2_ty->ndim) {
+    if (x1_ty->ndim == 0) {
       LayoutDecision out_layout = layout2;
       return InferLayoutOutput({LayoutDecision(""), layout2}, {out_layout}, Attrs(call->attrs));
     }
-    LayoutDecision out_layout = FollowDecision(layout1, x2_sinfo->ndim);
+    LayoutDecision out_layout = FollowDecision(layout1, x2_ty->ndim);
     return InferLayoutOutput({layout1, out_layout}, {out_layout}, Attrs(call->attrs));
   } else {
-    if (x2_sinfo->ndim == 0) {
+    if (x2_ty->ndim == 0) {
       LayoutDecision out_layout = layout1;
       return InferLayoutOutput({layout1, LayoutDecision("")}, {out_layout}, Attrs(call->attrs));
     }
-    LayoutDecision out_layout = FollowDecision(layout2, x1_sinfo->ndim);
+    LayoutDecision out_layout = FollowDecision(layout2, x1_ty->ndim);
 
     return InferLayoutOutput({out_layout, layout2}, {out_layout}, Attrs(call->attrs));
   }

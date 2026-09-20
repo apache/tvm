@@ -32,9 +32,9 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/cow.h>
-#include <tvm/ir/expr.h>
 
 #include <string>
 #include <type_traits>
@@ -223,7 +223,8 @@ class DictAttrs : public Attrs {
  * \param attr_key The attribute key.
  * \param attr_value The value attribute value.
  *
- * \tparam TFunc The corresponding function or module type.
+ * \tparam TFunc The corresponding function or module type, including BaseFunc.
+ *                Shared inputs must register a reflected shallow-copy constructor.
  *
  * \returns The new function or module with updated attributes.
  *
@@ -245,8 +246,19 @@ class DictAttrs : public Attrs {
 template <typename TFunc>
 inline TFunc WithAttr(TFunc input, const std::string& attr_key, Any attr_value) {
   using TNode = typename TFunc::ContainerType;
-  static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
-  TNode* node = input.CopyOnWrite();
+  if (!input.unique()) {
+    static ffi::reflection::TypeAttrColumn shallow_copy(ffi::reflection::type_attr::kShallowCopy);
+    ffi::AnyView copy_func = shallow_copy[input->type_index()];
+    TVM_FFI_CHECK(copy_func.type_index() == ffi::TypeIndex::kTVMFFIFunction, TypeError)
+        << "Type " << input->GetTypeKey()
+        << " must register an ffi.Function for __ffi_shallow_copy__";
+    Any copy = copy_func.cast<ffi::Function>()(input);
+    TVM_FFI_CHECK(copy.type_index() == input->type_index() && copy.as<ffi::Object>() != input.get(),
+                  TypeError)
+        << "Shallow copy must return a distinct object of type " << input->GetTypeKey();
+    input = std::move(copy).cast<TFunc>();
+  }
+  TNode* node = const_cast<TNode*>(input.operator->());
   // node->attrs is NOTNULLABLE by contract, but defend against a caller
   // that left a moved-from DictAttrs in place by re-initializing here.
   if (!node->attrs.defined()) node->attrs = DictAttrs();
@@ -260,16 +272,28 @@ inline TFunc WithAttr(TFunc input, const std::string& attr_key, Any attr_value) 
  * \param input The thing to annotate (BaseFunc or IRModule)
  * \param attrs Key/values attributes to add to \p input.
  *
- * \tparam TFunc The corresponding function or module type.
+ * \tparam TFunc The corresponding function or module type, including BaseFunc.
+ *                Shared inputs must register a reflected shallow-copy constructor.
  *
  * \returns The new function or module with updated attributes.
  */
 template <typename TFunc>
 inline TFunc WithAttrs(TFunc input, ffi::Map<ffi::String, Any> attrs) {
   using TNode = typename TFunc::ContainerType;
-  static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
   if (attrs.empty()) return input;
-  TNode* node = input.CopyOnWrite();
+  if (!input.unique()) {
+    static ffi::reflection::TypeAttrColumn shallow_copy(ffi::reflection::type_attr::kShallowCopy);
+    ffi::AnyView copy_func = shallow_copy[input->type_index()];
+    TVM_FFI_CHECK(copy_func.type_index() == ffi::TypeIndex::kTVMFFIFunction, TypeError)
+        << "Type " << input->GetTypeKey()
+        << " must register an ffi.Function for __ffi_shallow_copy__";
+    Any copy = copy_func.cast<ffi::Function>()(input);
+    TVM_FFI_CHECK(copy.type_index() == input->type_index() && copy.as<ffi::Object>() != input.get(),
+                  TypeError)
+        << "Shallow copy must return a distinct object of type " << input->GetTypeKey();
+    input = std::move(copy).cast<TFunc>();
+  }
+  TNode* node = const_cast<TNode*>(input.operator->());
   // node->attrs is NOTNULLABLE by contract, but defend against a caller
   // that left a moved-from DictAttrs in place by re-initializing here.
   if (!node->attrs.defined()) node->attrs = DictAttrs();
@@ -287,7 +311,8 @@ inline TFunc WithAttrs(TFunc input, ffi::Map<ffi::String, Any> attrs) {
  * \param input The thing to annotate (BaseFunc or IRModule)
  * \param attr_key The attribute key.
  *
- * \tparam TFunc The corresponding function or module type.
+ * \tparam TFunc The corresponding function or module type, including BaseFunc.
+ *                Shared inputs must register a reflected shallow-copy constructor.
  *
  * \returns The new function or module with removed attribute.
  *
@@ -309,8 +334,19 @@ inline TFunc WithAttrs(TFunc input, ffi::Map<ffi::String, Any> attrs) {
 template <typename TFunc>
 inline TFunc WithoutAttr(TFunc input, const std::string& attr_key) {
   using TNode = typename TFunc::ContainerType;
-  static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
-  TNode* node = input.CopyOnWrite();
+  if (!input.unique()) {
+    static ffi::reflection::TypeAttrColumn shallow_copy(ffi::reflection::type_attr::kShallowCopy);
+    ffi::AnyView copy_func = shallow_copy[input->type_index()];
+    TVM_FFI_CHECK(copy_func.type_index() == ffi::TypeIndex::kTVMFFIFunction, TypeError)
+        << "Type " << input->GetTypeKey()
+        << " must register an ffi.Function for __ffi_shallow_copy__";
+    Any copy = copy_func.cast<ffi::Function>()(input);
+    TVM_FFI_CHECK(copy.type_index() == input->type_index() && copy.as<ffi::Object>() != input.get(),
+                  TypeError)
+        << "Shallow copy must return a distinct object of type " << input->GetTypeKey();
+    input = std::move(copy).cast<TFunc>();
+  }
+  TNode* node = const_cast<TNode*>(input.operator->());
   // node->attrs is NOTNULLABLE by contract, but defend against a caller
   // that left a moved-from DictAttrs in place; nothing to erase from an
   // empty dict.

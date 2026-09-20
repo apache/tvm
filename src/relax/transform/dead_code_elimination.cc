@@ -61,11 +61,13 @@ struct RelaxCalleeCollector : relax::ExprVisitor {
 struct TIRxCalleeCollector : tirx::StmtExprVisitor {
   std::vector<GlobalVar>* callees;
   explicit TIRxCalleeCollector(std::vector<GlobalVar>* out) : callees(out) {}
-  void VisitExpr_(const tirx::CallNode* node) final {
-    tirx::StmtExprVisitor::VisitExpr_(node);
+  using tirx::StmtExprVisitor::Visit_;
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* node) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(tirx::StmtExprVisitor::Visit_(node));
     if (auto opt_gvar = node->op.as<GlobalVar>()) {
       callees->push_back(opt_gvar.value());
     }
+    return std::nullopt;
   }
 };
 
@@ -80,8 +82,7 @@ ffi::Array<GlobalVar> CollectCallees(const BaseFunc& func) {
   } else if (func.as<relax::ExternFunc>()) {
     // no callees
   } else if (auto opt = func.as<tirx::PrimFunc>()) {
-    TIRxCalleeCollector visitor(&raw);
-    visitor(opt.value()->body);
+    ffi::make_object<TIRxCalleeCollector>(&raw)->Visit(opt.value()->body);
   }
   // dedup preserving order
   ffi::Array<GlobalVar> result;
@@ -174,7 +175,7 @@ IRModule DeadCodeElimination(const IRModule& arg_mod,
     IRModule updates;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<Function>()) {
-        auto new_func = Downcast<Function>(RemoveAllUnused(opt.value()));
+        auto new_func = RemoveAllUnused(opt.value()).as_or_throw<Function>();
         if (!new_func.same_as(base_func)) {
           updates->Add(gvar, new_func);
         }

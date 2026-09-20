@@ -24,7 +24,7 @@ Python API
 
     error
     ir
-    arith
+    sym
     instrument
     transform
     target
@@ -56,16 +56,6 @@ Python API
     relax/training
     relax/transform
     relax/dpl
-
-.. toctree::
-    :maxdepth: 1
-    :caption: tvm.tirx
-
-    tirx/tirx
-    tirx/analysis
-    tirx/stmt_functor
-    tirx/transform
-    tirx/backend
 
 .. toctree::
     :maxdepth: 1

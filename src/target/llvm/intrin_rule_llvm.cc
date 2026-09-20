@@ -36,6 +36,8 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
+
 namespace llvm {
 namespace intrin {
 using tirx::FLowerIntrinsic;
@@ -60,7 +62,7 @@ TVM_REGISTER_OP("tirx.log")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
 
-TVM_REGISTER_OP("tirx.log2")
+TVM_REGISTER_OP("prim.log2")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::log2, 1>);
 
@@ -76,7 +78,7 @@ TVM_REGISTER_OP("tirx.floor")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::floor, 1>);
 
-TVM_REGISTER_OP("tirx.ceil")
+TVM_REGISTER_OP("prim.ceil")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::ceil, 1>);
 
@@ -122,21 +124,20 @@ using tirx::FLegalize;
 
 TVM_REGISTER_OP("tirx.exp10")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::make_const;
-      using tirx::make_zero;
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      using tvm::prim::MakeConst;
+      const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      const PrimExpr& x = call->args[0];
-      PrimExpr ln10 = make_const(x.dtype(), 2.302585093);
+      PrimExpr x = call->args[0].as_or_throw<PrimExpr>();
+      PrimExpr ln10 = MakeConst(x.ty(), 2.302585093);
       PrimExpr ret = exp(x * ln10);
       return ret;
     });
 
 TVM_REGISTER_OP("tirx.tan")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      const PrimExpr& x = call->args[0];
+      PrimExpr x = call->args[0].as_or_throw<PrimExpr>();
       PrimExpr tan_x = sin(x) / cos(x);
       return tan_x;
     });
@@ -144,7 +145,7 @@ TVM_REGISTER_OP("tirx.tan")
 TVM_REGISTER_OP("tirx.asin")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using namespace intrin;
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       return ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
     });
@@ -152,33 +153,36 @@ TVM_REGISTER_OP("tirx.asin")
 TVM_REGISTER_OP("tirx.acos")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using namespace intrin;
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in acos legalization";
       return ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
     });
 
 TVM_REGISTER_OP("tirx.atanh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::make_const;
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      using tvm::prim::MakeConst;
+      const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in atanh legalization";
-      const PrimExpr& x = call->args[0];
-      PrimExpr one = make_const(x.dtype(), 1.0);
-      return (log(one + x) - log(one - x)) * make_const(x.dtype(), 0.5);
+      PrimExpr x = call->args[0].as_or_throw<PrimExpr>();
+      PrimType x_ty = x.ty();
+      PrimExpr one = MakeConst(x_ty, 1.0);
+      return (log(one + x) - log(one - x)) * MakeConst(x_ty, 0.5);
     });
 
-TVM_REGISTER_OP("tirx.clz")
+TVM_REGISTER_OP("prim.clz")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       TVM_FFI_ICHECK_EQ(call->args.size(), 1);
       ffi::Array<PrimExpr> cargs;
-      cargs.push_back(IntImm(DataType::UInt(32), ::llvm::Intrinsic::ctlz));
-      cargs.push_back(call->args[0]);
-      cargs.push_back(IntImm(DataType::Int(1), 1));  // is_zero_undef
+      cargs.push_back(IntImm(PrimType::UInt(32), ::llvm::Intrinsic::ctlz));
+      cargs.push_back(call->args[0].as_or_throw<PrimExpr>());
+      cargs.push_back(IntImm(PrimType::Int(1), 1));  // is_zero_undef
       // LLVM requires that the return type must match the first argument type
-      auto clz = tirx::Call(call->args[0]->dtype, tirx::builtin::call_llvm_intrin(), cargs);
-      return cast(call->dtype, clz);
+      auto clz =
+          Call(call->args[0]->ty.as_or_throw<PrimType>(), tirx::builtin::call_llvm_intrin(), cargs)
+              .as_or_throw<PrimExpr>();
+      return cast(call->ty.as_or_throw<PrimType>(), clz);
     });
 
 }  // namespace legalize

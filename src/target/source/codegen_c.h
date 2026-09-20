@@ -25,10 +25,11 @@
 #define TVM_TARGET_SOURCE_CODEGEN_C_H_
 
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
@@ -56,10 +57,13 @@ using namespace tirx;
  * and OpenCL-C. You might find some odd variant features, e.g., type `int3` for
  * a vector of 3 `int`s. For native C code generator, see `CodeGenLLVM`.
  */
-class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
+class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
                  public StmtFunctor<void(const Stmt&)>,
                  public CodeGenSourceBase {
  public:
+  using tirx::ExprFunctor<void(const Expr&, std::ostream&)>::Dispatch;
+  using StmtFunctor::Dispatch;
+
   /*!
    * \brief Initialize the code generator.
    * \param output_ssa Whether output SSA.
@@ -101,18 +105,24 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * \brief Print the Stmt n to CodeGenC->stream
    * \param n The statement to be printed.
    */
-  void PrintStmt(const Stmt& n) { VisitStmt(n); }
+  void PrintStmt(const Stmt& n) { Dispatch(n); }
   /*!
    * \brief Print the expression n(or its ssa id if in ssa mode) into os
    * \param n The expression to be printed.
    * \param os The output stream
    */
   void PrintExpr(const PrimExpr& n, std::ostream& os);
+  void PrintExpr(const Expr& n, std::ostream& os);
   /*!
    * \brief Same as PrintExpr, but simply returns result string
    * \param n The expression to be printed.
    */
   std::string PrintExpr(const PrimExpr& n) {
+    std::ostringstream os;
+    PrintExpr(n, os);
+    return os.str();
+  }
+  std::string PrintExpr(const Expr& n) {
     std::ostringstream os;
     PrintExpr(n, os);
     return os.str();
@@ -158,48 +168,55 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    */
   virtual void InitFuncState(const PrimFunc& f);
   // expression
-  void VisitExpr_(const VarNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const BufferLoadNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const LetNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const AddNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const SubNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const MulNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const DivNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const ModNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const MinNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const MaxNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const EQNode* op, std::ostream& os) override;          // NOLINT(*)
-  void VisitExpr_(const NENode* op, std::ostream& os) override;          // NOLINT(*)
-  void VisitExpr_(const LTNode* op, std::ostream& os) override;          // NOLINT(*)
-  void VisitExpr_(const LENode* op, std::ostream& os) override;          // NOLINT(*)
-  void VisitExpr_(const GTNode* op, std::ostream& os) override;          // NOLINT(*)
-  void VisitExpr_(const GENode* op, std::ostream& os) override;          // NOLINT(*)
-  void VisitExpr_(const AndNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const OrNode* op, std::ostream& os) override;          // NOLINT(*)
-  void VisitExpr_(const CastNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const NotNode* op, std::ostream& os) override;         // NOLINT(*)
-  void VisitExpr_(const SelectNode* op, std::ostream& os) override;      // NOLINT(*)
-  void VisitExpr_(const RampNode* op, std::ostream& os) override;        // NOLINT(*)
-  void VisitExpr_(const ShuffleNode* op, std::ostream& os) override;     // NOLINT(*)
-  void VisitExpr_(const BroadcastNode* op, std::ostream& os) override;   // NOLINT(*)
-  void VisitExpr_(const IntImmNode* op, std::ostream& os) override;      // NOLINT(*)
-  void VisitExpr_(const FloatImmNode* op, std::ostream& os) override;    // NOLINT(*)
-  void VisitExpr_(const StringImmNode* op, std::ostream& os) override;   // NOLINT(*)
+  void Dispatch_(const VarNode* op, std::ostream& os) override;               // NOLINT(*)
+  void Dispatch_(const TensorLoadNode* op, std::ostream& os) override;        // NOLINT(*)
+  void Dispatch_(const prim::LetNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const CallNode* op, std::ostream& os) override;              // NOLINT(*)
+  void Dispatch_(const prim::AddNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::SubNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::MulNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::DivNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::ModNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::MinNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::MaxNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::EQNode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const prim::NENode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const prim::LTNode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const prim::LENode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const prim::GTNode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const prim::GENode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const prim::AndNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::OrNode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const prim::CastNode* op, std::ostream& os) override;        // NOLINT(*)
+  void Dispatch_(const prim::NotNode* op, std::ostream& os) override;         // NOLINT(*)
+  void Dispatch_(const prim::LShiftNode* op, std::ostream& os) override;      // NOLINT(*)
+  void Dispatch_(const prim::RShiftNode* op, std::ostream& os) override;      // NOLINT(*)
+  void Dispatch_(const prim::BitwiseAndNode* op, std::ostream& os) override;  // NOLINT(*)
+  void Dispatch_(const prim::BitwiseOrNode* op, std::ostream& os) override;   // NOLINT(*)
+  void Dispatch_(const prim::BitwiseXorNode* op, std::ostream& os) override;  // NOLINT(*)
+  void Dispatch_(const prim::BitwiseNotNode* op, std::ostream& os) override;  // NOLINT(*)
+  void Dispatch_(const prim::SelectNode* op, std::ostream& os) override;      // NOLINT(*)
+  void Dispatch_(const prim::RampNode* op, std::ostream& os) override;        // NOLINT(*)
+  void Dispatch_(const prim::ShuffleNode* op, std::ostream& os) override;     // NOLINT(*)
+  void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) override;   // NOLINT(*)
+  void Dispatch_(const IntImmNode* op, std::ostream& os) override;            // NOLINT(*)
+  void Dispatch_(const FloatImmNode* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const StringImmNode* op, std::ostream& os) override;         // NOLINT(*)
   // statment
-  void VisitStmt_(const BindNode* op) override;
-  void VisitStmt_(const BufferStoreNode* op) override;
-  void VisitStmt_(const ForNode* op) override;
-  void VisitStmt_(const WhileNode* op) override;
-  void VisitStmt_(const BreakNode* op) override;
-  void VisitStmt_(const ContinueNode* op) override;
-  void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const AllocBufferNode* op) override;
-  void VisitStmt_(const AttrStmtNode* op) override;
-  void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const EvaluateNode* op) override;
-  void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const DeclBufferNode* op) override;
+  void Dispatch_(const BindNode* op) override;
+  void Dispatch_(const BufferStoreNode* op) override;
+  void Dispatch_(const ForNode* op) override;
+  void Dispatch_(const WhileNode* op) override;
+  void Dispatch_(const ReturnNode* op) override;
+  void Dispatch_(const BreakNode* op) override;
+  void Dispatch_(const ContinueNode* op) override;
+  void Dispatch_(const IfThenElseNode* op) override;
+  void Dispatch_(const AllocBufferNode* op) override;
+  void Dispatch_(const AttrStmtNode* op) override;
+  void Dispatch_(const AssertStmtNode* op) override;
+  void Dispatch_(const EvaluateNode* op) override;
+  void Dispatch_(const SeqStmtNode* op) override;
+  void Dispatch_(const DeclBufferNode* op) override;
 
   /*!
    * \brief Print expr representing the thread tag
@@ -209,25 +226,27 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   virtual void PrintStorageScope(const std::string& scope, std::ostream& os);  // NOLINT(*)
   virtual void PrintStorageSync(const CallNode* op);                           // NOLINT(*)
   // Binary vector op.
-  virtual void PrintVecBinaryOp(const std::string& op, DataType op_type, PrimExpr lhs, PrimExpr rhs,
+  virtual void PrintVecBinaryOp(const std::string& op, const PrimType& op_type, PrimExpr lhs,
+                                PrimExpr rhs,
                                 std::ostream& os);  // NOLINT(*)
   // print vector load
-  virtual std::string GetVecLoad(DataType t, const BufferNode* buffer, PrimExpr base);
+  virtual std::string GetVecLoad(const PrimType& t, const VarNode* buffer, PrimExpr base);
   // print vector store
-  virtual void PrintVecStore(const BufferNode* buffer, DataType t, PrimExpr base,
+  virtual void PrintVecStore(const VarNode* buffer, const PrimType& t, PrimExpr base,
                              const std::string& value);  // NOLINT(*)
   // print load of single element
-  virtual void PrintVecElemLoad(const std::string& vec, DataType t, int i,
+  virtual void PrintVecElemLoad(const std::string& vec, const PrimType& t, int i,
                                 std::ostream& os);  // NOLINT(*)
   // print store of single element.
-  virtual void PrintVecElemStore(const std::string& vec, DataType t, int i,
+  virtual void PrintVecElemStore(const std::string& vec, const PrimType& t, int i,
                                  const std::string& value);
   // print vector constructor
-  virtual void PrintVecConstructor(DataType t, std::ostream& os);
+  virtual void PrintVecConstructor(const PrimType& t, std::ostream& os);
   // Get a cast type from to
-  virtual std::string CastFromTo(std::string value, DataType from, DataType target);
+  virtual std::string CastFromTo(std::string value, const PrimType& from, const PrimType& target);
   // Get load of single element with expression
-  virtual void PrintVecElemLoadExpr(DataType t, int i, const std::string& value, std::ostream& os);
+  virtual void PrintVecElemLoadExpr(const PrimType& t, int i, const std::string& value,
+                                    std::ostream& os);
   // Print restrict keyword for a given Var if applicable
   virtual void PrintRestrict(const Var& v, std::ostream& os);
 
@@ -239,9 +258,9 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   /*! \brief Print a C string literal with proper escaping of special chars. */
   void PrintEscapedCString(const std::string& str, std::ostream& os);
   // Print reference to struct location
-  std::string GetStructRef(DataType t, const PrimExpr& buffer, const PrimExpr& index, int kind);
+  std::string GetStructRef(const Type& t, const Expr& buffer, const PrimExpr& index, int kind);
   // Print reference to a buffer as type t in index.
-  virtual std::string GetBufferRef(DataType t, const BufferNode* buffer, PrimExpr index);
+  virtual std::string GetBufferRef(const PrimType& t, const VarNode* buffer, PrimExpr index);
 
   /*!
    * \brief Handle volatile loads.
@@ -251,7 +270,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * does not implement volatile member functions. CUDA codegen will cast
    * away volatile qualifier from CUDA __half types.
    */
-  virtual void HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
+  virtual void HandleVolatileLoads(const std::string& value, const TensorLoadNode* op,
                                    std::ostream& os) {
     // By default, do nothing but print the loaded value.
     os << value;
@@ -287,20 +306,20 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * \param os The output stream.
    */
   virtual void PrintCallExtern(Type ret_type, ffi::String global_symbol,
-                               const ffi::Array<PrimExpr>& args, bool skip_first_arg,
+                               const ffi::Array<Expr>& args, bool skip_first_arg,
                                std::ostream& os);  // NOLINT(*)
   /*!
    * \brief If buffer is allocated as type t.
    * \param buf_var The buffer variable.
    * \param t The type to be checked.
    */
-  bool HandleTypeMatch(const VarNode* buf_var, DataType t) const;
+  bool HandleTypeMatch(const VarNode* buf_var, const PrimType& t) const;
   /*!
    * \brief Register the data type of buf_var
    * \param buf_var The buffer variable.
    * \param t The type to be checked.
    */
-  void RegisterHandleType(const VarNode* buf_var, DataType t);
+  void RegisterHandleType(const VarNode* buf_var, const PrimType& t);
   /*!
    * \brief Register a typed pointer produced by explicit pointer-offset intrinsics.
    *
@@ -308,9 +327,9 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * code shape.  Only explicit pointer-offset values opt into typed pointer
    * arithmetic.
    */
-  void RegisterHandleTypeFromPointer(const tirx::Var& var, const PrimExpr* value);
+  void RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* value);
   // override
-  void PrintSSAAssign(const std::string& target, const std::string& src, DataType t) override;
+  void PrintSSAAssign(const std::string& target, const std::string& src, const Type& t) override;
   /*! \brief reserves common C keywords */
   void ReserveKeywordsAsUnique();
 
@@ -324,7 +343,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   /*! \brief the storage scope of allocation */
   std::unordered_map<const VarNode*, std::string> alloc_storage_scope_;
   /*! \brief the data type of allocated buffers */
-  std::unordered_map<const VarNode*, DataType> handle_data_type_;
+  std::unordered_map<const VarNode*, PrimType> handle_data_type_;
   /*! \brief Handle vars whose address_of(buffer[index]) should print as ptr + index. */
   std::unordered_set<const VarNode*> pointer_offset_vars_;
   /*! \brief Record of ops that have pre-defined global symbol. */
@@ -343,10 +362,10 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   std::unordered_set<const VarNode*> volatile_buf_;
 
   // deep comparison of PrimExpr
-  ExprDeepEqual deep_equal_;
+  prim::ExprDeepEqual deep_equal_;
 
   // binding of let variables. Enables duplicate var defs that map to same value
-  std::unordered_map<Var, const LetNode*> let_binding_;
+  std::unordered_map<Var, const prim::LetNode*> let_binding_;
 
   /* \brief Map of GlobalVar to their symbol.
    *
@@ -357,8 +376,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    */
   std::unordered_map<GlobalVar, ffi::String> internal_functions_;
 
-  /* \brief Name supply to generate unique function names */
-  NameSupply func_name_supply_;
+  /* \brief Unique unique name supply to generate unique function names */
+  UniqueNameSupply func_name_supply_;
 };
 
 }  // namespace codegen

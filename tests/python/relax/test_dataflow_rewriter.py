@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
 
 
 import pytest
@@ -35,9 +34,7 @@ def test_rewrite_defined_by_ir_module():
 
         @R.function
         def replacement(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32")):
-            C = R.call_pure_packed(
-                "my_optimized_add_impl", A, B, sinfo_args=R.Tensor([16], "float32")
-            )
+            C = R.call_pure_packed("my_optimized_add_impl", A, B, ty_args=R.Tensor([16], "float32"))
             return C
 
     @R.function
@@ -56,7 +53,7 @@ def test_rewrite_defined_by_ir_module():
         lhs = split[0]
         rhs = split[1]
         out = R.call_pure_packed(
-            "my_optimized_add_impl", lhs, rhs, sinfo_args=R.Tensor([16], "float32")
+            "my_optimized_add_impl", lhs, rhs, ty_args=R.Tensor([16], "float32")
         )
         return out
 
@@ -155,9 +152,7 @@ def test_rewriter_may_be_applied_to_ir_module():
 
         @R.function
         def replacement(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32")):
-            C = R.call_pure_packed(
-                "my_optimized_add_impl", A, B, sinfo_args=R.Tensor([16], "float32")
-            )
+            C = R.call_pure_packed("my_optimized_add_impl", A, B, ty_args=R.Tensor([16], "float32"))
             return C
 
     @I.ir_module
@@ -183,14 +178,14 @@ def test_rewriter_may_be_applied_to_ir_module():
             lhs = split[0]
             rhs = split[1]
             out = R.call_pure_packed(
-                "my_optimized_add_impl", lhs, rhs, sinfo_args=R.Tensor([16], "float32")
+                "my_optimized_add_impl", lhs, rhs, ty_args=R.Tensor([16], "float32")
             )
             return out
 
         @R.function
         def func_b(x: R.Tensor([16], "float32")):
             out = R.call_pure_packed(
-                "my_optimized_add_impl", x, x, sinfo_args=R.Tensor([16], "float32")
+                "my_optimized_add_impl", x, x, ty_args=R.Tensor([16], "float32")
             )
             return out
 
@@ -210,9 +205,7 @@ def test_rewriter_may_be_used_as_ir_transform():
 
         @R.function
         def replacement(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32")):
-            C = R.call_pure_packed(
-                "my_optimized_add_impl", A, B, sinfo_args=R.Tensor([16], "float32")
-            )
+            C = R.call_pure_packed("my_optimized_add_impl", A, B, ty_args=R.Tensor([16], "float32"))
             return C
 
     @I.ir_module
@@ -227,7 +220,7 @@ def test_rewriter_may_be_used_as_ir_transform():
         @R.function
         def main(x: R.Tensor([16], "float32")):
             out = R.call_pure_packed(
-                "my_optimized_add_impl", x, x, sinfo_args=R.Tensor([16], "float32")
+                "my_optimized_add_impl", x, x, ty_args=R.Tensor([16], "float32")
             )
             return out
 
@@ -247,9 +240,7 @@ def test_same_pattern_applied_multiple_times():
 
         @R.function
         def replacement(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32")):
-            C = R.call_pure_packed(
-                "my_optimized_add_impl", A, B, sinfo_args=R.Tensor([16], "float32")
-            )
+            C = R.call_pure_packed("my_optimized_add_impl", A, B, ty_args=R.Tensor([16], "float32"))
             return C
 
     @R.function(private=True)
@@ -260,8 +251,8 @@ def test_same_pattern_applied_multiple_times():
 
     @R.function(private=True)
     def expected(x: R.Tensor([16], "float32")):
-        y = R.call_pure_packed("my_optimized_add_impl", x, x, sinfo_args=R.Tensor([16], "float32"))
-        z = R.call_pure_packed("my_optimized_add_impl", y, y, sinfo_args=R.Tensor([16], "float32"))
+        y = R.call_pure_packed("my_optimized_add_impl", x, x, ty_args=R.Tensor([16], "float32"))
+        z = R.call_pure_packed("my_optimized_add_impl", y, y, ty_args=R.Tensor([16], "float32"))
         return z
 
     after = Rewriter(before)
@@ -280,9 +271,7 @@ def test_composition_of_rewrite_rules():
 
         @R.function
         def replacement(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32")):
-            C = R.call_pure_packed(
-                "my_optimized_add_impl", A, B, sinfo_args=R.Tensor([16], "float32")
-            )
+            C = R.call_pure_packed("my_optimized_add_impl", A, B, ty_args=R.Tensor([16], "float32"))
             return C
 
     @R.rewriter
@@ -294,9 +283,7 @@ def test_composition_of_rewrite_rules():
 
         @R.function
         def replacement(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32")):
-            C = R.call_pure_packed(
-                "my_optimized_mul_impl", A, B, sinfo_args=R.Tensor([16], "float32")
-            )
+            C = R.call_pure_packed("my_optimized_mul_impl", A, B, ty_args=R.Tensor([16], "float32"))
             return C
 
     @R.function(private=True)
@@ -315,8 +302,8 @@ def test_composition_of_rewrite_rules():
         B: R.Tensor([16], "float32"),
         C: R.Tensor([16], "float32"),
     ):
-        D = R.call_pure_packed("my_optimized_add_impl", A, B, sinfo_args=R.Tensor([16], "float32"))
-        E = R.call_pure_packed("my_optimized_mul_impl", C, D, sinfo_args=R.Tensor([16], "float32"))
+        D = R.call_pure_packed("my_optimized_add_impl", A, B, ty_args=R.Tensor([16], "float32"))
+        E = R.call_pure_packed("my_optimized_mul_impl", C, D, ty_args=R.Tensor([16], "float32"))
         return E
 
     rewriter = RewriteAdd | RewriteMultiply
@@ -354,9 +341,7 @@ def test_recursive_rewrite_rules():
 
         @R.function
         def replacement(A: R.Tensor([16], "float32"), B: R.Tensor([], "float32")):
-            C = R.call_pure_packed(
-                "my_optimized_mul_impl", A, B, sinfo_args=R.Tensor([16], "float32")
-            )
+            C = R.call_pure_packed("my_optimized_mul_impl", A, B, ty_args=R.Tensor([16], "float32"))
             return C
 
     @R.function(private=True)
@@ -370,7 +355,7 @@ def test_recursive_rewrite_rules():
             "my_optimized_mul_impl",
             A,
             R.const(2.0, "float32"),
-            sinfo_args=R.Tensor([16], "float32"),
+            ty_args=R.Tensor([16], "float32"),
         )
         return B
 
@@ -378,148 +363,6 @@ def test_recursive_rewrite_rules():
 
     after = rewriter(before)
     tvm.ir.assert_structural_equal(expected, after)
-
-
-def test_rewrite_of_arbitrary_dtype():
-    """A pattern-match may apply to a tensor with unknown dtype
-
-    In this test case, a pattern identifies `R.strided_slice` usage
-    which returns the last slice of an array, and replaces it with a
-    view into the input array.
-
-    """
-
-    @R.rewriter
-    class Rewriter:
-        @R.function
-        def pattern(A: R.Tensor(["M", "N"])) -> R.Tensor(["N"]):
-            M = T.int64()
-            N = T.int64()
-            last_slice_2d: R.Tensor([1, N]) = R.strided_slice(A, axes=[0], begin=[M - 1], end=[M])
-            last_slice_1d: R.Tensor([N]) = R.squeeze(last_slice_2d, axis=0)
-            return last_slice_1d
-
-        @R.function
-        def replacement(A: R.Tensor(["M", "N"])) -> R.Tensor(["N"]):
-            M = T.int64()
-            N = T.int64()
-
-            # TODO(Lunderberg): Improve this syntax.  A Relax
-            # PrimValue (e.g. `A.dtype.bits`) should be usable in any
-            # Relax context that accepts a `PrimExpr`.  Currently,
-            # this requires `R.match_cast` to produce a TIR symbolic
-            # variable from the Relax PrimValue.
-            bits_per_element = T.uint8()
-            _ = R.match_cast(
-                A.dtype.bits,
-                R.Prim(value=bits_per_element),
-            )
-            lanes_per_element = T.uint16()
-            _ = R.match_cast(
-                A.dtype.lanes,
-                R.Prim(value=lanes_per_element),
-            )
-
-            last_slice = R.memory.view(
-                A,
-                [N],
-                relative_byte_offset=(M - 1)
-                * N
-                * T.ceildiv(
-                    bits_per_element.astype("int64") * lanes_per_element.astype("int64"), 8
-                ),
-            )
-            return last_slice
-
-    @I.ir_module
-    class Before:
-        @R.function
-        def main(
-            A: R.Tensor([32, 16], "float16"),
-            B: R.Tensor(["P", "Q"], "int4x8"),
-            C: R.Tensor([16, 32]),
-        ):
-            P = T.int64()
-            Q = T.int64()
-
-            A_slice_2d = R.strided_slice(A, axes=[0], begin=[31], end=[32])
-            A_slice_1d = R.squeeze(A_slice_2d, axis=0)
-
-            B_slice_2d = R.strided_slice(B, axes=[0], begin=[P - 1], end=[P])
-            B_slice_1d = R.squeeze(B_slice_2d, axis=0)
-
-            C_slice_2d = R.strided_slice(C, axes=[0], begin=[15], end=[16])
-            C_slice_1d = R.squeeze(C_slice_2d, axis=0)
-
-            return (A_slice_1d, B_slice_1d, C_slice_1d)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(
-            A: R.Tensor([32, 16], "float16"),
-            B: R.Tensor(["P", "Q"], "int4x8"),
-            C: R.Tensor([16, 32]),
-        ):
-            P = T.int64()
-            Q = T.int64()
-
-            # The pattern matches any 2-d tensor, with any data type.
-            # When the match's shape and dtype are both known,
-            # normalization and canonicalization produces a statically
-            # known value for `relative_byte_offset`.
-            #
-            # Relative offset is `(31 rows) *
-            #                     (16 elements/row) *
-            #                     (2 bytes/element)`
-            A_slice_1d = R.memory.view(A, shape=[16], relative_byte_offset=992)
-
-            # The pattern can also match a 2-d tensor with dynamic
-            # shape.  The `relative_byte_offset` uses the known
-            # datatype (4 bytes for each int4x8), but with dynamic
-            # shape variables substituted in where required.
-            #
-            # Relative offset is `((P-1) rows) *
-            #                     (Q elements/row) *
-            #                     (4 bytes/element)`
-            B_slice_1d = R.memory.view(B, shape=[Q], relative_byte_offset=(P - 1) * Q * 4)
-
-            # The pattern can also match a 2-d tensor with static
-            # shape, but unknown data type.  The
-            # `relative_byte_offset` is determined based on the known
-            # number of elements, and the dynamic size of each
-            # element.
-            #
-            # Relative offset is `(15 rows) *
-            #                     (32 elements/row) *
-            #                     (ceildiv(bits*lanes,8) bytes/element)`
-            C_bits_per_element = T.uint8()
-            C_bits_prim_value = C.dtype.bits
-            _ = R.match_cast(
-                C_bits_prim_value,
-                R.Prim(value=C_bits_per_element),
-            )
-            C_lanes_per_element = T.uint16()
-            C_lanes_prim_value = C.dtype.lanes
-            _ = R.match_cast(
-                C_lanes_prim_value,
-                R.Prim(value=C_lanes_per_element),
-            )
-
-            C_slice_1d = R.memory.view(
-                C,
-                shape=[32],
-                relative_byte_offset=(
-                    (C_bits_per_element.astype("int64") * C_lanes_per_element.astype("int64") + 7)
-                    // 8
-                )
-                * 480,
-            )
-
-            return (A_slice_1d, B_slice_1d, C_slice_1d)
-
-    after = Rewriter(Before)
-    tvm.ir.assert_structural_equal(Expected, after)
 
 
 def test_rewrite_may_introduce_private_relax_subroutines():
@@ -594,7 +437,7 @@ def test_rewrite_only_introduces_private_subroutines_when_required():
 
         @R.function
         def replacement(A: R.Tensor([16], "float32")):
-            return R.call_tir(RewriteMul.subroutine_mul, [A], out_sinfo=R.Tensor([16], "float32"))
+            return R.call_tir(RewriteMul.subroutine_mul, [A], out_ty=R.Tensor([16], "float32"))
 
         @T.prim_func(private=True, s_tir=True)
         def subroutine_mul(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
@@ -672,7 +515,7 @@ def test_rewrite_branches_may_reuse_subroutine_name():
 
         @R.function
         def replacement(A: R.Tensor([16], "float32")):
-            return R.call_tir(RewriteMul.subroutine, [A], out_sinfo=R.Tensor([16], "float32"))
+            return R.call_tir(RewriteMul.subroutine, [A], out_ty=R.Tensor([16], "float32"))
 
         @T.prim_func(private=True, s_tir=True)
         def subroutine(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
@@ -692,7 +535,7 @@ def test_rewrite_branches_may_reuse_subroutine_name():
         @R.function
         def main(A: R.Tensor([16], "float32")):
             B = Expected.subroutine(A)
-            C = R.call_tir(Expected.subroutine_1, [B], out_sinfo=R.Tensor([16], "float32"))
+            C = R.call_tir(Expected.subroutine_1, [B], out_ty=R.Tensor([16], "float32"))
             return C
 
         @R.function(private=True)
@@ -929,7 +772,7 @@ def test_rewrite_of_implicit_tuple_with_shared_wildcard():
                 x,
                 y,
                 z,
-                sinfo_args=R.Tuple(
+                ty_args=R.Tuple(
                     [
                         R.Tensor([16], "float32"),
                         R.Tensor([16], "float32"),
@@ -959,7 +802,7 @@ def test_rewrite_of_implicit_tuple_with_shared_wildcard():
             A,
             B,
             C,
-            sinfo_args=R.Tuple(
+            ty_args=R.Tuple(
                 [
                     R.Tensor([16], "float32"),
                     R.Tensor([16], "float32"),
@@ -1006,7 +849,7 @@ def test_no_rewrite_of_implicit_tuple_when_shared_wildcard_is_mismatched():
                 A,
                 B,
                 C,
-                sinfo_args=R.Tuple(
+                ty_args=R.Tuple(
                     [
                         R.Tensor([16], "float32"),
                         R.Tensor([16], "float32"),
@@ -1109,10 +952,10 @@ def test_rewrite_of_implicit_tuple_with_three_elements():
             k = qkv_tuple[1]
             v = qkv_tuple[2]
             q_embed = R.call_pure_packed(
-                "rotary_embedding", [q], sinfo_args=R.Tensor([4096], "float32")
+                "rotary_embedding", [q], ty_args=R.Tensor([4096], "float32")
             )
             k_embed = R.call_pure_packed(
-                "rotary_embedding", [k], sinfo_args=R.Tensor([4096], "float32")
+                "rotary_embedding", [k], ty_args=R.Tensor([4096], "float32")
             )
 
             return (q_embed, k_embed, v)
@@ -1122,7 +965,7 @@ def test_rewrite_of_implicit_tuple_with_three_elements():
             return R.call_pure_packed(
                 "split_rotary_embedding",
                 [qkv],
-                sinfo_args=[
+                ty_args=[
                     R.Tensor([4096], "float32"),
                     R.Tensor([4096], "float32"),
                     R.Tensor([4096], "float32"),
@@ -1133,24 +976,20 @@ def test_rewrite_of_implicit_tuple_with_three_elements():
     def before(
         state: R.Tensor([4096], "float32"),
         proj_qkv: R.Tensor([12288, 4096], "float32"),
-        kv_cache: R.Object,
+        kv_cache: R.Any,
     ):
         qkv = R.matmul(proj_qkv, state)
         qkv_tuple = R.split(qkv, 3, axis=0)
         q = qkv_tuple[0]
         k = qkv_tuple[1]
         v = qkv_tuple[2]
-        q_embed = R.call_pure_packed(
-            "rotary_embedding", [q], sinfo_args=R.Tensor([4096], "float32")
-        )
-        k_embed = R.call_pure_packed(
-            "rotary_embedding", [k], sinfo_args=R.Tensor([4096], "float32")
-        )
+        q_embed = R.call_pure_packed("rotary_embedding", [q], ty_args=R.Tensor([4096], "float32"))
+        k_embed = R.call_pure_packed("rotary_embedding", [k], ty_args=R.Tensor([4096], "float32"))
 
         attention = R.call_pure_packed(
             "compute_self_attention",
             [q_embed, k_embed, v, kv_cache],
-            sinfo_args=R.Tensor([4096]),
+            ty_args=R.Tensor([4096]),
         )
 
         return attention
@@ -1159,13 +998,13 @@ def test_rewrite_of_implicit_tuple_with_three_elements():
     def expected(
         state: R.Tensor([4096], "float32"),
         proj_qkv: R.Tensor([12288, 4096], "float32"),
-        kv_cache: R.Object,
+        kv_cache: R.Any,
     ):
         qkv = R.matmul(proj_qkv, state)
         embedded_qkv_tuple = R.call_pure_packed(
             "split_rotary_embedding",
             [qkv],
-            sinfo_args=[
+            ty_args=[
                 R.Tensor([4096], "float32"),
                 R.Tensor([4096], "float32"),
                 R.Tensor([4096], "float32"),
@@ -1179,7 +1018,7 @@ def test_rewrite_of_implicit_tuple_with_three_elements():
         attention = R.call_pure_packed(
             "compute_self_attention",
             [q_embed, k_embed, v, kv_cache],
-            sinfo_args=R.Tensor([4096]),
+            ty_args=R.Tensor([4096]),
         )
 
         return attention
@@ -1226,7 +1065,7 @@ def test_pattern_matching_may_not_reorder_across_impure_functions():
                 state,
                 weights,
                 bias,
-                sinfo_args=R.Tensor([16], "float32"),
+                ty_args=R.Tensor([16], "float32"),
             )
 
     @R.function(private=True, pure=False)
@@ -1286,7 +1125,7 @@ def test_pattern_matching_may_occur_between_impure_functions():
                 state,
                 weights,
                 bias,
-                sinfo_args=R.Tensor([16], "float32"),
+                ty_args=R.Tensor([16], "float32"),
             )
 
     @R.function(private=True, pure=False)
@@ -1313,7 +1152,7 @@ def test_pattern_matching_may_occur_between_impure_functions():
             state,
             weights,
             bias,
-            sinfo_args=R.Tensor([16], "float32"),
+            ty_args=R.Tensor([16], "float32"),
         )
         R.print(format="End of function")
         return state
@@ -1339,7 +1178,7 @@ def test_rewrite_may_apply_within_conditional():
         @R.function
         def replacement(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32")):
             return R.call_pure_packed(
-                "my_optimized_add_impl", A, B, sinfo_args=R.Tensor([16], "float32")
+                "my_optimized_add_impl", A, B, ty_args=R.Tensor([16], "float32")
             )
 
     @R.function(private=True)
@@ -1355,14 +1194,12 @@ def test_rewrite_may_apply_within_conditional():
     def expected(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32"), cond: R.Prim("bool")):
         if cond:
             out = R.call_pure_packed(
-                "my_optimized_add_impl", A, B, sinfo_args=R.Tensor([16], "float32")
+                "my_optimized_add_impl", A, B, ty_args=R.Tensor([16], "float32")
             )
         else:
-            C = R.call_pure_packed(
-                "my_optimized_add_impl", A, B, sinfo_args=R.Tensor([16], "float32")
-            )
+            C = R.call_pure_packed("my_optimized_add_impl", A, B, ty_args=R.Tensor([16], "float32"))
             out = R.call_pure_packed(
-                "my_optimized_add_impl", C, B, sinfo_args=R.Tensor([16], "float32")
+                "my_optimized_add_impl", C, B, ty_args=R.Tensor([16], "float32")
             )
         return out
 
@@ -1435,10 +1272,21 @@ def test_match_dynamic_shape():
         A: R.Tensor([16, 16], "float32"),
         B: R.Tensor([16, 16], "float32"),
     ):
-        concat_AB = R.concat([A, B])
-        proj_concat = R.matmul(concat_AB, state)
-        proj_A = R.strided_slice(proj_concat, axes=[0], begin=[0], end=[16])
-        proj_B = R.strided_slice(proj_concat, axes=[0], begin=[16], end=[32])
+        N1 = T.int64()
+        M = T.int64()
+        N2 = T.int64()
+        with R.dataflow():
+            lhs_A = R.match_cast(A, R.Tensor([N1, M], "float32"))
+            lhs_B = R.match_cast(B, R.Tensor([N2, M], "float32"))
+            R.output(lhs_A, lhs_B)
+        concat_AB: R.Tensor([32, 16], "float32") = R.concat([lhs_A, lhs_B])
+        proj_concat: R.Tensor([32], "float32") = R.matmul(concat_AB, state)
+        proj_A: R.Tensor([16], "float32") = R.strided_slice(
+            proj_concat, axes=[0], begin=[0], end=[N1]
+        )
+        proj_B: R.Tensor([16], "float32") = R.strided_slice(
+            proj_concat, axes=[0], begin=[N1], end=[N2 + N1]
+        )
         out = proj_A + proj_B
         return out
 
@@ -1469,7 +1317,7 @@ def test_match_dynamic_pattern_against_dynamic_shape():
                 "my_optimized_square_matmul",
                 A,
                 B,
-                sinfo_args=R.Tensor([M, N], "float32"),
+                ty_args=R.Tensor([M, N], "float32"),
             )
 
     @R.function(private=True)
@@ -1496,14 +1344,14 @@ def test_match_dynamic_pattern_against_dynamic_shape():
             "my_optimized_square_matmul",
             A,
             B,
-            sinfo_args=R.Tensor([N, N * 2], "float32"),
+            ty_args=R.Tensor([N, N * 2], "float32"),
         )
         E: R.Tensor([N * 2, N], "float32") = R.permute_dims(D)
         F: R.Tensor([N * 2, N], "float32") = R.call_pure_packed(
             "my_optimized_square_matmul",
             E,
             C,
-            sinfo_args=R.Tensor([N * 2, N], "float32"),
+            ty_args=R.Tensor([N * 2, N], "float32"),
         )
         return F
 

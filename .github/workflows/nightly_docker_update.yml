@@ -10,13 +10,8 @@ concurrency:
 jobs:
   open_update_pr:
     permissions:
-      actions: write
-      checks: write
       contents: write
-      id-token: write
-      issues: write
       pull-requests: write
-      statuses: write
     if: github.repository == 'apache/tvm'
     runs-on: ubuntu-latest
     steps:

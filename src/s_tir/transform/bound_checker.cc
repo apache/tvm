@@ -22,42 +22,49 @@
  */
 // Instrument checkers for out of the bounds access.
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "../../arith/unwrap_vector_expr.h"
-
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 // TODO(Lunderberg): Move this pass to be before
 // FlattenBuffer.  That will simplify this pass,
 // because it can check directly against the buffer limits.
-class BoundCollector : public StmtVisitor {
+class BoundCollector : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
   BoundCollector() {}
 
-  void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tirx::attr::buffer_bound) {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
+    if (op->attr_key == s_tir::attr::buffer_bound) {
       const VarNode* key = op->node.as<VarNode>();
       const CallNode* container = op->value.as<CallNode>();
       if (key && container) {
-        mem_to_shape[key] = container->args;
+        ffi::Array<PrimExpr> shape = container->args.as_or_throw<ffi::Array<PrimExpr>>();
+        mem_to_shape[key] = shape;
       }
     }
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
   // Hashtable which maps buffer_var to shape.
   std::unordered_map<const VarNode*, ffi::Array<PrimExpr>> mem_to_shape;
@@ -65,32 +72,35 @@ class BoundCollector : public StmtVisitor {
 
 class BoundChecker : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   explicit BoundChecker(
       const std::unordered_map<const VarNode*, ffi::Array<PrimExpr>>& mem_to_shape)
       : mem_to_shape_(mem_to_shape) {}
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    if (UpdateIsNeeded(op->buffer->data)) {
-      Update(op->buffer->data, op->buffer->shape, op->buffer->dtype);
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    if (UpdateIsNeeded(op->buffer.var())) {
+      Update(op->buffer.var(), op->buffer->shape, op->buffer->dtype);
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
-    if (process_store_ && op->op.same_as(builtin::if_then_else())) {
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    if (process_store_ && op->op.same_as(prim::builtin::if_then_else())) {
       unsafe_rewritten_ = true;
     }
-    return StmtExprMutator::VisitExpr_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     store_scope_bound_collector_.clear();
     process_store_ = true;
     unsafe_rewritten_ = false;
-    StmtExprMutator::VisitStmt_(op);
+    StmtExprMutator::Mutate_(op, InplaceMode::kDisallow);
     process_store_ = false;
-    if (CanInstrument(op->indices, op->buffer->data)) {
-      Collect(op->indices, op->buffer->data);
+    if (CanInstrument(op->indices, op->buffer.var())) {
+      Collect(op->indices, op->buffer.var());
     }
     // The collector should has at least one item.
     if (store_scope_bound_collector_.size()) {
@@ -103,14 +113,14 @@ class BoundChecker : public StmtExprMutator {
         return body;
       }
     }
-    return ffi::GetRef<Stmt>(op);
+    return ffi::Unchanged();
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    if (CanInstrument(op->indices, op->buffer->data)) {
-      Collect(op->indices, op->buffer->data);
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    if (CanInstrument(op->indices, op->source.as_or_throw<tvm::tirx::BufferVar>().var())) {
+      Collect(op->indices, op->source.as_or_throw<tvm::tirx::BufferVar>().var());
     }
-    return StmtExprMutator::VisitExpr_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  private:
@@ -118,15 +128,17 @@ class BoundChecker : public StmtExprMutator {
     return (buffer_var.defined() && mem_to_shape_.count(buffer_var.get()));
   }
 
-  void Update(const Var& buffer_var, ffi::Array<PrimExpr> new_shape, const DataType& type) {
+  void Update(const Var& buffer_var, ffi::Array<PrimExpr> new_shape, PrimType dtype) {
     // Sanity check at first.
     if (!ShapeIsValid(new_shape)) {
       return;
     }
 
+    int lanes = dtype.lanes();
+    TVM_FFI_ICHECK_GE(lanes, 0);
     new_shape.MutateByApply([&](const PrimExpr& dim) {
       // Cast to uint64 to avoid potential overflow.
-      return make_const(DataType::UInt(64), type.lanes()) * dim;
+      return IntImm(PrimType::UInt(64), lanes) * dim;
     });
     mem_to_shape_[buffer_var.get()] = new_shape;
   }
@@ -165,7 +177,7 @@ class BoundChecker : public StmtExprMutator {
         if (!lanes_int) {
           return false;
         }
-        int lanes = static_cast<int>(Downcast<IntImm>(ramp_index->lanes)->value);
+        int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
         if (lanes <= 0) {
           return false;
         }
@@ -175,7 +187,8 @@ class BoundChecker : public StmtExprMutator {
   }
 
   bool IsValidScalar(const PrimExpr& expr) const {
-    return expr.defined() && expr.dtype().is_scalar();
+    if (!expr.defined()) return false;
+    return expr.ty().IsScalar();
   }
 
   bool CanInstrument(const ffi::Array<PrimExpr>& indices, const Var& buffer_var) const {
@@ -202,7 +215,7 @@ class BoundChecker : public StmtExprMutator {
         PrimExpr upper_bound = shape[i];
 
         if (const RampNode* ramp_index = index.as<RampNode>()) {
-          index = arith::UnwrapVectorExpr(ffi::GetRef<Ramp>(ramp_index), ramp_index->lanes);
+          index = ramp_index->base + ramp_index->lanes * ramp_index->stride;
         }
 
         // Try to simplify index and bound.
@@ -210,11 +223,11 @@ class BoundChecker : public StmtExprMutator {
         upper_bound = analyzer_->Simplify(upper_bound);
 
         // Cast to the same type - signed, to be able to check lower bound.
-        index = Cast(DataType::Int(64), index);
-        upper_bound = Cast(DataType::Int(64), upper_bound);
+        index = Cast(PrimType::Int(64), index);
+        upper_bound = Cast(PrimType::Int(64), upper_bound);
 
         // Looks like a lower bound should always be zero after normalization.
-        PrimExpr lower_bound = make_zero(DataType::Int(64));
+        PrimExpr lower_bound = IntImm::Int64(0);
 
         PrimExpr current_condition = And(GE(index, lower_bound), LT(index, upper_bound));
         condition = condition.defined() ? And(condition, current_condition) : current_condition;
@@ -234,14 +247,16 @@ class BoundChecker : public StmtExprMutator {
   // Hashtable which maps buffer_var to shape.
   std::unordered_map<const VarNode*, ffi::Array<PrimExpr>> mem_to_shape_;
   // internal analyzer
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 Stmt InstrumentBoundCheckers(Stmt stmt) {
-  BoundCollector bound_collector;
+  auto bound_collector = ffi::make_object<BoundCollector>();
   // At first walk recursively and collect bound attributes.
-  bound_collector(stmt);
-  return BoundChecker(bound_collector.mem_to_shape)(std::move(stmt));
+  bound_collector->Visit(stmt);
+  return ffi::make_object<BoundChecker>(bound_collector->mem_to_shape)
+      ->Mutate(stmt, InplaceMode::kAllow)
+      .ValueOrUnchanged(std::move(stmt));
 }
 
 namespace transform {
@@ -249,10 +264,12 @@ namespace transform {
 Pass InstrumentBoundCheckers() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    BoundCollector bound_collector;
+    auto bound_collector = ffi::make_object<BoundCollector>();
     // At first walk recursively and collect bound attributes.
-    bound_collector(n->body);
-    n->body = BoundChecker(bound_collector.mem_to_shape)(std::move(n->body));
+    bound_collector->Visit(n->body);
+    n->body = ffi::make_object<BoundChecker>(bound_collector->mem_to_shape)
+                  ->Mutate(n->body, InplaceMode::kAllow)
+                  .ValueOrUnchanged(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.InstrumentBoundCheckers", {});

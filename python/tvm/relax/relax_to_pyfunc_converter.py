@@ -395,7 +395,7 @@ class RelaxExpressionConverter:
             return self._convert_var(expr, args)
         elif isinstance(expr, relax.Call):
             return self._convert_call(expr, args)
-        elif isinstance(expr, relax.Constant):
+        elif isinstance(expr, tvm.ir.GenericConst):
             return self._convert_constant(expr)
         elif isinstance(expr, relax.SeqExpr):
             return self._convert_seq_expr(expr, args)
@@ -413,36 +413,34 @@ class RelaxExpressionConverter:
 
     def _convert_var(self, var: relax.Var, args: list[Any]) -> Any:
         """Convert a Relax variable to Python equivalent."""
-        if hasattr(var, "name_hint"):
-            var_name = var.name_hint
+        var_name = var.name
 
-            # Check if it's a function parameter
-            for i, param in enumerate(self.current_params):
-                if hasattr(param, "name_hint") and param.name_hint == var_name:
-                    return args[i]
+        # Check if it's a function parameter
+        for i, param in enumerate(self.current_params):
+            if param.name == var_name:
+                return args[i]
 
-            # Check if it's a bound variable
-            if var_name in self.variable_map:
-                return self.variable_map[var_name]
+        # Check if it's a bound variable
+        if var_name in self.variable_map:
+            return self.variable_map[var_name]
 
-            # Try to infer shape from var's type annotation
-            if hasattr(var, "struct_info") and hasattr(var.struct_info, "shape"):
-                shape = var.struct_info.shape
-                if shape and len(shape) > 0:
-                    # Convert symbolic shapes to concrete values
-                    concrete_shape = []
-                    for dim in shape:
-                        if isinstance(dim, int):
-                            concrete_shape.append(dim)
-                        else:
-                            # For symbolic dimensions, use a reasonable default
-                            concrete_shape.append(1)
-                    return torch.zeros(concrete_shape, dtype=torch.float32)
+        # Try to infer shape from var's type annotation
+        if hasattr(var, "ty") and hasattr(var.ty, "shape"):
+            shape = var.ty.shape
+            if shape and len(shape) > 0:
+                # Convert symbolic shapes to concrete values
+                concrete_shape = []
+                for dim in shape:
+                    if isinstance(dim, int):
+                        concrete_shape.append(dim)
+                    else:
+                        # For symbolic dimensions, use a reasonable default
+                        concrete_shape.append(1)
+                return torch.zeros(concrete_shape, dtype=torch.float32)
 
-            if args and isinstance(args[0], torch.Tensor):
-                return torch.zeros_like(args[0])
-            # Use fallback tensor with shape inference
-            return self._create_fallback_tensor()
+        if args and isinstance(args[0], torch.Tensor):
+            return torch.zeros_like(args[0])
+        # Use fallback tensor with shape inference
         return self._create_fallback_tensor()
 
     def _convert_call(self, call: relax.Call, args: list[Any]) -> Any:
@@ -599,7 +597,7 @@ class RelaxExpressionConverter:
         # Extract TIR function name and arguments
         tir_func = call.args[0]
         tir_args = call.args[1] if len(call.args) > 1 else []
-        out_sinfo = call.attrs.get("out_sinfo") if call.attrs else None
+        out_ty = call.attrs.get("out_ty") if call.attrs else None
 
         # Get function name
         if isinstance(tir_func, relax.GlobalVar):
@@ -660,8 +658,8 @@ class RelaxExpressionConverter:
 
             # For call_tir, we need to allocate output tensor
             output_shape = None
-            if out_sinfo and hasattr(out_sinfo, "shape"):
-                output_shape = out_sinfo.shape
+            if out_ty and hasattr(out_ty, "shape"):
+                output_shape = out_ty.shape
             elif converted_args:
                 # Use the shape of the first input tensor
                 first_arg = converted_args[0]
@@ -713,7 +711,7 @@ class RelaxExpressionConverter:
         # Extract packed function name and arguments
         packed_func = call.args[0]
         packed_args = call.args[1] if len(call.args) > 1 else []
-        _out_sinfo = call.attrs.get("out_sinfo") if call.attrs else None
+        _out_ty = call.attrs.get("out_ty") if call.attrs else None
 
         # Get function name
         if isinstance(packed_func, relax.GlobalVar):
@@ -728,11 +726,11 @@ class RelaxExpressionConverter:
         for arg in packed_args:
             converted_arg = self.convert_expr(arg, args)
             if isinstance(converted_arg, str) and converted_arg.startswith("<"):
-                # Handle PrimValue and other special cases
-                if "PrimValue" in converted_arg:
-                    # Extract the value from PrimValue
+                # Handle Expr and other special cases
+                if "Expr" in converted_arg:
+                    # Extract the value from Expr
                     try:
-                        # Try to get the actual value from the PrimValue
+                        # Try to get the actual value from the Expr
                         if hasattr(arg, "value"):
                             converted_arg = arg.value
                         else:
@@ -780,10 +778,10 @@ class RelaxExpressionConverter:
             # Fallback: return the first argument
             return converted_args[0] if converted_args else torch.tensor([])
 
-    def _convert_constant(self, const: relax.Constant) -> Any:
+    def _convert_constant(self, const: tvm.ir.GenericConst) -> Any:
         """Convert a Relax constant to Python equivalent."""
-        if hasattr(const, "data"):
-            data = const.data
+        if hasattr(const, "value"):
+            data = const.value
             # Convert TVM NDArray to Python scalar if it's a scalar
             if hasattr(data, "numpy"):
                 numpy_data = data.numpy()
@@ -806,7 +804,7 @@ class RelaxExpressionConverter:
             if hasattr(block, "bindings"):
                 for binding in block.bindings:
                     if isinstance(binding, relax.VarBinding):
-                        var_name = binding.var.name_hint
+                        var_name = binding.var.name
                         value = self.convert_expr(binding.value, args)
                         self.variable_map[var_name] = value
 
@@ -1045,9 +1043,9 @@ class RelaxExpressionConverter:
                 )
             else:
                 shape = (int(shape_arg),)
-        elif isinstance(shape_arg, relax.Constant):
+        elif isinstance(shape_arg, tvm.ir.GenericConst):
             # Constant tensor case
-            shape_data = shape_arg.data.numpy()
+            shape_data = shape_arg.value.numpy()
             shape = tuple(int(v) for v in shape_data)
         else:
             # Try to convert as expression

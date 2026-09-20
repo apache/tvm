@@ -51,9 +51,9 @@ Guidelines
 - Document the code you wrote, see more at :ref:`doc_guide`
 - `Create a pull request <https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request>`_ and fix the problems reported by CI checks.
 - Request code reviews from other contributors and improve your patch according
-  to their reviews by ``@``-ing them in your pull request. Tags in PR titles
-  will automatically tag subscribed users, so make sure to put relevant topics
-  in your PR titles (e.g. ``[microTVM] Add a cool change`` and not ``a cool change for microTVM``).
+  to their reviews by ``@``-ing them in your pull request. Use relevant topic
+  tags in PR titles to make the affected area clear (e.g. ``[microTVM] Add a
+  cool change`` and not ``a cool change for microTVM``).
   Please see the Commit Message Guideline below on the guidelines about the tags
   in a PR/commit title and how to write good PR/commit messages.
 
@@ -242,7 +242,7 @@ Necessary dependencies:
 
 .. code:: bash
 
-  pip install --user pytest Cython
+  pip install --user pytest pytest-xdist Cython
 
 If you want to run all tests:
 
@@ -251,7 +251,7 @@ If you want to run all tests:
   # build tvm (see install-from-source for CMake build instructions)
   cd build && cmake .. && cmake --build . --parallel $(nproc) && cd ..
 
-  ./tests/scripts/task_python_unittest.sh
+  python -m pytest -vvs -n auto tests/python
 
 If you want to run a single test:
 

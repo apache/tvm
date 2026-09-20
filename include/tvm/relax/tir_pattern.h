@@ -43,7 +43,7 @@ class MatchResultNode : public ffi::Object {
   /*! \brief The evaluated values of symbolic vars. */
   ffi::Array<PrimExpr> symbol_values;
   /*! \brief The matched buffers of input and output. */
-  ffi::Array<tirx::Buffer> matched_buffers;
+  ffi::Array<tirx::BufferVar> matched_buffers;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -67,7 +67,7 @@ class MatchResult : public ffi::ObjectRef {
    * \param matched_buffers The matched buffers of input and output.
    */
   TVM_DLL explicit MatchResult(TIRPattern pattern, ffi::Array<PrimExpr> symbol_values,
-                               ffi::Array<tirx::Buffer> matched_buffers);
+                               ffi::Array<tirx::BufferVar> matched_buffers);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchResult, ffi::ObjectRef, MatchResultNode);
 };

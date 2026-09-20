@@ -20,6 +20,7 @@
 #define TVM_S_TIR_META_SCHEDULE_MODULE_EQUALITY_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <memory>
 #include <string>

@@ -31,7 +31,7 @@ from .base import _RUNTIME_ONLY
 
 # tvm.runtime
 from .runtime import Object
-from .runtime._tensor import device, cpu, cuda, opencl, vulkan, metal
+from .runtime._tensor import device, device_from_target, cpu, cuda, opencl, vulkan, metal
 from .runtime._tensor import vpi, rocm, ext_dev, hexagon
 from .runtime import DataType, DataTypeCode
 
@@ -50,6 +50,10 @@ from . import script
 
 # tvm.tirx — registers itself via tvm.script.register_dialect in its __init__
 from . import tirx
+from .ir import prim
+
+# tvm.backend — owns backend Python load hooks
+from . import backend
 
 # tvm.target
 from . import target
@@ -61,7 +65,7 @@ from . import te
 from .driver import build, compile
 
 # others
-from . import arith
+from . import sym
 
 # support infra
 from . import support
@@ -72,11 +76,6 @@ from .support import rocm as _rocm, nvcc as _nvcc
 # Relax contain modules that are only available in compiler package
 # Do not import them if TVM is built with runtime only
 if not _RUNTIME_ONLY:
-    # tile_primitive imports both Python Op class declarations (Zero, Add, ...)
-    # and per-target dispatch schedule registrations. Must run before relax so
-    # any relax pass that looks up a schedule sees them.
-    from .tirx.operator import tile_primitive
-
     # tvm.relax — registers itself via tvm.script.register_dialect in its __init__
     from . import relax
 
@@ -118,10 +117,11 @@ def tvm_wrap_excepthook(exception_hook):
 
 sys.excepthook = tvm_wrap_excepthook(sys.excepthook)
 
-# Autoload out-of-tree backends registered under the ``tvm.backends`` entry
-# point group. Runs last, after the core runtime and the tvm namespace are
-# fully initialized, so an extension can safely register into ``tvm.*`` and
-# load extra libraries. Imported lazily here to avoid any import-cycle risk.
-from ._autoload_backends import _autoload_backends
+# Autoload loads built-in and out-of-tree backends. Out-of-tree extensions opt
+# into being loaded automatically at ``import tvm`` time by declaring an entry
+# point in the ``tvm.backends`` group:
+# [project.entry-points."tvm.backends"] tvm_foo = "tvm_foo:_autoload".
+# Autoload can be disabled via ``TVM_DEVICE_BACKEND_AUTOLOAD=0``.
+from .backend._autoload_backends import _autoload_backends
 
 _autoload_backends()

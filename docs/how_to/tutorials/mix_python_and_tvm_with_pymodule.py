@@ -99,9 +99,7 @@ if RUN_EXAMPLE:
             """Takes PyTorch tensors, calls TIR, returns PyTorch tensors."""
             x_tvm = self._convert_pytorch_to_tvm(x)
             y_tvm = self._convert_pytorch_to_tvm(y)
-            result = self.call_tir(
-                self.add_tir, [x_tvm, y_tvm], out_sinfo=R.Tensor((4,), "float32")
-            )
+            result = self.call_tir(self.add_tir, [x_tvm, y_tvm], out_ty=R.Tensor((4,), "float32"))
             return self._convert_tvm_to_pytorch(result)
 
     # TIR functions are JIT-compiled at instantiation
@@ -157,7 +155,7 @@ if RUN_EXAMPLE:
             out = self.call_tir(
                 self.matmul_tir,
                 [x_tvm, w_tvm],
-                out_sinfo=R.Tensor((x.shape[0], 3), "float32"),
+                out_ty=R.Tensor((x.shape[0], 3), "float32"),
             )
             logits = self._convert_tvm_to_pytorch(out)
 
@@ -231,7 +229,7 @@ if RUN_EXAMPLE:
             h = self.call_tir(
                 self.matmul_tir,
                 [x_tvm, w_tvm],
-                out_sinfo=R.Tensor((2, 3), "float32"),
+                out_ty=R.Tensor((2, 3), "float32"),
             )
             h_pt = self._convert_tvm_to_pytorch(h)
 
@@ -239,7 +237,7 @@ if RUN_EXAMPLE:
             h_biased = self.call_dps_packed(
                 "my_bias_add",
                 [h_pt, bias],
-                out_sinfo=R.Tensor((2, 3), "float32"),
+                out_ty=R.Tensor((2, 3), "float32"),
             )
 
             # 3. Python/PyTorch activation
@@ -294,7 +292,7 @@ if RUN_EXAMPLE:
             h_bias = R.call_tir(
                 cls.bias_add_tir,
                 (h, b),
-                out_sinfo=R.Tensor((2, 4), "float32"),
+                out_ty=R.Tensor((2, 4), "float32"),
             )
             return R.nn.relu(h_bias)
 
@@ -364,8 +362,8 @@ if RUN_EXAMPLE:
             x: R.Tensor((4, 8), "float32"),
         ) -> R.Tensor((4, 8), "float32"):
             # The VM calls back into Python for these two ops
-            h = R.call_py_func("layer_norm", (x,), out_sinfo=R.Tensor((4, 8), "float32"))
-            out = R.call_py_func("silu", (h,), out_sinfo=R.Tensor((4, 8), "float32"))
+            h = R.call_py_func("layer_norm", (x,), out_ty=R.Tensor((4, 8), "float32"))
+            out = R.call_py_func("silu", (h,), out_ty=R.Tensor((4, 8), "float32"))
             return out
 
     mod = HybridVMModule(device=tvm.cpu(0))
@@ -438,7 +436,7 @@ if RUN_EXAMPLE:
     # Python → TIR with symbolic output shape
     n = T.int64()
     x7 = torch.randn(7)
-    scaled = mod.call_tir("scale_tir", [x7], relax.TensorStructInfo((n,), "float32"))
+    scaled = mod.call_tir("scale_tir", [x7], relax.TensorType((n,), "float32"))
     print("scale_tir(len=7):", scaled)
     assert torch.allclose(torch.tensor(scaled.numpy()), x7 * 2.0, atol=1e-5)
 

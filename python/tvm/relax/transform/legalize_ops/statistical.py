@@ -17,21 +17,64 @@
 # pylint: disable=invalid-name
 """Default legalization function for statistical operators."""
 
+from collections.abc import Callable
+
 from tvm import te, tirx, topi
+from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Expr, ShapeExpr
 from .common import LegalizeFunc, TEFunc, register_legalize
 
 
-def _statistical(te_func: TEFunc) -> LegalizeFunc:
+def _normalize_reduction_axes(axis: list[int] | None, ndim: int) -> list[int]:
+    if axis is None:
+        return list(range(ndim))
+
+    axes = []
+    for dim in axis:
+        if isinstance(dim, tirx.IntImm):
+            dim = dim.value
+        dim = int(dim)
+        axes.append(dim + ndim if dim < 0 else dim)
+    return axes
+
+
+def _has_const_zero_reduction_dim(call: Call) -> bool:
+    input_shape = call.args[0].ty.shape
+    if not isinstance(input_shape, ShapeExpr):
+        return False
+
+    axes = _normalize_reduction_axes(call.attrs.axis, len(input_shape.values))
+    return any(
+        isinstance(input_shape.values[dim], tirx.IntImm) and input_shape.values[dim] == 0
+        for dim in axes
+    )
+
+
+def _statistical(
+    te_func: TEFunc,
+    zero_dim_identity: int | float | bool | Callable[[str], int | float | bool] | None = None,
+) -> LegalizeFunc:
     def statistical_call_te(bb: BlockBuilder, call: Call) -> Expr:
+        if zero_dim_identity is not None and _has_const_zero_reduction_dim(call):
+            fill_value = (
+                zero_dim_identity(call.ty.dtype)
+                if callable(zero_dim_identity)
+                else zero_dim_identity
+            )
+            return bb.call_te(
+                topi.full,
+                call.ty.shape.values,
+                call.ty.dtype,
+                fill_value,
+            )
         return bb.call_te(te_func, call.args[0], call.attrs.axis, call.attrs.keepdims)
 
     return statistical_call_te
 
 
-def _compute_shape_prod(x: te.Tensor, axis: list[int]) -> tirx.PrimExpr:
+def _compute_shape_prod(x: te.Tensor, axis: list[int]) -> tirx.Expr:
     shape_prod = tirx.const(1, "int32")
     axes = list(axis) if axis is not None else range(0, len(x.shape))
     for dim in axes:
@@ -129,5 +172,8 @@ def _median(bb: BlockBuilder, call: Call) -> Expr:
 
 register_legalize("relax.max", _statistical(topi.max))
 register_legalize("relax.min", _statistical(topi.min))
-register_legalize("relax.prod", _statistical(topi.prod))
-register_legalize("relax.sum", _statistical(topi.sum))
+register_legalize(
+    "relax.prod",
+    _statistical(topi.prod, zero_dim_identity=lambda dtype: True if dtype == "bool" else 1),
+)
+register_legalize("relax.sum", _statistical(topi.sum, zero_dim_identity=0))

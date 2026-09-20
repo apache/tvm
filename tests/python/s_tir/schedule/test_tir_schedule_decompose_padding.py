@@ -31,8 +31,8 @@ from tvm.script import tirx as T
 def check_decompose_padding(origin, scheduled, expected, check_run=False):
     assert_structural_equal_ignore_global_symbol(scheduled, expected)
     if check_run:
-        in_buffer = origin.buffer_map[origin.params[0]]
-        out_buffer = origin.buffer_map[origin.params[1]]
+        in_buffer = origin.params[0]
+        out_buffer = origin.params[1]
         in_shape = [int(_) for _ in in_buffer.shape]
         out_shape = [int(_) for _ in out_buffer.shape]
         x = tvm.runtime.tensor(np.random.uniform(0, 64, in_shape).astype(in_buffer.dtype))

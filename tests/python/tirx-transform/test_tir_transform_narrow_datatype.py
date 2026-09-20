@@ -20,9 +20,28 @@ from tvm.script import tirx as T
 from tvm.tirx import const
 
 
+def _lower_blocks(value):
+    """Use the same block-to-statement boundary as the S-TIR pipeline."""
+    is_func = isinstance(value, tvm.tirx.PrimFunc)
+    mod = tvm.IRModule.from_expr(value) if is_func else value
+    mod = tvm.s_tir.transform.ConvertBlocksToOpaque()(mod)
+    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
+    return mod["main"] if is_func else mod
+
+
+def _transform(target_bits):
+    return tvm.transform.Sequential(
+        [
+            tvm.s_tir.transform.ConvertBlocksToOpaque(),
+            tvm.s_tir.transform.LowerOpaqueBlock(),
+            tvm.tirx.transform.NarrowDataType(target_bits),
+        ]
+    )
+
+
 def lower_stmt(params, stmt, target_bits):
     func = tvm.tirx.PrimFunc(params, stmt)
-    func = tvm.tirx.transform.NarrowDataType(target_bits)(tvm.IRModule.from_expr(func))["main"]
+    func = _transform(target_bits)(tvm.IRModule.from_expr(func))["main"]
     stmt = func.body
     return stmt
 
@@ -31,7 +50,7 @@ def lower_func_body(func, target_bits):
     """Lower a TVMScript function and return the first For loop in the body."""
     mod = tvm.IRModule.from_expr(func)
     gvar = next(iter(mod.functions.keys()))
-    func = tvm.tirx.transform.NarrowDataType(target_bits)(mod)[gvar]
+    func = _transform(target_bits)(mod)[gvar]
     body = func.body
     # With flat buffer semantics, navigate to the first For node
     if isinstance(body, tvm.tirx.SeqStmt):
@@ -54,8 +73,8 @@ def test_basic():
                     B[i * n + j] = A[i * n + j] + T.float32(1)
 
         stmt = lower_func_body(func, target_bits)
-        assert stmt.loop_var.dtype == target_dtype
-        assert stmt.body.loop_var.dtype == target_dtype
+        assert stmt.loop_var.ty.dtype == target_dtype
+        assert stmt.body.loop_var.ty.dtype == target_dtype
 
     def check_symbolic(m_dtype, n_dtype, target_bits, target_dtype):
         """Check with symbolic shapes as function parameters."""
@@ -80,8 +99,8 @@ def test_basic():
                         B_buf[i * n + j] = A_buf[i * n + j] + T.float32(1)
 
         stmt = lower_func_body(func, target_bits)
-        assert stmt.loop_var.dtype == target_dtype
-        assert stmt.body.loop_var.dtype == target_dtype
+        assert stmt.loop_var.ty.dtype == target_dtype
+        assert stmt.body.loop_var.ty.dtype == target_dtype
 
     # const shape
     # i32 -> i32
@@ -110,10 +129,10 @@ def test_thread_axis():
 
         mod = tvm.IRModule.from_expr(func)
         gvar = next(iter(mod.functions.keys()))
-        func_narrowed = tvm.tirx.transform.NarrowDataType(target_bits)(mod)[gvar]
+        func_narrowed = _transform(target_bits)(mod)[gvar]
         stmt = func_narrowed.body
-        assert stmt.node.var.dtype == target_dtype
-        assert stmt.body.node.var.dtype == target_dtype
+        assert stmt.node.var.ty.dtype == target_dtype
+        assert stmt.body.node.var.ty.dtype == target_dtype
 
     # i32 -> i32
     check_const(2, 32, target_bits=32, target_dtype="int32")
@@ -148,9 +167,9 @@ def test_multilanes():
 
         mod = tvm.IRModule.from_expr(func)
         gvar = next(iter(mod.functions.keys()))
-        func_narrowed = tvm.tirx.transform.NarrowDataType(target_bits)(mod)[gvar]
+        func_narrowed = _transform(target_bits)(mod)[gvar]
         stmt = func_narrowed.body
-        assert stmt.seq[0].loop_var.dtype == target_dtype
+        assert stmt.seq[0].loop_var.ty.dtype == target_dtype
 
     # i32 -> i32
     check(const(2**10, dtype="int32"), 2, target_bits=32, target_dtype="int32")
@@ -176,8 +195,8 @@ def test_slice():
                     A[i * n + j] = B[i * 2 * n + 2 * j] + T.float32(1)
 
         stmt = lower_func_body(func, target_bits)
-        assert stmt.loop_var.dtype == target_dtype
-        assert stmt.body.loop_var.dtype == target_dtype
+        assert stmt.loop_var.ty.dtype == target_dtype
+        assert stmt.body.loop_var.ty.dtype == target_dtype
 
     # The maximum index is (2**15 * 2**15 - 1) * 2 <= 2**31 - 1
     check(const(2**15, "int64"), const(2**15, "int64"), target_bits=32, target_dtype="int32")
@@ -209,10 +228,12 @@ def test_condition():
                 i * 65 + j >= 0 and i * 65 + j < 128, A[i * 65 + j], T.float32(0), dtype="float32"
             )
 
-    after = tvm.tirx.transform.NarrowDataType(32)(
-        tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
-    )["main"]
-    tvm.ir.assert_structural_equal(after, expected_after.with_attr("global_symbol", "main"))
+    after = _transform(32)(tvm.IRModule.from_expr(before.with_attr("global_symbol", "main")))[
+        "main"
+    ]
+    tvm.ir.assert_structural_equal(
+        after, _lower_blocks(expected_after.with_attr("global_symbol", "main"))
+    )
 
 
 def test_block():
@@ -232,10 +253,12 @@ def test_block():
                     vi = T.axis.spatial(T.int32(128), i * T.int32(8) + j)
                     B[vi] = A[vi] + T.float32(1)
 
-    after = tvm.tirx.transform.NarrowDataType(32)(
-        tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
-    )["main"]
-    tvm.ir.assert_structural_equal(after, expected_after.with_attr("global_symbol", "main"))
+    after = _transform(32)(tvm.IRModule.from_expr(before.with_attr("global_symbol", "main")))[
+        "main"
+    ]
+    tvm.ir.assert_structural_equal(
+        after, _lower_blocks(expected_after.with_attr("global_symbol", "main"))
+    )
 
 
 def test_avg_pool2d():
@@ -294,11 +317,11 @@ def test_avg_pool2d():
                         ),
                     )
 
-    after = tvm.tirx.transform.NarrowDataType(32)(
-        tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
-    )
+    after = _transform(32)(tvm.IRModule.from_expr(before.with_attr("global_symbol", "main")))
     after = tvm.tirx.transform.StmtSimplify()(after)
-    tvm.ir.assert_structural_equal(after["main"], expected_after.with_attr("global_symbol", "main"))
+    tvm.ir.assert_structural_equal(
+        after["main"], _lower_blocks(expected_after.with_attr("global_symbol", "main"))
+    )
 
 
 def test_narrow_i64_valued_bufferload_index_to_i32():
@@ -312,10 +335,10 @@ def test_narrow_i64_valued_bufferload_index_to_i32():
         for i in range(15):
             A[i + 1] = A[i] + T.int64(1)
 
-    after = tvm.tirx.transform.NarrowDataType(32)(
-        tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
-    )["main"]
-    tvm.ir.assert_structural_equal(after, expect.with_attr("global_symbol", "main"))
+    after = _transform(32)(tvm.IRModule.from_expr(before.with_attr("global_symbol", "main")))[
+        "main"
+    ]
+    tvm.ir.assert_structural_equal(after, _lower_blocks(expect.with_attr("global_symbol", "main")))
 
 
 if __name__ == "__main__":

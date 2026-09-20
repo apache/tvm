@@ -21,12 +21,13 @@ import operator
 import threading
 import typing
 
+import tvm
 from tvm import tirx
 from tvm.ir import IRModule
 
 from .... import relax as rx
 from ...block_builder import BlockBuilder
-from ...struct_info import ObjectStructInfo, ShapeStructInfo, TupleStructInfo
+from ...type import AnyType, ShapeType, TupleType
 from . import core, extern
 from . import spec as _spec
 from .modules import IOEffect
@@ -177,16 +178,14 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
         raise TypeError(f"Unsupported return type: {type(expr)}")
 
     def _convert_input(arg):
-        if isinstance(arg, tirx.Var):
-            return rx.Var(arg.name, struct_info=ShapeStructInfo(values=[arg]))
+        if isinstance(arg, tvm.ir.Var):
+            return rx.Var(arg.name, ty=ShapeType(values=[arg]))
         if isinstance(arg, core.Tensor | core.Object):
             return arg._expr  # pylint: disable=protected-access
         if isinstance(arg, _spec.Tuple):
             return rx.Var(
                 arg.name,
-                struct_info=TupleStructInfo(
-                    [_convert_input(arg_i).struct_info for arg_i in arg.elements]
-                ),
+                ty=TupleType([_convert_input(arg_i).ty for arg_i in arg.elements]),
             )
         raise TypeError(f"Unsupported input type: {type(arg)}")
 
@@ -204,7 +203,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
         for name, param in params:
             # Make sure the a symbolic shape is not re-registered (same as _method_spec_to_inputs)
             # e.g. we do not see `vocab_size` for `lm_head` and `vocab_size_1` for `embed_tokens`
-            new_shape = [_get_var(x) if isinstance(x, tirx.Var) else x for x in param.shape]
+            new_shape = [_get_var(x) if isinstance(x, tvm.ir.Var) else x for x in param.shape]
             var = core.Tensor.placeholder(new_shape, param.dtype, name)._expr
             inputs.append(var)
             param._expr = var
@@ -215,7 +214,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
         if mode == "packed":
             input_var = rx.Var(
                 "packed_params",
-                TupleStructInfo(fields=[x.struct_info for x in inputs]),
+                TupleType(fields=[x.ty for x in inputs]),
             )
             for i, (name, param) in enumerate(params):
                 param._expr = builder.emit(rx.TupleGetItem(input_var, i), name_hint=name)
@@ -236,7 +235,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
         if mode == "packed":
             input_var = rx.Var(
                 "packed_effects",
-                TupleStructInfo(fields=[x.struct_info for x in inputs]),
+                TupleType(fields=[x.ty for x in inputs]),
             )
             i = 0
             for effect_input, (_, effect) in zip(unflat_inputs, effects):
@@ -245,7 +244,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
                     updated_effect_input.append(
                         builder.emit(
                             rx.TupleGetItem(input_var, i),
-                            name_hint=effect_input_i.name_hint,
+                            name_hint=effect_input_i.name,
                         )
                     )
                     i += 1
@@ -265,7 +264,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
             return type(arg.elements)(ret)
         if isinstance(arg, core.Tensor):
             return core.Tensor(_expr=var)
-        if isinstance(arg, tirx.Var):
+        if isinstance(arg, tvm.ir.Var):
             return arg
         raise TypeError(f"Unsupported input type: {type(arg)}")
 
@@ -313,7 +312,7 @@ def _method_spec_to_inputs(
                 name=arg_name,
             )
         elif isinstance(arg_spec, _spec.Object):
-            arg = arg_spec.object_type(_expr=rx.Var(arg_name, ObjectStructInfo()), _name=arg_name)
+            arg = arg_spec.object_type(_expr=rx.Var(arg_name, AnyType()), _name=arg_name)
         elif isinstance(arg_spec, _spec.Tuple):
             elements = type(arg_spec.elements)(
                 [

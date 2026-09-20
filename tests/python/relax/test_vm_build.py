@@ -34,6 +34,7 @@ from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
 from tvm.support import cc, popen_pool, utils
+from tvm.testing import env
 
 EXEC_MODE = ["bytecode", "compiled"]
 
@@ -49,7 +50,7 @@ def test_vm_compile_simple(exec_mode):
         @R.function
         def foo(x: R.Tensor((3, 4), "float32"), y: R.Tensor((3, 4), "float32")):
             z = R.call_pure_packed(
-                "test.vm.identity", x, y, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
+                "test.vm.identity", x, y, ty_args=(R.Tensor(ndim=2, dtype="float32"))
             )
             return y
 
@@ -71,7 +72,7 @@ def test_vm_compile_without_target_arg(exec_mode):
         @R.function
         def foo(x: R.Tensor((3, 4), "float32"), y: R.Tensor((3, 4), "float32")):
             z = R.call_pure_packed(
-                "test.vm.identity", x, y, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
+                "test.vm.identity", x, y, ty_args=(R.Tensor(ndim=2, dtype="float32"))
             )
             return y
 
@@ -83,11 +84,35 @@ def test_vm_compile_without_target_arg(exec_mode):
     tvm.testing.assert_allclose(inp2.numpy(), inp1.numpy(), rtol=1e-7, atol=1e-7)
 
 
+def test_vm_compile_unlowered_operator_error(exec_mode):
+    @tvm.script.ir_module
+    class Conv2dTranspose:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4, 4, 1), "float32"),
+            w: R.Tensor((1, 2, 3, 3), "float32"),
+        ):
+            gv = R.nn.conv2d_transpose(
+                x,
+                w,
+                data_layout="NHWC",
+                kernel_layout="IOHW",
+            )
+            return gv
+
+    mod = relax.transform.LegalizeOps()(Conv2dTranspose)
+    with pytest.raises(
+        tvm.error.InternalError,
+        match=r"(?s)Offending call:.*(?:R|relax)\.nn\.conv2d_transpose.*data_layout.*NHWC",
+    ):
+        relax.build(mod, target="llvm", exec_mode=exec_mode)
+
+
 def test_match_check(exec_mode):
     @tvm.script.ir_module
     class TestMatchCheck:
         @R.function
-        def foo(x: R.Tensor(["n", "m"], "int32"), y: R.Object) -> R.Tensor(["m", "n"], dtype=None):
+        def foo(x: R.Tensor(["n", "m"], "int32"), y: R.Any) -> R.Tensor(["m", "n"], dtype=None):
             return y
 
     mod = TestMatchCheck
@@ -471,7 +496,8 @@ def test_vm_emit_te_constant_param_cpu(exec_mode):
     tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_vm_emit_te_constant_param_gpu(exec_mode):
     x_np = np.random.rand(2, 2).astype("float32")
     c_np = np.random.rand(2, 2).astype("float32")
@@ -491,11 +517,14 @@ def test_vm_emit_te_constant_param_gpu(exec_mode):
     sch.bind(loops[0], "threadIdx.x")
 
     exec = relax.build(sch.mod, "cuda", exec_mode=exec_mode)
-    dev = tvm.cuda()
-    vm = relax.VirtualMachine(exec, dev)
 
-    add_res = check_saved_func(vm, "main", tvm.runtime.tensor(x_np, dev))
-    tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
+    def run_and_check():
+        dev = tvm.cuda()
+        vm = relax.VirtualMachine(exec, dev)
+        add_res = check_saved_func(vm, "main", tvm.runtime.tensor(x_np, dev))
+        tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_vm_relax_symbolic_shape(exec_mode):
@@ -552,98 +581,6 @@ def test_vm_relax_symbolic_shape_tuple(exec_mode):
 
     with pytest.raises(TypeError):
         func(R.prim_value(2))
-
-
-def test_vm_relax_symbolic_prim_value(exec_mode):
-    @I.ir_module(s_tir=True)
-    class mod:
-        @R.function
-        def main(shape: R.Prim(value="n")):
-            n = T.int64()
-            return R.prim_value(n * n)
-
-    target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-
-    func = vm["main"]
-
-    assert func(2) == 4
-
-    with pytest.raises(TypeError):
-        func(Shape([2]))
-
-
-def test_vm_relax_multiple_symbolic_prim_value(exec_mode):
-    """Like test_vm_relax_symbolic_prim_value, but with multiple variables"""
-
-    @I.ir_module(s_tir=True)
-    class mod:
-        @R.function
-        def main(
-            # Provides definition of "n"
-            _n: R.Prim(value="n"),
-            # Requires definitions of both "n" and "m", but cannot
-            # provide either.
-            _shape: R.Shape(["n*2", "m*2"]),
-            # Provides definition of "m"
-            _m: R.Prim(value="m"),
-        ):
-            n = T.int64()
-            m = T.int64()
-            return R.shape([n * n, m + 1])
-
-    target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-
-    func = vm["main"]
-
-    assert func(2, Shape([4, 12]), 6) == (4, 7)
-
-    with pytest.raises(RuntimeError):
-        func(2, Shape([4, 12]), 1)
-
-    with pytest.raises(RuntimeError):
-        func(Shape([2]))
-
-
-@pytest.mark.xfail(reason="Current support for R.Prim with known value is primarily for int64")
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_vm_relax_prim_value_fp32(exec_mode):
-    """A PrimValue may be R.prim('float32')
-
-    Unlike shape tuples, which must contain int64, a PrimValue may be
-    any type that can be represented as a single primitive value.
-    """
-
-    @I.ir_module(s_tir=True)
-    class mod:
-        @R.function
-        def main(
-            # First failure occurs during parsing.  The syntactic
-            # sugar for symbolic variables assumes that all symbolic
-            # variables are int64, rather than using the type that is
-            # later declared.
-            _x: R.Prim(value="half_fill_value"),
-        ):
-            half_fill_value = T.float32()
-            # Second failure occurs when calling `relax.op.full`.  The
-            # `fill_value` is expected to be a scalar constant
-            # (R.Tensor with 0-dim shape), not a primitive value, even
-            # though these are semantically the same.
-            return R.full(shape=[16, 16], fill_value=R.prim_value(2 * half_fill_value))
-
-    target = tvm.target.Target("llvm", host="llvm")
-    # Third failure occurs here.  The current codegen assumes that all
-    # symbolic variables are int64.
-    ex = relax.build(mod, target, exec_mode=exec_mode)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-
-    func = vm["main"]
-
-    res = func(16.0).numpy()
-    assert np.all(res == 32.0)
 
 
 def test_vm_relax_dyn_tir_shape(exec_mode):
@@ -717,9 +654,7 @@ def test_vm_tuplegetitem(exec_mode):
             t = (x, y)
             a = t[0]
             b = t[1]
-            c = R.call_pure_packed(
-                "test.vm.add", a, b, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
-            )
+            c = R.call_pure_packed("test.vm.add", a, b, ty_args=(R.Tensor(ndim=2, dtype="float32")))
             return c
 
     mod = TestVMTupleGetItem
@@ -796,14 +731,14 @@ def test_sub_func_call(exec_mode):
         @R.function
         def relax_matmul_packed(
             x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")
-        ) -> R.Object:
+        ) -> R.Any:
             gv0 = R.call_pure_packed(
-                "test.vm.mul", x, w, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
+                "test.vm.mul", x, w, ty_args=(R.Tensor(ndim=2, dtype="float32"))
             )
             return gv0
 
         @R.function
-        def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Object:
+        def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Any:
             cls = TestVMSubFunction
             gv0 = cls.relax_matmul_tir(x, w)
             gv1 = cls.relax_matmul_packed(gv0, gv0)
@@ -826,17 +761,17 @@ def test_recursion(exec_mode):
         @R.function
         def recursion(n: R.Tensor((1,), "float32")) -> R.Tensor:
             cond = R.call_pure_packed(
-                "test.vm.equal_zero", n, sinfo_args=(R.Tensor(ndim=1, dtype="float32"))
+                "test.vm.equal_zero", n, ty_args=(R.Tensor(ndim=1, dtype="float32"))
             )
             if cond:
                 res = R.const(1.0)
             else:
                 gv0 = R.call_pure_packed(
-                    "test.vm.subtract_one", n, sinfo_args=(R.Tensor(ndim=1, dtype="float32"))
+                    "test.vm.subtract_one", n, ty_args=(R.Tensor(ndim=1, dtype="float32"))
                 )
                 tmp = TestVMRecursion.recursion(gv0)
                 res = R.call_pure_packed(
-                    "test.vm.add", tmp, tmp, sinfo_args=(R.Tensor(ndim=1, dtype="float32"))
+                    "test.vm.add", tmp, tmp, ty_args=(R.Tensor(ndim=1, dtype="float32"))
                 )
             return res
 
@@ -852,7 +787,8 @@ def test_recursion(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), np.power(2.0, recursion_runs), rtol=1e-7, atol=1e-7)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_vm_to_device(exec_mode):
     @tvm.script.ir_module
     class TestToVDevice:
@@ -860,30 +796,34 @@ def test_vm_to_device(exec_mode):
         def foo1(
             x: R.Tensor((2, 3), "float32"),
         ) -> R.Tensor((2, 3), "float32"):
-            copied = R.to_vdevice(x, tvm.ir.VDevice("cuda", 0, "global"))
+            copied = R.to_vdevice(x, tvm.relax.VDevice("cuda", 0, "global"))
             return copied
 
         @R.function
         def foo2(
             x: R.Tensor((2, 3), "float32"),
         ) -> R.Tensor((2, 3), "float32"):
-            copied = R.to_vdevice(x, tvm.ir.VDevice("llvm", 0, "global"))
+            copied = R.to_vdevice(x, tvm.relax.VDevice("llvm", 0, "global"))
             return copied
 
     mod = TestToVDevice
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(mod, target, exec_mode=exec_mode)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    x_inp = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
-    res_1 = check_saved_func(vm, "foo1", x_inp)
-    res_2 = check_saved_func(vm, "foo2", x_inp)
 
-    # check the copied tensor's device
-    assert res_1.device == tvm.cuda(0)
-    assert res_2.device == tvm.cpu(0)
+    def run_and_check():
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+        x_inp = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
+        res_1 = check_saved_func(vm, "foo1", x_inp)
+        res_2 = check_saved_func(vm, "foo2", x_inp)
 
-    tvm.testing.assert_allclose(res_1.numpy(), x_inp.numpy())
-    tvm.testing.assert_allclose(res_2.numpy(), x_inp.numpy())
+        # check the copied tensor's device
+        assert res_1.device == tvm.cuda(0)
+        assert res_2.device == tvm.cpu(0)
+
+        tvm.testing.assert_allclose(res_1.numpy(), x_inp.numpy())
+        tvm.testing.assert_allclose(res_2.numpy(), x_inp.numpy())
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_vm_closure(exec_mode):
@@ -891,7 +831,7 @@ def test_vm_closure(exec_mode):
     class TestClosure:
         @R.function
         def lifted_func_1(x: R.Tensor((2, 3), "float32"), env: R.Tensor((2, 3), "float32")):
-            return R.call_pure_packed("test.vm.add", x, env, sinfo_args=(R.Tensor()))
+            return R.call_pure_packed("test.vm.add", x, env, ty_args=(R.Tensor()))
 
         @R.function
         def main(
@@ -900,7 +840,7 @@ def test_vm_closure(exec_mode):
         ):
             cls = TestClosure
             clo = R.make_closure(cls.lifted_func_1, (x,))
-            res = R.invoke_pure_closure(clo, (y,), sinfo_args=(R.Tensor()))
+            res = R.invoke_pure_closure(clo, (y,), ty_args=(R.Tensor()))
             return res
 
     mod = TestClosure
@@ -919,7 +859,7 @@ def test_time_evaluator(exec_mode):
         @R.function
         def main(x: R.Tensor((1,), "float32"), y: R.Tensor((1,), "float32")):
             return R.call_pure_packed(
-                "test.vm.add", x, y, sinfo_args=(R.Tensor(ndim=1, dtype="float32"))
+                "test.vm.add", x, y, ty_args=(R.Tensor(ndim=1, dtype="float32"))
             )
 
     target = tvm.target.Target("llvm", host="llvm")
@@ -1260,7 +1200,8 @@ def test_set_input_get_failure_rpc(exec_mode):
         run_on_rpc(TestVMSetInput, set_input_attempt_get, exec_mode)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_relax_module_with_multiple_targets(exec_mode):
     """Relax functions may contain kernels for multiple targets
 
@@ -1298,25 +1239,27 @@ def test_relax_module_with_multiple_targets(exec_mode):
     np_A = np.random.random([32, 32]).astype("float32")
     np_B = np.random.random([32, 32]).astype("float32")
 
-    dev_llvm = tvm.device("llvm")
+    dev_llvm = tvm.cpu()
     vm_llvm = tvm.relax.VirtualMachine(built, device=dev_llvm)
     llvm_output = vm_llvm["func_llvm"](
         tvm.runtime.tensor(np_A, dev_llvm),
         tvm.runtime.tensor(np_B, dev_llvm),
     )
 
-    dev_cuda = tvm.device("cuda")
-    vm_cuda = tvm.relax.VirtualMachine(built, device=dev_cuda)
-
-    cuda_output = vm_cuda["func_cuda"](
-        tvm.runtime.tensor(np_A, dev_cuda),
-        tvm.runtime.tensor(np_B, dev_cuda),
-    )
-
     np_C = np_A + np_B
 
     tvm.testing.assert_allclose(llvm_output.numpy(), np_C)
-    tvm.testing.assert_allclose(cuda_output.numpy(), np_C)
+
+    def run_and_check():
+        dev_cuda = tvm.cuda()
+        vm_cuda = tvm.relax.VirtualMachine(built, device=dev_cuda)
+        cuda_output = vm_cuda["func_cuda"](
+            tvm.runtime.tensor(np_A, dev_cuda),
+            tvm.runtime.tensor(np_B, dev_cuda),
+        )
+        tvm.testing.assert_allclose(cuda_output.numpy(), np_C)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

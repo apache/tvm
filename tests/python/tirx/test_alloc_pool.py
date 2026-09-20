@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Tests for tvm.tirx.lang.alloc_pool validation."""
+"""Tests for CUDA allocation pool validation."""
 
 import pytest
 
-from tvm.tirx.lang.alloc_pool import _validate_mma_alloc_shape
-from tvm.tirx.operator.tile_primitive.cuda.tma_utils import SwizzleMode
+from tvm.tirx.cuda.lang.alloc_pool import _validate_mma_alloc_shape
+from tvm.tirx.cuda.tile_primitive.tma_utils import SwizzleMode
 
 # ---------------------------------------------------------------------------
-# alloc_mma shape validation: bad inputs raise actionable ValueError instead of
+# alloc_tcgen05_mma_AB shape validation: bad inputs raise actionable ValueError instead of
 # the opaque "Divide by zero" diagnostic that ``Layout.tile_to`` would emit.
 # ---------------------------------------------------------------------------
 

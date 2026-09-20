@@ -28,6 +28,7 @@ from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 try:
     import ml_dtypes
@@ -42,7 +43,8 @@ except ImportError:
         ("float8_e5m2", "__nv_fp8_e5m2"),
     ],
 )
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_fp8_conversions(input):
     dtype, nv_dtype = input
 
@@ -75,7 +77,7 @@ def test_fp8_conversions(input):
     cuda_src = fadd.imports[0].inspect_source()
     assert nv_dtype in cuda_src, f"{nv_dtype} datatype not found in generated CUDA"
 
-    dev = tvm.device(target, 0)
+    dev = tvm.cuda(0)
 
     a = tvm.runtime.tensor(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
     b = tvm.runtime.tensor(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
@@ -91,7 +93,8 @@ def test_fp8_conversions(input):
     "dtype",
     ["float8_e4m3fn", "float8_e5m2", "float8_e8m0fnu"],
 )
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_fp8_packing(dtype):
     length = 64
     vector_length = 4
@@ -127,7 +130,7 @@ def test_fp8_packing(dtype):
     mod = _create_mod(native_dtype, packed_dtype, length)
     target = "cuda"
     f = tvm.compile(mod, target=target)
-    dev = tvm.device(target, 0)
+    dev = tvm.cuda(0)
 
     np_shape = (length, vector_length)
     a_np = np.random.uniform(low=0, high=5, size=np_shape).astype(dtype)
@@ -139,24 +142,26 @@ def test_fp8_packing(dtype):
     tvm.testing.assert_allclose(a.numpy().astype("float16"), b.numpy().astype("float16"))
 
 
-native_dtype, promoted_dtype, numpytype = tvm.testing.parameters(
-    ("float8_e4m3fn", "float32", "float8_e4m3fn"),
-    ("float8_e4m3fn", "float16", "float8_e4m3fn"),
-    ("float8_e4m3fnx2", "float32x2", "float8_e4m3fn"),
-    ("float8_e4m3fnx2", "float16x2", "float8_e4m3fn"),
-    ("float8_e4m3fnx4", "float32x4", "float8_e4m3fn"),
-    # Supported via half4 vector type extension in codegen
-    ("float8_e4m3fnx4", "float16x4", "float8_e4m3fn"),
-    ("float8_e5m2", "float32", "float8_e5m2"),
-    ("float8_e5m2", "float16", "float8_e5m2"),
-    ("float8_e5m2x2", "float32x2", "float8_e5m2"),
-    ("float8_e5m2x2", "float16x2", "float8_e5m2"),
-    ("float8_e5m2x4", "float32x4", "float8_e5m2"),
-    ("float8_e5m2x4", "float16x4", "float8_e5m2"),
+@pytest.mark.parametrize(
+    "native_dtype,promoted_dtype,numpytype",
+    [
+        ("float8_e4m3fn", "float32", "float8_e4m3fn"),
+        ("float8_e4m3fn", "float16", "float8_e4m3fn"),
+        ("float8_e4m3fnx2", "float32x2", "float8_e4m3fn"),
+        ("float8_e4m3fnx2", "float16x2", "float8_e4m3fn"),
+        ("float8_e4m3fnx4", "float32x4", "float8_e4m3fn"),
+        # Supported via half4 vector type extension in codegen
+        ("float8_e4m3fnx4", "float16x4", "float8_e4m3fn"),
+        ("float8_e5m2", "float32", "float8_e5m2"),
+        ("float8_e5m2", "float16", "float8_e5m2"),
+        ("float8_e5m2x2", "float32x2", "float8_e5m2"),
+        ("float8_e5m2x2", "float16x2", "float8_e5m2"),
+        ("float8_e5m2x4", "float32x4", "float8_e5m2"),
+        ("float8_e5m2x4", "float16x4", "float8_e5m2"),
+    ],
 )
-
-
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
     vector_length = 64
 
@@ -187,7 +192,7 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
     target = "cuda"
     fadd = tvm.tirx.build(mod, target=target)
     cuda_src = fadd.imports[0].inspect_source()
-    dev = tvm.device(target, 0)
+    dev = tvm.cuda(0)
 
     if "x" in native_dtype:
         lanes = int(native_dtype.split("x")[-1])
@@ -217,7 +222,8 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
 bcast_length = tvm.testing.parameter(2, 4, 6, 8)
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_half_broadcast(bcast_length):
     dtype = "float16"
 
@@ -236,7 +242,7 @@ def test_half_broadcast(bcast_length):
     mod = _create_mod(bcast_length, dtype)
     target = "cuda"
     func = tvm.compile(mod, target=target)
-    dev = tvm.device(target, 0)
+    dev = tvm.cuda(0)
 
     a_np = np.random.uniform(low=0, high=4, size=()).astype(dtype)
     a = tvm.runtime.tensor(a_np, device=dev)
@@ -252,7 +258,8 @@ def test_half_broadcast(bcast_length):
 vector_length = tvm.testing.parameter(2, 4)
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_half_misaligned_vector_load(vector_length):
     dtype = "float16"
     vec_dtype = dtype + "x" + str(vector_length)
@@ -270,7 +277,7 @@ def test_half_misaligned_vector_load(vector_length):
     target = "cuda"
     f = tvm.compile(vector_load, target=target)
 
-    dev = tvm.device(target, 0)
+    dev = tvm.cuda(0)
     a_np = np.random.uniform(low=0, high=1, size=(length,)).astype(dtype)
     a = tvm.runtime.tensor(a_np, device=dev)
 
@@ -287,7 +294,8 @@ def test_half_misaligned_vector_load(vector_length):
     tvm.testing.assert_allclose(b.numpy(), b_np)
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_half4_vector_add():
     dtype = "float16"
     length = 64
@@ -313,7 +321,7 @@ def test_half4_vector_add():
 
     target = "cuda"
     fadd = tvm.compile(Module, target=target)
-    dev = tvm.device(target, 0)
+    dev = tvm.cuda(0)
 
     a_np = np.random.uniform(-1, 1, (length, vector_length)).astype(dtype)
     a = tvm.runtime.empty(shape=(length,), dtype=vec_dtype, device=dev)
@@ -348,7 +356,7 @@ class BaseFP8E4M3QuantScaleOnly:
             assert NotImplementedError()
 
         bb = relax.BlockBuilder()  # pylint: disable=invalid-name
-        weight_var = relax.Var("weight", relax.TensorStructInfo(weight_shape, model_dtype))
+        weight_var = relax.Var("weight", relax.TensorType(weight_shape, model_dtype))
         compute_scale, compute_quantize, compute_transpose = quantize_func(
             weight_shape,
             model_dtype,
@@ -393,9 +401,9 @@ class BaseFP8E4M3QuantScaleOnly:
 
         bb = relax.BlockBuilder()  # pylint: disable=invalid-name
         packed_weight_var = relax.Var(
-            "weight", relax.TensorStructInfo(packed_weight_shape, storage_dtype)
+            "weight", relax.TensorType(packed_weight_shape, storage_dtype)
         )
-        scale_var = relax.Var("scale", relax.TensorStructInfo(scale_shape, model_dtype))
+        scale_var = relax.Var("scale", relax.TensorType(scale_shape, model_dtype))
         compute_dequantize = dequantize_func(
             packed_weight_shape,
             scale_shape,
@@ -417,7 +425,7 @@ class BaseFP8E4M3QuantScaleOnly:
     @classmethod
     def quantize_fp8x4_e4m3(  # pylint: disable=too-many-locals
         cls,
-        weight_shape: list[tirx.PrimExpr],
+        weight_shape: list[tirx.Expr],
         model_dtype,
         quantize_dtype,
         storage_dtype,
@@ -480,9 +488,7 @@ class BaseFP8E4M3QuantScaleOnly:
 
             global_var = bb.add_func(quant, "quantized_weight")
             lv_quantized_weight = bb.emit(
-                relax.call_tir(
-                    global_var, args, relax.TensorStructInfo(packed_shape, storage_dtype)
-                )
+                relax.call_tir(global_var, args, relax.TensorType(packed_shape, storage_dtype))
             )
             return lv_quantized_weight
 
@@ -504,7 +510,7 @@ class BaseFP8E4M3QuantScaleOnly:
     @classmethod
     def dequantize_fp8x4_e4m3(  # pylint: disable=too-many-locals
         cls,
-        packed_weight_shape: list[tirx.PrimExpr],
+        packed_weight_shape: list[tirx.Expr],
         scale_shape,
         dequant_shape,
         model_dtype,
@@ -531,7 +537,7 @@ class BaseFP8E4M3QuantScaleOnly:
 
             global_var = bb.add_func(dequant, "dequantize_weight")
             lv_dequantized_weight = bb.emit(
-                relax.call_tir(global_var, args, relax.TensorStructInfo(dequant_shape, model_dtype))
+                relax.call_tir(global_var, args, relax.TensorType(dequant_shape, model_dtype))
             )
             return lv_dequantized_weight
 
@@ -774,7 +780,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
         axis,
         target_str,
     ):
-        dev = tvm.device(target_str, 0)
+        dev = tvm.cuda(0)
         return self.compile_quant_and_dequant_by_scale(
             weight_shape,
             scale_shape,
@@ -790,10 +796,11 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
             dev,
         )
 
-    @tvm.testing.requires_cuda_compute_version(8, 9)
+    @pytest.mark.gpu
+    @pytest.mark.skipif(not env.has_cuda_compute(8, 9), reason="need cuda compute >= 8.9")
     def test_main(self, weight_shape, model_dtype, target_str, compiled_functions):
         quant, dequant = compiled_functions
-        dev = tvm.device(target_str, 0)
+        dev = tvm.cuda(0)
 
         weight_np = np.random.uniform(-100, 100, weight_shape).astype(model_dtype)
         weight = tvm.runtime.tensor(weight_np, device=dev)
@@ -805,7 +812,8 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
         tvm.testing.assert_allclose(weight_np, dequant_weight_np, atol=10, rtol=5e-2)
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("dtype", ["float8_e5m2", "float8_e4m3fn", "float8_e8m0fnu"])
 def test_const(dtype):
     @T.prim_func(s_tir=True)
@@ -820,7 +828,8 @@ def test_const(dtype):
     tvm.compile(mod, target="cuda")
 
 
-@tvm.testing.requires_cuda_compute_version(8, 9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8, 9), reason="need cuda compute >= 8.9")
 @pytest.mark.parametrize("dtype", ["float8_e5m2", "float8_e4m3fn"])
 @pytest.mark.parametrize("vec_len", [2, 4, 8, 16])
 def test_copy(dtype, vec_len):
@@ -854,7 +863,8 @@ reduce_size = 1792
 spatial_size = 4096
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.skipif(ml_dtypes is None, reason="Requires ml_dtypes to be installed")
 def test_moe_gemv_shfl_down_illegal_instr():
     global num_experts
@@ -915,7 +925,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
                 lv = R.call_tir(
                     cls.moe_dequantize_gemv,
                     (x, weight, astype, indptr),
-                    out_sinfo=R.Tensor((2, spatial_size), dtype="float16"),
+                    out_ty=R.Tensor((2, spatial_size), dtype="float16"),
                 )
                 gv: R.Tensor((2, spatial_size), dtype="float16") = lv
                 R.output(gv)
@@ -943,29 +953,31 @@ def test_moe_gemv_shfl_down_illegal_instr():
     with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": False}) and target:
         mod = _pipeline(mod)
         rt_mod = tvm.compile(mod, target=target)
-    dev = tvm.cuda(0)
 
     x_data = np.zeros((1, reduce_size), dtype=np.float16)
-    x = tvm.runtime.tensor(x_data, device=dev)
-
     indptr_data = np.zeros((1, 2), dtype=np.int32)
-    indptr = tvm.runtime.tensor(indptr_data, device=dev)
-
     weight_data = np.zeros((num_experts, spatial_size, reduce_size), dtype="float8_e4m3fn")
-    weight = tvm.runtime.tensor(weight_data, device=dev)
-
     scale_data = np.zeros((1,), dtype=np.float32)
-    scale = tvm.runtime.tensor(scale_data, device=dev)
 
-    vm = relax.VirtualMachine(rt_mod, dev)
-    # Ensure this runs without failure. Utilizing dlight thread extents TS, TR = 4, 64
-    # in GEMV scheduling will yield: CUDA: an illegal instruction was encountered.
-    vm["main"](x, indptr, weight, scale)
+    def run_and_check():
+        dev = tvm.cuda(0)
+        x = tvm.runtime.tensor(x_data, device=dev)
+        indptr = tvm.runtime.tensor(indptr_data, device=dev)
+        weight = tvm.runtime.tensor(weight_data, device=dev)
+        scale = tvm.runtime.tensor(scale_data, device=dev)
+        vm = relax.VirtualMachine(rt_mod, dev)
+        # Ensure this runs without failure. Utilizing dlight thread extents TS, TR = 4, 64
+        # in GEMV scheduling will yield: CUDA: an illegal instruction was encountered.
+        vm["main"](x, indptr, weight, scale)
+        dev.sync()
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("vec_length", [2, 4])
 @pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
-@tvm.testing.requires_cuda_compute_version(8, 9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8, 9), reason="need cuda compute >= 8.9")
 def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
     def _create_mod(vec_length, dtype):
         num_threads = 128 // vec_length
@@ -987,21 +999,25 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
         return Module
 
     mod = _create_mod(vec_length, dtype)
-    device = tvm.cuda()
-    target = tvm.target.Target.from_device(device)
+    target = tvm.target.Target.from_device(tvm.cuda())
     f = tvm.tirx.build(mod, target=target)
 
     a_np = np.random.rand(128).astype("float8_e4m3fn")
     b_np = np.random.rand(128).astype(dtype)
     c_np = (a_np.astype(dtype) * b_np) + 3
-    a_tvm = tvm.runtime.tensor(a_np, device=device)
-    b_tvm = tvm.runtime.tensor(b_np, device=device)
-    c_tvm = tvm.runtime.empty((128,), dtype=dtype, device=device)
-    f(a_tvm, b_tvm, c_tvm)
-    c_tvm = c_tvm.numpy()
-    tvm.testing.assert_allclose(
-        c_tvm.astype(np.float32), c_np.astype(np.float32), atol=5e-1, rtol=1e-2
-    )
+
+    def run_and_check():
+        device = tvm.cuda()
+        a_tvm = tvm.runtime.tensor(a_np, device=device)
+        b_tvm = tvm.runtime.tensor(b_np, device=device)
+        c_tvm = tvm.runtime.empty((128,), dtype=dtype, device=device)
+        f(a_tvm, b_tvm, c_tvm)
+        actual = c_tvm.numpy()
+        tvm.testing.assert_allclose(
+            actual.astype(np.float32), c_np.astype(np.float32), atol=5e-1, rtol=1e-2
+        )
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

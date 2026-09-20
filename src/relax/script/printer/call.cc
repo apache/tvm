@@ -19,8 +19,9 @@
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/op.h>
-#include <tvm/relax/distributed/struct_info.h>
+#include <tvm/relax/distributed/type.h>
 
+#include "../../../tirx/script/printer/utils.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -33,7 +34,7 @@ class AttrPrinter {
                        ffi::Array<ExprDoc>* values)
       : p(std::move(p)), d(d), keys(keys), values(values) {}
 
-  void operator()(const tvm::Attrs& attrs) {
+  void operator()(const Attrs& attrs) {
     if (const auto* dict_attrs = attrs.as<DictAttrsNode>()) {
       for (const auto& [key, value] : dict_attrs->dict) {
         keys->push_back(key);
@@ -69,7 +70,7 @@ ExprDoc PrintCallee(const relax::Expr& n, const AccessPath& n_p, const IRDocsifi
   }
 }
 
-ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessPath& n_p,
+ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const Call& n, const AccessPath& n_p,
                                              const IRDocsifier& d) {
   static const Op& call_tir_op = Op::Get("relax.call_tir");
   static const Op& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
@@ -81,8 +82,8 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessP
       !n->op.same_as(call_tir_inplace_op)) {
     return std::nullopt;
   }
-  TVM_FFI_ICHECK(n->args.size() == 2 || n->args.size() == 3);
-  TVM_FFI_ICHECK(n->sinfo_args.size() == 1);
+  TVM_FFI_ICHECK_EQ(n->args.size(), 2);
+  TVM_FFI_ICHECK(n->ty_args.size() == 1);
   ffi::Array<ExprDoc> args;
   ffi::Array<ffi::String> kwargs_keys;
   ffi::Array<ExprDoc> kwargs_values;
@@ -90,26 +91,26 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessP
   args.push_back(PrintCallee(n->args[0], n_p->Attr("args")->ArrayItem(0), d));
   // Step 2. Print n->args[1], the input arguments
   args.push_back(d->AsDoc<ExprDoc>(n->args[1], n_p->Attr("args")->ArrayItem(1)));
-  // Step 3. Print n->sinfo_args, the output struct info
-  relax::StructInfo o_sinfo = n->sinfo_args[0];
-  AccessPath o_sinfo_p = n_p->Attr("sinfo_args")->ArrayItem(0);
+  // Step 3. Print n->ty_args, the output type
+  Type out_ty = n->ty_args[0];
+  AccessPath out_ty_p = n_p->Attr("ty_args")->ArrayItem(0);
   bool is_dtensor = false;
-  kwargs_keys.push_back("out_sinfo");
-  if (const auto* o = o_sinfo.as<relax::TupleStructInfoNode>()) {
+  kwargs_keys.push_back("out_ty");
+  if (const auto* o = out_ty.as<relax::TupleTypeNode>()) {
     ffi::Array<ExprDoc> fields;
-    AccessPath fields_p = o_sinfo_p->Attr("fields");
+    AccessPath fields_p = out_ty_p->Attr("fields");
     for (int i = 0, l = o->fields.size(); i < l; ++i) {
-      if (o->fields[i].as<relax::distributed::DTensorStructInfoNode>()) {
+      if (o->fields[i].as<relax::distributed::DTensorTypeNode>()) {
         is_dtensor = true;
       }
       fields.push_back(d->AsDoc<ExprDoc>(o->fields[i], fields_p->ArrayItem(i)));
     }
     kwargs_values.push_back(ListDoc(fields));
   } else {
-    if (o_sinfo.as<relax::distributed::DTensorStructInfoNode>()) {
+    if (out_ty.as<relax::distributed::DTensorTypeNode>()) {
       is_dtensor = true;
     }
-    kwargs_values.push_back(d->AsDoc<ExprDoc>(o_sinfo, o_sinfo_p));
+    kwargs_values.push_back(d->AsDoc<ExprDoc>(out_ty, out_ty_p));
   }
 
   // for call_tir_inplace, we also need to include the inplace args
@@ -144,11 +145,6 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessP
   if (n->op.same_as(call_dps_packed_op)) {
     return Relax(d, "call_dps_packed")->Call(args, kwargs_keys, kwargs_values);
   }
-  // Step 4. Print n->args[2], the tirx variables
-  if (n->args.size() == 3) {
-    kwargs_keys.push_back("tir_vars");
-    kwargs_values.push_back(d->AsDoc<ExprDoc>(n->args[2], n_p->Attr("args")->ArrayItem(2)));
-  }
   if (n->op.same_as(call_tir_local_view)) {
     return Relax(d, "dist.call_tir_local_view")->Call(args, kwargs_keys, kwargs_values);
   } else if (is_dtensor) {
@@ -160,8 +156,7 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessP
   }
 }
 
-ffi::Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const AccessPath& n_p,
-                                     const IRDocsifier& d) {
+ffi::Optional<ExprDoc> PrintAssertOp(const Call& n, const AccessPath& n_p, const IRDocsifier& d) {
   static const Op& assert_op = Op::Get("relax.assert_op");
   if (!n->op.same_as(assert_op)) {
     return std::nullopt;
@@ -180,7 +175,7 @@ ffi::Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const AccessPath& n_p
   return Relax(d, "assert_op")->Call(args, {"format"}, {second_arg});
 }
 
-ffi::Optional<ExprDoc> PrintHintOnDevice(const relax::Call& n, const AccessPath& n_p,
+ffi::Optional<ExprDoc> PrintHintOnDevice(const Call& n, const AccessPath& n_p,
                                          const IRDocsifier& d) {
   static const Op& hint_on_device_op = Op::Get("relax.hint_on_device");
   if (!n->op.same_as(hint_on_device_op)) {
@@ -203,8 +198,7 @@ ffi::Optional<ExprDoc> PrintHintOnDevice(const relax::Call& n, const AccessPath&
   return Relax(d, "hint_on_device")->Call(args);
 }
 
-ffi::Optional<ExprDoc> PrintToVDevice(const relax::Call& n, const AccessPath& n_p,
-                                      const IRDocsifier& d) {
+ffi::Optional<ExprDoc> PrintToVDevice(const Call& n, const AccessPath& n_p, const IRDocsifier& d) {
   static const Op& to_vdevice_op = Op::Get("relax.to_vdevice");
   if (!n->op.same_as(to_vdevice_op)) {
     return std::nullopt;
@@ -216,7 +210,7 @@ ffi::Optional<ExprDoc> PrintToVDevice(const relax::Call& n, const AccessPath& n_
   ffi::Array<ExprDoc> kwargs_values;
   TVM_FFI_ICHECK(n->attrs.defined());
   if (const auto* attrs = n->attrs.as<relax::ToVDeviceAttrs>()) {
-    VDevice vdev = attrs->dst_vdevice;
+    relax::VDevice vdev = attrs->dst_vdevice;
     std::string dev_kind = vdev->target->kind->name;
     int dev_index = FindVDeviceIndexByTargetKind(vdev, d);
     kwargs_keys.push_back("dst_vdevice");
@@ -227,8 +221,7 @@ ffi::Optional<ExprDoc> PrintToVDevice(const relax::Call& n, const AccessPath& n_
   return Relax(d, "to_vdevice")->Call(args, kwargs_keys, kwargs_values);
 }
 
-ffi::Optional<ExprDoc> PrintRelaxPrint(const relax::Call& n, const AccessPath& n_p,
-                                       const IRDocsifier& d) {
+ffi::Optional<ExprDoc> PrintRelaxPrint(const Call& n, const AccessPath& n_p, const IRDocsifier& d) {
   static const Op& print_op = Op::Get("relax.print");
   if (!n->op.same_as(print_op)) {
     return std::nullopt;
@@ -246,94 +239,120 @@ ffi::Optional<ExprDoc> PrintRelaxPrint(const relax::Call& n, const AccessPath& n
   return Relax(d, "print")->Call(args, {"format"}, {first_arg});
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::Call>(  //
-        "", [](relax::Call n, AccessPath n_p, IRDocsifier d) -> Doc {
-          // Special case: call_tir, call_dps_packed, call_tir_with_grad
-          if (ffi::Optional<ExprDoc> doc = PrintCallTIRDPSPacked(n, n_p, d)) {
-            return doc.value();
-          }
-          // Special case: assert_op
-          if (ffi::Optional<ExprDoc> doc = PrintAssertOp(n, n_p, d)) {
-            return doc.value();
-          }
-          // Special case: hint_on_device
-          if (ffi::Optional<ExprDoc> doc = PrintHintOnDevice(n, n_p, d)) {
-            return doc.value();
-          }
-          // Special case: to_vdevice
-          if (ffi::Optional<ExprDoc> doc = PrintToVDevice(n, n_p, d)) {
-            return doc.value();
-          }
-          // Special case: print
-          if (ffi::Optional<ExprDoc> doc = PrintRelaxPrint(n, n_p, d)) {
-            return doc.value();
-          }
-          ExprDoc prefix{ffi::UnsafeInit()};
-          ffi::Array<ExprDoc> args;
-          ffi::Array<ffi::String> kwargs_keys;
-          ffi::Array<ExprDoc> kwargs_values;
-          // Step 1. Print op
-          if (const auto* op = n->op.as<relax::ExternFuncNode>()) {
-            prefix = Relax(d, "call_packed");
-            args.push_back(LiteralDoc::Str(op->global_symbol, n_p->Attr("op")));
-          } else if (const auto* op = n->op.as<tvm::OpNode>()) {
-            std::string name = op->name;
-            if (name.rfind("relax.", 0) == 0) {
-              prefix = Relax(d, name.substr(6));
-            } else {
-              prefix = IdDoc(name);
-            }
-            prefix->source_paths.push_back(n_p->Attr("op"));
-          } else if (n->op->IsInstance<relax::VarNode>() ||
-                     n->op->IsInstance<tvm::GlobalVarNode>()) {
-            prefix = d->AsDoc<ExprDoc>(n->op, n_p->Attr("op"));
-          } else {
-            TVM_FFI_THROW(TypeError) << "Unsupported op: " << n->op->GetTypeKey();
-          }
-          // Step 2. Print args
-          if (!n->args.empty()) {
-            args.push_back(PrintCallee(n->args[0], n_p->Attr("args")->ArrayItem(0), d));
-          }
-          for (int i = 1, l = n->args.size(); i < l; ++i) {
-            args.push_back(d->AsDoc<ExprDoc>(n->args[i], n_p->Attr("args")->ArrayItem(i)));
-          }
-          // Step 3. Print attrs
-          if (n->attrs.defined()) {
-            if (n->op->IsInstance<relax::ExternFuncNode>()) {
-              kwargs_keys.push_back("attrs_type_key");
-              kwargs_values.push_back(LiteralDoc::Str(n->attrs->GetTypeKey(), n_p->Attr("attrs")));
-            }
-            if (const auto* attrs = n->attrs.as<tvm::DictAttrsNode>()) {
-              std::vector<std::pair<ffi::String, ffi::Any>> sorted;
-              for (const auto& kv : attrs->dict) {
-                sorted.push_back(kv);
-              }
-              std::sort(sorted.begin(), sorted.end(),
-                        [](const auto& a, const auto& b) { return a.first < b.first; });
-              for (const auto& kv : sorted) {
-                kwargs_keys.push_back(kv.first);
-                kwargs_values.push_back(
-                    d->AsDoc<ExprDoc>(kv.second, n_p->Attr("attrs")->Attr(kv.first)));
-              }
-            } else {
-              AttrPrinter(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values)(n->attrs);
-            }
-          }
-          // Step 4. Print type_args
-          if (n->sinfo_args.size() > 0) {
-            AccessPath sinfo_args_p = n_p->Attr("sinfo_args");
-            ffi::Array<ExprDoc> sinfo_args;
-            for (int i = 0, l = n->sinfo_args.size(); i < l; ++i) {
-              sinfo_args.push_back(d->AsDoc<ExprDoc>(n->sinfo_args[i], sinfo_args_p->ArrayItem(i)));
-            }
-            kwargs_keys.push_back("sinfo_args");
-            kwargs_values.push_back(TupleDoc(sinfo_args));
-          }
-          return prefix->Call(args, kwargs_keys, kwargs_values);
-        });
+bool ShouldPrintAsTIR(const Call& call) {
+  if (call->op->ty.as<relax::FuncTypeNode>() || call->op.as<tvm::VarNode>() ||
+      call->op.as<relax::FunctionNode>() || call->op.as<relax::ExternFuncNode>()) {
+    return false;
+  }
+  if (auto op = call->op.as<Op>()) {
+    return op.value()->name.find("relax.") != 0;
+  }
+  if (!call->ty.as<PrimTypeNode>()) {
+    return false;
+  }
+  return true;
+}
 
-TVM_REGISTER_SCRIPT_AS_REPR(relax::CallNode, ReprPrintRelax);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<Call>(  //
+      "", [](Call call, AccessPath n_p, IRDocsifier d) -> Doc {
+        if (ShouldPrintAsTIR(call)) {
+          return PrintTIRCall(call, n_p, d);
+        }
+        Call n = call;
+        // Special case: call_tir, call_dps_packed, call_tir_with_grad
+        if (ffi::Optional<ExprDoc> doc = PrintCallTIRDPSPacked(n, n_p, d)) {
+          return doc.value();
+        }
+        // Special case: assert_op
+        if (ffi::Optional<ExprDoc> doc = PrintAssertOp(n, n_p, d)) {
+          return doc.value();
+        }
+        // Special case: hint_on_device
+        if (ffi::Optional<ExprDoc> doc = PrintHintOnDevice(n, n_p, d)) {
+          return doc.value();
+        }
+        // Special case: to_vdevice
+        if (ffi::Optional<ExprDoc> doc = PrintToVDevice(n, n_p, d)) {
+          return doc.value();
+        }
+        // Special case: print
+        if (ffi::Optional<ExprDoc> doc = PrintRelaxPrint(n, n_p, d)) {
+          return doc.value();
+        }
+        ExprDoc prefix{ffi::UnsafeInit()};
+        ffi::Array<ExprDoc> args;
+        ffi::Array<ffi::String> kwargs_keys;
+        ffi::Array<ExprDoc> kwargs_values;
+        // Step 1. Print op
+        if (const auto* op = n->op.as<relax::ExternFuncNode>()) {
+          prefix = Relax(d, "call_packed");
+          args.push_back(LiteralDoc::Str(op->global_symbol, n_p->Attr("op")));
+        } else if (const auto* op = n->op.as<tvm::OpNode>()) {
+          std::string name = op->name;
+          if (name.rfind("relax.", 0) == 0) {
+            prefix = Relax(d, name.substr(6));
+          } else {
+            prefix = IdDoc(name);
+          }
+          prefix->source_paths.push_back(n_p->Attr("op"));
+        } else if (n->op->IsInstance<tvm::VarNode>() || n->op->IsInstance<tvm::GlobalVarNode>()) {
+          prefix = d->AsDoc<ExprDoc>(n->op, n_p->Attr("op"));
+        } else {
+          TVM_FFI_THROW(TypeError) << "Unsupported op: " << n->op->GetTypeKey();
+        }
+        // Step 2. Print args
+        if (!n->args.empty()) {
+          args.push_back(PrintCallee(n->args[0], n_p->Attr("args")->ArrayItem(0), d));
+        }
+        for (int i = 1, l = n->args.size(); i < l; ++i) {
+          args.push_back(d->AsDoc<ExprDoc>(n->args[i], n_p->Attr("args")->ArrayItem(i)));
+        }
+        // Step 3. Print attrs
+        if (n->attrs.defined()) {
+          if (n->op->IsInstance<relax::ExternFuncNode>()) {
+            kwargs_keys.push_back("attrs_type_key");
+            kwargs_values.push_back(LiteralDoc::Str(n->attrs->GetTypeKey(), n_p->Attr("attrs")));
+          }
+          if (const auto* attrs = n->attrs.as<tvm::DictAttrsNode>()) {
+            std::vector<std::pair<ffi::String, ffi::Any>> sorted;
+            for (const auto& kv : attrs->dict) {
+              sorted.push_back(kv);
+            }
+            std::sort(sorted.begin(), sorted.end(),
+                      [](const auto& a, const auto& b) { return a.first < b.first; });
+            for (const auto& kv : sorted) {
+              kwargs_keys.push_back(kv.first);
+              kwargs_values.push_back(
+                  d->AsDoc<ExprDoc>(kv.second, n_p->Attr("attrs")->Attr(kv.first)));
+            }
+          } else {
+            AttrPrinter(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values)(n->attrs);
+          }
+        }
+        // Step 4. Print type_args
+        if (n->ty_args.size() > 0) {
+          AccessPath ty_args_p = n_p->Attr("ty_args");
+          ffi::Array<ExprDoc> ty_args;
+          for (int i = 0, l = n->ty_args.size(); i < l; ++i) {
+            ty_args.push_back(d->AsDoc<ExprDoc>(n->ty_args[i], ty_args_p->ArrayItem(i)));
+          }
+          kwargs_keys.push_back("ty_args");
+          kwargs_values.push_back(TupleDoc(ty_args));
+        }
+        return prefix->Call(args, kwargs_keys, kwargs_values);
+      });
+}
+
+std::string ReprPrintCall(const ffi::ObjectRef& obj, const PrinterConfig& cfg) {
+  Call call = obj.as_or_throw<Call>();
+  if (ShouldPrintAsTIR(call)) {
+    return ReprPrintTIR(obj, cfg);
+  }
+  return ReprPrintRelax(obj, cfg);
+}
+
+TVM_REGISTER_SCRIPT_AS_REPR(CallNode, ReprPrintCall);
 
 }  // namespace printer
 }  // namespace script

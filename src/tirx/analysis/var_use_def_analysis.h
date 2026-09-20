@@ -24,6 +24,7 @@
 #ifndef TVM_TIR_ANALYSIS_VAR_USE_DEF_ANALYSIS_H_
 #define TVM_TIR_ANALYSIS_VAR_USE_DEF_ANALYSIS_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -45,43 +46,31 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
   // be accessible to the users.
   bool visit_thread_extent_{true};
   ffi::Array<Var> undefined_;
-  ffi::Array<Buffer> undefined_buffers_;
+  ffi::Array<BufferVar> undefined_buffers_;
 
   std::unordered_map<const VarNode*, int> use_count_;
   std::unordered_map<const VarNode*, int> def_count_;
-  std::unordered_map<const BufferNode*, int> buffer_use_count_;
-  std::unordered_map<const BufferNode*, int> buffer_def_count_;
+  std::unordered_map<const VarNode*, int> buffer_use_count_;
+  std::unordered_map<const VarNode*, int> buffer_def_count_;
 
  private:
-  ExprDeepEqual deep_equal_;
-  std::unordered_map<const VarNode*, const LetNode*> let_binding_;
-  void VisitStmt_(const AttrStmtNode* op) final;
+  prim::ExprDeepEqual deep_equal_;
+  std::unordered_map<const VarNode*, const prim::LetNode*> let_binding_;
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final;
 
-  void VisitStmt_(const BindNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final;
 
-  void VisitStmt_(const ForNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final;
 
-  void VisitStmt_(const AllocBufferNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final;
 
-  void VisitExpr_(const LetNode* op) final;
-
-  void VisitExpr_(const VarNode* op) final;
-
-  void VisitExpr_(const ReduceNode* op) final;
-
-  // Piggyback on base class VisitBufferDef/VisitBufferUse to handle buffer
-  // def/use tracking. Base class calls these from AllocBuffer, DeclBuffer,
-  // BufferStore, BufferLoad, and SBlock visitors.
-  void VisitBufferDef(const Buffer& buffer, bool alloc_data) final;
-  void VisitBufferUse(const Buffer& buffer) final;
+  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) final;
 
   void HandleDef(const Var& v);
   void HandleUse(const Var& v);
 
-  void HandleDef(const Buffer& buf);
-  void HandleUse(const Buffer& buf);
-
-  void VisitBuffer(const Buffer& buffer);
+  void HandleDef(const BufferVar& buf);
+  void HandleUse(const BufferVar& buf);
 };
 
 }  // namespace tirx

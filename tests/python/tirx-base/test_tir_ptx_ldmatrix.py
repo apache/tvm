@@ -16,10 +16,12 @@
 # under the License.
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @T.prim_func(s_tir=True)
@@ -39,7 +41,7 @@ def ptx_ldmatrix(
             A_shared[i * 2 + tx // 16, tx % 16] = A[i * 2 + tx // 16, tx % 16]
 
         T.evaluate(
-            T.ptx.ldmatrix_legacy(
+            T.ptx_legacy.ldmatrix(
                 trans,
                 num,
                 ".b16",
@@ -57,7 +59,8 @@ def ptx_ldmatrix(
                     B[8 * j + tx // 4, 8 * k + (tx % 4) * 2 + i] = A_local[4 * k + 2 * j + i]
 
 
-@tvm.testing.requires_cuda_compute_version(7, 5)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(7, 5), reason="need cuda compute >= 7.5")
 def test_ptx_ldmatrix():
     f = ptx_ldmatrix
     _, _, param_num, param_trans = f.params
@@ -87,11 +90,15 @@ def test_ptx_ldmatrix():
                 else:
                     A_mask_np[:16, :16] = A_np[:16, :16]
             B_np = np.zeros((16, 16)).astype("float16")
-            dev = tvm.cuda(0)
-            A_nd = tvm.runtime.tensor(A_np, device=dev)
-            B_nd = tvm.runtime.tensor(B_np, device=dev)
-            mod(A_nd, B_nd)
-            tvm.testing.assert_allclose(B_nd.numpy(), A_mask_np)
+
+            def run_and_check():
+                dev = tvm.cuda(0)
+                A_nd = tvm.runtime.tensor(A_np, device=dev)
+                B_nd = tvm.runtime.tensor(B_np, device=dev)
+                mod(A_nd, B_nd)
+                tvm.testing.assert_allclose(B_nd.numpy(), A_mask_np)
+
+            tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

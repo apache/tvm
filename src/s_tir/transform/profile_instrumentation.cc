@@ -25,11 +25,12 @@
 // and can be used to capture profiling information such as processor cycles.
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace s_tir {
@@ -62,15 +63,17 @@ using LoopInfoMap = std::unordered_map<const ForNode*, LoopInfo>;
 // Traverse loops depth first and assign them a unique number.
 class LoopAnalyzer : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
   LoopInfoMap Analyze(const Stmt& stmt) {
-    this->VisitStmt(stmt);
+    this->Visit(stmt);
     return loops;
   }
-  void VisitStmt_(const ForNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     LoopInfo loop_info(start_id, 0);
     start_id++;
     loop_info.height = TraverseLoop(op->body, 0);
     loops[op] = loop_info;
+    return std::nullopt;
   }
 
   unsigned TraverseLoop(const Stmt& stmt, unsigned parent_depth, bool has_parallel = false) {
@@ -160,25 +163,27 @@ class LoopAnalyzer : public StmtExprVisitor {
   LoopInfoMap loops;
 };
 
-class InstrumentIntrin : public StmtMutator {
+class InstrumentIntrin : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   InstrumentIntrin(int32_t max_depth, int32_t min_height, bool instr_siblings)
       : max_instr_depth_(max_depth),
         min_instr_height_(min_height),
         instr_siblings_(instr_siblings) {}
 
   void GetLoopInfo(PrimFuncNode* op) {
-    LoopAnalyzer analzer;
-    loops_ = analzer.Analyze(op->body);
+    auto analzer = ffi::make_object<LoopAnalyzer>();
+    loops_ = analzer->Analyze(op->body);
   }
 
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
-    Stmt stmt = StmtMutator::VisitStmt_(op);
-    return SeqStmt::Flatten(stmt);
-  }
-
-  Stmt VisitStmt_(const ForNode* op) final {
-    Stmt stmt = StmtMutator::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     if (loops_.count(op) < 1) return stmt;
 
     LoopInfo loop_info = loops_[op];
@@ -203,8 +208,10 @@ class InstrumentIntrin : public StmtMutator {
       return stmt;
     }
     PrimExpr id = static_cast<int32_t>(loop_info.id);
-    PrimExpr start_call = Call(DataType::Handle(), builtin::start_profile_intrinsic(), {id});
-    PrimExpr end_call = Call(DataType::Handle(), builtin::end_profile_intrinsic(), {id});
+    PrimExpr start_call = Call(PrimType::Void(), tirx::builtin::start_profile_intrinsic(), {id})
+                              .as_or_throw<PrimExpr>();
+    PrimExpr end_call = Call(PrimType::Void(), tirx::builtin::end_profile_intrinsic(), {id})
+                            .as_or_throw<PrimExpr>();
     const Stmt start_profile = Evaluate(start_call);
     const Stmt end_profile = Evaluate(end_call);
     Stmt new_stmt = SeqStmt({start_profile, stmt, end_profile});
@@ -220,18 +227,20 @@ class InstrumentIntrin : public StmtMutator {
 
 class CheckParallelLoops : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
   bool HasParallelLoops(const Stmt& stmt) {
-    this->VisitStmt(stmt);
+    this->Visit(stmt);
     return has_parallel;
   }
 
  private:
-  void VisitStmt_(const ForNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     if (op->kind == ForKind::kParallel) {
       has_parallel = true;
     } else {
-      StmtExprVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
+    return std::nullopt;
   }
 
   bool has_parallel = false;
@@ -243,15 +252,18 @@ PrimFunc AddProfileBuiltins(PrimFunc func, int32_t max_instr_depth, int32_t min_
 
   PrimExpr e = start_id++;
   if (!disable_func_instrumentation) {
-    PrimExpr start_call = Call(DataType::Handle(), builtin::start_profile_intrinsic(), {e});
-    PrimExpr end_call = Call(DataType::Handle(), builtin::end_profile_intrinsic(), {e});
+    PrimExpr start_call = Call(PrimType::Void(), tirx::builtin::start_profile_intrinsic(), {e})
+                              .as_or_throw<PrimExpr>();
+    PrimExpr end_call =
+        Call(PrimType::Void(), tirx::builtin::end_profile_intrinsic(), {e}).as_or_throw<PrimExpr>();
     const Stmt start_profile = Evaluate(start_call);
     const Stmt end_profile = Evaluate(end_call);
     func_ptr->body = SeqStmt({start_profile, std::move(func_ptr->body), end_profile});
   }
-  InstrumentIntrin p(max_instr_depth, min_instr_height, instr_siblings);
-  p.GetLoopInfo(func_ptr);
-  func_ptr->body = p(std::move(func_ptr->body));
+  auto p = ffi::make_object<InstrumentIntrin>(max_instr_depth, min_instr_height, instr_siblings);
+  p->GetLoopInfo(func_ptr);
+  func_ptr->body =
+      p->Mutate(func_ptr->body, InplaceMode::kAllow).ValueOrUnchanged(std::move(func_ptr->body));
   return func;
 }
 

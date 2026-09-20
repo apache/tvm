@@ -462,6 +462,7 @@ class FunctionDoc(StmtDoc):
     decorators: Sequence[ExprDoc]
     return_type: ExprDoc | None
     body: Sequence[StmtDoc]
+    type_params: Sequence[Doc]
 
     def __init__(
         self,
@@ -470,6 +471,7 @@ class FunctionDoc(StmtDoc):
         decorators: list[ExprDoc],
         return_type: ExprDoc | None,
         body: list[StmtDoc],
+        type_params: list[Doc] | None = None,
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.FunctionDoc,  # type: ignore # pylint: disable=no-member
@@ -478,6 +480,7 @@ class FunctionDoc(StmtDoc):
             decorators,
             return_type,
             body,
+            type_params or [],
         )
 
 

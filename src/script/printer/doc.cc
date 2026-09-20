@@ -33,6 +33,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   StmtDocNode::RegisterReflection();
   StmtBlockDocNode::RegisterReflection();
   LiteralDocNode::RegisterReflection();
+  ExprStringDocNode::RegisterReflection();
   IdDocNode::RegisterReflection();
   AttrAccessDocNode::RegisterReflection();
   IndexDocNode::RegisterReflection();
@@ -88,7 +89,16 @@ StmtBlockDoc::StmtBlockDoc(ffi::Array<StmtDoc> stmts) {
 LiteralDoc::LiteralDoc(ffi::Any value, const ffi::Optional<AccessPath>& object_path) {
   ffi::ObjectPtr<LiteralDocNode> n = ffi::make_object<LiteralDocNode>();
   n->value = value;
-  if (object_path.defined()) {
+  if (object_path.has_value()) {
+    n->source_paths.push_back(object_path.value());
+  }
+  this->data_ = std::move(n);
+}
+
+ExprStringDoc::ExprStringDoc(ExprDoc value, const ffi::Optional<AccessPath>& object_path) {
+  ffi::ObjectPtr<ExprStringDocNode> n = ffi::make_object<ExprStringDocNode>();
+  n->value = value;
+  if (object_path.has_value()) {
     n->source_paths.push_back(object_path.value());
   }
   this->data_ = std::move(n);
@@ -167,7 +177,7 @@ SliceDoc::SliceDoc(ffi::Optional<ExprDoc> start, ffi::Optional<ExprDoc> stop,
 }
 
 AssignDoc::AssignDoc(ExprDoc lhs, ffi::Optional<ExprDoc> rhs, ffi::Optional<ExprDoc> annotation) {
-  TVM_FFI_CHECK(rhs.defined() || annotation.defined(), ValueError)
+  TVM_FFI_CHECK(rhs.has_value() || annotation.has_value(), ValueError)
       << "At least one of rhs and annotation needs to be non-null for AssignDoc.";
   TVM_FFI_CHECK(lhs->IsInstance<IdDocNode>() || annotation == nullptr, ValueError)
       << "annotation can only be nonnull if lhs is an identifier.";
@@ -251,13 +261,15 @@ ReturnDoc::ReturnDoc(ExprDoc value) {
 }
 
 FunctionDoc::FunctionDoc(IdDoc name, ffi::Array<AssignDoc> args, ffi::Array<ExprDoc> decorators,
-                         ffi::Optional<ExprDoc> return_type, ffi::Array<StmtDoc> body) {
+                         ffi::Optional<ExprDoc> return_type, ffi::Array<StmtDoc> body,
+                         ffi::Array<Doc> type_params) {
   ffi::ObjectPtr<FunctionDocNode> n = ffi::make_object<FunctionDocNode>();
   n->name = name;
   n->args = args;
   n->decorators = decorators;
   n->return_type = return_type;
   n->body = body;
+  n->type_params = type_params;
   this->data_ = std::move(n);
 }
 
@@ -328,7 +340,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.printer.LiteralDocNone", LiteralDoc::None)
-      .def("script.printer.LiteralDocInt", LiteralDoc::Int)
+      .def("script.printer.LiteralDocInt",
+           static_cast<LiteralDoc (*)(int64_t, const ffi::Optional<AccessPath>&)>(LiteralDoc::Int))
       .def("script.printer.LiteralDocBoolean", LiteralDoc::Boolean)
       .def("script.printer.LiteralDocFloat", LiteralDoc::Float)
       .def("script.printer.LiteralDocStr", LiteralDoc::Str);
@@ -473,8 +486,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("script.printer.FunctionDoc",
                         [](IdDoc name, ffi::Array<AssignDoc> args, ffi::Array<ExprDoc> decorators,
-                           ffi::Optional<ExprDoc> return_type, ffi::Array<StmtDoc> body) {
-                          return FunctionDoc(name, args, decorators, return_type, body);
+                           ffi::Optional<ExprDoc> return_type, ffi::Array<StmtDoc> body,
+                           ffi::Array<Doc> type_params = {}) {
+                          return FunctionDoc(name, args, decorators, return_type, body,
+                                             type_params);
                         });
 }
 

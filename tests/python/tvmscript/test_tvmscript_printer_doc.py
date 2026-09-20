@@ -478,6 +478,7 @@ def test_function_doc(args, decorators, return_type, body):
     assert list(doc.decorators) == decorators
     assert doc.return_type == return_type
     assert list(doc.body) == body
+    assert list(doc.type_params) == []
 
 
 @pytest.mark.parametrize(

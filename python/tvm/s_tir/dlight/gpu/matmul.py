@@ -26,7 +26,7 @@ from tvm.ir import Range
 from tvm.s_tir.schedule.schedule import SBlockRV
 from tvm.script import tirx as T
 from tvm.target import Target
-from tvm.tirx import IterVar, PrimExpr, Var
+from tvm.tirx import Expr, IterVar, Var
 from tvm.tirx.analysis import undefined_vars
 
 from ..analysis import IterInfo, SBlockInfo, get_root_block
@@ -134,10 +134,10 @@ class IterKind(Enum):
 @dataclass
 class IterTrait:
     kind: IterKind
-    extent: PrimExpr
+    extent: Expr
 
 
-def _is_one(x: PrimExpr) -> bool:
+def _is_one(x: Expr) -> bool:
     return isinstance(x, tirx.IntImm) and x.value == 1
 
 
@@ -145,10 +145,10 @@ def make_iter_fusion_index_map(
     traits: list[IterTrait],
     kind_order: list[IterKind],
 ) -> tirx.IndexMap:
-    fused_iters: dict[IterKind, PrimExpr] = {}
+    fused_iters: dict[IterKind, Expr] = {}
     input_iters: list[tirx.Var] = []
     for i, trait in enumerate(traits):
-        v_i = tirx.Var(f"i{i}", trait.extent.dtype)
+        v_i = tirx.Var(f"i{i}", trait.extent.ty)
         input_iters.append(v_i)
         if trait.kind == IterKind.kIter_T:
             continue
@@ -159,19 +159,19 @@ def make_iter_fusion_index_map(
         else:
             fused_iters[trait.kind] = v_i
 
-    final_indices: list[tirx.PrimExpr] = [
-        fused_iters.get(kind, tirx.IntImm(traits[0].extent.dtype, 0)) for kind in kind_order
+    final_indices: list[tirx.Expr] = [
+        fused_iters.get(kind, tirx.IntImm(traits[0].extent.ty, 0)) for kind in kind_order
     ]
 
     return tirx.IndexMap(input_iters, final_indices, None)
 
 
-def detect_iter_traits(block: tirx.SBlock) -> tuple[list[IterTrait]] | None:
+def detect_iter_traits(block: s_tir.SBlock) -> tuple[list[IterTrait]] | None:
     """Detect iter traits based on the pattern C[S, I, J] += A[S, I, K] * B[S, J, K]
 
     Parameters
     ----------
-    block : tirx.SBlock
+    block : s_tir.SBlock
         The block to be analyzed
 
     Returns
@@ -236,12 +236,12 @@ def detect_iter_traits(block: tirx.SBlock) -> tuple[list[IterTrait]] | None:
     return A_traits, B_traits, C_traits, block_traits
 
 
-def get_index_map(block: tirx.SBlock) -> tuple[tirx.IndexMap, ...] | None:
+def get_index_map(block: s_tir.SBlock) -> tuple[tirx.IndexMap, ...] | None:
     """Get index maps for the block
 
     Parameters
     ----------
-    block : tirx.SBlock
+    block : s_tir.SBlock
         The block to be analyzed
 
     Returns
@@ -326,13 +326,13 @@ def get_reduction_blocks(sch, blocks) -> bool:
     return reduction_blocks
 
 
-def get_in_out_dtypes(block: tirx.SBlock) -> tuple[str]:
+def get_in_out_dtypes(block: s_tir.SBlock) -> tuple[str]:
     """
     Detect In/Out data types for the given block based on the analysis if read/write buffers.
     """
     assert len(block.reads) > 0 and len(block.writes) > 0
-    in_dtype = block.reads[0].buffer.dtype
-    out_dtype = block.writes[0].buffer.dtype
+    in_dtype = block.reads[0].source.dtype
+    out_dtype = block.writes[0].source.dtype
     return (in_dtype, out_dtype)
 
 

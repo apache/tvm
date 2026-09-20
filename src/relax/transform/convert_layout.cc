@@ -102,12 +102,14 @@ class LayoutConvertMutator : public ExprMutator {
     ffi::Array<PrimExpr> initial_indices_expr;
     initial_indices.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      auto var = tvm::tirx::Var("i" + std::to_string(i), DataType::Int(32));
+      auto var = tvm::tirx::Var("i" + std::to_string(i), PrimType::Int(32));
       initial_indices.push_back(var);
-      initial_indices_expr.push_back(var);
+      initial_indices_expr.push_back(var.as_or_throw<PrimExpr>());
     }
     ffi::Array<PrimExpr> desired_shape = todesired.ForwardIndex(initial_indices_expr);
-    return IndexMap(initial_indices, desired_shape, std::move(inverse_index_map));
+    return IndexMap(
+        initial_indices.Map([](tvm::tirx::Var var) { return var.as_or_throw<tvm::PrimVar>(); }),
+        desired_shape, std::move(inverse_index_map));
   }
 
   Expr RewriteExpr(const Expr& expr, const NLayout& to) {
@@ -118,7 +120,7 @@ class LayoutConvertMutator : public ExprMutator {
       TVM_FFI_ICHECK(!NLayoutEqual()(from, LayoutDecision::InitUnknownDim()) &&
                      !NLayoutEqual()(to, LayoutDecision::InitUnknownDim()))
           << "Cannot convert when exactly one of the layouts is unknown";
-      const auto* tensor = GetStructInfoAs<TensorStructInfoNode>(expr);
+      const auto* tensor = GetTypeAs<TensorTypeNode>(expr);
       TVM_FFI_ICHECK(tensor != nullptr) << "Expect a tensor, but got: " << expr;
 
       if (from.LeafValue()->layout.ndim() == to.LeafValue()->layout.ndim()) {
@@ -129,13 +131,10 @@ class LayoutConvertMutator : public ExprMutator {
         auto index_map = LayoutIndexMap(from.LeafValue()->layout.ndim(), from.LeafValue()->layout,
                                         to.LeafValue()->layout);
         ffi::ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
-        ffi::Array<IntImm> axis_separator;
-        ffi::Array<IntImm> input_axis_separator;
-        attrs->index_map = Downcast<IndexMap>(ffi::FromJSONGraph(ffi::ToJSONGraph(index_map)));
-        attrs->axis_separators = std::move(axis_separator);
-        attrs->input_axis_separators = std::move(input_axis_separator);
+        attrs->index_map = ffi::FromJSONGraph(ffi::ToJSONGraph(index_map)).as_or_throw<IndexMap>();
         const Op& layout_transform_op_ = Op::Get("relax.layout_transform");
-        auto ret_expr = Call(layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
+        auto ret_expr =
+            Call(Type::Missing(), layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
         return ret_expr;
       }
     };
@@ -206,7 +205,7 @@ class LayoutConvertMutator : public ExprMutator {
       const LayoutCb& layout_cb, const VarLayoutMap& var_layout_map) {
     const OpNode* op_node = call_node->op.as<OpNode>();
     if (op_node == nullptr) return std::nullopt;
-    Op op = Downcast<Op>(ffi::GetRef<Op>(op_node));
+    Op op = ffi::GetRef<Op>(op_node).as_or_throw<Op>();
     const auto attr_map = Op::GetAttrMap<FRelaxInferLayout>("FRelaxInferLayout");
     if (attr_map.count(op) && !HasUnknownDimTensor(call_node->args)) {
       // If the op has FRelaxInferLayout, and all the input tensors have known ndim
@@ -228,8 +227,8 @@ class LayoutConvertMutator : public ExprMutator {
     ffi::Optional<InferLayoutOutput> res =
         GetInferLayoutInfo(call_node, desired_layouts_, layout_cb_, var_layout_map_);
     ffi::ObjectPtr<CallNode> new_call = ffi::make_object<CallNode>(*call_node);
-    new_call->struct_info_ = std::nullopt;
-    if (!res.defined() ||
+    new_call->ty = Type::Missing();
+    if (!res.has_value() ||
         (!IsNestedTensor(binding->var) && !binding->var->IsInstance<DataflowVarNode>())) {
       // Default policy: use the initial layout.
       // When we don't have the infer layout info, or it's a non-tensor global var binding.
@@ -246,7 +245,7 @@ class LayoutConvertMutator : public ExprMutator {
       // Convert the layout according to the inferred layout output.
       ffi::Array<Expr> new_args = RewriteArgs(call_node->args, res.value()->input_layouts);
       for (const auto& [i, arg] : res.value()->new_args) {
-        new_args.Set(i->value, arg);
+        new_args.Set(i->value.as<size_t>().value(), arg);
       }
       new_call->args = std::move(new_args);
 
@@ -307,37 +306,36 @@ class LayoutConvertMutator : public ExprMutator {
     }
     NLayout from_layout = InitialNLayout(binding->value);
     NLayout input_layout = GetNLayout(var_layout_map_, binding->value);
-    auto fvisitleaf = [&](const StructInfo& sinfo, std::array<NLayout, 2> layouts) -> StructInfo {
+    auto fvisitleaf = [&](const Type& ty, std::array<NLayout, 2> layouts) -> Type {
       NLayout from = layouts[0], to = layouts[1];
-      if (NLayoutEqual()(from, to)) return sinfo;
+      if (NLayoutEqual()(from, to)) return ty;
       // If not both from and to are unknown, then none of them can be unknown.
       TVM_FFI_ICHECK(!NLayoutEqual()(from, LayoutDecision::InitUnknownDim()) &&
                      !NLayoutEqual()(to, LayoutDecision::InitUnknownDim()))
           << "Cannot convert when exactly one of the layouts is unknown";
-      const TensorStructInfoNode* tsinfo = sinfo.as<TensorStructInfoNode>();
-      TVM_FFI_ICHECK(tsinfo != nullptr) << "We can not set layout for non-tensor struct";
-      if (!tsinfo->shape.defined()) return sinfo;
-      const ShapeExprNode* shape = tsinfo->shape.value().as<ShapeExprNode>();
-      if (shape == nullptr) return sinfo;
+      const TensorTypeNode* tensor_ty = ty.as<TensorTypeNode>();
+      TVM_FFI_ICHECK(tensor_ty != nullptr) << "We can not set layout for non-tensor struct";
+      if (!tensor_ty->shape.has_value()) return ty;
+      const ShapeExprNode* shape = tensor_ty->shape.value().as<ShapeExprNode>();
+      if (shape == nullptr) return ty;
       TVM_FFI_ICHECK_EQ(shape->values.size(), to.LeafValue()->layout.ndim());
       std::vector<PrimExpr> new_shape;
       for (size_t i = 0; i < shape->values.size(); ++i) {
         new_shape.push_back(
             shape->values[from.LeafValue()->layout.IndexOf(to.LeafValue()->layout[i])]);
       }
-      VDevice vdev = tsinfo->vdevice.value_or(VDevice());
-      return TensorStructInfo(ShapeExpr(new_shape), tsinfo->dtype, vdev, tsinfo->span);
+      VDevice vdev = tensor_ty->vdevice.value_or(VDevice());
+      return TensorType(ShapeExpr(new_shape), tensor_ty->dtype, vdev, tensor_ty->span);
     };
-    StructInfo new_struct_info = TransformTupleLeaf<LayoutDecision>(
-        binding->struct_info, std::array<NLayout, 2>({from_layout, input_layout}), fvisitleaf);
+    Type new_ty = TransformTupleLeaf<LayoutDecision>(
+        binding->ty, std::array<NLayout, 2>({from_layout, input_layout}), fvisitleaf);
     // re-emit old binding if nothing changes
-    if (new_struct_info.same_as(binding->struct_info)) {
+    if (new_ty.same_as(binding->ty)) {
       builder_->EmitNormalized(ffi::GetRef<MatchCast>(binding));
     } else {
-      Var new_var =
-          builder_->EmitMatchCast(RewriteExpr(binding->value, input_layout), new_struct_info);
+      Var new_var = builder_->EmitMatchCast(RewriteExpr(binding->value, input_layout), new_ty);
       var_layout_map_[binding->var] = input_layout;
-      this->var_remap_[binding->var->vid] = new_var;
+      this->var_remap_[binding->var] = new_var;
     }
   }
 
@@ -350,7 +348,7 @@ DataflowBlock ConvertLayoutPass(const DataflowBlock& df_block,
                                 ffi::Map<ffi::String, ffi::Array<ffi::String>> desired_layouts,
                                 LayoutCb layout_cb) {
   LayoutConvertMutator mutator(desired_layouts, layout_cb);
-  return Downcast<DataflowBlock>(mutator.VisitBindingBlock(df_block));
+  return mutator.VisitBindingBlock(df_block).as_or_throw<DataflowBlock>();
 }
 
 namespace transform {
@@ -359,7 +357,7 @@ Pass ConvertLayout(ffi::Map<ffi::String, ffi::Array<ffi::String>> desired_layout
                    LayoutCb layout_cb) {
   ffi::TypedFunction<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func =
       [=](DataflowBlock df_block, IRModule m, PassContext pc) {
-        return Downcast<DataflowBlock>(ConvertLayoutPass(df_block, desired_layouts, layout_cb));
+        return ConvertLayoutPass(df_block, desired_layouts, layout_cb);
       };
   return CreateDataflowBlockPass(pass_func, 0, "ConvertLayout", {});
 }

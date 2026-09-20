@@ -28,9 +28,10 @@
 
 #include <llvm/IR/Intrinsics.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 
 #include "llvm_instance.h"
 
@@ -39,35 +40,37 @@ namespace codegen {
 // num_signature means number of arguments used to query signature
 template <unsigned id, int num_signature>
 inline PrimExpr DispatchLLVMPureIntrin(const PrimExpr& e) {
-  const tirx::CallNode* call = e.as<tirx::CallNode>();
+  const CallNode* call = e.as<CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
   ffi::Array<PrimExpr> cargs;
   // intrin id.
-  cargs.push_back(IntImm(DataType::UInt(32), id));
+  cargs.push_back(IntImm(PrimType::UInt(32), id));
   TVM_FFI_ICHECK_EQ(call->args.size(), num_signature)
       << "llvm.call_llvm_intrin" << llvmGetIntrinName(id) << "expects " << num_signature
       << " arguments, but got " << call->args.size();
 
-  for (PrimExpr arg : call->args) {
+  for (PrimExpr arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
     cargs.push_back(arg);
   }
-  return tirx::Call(call->dtype, tirx::builtin::call_llvm_pure_intrin(), cargs);
+  return Call(call->ty.as_or_throw<PrimType>(), tirx::builtin::call_llvm_pure_intrin(), cargs)
+      .as_or_throw<PrimExpr>();
 }
 
 template <unsigned id, int num_signature>
 inline PrimExpr DispatchLLVMIntrin(const PrimExpr& e) {
-  const tirx::CallNode* call = e.as<tirx::CallNode>();
+  const CallNode* call = e.as<CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
-  ffi::Array<PrimExpr> cargs;
+  ffi::Array<Expr> cargs;
   // intrin id.
-  cargs.push_back(IntImm(DataType::UInt(32), id));
+  cargs.push_back(IntImm(PrimType::UInt(32), id));
   TVM_FFI_ICHECK_EQ(call->args.size(), num_signature)
       << "llvm.call_llvm_intrin" << llvmGetIntrinName(id) << "expects " << num_signature
       << " arguments, but got " << call->args.size();
-  for (PrimExpr arg : call->args) {
+  for (Expr arg : call->args) {
     cargs.push_back(arg);
   }
-  return tirx::Call(call->dtype, tirx::builtin::call_llvm_intrin(), cargs);
+  return Call(call->ty.as_or_throw<PrimType>(), tirx::builtin::call_llvm_intrin(), cargs)
+      .as_or_throw<PrimExpr>();
 }
 
 }  // namespace codegen

@@ -25,7 +25,7 @@ def _iter_binding_names(mod):
     """Helper function to compare the names of relax variables"""
     for block in mod["forward"].body.blocks:
         for binding in block.bindings:
-            yield binding.var.name_hint
+            yield binding.var.name
 
 
 def test_nn_export_to_relax():

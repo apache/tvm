@@ -308,7 +308,7 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
       DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
       continue;
     }
-    auto f = Downcast<PrimFunc>(kv.second);
+    auto f = kv.second.as_or_throw<PrimFunc>();
     auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     bool is_entry_func = f->HasNonzeroAttr(tirx::attr::kIsEntryFunc);
 
@@ -484,7 +484,10 @@ void LLVMModuleNode::InitORCJIT() {
 
   // linker
   const auto linkerBuilder =
-#if TVM_LLVM_VERSION >= 210
+#if TVM_LLVM_VERSION >= 230
+      [&](llvm::orc::ExecutionSession& session, llvm::jitlink::JITLinkMemoryManager& mem_mgr)
+      -> llvm::Expected<std::unique_ptr<llvm::orc::ObjectLayer>> {
+#elif TVM_LLVM_VERSION >= 210
       [&](llvm::orc::ExecutionSession& session)
       -> llvm::Expected<std::unique_ptr<llvm::orc::ObjectLayer>> {
 #else
@@ -502,7 +505,11 @@ void LLVMModuleNode::InitORCJIT() {
     auto ObjLinkingLayer =
         std::make_unique<llvm::orc::RTDyldObjectLinkingLayer>(session, std::move(GetMemMgr));
 #else
+#if TVM_LLVM_VERSION >= 230
+    auto ObjLinkingLayer = std::make_unique<llvm::orc::ObjectLinkingLayer>(session, mem_mgr);
+#else
     auto ObjLinkingLayer = std::make_unique<llvm::orc::ObjectLinkingLayer>(session);
+#endif
 #endif
 #if TVM_LLVM_VERSION >= 210
     if (tm_builder.getTargetTriple().isOSBinFormatCOFF()) {

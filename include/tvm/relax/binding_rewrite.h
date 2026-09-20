@@ -25,7 +25,7 @@
 #ifndef TVM_RELAX_BINDING_REWRITE_H_
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/name_supply.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 
@@ -47,8 +47,8 @@ class DataflowBlockRewriteNode : public ffi::Object {
   void Add(Binding binding);
   /*! \brief Insert an expression as VarBinding with variable name. */
   void Add(ffi::String var_name, Expr expr, bool is_dfvar = false) {
-    auto var = is_dfvar ? DataflowVar(var_name, GetStructInfo(expr))  //
-                        : Var(var_name, GetStructInfo(expr));
+    auto var = is_dfvar ? DataflowVar(var_name, GetType(expr))  //
+                        : Var(var_name, GetType(expr));
     Add(VarBinding(std::move(var), std::move(expr)));
   }
   /*! \brief Insert an expression as VarBinding with automatic variable name. */
@@ -87,7 +87,7 @@ class DataflowBlockRewriteNode : public ffi::Object {
   ffi::Array<Var> fn_outputs_;               //!< Variables required by function outputs.
 
  private:
-  NameSupply name_supply_;  //!< Name supply for tracking and generating unique names.
+  UniqueNameSupply name_supply_;  //!< Unique name supply for tracking and generating unique names.
 };
 
 /*!

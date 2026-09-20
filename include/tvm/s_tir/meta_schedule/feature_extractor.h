@@ -24,6 +24,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/s_tir/meta_schedule/measure_candidate.h>
 

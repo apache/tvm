@@ -18,9 +18,10 @@
 """Default legalization function for unary operators."""
 
 from tvm import te, topi
+from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Expr
 from .common import _call_topi_without_attr, register_legalize
 
 # To avoid conflict of IRModule function name and libc function name, we add

@@ -43,10 +43,12 @@ free to contain arbitrary garbage).
 import math
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.relax.frontend.nn.llm.kv_cache import _attention_sequence_prefill_with_mask
+from tvm.testing import env
 
 
 def _reference_masked_attention(q, k, v, valid_lens, sm_scale):
@@ -153,39 +155,45 @@ def _run_case(
     valid_np = np.asarray(valid_lens, dtype=np.int32)
     out_np = np.zeros((batch, seq, h_q, d), dtype=np_dtype)
     lse_np = np.zeros((batch, seq, h_q), dtype=np_dtype)
-
-    q_nd = tvm.runtime.tensor(q_np, device=dev)
-    k_nd = tvm.runtime.tensor(k_np, device=dev)
-    v_nd = tvm.runtime.tensor(v_np, device=dev)
-    valid_nd = tvm.runtime.tensor(valid_np, device=dev)
-    out_nd = tvm.runtime.tensor(out_np, device=dev)
-    lse_nd = tvm.runtime.tensor(lse_np, device=dev)
-
-    built.main(q_nd, k_nd, v_nd, valid_nd, out_nd, lse_nd)
-
-    got = out_nd.numpy().astype(np.float32)
     if mask_mode == "padded":
         ref = _reference_masked_attention(q_np, k_np, v_np, valid_np, sm_scale)
     else:
         ref = _reference_masked_attention_causal_padded_left(q_np, k_np, v_np, valid_np, sm_scale)
 
-    # Only compare valid rows. Padding rows are undefined by design.
-    rtol, atol = (2e-2, 2e-2) if dtype == "float16" else (1e-4, 1e-4)
-    for b in range(batch):
-        L = int(valid_np[b])
-        if L == 0:
-            continue
-        if mask_mode == "padded":
-            np.testing.assert_allclose(got[b, :L], ref[b, :L], rtol=rtol, atol=atol)
-        else:
-            pad_q = seq - L
-            np.testing.assert_allclose(got[b, pad_q:], ref[b, pad_q:], rtol=rtol, atol=atol)
+    def run_and_check():
+        q_nd = tvm.runtime.tensor(q_np, device=dev)
+        k_nd = tvm.runtime.tensor(k_np, device=dev)
+        v_nd = tvm.runtime.tensor(v_np, device=dev)
+        valid_nd = tvm.runtime.tensor(valid_np, device=dev)
+        out_nd = tvm.runtime.tensor(out_np, device=dev)
+        lse_nd = tvm.runtime.tensor(lse_np, device=dev)
+        built.main(q_nd, k_nd, v_nd, valid_nd, out_nd, lse_nd)
+        got = out_nd.numpy().astype(np.float32)
+        rtol, atol = (2e-2, 2e-2) if dtype == "float16" else (1e-4, 1e-4)
+        for b in range(batch):
+            length = int(valid_np[b])
+            if length == 0:
+                continue
+            if mask_mode == "padded":
+                np.testing.assert_allclose(got[b, :length], ref[b, :length], rtol=rtol, atol=atol)
+            else:
+                pad_q = seq - length
+                np.testing.assert_allclose(got[b, pad_q:], ref[b, pad_q:], rtol=rtol, atol=atol)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_valid_len_zero(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_valid_len_zero(target):
     """All samples are fully padded: kernel must not crash and must stay bounded."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device_from_target(target)
     _run_case(
         target=target,
         dev=dev,
@@ -198,10 +206,17 @@ def test_valid_len_zero(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_valid_len_full(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_valid_len_full(target):
     """All samples are fully valid: must match a plain unmasked attention."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device_from_target(target)
     _run_case(
         target=target,
         dev=dev,
@@ -214,10 +229,17 @@ def test_valid_len_full(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_valid_len_mixed(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_valid_len_mixed(target):
     """Typical encoder batch with different valid lengths per sample."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device_from_target(target)
     _run_case(
         target=target,
         dev=dev,
@@ -230,10 +252,17 @@ def test_valid_len_mixed(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_valid_len_mixed_gqa(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_valid_len_mixed_gqa(target):
     """Grouped-query attention: ``group_size = h_q / h_kv > 1``."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device_from_target(target)
     _run_case(
         target=target,
         dev=dev,
@@ -246,10 +275,17 @@ def test_valid_len_mixed_gqa(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_causal_padded_left_valid_len_zero(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_causal_padded_left_valid_len_zero(target):
     """Causal left-pad: all samples are fully padded."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device_from_target(target)
     _run_case(
         target=target,
         dev=dev,
@@ -263,10 +299,17 @@ def test_causal_padded_left_valid_len_zero(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_causal_padded_left_valid_len_full(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_causal_padded_left_valid_len_full(target):
     """Causal left-pad: all samples are fully valid — degenerates to plain causal attention."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device_from_target(target)
     _run_case(
         target=target,
         dev=dev,
@@ -280,10 +323,17 @@ def test_causal_padded_left_valid_len_full(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_causal_padded_left_valid_len_mixed(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_causal_padded_left_valid_len_mixed(target):
     """Causal left-pad: typical decoder-embedding batch with mixed lengths."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device_from_target(target)
     _run_case(
         target=target,
         dev=dev,
@@ -297,10 +347,17 @@ def test_causal_padded_left_valid_len_mixed(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_causal_padded_left_valid_len_mixed_gqa(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_causal_padded_left_valid_len_mixed_gqa(target):
     """Causal left-pad: grouped-query attention with mixed lengths."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device_from_target(target)
     _run_case(
         target=target,
         dev=dev,
@@ -314,10 +371,17 @@ def test_causal_padded_left_valid_len_mixed_gqa(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_causal_padded_left_qo_len_differs_from_kv_len(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_causal_padded_left_qo_len_differs_from_kv_len(target):
     """Causal left-pad: Q and K/V may have different padded lengths."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device_from_target(target)
     _run_case(
         target=target,
         dev=dev,

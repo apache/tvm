@@ -25,7 +25,7 @@
 
 #include "check_contains.h"
 
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <vector>
 
@@ -41,9 +41,9 @@ namespace tirx {
  */
 bool CheckContains::ExprContains(const PrimExpr& expr,
                                  std::function<bool(const PrimExpr&)> predicate) {
-  CheckContains check_contains(predicate);
-  check_contains.VisitExpr(expr);
-  return check_contains.contains_it_;
+  auto check_contains = ffi::make_object<CheckContains>(predicate);
+  check_contains->Visit(expr);
+  return check_contains->contains_it_;
 }
 
 /*!
@@ -54,9 +54,9 @@ bool CheckContains::ExprContains(const PrimExpr& expr,
  * \return Whether `stmt` contains a subexpression that satisfies `predicate`
  */
 bool CheckContains::StmtContains(const Stmt& stmt, std::function<bool(const PrimExpr&)> predicate) {
-  CheckContains check_contains(predicate);
-  check_contains.VisitStmt(stmt);
-  return check_contains.contains_it_;
+  auto check_contains = ffi::make_object<CheckContains>(predicate);
+  check_contains->Visit(stmt);
+  return check_contains->contains_it_;
 }
 
 /*!
@@ -66,32 +66,13 @@ bool CheckContains::StmtContains(const Stmt& stmt, std::function<bool(const Prim
 CheckContains::CheckContains(std::function<bool(const PrimExpr&)> predicate)
     : predicate_(predicate) {}
 
-/*!
- * \brief The method which overrides the generic dispatcher of StmtExprVisitor for expressions.
- * \param expr The expression to visit
- */
-void CheckContains::VisitExpr(const PrimExpr& expr) {
-  // If the predicate holds on `expr`, we know `expr` contains something which makes
-  // the predicate hold
-  if (predicate_(expr)) {
+ffi::Optional<VisitInterrupt> CheckContains::Visit(ffi::AnyView value) {
+  if (auto prim_expr = value.as<PrimExpr>(); prim_expr && predicate_(prim_expr.value())) {
     contains_it_ = true;
-  } else {
-    // Otherwise we continue to look for it recursively by calling the dispatcher
-    StmtExprVisitor::VisitExpr(expr);
+    return std::nullopt;
   }
-}
-
-/*!
- * \brief The method which overrides the generic dispatcher of StmtExprVisitor for statements.
- * \param stmt The statement to visit
- */
-void CheckContains::VisitStmt(const Stmt& stmt) {
-  // We keep exploring only if `contains_it_` is false
-  if (!contains_it_) {
-    // and in order to do that we call the general dispatcher
-    StmtExprVisitor::VisitStmt(stmt);
-  }
-  // As otherwise we already have our answer
+  if (value.as<StmtNode>() && contains_it_) return std::nullopt;
+  return StmtExprVisitor::Visit(value);
 }
 
 }  // namespace tirx

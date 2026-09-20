@@ -19,6 +19,7 @@
 import contextlib
 
 from tvm import tirx
+from tvm.ir import StringImm
 from tvm.tirx import Buffer
 
 from . import frame
@@ -108,7 +109,7 @@ def seq_scope():
                     T.evaluate(j)
             result = ib.get()
     """
-    return T.attr(tirx.const(0, "int32"), "pragma_scope", tirx.StringImm("seq"))
+    return T.attr(0, "pragma_scope", StringImm("seq"))
 
 
 def _unravel_index(index, shape):
@@ -116,14 +117,14 @@ def _unravel_index(index, shape):
 
     Parameters
     ----------
-    index : PrimExpr
+    index : Expr
         The flat index.
     shape : Tuple
         The shape of the buffer.
 
     Returns
     -------
-    List[PrimExpr]
+    List[Expr]
         The multi-dimensional indices.
     """
     indices = []

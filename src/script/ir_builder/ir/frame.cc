@@ -39,7 +39,7 @@ void IRModuleFrameNode::ExitWithScope() {
     func_map.Set(gv, func);
   }
   IRBuilder builder = IRBuilder::Current();
-  TVM_FFI_CHECK(!builder->result.defined(), ValueError) << "Builder.result has already been set";
+  TVM_FFI_CHECK(!builder->result.has_value(), ValueError) << "Builder.result has already been set";
   auto dict_attrs = DictAttrs(attrs);
   builder->result = tvm::IRModule(func_map, {}, dict_attrs, global_infos);
 }

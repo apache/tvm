@@ -17,6 +17,18 @@
 
 # Helpers for configuring library targets.
 
+# Hide symbols from static archives linked into a shared library. This prevents
+# downstream libraries from accidentally binding to private archive symbols such
+# as those from libstdc++_nonshared.a.
+function(tvm_hide_static_linked_lib_symbols target_name)
+  if(HIDE_PRIVATE_SYMBOLS
+     AND CMAKE_SYSTEM_NAME MATCHES "Linux|Android|FreeBSD|NetBSD|OpenBSD"
+     AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang"
+  )
+    target_link_options(${target_name} PRIVATE "-Wl,--exclude-libs,ALL")
+  endif()
+endfunction()
+
 #######################################################
 # tvm_configure_target_library(target_name [RUNTIME_MODULE])
 #
@@ -24,6 +36,10 @@
 # ($ORIGIN / @loader_path) so that sibling shared libraries in the same
 # directory resolve each other regardless of the install location (e.g. inside a
 # Python wheel).
+#
+# For shared libraries and runtime modules, hide symbols that come from linked
+# static archives so downstream libraries cannot accidentally bind to private
+# archive symbols such as those from libstdc++_nonshared.a.
 #
 # With the RUNTIME_MODULE option -- used for the optional runtime backend
 # libraries (tvm_runtime_cuda, tvm_runtime_vulkan, ...) -- the target is also
@@ -49,6 +65,11 @@ function(tvm_configure_target_library target_name)
       BUILD_RPATH "\$ORIGIN"
       INSTALL_RPATH "\$ORIGIN"
     )
+  endif()
+
+  get_target_property(TVM_TARGET_TYPE ${target_name} TYPE)
+  if(TVM_TARGET_TYPE STREQUAL "SHARED_LIBRARY" OR TVM_TARGET_TYPE STREQUAL "MODULE_LIBRARY")
+    tvm_hide_static_linked_lib_symbols(${target_name})
   endif()
 
   if(ARG_RUNTIME_MODULE)

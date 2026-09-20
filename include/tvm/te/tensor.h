@@ -24,9 +24,9 @@
 #ifndef TVM_TE_TENSOR_H_
 #define TVM_TE_TENSOR_H_
 
-#include <tvm/arith/bound.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/sym/bound.h>
 #include <tvm/tirx/op.h>
 
 #include <string>
@@ -36,8 +36,7 @@
 
 namespace tvm {
 namespace te {
-
-using arith::IntSet;
+using sym::IntSet;
 using namespace tvm::tirx;
 
 // internal node container for Operation
@@ -66,13 +65,13 @@ class Operation : public ffi::ObjectRef {
   using ContainerType = OperationNode;
 };
 
-/*! \brief Node to represent a tensor */
-class TensorNode : public DataProducerNode {
+/*! \brief Opaque construction-time node that represents a tensor. */
+class TensorNode : public OpaqueExprNode {
  public:
   /*! \brief The shape of the tensor */
   ffi::Array<PrimExpr> shape;
-  /*! \brief data type in the content of the tensor */
-  DataType dtype;
+  /*! \brief dtype in the content of the tensor */
+  PrimType dtype = PrimType::Void();
   /*! \brief the source operation, can be None */
   Operation op;
   /*! \brief the output index from source operation */
@@ -80,24 +79,22 @@ class TensorNode : public DataProducerNode {
 
   static void RegisterReflection();
 
-  ffi::Array<PrimExpr> GetShape() const final { return shape; }
+  ffi::Array<PrimExpr> GetShape() const { return shape; }
 
-  DataType GetDataType() const final { return dtype; }
+  PrimType GetDataType() const { return dtype; }
 
-  TVM_DLL PrimExpr ToPrimExpr() const final;
-
-  TVM_DLL ffi::String GetNameHint() const final;
+  TVM_DLL ffi::String GetNameHint() const;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.Tensor", TensorNode, DataProducerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.Tensor", TensorNode, OpaqueExprNode);
 };
 
 /*!
  * \brief Tensor structure representing a possible input,
  *  or intermediate computation result.
  */
-class Tensor : public DataProducer {
+class Tensor : public OpaqueExpr {
  private:
   /*!
    * \brief Helper for indexing operations into tensors
@@ -108,7 +105,8 @@ class Tensor : public DataProducer {
   inline PrimExpr IndexTensor(ffi::Array<PrimExpr> indices, bool support_negative_indices) const;
 
  public:
-  TVM_DLL Tensor(ffi::Array<PrimExpr> shape, DataType dtype, Operation op, int value_index);
+  TVM_DLL Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index);
+
   /*!
    * \brief check if two tensors equals each other.
    * \param other tensor to be checked.
@@ -144,7 +142,7 @@ class Tensor : public DataProducer {
    * \param indices the indices.
    * \return the result expression representing tensor read.
    */
-  TVM_DLL PrimExpr operator()(ffi::Array<Var> indices) const;
+  TVM_DLL PrimExpr operator()(ffi::Array<PrimVar> indices) const;
   /*!
    * \brief Take elements from the tensor with support for negative indices.
    * \param args The indices
@@ -166,7 +164,7 @@ class Tensor : public DataProducer {
    * \param indices the indices.
    * \return the result expression representing tensor read.
    */
-  TVM_DLL PrimExpr IndexWithNegativeIndices(ffi::Array<Var> indices) const;
+  TVM_DLL PrimExpr IndexWithNegativeIndices(ffi::Array<PrimVar> indices) const;
 
   /*!
    * \brief data structure to represent a slice that fixes first k coordinates.
@@ -205,8 +203,17 @@ class Tensor : public DataProducer {
    */
   inline Slice operator[](PrimExpr i) const { return Slice(*this, {i}); }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tensor, DataProducer, TensorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tensor, OpaqueExpr, TensorNode);
 };
+
+/*! \brief Return whether an expression calls the registered te.tensor_load operator. */
+TVM_DLL bool IsTensorLoad(const Expr& expr);
+
+/*! \brief Recover and validate the first Tensor argument of a tensor-load Call. */
+TVM_DLL Tensor GetTensorFromLoad(const Call& call);
+
+/*! \brief Recover and validate the primitive indices of a tensor-load Call. */
+TVM_DLL ffi::Array<PrimExpr> GetTensorLoadIndices(const Call& call);
 
 // Implementations of inline functions
 inline size_t Tensor::ndim() const { return (*this)->shape.size(); }

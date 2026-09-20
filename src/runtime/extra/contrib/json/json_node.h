@@ -29,9 +29,9 @@
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/data_type.h>
 
 #include <cstdint>
 #include <cstdio>
@@ -255,6 +255,23 @@ class JSONGraphNode {
   T GetAttr(const std::string& key) const {
     TVM_FFI_ICHECK(attrs_.count(key) > 0) << "Key: " << key << " is not found";
     return attrs_[key].cast<T>();
+  }
+
+  /*!
+   * \brief Check whether an optional attribute carries a value.
+   *
+   * The JSON serializer stores a `None` attribute as an empty string, so `HasAttr` alone
+   * cannot distinguish an unset attribute from one that was set. Callers pair this with
+   * `GetAttr<T>`, which throws on a type mismatch rather than silently falling back.
+   *
+   * \param key The key for lookup.
+   *
+   * \return Whether the attribute is present and is not the empty-string `None` sentinel.
+   */
+  bool HasAttrValue(const std::string& key) const {
+    if (attrs_.count(key) == 0) return false;
+    auto sentinel = attrs_[key].try_cast<ffi::String>();
+    return !(sentinel.has_value() && sentinel.value().empty());
   }
 
   /*!

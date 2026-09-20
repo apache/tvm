@@ -20,11 +20,11 @@
 import tvm_ffi
 
 from . import _ffi_api
-from .expr import RelaxExpr
+from .expr import Expr
 
 
 @tvm_ffi.register_object("ir.Op")
-class Op(RelaxExpr):
+class Op(Expr):
     """Primitive operator in the IR."""
 
     def __init__(self):
@@ -187,40 +187,3 @@ def register_op_attr(op_name, attr_key, value=None, level=10):
         return v
 
     return _register(value) if value is not None else _register
-
-
-def register_intrin_lowering(
-    op_name,
-    target,
-    *,
-    f=None,
-    level=10,
-):
-    """Register Op lowering function
-
-    Parameters
-    ----------
-    op_name : str
-        The op name
-
-    target : str
-        The target string for given intrinsic lowering function
-
-    f : function, optional
-        The function to be registered.
-
-    level : int
-        The priority level
-
-    Returns
-    -------
-    fregister : function
-        Register op lowering function if f is not specified.
-    """
-
-    def _register(f):
-        """internal register function"""
-        _ffi_api.RegisterOpLowerIntrinsic(op_name, f, target, level)
-        return f
-
-    return _register(f) if f is not None else _register

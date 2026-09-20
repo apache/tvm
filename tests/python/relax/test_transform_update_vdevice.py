@@ -18,7 +18,7 @@
 
 import tvm
 import tvm.testing
-from tvm.ir import VDevice
+from tvm.relax import VDevice
 from tvm.relax.transform import UpdateVDevice
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R

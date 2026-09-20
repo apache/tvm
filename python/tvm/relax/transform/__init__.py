@@ -80,7 +80,7 @@ from .transform import (
     ToMixedPrecision,
     ToNonDataflow,
     TopologicalSort,
-    UpdateParamStructInfo,
+    UpdateParamType,
     UpdateVDevice,
     VMBuiltinLower,
     VMShapeLower,

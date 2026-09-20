@@ -34,17 +34,13 @@
 #define TVM_TIR_BUILTIN_H_
 
 #include <tvm/ir/op.h>
-#include <tvm/tirx/expr.h>
+#include <tvm/ir/prim/expr.h>
 
 namespace tvm {
 namespace tirx {
 
 /*! \brief Collection of builtin intrinsics as ops */
 namespace builtin {
-/*!
- * \brief Return value.
- */
-TVM_DLL const Op& ret();
 /*!
  * \brief Return from a GPU thread.
  */
@@ -61,11 +57,6 @@ TVM_DLL const Op& break_loop();
  * \brief Reinterpret the value using the target type.
  */
 TVM_DLL const Op& reinterpret();
-
-/*!
- * \brief Marks a condition is likely going to happen.
- */
-TVM_DLL const Op& likely();
 
 /*!
  * \brief Thread-set filter predicate. Used as the condition of an IfThenElse
@@ -85,47 +76,6 @@ TVM_DLL const Op& filter();
  * ``ptx.elect_sync()`` whose selected lane cannot be inferred structurally.
  */
 TVM_DLL const Op& selector();
-
-/*!
- * \brief Bitwise and operator.
- */
-TVM_DLL const Op& bitwise_and();
-
-/*!
- * \brief Bitwise or operator.
- */
-TVM_DLL const Op& bitwise_or();
-
-/*!
- * \brief Bitwise xor operator.
- */
-TVM_DLL const Op& bitwise_xor();
-
-/*!
- * \brief Bitwise not operator.
- */
-TVM_DLL const Op& bitwise_not();
-
-/*!
- * \brief Left shift
- */
-TVM_DLL const Op& shift_left();
-
-/*!
- * \brief Right shift
- */
-TVM_DLL const Op& shift_right();
-
-/*!
- * \brief See pesudo code
- *
- *  Construct a big uint that may not be representable by int64
- *
- *  Expr large_uint_imm(uint32_t v0, uin32_t v1) {
- *    return (v1 << 32) | v0;
- *  }
- */
-TVM_DLL const Op& large_uint_imm();
 
 /*!
  * \brief Execute a multiplication between two Q-numbers x and y
@@ -149,15 +99,6 @@ TVM_DLL const Op& q_multiply_shift_per_axis();
  *  }
  */
 TVM_DLL const Op& address_of();
-
-/*!
- * \brief Same as select, used for unsafe memory access.
- *
- *  Type tvm_if_then_else(cond, a, b) {
- *    return cond ? a : b;
- *  }
- */
-TVM_DLL const Op& if_then_else();
 
 /*!
  * \brief See pesudo code
@@ -300,7 +241,7 @@ TVM_DLL const Op& tvm_context_id();
  *  It is used to represent tuple structure in value field of AttrStmt,
  *  for the sake of giving hint to optimization.
  *
- *  Handle tvm_tuple(value0, value1, ..., value_n);
+ *  void tvm_tuple(value0, value1, ..., value_n);
  */
 TVM_DLL const Op& tvm_tuple();
 
@@ -560,49 +501,6 @@ TVM_DLL const Op& tvm_global_barrier_kinit();
  *  }
  */
 TVM_DLL const Op& tvm_thread_allreduce();
-
-// Metal SimdGroup matrix intrinsics
-
-/*!
- * \brief tvm intrinsic for initializing and simdgroup with given value.
- * \note only 8x8 shape is supported by Metal Spec and TVM, but we still keep shape as params,
- *       keeping the similar interface with Metal Spec.
- *
- * void make_filled_simdgroup_matrix(Var d, PrimExpr index, PrimExpr value,
- *                                   int col = 8, int row = 8);
- */
-TVM_DLL const Op& make_filled_simdgroup_matrix();
-
-/*!
- * \brief tvm intrinsic for loading data from device memory or threadgroup memory to simdgroup.
- * \note only 8x8 shape is supported by Metal Spec and TVM, but we still keep shape as params,
- *       keeping the similar interface with Metal Spec.
- *
- * void simdgroup_load(Var d, PrimExpr index, PrimExpr ptr, PrimExpr stride,
-                       int col = 8, int row = 8, bool transpose_matrix = false);
- */
-TVM_DLL const Op& simdgroup_load();
-
-/*!
- * \brief tvm intrinsic for storing data from simdgroup to device memory or threadgroup memory.
- * \note only 8x8 shape is supported by Metal Spec and TVM, but we still keep shape as params,
- *       keeping the similar interface with Metal Spec.
- *
- * void simdgroup_store(Var d, PrimExpr index, PrimExpr ptr, PrimExpr stride,
- *                      int col = 8, int row = 8, bool transpose_matrix = false);
- */
-TVM_DLL const Op& simdgroup_store();
-
-/*!
- * \brief tvm intrinsic for multiply and accumulate two matrices in simdgroup
- * \note only 8x8 shape is supported by Metal Spec and TVM, but we still keep shape as params,
- *       keeping the similar interface with Metal Spec.
- *
- * void simdgroup_mma(Var d, PrimExpr index_d, Var a, PrimExpr index_a,
- *                    Var b, PrimExpr index_b, Var c, PrimExpr index_c);
- */
-TVM_DLL const Op& simdgroup_multiply_accumulate();
-
 // Metal cooperative_tensor intrinsics (MetalPerformancePrimitives / Metal 4)
 
 /*!
@@ -805,18 +703,28 @@ TVM_DLL const Op& anylist_setitem_call_packed();
 TVM_DLL const Op& anylist_setitem_call_cpacked();
 
 /*!
- * \brief Get the target's vscale value. It will be lowered to llvm.vscale intrinsic
- * (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
- */
-TVM_DLL const Op& vscale();
-
-/*!
  * \brief Calculate a predicate mask given an upper bound (limit) and a current value (base).
  *
  * It will be lowered to the llvm.get.active.lane.mask intrinsic.
  * (https://llvm.org/docs/LangRef.html#llvm-get-active-lane-mask-intrinsics)
  */
 TVM_DLL const Op& get_active_lane_mask();
+
+/*!
+ * \brief Masked buffer load.
+ *
+ * Arguments are the buffer variable, one or more indices, and a trailing boolean lane mask.
+ * The result type is the vector type loaded from the selected lanes.
+ */
+TVM_DLL const Op& masked_load();
+
+/*!
+ * \brief Masked buffer store.
+ *
+ * Arguments are the buffer variable, value, one or more indices, and a trailing boolean lane
+ * mask. The result type is void.
+ */
+TVM_DLL const Op& masked_store();
 
 /*! \brief Annotate a predicate not be considered as target condition of loop partition. */
 TVM_DLL const Op& ignore_loop_partition();
@@ -826,6 +734,15 @@ TVM_DLL const Op& ignore_loop_partition();
   The offset is determined by the layout of the buffer.
  */
 TVM_DLL const Op& buffer_offset();
+
+/*!
+ * \brief Project the physical pointer associated with a BufferVar definition.
+ *
+ * The result pointer type is derived from the BufferType dtype and storage
+ * scope of the sole BufferVar argument.  This operation is consumed by TIRx
+ * lowering and code generation.
+ */
+TVM_DLL const Op& buffer_data();
 
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
@@ -856,233 +773,6 @@ enum TVMStructFieldKind : int {
  * \brief Print the content of a buffer during runtime.
  */
 TVM_DLL const Op& print_buffer();
-
-/*!
- * \brief tvm intrinsic for initializing the CUDA profiler, and store profiling result in a buffer.
- *
- *  void timer_init_cuda(Var profiler_buffer, Var profiler_tag, Var profiler_write_offset, int
- * num_groups, Expr group_id) {
- *    // initialize the tag and write to pos 0 in the buffer
- *    // initialize write offset for every leader thread in warp group across all blocks
- *  }
- */
-TVM_DLL const Op& timer_init_cuda();
-
-/*!
- * \brief tvm intrinsic for starting the timer for profiling a specific event,
- *        and storing profiling result in a buffer.
- *
- *  void timer_start_cuda(IntImm event_type, Var profiler_buffer, Var profiler_tag,
- *                        Var profiler_write_offset, IntImm profiler_write_stride, Expr leader_cond)
- * {
- *    // each leader thread in warp group gets the time stamp and event type, combine with the tag
- *    // and write to corresponding offset in buffer
- *    // each leader thread advance offset by stride
- *  }
- */
-TVM_DLL const Op& timer_start_cuda();
-
-/*!
- * \brief tvm intrinsic for ending the timer for profiling a specific event,
- *        and storing profiling result in a buffer.
- *
- *  void timer_end_cuda(IntImm event_type, Var profiler_buffer, Var profiler_tag,
- *                      Var profiler_write_offset, IntImm profiler_write_stride, Expr leader_cond) {
- *    // each leader thread in warp group gets the time stamp and event type, combine with the tag
- *    // and write to corresponding offset in buffer
- *    // each leader thread advance offset by stride
- *  }
- */
-TVM_DLL const Op& timer_end_cuda();
-
-/*!
- * \brief tvm intrinsic for finalize the timer for profiling,
- *        and storing profiling result in a buffer.
- *
- *  void timer_finalize_cuda(Var profiler_buffer, Var profiler_tag, Var profiler_write_offset,
- *                          IntImm profiler_write_stride, Expr leader_cond) {
- *    // each leader thread in warp group gets the time stamp and end signal, combine with the tag
- *    // and write to corresponding offset in buffer
- *    // each leader thread advance offset by stride
- *  }
- */
-TVM_DLL const Op& timer_finalize_cuda();
-
-/*!
- * \brief tvm intrinsic for cuda atomic add instruction
- */
-TVM_DLL const Op& cuda_atomic_add();
-
-/*!
- * \brief tvm intrinsic for cuda thread fence instruction
- */
-TVM_DLL const Op& cuda_thread_fence();
-
-/*!
- * \brief tvm intrinsic for cuda warpgroup sync instruction
- */
-TVM_DLL const Op& cuda_warpgroup_sync();
-
-/*!
- * \brief Warp-level butterfly shuffle-XOR reduction.
- *
- * cuda_warp_reduce(value, op, width) reduces value across width adjacent
- * lanes using the specified operation ("sum", "max", "min").
- */
-TVM_DLL const Op& cuda_warp_reduce();
-
-/*!
- * \brief CTA-wide reduction via warp shuffle + shared memory.
- *
- * cuda_cta_reduce(value, op, num_warps, scratch) reduces value across
- * the entire CTA using the specified operation ("sum", "max", "min").
- */
-TVM_DLL const Op& cuda_cta_reduce();
-
-/*!
- * \brief Typed load/store copy of num_bytes bytes.
- *
- * cuda_copy_bytes(dst, src, num_bytes) copies num_bytes bytes from src to dst
- * using a single typed load/store (uint4, uint2, unsigned int, etc.).
- * num_bytes must be one of {1, 2, 4, 8, 16}.
- */
-TVM_DLL const Op& cuda_copy_bytes();
-
-/*!
- * \brief tvm intrinsic for cuda warp sync instruction
- */
-TVM_DLL const Op& cuda_warp_sync();
-
-/*!
- * \brief tvm intrinsic for cuda block-wide sync (syncthreads)
- */
-TVM_DLL const Op& cuda_cta_sync();
-
-/*!
- * \brief tvm intrinsic for cuda grid-wide sync (cooperative groups)
- */
-TVM_DLL const Op& cuda_grid_sync();
-
-/*!
- * \brief tvm intrinsic for cuda cluster-wide sync instruction
- */
-TVM_DLL const Op& cuda_cluster_sync();
-
-/*!
- * \brief tvm intrinsic that returns ``cooperative_groups::thread_rank()``
- *        for the enclosing CTA (linear thread index within the block).
- */
-TVM_DLL const Op& cuda_thread_rank();
-
-/*!
- * \brief tvm intrinsic for cuda half to float conversion
- */
-TVM_DLL const Op& cuda_half2float();
-
-/*!
- * \brief tvm intrinsic for cuda bfloat16 to float conversion
- */
-TVM_DLL const Op& cuda_bfloat162float();
-
-/*!
- * \brief tvm intrinsic for a helper converting float2 to half2 with rounding
- */
-TVM_DLL const Op& cuda_float22half2();
-
-/*!
- * \brief tvm intrinsic to trap when an assertion failed (cond == false)
- */
-TVM_DLL const Op& cuda_trap_when_assert_failed();
-
-/*!
- * \brief tvm intrinsic to modify runtime instruction descriptor
- */
-TVM_DLL const Op& cuda_runtime_instr_desc();
-
-/*!
- * \brief tvm intrinsic to convert 8 half2 lanes to 8 float2 lanes
- */
-TVM_DLL const Op& cuda_half8tofloat8();
-
-/*!
- * \brief tvm intrinsic to convert 8 float2 lanes to 8 half2 lanes with rounding
- */
-TVM_DLL const Op& cuda_float8tohalf8();
-
-/*!
- * \brief tvm intrinsic for cuda syncthreads_and instruction
- */
-TVM_DLL const Op& cuda_syncthreads_and();
-
-/*!
- * \brief tvm intrinsic for cuda syncthreads_or instruction
- */
-TVM_DLL const Op& cuda_syncthreads_or();
-
-/*!
- * \brief tvm intrinsic for cuda nano sleep instruction
- */
-TVM_DLL const Op& cuda_nano_sleep();
-
-/*!
- * \brief tvm intrinsic for cuda atomic compare and swap instruction
- */
-TVM_DLL const Op& cuda_atomic_cas();
-
-/*!
- * \brief tvm intrinsic for cuda printf instruction
- */
-TVM_DLL const Op& cuda_printf();
-
-/*!
- * \brief tvm intrinsic for cuda ldg instruction
- */
-TVM_DLL const Op& cuda_ldg();
-
-/*!
- * \brief tvm intrinsic for cuda tmem address calculation
- */
-TVM_DLL const Op& cuda_get_tmem_addr();
-
-/*!
- * \brief tvm intrinsic for PTX fast exp2 approximation (ex2.approx.ftz.f32)
- */
-TVM_DLL const Op& ptx_exp2();
-
-/*!
- * \brief tvm intrinsic for PTX fast reciprocal approximation (rcp.approx.ftz.f32)
- */
-TVM_DLL const Op& ptx_rcp();
-
-/*!
- * \brief tvm intrinsic for PTX warp-wide any predicate (__any_sync)
- */
-TVM_DLL const Op& ptx_any_sync();
-
-/*!
- * \brief tvm intrinsic for PTX 3-input max instruction (sm_100a+)
- */
-TVM_DLL const Op& ptx_reduce3_max_f32();
-
-/*!
- * \brief tvm intrinsic for PTX 3-input min instruction (sm_100a+)
- */
-TVM_DLL const Op& ptx_reduce3_min_f32();
-
-TVM_DLL const Op& ptx_add_f32();
-TVM_DLL const Op& ptx_add_f32x2();
-TVM_DLL const Op& ptx_add_f64();
-TVM_DLL const Op& ptx_sub_f32();
-TVM_DLL const Op& ptx_sub_f32x2();
-TVM_DLL const Op& ptx_sub_f64();
-TVM_DLL const Op& ptx_mul_f32();
-TVM_DLL const Op& ptx_mul_f32x2();
-TVM_DLL const Op& ptx_mul_f64();
-TVM_DLL const Op& ptx_fma_f32();
-TVM_DLL const Op& ptx_fma_f32x2();
-TVM_DLL const Op& ptx_fma_f64();
-TVM_DLL const Op& ptx_max_f32();
-
 }  // namespace builtin
 }  // namespace tirx
 }  // namespace tvm

@@ -20,6 +20,7 @@
 #define TVM_S_TIR_SCHEDULE_INSTRUCTION_H_
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/expr.h>
 
 #include <utility>
 
@@ -30,7 +31,6 @@ template <typename, typename>
 class AttrRegistry;
 
 namespace s_tir {
-using namespace tvm::tirx;
 
 // Forward declaration
 class Schedule;

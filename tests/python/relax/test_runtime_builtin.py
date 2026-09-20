@@ -92,8 +92,8 @@ def test_check_tensor_info():
 
     check_tensor_info(x, 2, "int32", "")
     check_tensor_info(x, -1, "int32", "")
-    check_tensor_info(x, 2, "", "")
-    check_tensor_info(x, -1, "", "")
+    check_tensor_info(x, 2, None, "")
+    check_tensor_info(x, -1, None, "")
 
     # allow not passing in dtype
     check_tensor_info(x, 2, "")
@@ -113,7 +113,7 @@ def test_check_tensor_info():
 
     # wrong type
     with pytest.raises(TypeError):
-        check_tensor_info([], 2, "", "")
+        check_tensor_info([], 2, None, "")
 
 
 def test_check_tuple_info():

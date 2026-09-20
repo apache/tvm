@@ -128,23 +128,23 @@ def test_ops():
     verify(TestOps, Expected)
 
 
-@pytest.mark.xfail(reason="The lhs and rhs of an assignment should have the same struct info.")
+@pytest.mark.xfail(reason="The lhs and rhs of an assignment should have the same type.")
 def test_casting():
     @I.ir_module
     class TestCasting:
         @R.function
-        def main(x: R.Tensor) -> R.Object:
+        def main(x: R.Tensor) -> R.Any:
             y = x
-            # z will be treated as object type even though it's a tensor
-            z: R.Object = y
+            # z will be treated as Any even though it's a tensor
+            z: R.Any = y
             return z
 
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor) -> R.Object:
+        def main(x: R.Tensor) -> R.Any:
             # Cannot unify because the cast indicates user intent
-            z: R.Object = x
+            z: R.Any = x
             return z
 
     verify(TestCasting, Expected)
@@ -165,7 +165,7 @@ def test_match_cast():
     class Expected:
         @R.function
         def main(x: R.Tensor):
-            # can't get rid of z because its struct_info is different from x's
+            # can't get rid of z because its ty is different from x's
             m, n = T.int64(), T.int64()
             z = R.match_cast(x, R.Tensor((m, n)))
             return z
@@ -221,7 +221,7 @@ def test_change_shape():
         def main(x: R.Tensor(ndim=2)):
             o, p = T.int64(), T.int64()
             z = R.match_cast(x, R.Tensor((o, p)))
-            # the struct_info field on q will need to be updated
+            # the ty field on q will need to be updated
             q = R.add(z, x)
             return R.add(q, z)
 
@@ -390,7 +390,7 @@ def test_fold_variables_from_match_cast():
 
             # The symbolic shapes propagate downstream.
             lhs: R.Tensor([N1 + N2, M], "float32") = R.concat((lhs_A, lhs_B), axis=0)
-            proj_concat: R.Tensor([N1 + N2], "float32") = R.matmul(lhs, rhs, out_dtype="void")
+            proj_concat: R.Tensor([N1 + N2], "float32") = R.matmul(lhs, rhs)
             proj_A = R.strided_slice(
                 proj_concat,
                 (R.prim_value(0),),
@@ -415,24 +415,29 @@ def test_fold_variables_from_match_cast():
             A: R.Tensor([16, 16], dtype="float32"),
             B: R.Tensor([16, 16], dtype="float32"),
         ):
-            # The function no longer depends on symbolic variables.
-            # Shape inference is now propagated using the
-            # statically-known shapes.
+            # Shape annotations use the inferred static values, but runtime
+            # primitive arguments remain symbolic.  Keep the match-casts that
+            # define the symbols used by those runtime arguments.
+            N1 = T.int64()
+            M = T.int64()
+            N2 = T.int64()
 
-            lhs: R.Tensor([32, 16], dtype="float32") = R.concat((A, B), axis=0)
-            proj_concat: R.Tensor([32], dtype="float32") = R.matmul(lhs, state, out_dtype="void")
+            lhs_A = R.match_cast(A, R.Tensor([N1, M], dtype="float32"))
+            lhs_B = R.match_cast(B, R.Tensor([N2, M], dtype="float32"))
+            lhs: R.Tensor([32, 16], dtype="float32") = R.concat((lhs_A, lhs_B), axis=0)
+            proj_concat: R.Tensor([32], dtype="float32") = R.matmul(lhs, state)
             proj_A: R.Tensor([16], dtype="float32") = R.strided_slice(
                 proj_concat,
                 [R.prim_value(0)],
                 [R.prim_value(0)],
-                [R.prim_value(16)],
+                [R.prim_value(N1)],
                 assume_inbound=False,
             )
             proj_B: R.Tensor([16], dtype="float32") = R.strided_slice(
                 proj_concat,
                 [R.prim_value(0)],
-                [R.prim_value(16)],
-                [R.prim_value(32)],
+                [R.prim_value(N1)],
+                [R.prim_value(N1 + N2)],
                 assume_inbound=False,
             )
             return (proj_A, proj_B)
@@ -469,7 +474,7 @@ def test_inconsistent_match_cast_raises_error():
             rhs = R.match_cast(state, R.Tensor([M], dtype="float32"))
 
             lhs: R.Tensor([N1 + N2, M], "float32") = R.concat((lhs_A, lhs_B), axis=0)
-            proj_concat: R.Tensor([N1 + N2], "float32") = R.matmul(lhs, rhs, out_dtype="void")
+            proj_concat: R.Tensor([N1 + N2], "float32") = R.matmul(lhs, rhs)
             proj_A = R.strided_slice(
                 proj_concat,
                 (R.prim_value(0),),
@@ -544,6 +549,9 @@ def test_match_cast_may_have_distinct_values_in_branches():
             if N == 16:
                 # Prior to the R.match_cast, the
                 weights: R.Tensor([M, 16], "float32") = A * scale
+                weights: R.Tensor([M, N], "float32") = R.match_cast(
+                    weights, R.Tensor([M, N], "float32")
+                )
                 # The scaled weights within the branch may perform
                 # shape inference knowing that N==16.
                 weights: R.Tensor([M, 16], "float32") = weights * scale
@@ -552,6 +560,9 @@ def test_match_cast_may_have_distinct_values_in_branches():
             else:
                 # Prior to the R.match_cast, the
                 weights: R.Tensor([M, 32], "float32") = B * scale
+                weights: R.Tensor([M, N], "float32") = R.match_cast(
+                    weights, R.Tensor([M, N], "float32")
+                )
                 # Within the else-branch, the R.match_cast implies
                 # that N==32.  While this conflicts with the earlier
                 # definition, the two occur in separate branches, so
@@ -850,13 +861,13 @@ def test_canonicalize_var_to_dataflow_with_trivial_binding():
     assert_structural_equal(Expected, after)
 
 
-def test_canonicalize_with_updated_struct_info():
+def test_canonicalize_with_updated_ty():
     """CanonicalizeBindings and Normalizer may both replace a Var
 
     If the CanonicalizeBindings pass has no replacements to make for a
     variable, it must still delegate to the ExprMutator.  This is because
     a variable replacement may have occurred as part of the IRNormalizer,
-    in order to provide better struct info.
+    in order to provide better type.
     """
 
     @I.ir_module
@@ -1164,21 +1175,21 @@ def test_canonicalize_inside_branches():
     assert_structural_equal(Expected, after)
 
 
-def test_canonicalization_causes_struct_info_update():
+def test_canonicalization_causes_ty_update():
     """Regression test for failure mode causing undefined variable
 
-    The ExprMutator is only allowed to update a variable's struct info
-    if the value bound to it has new struct info.  When
+    The ExprMutator is only allowed to update a variable's type
+    if the value bound to it has new type.  When
     CanonicalizeBindings replaces a trivial binding, this may provide
-    better struct info as a result.  If this happens, the
+    better type as a result.  If this happens, the
 
     In previous implementations, ExprMutator::ReEmitBinding defined a
-    remap for `binding->var->vid`, even if the derived class defined a
+    remap for `binding->var`, even if the derived class defined a
     replacement by overriding `VisitVarDef`.  If the derived class
     defines a new variable binding by overriding `VisitVarDef`, and
     also causes a variable replacement by overriding `VisitExpr` and
-    returning a type with different struct info, then `ExprMutator`
-    must check for both `binding->var->vid` *AND* `new_var->vid`.  The
+    returning a type with different type, then `ExprMutator`
+    must check for both `binding->var` *AND* `new_var`.  The
     former may be present in the unmodified graph, and the latter may
     be produced by the derived class before delegating to the base
     class.
@@ -1199,7 +1210,7 @@ def test_canonicalization_causes_struct_info_update():
 
                 # RHS contains `(A,C)`, which CanonicalizeBindings
                 # replaces with `(A,B)`.  Because this changes the
-                # RHS, a new LHS (and new struct info!) will be
+                # RHS, a new LHS (and new type!) will be
                 # generated.
                 D: R.Tuple(
                     R.Tensor(dtype="float16", ndim=2),
@@ -1290,7 +1301,7 @@ def test_trivial_binding_of_replaced_non_dataflow_var():
     tvm.ir.assert_structural_equal(After, Expected)
 
     def _get_binding_names(mod):
-        return [binding.var.name_hint for binding in mod["main"].body.blocks[0].bindings]
+        return [binding.var.name for binding in mod["main"].body.blocks[0].bindings]
 
     expected_names = _get_binding_names(Expected)
     after_names = _get_binding_names(After)

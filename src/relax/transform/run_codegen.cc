@@ -75,7 +75,7 @@ class CodeGenRunner : ExprMutator {
     }
 
     for (const auto& gvar : entry_functions) {
-      builder_->UpdateFunction(gvar, Downcast<BaseFunc>(VisitExpr(mod->Lookup(gvar))));
+      builder_->UpdateFunction(gvar, VisitExpr(mod->Lookup(gvar)).as_or_throw<BaseFunc>());
     }
 
     auto ext_mods = InvokeCodegen(mod, target_options.value_or({}));
@@ -94,7 +94,7 @@ class CodeGenRunner : ExprMutator {
       ffi::Map<ffi::String, runtime::Tensor> constants;
       for (const auto& [constant, name] : constant_names) {
         TVM_FFI_ICHECK(!constants.count(name)) << "More than one constant with the name " << name;
-        constants.Set(name, constant->data);
+        constants.Set(name, constant->value.cast<runtime::Tensor>());
       }
       out_mod = WithAttr(out_mod, tvm::attr::kConstNameToConstant, std::move(constants));
     }
@@ -106,23 +106,22 @@ class CodeGenRunner : ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call_node) override {
-    auto call = Downcast<Call>(ExprMutator::VisitExpr_(call_node));
+    auto call = ExprMutator::VisitExpr_(call_node).as_or_throw<Call>();
     if (auto const* gvar_node = call_node->op.as<GlobalVarNode>()) {
       const GlobalVar gvar = ffi::GetRef<GlobalVar>(gvar_node);
 
-      auto create_call_dps_packed = [call_node, this](Expr extern_func,
-                                                      StructInfo ret_struct_info) {
+      auto create_call_dps_packed = [call_node, this](Expr extern_func, Type ret_ty) {
         ffi::Array<Expr> new_args({extern_func});
         new_args.push_back(Tuple(call_node->args.Map([this](Expr arg) { return VisitExpr(arg); })));
 
         static const Op& call_op = Op::Get("relax.call_dps_packed");
 
-        return Call(call_op, new_args, tvm::Attrs(), {ret_struct_info});
+        return Call(Type::Missing(), call_op, new_args, tvm::Attrs(), {ret_ty});
       };
 
-      auto ret_sinfo = GetStructInfo(call);
+      auto ret_ty = GetType(call);
       if (auto it = extern_funcs_.find(gvar_node); it != extern_funcs_.end()) {
-        return create_call_dps_packed(it->second, ret_sinfo);
+        return create_call_dps_packed(it->second, ret_ty);
       } else if (auto opt_func = builder_->GetContextIRModule()->Lookup(gvar).as<Function>()) {
         // TODO(@sunggg): Is there any better way to get this func?
         Function func = opt_func.value();
@@ -132,12 +131,10 @@ class CodeGenRunner : ExprMutator {
           extern_funcs_[gvar_node] = new_func;
           // Remove the global symbol and codegen attributes from the function so that it can be
           // removed the module.
-          const auto RemoveFuncAttrFunc = tvm::ffi::Function::GetGlobal("ir.BaseFuncWithoutAttr");
-          TVM_FFI_ICHECK(RemoveFuncAttrFunc.has_value());
-          func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol).cast<Function>();
-          func = (*RemoveFuncAttrFunc)(func, attr::kCodegen).cast<Function>();
+          func = WithoutAttr(std::move(func), tvm::attr::kGlobalSymbol);
+          func = WithoutAttr(std::move(func), attr::kCodegen);
           builder_->UpdateFunction(gvar, func);
-          return create_call_dps_packed(new_func, ret_sinfo);
+          return create_call_dps_packed(new_func, ret_ty);
         }
       }
     }
@@ -146,7 +143,17 @@ class CodeGenRunner : ExprMutator {
       new_args.push_back(VisitExpr(arg));
     }
 
-    return Call(call_node->op, new_args, call_node->attrs, call_node->sinfo_args, call_node->span);
+    Type ret_ty = Type::Missing();
+    if (call_node->ty.as<PrimTypeNode>()) {
+      if (auto op = call_node->op.as<Op>()) {
+        static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
+        if (!infer_type_map.count(op.value())) {
+          ret_ty = call_node->ty.as_or_throw<Type>();
+        }
+      }
+    }
+    return Call(ret_ty, call_node->op, new_args, call_node->attrs, call_node->ty_args,
+                call_node->span);
   }
 
   Expr VisitExpr_(const FunctionNode* func_node) override {
@@ -155,12 +162,12 @@ class CodeGenRunner : ExprMutator {
     if (opt_codegen) {
       auto ext_symbol = GetExtSymbol(func);
       size_t count = 0;
-      PostOrderVisit(func->body, [=, &count](Expr e) {
-        if (e->IsInstance<ConstantNode>()) {
+      PostOrderVisit(func->body, [=, this, &count](Expr e) {
+        if (auto constant = e.as<GenericConst>();
+            constant && constant.value()->value.as<runtime::Tensor>()) {
           // Make sure to pick a unique name
           auto name = ext_symbol + "_" + opt_codegen.value() + "_const_" + std::to_string(count++);
-          auto constant = Downcast<Constant>(e);
-          constant_names.Set(constant, name);
+          constant_names.Set(constant.value(), name);
         }
       });
       return ExternFunc(GetExtSymbol(func));
@@ -180,7 +187,7 @@ class CodeGenRunner : ExprMutator {
       }
       PostOrderVisit(entry.second, [&target_functions](Expr e) {
         if (e->IsInstance<FunctionNode>()) {
-          auto f = Downcast<Function>(e);
+          auto f = e.as_or_throw<Function>();
           if (auto target_opt = f->GetAttr<ffi::String>(attr::kCodegen)) {
             ffi::String target = target_opt.value();
             target_functions[target].push_back(f);
@@ -208,7 +215,7 @@ class CodeGenRunner : ExprMutator {
   }
 
   /*! \brief The names of all constants in the original module. */
-  ffi::Map<Constant, ffi::String> constant_names;
+  ffi::Map<GenericConst, ffi::String> constant_names;
   /*! \brief Extern funcs for each global variable.  */
   std::unordered_map<const GlobalVarNode*, Expr> extern_funcs_;
 };

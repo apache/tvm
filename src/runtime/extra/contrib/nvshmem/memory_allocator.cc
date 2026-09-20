@@ -18,13 +18,13 @@
  */
 #include <nvshmem.h>
 #include <nvshmemx.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/memory/memory_manager.h>
 
 #include <thread>
 
-#include "../../../cuda/cuda_common.h"
 #include "../../../memory/pooled_allocator.h"
 #include "../../disco/utils.h"
 
@@ -57,7 +57,7 @@ class NVSHMEMAllocator final : public PooledAllocator {
     return allocator;
   }
 
-  Tensor Empty(ffi::Shape shape, DataType dtype, Device device) {
+  Tensor Empty(ffi::Shape shape, DLDataType dtype, Device device) {
     class NVSHMEMAlloc {
      public:
       explicit NVSHMEMAlloc(Buffer buffer) : buffer_(buffer) {}
@@ -87,8 +87,10 @@ class NVSHMEMAllocator final : public PooledAllocator {
   void DeviceFreeDataSpace(Device dev, void* ptr) final { nvshmem_free(ptr); }
 };
 
-Tensor NVSHMEMEmpty(ffi::Shape shape, DataType dtype, ffi::Optional<Device> device) {
-  return NVSHMEMAllocator::Global()->Empty(shape, dtype, UseDefaultDeviceIfNone(device));
+Tensor NVSHMEMEmpty(ffi::Shape shape, DLDataType dtype, ffi::Optional<Device> device) {
+  Device resolved_device =
+      device.has_value() ? device.value() : UseDefaultDeviceIfNone(std::nullopt);
+  return NVSHMEMAllocator::Global()->Empty(shape, dtype, resolved_device);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

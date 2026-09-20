@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/data_type.h>
+#include <tvm/s_tir/tensor_intrin.h>
 
 #include "../utils.h"
 
@@ -325,7 +326,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultRISCV(const int vlen) {
   const auto rvv_kernels_inventory = reg_rvv_intrinsics(current_target, /* inventory_only */ true)
                                          .cast<ffi::Map<ffi::String, int>>();
   for (const auto& intrin : rvv_kernels_inventory) {
-    if (!tirx::TensorIntrin::Get(intrin.first, /*allow_missing*/ true)) {
+    if (!TensorIntrin::Get(intrin.first, /*allow_missing*/ true)) {
       // on demand intrinsic register
       reg_rvv_intrinsics(current_target, /* inventory_only */ false);
     }

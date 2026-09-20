@@ -21,19 +21,21 @@
  * \file unify_thread_binding.cc
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../support/utils.h"
 #include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 using support::StartsWith;
@@ -45,27 +47,36 @@ using support::StartsWith;
  */
 class ThreadBindingUnifier : public StmtExprMutator {
  public:
-  static Stmt Unify(Stmt stmt) { return ThreadBindingUnifier()(std::move(stmt)); }
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
- private:
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    // If this AttrStmt is not thread binding attribute, return as usual.
-    if (op->attr_key != tirx::attr::thread_extent && op->attr_key != s_tir::attr::virtual_thread) {
-      return StmtMutator::VisitStmt_(op);
-    }
-    IterVar old_iter_var = Downcast<IterVar>(op->node);
-    return UnifyThreadBindingImpl(op, old_iter_var->var, old_iter_var,
-                                  Range::FromMinExtent(IntImm(op->value->dtype, 0), op->value));
+  static Stmt Unify(Stmt stmt) {
+    return ffi::make_object<ThreadBindingUnifier>()
+        ->Mutate(stmt, InplaceMode::kAllow)
+        .ValueOrUnchanged(std::move(stmt));
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+ private:
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
+    // If this AttrStmt is not thread binding attribute, return as usual.
+    if (op->attr_key != tirx::attr::thread_extent && op->attr_key != s_tir::attr::virtual_thread) {
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
+    IterVar old_iter_var = op->node.as_or_throw<IterVar>();
+    PrimExpr extent = op->value.as_or_throw<PrimExpr>();
+    return UnifyThreadBindingImpl(op, old_iter_var->var, old_iter_var,
+                                  Range::FromMinExtent(IntImm(extent.ty(), 0), extent),
+                                  inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // If this For is not thread binding attribute, return as usual.
     if (op->kind != ForKind::kThreadBinding) {
-      return StmtExprMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     ffi::Map<ffi::String, Any> annotations = op->annotations;
     Stmt stmt = UnifyThreadBindingImpl(op, op->loop_var, op->thread_binding.value(),
-                                       Range::FromMinExtent(op->min, op->extent));
+                                       Range::FromMinExtent(op->min, op->extent), inplace_mode);
     if (annotations.empty()) {
       return stmt;
     }
@@ -76,12 +87,12 @@ class ThreadBindingUnifier : public StmtExprMutator {
 
     } else {
       // Create a new unit loop with the annotation.
-      DataType dtype = op->loop_var->dtype;
-      return For(/*loop_var=*/Var("var", dtype),   //
-                 /*min=*/IntImm(dtype, 0),         //
-                 /*extent=*/IntImm(dtype, 1),      //
-                 /*kind=*/ForKind::kSerial, stmt,  //
-                 /*thread_binding=*/std::nullopt,  //
+      PrimType loop_ty = op->loop_var.ty();
+      return For(/*loop_var=*/PrimVar("var", loop_ty),  //
+                 /*min=*/IntImm(loop_ty, 0),            //
+                 /*extent=*/IntImm(loop_ty, 1),         //
+                 /*kind=*/ForKind::kSerial, stmt,       //
+                 /*thread_binding=*/std::nullopt,       //
                  /*annotation=*/std::move(annotations),
                  /*step=*/std::nullopt);
     }
@@ -89,7 +100,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
 
   template <typename Node>
   Stmt UnifyThreadBindingImpl(const Node* op, const Var& old_var, const IterVar& old_iter_var,
-                              const Range& dom) {
+                              const Range& dom, InplaceMode inplace_mode) {
     // Step 1. Fetch the thread tag.
     IterVar new_iter_var{nullptr};
     const ffi::String& thread_tag = old_iter_var->thread_tag;
@@ -121,7 +132,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
           << "` should have the same extent. However, there are two loops with extent "
           << new_iter_var->dom->extent << " and " << dom->extent << ", which are not equal";
     } else {
-      new_iter_var = IterVar(dom, Var(thread_tag, dom->extent.dtype()), old_iter_var->iter_type,
+      new_iter_var = IterVar(dom, PrimVar(thread_tag, dom->extent.ty()), old_iter_var->iter_type,
                              old_iter_var->thread_tag);
       thread_tag2iter_var_map_.Set(thread_tag, new_iter_var);
       launch_threads_.push_back(new_iter_var);
@@ -130,20 +141,16 @@ class ThreadBindingUnifier : public StmtExprMutator {
     // Step 4. We will substitute the occurrences of the old variable in the old IterVar with the
     // new variable in further mutation. Thus, we store the mapping entry. Cast to old dtype if
     // needed (we assume both old and new dtype are valid for the range of the thread extent).
-    var_substitution_map_.Set(old_var, cast(old_var.dtype(), new_iter_var->var));
+    VarRemapSet(old_var, cast(old_var->ty.as_or_throw<PrimType>(),
+                              new_iter_var->var.as_or_throw<PrimExpr>()));
 
     // Step 5. Mutate recursively, update the body with the new IterVar, and restore the depth
     // counter. Emit for-loops to launch threads if current statement is the outermost thread
     // binding of the kernel.
-    Stmt new_stmt = StmtMutator::VisitStmt_(op);
-    auto* new_node = new_stmt.as<Node>();
-    TVM_FFI_ICHECK(new_node);
+    // The old binding is removed; only its body survives under the new launch variable.
+    Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     thread_block_depth_ = old_thread_block_depth;
-    if (is_kernel_launch_scope) {
-      return EmitLaunchThreads(new_node->body);
-    } else {
-      return new_node->body;
-    }
+    return is_kernel_launch_scope ? EmitLaunchThreads(body) : body;
   }
 
   /*!
@@ -157,20 +164,14 @@ class ThreadBindingUnifier : public StmtExprMutator {
       const IterVar& thread_binding = launch_threads_.back();
       // Recreate the IterVar as we don't duplicate `dom` in both For and IterVar. This is
       // necessary for unit tests.
-      result = For(thread_binding->var, thread_binding->dom->min, thread_binding->dom->extent,
-                   ForKind::kThreadBinding, result,
-                   IterVar(Range(), Var(""), IterVarType::kThreadIndex, thread_binding->thread_tag),
-                   {}, std::nullopt);
+      result =
+          For(thread_binding->var, thread_binding->dom->min, thread_binding->dom->extent,
+              ForKind::kThreadBinding, result,
+              IterVar(Range(), PrimVar(""), IterVarType::kThreadIndex, thread_binding->thread_tag),
+              {}, std::nullopt);
       launch_threads_.pop_back();
     }
     return result;
-  }
-
-  PrimExpr VisitExpr_(const VarNode* var) final {
-    // If this variable appears as a key in `var_substitution_map_`, we substitute it with its
-    // corresponding value in the mapping.
-    ffi::Map<Var, PrimExpr>::iterator it = var_substitution_map_.find(ffi::GetRef<Var>(var));
-    return it != var_substitution_map_.end() ? (*it).second : ffi::GetRef<Var>(var);
   }
 
   /*!
@@ -183,12 +184,10 @@ class ThreadBindingUnifier : public StmtExprMutator {
    * generate for-loops to launch threads.
    */
   ffi::Array<IterVar> launch_threads_;
-  /*! \brief A mapping from old variables to new variables, which is used for substitution */
-  ffi::Map<Var, PrimExpr> var_substitution_map_;
   /*! \brief A integer counter storing the depth of thread bindings of "blockIdx.x/y/z" */
   int thread_block_depth_ = 0;
   /*! \brief An analyzer used for equality proof */
-  arith::Analyzer ana;
+  sym::Analyzer ana;
 };
 
 namespace transform {

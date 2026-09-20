@@ -41,11 +41,11 @@ def test_allreduce():
     class Expected:
         @R.function
         def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
-            gv0: R.Tensor((10, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allreduce", [x, R.shape([0]), True], out_sinfo=R.Tensor((10, 10), dtype="float32"))
-            gv1: R.Tensor((10, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allreduce", [x, R.shape([1]), True], out_sinfo=R.Tensor((10, 10), dtype="float32"))
-            gv2: R.Tensor((10, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allreduce", [x, R.shape([2]), True], out_sinfo=R.Tensor((10, 10), dtype="float32"))
-            gv3: R.Tensor((10, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allreduce", [x, R.shape([3]), True], out_sinfo=R.Tensor((10, 10), dtype="float32"))
-            gv4: R.Tensor((10, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allreduce", [x, R.shape([4]), True], out_sinfo=R.Tensor((10, 10), dtype="float32"))
+            gv0: R.Tensor((10, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allreduce", [x, R.shape([0]), True], out_ty=R.Tensor((10, 10), dtype="float32"))
+            gv1: R.Tensor((10, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allreduce", [x, R.shape([1]), True], out_ty=R.Tensor((10, 10), dtype="float32"))
+            gv2: R.Tensor((10, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allreduce", [x, R.shape([2]), True], out_ty=R.Tensor((10, 10), dtype="float32"))
+            gv3: R.Tensor((10, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allreduce", [x, R.shape([3]), True], out_ty=R.Tensor((10, 10), dtype="float32"))
+            gv4: R.Tensor((10, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allreduce", [x, R.shape([4]), True], out_ty=R.Tensor((10, 10), dtype="float32"))
             return x
     # fmt: on
 
@@ -67,8 +67,8 @@ def test_allgather():
     class Expected:
         @R.function
         def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
-            gv0: R.Tensor((20, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allgather", [x, True], out_sinfo=R.Tensor((20, 10), dtype="float32"))
-            gv1: R.Tensor((20, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allgather", [x, True], out_sinfo=R.Tensor((20, 10), dtype="float32"))
+            gv0: R.Tensor((20, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allgather", [x, True], out_ty=R.Tensor((20, 10), dtype="float32"))
+            gv1: R.Tensor((20, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allgather", [x, True], out_ty=R.Tensor((20, 10), dtype="float32"))
             return x
     # fmt: on
 
@@ -89,7 +89,7 @@ def test_broadcast_from_zero():
     class Expected:
         @R.function
         def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
-            gv0: R.Tensor((10, 10), dtype="float32") = R.call_dps_packed("runtime.disco.broadcast_from_worker0", [x, False], out_sinfo=R.Tensor((10, 10), dtype="float32"))
+            gv0: R.Tensor((10, 10), dtype="float32") = R.call_dps_packed("runtime.disco.broadcast_from_worker0", [x, False], out_ty=R.Tensor((10, 10), dtype="float32"))
             return x
     # fmt: on
 
@@ -133,9 +133,9 @@ def test_scatter_from_worker0():
         @R.function
         def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 5), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.reshape, (x,), out_sinfo=R.Tensor((10, 2, 5), dtype="float32"))
-            gv1 = R.call_tir(cls.transpose, (gv,), out_sinfo=R.Tensor((2, 10, 5), dtype="float32"))
-            gv0 = R.call_dps_packed("runtime.disco.scatter_from_worker0", (gv1, False), out_sinfo=R.Tensor((10, 5), dtype="float32"))
+            gv = R.call_tir(cls.reshape, (x,), out_ty=R.Tensor((10, 2, 5), dtype="float32"))
+            gv1 = R.call_tir(cls.transpose, (gv,), out_ty=R.Tensor((2, 10, 5), dtype="float32"))
+            gv0 = R.call_dps_packed("runtime.disco.scatter_from_worker0", (gv1, False), out_ty=R.Tensor((10, 5), dtype="float32"))
             return gv0
     # fmt: on
 

@@ -16,6 +16,9 @@
 # under the License.
 # ruff: noqa: F841
 
+import json
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 
 import tvm
@@ -40,8 +43,20 @@ def test_pass_simple():
                 # It's a opaque block , so it can use outside variables
                 C[i, j] = B[i, j] * 2.0
 
-    assert tvm.tirx.analysis.verify_well_formed(element_wise)
-    assert tvm.tirx.analysis.verify_well_formed(tvm.IRModule.from_expr(element_wise))
+    assert tvm.s_tir.analysis.verify_well_formed(element_wise)
+    assert tvm.s_tir.analysis.verify_well_formed(tvm.IRModule.from_expr(element_wise))
+
+
+def test_buffer_region_bounds_are_visited():
+    data = tvm.tirx.Var(
+        "data", tvm.ir.PointerType(tvm.ir.PrimType("int32"), storage_scope="global")
+    )
+    buffer = tvm.tirx.decl_buffer([4], "int32", data=data)
+    undefined = tvm.tirx.Var("undefined", "int32")
+    region = tvm.tirx.BufferRegion(buffer, [tvm.ir.Range.from_min_extent(undefined, 4)])
+    block = tvm.s_tir.SBlock([], [region], [], "region", tvm.tirx.Evaluate(0))
+    func = tvm.tirx.PrimFunc([buffer], block)
+    assert not tvm.s_tir.analysis.verify_well_formed(func, assert_mode=False)
 
 
 def test_fail_use_out_loop_var():
@@ -56,7 +71,7 @@ def test_fail_use_out_loop_var():
                 # we cannot use `i` since it's defined outside the block
                 B[vi, vj] = A[i, vj] * 2.0
 
-    assert not tvm.tirx.analysis.verify_well_formed(element_wise, assert_mode=False)
+    assert not tvm.s_tir.analysis.verify_well_formed(element_wise, assert_mode=False)
 
 
 def test_error_for_out_of_scope_usage():
@@ -261,7 +276,7 @@ def test_block_match_buffer_defines_buffer_obj():
                     )
                     B[i, j] = 0.0
 
-    tvm.tirx.analysis.verify_well_formed(mod)
+    tvm.s_tir.analysis.verify_well_formed(mod)
 
 
 def test_block_match_buffer_defines_symbolic_variables():
@@ -284,7 +299,7 @@ def test_block_match_buffer_defines_symbolic_variables():
 
                     B[i, j] = elem_offset
 
-    tvm.tirx.analysis.verify_well_formed(mod)
+    tvm.s_tir.analysis.verify_well_formed(mod)
 
 
 def test_error_message_without_previous_definition_location():
@@ -376,8 +391,8 @@ def test_sequential_redefinition_with_location():
     assert "was re-defined at" in error_msg
 
 
-def test_buffer_in_buffer_map_is_well_formed():
-    """Buffers defined via function parameter buffer_map are in scope for the body."""
+def test_buffer_param_is_well_formed():
+    """BufferType-annotated parameters are in scope for the body."""
 
     @T.prim_func(s_tir=True)
     def func(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
@@ -413,7 +428,7 @@ def test_alloc_buffer_in_block_is_well_formed():
                         vi = T.axis.remap("S", [i])
                         B[vi] = A[vi] * 2.0
 
-    tvm.tirx.analysis.verify_well_formed(mod)
+    tvm.s_tir.analysis.verify_well_formed(mod)
 
 
 def test_match_buffer_in_block_is_well_formed():
@@ -432,42 +447,41 @@ def test_match_buffer_in_block_is_well_formed():
                     )
                     A_tile[i, j] = A_tile[i, j] * 2.0
 
-    tvm.tirx.analysis.verify_well_formed(mod)
+    tvm.s_tir.analysis.verify_well_formed(mod)
 
 
 def test_error_undeclared_buffer_in_schedulable_tir():
     """In schedule-level TIR (with SBlock nodes), all buffers must be declared."""
     # Manually construct a BufferStore that uses a buffer without any declaration
     # inside a block context.
-    n = tvm.tirx.SizeVar("n", "int32")
+    n = tvm.tirx.Var("n", "int32")
     A = tvm.tirx.decl_buffer([n], "float32", name="A")
     i = tvm.tirx.Var("i", "int32")
 
     # Create an undeclared buffer using an explicit data pointer that is NOT
-    # in the buffer_map and NOT wrapped with DeclBuffer.
+    # a function parameter and NOT wrapped with DeclBuffer.
     B_data = tvm.tirx.Var("B_data", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
     B = tvm.tirx.decl_buffer([n], "float32", name="B", data=B_data)
 
     # Build a block that writes to B without any declaration of B.
-    bi = tvm.tirx.SizeVar("bi", "int32")
-    block = tvm.tirx.SBlock(
+    bi = tvm.tirx.Var("bi", "int32")
+    block = tvm.s_tir.SBlock(
         iter_vars=[tvm.tirx.IterVar(tvm.ir.Range(0, n), bi, 0)],  # 0 = kDataPar
         reads=[tvm.tirx.BufferRegion(A, [tvm.ir.Range(bi, bi + 1)])],
         writes=[tvm.tirx.BufferRegion(B, [tvm.ir.Range(bi, bi + 1)])],
         body=tvm.tirx.BufferStore(B, tvm.tirx.BufferLoad(A, [bi]), [bi]),
         name_hint="write_B",
     )
-    block_realize = tvm.tirx.SBlockRealize(
+    block_realize = tvm.s_tir.SBlockRealize(
         iter_values=[i],
         predicate=tvm.tirx.const(True),
         block=block,
     )
 
     prim_func = tvm.tirx.PrimFunc(
-        params=[A.data, B_data],
+        params=[A, B_data],
         body=tvm.tirx.For(i, 0, n, tvm.tirx.ForKind.SERIAL, block_realize),
-        buffer_map={A.data: A},
-        # Note: B is NOT in buffer_map, so its declaration scope is only
+        # Note: B is NOT a function parameter, so its declaration scope is only
         # within a DeclBuffer node (which we intentionally omit here).
     )
 
@@ -475,7 +489,59 @@ def test_error_undeclared_buffer_in_schedulable_tir():
     with pytest.raises(
         (ValueError, tvm.error.InternalError), match="buffer B.*without a prior DeclBuffer"
     ):
-        tvm.tirx.analysis.verify_well_formed(prim_func)
+        tvm.s_tir.analysis.verify_well_formed(prim_func)
+
+
+def test_tensor_load_asserted_type_matches_source_and_indices():
+    @T.prim_func
+    def func():
+        buffer = T.alloc_buffer((4,), "float32")
+        T.evaluate(buffer[0])
+
+    serialized = tvm.ir.save_json(func)
+    round_tripped = tvm.ir.load_json(serialized)
+    assert tvm.tirx.analysis.verify_well_formed(round_tripped, assert_mode=False)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        assert executor.submit(tvm.tirx.analysis.verify_well_formed, func, False).result()
+
+    graph = json.loads(serialized)
+    load = next(node for node in graph["nodes"] if node["type"] == "ir.TensorLoad")
+    int32_type_index = next(
+        index
+        for index, node in enumerate(graph["nodes"])
+        if node["type"] == "ir.PrimType" and node["data"]["dtype"] == "int32"
+    )
+    load["data"]["ty"] = int32_type_index
+    malformed = tvm.ir.load_json(json.dumps(graph))
+
+    assert not tvm.tirx.analysis.verify_well_formed(malformed, assert_mode=False)
+    with pytest.raises(tvm.error.InternalError, match="asserts result type"):
+        tvm.tirx.analysis.verify_well_formed(malformed)
+
+
+def test_tensor_load_malformed_indices_return_false_without_asserting():
+    buffer = tvm.tirx.decl_buffer((4, 4), "float32")
+    vector_index = tvm.tirx.Ramp(0, 1, 4)
+    load = tvm.tirx.BufferLoad(buffer, [0, vector_index])
+    func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(load))
+
+    graph = json.loads(tvm.ir.save_json(func))
+    load_node = next(node for node in graph["nodes"] if node["type"] == "ir.TensorLoad")
+    indices = graph["nodes"][load_node["data"]["indices"]]["data"]
+
+    rank_mismatch_graph = json.loads(json.dumps(graph))
+    rank_mismatch_indices = rank_mismatch_graph["nodes"][load_node["data"]["indices"]]["data"]
+    rank_mismatch_indices.pop()
+    rank_mismatch = tvm.ir.load_json(json.dumps(rank_mismatch_graph))
+    assert not tvm.tirx.analysis.verify_well_formed(rank_mismatch, assert_mode=False)
+    with pytest.raises(tvm.error.InternalError, match="indexes 2-dimensional buffer"):
+        tvm.tirx.analysis.verify_well_formed(rank_mismatch)
+
+    indices[0], indices[1] = indices[1], indices[0]
+    non_final_vector = tvm.ir.load_json(json.dumps(graph))
+    assert not tvm.tirx.analysis.verify_well_formed(non_final_vector, assert_mode=False)
+    with pytest.raises(tvm.error.InternalError, match="only the final index"):
+        tvm.tirx.analysis.verify_well_formed(non_final_vector)
 
 
 if __name__ == "__main__":

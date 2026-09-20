@@ -38,11 +38,11 @@ def test_no_recursion():
     @tvm.script.ir_module
     class NoRecursion:
         @R.function
-        def a(x: R.Object) -> R.Object:
+        def a(x: R.Any) -> R.Any:
             return x
 
         @R.function
-        def b(x: R.Object) -> R.Object:
+        def b(x: R.Any) -> R.Any:
             return x
 
     groups = detect_recursion(NoRecursion)
@@ -53,7 +53,7 @@ def test_simple_recursion():
     @tvm.script.ir_module
     class SimpleRecursion:
         @R.function
-        def c(x: R.Object) -> R.Object:
+        def c(x: R.Any) -> R.Any:
             return SimpleRecursion.c(x)
 
     groups = detect_recursion(SimpleRecursion)
@@ -65,24 +65,24 @@ def test_tree():
     @tvm.script.ir_module
     class Tree:
         @R.function
-        def a(x: R.Object) -> R.Object:
+        def a(x: R.Any) -> R.Any:
             return Tree.b(x)
 
         @R.function
-        def b(x: R.Object) -> R.Object:
+        def b(x: R.Any) -> R.Any:
             return Tree.c(x)
 
         @R.function
-        def c(x: R.Object) -> R.Object:
-            z: R.Object = Tree.d(x)
+        def c(x: R.Any) -> R.Any:
+            z: R.Any = Tree.d(x)
             return Tree.e(z)
 
         @R.function
-        def d(x: R.Object) -> R.Object:
+        def d(x: R.Any) -> R.Any:
             return Tree.e(x)
 
         @R.function
-        def e(x: R.Object) -> R.Object:
+        def e(x: R.Any) -> R.Any:
             return x
 
     groups = detect_recursion(Tree)
@@ -93,16 +93,16 @@ def test_two_function_case():
     @tvm.script.ir_module
     class TwoFunctionCase:
         @R.function
-        def a(x: R.Object) -> R.Object:
+        def a(x: R.Any) -> R.Any:
             return TwoFunctionCase.b(x)
 
         @R.function
-        def b(x: R.Object) -> R.Object:
+        def b(x: R.Any) -> R.Any:
             return TwoFunctionCase.a(x)
 
         # not part of the group, shouldn't be reported
         @R.function
-        def c(x: R.Object) -> R.Object:
+        def c(x: R.Any) -> R.Any:
             return x
 
     groups = detect_recursion(TwoFunctionCase)
@@ -113,24 +113,24 @@ def test_two_groups_of_two():
     @tvm.script.ir_module
     class TwoGroupsOfTwo:
         @R.function
-        def a(x: R.Object) -> R.Object:
+        def a(x: R.Any) -> R.Any:
             return TwoGroupsOfTwo.b(x)
 
         @R.function
-        def b(x: R.Object) -> R.Object:
+        def b(x: R.Any) -> R.Any:
             return TwoGroupsOfTwo.a(x)
 
         @R.function
-        def c(x: R.Object) -> R.Object:
+        def c(x: R.Any) -> R.Any:
             return TwoGroupsOfTwo.d(x)
 
         @R.function
-        def d(x: R.Object) -> R.Object:
+        def d(x: R.Any) -> R.Any:
             return TwoGroupsOfTwo.c(x)
 
         # not part of either group, shouldn't be reported
         @R.function
-        def e(x: R.Object) -> R.Object:
+        def e(x: R.Any) -> R.Any:
             return x
 
     groups = detect_recursion(TwoGroupsOfTwo)
@@ -141,16 +141,16 @@ def test_mutual_recursion_and_simple_recursion():
     @tvm.script.ir_module
     class MutualAndSimple:
         @R.function
-        def a(x: R.Object) -> R.Object:
+        def a(x: R.Any) -> R.Any:
             return MutualAndSimple.b(x)
 
         @R.function
-        def b(x: R.Object) -> R.Object:
+        def b(x: R.Any) -> R.Any:
             return MutualAndSimple.a(x)
 
         # forms its own group
         @R.function
-        def c(x: R.Object) -> R.Object:
+        def c(x: R.Any) -> R.Any:
             return MutualAndSimple.c(x)
 
     groups = detect_recursion(MutualAndSimple)
@@ -163,12 +163,12 @@ def test_simultaneous_mutual_and_simple_recursion():
     @tvm.script.ir_module
     class SimultaneousMutualAndSimple:
         @R.function
-        def a(x: R.Object) -> R.Object:
+        def a(x: R.Any) -> R.Any:
             cls = SimultaneousMutualAndSimple
             return cls.b(cls.a(x))
 
         @R.function
-        def b(x: R.Object) -> R.Object:
+        def b(x: R.Any) -> R.Any:
             cls = SimultaneousMutualAndSimple
             return cls.a(cls.b(x))
 
@@ -180,15 +180,15 @@ def test_three_function_case():
     @tvm.script.ir_module
     class ThreeFunctionCase:
         @R.function
-        def a(x: R.Object) -> R.Object:
+        def a(x: R.Any) -> R.Any:
             return ThreeFunctionCase.b(x)
 
         @R.function
-        def b(x: R.Object) -> R.Object:
+        def b(x: R.Any) -> R.Any:
             return ThreeFunctionCase.c(x)
 
         @R.function
-        def c(x: R.Object) -> R.Object:
+        def c(x: R.Any) -> R.Any:
             return ThreeFunctionCase.a(x)
 
     groups = detect_recursion(ThreeFunctionCase)
@@ -201,24 +201,24 @@ def test_call_from_outside_of_group():
         # A calls into a group of mutually recursive functions,
         # but is not part of the cycle
         @R.function
-        def a(x: R.Object) -> R.Object:
+        def a(x: R.Any) -> R.Any:
             return CallFromOutOfGroup.d(x)
 
         @R.function
-        def b(x: R.Object) -> R.Object:
+        def b(x: R.Any) -> R.Any:
             return CallFromOutOfGroup.c(x)
 
         @R.function
-        def c(x: R.Object) -> R.Object:
+        def c(x: R.Any) -> R.Any:
             return CallFromOutOfGroup.d(x)
 
         @R.function
-        def d(x: R.Object) -> R.Object:
+        def d(x: R.Any) -> R.Any:
             return CallFromOutOfGroup.b(x)
 
         # E also calls into the cycle but isn't part of it
         @R.function
-        def e(x: R.Object) -> R.Object:
+        def e(x: R.Any) -> R.Any:
             return CallFromOutOfGroup.b(x)
 
     groups = detect_recursion(CallFromOutOfGroup)
@@ -231,21 +231,21 @@ def test_call_from_group_to_outside():
         # A calls into a group of mutually recursive functions,
         # but is not part of the cycle
         @R.function
-        def a(x: R.Object) -> R.Object:
+        def a(x: R.Any) -> R.Any:
             return CallFromGroupToOutside.b(x)
 
         @R.function
-        def b(x: R.Object) -> R.Object:
+        def b(x: R.Any) -> R.Any:
             # d is called from a member of the group but it is not part of the cycle
-            z: R.Object = CallFromGroupToOutside.d(x)
+            z: R.Any = CallFromGroupToOutside.d(x)
             return CallFromGroupToOutside.c(z)
 
         @R.function
-        def c(x: R.Object) -> R.Object:
+        def c(x: R.Any) -> R.Any:
             return CallFromGroupToOutside.a(x)
 
         @R.function
-        def d(x: R.Object) -> R.Object:
+        def d(x: R.Any) -> R.Any:
             return x
 
     groups = detect_recursion(CallFromGroupToOutside)
@@ -267,28 +267,28 @@ def test_group_with_two_cycles():
     @tvm.script.ir_module
     class GroupWithTwoCycles:
         @R.function
-        def a(x: R.Object) -> R.Object:
+        def a(x: R.Any) -> R.Any:
             return GroupWithTwoCycles.b(x)
 
         @R.function
-        def b(x: R.Object) -> R.Object:
+        def b(x: R.Any) -> R.Any:
             return GroupWithTwoCycles.c(x)
 
         @R.function
-        def c(x: R.Object) -> R.Object:
+        def c(x: R.Any) -> R.Any:
             y = GroupWithTwoCycles.d(x)
             return GroupWithTwoCycles.e(y)
 
         @R.function
-        def d(x: R.Object) -> R.Object:
+        def d(x: R.Any) -> R.Any:
             return GroupWithTwoCycles.a(x)
 
         @R.function
-        def e(x: R.Object) -> R.Object:
+        def e(x: R.Any) -> R.Any:
             return GroupWithTwoCycles.f(x)
 
         @R.function
-        def f(x: R.Object) -> R.Object:
+        def f(x: R.Any) -> R.Any:
             return GroupWithTwoCycles.b(x)
 
     groups = detect_recursion(GroupWithTwoCycles)
@@ -310,43 +310,43 @@ def test_multicycle_example():
     @tvm.script.ir_module
     class MulticycleExample:
         @R.function
-        def a(x: R.Object) -> R.Object:
+        def a(x: R.Any) -> R.Any:
             cls = MulticycleExample
             y = cls.b(x)
             return cls.e(y)
 
         @R.function
-        def b(x: R.Object) -> R.Object:
+        def b(x: R.Any) -> R.Any:
             cls = MulticycleExample
             y = cls.a(x)
             z = cls.c(y)
             return cls.d(z)
 
         @R.function
-        def c(x: R.Object) -> R.Object:
+        def c(x: R.Any) -> R.Any:
             cls = MulticycleExample
             y = cls.g(x)
             return cls.b(y)
 
         @R.function
-        def d(x: R.Object) -> R.Object:
+        def d(x: R.Any) -> R.Any:
             cls = MulticycleExample
             return cls.f(x)
 
         @R.function
-        def e(x: R.Object) -> R.Object:
+        def e(x: R.Any) -> R.Any:
             cls = MulticycleExample
             y = cls.f(x)
             return cls.a(y)
 
         @R.function
-        def f(x: R.Object) -> R.Object:
+        def f(x: R.Any) -> R.Any:
             cls = MulticycleExample
             y = cls.g(x)
             return cls.e(y)
 
         @R.function
-        def g(x: R.Object) -> R.Object:
+        def g(x: R.Any) -> R.Any:
             cls = MulticycleExample
             y = cls.f(x)
             return cls.c(y)
@@ -359,7 +359,7 @@ def test_control_flow():
     @tvm.script.ir_module
     class ControlFlowExample:
         @R.function
-        def a(x: R.Object) -> R.Object:
+        def a(x: R.Any) -> R.Any:
             cls = ControlFlowExample
             y: R.Tensor((), dtype="bool") = R.const(True, dtype="bool")
             if y:
@@ -369,12 +369,12 @@ def test_control_flow():
             return ret
 
         @R.function
-        def b(x: R.Object) -> R.Object:
+        def b(x: R.Any) -> R.Any:
             cls = ControlFlowExample
             return cls.a(x)
 
         @R.function
-        def c(x: R.Object) -> R.Object:
+        def c(x: R.Any) -> R.Any:
             cls = ControlFlowExample
             return cls.a(x)
 
@@ -386,7 +386,7 @@ def test_returning_self():
     @tvm.script.ir_module
     class ReturnsSelf:
         @R.function
-        def a() -> R.Object:
+        def a() -> R.Any:
             # this is also a form of recursion
             return ReturnsSelf.a
 
@@ -398,17 +398,17 @@ def test_mutual_recursion_via_references():
     @tvm.script.ir_module
     class GatherReferences:
         @R.function
-        def a(x: R.Object) -> R.Object:
+        def a(x: R.Any) -> R.Any:
             cls = GatherReferences
             return cls.b(x)
 
         @R.function
-        def b(x: R.Object) -> R.Object:
+        def b(x: R.Any) -> R.Any:
             cls = GatherReferences
             return (cls.a, cls.b, cls.c)
 
         @R.function
-        def c(x: R.Object) -> R.Object:
+        def c(x: R.Any) -> R.Any:
             cls = GatherReferences
             return cls.a(x)
 
@@ -433,13 +433,13 @@ def test_disregard_primfuncs():
                     B[vi0, vi1] = C[vi0, vi1]
 
         @R.function
-        def a(x: R.Tensor((4, 4), "float32")) -> R.Object:
+        def a(x: R.Tensor((4, 4), "float32")) -> R.Any:
             cls = CallPrimFunc
             y = R.call_tir(cls.identity_identity, x, R.Tensor((4, 4), "float32"))
             return cls.b(y)
 
         @R.function
-        def b(x: R.Tensor((4, 4), "float32")) -> R.Object:
+        def b(x: R.Tensor((4, 4), "float32")) -> R.Any:
             cls = CallPrimFunc
             y = R.call_tir(cls.identity_identity, x, R.Tensor((4, 4), "float32"))
             return cls.a(y)

@@ -37,8 +37,13 @@ namespace tirx {
  */
 inline void AddToParent(tvm::tirx::Stmt stmt) {
   IRBuilder builder = IRBuilder::Current();
+  // Some builder paths use an undefined statement as an omitted branch.
+  if (stmt.defined() && !stmt->span.defined()) {
+    stmt->span = builder->GetCurrentSourceSpan();
+  }
   if (builder->frames.empty()) {
-    TVM_FFI_CHECK(!builder->result.defined(), ValueError) << "Builder.result has already been set";
+    TVM_FFI_CHECK(!builder->result.has_value(), ValueError)
+        << "Builder.result has already been set";
     builder->result = stmt;
   } else if (const auto* tir_frame = builder->frames.back().as<TIRFrameNode>()) {
     ffi::GetRef<TIRFrame>(tir_frame)->stmts.push_back(stmt);
@@ -122,16 +127,16 @@ inline IfFrame FindIfFrame(const ffi::String& method) {
 }
 
 /*!
- * \brief Convert BufferLoad to BufferRegion.
+ * \brief Convert TensorLoad to TensorRegion.
  * \param buffer_load The BufferLoad.
- * \return The converted BufferRegion.
+ * \return The converted TensorRegion.
  */
-inline tvm::tirx::BufferRegion BufferRegionFromLoad(tvm::tirx::BufferLoad buffer_load) {
+inline tvm::TensorRegion BufferRegionFromLoad(tvm::TensorLoad buffer_load) {
   ffi::Array<Range> ranges;
   for (const PrimExpr& index : buffer_load->indices) {
-    ranges.push_back(Range::FromMinExtent(index, IntImm(index->dtype, 1)));
+    ranges.push_back(Range::FromMinExtent(index, IntImm(index.ty(), 1)));
   }
-  return tvm::tirx::BufferRegion(buffer_load->buffer, ranges);
+  return tvm::tirx::BufferRegion(buffer_load->source.as_or_throw<tvm::tirx::BufferVar>(), ranges);
 }
 
 }  // namespace tirx

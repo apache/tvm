@@ -23,6 +23,7 @@
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/tensor.h>
 
@@ -135,6 +136,55 @@ class AttentionKVCacheObj : public KVStateObj {
   /*! \brief Get the current total sequence length in the KV cache. */
   virtual int32_t GetTotalSequenceLength() const = 0;
 
+  /*!
+   * \brief Get checkpoint metadata for a sequence.
+   * \param seq_id The id of the sequence whose checkpoint metadata is requested.
+   * \return JSON string describing runtime layout and logical pages.
+   */
+  virtual ffi::String GetCheckpointMetadata(int64_t seq_id) const = 0;
+
+  /*!
+   * \brief Get a stable hash over runtime layout-defining fields.
+   * \return Hex string hash of the checkpoint layout metadata.
+   */
+  virtual ffi::String GetLayoutHash() const = 0;
+
+  /*!
+   * \brief Export a checkpoint page group for a sequence.
+   * \param seq_id The id of the sequence whose page group is exported.
+   * \param group_id The checkpoint group id to export.
+   * \param dst The destination tensor for the exported page group.
+   */
+  virtual void ExportPageGroup(int64_t seq_id, int64_t group_id, Tensor dst) = 0;
+
+  /*!
+   * \brief Prepare sequence state and page tables for checkpoint import.
+   * \param seq_id The id of the sequence being imported.
+   * \param metadata_json The checkpoint metadata JSON string.
+   */
+  virtual void PrepareImport(int64_t seq_id, ffi::String metadata_json) = 0;
+
+  /*!
+   * \brief Import a checkpoint page group into a prepared sequence.
+   * \param seq_id The id of the sequence being imported.
+   * \param group_id The checkpoint group id to import.
+   * \param src The source tensor containing the page group.
+   */
+  virtual void ImportPageGroup(int64_t seq_id, int64_t group_id, Tensor src) = 0;
+
+  /*!
+   * \brief Finish a checkpoint import after all page groups have been restored.
+   * \param seq_id The id of the sequence being imported.
+   */
+  virtual void FinishImport(int64_t seq_id) = 0;
+
+  /*!
+   * \brief Get the sequence length for a sequence in the KV cache.
+   * \param seq_id The id of the sequence whose length is requested.
+   * \return The sequence length.
+   */
+  virtual int32_t GetSequenceLength(int64_t seq_id) const = 0;
+
   /************** Sequence Management **************/
 
   /*!
@@ -205,6 +255,21 @@ class AttentionKVCacheObj : public KVStateObj {
    */
   virtual void CrossAttention(int64_t layer_id, Tensor q_data, Tensor o_data, Tensor lse_data,
                               double sm_scale) = 0;
+
+  /*!
+   * \brief Compute attention with K/V shared by another logical layer.
+   *
+   * This operation does not append K/V. The cache-owning source layer must run before this
+   * operation in the active forward pass.
+   * \param source_layer_id The physical cache layer containing past K/V data.
+   * \param q_data The logical layer's input Q data.
+   * \param current_k_data The source layer's K data for the active chunk.
+   * \param current_v_data The source layer's V data for the active chunk.
+   * \param o_data The output O data.
+   * \param sm_scale The additional attention scaling factor.
+   */
+  virtual void AttentionWithSharedKV(int64_t source_layer_id, Tensor q_data, Tensor current_k_data,
+                                     Tensor current_v_data, Tensor o_data, double sm_scale) = 0;
 
   /*!
    * \brief Fine-grained API that appends the MLA K/V data to KV cache.

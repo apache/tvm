@@ -25,8 +25,10 @@
 #define TVM_TARGET_INTRIN_RULE_H_
 
 #include <tvm/ffi/function.h>
+#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/ir/type.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/expr.h>
 
 #include <string>
 
@@ -37,10 +39,10 @@ using namespace tirx;
 
 // Add float suffix to the intrinsics
 struct FloatSuffix {
-  std::string operator()(DataType t, std::string name) const {
-    if (t == DataType::Float(32)) {
+  std::string operator()(const PrimType& ty, std::string name) const {
+    if (ty->dtype == DLDataType{kDLFloat, 32, 1}) {
       return name + 'f';
-    } else if (t == DataType::Float(64)) {
+    } else if (ty->dtype == DLDataType{kDLFloat, 64, 1}) {
       return name;
     } else {
       return "";
@@ -50,7 +52,7 @@ struct FloatSuffix {
 
 // Return the intrinsic name
 struct Direct {
-  std::string operator()(DataType t, std::string name) const { return name; }
+  std::string operator()(const PrimType& ty, std::string name) const { return name; }
 };
 
 /*!
@@ -68,22 +70,22 @@ inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
   const OpNode* op = call->op.as<OpNode>();
   TVM_FFI_ICHECK(op != nullptr);
   std::string name = op->name;
-  TVM_FFI_ICHECK_EQ(name.substr(0, 5), "tirx.");
-  DataType dtype;
+  TVM_FFI_ICHECK(name.substr(0, 5) == "tirx." || name == "prim.ceil" || name == "prim.log2" ||
+                 name == "prim.clz")
+      << "Unexpected intrinsic name: " << name;
   if (dtype_from_arg) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1U);
-    dtype = call->args[0].dtype();
-  } else {
-    dtype = call->dtype;
   }
+  PrimType dtype = dtype_from_arg ? call->args[0].as_or_throw<PrimExpr>().ty()
+                                  : call->ty.as_or_throw<PrimType>();
   name = T()(dtype, name.substr(5));
 
   if (name.length() != 0) {
-    ffi::Array<PrimExpr> new_args = {StringImm(name)};
-    for (auto arg : call->args) {
+    ffi::Array<Expr> new_args = {StringImm(name)};
+    for (const PrimExpr& arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
       new_args.push_back(arg);
     }
-    return Call(call->dtype, builtin::call_pure_extern(), new_args);
+    return Call(e.ty(), builtin::call_pure_extern(), new_args).as_or_throw<PrimExpr>();
   } else {
     return e;
   }

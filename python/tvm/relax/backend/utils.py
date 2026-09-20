@@ -38,13 +38,11 @@ class BackendDispatcher(PyExprMutator):
     def get_shape_dtype(expr: relax.Expr) -> tuple[relax.ShapeExpr, str]:
         """Get shape and dtype from an expression.
         If the shape and dtype is unknown, raise an error."""
-        sinfo = expr.struct_info
-        if not isinstance(expr.struct_info, relax.TensorStructInfo):
-            raise ValueError(
-                f"Expecting a expr with TensorStructInfo, but got {expr} with {expr.struct_info}"
-            )
+        ty = expr.ty
+        if not isinstance(expr.ty, relax.TensorType):
+            raise ValueError(f"Expecting a expr with TensorType, but got {expr} with {expr.ty}")
 
-        shape, dtype = sinfo.shape, sinfo.dtype
+        shape, dtype = ty.shape, ty.dtype
         if shape is None:
             raise ValueError(
                 f"Expecting a expr with known shape, but got {expr} with unknown shape"
@@ -52,14 +50,14 @@ class BackendDispatcher(PyExprMutator):
 
         return shape, dtype
 
-    def _get_target(self, sinfo: relax.StructInfo) -> Target:
-        # Get target information from TensorStructInfo
-        if isinstance(sinfo, relax.TensorStructInfo):
-            vdevice = sinfo.vdevice
+    def _get_target(self, ty: relax.Type) -> Target:
+        # Get target information from TensorType
+        if isinstance(ty, relax.TensorType):
+            vdevice = ty.vdevice
             if vdevice is not None:
                 return vdevice.target
-        elif isinstance(sinfo, relax.TupleStructInfo):
-            for f in sinfo.fields:
+        elif isinstance(ty, relax.TupleType):
+            for f in ty.fields:
                 tgt = self._get_target(f)
                 if tgt != Target.current():
                     return tgt

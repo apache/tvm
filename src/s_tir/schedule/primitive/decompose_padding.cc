@@ -17,13 +17,16 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../../../tirx/transform/ir_utils.h"
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
+using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Information used to create new padding block */
@@ -38,7 +41,7 @@ struct PaddingSBlockInfo {
   PrimExpr pad_value;
 };
 
-class PaddingPatternMatchError : public ScheduleError {
+class PaddingPatternMatchError : public ScheduleErrorContextObj {
  public:
   PaddingPatternMatchError(IRModule mod, SBlock block, const std::string& error_msg)
       : mod_(std::move(mod)), block_(std::move(block)), error_msg_(error_msg) {}
@@ -70,20 +73,21 @@ class PaddingPatternMatchError : public ScheduleError {
 class PaddingInfoAnalyzer {
  public:
   static PaddingSBlockInfo CheckAndGetPaddingInfo(IRModule mod, const SBlockRealizeNode* realize,
-                                                  const ffi::Map<Var, Range>& dom_map,
-                                                  arith::AnalyzerObj* analyzer) {
+                                                  const ffi::Map<PrimVar, Range>& dom_map,
+                                                  sym::AnalyzerObj* analyzer) {
     PaddingInfoAnalyzer padding_analyzer(analyzer);
     if (!padding_analyzer.MatchPadding(realize, dom_map)) {
-      throw PaddingPatternMatchError(mod, realize->block, padding_analyzer.error_msg_);
+      throw MakeScheduleError<PaddingPatternMatchError>(mod, realize->block,
+                                                        padding_analyzer.error_msg_);
     }
     return padding_analyzer.info_;
   }
 
  private:
-  explicit PaddingInfoAnalyzer(arith::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
+  explicit PaddingInfoAnalyzer(sym::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
   /*! \brief Detect padding pattern and update result. */
-  bool MatchPadding(const SBlockRealizeNode* realize, const ffi::Map<Var, Range>& dom_map) {
+  bool MatchPadding(const SBlockRealizeNode* realize, const ffi::Map<PrimVar, Range>& dom_map) {
     // Step 1. Check match padding computation pattern.
     // A[...] = T.if_then_else(predicate, B[...], imm)
     SBlock block = realize->block;
@@ -98,20 +102,29 @@ class PaddingInfoAnalyzer {
       return false;
     }
     const CallNode* if_then_else = store->value.as<CallNode>();
-    if (!if_then_else || !if_then_else->op.same_as(tirx::builtin::if_then_else())) {
+    if (!if_then_else || !if_then_else->op.same_as(prim::builtin::if_then_else())) {
       SetError("Value of BufferStore expect to be constrained by a padding predicate");
       return false;
     }
-    PrimExpr pad_predicate = Substitute(if_then_else->args[0], iter_values);
-    PrimExpr in_bound_value = if_then_else->args[1];
-    PrimExpr pad_value = if_then_else->args[2];
+    auto f_substitute =
+        [&iter_values](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto it = iter_values.find(var.get()); it != iter_values.end()) {
+        return ffi::Any(it->second);
+      }
+      return ffi::Unchanged();
+    };
+    PrimExpr pad_predicate = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                                 if_then_else->args[0].as_or_throw<PrimExpr>(), f_substitute)
+                                 .as_or_throw<PrimExpr>();
+    PrimExpr in_bound_value = if_then_else->args[1].as_or_throw<PrimExpr>();
+    PrimExpr pad_value = if_then_else->args[2].as_or_throw<PrimExpr>();
     if (!is_const_number(pad_value)) {
       SetError("Pad value should be constant");
       return false;
     }
 
     // Step 2. Check in-bound computation to be effectiveless.
-    if (SideEffect(if_then_else->args[1]) > CallEffectKind::kReadState) {
+    if (SideEffect(if_then_else->args[1].as_or_throw<PrimExpr>()) > CallEffectKind::kReadState) {
       SetError("Inbound computation should not have side-effect");
       return false;
     }
@@ -130,7 +143,7 @@ class PaddingInfoAnalyzer {
     }
 
     // Step 4. Update result information.
-    info_.in_bound_value = if_then_else->args[1];
+    info_.in_bound_value = if_then_else->args[1].as_or_throw<PrimExpr>();
     info_.in_bound_region = in_bound_region;
     info_.in_bound_predicate = in_bound_predicate;
     info_.pad_value = pad_value;
@@ -139,16 +152,16 @@ class PaddingInfoAnalyzer {
 
   /*! \brief Rewrite predicate to left recursive conjunction, drop likely annotation. */
   PrimExpr RewritePredicate(const PrimExpr& predicate) {
-    PrimExpr res = const_true();
+    PrimExpr res = IntImm::Bool(true);
     std::function<void(PrimExpr)> update = [&res, &update](PrimExpr e) {
-      arith::PVar<PrimExpr> a, b;
+      sym::PVar<PrimExpr> a, b;
       if ((a && b).Match(e)) {
         update(a.Eval());
         update(b.Eval());
       } else {
         if (const CallNode* call = e.as<CallNode>()) {
-          if (call->op.same_as(builtin::likely())) {
-            e = call->args[0];
+          if (call->op.same_as(prim::builtin::likely())) {
+            e = call->args[0].as_or_throw<PrimExpr>();
           }
         }
         res = res && e;
@@ -160,20 +173,20 @@ class PaddingInfoAnalyzer {
 
   /*! \brief Return iteration region of block vars where the padding predicate evals to true. */
   ffi::Array<Range> EstimateInBoundRegion(const ffi::Array<PrimExpr>& iter_values,
-                                          const ffi::Map<Var, Range>& dom_map,
+                                          const ffi::Map<PrimVar, Range>& dom_map,
                                           const PrimExpr& in_bound_predicate) {
     ffi::Array<Range> region;
 
-    arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer_);
-    auto res = arith::DetectIterMap(iter_values, dom_map, in_bound_predicate,
-                                    arith::IterMapLevel::Surjective, analyzer_ref);
+    sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer_);
+    auto res = sym::DetectIterMap(iter_values, dom_map, in_bound_predicate,
+                                  sym::IterMapLevel::Surjective, analyzer_ref);
     if (res->indices.empty()) {
       SetError("Block iters are not independent wrt padding condition");
       return {};
     }
-    for (const arith::IterSumExpr& sum : res->indices) {
+    for (const sym::IterSumExpr& sum : res->indices) {
       if (sum->args.empty()) {
-        region.push_back(Range::FromMinExtent(sum->base, IntImm(sum->base.dtype(), /* value */ 1)));
+        region.push_back(Range::FromMinExtent(sum->base, IntImm(sum->base.ty(), /* value */ 1)));
       } else {
         TVM_FFI_ICHECK_EQ(sum->args.size(), 1U);
         if (!analyzer_->CanProveEqual(sum->args[0]->scale, 1)) {
@@ -193,7 +206,7 @@ class PaddingInfoAnalyzer {
   /*! \brief current error message. */
   std::string error_msg_;
   /*! \brief arithmetic analyzer. */
-  arith::AnalyzerObj* analyzer_;
+  sym::AnalyzerObj* analyzer_;
 };
 
 /*! \brief Create block to fill constant pad values into full region */
@@ -201,7 +214,7 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
                                                        const PaddingSBlockInfo& info,
                                                        const ffi::Array<For>& loops,
                                                        const Stmt& highest_pos_inclusive,
-                                                       arith::AnalyzerObj* analyzer) {
+                                                       sym::AnalyzerObj* analyzer) {
   const SBlock& block = realize->block;
   ffi::Array<IterVar> new_iter_vars;
   ffi::Map<Var, PrimExpr> repl_dict;
@@ -209,25 +222,32 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   // create new block itervars
   for (size_t i = 0; i < block->iter_vars.size(); ++i) {
     const IterVar& origin_iter = block->iter_vars[i];
-    Var new_var = origin_iter->var.copy_with_suffix("");
+    PrimVar new_var = origin_iter->var.CopyWithSuffix("");
     new_iter_vars.push_back(IterVar(origin_iter->dom, new_var, IterVarType::kDataPar));
     repl_dict.Set(origin_iter->var, new_var);
   }
 
+  auto f_substitute = [&repl_dict](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = repl_dict.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
   // rewrite expr helper
-  auto rewrite_expr = [&repl_dict, analyzer](const PrimExpr& e) {
-    return analyzer->Simplify(Substitute(e, repl_dict));
+  auto rewrite_expr = [&f_substitute, analyzer](const PrimExpr& e) {
+    // The replacement map contains only fresh variables, so pre-order is safe here.
+    return analyzer->Simplify(
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute).as_or_throw<PrimExpr>());
   };
 
   // create new write region
   TVM_FFI_ICHECK_EQ(block->writes.size(), 1U);
-  BufferRegion write_region = BufferRegion(
-      block->writes[0]->buffer, block->writes[0]->region.Map([rewrite_expr](const Range& r) {
-        return Range::FromMinExtent(rewrite_expr(r->min), rewrite_expr(r->extent));
-      }));
+  TensorRegion write_region =
+      BufferRegion(block->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>(),
+                   block->writes[0]->region.Map([rewrite_expr](const Range& r) {
+                     return Range::FromMinExtent(rewrite_expr(r->min), rewrite_expr(r->extent));
+                   }));
 
   // create block to fill const pad values
-  BufferStore store = Downcast<BufferStore>(block->body);
+  BufferStore store = block->body.as_or_throw<BufferStore>();
   store.CopyOnWrite()->value = info.pad_value;
   store.CopyOnWrite()->indices = store->indices.Map(rewrite_expr);
   SBlock new_block(/*iter_vars=*/new_iter_vars, /*reads=*/{}, /*writes=*/{write_region},
@@ -236,9 +256,9 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   // create new loop vars
   ffi::Array<Var> new_loop_vars;
   for (const For& loop : loops) {
-    Var new_var = loop->loop_var.copy_with_suffix("");
+    Var new_var = loop->loop_var.CopyWithSuffix("");
     new_loop_vars.push_back(new_var);
-    repl_dict.Set(loop->loop_var, new_var);
+    repl_dict.Set(loop->loop_var, new_var.as_or_throw<PrimExpr>());
     if (loop.same_as(highest_pos_inclusive)) {
       break;
     }
@@ -257,8 +277,8 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   Stmt nest_stmt_root = new_realize;
   for (size_t i = 0; i < new_loop_vars.size(); ++i) {
     For loop = loops[i];
-    nest_stmt_root =
-        For(new_loop_vars[i], loop->min, loop->extent, ForKind::kSerial, nest_stmt_root);
+    nest_stmt_root = For(new_loop_vars[i].as_or_throw<PrimVar>(), loop->min, loop->extent,
+                         ForKind::kSerial, nest_stmt_root);
   }
 
   return {nest_stmt_root, new_realize};
@@ -270,7 +290,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
 
                                                          const ffi::Array<For>& loops,
                                                          const Stmt& highest_pos_inclusive,
-                                                         arith::AnalyzerObj* analyzer) {
+                                                         sym::AnalyzerObj* analyzer) {
   const SBlock& block = realize->block;
   ffi::Array<IterVar> new_iter_vars;
   ffi::Map<Var, PrimExpr> repl_dict;
@@ -289,9 +309,9 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   for (size_t i = 0; i < info.in_bound_region.size(); ++i) {
     // add new block itervar
     const IterVar& origin_itervar = block->iter_vars[i];
-    Var new_var = origin_itervar->var.copy_with_suffix("");
+    PrimVar new_var = origin_itervar->var.CopyWithSuffix("");
     Range new_range =
-        Range::FromMinExtent(make_const(new_var->dtype, 0), info.in_bound_region[i]->extent);
+        Range::FromMinExtent(IntImm(new_var.ty(), 0), info.in_bound_region[i]->extent);
     new_iter_vars.push_back(IterVar(new_range, new_var, IterVarType::kDataPar));
     repl_dict.Set(origin_itervar->var, new_var + info.in_bound_region[i]->min);
 
@@ -302,7 +322,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
       auto loop_var = opt.value();
       new_loop_ranges.Set(loop_var, new_range);
       new_iter_binding.push_back(realize->iter_values[i]);
-      repl_dict.Set(loop_var, loop_var + info.in_bound_region[i]->min);
+      repl_dict.Set(loop_var, loop_var.as_or_throw<PrimExpr>() + info.in_bound_region[i]->min);
       analyzer->Bind(loop_var, new_range, /*allow_override=*/true);
     } else {
       new_iter_binding.push_back(
@@ -310,9 +330,15 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
     }
   }
 
+  auto f_substitute = [&repl_dict](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = repl_dict.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
   // rewrite helpers
-  auto rewrite_expr = [&repl_dict, analyzer](const PrimExpr& e) {
-    return analyzer->Simplify(Substitute(e, repl_dict));
+  auto rewrite_expr = [&f_substitute, analyzer](const PrimExpr& e) {
+    // The map is self-referential, so post-order must not revisit replacement expressions.
+    return analyzer->Simplify(
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(e, f_substitute).as_or_throw<PrimExpr>());
   };
   auto rewrite_region = [rewrite_expr](const Region& region) {
     return region.Map([rewrite_expr](const Range& r) {
@@ -321,16 +347,18 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   };
 
   // create new read/write region for in-bound accesses
-  ffi::Array<BufferRegion> reads, writes;
-  for (const BufferRegion& read : block->reads) {
-    reads.push_back(BufferRegion(read->buffer, rewrite_region(read->region)));
+  ffi::Array<TensorRegion> reads, writes;
+  for (const TensorRegion& read : block->reads) {
+    reads.push_back(BufferRegion(read->source.as_or_throw<tvm::tirx::BufferVar>(),
+                                 rewrite_region(read->region)));
   }
-  for (const BufferRegion& write : block->writes) {
-    writes.push_back(BufferRegion(write->buffer, rewrite_region(write->region)));
+  for (const TensorRegion& write : block->writes) {
+    writes.push_back(BufferRegion(write->source.as_or_throw<tvm::tirx::BufferVar>(),
+                                  rewrite_region(write->region)));
   }
 
   // create new block realize node
-  BufferStore store = Downcast<BufferStore>(block->body);
+  BufferStore store = block->body.as_or_throw<BufferStore>();
   store.CopyOnWrite()->value = rewrite_expr(info.in_bound_value);
   store.CopyOnWrite()->indices = store->indices.Map(rewrite_expr);
   SBlock new_block(/*iter_vars=*/new_iter_vars, /*reads=*/reads, /*writes=*/writes,
@@ -357,8 +385,15 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
 /*!
  * \brief A helper class to create a new scope that contains decomposed padding blocks.
  */
-class DecomposePaddingBlockReplacer : public StmtMutator {
+class DecomposePaddingBlockReplacer : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   /*! \brief Replacement information */
   struct ReplaceDesc {
     /*! \brief loop above which to insert const pad value filling code. */
@@ -376,20 +411,22 @@ class DecomposePaddingBlockReplacer : public StmtMutator {
   };
 
   static SBlock Replace(SBlock scope_root, const ReplaceDesc& desc) {
-    DecomposePaddingBlockReplacer replacer(desc);
-    return Downcast<SBlock>(replacer(std::move(scope_root)));
+    auto replacer = ffi::make_object<DecomposePaddingBlockReplacer>(desc);
+    return replacer->Mutate(scope_root, InplaceMode::kAllow)
+        .ValueOrUnchanged(std::move(scope_root))
+        .as_or_throw<SBlock>();
   }
 
- private:
   explicit DecomposePaddingBlockReplacer(const ReplaceDesc& desc) : desc_(desc) {}
 
-  Stmt VisitStmt_(const ForNode* op) final {
+ private:
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     Stmt new_loop;
     if (op == desc_.in_bound_filling_pos.get()) {
       // position to rewrite inbound filling code
       new_loop = desc_.in_bound_filling_loop;
     } else {
-      new_loop = StmtMutator::VisitStmt_(op);
+      new_loop = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     }
     if (op == desc_.const_filling_pos.get()) {
       // position to insert pad value filling code
@@ -398,7 +435,6 @@ class DecomposePaddingBlockReplacer : public StmtMutator {
     return new_loop;
   }
 
- private:
   const ReplaceDesc& desc_;
 };
 
@@ -416,8 +452,8 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
   // Condition Checks and Information Collection
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   const SBlockRealizeNode* realize = GetSBlockRealize(self, block_sref).get();
-  ffi::Map<Var, Range> dom_map;
-  arith::Analyzer analyzer;
+  ffi::Map<PrimVar, Range> dom_map;
+  sym::Analyzer analyzer;
 
   // Check 1. check the block is complete.
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
@@ -457,8 +493,8 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
   }
   TVM_FFI_ICHECK(in_bound_filling_pos.defined());
   if (!found_const_filling_pos) {
-    throw LoopPositionError(self->mod, const_filling_pos, ffi::GetRef<SBlock>(block),
-                            "decompose_padding");
+    throw MakeScheduleError<LoopPositionError>(self->mod, const_filling_pos,
+                                               ffi::GetRef<SBlock>(block), "decompose_padding");
   }
 
   // Check 3. match padding pattern and return padding operation info.

@@ -28,7 +28,7 @@
 #ifndef TVM_SCRIPT_PRINTER_PRINTER_H_
 #define TVM_SCRIPT_PRINTER_PRINTER_H_
 
-#include <tvm/ir/node_functor.h>
+#include <tvm/ir/object_functor.h>
 #include <tvm/script/printer/config.h>
 
 namespace tvm {
@@ -46,7 +46,7 @@ TVM_DLL std::string Script(const ffi::ObjectRef& node,
  */
 class TVMScriptPrinter {
  public:
-  using FType = NodeFunctor<std::string(const ffi::ObjectRef&, const PrinterConfig&)>;
+  using FType = ObjectFunctor<std::string(const ffi::ObjectRef&, const PrinterConfig&)>;
   TVM_DLL static FType& vtable();
 };
 
@@ -64,8 +64,8 @@ class TVMScriptPrinter {
                                         [](ffi::ObjectRef obj, ffi::Function) -> ffi::String { \
                                           return RedirectedReprPrinterMethod(obj);             \
                                         });                                                    \
-  }                                                                                            \
-  TVM_STATIC_IR_FUNCTOR(TVMScriptPrinter, vtable).set_dispatch<ObjectType>(Method)
+    TVMScriptPrinter::vtable().SetDispatch<ObjectType>(Method);                                \
+  }
 
 }  // namespace tvm
 #endif  // TVM_SCRIPT_PRINTER_PRINTER_H_

@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 def _check(original, transformed):
     mod = tvm.IRModule.from_expr(original.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LowerMatchBuffer()(mod)
-    mod = tvm.tirx.transform.StmtSimplify()(mod)
+    mod = tvm.s_tir.transform.StmtSimplify()(mod)
     tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
@@ -152,6 +152,25 @@ def transformed_opaque_access(a: T.handle, b: T.handle) -> None:
                     8,
                 )
             )
+
+
+@T.prim_func(s_tir=True)
+def opaque_buffer_data_projection(a: T.handle) -> None:
+    A = T.match_buffer(a, (16,))
+    with T.sblock():
+        T.reads([])
+        T.writes(A[4:8])
+        sub_A = T.match_buffer(A[4:8], (4,), offset_factor=1)
+        T.evaluate(T.call_extern("consume", sub_A.data, sub_A.elem_offset, dtype="int32"))
+
+
+@T.prim_func(s_tir=True)
+def transformed_opaque_buffer_data_projection(a: T.handle) -> None:
+    A = T.match_buffer(a, (16,))
+    with T.sblock():
+        T.reads([])
+        T.writes(A[4:8])
+        T.evaluate(T.call_extern("consume", A.data, 4, dtype="int32"))
 
 
 @T.prim_func(s_tir=True)
@@ -486,7 +505,7 @@ def fail_buffer_bind(a: T.handle) -> None:
 
 # well-formed checker complains about redefinition of a stride variable
 @T.prim_func(check_well_formed=False, s_tir=True)
-def fail_match_func_param(a: T.handle, m: T.handle, n: T.handle) -> None:
+def fail_match_func_param(a: T.handle, m: T.int32, n: T.int32) -> None:
     A = T.match_buffer(a, (8, 8))
     for i, j in T.grid(8, 2):
         with T.sblock():
@@ -501,6 +520,7 @@ def test_buffer_load_store():
 
 def test_opaque_access():
     _check(opaque_access, transformed_opaque_access)
+    _check(opaque_buffer_data_projection, transformed_opaque_buffer_data_projection)
 
 
 def test_high_dim_opaque_access():
@@ -565,6 +585,22 @@ def transformed_scalar_match_buffer_type_coercion(a: T.handle) -> None:
 
 def test_scalar_match_buffer_type_coercion():
     _check(scalar_match_buffer_type_coercion, transformed_scalar_match_buffer_type_coercion)
+
+
+@T.prim_func(s_tir=True)
+def masked_match_buffer(a: T.handle) -> None:
+    A = T.match_buffer(a, (8,), "float32")
+    with T.sblock():
+        T.reads(A[2:6])
+        sub_A = T.match_buffer(A[2:6], (4,), offset_factor=1)
+        mask = T.meta_var(T.Broadcast(T.bool(True), 4))
+        T.evaluate(T.masked_load("float32x4", sub_A, T.Ramp(0, 1, 4), mask))
+
+
+def test_masked_match_buffer_fails_explicitly():
+    mod = tvm.IRModule.from_expr(masked_match_buffer)
+    with pytest.raises(RuntimeError, match="Predicated buffer access is not currently supported"):
+        tvm.s_tir.transform.LowerMatchBuffer()(mod)
 
 
 if __name__ == "__main__":

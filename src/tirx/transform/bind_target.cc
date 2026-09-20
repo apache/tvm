@@ -36,7 +36,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/global_var_supply.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -69,7 +69,7 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
   static std::tuple<std::unordered_set<const GlobalVarNode*>,
                     std::unordered_set<const GlobalVarNode*>>
   GetFunctionCallers(const IRModule& mod) {
-    FunctionClassifierVisitor visitor;
+    auto visitor = ffi::make_object<FunctionClassifierVisitor>();
 
     // Only analyze externally exposed functions as potential callers
     // since they represent the entry points where host/device calls originate
@@ -78,17 +78,17 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
       const auto* prim_func = func.as<PrimFuncNode>();
 
       if (is_externally_exposed && prim_func != nullptr) {
-        visitor.VisitStmt(prim_func->body);
+        visitor->Visit(prim_func->body);
       }
     }
 
-    return std::make_tuple(visitor.host_called_global_vars_, visitor.device_called_global_vars_);
+    return std::make_tuple(visitor->host_called_global_vars_, visitor->device_called_global_vars_);
   }
 
  private:
-  using StmtExprVisitor::VisitStmt_;
+  using StmtExprVisitor::Visit_;
 
-  void VisitExpr_(const CallNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     const auto* global_var = op->op.as<GlobalVarNode>();
     if (global_var != nullptr) {
       // Classify the call based on current scope
@@ -98,31 +98,34 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
         host_called_global_vars_.insert(global_var);
       }
     }
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const ForNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     if (op->kind == ForKind::kThreadBinding) {
       // Enter GPU scope for thread binding loops
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;
-      StmtExprVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       is_under_gpu_scope_ = last_is_under_gpu_scope;
     } else {
-      StmtExprVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
+  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
+    if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread ||
+        op->attr_key == attr::kDeviceEntry) {
       // Enter GPU scope for thread extent and virtual thread attributes
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;
-      StmtExprVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       is_under_gpu_scope_ = last_is_under_gpu_scope;
     } else {
-      StmtExprVisitor::VisitStmt_(op);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
+    return std::nullopt;
   }
 
  private:
@@ -143,6 +146,8 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
  */
 class CallSubstitutor : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   /*!
    * \brief Constructor with function replacement mapping.
    * \param replacements Map from original GlobalVar to host-specific GlobalVar
@@ -157,7 +162,7 @@ class CallSubstitutor : public StmtExprMutator {
    */
   PrimFunc Substitute(PrimFunc func) {
     auto f = func.CopyOnWrite();
-    auto body = VisitStmt(f->body);
+    auto body = Mutate(f->body, InplaceMode::kDisallow).ValueOrUnchanged(f->body);
 
     // Only update if the body actually changed
     if (body.same_as(func->body)) {
@@ -169,10 +174,10 @@ class CallSubstitutor : public StmtExprMutator {
   }
 
  private:
-  using StmtExprMutator::VisitStmt_;
-
-  PrimExpr VisitExpr_(const CallNode* op) final {
-    auto call = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    auto call = StmtExprMutator::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<Expr>(op))
+                    .as_or_throw<Call>();
 
     // Only substitute calls when not under GPU scope
     if (!is_under_gpu_scope_) {
@@ -185,33 +190,32 @@ class CallSubstitutor : public StmtExprMutator {
     return call;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     if (op->kind == ForKind::kThreadBinding) {
       // Enter GPU scope for thread binding loops
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;
-      auto stmt = StmtExprMutator::VisitStmt_(op);
+      UnchangedOr<Stmt> stmt = StmtExprMutator::Mutate_(op, inplace_mode);
       is_under_gpu_scope_ = last_is_under_gpu_scope;
       return stmt;
     } else {
-      return StmtExprMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
+    if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread ||
+        op->attr_key == attr::kDeviceEntry) {
       // Enter GPU scope for thread extent and virtual thread attributes
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;
-      auto stmt = StmtExprMutator::VisitStmt_(op);
+      UnchangedOr<Stmt> stmt = StmtExprMutator::Mutate_(op, inplace_mode);
       is_under_gpu_scope_ = last_is_under_gpu_scope;
       return stmt;
     } else {
-      return StmtExprMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
-
- private:
   /*! \brief Whether the current statement is under a GPU scope */
   bool is_under_gpu_scope_ = false;
   /*! \brief Mapping from original functions to host-specific duplicates */
@@ -237,7 +241,7 @@ class CallSubstitutor : public StmtExprMutator {
  */
 IRModule BindTarget(IRModule mod, const Target& target) {
   // Extract host and device targets
-  auto target_host = Downcast<Target>(target->host.value_or(Target("llvm")));
+  auto target_host = target->host.value_or(Target("llvm")).as_or_throw<Target>();
   auto target_without_host = target.WithoutHost();
 
   auto mod_copy_on_write = mod.CopyOnWrite();
@@ -261,7 +265,8 @@ IRModule BindTarget(IRModule mod, const Target& target) {
 
   // Track duplicated functions for call replacement
   ffi::Map<GlobalVar, GlobalVar> host_function_replacements;
-  GlobalVarSupply gvar_supply(new_mod);
+  UniqueNameSupply global_names(new_mod->functions.begin(), new_mod->functions.end(),
+                                [](const auto& kv) { return kv.first->name_hint; });
 
   for (auto [gvar, func] : mod->functions) {
     const auto* prim_func_node = func.as<PrimFuncNode>();
@@ -313,7 +318,7 @@ IRModule BindTarget(IRModule mod, const Target& target) {
         // Create duplicate with host target for host callers
         host_func = WithAttr(std::move(host_func), tvm::attr::kTarget, target_host);
         ffi::String host_func_name = gvar->name_hint + "_host";
-        GlobalVar host_gvar = gvar_supply->FreshGlobal(host_func_name, false);
+        GlobalVar host_gvar = GlobalVar(global_names->FreshName(host_func_name, false));
 
         new_mod->Add(host_gvar, host_func);
         host_function_replacements.Set(gvar, host_gvar);
@@ -337,7 +342,7 @@ IRModule BindTarget(IRModule mod, const Target& target) {
 
   // Step 3: Update call sites in externally exposed functions
   if (!host_function_replacements.empty()) {
-    CallSubstitutor substitutor(host_function_replacements);
+    auto substitutor = ffi::make_object<CallSubstitutor>(host_function_replacements);
 
     for (auto [gvar, func] : mod->functions) {
       const auto* prim_func = func.as<PrimFuncNode>();
@@ -349,7 +354,7 @@ IRModule BindTarget(IRModule mod, const Target& target) {
           prim_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
       if (is_externally_exposed) {
         // Update calls in externally exposed functions to use host duplicates
-        PrimFunc new_func = substitutor.Substitute(Downcast<PrimFunc>(func));
+        PrimFunc new_func = substitutor->Substitute(func.as_or_throw<PrimFunc>());
         new_mod->Update(gvar, new_func);
       }
     }

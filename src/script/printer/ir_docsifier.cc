@@ -208,10 +208,10 @@ IRDocsifier::FType& IRDocsifier::vtable() {
   return inst;
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_fallback([](ffi::ObjectRef obj, AccessPath p, IRDocsifier d) -> Doc {
-      return d->AddMetadata(obj);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_fallback(
+      [](ffi::ObjectRef obj, AccessPath p, IRDocsifier d) -> Doc { return d->AddMetadata(obj); });
+}
 
 }  // namespace printer
 }  // namespace script
