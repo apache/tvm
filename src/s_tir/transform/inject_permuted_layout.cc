@@ -21,24 +21,25 @@
  * \file inject_permuted_layout.cc
  * \brief The pass injects permuted layout for shared memory buffers to avoid bank conflicts.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../runtime/thread_storage_scope.h"
+#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
 #include "../../support/utils.h"
-#include "../../tirx/ir_mutator_with_analyzer.h"
 #include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-using namespace arith;
+using namespace sym;
 using namespace runtime;
 
 namespace {
@@ -188,7 +189,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
              "dimension is not divisible by 64";
     }
 
-    return buffer_row_size;
+    return buffer_row_size.as<int>().value();
   }
 
   ffi::Array<PrimExpr> HandleBufferIndices(BufferVar buffer, ffi::Array<PrimExpr> indices) {

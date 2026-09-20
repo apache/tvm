@@ -150,7 +150,7 @@ class WorkspaceProvider : ExprMutator {
     builder_->BeginDataflowBlock();
     if (!workspace_var_main_.defined()) {
       auto shape = ShapeExpr({IntImm::Int32(max_workspace_size_)});
-      auto ty = DataTypeImm((DLDataType{kDLUInt, 8, 1}));
+      auto ty = GenericConst((DLDataType{kDLUInt, 8, 1}), AnyType());
       auto workspace = MakeAllocTensor(shape, ty, IntImm::Int64(0));
       workspace_var_main_ = builder_->Emit(workspace, "workspace_main");
     }

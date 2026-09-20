@@ -21,13 +21,14 @@
  * \file inject_texture_alloc.cc
  */
 
-#include <tvm/arith/iter_affine_map.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
+#include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../../backend/opencl/runtime/texture.h"
-#include "../../../tirx/ir_mutator_with_analyzer.h"
+#include "../../../s_tir/ir/ir_mutator_with_analyzer.h"
 #include "../../../tirx/transform/ir_utils.h"
 
 namespace tvm {
@@ -42,13 +43,13 @@ using runtime::IsTextureStorage;
 /*!
  * \brief Inject Texture Alloc Intrinsic right after AllocBufferNode are realized.
  */
-class TextureAllocInjector : public tirx::IRMutatorWithAnalyzer {
+class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
  public:
-  using tirx::IRMutatorWithAnalyzer::Mutate;
-  using tirx::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::IRMutatorWithAnalyzer::Mutate;
+  using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
   static PrimFunc Inject(PrimFunc func) {
-    arith::Analyzer ana;
+    sym::Analyzer ana;
     auto pass = ffi::make_object<TextureAllocInjector>(ana);
     auto writer = func.CopyOnWrite();
     pass->MarkBufferParamShapes(func);
@@ -56,7 +57,7 @@ class TextureAllocInjector : public tirx::IRMutatorWithAnalyzer {
     return func;
   }
 
-  explicit TextureAllocInjector(const arith::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
+  explicit TextureAllocInjector(const sym::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
 
  private:
   UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
@@ -67,7 +68,7 @@ class TextureAllocInjector : public tirx::IRMutatorWithAnalyzer {
       const auto& extents = op->buffer->shape;
       TVM_FFI_ICHECK(extents.size() >= 3) << "Only 2D Array RGBA texture is currently supported";
       const int data_bits = op->buffer->dtype.bits(),
-                vec_length = static_cast<int>(extents.back().as<IntImmNode>()->value);
+                vec_length = extents.back().as<IntImmNode>()->value.as<int>().value();
       const int channel_size = data_bits * vec_length;
       TVM_FFI_ICHECK(channel_size == 128 || channel_size == 64)
           << "Invalid Channel Size: " << channel_size << " bits";
@@ -75,7 +76,7 @@ class TextureAllocInjector : public tirx::IRMutatorWithAnalyzer {
       size_t axis = DefaultTextureLayoutSeparator(extents.size(), storage_scope);
       auto texture = ApplyTexture2DFlattening<PrimExpr>(extents, extents.size(), axis);
       ffi::Array<Expr> args;
-      args.push_back(prim::StringImm(storage_scope));
+      args.push_back(StringImm(storage_scope));
       args.push_back(IntImm::Int64(3));
       args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
                           {texture.width, texture.height, texture.depth}));

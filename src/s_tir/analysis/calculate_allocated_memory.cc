@@ -21,14 +21,15 @@
  * \file tirx/analysis/calculate_allocated_memory.cc
  * \brief Calculate allocated memory per memory scope required by PrimFuncs.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -72,7 +73,7 @@ class AllocBufferCalculator : public StmtExprVisitor {
     int64_t size = 1;
     for (const PrimExpr& e : op->buffer->shape) {
       if (auto* imm = e.as<IntImmNode>()) {
-        size *= imm->value;
+        size = static_cast<int64_t>(size * imm->value);
       } else {
         size = 0;
         break;

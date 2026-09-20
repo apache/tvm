@@ -127,11 +127,11 @@ inline IfFrame FindIfFrame(const ffi::String& method) {
 }
 
 /*!
- * \brief Convert TensorLoad to BufferRegion.
+ * \brief Convert TensorLoad to TensorRegion.
  * \param buffer_load The BufferLoad.
- * \return The converted BufferRegion.
+ * \return The converted TensorRegion.
  */
-inline tvm::tirx::BufferRegion BufferRegionFromLoad(tvm::TensorLoad buffer_load) {
+inline tvm::TensorRegion BufferRegionFromLoad(tvm::TensorLoad buffer_load) {
   ffi::Array<Range> ranges;
   for (const PrimExpr& index : buffer_load->indices) {
     ranges.push_back(Range::FromMinExtent(index, IntImm(index.ty(), 1)));

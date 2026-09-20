@@ -65,7 +65,7 @@ class DeviceRegionAnnotater : public StmtExprMutator {
       // These attributes are only allowed in device-side code, so
       // they should be annotated with the function's default target.
       Stmt body = ffi::GetRef<Stmt>(op);
-      return AttrStmt(device_target_, tvm::attr::kTarget, 0, body);
+      return AttrStmt(device_target_, tvm::attr::kTarget, IntImm::Int32(0), body);
     } else {
       // All other annotations are ignored.
       return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -138,7 +138,7 @@ class LaunchBoundsAttrExtractor : public StmtExprMutator {
         TVM_FFI_ICHECK_EQ(min_blocks_per_sm_.value(), min_blocks_per_sm->value)
             << "Conflicting " << tirx::attr::kLaunchBoundsMinBlocksPerSM << " values";
       }
-      min_blocks_per_sm_ = min_blocks_per_sm->value;
+      min_blocks_per_sm_ = static_cast<int64_t>(min_blocks_per_sm->value);
       return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else if (op->attr_key == tirx::attr::kLaunchBoundsMaxBlocksPerCluster) {
       const auto* max_blocks_per_cluster = op->value.as<IntImmNode>();
@@ -150,7 +150,7 @@ class LaunchBoundsAttrExtractor : public StmtExprMutator {
         TVM_FFI_ICHECK_EQ(max_blocks_per_cluster_.value(), max_blocks_per_cluster->value)
             << "Conflicting " << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " values";
       }
-      max_blocks_per_cluster_ = max_blocks_per_cluster->value;
+      max_blocks_per_cluster_ = static_cast<int64_t>(max_blocks_per_cluster->value);
       return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else if (op->attr_key == tirx::attr::kMaxRegisters) {
       const auto* max_registers = op->value.as<IntImmNode>();
@@ -161,7 +161,7 @@ class LaunchBoundsAttrExtractor : public StmtExprMutator {
         TVM_FFI_ICHECK_EQ(max_registers_.value(), max_registers->value)
             << "Conflicting " << tirx::attr::kMaxRegisters << " values";
       }
-      max_registers_ = max_registers->value;
+      max_registers_ = static_cast<int64_t>(max_registers->value);
       return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else if (op->attr_key == tirx::attr::kRequiredBlockSize) {
       const auto* required_block_size = op->value.as<IntImmNode>();
@@ -173,7 +173,7 @@ class LaunchBoundsAttrExtractor : public StmtExprMutator {
         TVM_FFI_ICHECK_EQ(required_block_size_.value(), required_block_size->value)
             << "Conflicting " << tirx::attr::kRequiredBlockSize << " values";
       }
-      required_block_size_ = required_block_size->value;
+      required_block_size_ = static_cast<int64_t>(required_block_size->value);
       return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -331,14 +331,13 @@ class HostDeviceSplitter : public StmtExprMutator {
       Var kernel_error_code("kernel_error_code", success.ty());
       Call kernel_call(success.ty(), kernel_symbol_global, call_args);
       AssertStmt assert_success(kernel_error_code.as_or_throw<PrimExpr>() == success,
-                                prim::StringImm("RuntimeError"),
-                                {prim::StringImm("Error executing compute kernel")});
+                                StringImm("RuntimeError"),
+                                {StringImm("Error executing compute kernel")});
       return SeqStmt(ffi::Array<Stmt>{Bind(kernel_error_code, kernel_call.as_or_throw<PrimExpr>()),
                                       assert_success});
 
     } else {
-      return Evaluate(
-          Call(PrimType::Void(), kernel_symbol_global, call_args).as_or_throw<PrimExpr>());
+      return Evaluate(Call(kernel_ret_type, kernel_symbol_global, call_args));
     }
   }
 
@@ -509,7 +508,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
       TVM_FFI_ICHECK(!dyn_shmem_size.has_value())
           << "Only one tirx.dyn_smem_bytes declaration is allowed per kernel.";
       TVM_FFI_ICHECK(op->value.as<IntImmNode>()) << "tirx.dyn_smem_bytes must be an IntImm";
-      dyn_shmem_size = op->value;
+      dyn_shmem_size = op->value.as_or_throw<PrimExpr>();
     }
     if (op->attr_key == attr::thread_extent) {
       ffi::String thread_tag;
@@ -537,7 +536,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
         PrimExpr value = bind_map_.size() ? ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
                                                 op->value, f_substitute)
                                                 .as_or_throw<PrimExpr>()
-                                          : op->value;
+                                          : op->value.as_or_throw<PrimExpr>();
         thread_extent.Set(thread_tag, value);
       }
     }
@@ -807,11 +806,12 @@ class DeviceKernelMutator : public StmtExprMutator {
         // launch, but need to be replaced with call_extern.
         extern_function_call_.insert(gvar);
         ffi::Array<Expr> args;
-        args.push_back(prim::StringImm(gvar->name_hint));
+        args.push_back(StringImm(gvar->name_hint));
         for (const Expr& arg : node->args) {
           args.push_back(arg);
         }
-        return Call(node->ty, builtin::call_extern(), args);
+        Type ret_ty = IsVoidType(node->ty) ? PrimType::Void() : node->ty;
+        return Call(ret_ty, builtin::call_extern(), args);
       }
     }
 
@@ -843,7 +843,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     device_kernel_launch_.insert(gvar);
 
     ffi::Array<Expr> call_args;
-    call_args.push_back(prim::StringImm(dev_info.global_symbol));
+    call_args.push_back(StringImm(dev_info.global_symbol));
     for (const Expr& arg : args) {
       call_args.push_back(arg);
     }
@@ -856,7 +856,7 @@ class DeviceKernelMutator : public StmtExprMutator {
                               .as_or_throw<PrimExpr>());
     }
 
-    PrimType node_ty = node->ty.as_or_throw<PrimType>();
+    PrimType node_ty = IsVoidType(node->ty) ? PrimType::Void() : node->ty.as_or_throw<PrimType>();
     PrimType ret_ty = node_ty.IsVoid() ? PrimType::Int(32) : node_ty;
 
     return Call(ret_ty, builtin::tvm_call_packed(), call_args).as_or_throw<PrimExpr>();

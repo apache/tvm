@@ -27,10 +27,10 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace s_tir {

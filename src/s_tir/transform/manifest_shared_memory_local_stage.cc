@@ -26,15 +26,15 @@
  * memory. This is similar to the schedule primitive cache_read, but it bypasses the limitation
  * of requiring buffer access to be contiguous in each dimension.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
 
@@ -128,7 +128,7 @@ class IntermediateStageRewriter {
     Stmt local_stage = BufferStore(new_buffer, store->value, local_stage_indices);
 
     // Step 1: Make block and block realize
-    BufferRegion write_buffer_region = BufferRegion::FromPoint(new_buffer, local_stage_indices);
+    TensorRegion write_buffer_region = BufferRegionFromPoint(new_buffer, local_stage_indices);
     local_stage =
         SBlock(/*iter_vars=*/{}, /*reads=*/block->reads, /*writes=*/{write_buffer_region}, "",
                /*body=*/std::move(local_stage));

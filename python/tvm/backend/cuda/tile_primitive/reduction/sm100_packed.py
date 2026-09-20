@@ -45,8 +45,9 @@ With accum=True: accumulator folded into first element/pair of the reduction.
 import functools
 import operator
 
+from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion, PrimFunc
+from tvm.tirx import PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
 from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_dispatch
@@ -65,13 +66,13 @@ from .utils import (
 
 
 def _emit_reduction_local_thread_packed_add_sum(
-    dst_buffer_region: BufferRegion,
-    src_buffer_region: BufferRegion,
+    dst_buffer_region: TensorRegion,
+    src_buffer_region: TensorRegion,
     accum: bool,
     reduce_op: ReduceOpType,
     sctx: DispatchContext,
 ) -> PrimFunc:
-    dst, src = dst_buffer_region.buffer, src_buffer_region.buffer
+    dst, src = dst_buffer_region.source, src_buffer_region.source
     src_region, dst_region = src_buffer_region.region, dst_buffer_region.region
     dtype = src.dtype
 
@@ -143,13 +144,13 @@ def _emit_reduction_local_thread_packed_add_sum(
 
 
 def _emit_reduction_local_thread_3input_maxmin(
-    dst_buffer_region: BufferRegion,
-    src_buffer_region: BufferRegion,
+    dst_buffer_region: TensorRegion,
+    src_buffer_region: TensorRegion,
     accum: bool,
     reduce_op: ReduceOpType,
     sctx: DispatchContext,
 ) -> PrimFunc:
-    dst, src = dst_buffer_region.buffer, src_buffer_region.buffer
+    dst, src = dst_buffer_region.source, src_buffer_region.source
     src_region, dst_region = src_buffer_region.region, dst_buffer_region.region
     dtype = src.dtype
 

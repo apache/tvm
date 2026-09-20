@@ -23,6 +23,7 @@
 #include <tvm/s_tir/random_engine.h>
 #include <tvm/s_tir/schedule/state.h>
 #include <tvm/s_tir/schedule/trace.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/index_map.h>
 
 namespace tvm {

@@ -20,6 +20,7 @@
 #define TVM_S_TIR_SCHEDULE_IR_COMPARATOR_H_
 
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <string>
 #include <unordered_map>
@@ -47,15 +48,21 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
       : lhs_mod_(std::move(lhs_mod)), assert_mode_(assert_mode) {}
 
   bool Dispatch(const Expr& n, const PrimExpr& other) override;
-  bool VisitStmt(const Stmt& n, const Stmt& other) override;
+  bool Dispatch(const Stmt& n, const Stmt& other) override;
 
   bool Dispatch_(const CallNode* op, const PrimExpr& other) override;
-  bool VisitStmt_(const ForNode* op, const Stmt& other) override;
-  bool VisitStmt_(const SeqStmtNode* op, const Stmt& other) override;
-  bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) override;
-  bool VisitStmt_(const SBlockRealizeNode* op, const Stmt& other) override;
-  bool VisitStmt_(const SBlockNode* op, const Stmt& other) override;
+  bool Dispatch_(const ForNode* op, const Stmt& other) override;
+  bool Dispatch_(const SeqStmtNode* op, const Stmt& other) override;
+  bool Dispatch_(const BufferStoreNode* op, const Stmt& other) override;
+  bool Dispatch_(const SBlockRealizeNode* op, const Stmt& other) override;
+  bool Dispatch_(const SBlockNode* op, const Stmt& other) override;
 
+  bool Dispatch_(const prim::LShiftNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const prim::RShiftNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const prim::BitwiseAndNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const prim::BitwiseOrNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const prim::BitwiseXorNode* op, const PrimExpr& other) override;
+  bool Dispatch_(const prim::BitwiseNotNode* op, const PrimExpr& other) override;
   bool Dispatch_(const AddNode* op, const PrimExpr& other) override;
   bool Dispatch_(const SubNode* op, const PrimExpr& other) override;
   bool Dispatch_(const MulNode* op, const PrimExpr& other) override;
@@ -90,7 +97,7 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool DefEqual(const Var& lhs, const Var& rhs);
   bool CompareExpr(const Expr& lhs, const Expr& rhs);
   virtual bool CompareBuffer(const BufferVar& lhs, const BufferVar& rhs);
-  bool CompareBufferRegion(const BufferRegion& lhs, const BufferRegion& rhs);
+  bool CompareBufferRegion(const TensorRegion& lhs, const TensorRegion& rhs);
   bool CompareAnnotation(const std::pair<ffi::String, ffi::Any>& lhs,
                          const std::pair<ffi::String, ffi::Any>& rhs);
   bool CompareAnnotationMap(const ffi::Map<ffi::String, ffi::Any>& lhs,
@@ -110,12 +117,12 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   /*! \brief Whether it is visiting the scope block (the outermost block). */
   bool is_scope_block = true;
   /*! \brief The arithmetic analyzer for comparing LHS and RHS */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   /*!
    * \brief The arithmetic analyzer for simplifying expressions on LHS.
    *  This analyzer only contains the domains of the iterators on LHS.
    */
-  arith::Analyzer lhs_analyzer_;
+  sym::Analyzer lhs_analyzer_;
   /*! \brief Additional error messages. Only used when assert_mode is true. */
   std::vector<std::string> error_messages_;
   // variable remap if any
@@ -139,10 +146,10 @@ class AutoTensorizeComparator : public TensorizeComparator {
 
  private:
   bool DispatchDefault_(const ffi::Object* op, const PrimExpr& other) override;
-  bool VisitStmtDefault_(const ffi::Object* op, const Stmt& other) override;
+  bool DispatchDefault_(const ffi::Object* op, const Stmt& other) override;
 
-  bool VisitStmt_(const SBlockNode* op, const Stmt& other) override;
-  bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) override;
+  bool Dispatch_(const SBlockNode* op, const Stmt& other) override;
+  bool Dispatch_(const BufferStoreNode* op, const Stmt& other) override;
 
   bool Dispatch_(const TensorLoadNode* op, const PrimExpr& other) override;
 
@@ -168,7 +175,7 @@ class AutoTensorizeComparator : public TensorizeComparator {
 
  private:
   /*! \brief The domain of the inner block iters. */
-  ffi::Map<Var, arith::IntSet> inner_iter_dom_map_;
+  ffi::Map<Var, sym::IntSet> inner_iter_dom_map_;
 };
 
 }  // namespace s_tir

@@ -160,7 +160,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
       auto gvar = ffi::GetRef<GlobalVar>(gvar_ptr);
       if (auto symbol = packed_func_methods.Get(gvar)) {
         ffi::Array<Expr> cpacked_args;
-        cpacked_args.push_back(prim::StringImm(symbol.value()));
+        cpacked_args.push_back(StringImm(symbol.value()));
         for (const Expr& arg : node->args) {
           cpacked_args.push_back(arg);
         }
@@ -264,7 +264,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   Stmt body = ffi::make_object<ReturnRewriter>(v_result)
                   ->Mutate(func_ptr->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(func_ptr->body);
-  body = AttrStmt(0, attr::compute_scope, prim::StringImm(name_hint + "_compute_"), body);
+  body = AttrStmt(0, attr::compute_scope, StringImm(name_hint + "_compute_"), body);
   // Set device context
   if (need_set_device) {
     ffi::Any node = ffi::String("default");
@@ -273,8 +273,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 
     if (runtime::DeviceAPI::NeedSetDevice(target_device_type)) {
       Stmt set_device = Evaluate(Call(PrimType::Int(32), builtin::tvm_call_packed(),
-                                      {prim::StringImm(runtime::symbol::tvm_set_device),
-                                       device_type, device_id.as_or_throw<PrimExpr>()})
+                                      {StringImm(runtime::symbol::tvm_set_device), device_type,
+                                       device_id.as_or_throw<PrimExpr>()})
                                      .as_or_throw<PrimExpr>());
       body = SeqStmt({set_device, body});
     }

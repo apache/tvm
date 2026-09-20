@@ -534,7 +534,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     llvm::DISubprogram* di_subprogram_{nullptr};
     std::unordered_map<const VarNode*, llvm::Value*> var_map_;
     std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>> loop_frame_jump_tgts_;
-    arith::Analyzer analyzer_{arith::Analyzer()};
+    sym::Analyzer analyzer_{sym::Analyzer()};
     CodeGenCPU* parent_;
   };
 
@@ -555,7 +555,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // $xxx_compute_ functions are not global. They should be marked as static (via InternalLinkage)
   // to call them correctly on MIPS platform (CALL16 issue)
   // Linkage ld Error: CALL16 reloc at 0x290 not against global symbol
-  const prim::StringImmNode* value = op->value.as<prim::StringImmNode>();
+  const StringImmNode* value = op->value.as<StringImmNode>();
   TVM_FFI_ICHECK(value != nullptr);
   llvm::Function* fcompute = llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
                                                     MakeStringRef(value->value), module_.get());
@@ -604,7 +604,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
       CreateDebugFunction(MakeStringRef(value->value), debug_param_types, PrimType::Int(32));
   auto* compute_entry = llvm::BasicBlock::Create(*ctx, "entry", function_);
   builder_->SetInsertPoint(compute_entry);
-  this->VisitStmt(op->body);
+  this->Dispatch(op->body);
   builder_->CreateRet(ConstInt32(0));
   builder_->SetInsertPoint(compute_call_end);
 
@@ -685,12 +685,12 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
       builder_->CreateInBoundsGEP(t_tvm_parallel_group_env_, penv, {ConstInt32(0), ConstInt32(1)}),
       "num_task");
   par_env.penv = penv;
-  auto new_analyzer = arith::Analyzer();
+  auto new_analyzer = sym::Analyzer();
   std::swap(function_, f);
   std::swap(parallel_env_, par_env);
   std::swap(analyzer_, new_analyzer);
   std::swap(var_map_, new_vmap);
-  this->VisitStmt(body);
+  this->Dispatch(body);
   builder_->CreateRet(ConstInt32(0));
   // swap the var map back, now we are back on track.
   std::swap(var_map_, new_vmap);
@@ -779,7 +779,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<Expr>&
                                                          const Type& r_type, const int64_t begin,
                                                          const int64_t end, bool use_env_lookup) {
   std::string func_name = [&]() {
-    auto ptr = args[0].as<prim::StringImmNode>();
+    auto ptr = args[0].as<StringImmNode>();
     TVM_FFI_ICHECK(ptr) << "Expected first argument of Call to be "
                         << "a string containing the callee's name, "
                         << "but instead contained " << args[0];
@@ -862,15 +862,17 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<Expr>&
 llvm::Value* CodeGenCPU::CreateCallPacked(const CallNode* op) {
   TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
   bool use_string_lookup = op->op.same_as(tirx::builtin::tvm_call_packed_lowered());
-  PackedCall pc = MakeCallPackedLowered(op->args, op->ty, op->args[2].as<IntImmNode>()->value,
-                                        op->args[3].as<IntImmNode>()->value, use_string_lookup);
+  PackedCall pc = MakeCallPackedLowered(
+      op->args, op->ty, static_cast<int64_t>(op->args[2].as<IntImmNode>()->value),
+      static_cast<int64_t>(op->args[3].as<IntImmNode>()->value), use_string_lookup);
   return pc.ret_value;
 }
 
 llvm::Value* CodeGenCPU::CreateCallTracePacked(const CallNode* op) {
   TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
-  PackedCall pc = MakeCallPackedLowered(op->args, op->ty, op->args[2].as<IntImmNode>()->value,
-                                        op->args[3].as<IntImmNode>()->value, true);
+  PackedCall pc = MakeCallPackedLowered(
+      op->args, op->ty, static_cast<int64_t>(op->args[2].as<IntImmNode>()->value),
+      static_cast<int64_t>(op->args[3].as<IntImmNode>()->value), true);
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   // Get traced value.
   llvm::Value* traced_value = MakeValue(op->args[4]);
@@ -1039,7 +1041,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     return ConstInt32(-1);
   } else if (op->op.same_as(tirx::builtin::tvm_struct_get())) {
     TVM_FFI_ICHECK_EQ(args.size(), 3U);
-    int kind = args[2].as<IntImm>().value()->value;
+    int kind = args[2].as<IntImm>().value()->value.as<int>().value();
     Type op_type = op->ty;
     TypedPointer ref = CreateStructRefPtr(op_type, MakeValue(args[0]), MakeValue(args[1]), kind);
     if (kind == tirx::builtin::kDLTensorAddr) {
@@ -1067,7 +1069,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     return struct_value;
   } else if (op->op.same_as(tirx::builtin::tvm_struct_set())) {
     TVM_FFI_ICHECK_EQ(args.size(), 4U);
-    int kind = args[2].as<IntImm>().value()->value;
+    int kind = args[2].as<IntImm>().value()->value.as<int>().value();
     llvm::Value* value = MakeValue(args[3]);
     TypedPointer ref =
         CreateStructRefPtr(args[3]->ty, MakeValue(args[0]), MakeValue(args[1]), kind);
@@ -1089,11 +1091,12 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     return ConstInt32(0);
   } else if (op->op.same_as(tirx::builtin::tvm_stack_alloca())) {
     TVM_FFI_ICHECK_EQ(args.size(), 2U);
-    std::string type = args[0].as<prim::StringImm>().value()->value;
+    std::string type = args[0].as<StringImm>().value()->value;
     return WithFunctionEntry([&]() -> llvm::AllocaInst* {
-      const int64_t* pval = as_const_int(args[1].as_or_throw<PrimExpr>());
-      TVM_FFI_ICHECK(pval) << "require stack alloca to contain constant value";
-      llvm::Value* num = ConstInt32(pval[0]);
+      const auto* imm = args[1].as_or_throw<PrimExpr>().as<IntImmNode>();
+      auto pval = imm ? imm->value.as<int64_t>() : std::nullopt;
+      TVM_FFI_ICHECK(pval.has_value()) << "require stack alloca to contain constant value";
+      llvm::Value* num = ConstInt32(*pval);
       if (type == "shape") {
         return builder_->CreateAlloca(t_tvm_shape_index_, num);
       } else if (type == "tvm_ffi_any") {
@@ -1113,7 +1116,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
   }
 }
 
-void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
+void CodeGenCPU::Dispatch_(const AssertStmtNode* op) {
   EmitDebugLocation(op);
   llvm::Value* cond = MakeValue(op->condition);
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
@@ -1146,10 +1149,10 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
   builder_->CreateRet(ConstInt32(-1));
   // otherwise set it to be new end.
   builder_->SetInsertPoint(end_block);
-  CodeGenLLVM::VisitStmt_(op);
+  CodeGenLLVM::Dispatch_(op);
 }
 
-void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
+void CodeGenCPU::Dispatch_(const AttrStmtNode* op) {
   EmitDebugLocation(op);
   if (op->attr_key == tirx::attr::compute_scope) {
     this->CreateComputeScope(op);
@@ -1158,7 +1161,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
       TVM_FFI_ICHECK(parallel_env_.penv != nullptr)
           << "Pragma parallel_stride_pattern only valid in parallel launch";
       parallel_env_.stride_pattern = true;
-      this->VisitStmt(op->body);
+      this->Dispatch(op->body);
     } else if (op->attr_key == "pragma_parallel_launch_point") {
       CreateParallelLaunch(op->body, 0, "pragma_parallel");
     } else if (op->attr_key == "pragma_parallel_barrier_when_finish") {
@@ -1167,28 +1170,28 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
       TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
           << "Cannot not place within parallel loop as the workload may differ, "
           << " place it between parallel and parallel_launch_point";
-      this->VisitStmt(op->body);
+      this->Dispatch(op->body);
       auto bar_callee =
           llvm::FunctionCallee(ftype_tvm_parallel_barrier_, RuntimeTVMParallelBarrier());
       builder_->CreateCall(bar_callee, {MakeValue(parallel_env_.task_id), parallel_env_.penv});
     } else if (op->attr_key == tirx::attr::pragma_import_llvm) {
-      const prim::StringImmNode* value = op->value.as<prim::StringImmNode>();
+      const StringImmNode* value = op->value.as<StringImmNode>();
       TVM_FFI_ICHECK(value != nullptr);
       this->HandleImport(value->value);
-      this->VisitStmt(op->body);
+      this->Dispatch(op->body);
     } else {
       LOG(WARNING) << "Unknown pragma " << op->attr_key;
-      this->VisitStmt(op->body);
+      this->Dispatch(op->body);
     }
   } else {
-    CodeGenLLVM::VisitStmt_(op);
+    CodeGenLLVM::Dispatch_(op);
   }
 }
 
-void CodeGenCPU::VisitStmt_(const ForNode* op) {
+void CodeGenCPU::Dispatch_(const ForNode* op) {
   EmitDebugLocation(op);
   if (op->kind == ForKind::kSerial || op->kind == ForKind::kUnrolled) {
-    CodeGenLLVM::VisitStmt_(op);
+    CodeGenLLVM::Dispatch_(op);
   } else if (op->kind == ForKind::kParallel) {
     TVM_FFI_ICHECK(is_zero(op->min))
         << "Parallel launch require canonical loop with zero start index";

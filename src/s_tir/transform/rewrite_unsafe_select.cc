@@ -25,10 +25,10 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op_attr_types.h>
-#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace s_tir {
@@ -89,6 +89,12 @@ class UnsafeExprDetector : public tirx::ExprFunctor<bool(const Expr& n)> {
   bool Dispatch_(const prim::GENode* op) final { return BinaryOp(op); }
   bool Dispatch_(const prim::AndNode* op) final { return BinaryOp(op); }
   bool Dispatch_(const prim::OrNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const prim::LShiftNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const prim::RShiftNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const prim::BitwiseAndNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const prim::BitwiseOrNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const prim::BitwiseXorNode* op) final { return BinaryOp(op); }
+  bool Dispatch_(const prim::BitwiseNotNode* op) final { return Dispatch(op->a); }
   bool Dispatch_(const prim::NotNode* op) final { return Dispatch(op->a); }
   bool Dispatch_(const prim::LetNode* op) final {
     return Dispatch(op->body) || Dispatch(op->value);
@@ -107,7 +113,7 @@ class UnsafeExprDetector : public tirx::ExprFunctor<bool(const Expr& n)> {
   bool Dispatch_(const VarNode* op) final { return false; }
   bool Dispatch_(const IntImmNode* op) final { return false; }
   bool Dispatch_(const FloatImmNode* op) final { return false; }
-  bool Dispatch_(const prim::StringImmNode* op) final { return false; }
+  bool Dispatch_(const StringImmNode* op) final { return false; }
 
  private:
   template <typename T>

@@ -45,7 +45,7 @@ def default_s_tir_pipeline():
             s_tir.transform.LowerAutoCopy(),
             s_tir.transform.UnifyThreadBinding(),
             s_tir.transform.LowerMatchBuffer(),
-            tirx.transform.StmtSimplify(),
+            s_tir.transform.StmtSimplify(),
             s_tir.transform.InjectPermutedLayout(),
             s_tir.transform.AnnotateIrregularLoop(),
             s_tir.transform.InjectSoftwarePipeline(),

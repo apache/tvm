@@ -111,7 +111,7 @@ def test_match_cast() -> None:
     b0 = rx.MatchCast(var, shape, R.Tensor([m, n], "int32"))
     b0_str = dump_ast(b0)
     assert b0_str.startswith("MatchCast(")
-    assert "Constant" in b0_str
+    assert "GenericConst" in b0_str
     assert "Expr(value=`m" in b0_str
     assert "Expr(value=`n" in b0_str
     assert "16" in b0_str
@@ -137,7 +137,7 @@ def test_var_binding() -> None:
     assert b0_str.startswith("VarBinding(")
     assert 'var=Var(name="v0")' in b0_str
     assert "value=" in b0_str
-    assert "Constant(" in b0_str
+    assert "GenericConst(" in b0_str
 
 
 def test_binding_block() -> None:
@@ -188,9 +188,9 @@ def test_seq_expr() -> None:
     assert "blocks=" in seqe_str
     assert "BindingBlock(" in seqe_str
     assert "VarBinding(" in seqe_str
-    assert "Constant(" in seqe_str
+    assert "GenericConst(" in seqe_str
     assert 'var=Var(name="foo")' in seqe_str
-    assert "value=Constant(data" in strip_whitespace(seqe_str)
+    assert "value=GenericConst(value" in strip_whitespace(seqe_str)
     assert "body=" in seqe_str
 
 
@@ -661,24 +661,24 @@ def test_prim_value():
 
 
 def test_string_imm():
-    string_imm = rx.StringImm("test")
+    string_imm = tvm.ir.StringImm("test")
     str_str = strip_whitespace(dump_ast(string_imm))
     assert str_str == strip_whitespace(
         """
         StringImm(
             value="test",
-            ty=AnyType()
+            ty=StringType()
         )
     """
     )
 
 
 def test_datatype_imm():
-    data_type_imm = rx.DataTypeImm("int32")
+    data_type_imm = tvm.ir.GenericConst(tvm.DataType("int32"), tvm.relax.AnyType())
     data_type_str = strip_whitespace(dump_ast(data_type_imm))
     assert data_type_str == strip_whitespace(
         """
-        DataTypeImm(
+        GenericConst(
             value=int32,
             ty=AnyType()
         )

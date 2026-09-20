@@ -26,8 +26,8 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -36,19 +36,19 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-class SplitPrimFuncLayoutRewrite : public StmtExprMutator {
+class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
  public:
-  using StmtExprMutator::Mutate;
+  using s_tir::StmtExprMutator::Mutate;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
   }
 
   explicit SplitPrimFuncLayoutRewrite(const PrimFunc& func) : original_func_(func) {}
   std::tuple<ffi::Optional<PrimFunc>, PrimFunc> Transform(const PrimFunc& func) {
-    TVM_FFI_ICHECK(func->body.as<SBlockRealizeNode>())
+    TVM_FFI_ICHECK(func->body.as<s_tir::SBlockRealizeNode>())
         << "The body of the primfunc should be a root block.";
-    const auto& block = func->body.as<SBlockRealizeNode>()->block;
+    const auto& block = func->body.as<s_tir::SBlockRealizeNode>()->block;
     visit_root_block(block.get());
     if (layout_rewrite_preproc_stmts_.size() > 0) {
       return std::make_tuple(create_layout_rewrite_preproc_func(), create_compute_func());
@@ -83,12 +83,12 @@ class SplitPrimFuncLayoutRewrite : public StmtExprMutator {
         << "There should be at least one layout rewrite preproc stmt.";
     Stmt body = layout_rewrite_preproc_stmts_.size() == 1 ? layout_rewrite_preproc_stmts_[0]
                                                           : SeqStmt(layout_rewrite_preproc_stmts_);
-    body = SBlockRealize(
+    body = s_tir::SBlockRealize(
         /*iter_values=*/ffi::Array<PrimExpr>(),
         /*predicate=*/IntImm::Bool(true),
         /*block=*/
-        SBlock(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
-               /*name_hint=*/"root", body));
+        s_tir::SBlock(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
+                      /*name_hint=*/"root", body));
 
     ffi::Map<ffi::String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
@@ -115,7 +115,7 @@ class SplitPrimFuncLayoutRewrite : public StmtExprMutator {
 
     // Step 2: Create the body for the new PrimFunc
     Stmt body = compute_stmts_.size() == 1 ? compute_stmts_[0] : SeqStmt(compute_stmts_);
-    SBlock original_block = original_func_->body.as<SBlockRealizeNode>()->block;
+    s_tir::SBlock original_block = original_func_->body.as<s_tir::SBlockRealizeNode>()->block;
     ffi::Array<BufferVar> alloc_buffers;
     for (const auto& buffer : original_block->alloc_buffers) {
       auto it =
@@ -126,14 +126,14 @@ class SplitPrimFuncLayoutRewrite : public StmtExprMutator {
       }
     }
 
-    body = SBlockRealize(
+    body = s_tir::SBlockRealize(
         /*iter_values=*/ffi::Array<PrimExpr>(),
         /*predicate=*/IntImm::Bool(true),
         /*block=*/
-        SBlock(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
-               /*name_hint=*/"root", body,
-               /*init=*/std::nullopt,
-               /*alloc_buffers=*/alloc_buffers));
+        s_tir::SBlock(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
+                      /*name_hint=*/"root", body,
+                      /*init=*/std::nullopt,
+                      /*alloc_buffers=*/alloc_buffers));
 
     ffi::Map<ffi::String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
@@ -149,7 +149,7 @@ class SplitPrimFuncLayoutRewrite : public StmtExprMutator {
     return s_tir::RenewDefs(func);
   }
 
-  void visit_root_block(const SBlockNode* op) {
+  void visit_root_block(const s_tir::SBlockNode* op) {
     Stmt body = op->body;
     if (const auto* seq_stmt = body.as<SeqStmtNode>()) {
       for (const auto& stmt : seq_stmt->seq) {
@@ -169,10 +169,10 @@ class SplitPrimFuncLayoutRewrite : public StmtExprMutator {
           << "There should be a compute block if there is only one subtree under the root.";
     }
   }
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
-                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                       .as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
+    s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
+                              .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                              .as_or_throw<s_tir::SBlock>();
     auto it = op->annotations.find(s_tir::attr::meta_schedule_layout_rewrite_preproc);
     bool is_layout_rewrite_preproc =
         it != op->annotations.end() && is_one((*it).second.cast<PrimExpr>());
@@ -196,7 +196,7 @@ class SplitPrimFuncLayoutRewrite : public StmtExprMutator {
           << "There should be no alloc buffer in the layout rewrite";
       TVM_FFI_ICHECK(op->match_buffers.empty())
           << "There should be no match buffer in the layout rewrite";
-      const BufferVar& preproc_buffer = op->reads[0]->buffer;
+      const BufferVar& preproc_buffer = op->reads[0]->source.as_or_throw<tvm::tirx::BufferVar>();
       int buffer_index = -1;
       for (size_t i = 0; i < original_func_->params.size(); ++i) {
         BufferVar buffer = original_func_->params[i].as_or_throw<tvm::tirx::BufferVar>();
@@ -208,13 +208,14 @@ class SplitPrimFuncLayoutRewrite : public StmtExprMutator {
       TVM_FFI_ICHECK(buffer_index != -1)
           << "The preproc buffer is not found in the original primfunc.";
       rewrite_infos_.push_back(
-          RewriteInfo{buffer_index, op->reads[0]->buffer, op->writes[0]->buffer});
+          RewriteInfo{buffer_index, op->reads[0]->source.as_or_throw<tvm::tirx::BufferVar>(),
+                      op->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>()});
 
       auto new_annotations = op->annotations;
       new_annotations.erase(s_tir::attr::meta_schedule_layout_rewrite_preproc);
-      auto n = ffi::make_object<SBlockNode>(*block.get());
+      auto n = ffi::make_object<s_tir::SBlockNode>(*block.get());
       n->annotations = new_annotations;
-      return SBlock(n);
+      return s_tir::SBlock(n);
     }
     return block;
   }

@@ -24,7 +24,7 @@
 #ifndef TVM_TOPI_NN_POOLING_H_
 #define TVM_TOPI_NN_POOLING_H_
 
-#include <tvm/arith/analyzer.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/topi/detail/pad_utils.h>
 #include <tvm/topi/nn.h>
 #include <tvm/topi/reduction.h>
@@ -86,7 +86,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   ffi::Array<PrimExpr> pad_after(std::vector<PrimExpr>(x->shape.size(), 0));
   pad_after.Set(height_axis, pad_bottom);
   pad_after.Set(width_axis, pad_right);
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   auto out_height =
       analyzer->Simplify((height - kernel_height + pad_top + pad_bottom) / stride_height + 1);
   auto out_width =
@@ -100,12 +100,13 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);
 
-  const int64_t* padding_h0 = as_const_int(pad_top);
-  const int64_t* padding_w0 = as_const_int(pad_left);
-  const int64_t* padding_h1 = as_const_int(pad_bottom);
-  const int64_t* padding_w1 = as_const_int(pad_right);
-  const bool do_pad = ((padding_h0 && *padding_h0) || (padding_w0 && *padding_w0)) ||
-                      ((padding_h1 && *padding_h1) || (padding_w1 && *padding_w1));
+  const auto* padding_h0 = pad_top.as<IntImmNode>();
+  const auto* padding_w0 = pad_left.as<IntImmNode>();
+  const auto* padding_h1 = pad_bottom.as<IntImmNode>();
+  const auto* padding_w1 = pad_right.as<IntImmNode>();
+  const bool do_pad =
+      ((padding_h0 && padding_h0->value != 0) || (padding_w0 && padding_w0->value != 0)) ||
+      ((padding_h1 && padding_h1->value != 0) || (padding_w1 && padding_w1->value != 0));
 
   if (pool_type == kMaxPool) {
     ffi::Array<PrimExpr> ravel_shape{data_shape.begin(), data_shape.end()};
@@ -562,16 +563,16 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
       pad_tail[i] += offset[i];
     }
 
-    const int64_t* padding0 = as_const_int(pad_head[i]);
-    const int64_t* padding1 = as_const_int(pad_tail[i]);
-    do_pad = do_pad || (padding0 && *padding0) || (padding1 && *padding1);
+    const auto* padding0 = pad_head[i].as<IntImmNode>();
+    const auto* padding1 = pad_tail[i].as<IntImmNode>();
+    do_pad = do_pad || (padding0 && padding0->value != 0) || (padding1 && padding1->value != 0);
 
     daxis.push_back(tvm::te::reduce_axis(Range(0, kernel[i]), "rv" + std::to_string(i)));
 
     pad_before.Set(ii, pad_head[i]);
     pad_after.Set(ii, pad_tail[i]);
 
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
 
     PrimExpr numerator =
         data_shape[ii] - (kernel[i] - 1) * dilation[i] - 1 + pad_head[i] + pad_tail[i];

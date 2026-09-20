@@ -39,8 +39,8 @@ from .utils import find_contiguous_region, to_tile_layout
 def _is_shared_to_shared(op_call: TilePrimitiveCall) -> bool:
     """Check if both src and dst are in shared memory."""
     op_call = TilePrimitiveCall.downcast(op_call)
-    src_scope = op_call.src.buffer.scope()
-    dst_scope = op_call.dst.buffer.scope()
+    src_scope = op_call.src.source.scope()
+    dst_scope = op_call.dst.source.scope()
     return src_scope.startswith("shared") and dst_scope.startswith("shared")
 
 
@@ -68,8 +68,8 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     # Extract buffer regions
     dst_buffer_region = op_call.dst
     src_buffer_region = op_call.src
-    src_buf: Buffer = src_buffer_region.buffer
-    dst_buf: Buffer = dst_buffer_region.buffer
+    src_buf: Buffer = src_buffer_region.source
+    dst_buf: Buffer = dst_buffer_region.source
 
     src_st = [r.min for r in src_buffer_region.region]
     src_ext = [r.extent for r in src_buffer_region.region]

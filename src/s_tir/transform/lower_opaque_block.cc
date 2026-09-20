@@ -24,10 +24,10 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/stmt_functor.h>
 
-#include "../../tirx/transform/ir_utils.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -82,7 +82,7 @@ class OpaqueBlockLower : public StmtExprMutator {
       body = SeqStmt::Flatten(AllocBuffer(buffer, allocate_annotations), std::move(body));
     }
     // Step 4. Handle annotations, block annotations are not preserved by default.
-    std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
+    std::vector<std::pair<std::string, Expr>> pragma_attrs;
     HandleAnnotations(new_block->annotations, &pragma_attrs, /*is_block=*/true);
     for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {
       body = AttrStmt(0, it->first, it->second, std::move(body));
@@ -103,7 +103,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
 
     // Step 3. Handle annotations
-    std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
+    std::vector<std::pair<std::string, Expr>> pragma_attrs;
     ffi::Map<ffi::String, ffi::Any> new_annotations =
         HandleAnnotations(op->annotations, &pragma_attrs, /*is_block=*/false);
     // Step 4. Create new For loop accordingly
@@ -144,16 +144,16 @@ class OpaqueBlockLower : public StmtExprMutator {
                     /*body=*/std::move(body));
   }
 
-  /*! \brief Convert attr value from annotation map into PrimExpr. */
-  PrimExpr ConvertAttrValue(const ffi::String& key, const Any& obj) {
-    if (auto expr = obj.try_cast<PrimExpr>()) {
+  /*! \brief Convert attr value from annotation map into Expr. */
+  Expr ConvertAttrValue(const ffi::String& key, const Any& obj) {
+    if (auto expr = obj.try_cast<Expr>()) {
       return expr.value();
     } else if (auto str = obj.try_cast<ffi::String>()) {
       return std::move(StringImm(str.value()));
     } else {
       TVM_FFI_THROW(InternalError) << "Illegal attribute of key " << key << ", value type "
                                    << obj.GetTypeKey() << " not supported";
-      return PrimExpr();
+      return Expr();
     }
   }
 
@@ -167,7 +167,7 @@ class OpaqueBlockLower : public StmtExprMutator {
    */
   ffi::Map<ffi::String, ffi::Any> HandleAnnotations(
       const ffi::Map<ffi::String, ffi::Any>& annotations,
-      std::vector<std::pair<std::string, PrimExpr>>* pragma_attrs, bool is_block) {
+      std::vector<std::pair<std::string, Expr>>* pragma_attrs, bool is_block) {
     ffi::Map<ffi::String, ffi::Any> preserved_annotations;
     pragma_attrs->clear();
     for (const auto& kv : annotations) {

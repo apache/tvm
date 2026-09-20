@@ -52,8 +52,8 @@ class CodeGenMetal final : public CodeGenC {
   void PrintVecElemStore(const std::string& vec, const PrimType& t, int i,
                          const std::string& value) final;
   // overload visitor
-  void VisitStmt_(const BindNode* op) final;                              // NOLINT(*)
-  void VisitStmt_(const AllocBufferNode* op) final;                       // NOLINT(*)
+  void Dispatch_(const BindNode* op) final;                               // NOLINT(*)
+  void Dispatch_(const AllocBufferNode* op) final;                        // NOLINT(*)
   void Dispatch_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
   void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const CallNode* op, std::ostream& os) final;             // NOLINT(*)

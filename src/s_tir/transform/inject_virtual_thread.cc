@@ -27,14 +27,14 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
 
-#include "../../tirx/ir_mutator_with_analyzer.h"
-#include "../../tirx/transform/ir_utils.h"
+#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -230,13 +230,13 @@ class VarTouchedAnalysis : public StmtExprVisitor {
 
 // Inject virtual thread loop
 // rewrite the buffer access pattern when necessary.
-class VTInjector : public tirx::IRMutatorWithAnalyzer {
+class VTInjector : public s_tir::IRMutatorWithAnalyzer {
  public:
-  using tirx::IRMutatorWithAnalyzer::Mutate;
-  using tirx::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::IRMutatorWithAnalyzer::Mutate;
+  using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
   // constructor
-  VTInjector(arith::AnalyzerObj* analyzer, Var var, int num_threads,
+  VTInjector(sym::AnalyzerObj* analyzer, Var var, int num_threads,
              const std::unordered_set<const VarNode*>& touched_var, bool allow_share)
       : IRMutatorWithAnalyzer(analyzer),
         var_(var),
@@ -260,10 +260,13 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
     return result;
   }
   // Variable
-  UnchangedOr<Expr> Mutate_(const BufferRegionNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
+    if (!op->source.as<BufferVar>()) {
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
     auto region = Mutate(op->region).as_or_throw<UnchangedOr<ffi::Array<Range>>>();
     if (region.UnchangedOrSameAs(op->region)) return ffi::Unchanged();
-    BufferRegion node = ffi::GetRef<BufferRegion>(op);
+    TensorRegion node = ffi::GetRef<TensorRegion>(op);
     node.CopyOnWrite()->region = std::move(region).ValueUnchecked();
     return node;
   }
@@ -421,7 +424,7 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     auto value_result = this->Mutate(op->value, inplace_mode);
     bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
-    PrimExpr value = std::move(value_result).ValueOrUnchanged(op->value);
+    Expr value = std::move(value_result).ValueOrUnchanged(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     } else {
@@ -683,10 +686,10 @@ class VTInjector : public tirx::IRMutatorWithAnalyzer {
    */
 };
 
-class VirtualThreadInjector : public tirx::IRMutatorWithAnalyzer {
+class VirtualThreadInjector : public s_tir::IRMutatorWithAnalyzer {
  public:
-  using tirx::IRMutatorWithAnalyzer::Mutate;
-  using tirx::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::IRMutatorWithAnalyzer::Mutate;
+  using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
   using IRMutatorWithAnalyzer::IRMutatorWithAnalyzer;
 
@@ -696,7 +699,7 @@ class VirtualThreadInjector : public tirx::IRMutatorWithAnalyzer {
     if (op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       bool allow_share = std::string(iv->thread_tag).substr(0, 7) == "vthread";
-      int nthread = static_cast<int>(op->value.as<IntImmNode>()->value);
+      int nthread = op->value.as<IntImmNode>()->value.as<int>().value();
       auto vs = ffi::make_object<VarTouchedAnalysis>();
       auto touched = vs->TouchedVar(op->body, iv->var.get());
       auto injector =
@@ -714,12 +717,12 @@ Pass InjectVirtualThread() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
 
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
 
     n->body = ffi::make_object<VirtualThreadInjector>(analyzer)
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(std::move(n->body));
-    n->body = ConvertSSA(std::move(n->body));
+    n->body = s_tir::ConvertSSA(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectVirtualThread", {});

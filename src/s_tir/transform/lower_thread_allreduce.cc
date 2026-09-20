@@ -21,17 +21,17 @@
  *  Lower allreduce to device implementable ir.
  * \file lower_thread_allreduce.cc
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
 
@@ -268,7 +268,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       if (e.scope.rank == 1) {
         const auto* ptr = attr->value.as<IntImmNode>();
         TVM_FFI_ICHECK(ptr) << "Need constant extent for reduce set " << iv;
-        e.extent = static_cast<int>(ptr->value);
+        e.extent = ptr->value.as<int>().value();
         // ignore variables equal to 0
         if (e.extent == 1) {
           continue;
@@ -881,7 +881,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   // The load remap
   std::unordered_map<const VarNode*, PrimExpr> load_remap_;
   // Internal analyzer
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 
  public:
   const VarNode* GetAllocationKey(const VarNode* buffer) const {

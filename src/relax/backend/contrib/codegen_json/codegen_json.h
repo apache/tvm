@@ -127,7 +127,7 @@ class OpAttrExtractor {
           if (auto opt_int = (*an)[i].try_cast<int64_t>()) {
             attr.push_back(opt_int.value());
           } else if (const auto* im = (*an)[i].as<IntImmNode>()) {
-            attr.push_back(im->value);
+            attr.push_back(static_cast<int64_t>(im->value));
           }
         }
         SetNodeAttr(key, std::move(attr));
@@ -234,7 +234,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
    * \brief Constructor
    * \param constant_names The names of all constants in the original module.
    */
-  explicit JSONSerializer(const ffi::Map<Constant, ffi::String>& constant_names)
+  explicit JSONSerializer(const ffi::Map<GenericConst, ffi::String>& constant_names)
       : constant_names_(std::move(constant_names)) {}
 
   void serialize(Function func) {
@@ -387,10 +387,10 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
     return {};
   }
 
-  NodeEntries VisitExpr_(const ConstantNode* cn) {
-    auto name = constant_names_.find(ffi::GetRef<Constant>(cn));
+  NodeEntries VisitExpr_(const GenericConstNode* cn) {
+    auto name = constant_names_.find(ffi::GetRef<GenericConst>(cn));
     TVM_FFI_ICHECK(name != constant_names_.end())
-        << "Cannot find the name of the constant: " << ffi::GetRef<Constant>(cn);
+        << "Cannot find the name of the constant: " << ffi::GetRef<GenericConst>(cn);
     constants_used_.push_back((*name).second);
     auto node = std::make_shared<JSONGraphNode>((*name).second, "const" /* op_type_ */);
     return AddNode(node, ffi::GetRef<Expr>(cn));
@@ -495,7 +495,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   /*! \brief The list of required constants, ordered. */
   ffi::Array<ffi::String> constants_used_;
   /*! \brief The names of all constants in the original module. */
-  const ffi::Map<Constant, ffi::String> constant_names_;
+  const ffi::Map<GenericConst, ffi::String> constant_names_;
 };
 
 }  // namespace contrib

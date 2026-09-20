@@ -20,11 +20,12 @@
 #ifndef TVM_RELAX_DISTRIBUTED_AXIS_GROUP_GRAPH_H_
 #define TVM_RELAX_DISTRIBUTED_AXIS_GROUP_GRAPH_H_
 
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/relax/distributed/type.h>
 #include <tvm/relax/expr.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
 #include <limits>
@@ -59,13 +60,13 @@ class BufferAxisHash {
  * \return The iter var whose extent to be changed
  */
 Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
-                            const arith::Analyzer& analyzer);
+                            const sym::Analyzer& analyzer);
 
 /*!
  * \brief Construct an axis group graph from a PrimFunc. Two buffer axis are connected if they
  * are accessed by the same index.
  */
-class BufferAxisGraphExtractor : public StmtExprVisitor {
+class BufferAxisGraphExtractor : public s_tir::StmtExprVisitor {
  public:
   static std::vector<std::vector<TIRVarAxis>> GetTIRVarAxisGraph(const PrimFunc& prim_func) {
     auto extractor = ffi::make_object<BufferAxisGraphExtractor>();
@@ -119,21 +120,21 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     buffer_access_indices_.push_back({op->buffer, op->indices});
 
     return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     buffer_access_indices_.push_back({op->source.as_or_throw<tvm::tirx::BufferVar>(), op->indices});
 
     return std::nullopt;
   }
 
   bool Match(PrimExpr a, PrimExpr buffer_shape_a, PrimExpr b, PrimExpr buffer_shape_b,
-             const arith::Analyzer& analyzer) {
+             const sym::Analyzer& analyzer) {
     if (b.as<PrimVar>()) {
       std::swap(a, b);
       std::swap(buffer_shape_a, buffer_shape_b);
@@ -146,7 +147,7 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
     analyzer->Bind(iter_var_range_);
     b = analyzer->Simplify(b);
     // index var `a` must access whole range of a specific buffer dimension
-    arith::IntSet intset_b = arith::EvalSet(b, arith::AsIntSet(iter_var_range_));
+    sym::IntSet intset_b = sym::EvalSet(b, sym::AsIntSet(iter_var_range_));
     if (!analyzer->CanProveEqual(buffer_shape_a, iter_var_range_[var]->extent) ||
         !intset_b.MatchRange(Range::FromMinExtent(0, buffer_shape_b))) {
       return false;
@@ -158,17 +159,17 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
     return true;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* op) final {
     if (op->name_hint == "root") {
-      return StmtExprVisitor::Visit_(op);
+      return s_tir::StmtExprVisitor::Visit_(op);
     }
     buffer_access_indices_.clear();
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     iter_var_range_.clear();
     for (const auto& iter_var : op->iter_vars) {
       iter_var_range_.Set(iter_var->var, iter_var->dom);
     }
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     for (const auto& access_pr : buffer_access_indices_) {
       BufferVar buffer = access_pr.first;
       ffi::Array<PrimExpr> indices = access_pr.second;
@@ -223,7 +224,7 @@ struct Axis {
 
   Axis(const ExprNode* tensor, int dim, int tuple_index = 0)
       : tensor(tensor), dim(dim), tuple_index(tuple_index) {
-    TVM_FFI_ICHECK(tensor->IsInstance<ConstantNode>() || tensor->IsInstance<VarNode>());
+    TVM_FFI_ICHECK(tensor->IsInstance<GenericConstNode>() || tensor->IsInstance<VarNode>());
   }
 
   bool operator==(const Axis& other) const {

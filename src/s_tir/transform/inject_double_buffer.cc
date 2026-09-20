@@ -27,11 +27,11 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
-#include "../../tirx/transform/ir_utils.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -109,7 +109,8 @@ class DoubleBufferDetector : public StmtExprVisitor {
   }
 
   // Declared regions carry bounds, not opaque runtime accesses.
-  ffi::Optional<VisitInterrupt> Visit_(const BufferRegionNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorRegionNode* op) final {
+    if (!op->source.as<BufferVar>()) return StmtExprVisitor::Visit_(op);
     for (const Range& range : op->region) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
@@ -160,7 +161,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     for (const VarNode* v : detector->touched_) {
       dbuffer_info_[v] = StorageEntry();
     }
-    return ConvertSSA(Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt)));
+    return s_tir::ConvertSSA(Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt)));
   }
 
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
@@ -341,10 +342,13 @@ class DoubleBufferInjector : public StmtExprMutator {
     return buf;
   }
 
-  UnchangedOr<Expr> Mutate_(const BufferRegionNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
+    if (!op->source.as<BufferVar>()) {
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
     auto region = Mutate(op->region).as_or_throw<UnchangedOr<ffi::Array<Range>>>();
     if (region.UnchangedOrSameAs(op->region)) return ffi::Unchanged();
-    BufferRegion node = ffi::GetRef<BufferRegion>(op);
+    TensorRegion node = ffi::GetRef<TensorRegion>(op);
     node.CopyOnWrite()->region = std::move(region).ValueUnchecked();
     return node;
   }
@@ -389,7 +393,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     vmap[e.switch_write_var.get()] = indexmod(loop_shift, two);
     body = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(body, map_var).as_or_throw<Stmt>();
     body = AttrStmt(GetRemappedBuffer(BufferVar(buffer), e.stride).data(),
-                    s_tir::attr::double_buffer_write, 1, body);
+                    s_tir::attr::double_buffer_write, IntImm::Int32(1), body);
     body = IfThenElse(loop_shift < e.loop->extent, body);
     return body;
   }

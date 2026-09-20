@@ -24,10 +24,10 @@
 
 #include "create.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/sym/analyzer.h>
 
 #include <string>
 #include <utility>
@@ -383,7 +383,7 @@ Type InferTypeArange(const Call& call, const BlockBuilder& ctx) {
         tvm::prim::cast(tvm::PrimType::Int(64),
                         tvm::ceil(tvm::prim::cast(tvm::PrimType::Float(32), end - start) / step));
   }
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   num_elem = analyzer->Simplify(num_elem);
   return TensorType(ShapeExpr({num_elem}), PrimType(dtype));
 }
@@ -432,7 +432,7 @@ Type InferTypeHammingWindow(const Call& call, const BlockBuilder& ctx) {
   };
   PrimExpr window_size = get_prim_value(call->args[0], "window_size");
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   if (analyzer->CanProveLess(window_size, 1)) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Hamming_window expects the window_size must be greater than zero but got "

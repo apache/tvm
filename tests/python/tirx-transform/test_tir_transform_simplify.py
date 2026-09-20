@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -710,7 +712,7 @@ def test_remove_transitively_provable_condition():
         (tvm.tirx.all(i < j + 5, j < k + 7), i < k + 10, False),
     ]
 
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
 
     for priors, postulate, provable in test_cases:
         # well formed checker complains of undefined variables in condition
@@ -1311,6 +1313,50 @@ def test_nested_if_elimination():
 
     after = _apply_simplify(before)
     tvm.ir.assert_structural_equal(after, expected)
+
+
+@pytest.mark.parametrize("else_branch", [False, True])
+@pytest.mark.parametrize("write_before_loop", [False, True])
+def test_mutable_branch_predicate_preserves_while_bound(else_branch, write_before_loop):
+    # Build both branch directions from the same body. A store before the loop
+    # and a store on its back edge both invalidate the entry predicate.
+    from tvm import tirx
+
+    x = tirx.decl_buffer((1,), "int32", name="x")
+    count = tirx.decl_buffer((1,), "int32", name="count")
+    loop = tirx.While(
+        T.And(x[0] < 8, count[0] == 0),
+        tirx.BufferStore(x, x[0] + 1, [0]),
+    )
+    body = tirx.SeqStmt([tirx.BufferStore(x, x[0] + 1, [0]), loop]) if write_before_loop else loop
+    branch = (
+        tirx.IfThenElse(T.int32(8) <= x[0], tirx.Evaluate(0), body)
+        if else_branch
+        else tirx.IfThenElse(x[0] < 8, body, None)
+    )
+    func = tirx.PrimFunc([x, count], branch)
+    after = _apply_simplify(func)
+    tvm.ir.assert_structural_equal(after, func)
+
+
+def test_mutable_branch_predicate_preserves_later_load():
+    @T.prim_func(private=True, s_tir=True)
+    def before(x: T.Buffer((1,), "int32"), out: T.Buffer((1,), "int32")):
+        if x[0] < 8:
+            x[0] = x[0] + 1
+            out[0] = T.Select(x[0] < 8, 1, 0)
+
+    tvm.ir.assert_structural_equal(_apply_simplify(before), before)
+
+
+def test_mutable_assert_does_not_constrain_later_load():
+    @T.prim_func(private=True, s_tir=True)
+    def before(x: T.Buffer((1,), "int32"), out: T.Buffer((1,), "int32")):
+        assert x[0] < 8, "initial bound"
+        x[0] = x[0] + 1
+        out[0] = T.Select(x[0] < 8, 1, 0)
+
+    tvm.ir.assert_structural_equal(_apply_simplify(before), before)
 
 
 if __name__ == "__main__":

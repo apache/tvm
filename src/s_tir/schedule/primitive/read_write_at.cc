@@ -32,26 +32,26 @@ using namespace tvm::tirx;
 
 using support::NDIntSet;
 
-bool HasBuffer(const ffi::Array<BufferRegion>& buffer_regions, const BufferVar& buffer) {
-  for (const BufferRegion& buffer_region : buffer_regions) {
-    if (buffer_region->buffer.same_as(buffer)) {
+bool HasBuffer(const ffi::Array<TensorRegion>& buffer_regions, const BufferVar& buffer) {
+  for (const TensorRegion& buffer_region : buffer_regions) {
+    if (buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
       return true;
     }
   }
   return false;
 }
 
-void RelaxBufferRegions(const ffi::Array<BufferRegion>& buffer_regions,
-                        const BufferVar& buffer,                      //
-                        const ffi::Map<Var, arith::IntSet>& var_dom,  //
-                        const ffi::Map<Var, PrimExpr>& bindings,      //
+void RelaxBufferRegions(const ffi::Array<TensorRegion>& buffer_regions,
+                        const BufferVar& buffer,                    //
+                        const ffi::Map<Var, sym::IntSet>& var_dom,  //
+                        const ffi::Map<Var, PrimExpr>& bindings,    //
                         std::vector<NDIntSet>* relaxed_regions) {
   auto f_substitute = [&bindings](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto repl = bindings.Get(var)) return ffi::Any(*std::move(repl));
     return ffi::Unchanged();
   };
-  for (const BufferRegion& buffer_region : buffer_regions) {
-    if (buffer_region->buffer.same_as(buffer)) {
+  for (const TensorRegion& buffer_region : buffer_regions) {
+    if (buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
       ffi::Array<Range> mapped_region =
           buffer_region->region.Map([&f_substitute](const Range& range) {
             PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
@@ -61,7 +61,7 @@ void RelaxBufferRegions(const ffi::Array<BufferRegion>& buffer_regions,
                     .as_or_throw<PrimExpr>();
             return Range::FromMinExtent(min, extent);
           });
-      ffi::Array<arith::IntSet> relaxed_region = arith::EvalSet(mapped_region, var_dom);
+      ffi::Array<sym::IntSet> relaxed_region = sym::EvalSet(mapped_region, var_dom);
       relaxed_regions->push_back({relaxed_region.begin(), relaxed_region.end()});
     }
   }
@@ -227,7 +227,7 @@ struct ReadWriteAtImpl {
               /*buffer_regions=*/is_read ? block->reads : block->writes,
               /*buffer=*/src_,
               /*var_dom=*/
-              arith::AsIntSet(LoopDomainOfSRefTreePath(
+              sym::AsIntSet(LoopDomainOfSRefTreePath(
                   /*low_inclusive=*/ffi::GetRef<StmtSRef>(self_->stmt2ref.at(block)->parent),
                   /*high_exclusive=*/loop_sref_,
                   /*extra_relax_scope=*/scope)),
@@ -270,7 +270,7 @@ struct ReadWriteAtImpl {
     ffi::Array<Range> domain;
     domain.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      const arith::IntSet& int_set = relaxed[i];
+      const sym::IntSet& int_set = relaxed[i];
       PrimExpr min = analyzer_->Simplify(int_set.min());
       PrimExpr extent = analyzer_->Simplify(int_set.max() + 1 - min);
       domain.push_back(Range::FromMinExtent(min, extent));
@@ -362,7 +362,7 @@ struct ReadWriteAtImpl {
         dst_(dst),
         annotations_(annotations),
         block_sref_reuse_(),
-        analyzer_(arith::Analyzer()) {
+        analyzer_(sym::Analyzer()) {
     loop_ = TVM_SREF_TO_FOR(loop_sref);
   }
 
@@ -373,7 +373,7 @@ struct ReadWriteAtImpl {
   const BufferVar& dst_;
   ffi::Map<ffi::String, Any> annotations_;
   ffi::Map<SBlock, SBlock> block_sref_reuse_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
@@ -403,7 +403,7 @@ struct ReadAtTraits : public UnpackedInstTraits<ReadAtTraits> {
                   int buffer_index, const ffi::String& storage_scope);
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
                                           IntImm read_buffer_index, ffi::String storage_scope) {
-    return sch->ReadAt(loop, block, read_buffer_index->value, storage_scope);
+    return sch->ReadAt(loop, block, read_buffer_index->value.as<int>().value(), storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
@@ -412,7 +412,7 @@ struct ReadAtTraits : public UnpackedInstTraits<ReadAtTraits> {
     PythonAPICall py("read_at");
     py.Input("loop", loop);
     py.Input("block", block);
-    py.Input("read_buffer_index", read_buffer_index->value);
+    py.Input("read_buffer_index", read_buffer_index->value.as<int>().value());
     py.Input("storage_scope", storage_scope);
     py.SingleOutput(outputs);
     return py.Str();
@@ -433,7 +433,7 @@ struct WriteAtTraits : public UnpackedInstTraits<WriteAtTraits> {
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
                                           IntImm write_buffer_index, ffi::String storage_scope) {
-    return sch->WriteAt(loop, block, write_buffer_index->value, storage_scope);
+    return sch->WriteAt(loop, block, write_buffer_index->value.as<int>().value(), storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
@@ -442,7 +442,7 @@ struct WriteAtTraits : public UnpackedInstTraits<WriteAtTraits> {
     PythonAPICall py("write_at");
     py.Input("loop", loop);
     py.Input("block", block);
-    py.Input("write_buffer_index", write_buffer_index->value);
+    py.Input("write_buffer_index", write_buffer_index->value.as<int>().value());
     py.Input("storage_scope", storage_scope);
     py.SingleOutput(outputs);
     return py.Str();

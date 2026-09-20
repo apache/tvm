@@ -21,49 +21,49 @@
  * \file lower_async_dma.cc
  */
 
-#include <tvm/arith/analyzer.h>
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <optional>
 #include <set>
 
-#include "../../tirx/ir_mutator_with_analyzer.h"
+#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
 #include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-class AsyncDMALowerer : public tirx::IRMutatorWithAnalyzer {
+class AsyncDMALowerer : public s_tir::IRMutatorWithAnalyzer {
  public:
-  using tirx::IRMutatorWithAnalyzer::Mutate;
-  using tirx::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::IRMutatorWithAnalyzer::Mutate;
+  using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
-  explicit AsyncDMALowerer(bool dma_bypass_cache, const arith::Analyzer& analyzer)
+  explicit AsyncDMALowerer(bool dma_bypass_cache, const sym::Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer), dma_bypass_cache_(dma_bypass_cache) {}
 
   // TODO(leiwang1999): split lower async DMA support for CUDA and Hexagon Backend
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     // if for loop is not within async_commit_queue_scope
     if (!async_queue_id_.has_value()) {
-      return tirx::IRMutatorWithAnalyzer::Mutate_(loop, inplace_mode);
+      return s_tir::IRMutatorWithAnalyzer::Mutate_(loop, inplace_mode);
     }
 
     // if for loop is not a memcpy of a contiguous region, it might be a cuda cp.async behavior
     std::optional<s_tir::MemCpyDetails> mem_copy =
-        s_tir::IdentifyMemCpy(ffi::GetRef<For>(loop), ffi::GetRef<arith::Analyzer>(analyzer_));
+        s_tir::IdentifyMemCpy(ffi::GetRef<For>(loop), ffi::GetRef<sym::Analyzer>(analyzer_));
     if (!mem_copy.has_value() || mem_copy->dest->region.size() != 1 ||
         mem_copy->source->region.size() != 1) {
-      return tirx::IRMutatorWithAnalyzer::Mutate_(loop, inplace_mode);
+      return s_tir::IRMutatorWithAnalyzer::Mutate_(loop, inplace_mode);
     }
 
     // now that we are about to perform the `copy` transform
@@ -76,17 +76,17 @@ class AsyncDMALowerer : public tirx::IRMutatorWithAnalyzer {
     tvm::PrimExpr dst_min = mem_copy->dest->region[0]->min;
     tvm::PrimExpr dst_extent = mem_copy->dest->region[0]->extent;
 
-    auto src = BufferLoad(mem_copy->source->buffer, {src_min});
-    auto dst = BufferLoad(mem_copy->dest->buffer, {dst_min});
+    auto src = BufferLoad(mem_copy->source->source.as_or_throw<BufferVar>(), {src_min});
+    auto dst = BufferLoad(mem_copy->dest->source.as_or_throw<BufferVar>(), {dst_min});
     PrimExpr dst_nbytes = dst_extent * static_cast<int>(src.ty().StorageBytes());
     return Evaluate(
         Call(PrimType::Int(32), tirx::builtin::dma_copy(),
              ffi::Array<Expr>{
                  PrimExpr(async_queue_id_.value()),
-                 Call(mem_copy->dest->buffer.DataPointerType(), tirx::builtin::address_of(),
-                      ffi::Array<Expr>{dst}, Attrs(), {}, Span()),
-                 Call(mem_copy->source->buffer.DataPointerType(), tirx::builtin::address_of(),
-                      ffi::Array<Expr>{src}, Attrs(), {}, Span()),
+                 Call(mem_copy->dest->source.as_or_throw<BufferVar>().DataPointerType(),
+                      tirx::builtin::address_of(), ffi::Array<Expr>{dst}, Attrs(), {}, Span()),
+                 Call(mem_copy->source->source.as_or_throw<BufferVar>().DataPointerType(),
+                      tirx::builtin::address_of(), ffi::Array<Expr>{src}, Attrs(), {}, Span()),
                  dst_nbytes, PrimExpr(dma_bypass_cache_)},
              Attrs(), {}, Span())
             .as_or_throw<PrimExpr>());
@@ -94,7 +94,7 @@ class AsyncDMALowerer : public tirx::IRMutatorWithAnalyzer {
 
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     // populate analyzer knowledge of loop iterators
-    auto previsit = tirx::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+    auto previsit = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                         .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
 
@@ -112,7 +112,7 @@ class AsyncDMALowerer : public tirx::IRMutatorWithAnalyzer {
       // get queue ID
       auto queue_id_node = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(queue_id_node);
-      int queue_id = queue_id_node->value;
+      int queue_id = queue_id_node->value.as<int>().value();
 
       // abort if we have not seen this queue ID in `copy` transform
       if (queue_ids_.find(queue_id) == queue_ids_.end()) {
@@ -136,10 +136,10 @@ class AsyncDMALowerer : public tirx::IRMutatorWithAnalyzer {
       // The nested attribute is skipped by this descent.
       InplaceMode body_mode = async_wait->unique() ? inplace_mode : InplaceMode::kDisallow;
       // concatenate the call with the body and return
-      return SeqStmt({call_dma_wait,
-                      tirx::IRMutatorWithAnalyzer::Mutate(ffi::AnyView(async_wait->body), body_mode)
-                          .ValueOrUnchanged(async_wait->body)
-                          .as_or_throw<Stmt>()});
+      return SeqStmt({call_dma_wait, s_tir::IRMutatorWithAnalyzer::Mutate(
+                                         ffi::AnyView(async_wait->body), body_mode)
+                                         .ValueOrUnchanged(async_wait->body)
+                                         .as_or_throw<Stmt>()});
 
       // Convert this, for example:
       // attr [0] "async_commit_queue_scope" = 0;
@@ -160,8 +160,8 @@ class AsyncDMALowerer : public tirx::IRMutatorWithAnalyzer {
       // get queue ID
       auto queue_id_node = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(queue_id_node);
-      async_queue_id_ = queue_id_node->value;
-      auto result = tirx::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+      async_queue_id_ = queue_id_node->value.as<int>().value();
+      auto result = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                         .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       if (dmas_in_group_ > 1) {
         auto call_dma_start_group =
@@ -178,7 +178,7 @@ class AsyncDMALowerer : public tirx::IRMutatorWithAnalyzer {
       dmas_in_group_ = 0;
       return result;
     }
-    return tirx::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+    return s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
  private:
@@ -194,7 +194,7 @@ namespace transform {
 Pass LowerAsyncDMA() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto fptr = f.CopyOnWrite();
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     bool dma_bypass_cache =
         ctx->GetConfig<bool>("tirx.experimental_dma_bypass_cache", false).value();
     fptr->body = ffi::make_object<AsyncDMALowerer>(dma_bypass_cache, analyzer)

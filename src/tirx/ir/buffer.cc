@@ -20,7 +20,6 @@
 /*!
  * \file buffer.cc
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
@@ -28,6 +27,7 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/builtin.h>
@@ -39,7 +39,7 @@
 #include <stack>
 #include <utility>
 
-#include "../../arith/pattern_match.h"
+#include "../../sym/pattern_match.h"
 
 namespace tvm {
 namespace tirx {
@@ -87,7 +87,7 @@ ffi::ObjectRef RealizeBufferSubscript(
   // Any slice or omitted trailing dimension denotes a region.  Rejecting
   // steps makes the old behavior, where a stride could be silently dropped,
   // unrepresentable rather than giving it dimension-dependent semantics.
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   ffi::Array<Range> region;
   region.reserve(buffer_ty->shape.size());
   for (size_t i = 0; i < slice.size(); ++i) {
@@ -282,7 +282,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-ffi::Array<PrimExpr> SimplifyArray(arith::AnalyzerObj* ana, ffi::Array<PrimExpr> array) {
+ffi::Array<PrimExpr> SimplifyArray(sym::AnalyzerObj* ana, ffi::Array<PrimExpr> array) {
   for (size_t i = 0; i < array.size(); ++i) {
     array.Set(i, ana->Simplify(array[i]));
   }
@@ -322,7 +322,7 @@ inline std::vector<const PrimExpr*> ExprSplitAddition(const PrimExpr& expr) {
 // If it can be optimized, returns (true, (a1 + a2 + ... + aj) * kt * ... * ki + c1)
 // Currently the we will not search the add/mult combinations exhaustively
 //   as it will take too much computation.
-inline std::pair<bool, PrimExpr> MergeMulModInner(arith::AnalyzerObj* analyzer,
+inline std::pair<bool, PrimExpr> MergeMulModInner(sym::AnalyzerObj* analyzer,
                                                   const PrimExpr& mult_expr,
                                                   const PrimExpr& mod_l_expr,
                                                   const PrimExpr& mod_r_expr) {
@@ -419,7 +419,7 @@ inline void MergeMulModInsertElements(const std::vector<const PrimExpr*>& eles,
 // The search will be performed repeatively until no pattern is found.
 // Return: a pair with (false, Expr()) if cannot be optimized.
 //         a pair with (true, optimized_expr) if can be optimized
-inline PrimExpr MergeMulMod(arith::AnalyzerObj* analyzer, const PrimExpr& base) {
+inline PrimExpr MergeMulMod(sym::AnalyzerObj* analyzer, const PrimExpr& base) {
   using namespace tirx;
   // 1. Prepare the lists.
   // We store two lists, a list that contain all the elements that match Mul and
@@ -427,7 +427,7 @@ inline PrimExpr MergeMulMod(arith::AnalyzerObj* analyzer, const PrimExpr& base) 
   // The elements in the Mod will be used to match against the elements in Mul.
   // The result will then be split and pushed back to these two lists.
   PrimExpr simplified_base = base;
-  arith::PVar<PrimExpr> x, y;
+  sym::PVar<PrimExpr> x, y;
   if ((floordiv(x, y) * y + floormod(x, y)).Match(simplified_base)) {
     simplified_base = x.Eval();
   }
@@ -506,7 +506,7 @@ ffi::Array<PrimExpr> BufferTypeNode::ElemOffset(ffi::Array<PrimExpr> input_indic
   }
 
   PrimExpr output_index = 0;
-  arith::Analyzer ana;
+  sym::Analyzer ana;
 
   for (size_t i = 0; i < input_indices.size(); i++) {
     if (strides.size()) {
@@ -656,7 +656,7 @@ BufferVar BufferVar::MakeStrideView() const {
 BufferVar BufferVar::MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> extents) const {
   const BufferTypeNode* n = operator->();
   TVM_FFI_ICHECK(n != nullptr);
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   begins = SimplifyArray(ana.get(), begins);
   ffi::Array<PrimExpr> elem_offset =
       n->ElemOffset(begins).Map([&](const PrimExpr& expr) { return ana->Simplify(expr); });

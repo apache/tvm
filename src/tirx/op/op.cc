@@ -34,6 +34,7 @@
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/type.h>
 #include <tvm/tirx/var.h>
 
 #include <cmath>
@@ -104,7 +105,7 @@ Type GetType(const PrimExpr& expr) {
 
       if (auto var = address_of->args[0].as<Var>()) {
         if (auto* ptr = var.value()->ty.as<PointerTypeNode>()) {
-          if (ptr->element_type.as<TensorMapTypeNode>()) {
+          if (ptr->element_type.as<tirx::TensorMapTypeNode>()) {
             return PrimType::UInt(64);
           }
         }
@@ -147,6 +148,15 @@ PrimExpr continue_loop(Span span) {
 PrimExpr break_loop(Span span) {
   return Call(PrimType::Void(), tirx::builtin::break_loop(), {}, {}, {}, span)
       .as_or_throw<PrimExpr>();
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.RegisterOpLowerIntrinsic",
+                        [](ffi::String name, ffi::Function f, ffi::String target, int plevel) {
+                          OpRegEntry::RegisterOrGet(name).set_attr<tirx::FLowerIntrinsic>(
+                              target + ".FLowerIntrinsic", f, plevel);
+                        });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -200,7 +210,7 @@ PrimExpr reinterpret(PrimType t, PrimExpr value, Span span) {
 }
 
 Expr reinterpret(Type target_ty, Expr value, Span span) {
-  if (value.as<prim::StringImmNode>()) {
+  if (value.as<StringImmNode>()) {
     TVM_FFI_CHECK(target_ty.as<PointerTypeNode>(), TypeError)
         << "String reinterpret requires a pointer target, but got " << target_ty;
     return Call(std::move(target_ty), tirx::builtin::reinterpret(), {std::move(value)}, {}, {},
@@ -631,7 +641,9 @@ int ExtractInt(const ffi::PackedArgs& args, int index) {
     // Handle IntImm case (from TIR parsing)
     PrimExpr expr = args[index].cast<PrimExpr>();
     if (auto int_imm = expr.as<IntImmNode>()) {
-      return static_cast<int>(int_imm->value);
+      auto value = int_imm->value.as<int>();
+      TVM_FFI_CHECK(value.has_value(), OverflowError) << "Integer argument does not fit int";
+      return *value;
     }
     LOG(FATAL) << "Cannot extract int from argument at index " << index;
     return 0;
@@ -644,7 +656,7 @@ PrimExpr PrintOpPacked(Expr data, DLDataType dtype, bool is_string, bool is_scal
   PrimType u32_ty = PrimType::UInt(32);
   ffi::Array<Expr> args;
   args.push_back(data);
-  args.push_back(prim::StringImm(ffi::DLDataTypeToString(dtype)));
+  args.push_back(StringImm(ffi::DLDataTypeToString(dtype)));
   args.push_back(IntImm::Bool(is_string));
   args.push_back(IntImm::Bool(is_scalar));
   args.push_back(IntImm(u32_ty, dim_num));

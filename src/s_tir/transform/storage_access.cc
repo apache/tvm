@@ -60,7 +60,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorLoadNode*
     e.buffer = buf;
     e.dtype = op->ty.as_or_throw<PrimType>().WithLanes(1);
     for (const auto& index : op->indices) {
-      e.touched.push_back(arith::IntSet::Vector(index));
+      e.touched.push_back(sym::IntSet::Vector(index));
     }
     e.type = kRead;
     e.scope = scope;
@@ -83,7 +83,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BufferStoreNode
     e.buffer = buf;
     e.dtype = op->value.ty().WithLanes(1);
     for (const auto& index : op->indices) {
-      e.touched.push_back(arith::IntSet::Vector(index));
+      e.touched.push_back(sym::IntSet::Vector(index));
     }
     e.type = kWrite;
     e.scope = scope;
@@ -189,15 +189,15 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const ForNode* op) {
   scope_.pop_back();
   if (s.access.size() != 0) {
     // relax the touched set to contain all ranges in the loop.
-    std::unordered_map<const VarNode*, arith::IntSet> relax_map;
+    std::unordered_map<const VarNode*, sym::IntSet> relax_map;
     relax_map[op->loop_var.get()] =
-        arith::IntSet::FromRange(Range::FromMinExtent(op->min, op->extent));
+        sym::IntSet::FromRange(Range::FromMinExtent(op->min, op->extent));
     for (AccessEntry& e : s.access) {
       if (e.buffer.defined()) {
         TVM_FFI_ICHECK(e.touched.size());
-        ffi::Array<arith::IntSet> new_touched;
+        ffi::Array<sym::IntSet> new_touched;
         for (const auto& touched : e.touched) {
-          new_touched.push_back(arith::EvalSet(touched, relax_map));
+          new_touched.push_back(sym::EvalSet(touched, relax_map));
         }
         e.touched = std::move(new_touched);
       }
@@ -283,7 +283,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       e.buffer = buf;
       e.dtype = value_dtype.WithLanes(1);
       for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
-        e.touched.push_back(arith::IntSet::Vector(op->args[i].as_or_throw<PrimExpr>()));
+        e.touched.push_back(sym::IntSet::Vector(op->args[i].as_or_throw<PrimExpr>()));
       }
       e.type = is_load ? kRead : kWrite;
       e.scope = scope;
@@ -323,7 +323,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       e.threads = env_threads();
       e.dtype = dtype;
       e.buffer = buffer;
-      e.touched = {arith::IntSet::FromRange(Range::FromMinExtent(offset, extent))};
+      e.touched = {sym::IntSet::FromRange(Range::FromMinExtent(offset, extent))};
       e.scope = scope;
       if (flag->value & 1) {
         e.type = kRead;
@@ -337,7 +337,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
   } else if (op->op.same_as(tirx::builtin::tvm_storage_sync())) {
     TVM_FFI_ICHECK(allow_append_);
-    const std::string& s = op->args[0].as<prim::StringImmNode>()->value;
+    const std::string& s = op->args[0].as<StringImmNode>()->value;
     if (s != "warp") {
       StorageScope scope = StorageScope::Create(s);
       AccessEntry e;

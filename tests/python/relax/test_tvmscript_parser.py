@@ -2451,7 +2451,7 @@ def test_primitive_assignments_emit_fresh_bindings():
         assert isinstance(binding.var.ty, tvm.ir.PrimType)
         assert binding.var.ty.dtype == dtype
         assert tvm.ir.is_prim_expr(binding.value)
-        assert not isinstance(binding.value, relax.Constant)
+        assert not isinstance(binding.value, tvm.ir.GenericConst)
 
     source = func.script(show_all_ty=False)
     assert "R.prim_value" not in source

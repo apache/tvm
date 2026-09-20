@@ -21,7 +21,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 
-#include "../../../tirx/transform/ir_utils.h"
+#include "../../transform/ir_utils.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -215,7 +215,9 @@ class StorageScopeMutator : public ReplaceBufferMutator {
 
  private:
   MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer) final {
-    if (auto replacement = VarRemapGet(match_buffer->source->buffer).as<BufferVar>()) {
+    if (auto replacement =
+            VarRemapGet(match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>())
+                .as<BufferVar>()) {
       BufferVar new_target_buffer = WithScope(match_buffer->buffer, replacement.value().scope());
       VarRemapSet(match_buffer->buffer, new_target_buffer);
       return MatchBufferRegion(new_target_buffer,
@@ -320,7 +322,9 @@ class DTypeMutator : public ReplaceBufferMutator {
 
  private:
   MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer) final {
-    if (auto replacement = VarRemapGet(match_buffer->source->buffer).as<BufferVar>()) {
+    if (auto replacement =
+            VarRemapGet(match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>())
+                .as<BufferVar>()) {
       BufferVar new_target_buffer = WithDType(match_buffer->buffer, replacement.value()->dtype);
       VarRemapSet(match_buffer->buffer, new_target_buffer);
       return MatchBufferRegion(new_target_buffer,
@@ -394,8 +398,9 @@ struct StorageAlignTraits : public UnpackedInstTraits<StorageAlignTraits> {
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm buffer_index,
                                       IntImm axis, IntImm factor, IntImm offset) {
-    return sch->StorageAlign(block_rv, buffer_index->value, axis->value, factor->value,
-                             offset->value);
+    return sch->StorageAlign(block_rv, buffer_index->value.as<int>().value(),
+                             axis->value.as<int>().value(), factor->value.as<int>().value(),
+                             offset->value.as<int>().value());
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
@@ -425,7 +430,7 @@ struct SetScopeTraits : public UnpackedInstTraits<SetScopeTraits> {
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm buffer_index,
                                       ffi::String storage_scope) {
-    return sch->SetScope(block_rv, buffer_index->value, storage_scope);
+    return sch->SetScope(block_rv, buffer_index->value.as<int>().value(), storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
@@ -452,7 +457,7 @@ struct UnsafeSetDTypeTraits : public UnpackedInstTraits<UnsafeSetDTypeTraits> {
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm buffer_index,
                                       ffi::String dtype) {
-    return sch->UnsafeSetDType(block_rv, buffer_index->value, dtype);
+    return sch->UnsafeSetDType(block_rv, buffer_index->value.as<int>().value(), dtype);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,

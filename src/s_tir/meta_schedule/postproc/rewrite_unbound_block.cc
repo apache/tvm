@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/meta_schedule/schedule/cuda/thread_bind.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 

@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <set>
 
@@ -103,7 +104,7 @@ void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
 
   std::set<int> buf_indices;
   for (const IntImm& buf_idx : buf_index_array) {
-    int buf_idx_val = buf_idx->value;
+    int buf_idx_val = buf_idx->value.as<int>().value();
     if (buf_idx_val >= 0 && buf_idx_val < num_access_regions) {
       buf_indices.insert(buf_idx_val);
     } else {
@@ -113,7 +114,7 @@ void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
 
   /* Step 0: Collect new buffer access regions. */
 
-  ffi::Array<BufferRegion> reads, writes;
+  ffi::Array<TensorRegion> reads, writes;
 
   if (buf_type == "read") {
     for (size_t i = 0; i < block->reads.size(); ++i) {

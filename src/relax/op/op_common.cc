@@ -106,7 +106,7 @@ ffi::Array<TensorType> GetTensorTypeFromTuple(const Call& call, const BlockBuild
   return tensor_ty;
 }
 
-BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(arith::AnalyzerObj* analyzer,
+BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(sym::AnalyzerObj* analyzer,
                                                           const ffi::Array<PrimExpr>& x1_shape,
                                                           const ffi::Array<PrimExpr>& x2_shape) {
   BinaryBroadcastShapeInferResult result;
@@ -217,7 +217,7 @@ bool CanProveLayoutTransform(const SLayout& input_layout, const SLayout& desired
     tirx::SBijectiveLayout todesired(input_layout, desired_layout);
     ffi::Array<PrimExpr> desired_shape = todesired.ForwardShape(shape);
     ffi::Array<PrimExpr> back_shape = todesired.BackwardShape(desired_shape);
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     for (size_t i = 0; i < shape.size(); ++i) {
       if (tvm::prim::is_const_int(shape[i])) {
         if (!analyzer->CanProveEqual(shape[i], back_shape[i])) {

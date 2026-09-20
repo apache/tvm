@@ -2083,7 +2083,7 @@ def test_split_infer_ty():
 
     # All relax shape variables are non-negative.  When a scope
     # begins, any TIR variables that are used as shape variables are
-    # declared to be non-negative `tvm.arith.Analyzer`.  Because
+    # declared to be non-negative `tvm.sym.Analyzer`.  Because
     # `relax.op.split` clamps the indices to be within the bounds of
     # the axis being split, simplifying with non-negative shape
     # variables can result in much simpler shapes.
@@ -2847,7 +2847,7 @@ def test_repeat_infer_ty_wrong_input_type():
     x1 = relax.Var("x", relax.FuncType([], R.Tensor((2, 3, 4, 5), "float32")))
     x2 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
     r1 = tirx.Var("r", "float32")
-    r2 = tirx.StringImm("abc")
+    r2 = tvm.ir.StringImm("abc")
 
     with pytest.raises(TypeError):
         bb.normalize(relax.op.repeat(x0, 2))
@@ -2970,7 +2970,7 @@ def test_tile_infer_ty_wrong_input_type():
     x1 = relax.Var("x", relax.FuncType([], R.Tensor((2, 3, 4, 5), "float32")))
     x2 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
     r1 = tirx.Var("a", "float32")
-    r2 = tirx.StringImm("abc")
+    r2 = tvm.ir.StringImm("abc")
 
     with pytest.raises(TypeError):
         bb.normalize(relax.op.tile(x0, 2))

@@ -19,7 +19,6 @@
 
 #include "create_primfunc.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
@@ -27,11 +26,12 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
 #include <set>
@@ -40,8 +40,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../tirx/ir/data_type_rewriter.h"
-#include "../../tirx/ir/functor_common.h"
+#include "../../s_tir/ir/data_type_rewriter.h"
 #include "graph.h"
 
 namespace tvm {
@@ -71,7 +70,7 @@ void VerifyNoOpaqueArtifacts(const PrimFunc& func) {
 }  // namespace
 
 /*! \brief The helper mutator that transforms Tensor-callee Calls to BufferLoad. */
-class TensorLoadToBufferTransformer : public StmtExprMutator {
+class TensorLoadToBufferTransformer : public s_tir::StmtExprMutator {
  public:
   explicit TensorLoadToBufferTransformer(
       const std::unordered_map<te::Tensor, BufferVar>& tensor2buffers)
@@ -81,7 +80,7 @@ class TensorLoadToBufferTransformer : public StmtExprMutator {
     const auto* reduce =
         op->IsInstance<te::ReduceNode>() ? static_cast<const te::ReduceNode*>(op) : nullptr;
     if (reduce == nullptr) {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
+      return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
     }
 
     auto axis = reduce->axis.Map([this](const IterVar& iter_var) {
@@ -118,7 +117,7 @@ class TensorLoadToBufferTransformer : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    Call call = StmtExprMutator::Mutate_(op, inplace_mode)
+    Call call = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Expr>(op))
                     .as_or_throw<Call>();
     if (!te::IsTensorLoad(call)) {
@@ -137,7 +136,7 @@ class TensorLoadToBufferTransformer : public StmtExprMutator {
 };
 
 /*! \brief The helper mutator to rewrite buffer and buffer var accessed by block body */
-class BufferSubstituter : public StmtExprMutator {
+class BufferSubstituter : public s_tir::StmtExprMutator {
  public:
   explicit BufferSubstituter(const std::unordered_map<const VarNode*, Expr>& var_map,
                              const std::unordered_map<const VarNode*, BufferVar>& buffer_map) {
@@ -175,12 +174,12 @@ struct CreateFuncInfo {
   }
 };
 
-class LayoutFreePlaceholdersNormalizer : public StmtExprMutator {
+class LayoutFreePlaceholdersNormalizer : public s_tir::StmtExprMutator {
  public:
-  using StmtExprMutator::Mutate;
+  using s_tir::StmtExprMutator::Mutate;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
   }
 
   PrimFunc Process(PrimFunc func) {
@@ -202,11 +201,11 @@ class LayoutFreePlaceholdersNormalizer : public StmtExprMutator {
     return WithAttr(std::move(func), s_tir::attr::layout_free_buffers, indices);
   }
 
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* _block, InplaceMode inplace_mode) final {
-    SBlock block = StmtExprMutator::Mutate_(_block, inplace_mode)
-                       .ValueOrUnchanged(ffi::GetRef<Stmt>(_block))
-                       .as_or_throw<SBlock>();
-    SBlockNode* n = block.CopyOnWrite();
+  UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* _block, InplaceMode inplace_mode) final {
+    s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(_block, inplace_mode)
+                              .ValueOrUnchanged(ffi::GetRef<Stmt>(_block))
+                              .as_or_throw<s_tir::SBlock>();
+    s_tir::SBlockNode* n = block.CopyOnWrite();
     if (auto opt_ann = n->annotations.Get(topi_attr)) {
       ffi::Array<BufferVar> new_buffers;
       for (BufferVar buffer : opt_ann.value().as_or_throw<ffi::Array<BufferVar>>()) {
@@ -247,7 +246,7 @@ class LayoutFreePlaceholdersNormalizer : public StmtExprMutator {
 using NestedIterLevels = std::vector<std::vector<IterVar>>;
 
 NestedIterLevels GenerateNestedIterLevels(const ffi::Array<IterVar>& axes,
-                                          arith::AnalyzerObj* analyzer) {
+                                          sym::AnalyzerObj* analyzer) {
   int global_max_depth = 0;
   std::unordered_map<Var, int> depth;
   std::unordered_map<Var, IterVar> var2iter;
@@ -425,7 +424,7 @@ Stmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
  **/
 Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<BufferVar>& buffers,
                       const ffi::Map<Var, PrimExpr>& var_map, PrimExpr expr_body,
-                      CreateFuncInfo* info, arith::AnalyzerObj* analyzer) {
+                      CreateFuncInfo* info, sym::AnalyzerObj* analyzer) {
   auto f_substitute = [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto repl = var_map.Get(var)) return ffi::Any(*std::move(repl));
     return ffi::Unchanged();
@@ -543,7 +542,7 @@ struct NestedScopeInfo {
 };
 
 Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* info,
-                             arith::AnalyzerObj* analyzer) {
+                             sym::AnalyzerObj* analyzer) {
   // Step 1. Collect all iter axes in original TE compute op
   ffi::Array<IterVar> axes = compute_op->axis;
   axes.insert(axes.end(), compute_op->reduce_axis.begin(), compute_op->reduce_axis.end());
@@ -629,18 +628,19 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     }
     Stmt body =
         GenerateBodyStmt(leaf.store_indices, buffers, leaf.axes_remap, expr_body, info, analyzer);
-    seq_stmt.push_back(SBlockRealize(/*iter_values=*/leaf.bindings,
-                                     /*predicate=*/IntImm::Bool(true),
-                                     /*block=*/
-                                     SBlock(/*iter_vars=*/leaf.block_iters,
-                                            /*reads=*/{},
-                                            /*writes=*/{},
-                                            /*name_hint=*/info->FreshName(compute_op->name),
-                                            /*body=*/body,
-                                            /*init=*/init,
-                                            /*alloc_buffers=*/{},
-                                            /*match_buffers=*/{},
-                                            /*annotations=*/annotations)));
+    seq_stmt.push_back(
+        s_tir::SBlockRealize(/*iter_values=*/leaf.bindings,
+                             /*predicate=*/IntImm::Bool(true),
+                             /*block=*/
+                             s_tir::SBlock(/*iter_vars=*/leaf.block_iters,
+                                           /*reads=*/{},
+                                           /*writes=*/{},
+                                           /*name_hint=*/info->FreshName(compute_op->name),
+                                           /*body=*/body,
+                                           /*init=*/init,
+                                           /*alloc_buffers=*/{},
+                                           /*match_buffers=*/{},
+                                           /*annotations=*/annotations)));
 
   } else {
     for (int i = 0; i < compute_op->num_outputs(); ++i) {
@@ -651,18 +651,19 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       PrimExpr expr_body = compute_op->body[i];
       Stmt body = GenerateBodyStmt(leaf.store_indices, {buffers[i]}, leaf.axes_remap, expr_body,
                                    info, analyzer);
-      seq_stmt.push_back(SBlockRealize(/*iter_values=*/leaf.bindings,
-                                       /*predicate=*/IntImm::Bool(true),
-                                       /*block=*/
-                                       SBlock(/*iter_vars=*/leaf.block_iters,
-                                              /*reads=*/{},
-                                              /*writes=*/{},
-                                              /*name_hint=*/info->FreshName(buffers[i].name()),
-                                              /*body=*/body,
-                                              /*init=*/std::nullopt,
-                                              /*alloc_buffers=*/{},
-                                              /*match_buffers=*/{},
-                                              /*annotations=*/annotations)));
+      seq_stmt.push_back(
+          s_tir::SBlockRealize(/*iter_values=*/leaf.bindings,
+                               /*predicate=*/IntImm::Bool(true),
+                               /*block=*/
+                               s_tir::SBlock(/*iter_vars=*/leaf.block_iters,
+                                             /*reads=*/{},
+                                             /*writes=*/{},
+                                             /*name_hint=*/info->FreshName(buffers[i].name()),
+                                             /*body=*/body,
+                                             /*init=*/std::nullopt,
+                                             /*alloc_buffers=*/{},
+                                             /*match_buffers=*/{},
+                                             /*annotations=*/annotations)));
     }
   }
   Stmt body = SeqStmt::Flatten(seq_stmt);
@@ -680,18 +681,18 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       }
 
       // wrap nested block
-      body = SBlockRealize(/*iter_values=*/cur.bindings,
-                           /*predicate=*/IntImm::Bool(true),
-                           /*block=*/
-                           SBlock(/*iter_vars=*/block_iters,
-                                  /*reads=*/{},
-                                  /*writes=*/{},
-                                  /*name_hint=*/block_name,
-                                  /*body=*/body,
-                                  /*init=*/init,
-                                  /*alloc_buffers=*/{},
-                                  /*match_buffers=*/{},
-                                  /*annotations=*/annotations));
+      body = s_tir::SBlockRealize(/*iter_values=*/cur.bindings,
+                                  /*predicate=*/IntImm::Bool(true),
+                                  /*block=*/
+                                  s_tir::SBlock(/*iter_vars=*/block_iters,
+                                                /*reads=*/{},
+                                                /*writes=*/{},
+                                                /*name_hint=*/block_name,
+                                                /*body=*/body,
+                                                /*init=*/init,
+                                                /*alloc_buffers=*/{},
+                                                /*match_buffers=*/{},
+                                                /*annotations=*/annotations));
     }
     for (size_t j = cur.loop_vars.size(); j > 0; --j) {
       const auto& [loop_var, dom] = cur.loop_vars[j - 1];
@@ -740,7 +741,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
   // be generated with the later application of "script.Complete" in
   // GenerateAndCompletePrimFunc.  Waiting until later also handles
   // the case where there is only a single BlockNode, which then
-  // becomes the root SBlock of the function, and should not have
+  // becomes the root s_tir::SBlock of the function, and should not have
   // reads/writes filled in.
 
   auto substituter = ffi::make_object<BufferSubstituter>(var_map, input_buffer_map);
@@ -752,18 +753,18 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
                   .ValueOrUnchanged(substituted_body);
 
   // Step 4. Generate opaque block as body.
-  return SBlockRealize(/*iter_values=*/{},
-                       /*predicate=*/IntImm::Bool(true),
-                       /*block=*/
-                       SBlock(/*iter_vars=*/{},
-                              /*reads=*/{},
-                              /*writes=*/{},
-                              /*name_hint=*/info->FreshName(extern_op->name),
-                              /*body=*/std::move(body),
-                              /*init=*/std::nullopt,
-                              /*alloc_buffers=*/{},
-                              /*match_buffers=*/{},
-                              /*annotations=*/extern_op->attrs));
+  return s_tir::SBlockRealize(/*iter_values=*/{},
+                              /*predicate=*/IntImm::Bool(true),
+                              /*block=*/
+                              s_tir::SBlock(/*iter_vars=*/{},
+                                            /*reads=*/{},
+                                            /*writes=*/{},
+                                            /*name_hint=*/info->FreshName(extern_op->name),
+                                            /*body=*/std::move(body),
+                                            /*init=*/std::nullopt,
+                                            /*alloc_buffers=*/{},
+                                            /*match_buffers=*/{},
+                                            /*annotations=*/extern_op->attrs));
 }
 
 ffi::Array<te::Operation> CollectOrderedOps(const ffi::Array<te::Tensor>& arg_list) {
@@ -800,7 +801,7 @@ void InitializeBufferBinds(const ffi::Array<te::Operation>& ordered_ops, CreateF
 }
 
 void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
-                         ffi::Array<Stmt>* root_stmts, arith::AnalyzerObj* analyzer) {
+                         ffi::Array<Stmt>* root_stmts, sym::AnalyzerObj* analyzer) {
   if (const auto* placeholder = op.as<te::PlaceholderOpNode>()) {
     // Case 1. PlaceholderOp (te.placeholder)
     TVM_FFI_ICHECK_EQ(op->num_outputs(), 1);
@@ -857,7 +858,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
   // Root body stmts.
   ffi::Array<Stmt> root_stmts;
   // Analyzer
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
 
   // Step 1. Create ordered array of operations and validate they are supported.
   ffi::Array<te::Operation> order = CollectOrderedOps(arg_list);
@@ -873,7 +874,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
   // Step 4. Create func and complete prim func.
   auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
   if (index_dtype_override.has_value()) {
-    func = ffi::make_object<IndexDataTypeNormalizer>(index_dtype_override.value())
+    func = ffi::make_object<s_tir::IndexDataTypeNormalizer>(index_dtype_override.value())
                ->Rewrite(std::move(func));
   }
   auto result = ffi::make_object<LayoutFreePlaceholdersNormalizer>()->Process(std::move(func));
@@ -935,7 +936,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_list,
   // Root body stmts.
   ffi::Array<Stmt> root_stmts;
   // Analyzer
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
 
   // Step 1. Create ordered array of operations and validate they are supported.
   ffi::Array<te::Operation> order = CollectOrderedOps(tensor_arg_list);
@@ -949,7 +950,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_list,
   }
   auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
   if (index_dtype_override.has_value()) {
-    func = ffi::make_object<IndexDataTypeNormalizer>(index_dtype_override.value())
+    func = ffi::make_object<s_tir::IndexDataTypeNormalizer>(index_dtype_override.value())
                ->Rewrite(std::move(func));
   }
   auto result = ffi::make_object<LayoutFreePlaceholdersNormalizer>()->Process(std::move(func));

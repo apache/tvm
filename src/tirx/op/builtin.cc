@@ -40,12 +40,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), 1)
 
   PRIM_SCRIPT_BUILTIN(likely);
-  PRIM_SCRIPT_BUILTIN(bitwise_and);
-  PRIM_SCRIPT_BUILTIN(bitwise_or);
-  PRIM_SCRIPT_BUILTIN(bitwise_xor);
-  PRIM_SCRIPT_BUILTIN(bitwise_not);
-  PRIM_SCRIPT_BUILTIN(shift_left);
-  PRIM_SCRIPT_BUILTIN(shift_right);
   PRIM_SCRIPT_BUILTIN(if_then_else);
   PRIM_SCRIPT_BUILTIN(vscale);
   PRIM_SCRIPT_BUILTIN(ceil);
@@ -94,10 +88,6 @@ TIR_DEFINE_BUILTIN_FUNC(filter).set_num_inputs(2).set_attr<TCallEffectKind>(
 
 TIR_DEFINE_BUILTIN_FUNC(selector).set_num_inputs(2).set_attr<TCallEffectKind>(
     "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(large_uint_imm)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
 TIR_DEFINE_BUILTIN_FUNC(address_of)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))

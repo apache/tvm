@@ -351,7 +351,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ExecBuilder builder, ffi::String name, ffi::Array<IntImm> args, int64_t dst) {
              std::vector<Instruction::Arg> args_;
              for (size_t i = 0; i < args.size(); ++i) {
-               args_.push_back(Instruction::Arg::FromData(args[i]->value));
+               args_.push_back(Instruction::Arg::FromData(static_cast<int64_t>(args[i]->value)));
              }
              auto dst_ = Instruction::Arg::Register(dst);
              builder->EmitCall(name, args_, dst_.value());

@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op.h>
 
 #include "../utils.h"
@@ -48,7 +49,7 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialBufferIndices(
   return indices;
 }
 
-ffi::Optional<ffi::Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buffer_region) {
+ffi::Optional<ffi::Array<Var>> CheckTrivialBufferAccess(const TensorRegion& buffer_region) {
   ffi::Array<Var> indices;
   indices.reserve(buffer_region->region.size());
   for (const Range& range : buffer_region->region) {
@@ -137,10 +138,10 @@ struct BufferPadding {
   BufferVar buffer;
   BufferVar padded_buffer;
 
-  static BufferPadding FromBufferRegion(const BufferRegion& buffer_region,
+  static BufferPadding FromBufferRegion(const TensorRegion& buffer_region,
                                         const ffi::Map<Var, PrimExpr>& iter_extents) {
     BufferPadding result;
-    result.buffer = buffer_region->buffer;
+    result.buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
     ffi::Array<PrimExpr> shape;
     shape.reserve(buffer_region->region.size());
     int ndim = buffer_region->region.size();
@@ -152,7 +153,7 @@ struct BufferPadding {
       } else if (ffi::Optional<PrimExpr> extent = iter_extents.Get(pos.as_or_throw<Var>())) {
         shape.push_back(extent.value());
       } else {
-        shape.push_back(buffer_region->buffer->shape[i]);
+        shape.push_back(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>()->shape[i]);
       }
     }
     result.padded_buffer = decl_buffer(shape, result.buffer->dtype, result.buffer.name() + "_pad",
@@ -160,7 +161,7 @@ struct BufferPadding {
     return result;
   }
 
-  Stmt MakeCopyBlock(bool is_read, ffi::Array<SBlock>* blocks, arith::AnalyzerObj* analyzer) {
+  Stmt MakeCopyBlock(bool is_read, ffi::Array<SBlock>* blocks, sym::AnalyzerObj* analyzer) {
     ffi::Array<Var> loop_vars;
     ffi::Array<Range> loop_doms;
     ffi::Array<IterVar> iter_vars;
@@ -196,8 +197,8 @@ struct BufferPadding {
     } else {
       body = BufferStore(buffer, BufferLoad(padded_buffer, indices), indices);
     }
-    BufferRegion read_region(buffer, instance_dom);
-    BufferRegion write_region(padded_buffer, instance_dom);
+    TensorRegion read_region = BufferRegion(buffer, instance_dom);
+    TensorRegion write_region = BufferRegion(padded_buffer, instance_dom);
     if (!is_read) {
       std::swap(read_region, write_region);
     }
@@ -221,7 +222,7 @@ Einsum ExtractEinsum(const ScheduleState& self, const SBlock& block) {
   std::unordered_set<const VarNode*> buffer_used;
   int n_reads = block->reads.size();
   for (int i = 0; i < n_reads; ++i) {
-    const BufferVar& buffer = block->reads[i]->buffer;
+    const BufferVar& buffer = block->reads[i]->source.as_or_throw<tvm::tirx::BufferVar>();
     if (buffer_used.count(buffer.get()) != 0) {
       throw MakeScheduleError<NonEinsumError>(self->mod, block);
     }
@@ -235,7 +236,7 @@ Einsum ExtractEinsum(const ScheduleState& self, const SBlock& block) {
   }
   int n_writes = block->writes.size();
   for (int i = 0; i < n_writes; ++i) {
-    const BufferVar& buffer = block->writes[i]->buffer;
+    const BufferVar& buffer = block->writes[i]->source.as_or_throw<tvm::tirx::BufferVar>();
     if (buffer_used.count(buffer.get()) != 0) {
       throw MakeScheduleError<NonEinsumError>(self->mod, block);
     }
@@ -322,19 +323,21 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
         iter_vars.push_back(iter_var);
       }
     }
-    ffi::Array<BufferRegion> reads;
+    ffi::Array<TensorRegion> reads;
     reads.reserve(block->reads.size());
-    for (const BufferRegion& read : block->reads) {
-      if (ffi::Optional<BufferVar> buffer = VarRemapGet(read->buffer).as<BufferVar>()) {
+    for (const TensorRegion& read : block->reads) {
+      if (ffi::Optional<BufferVar> buffer =
+              VarRemapGet(read->source.as_or_throw<tvm::tirx::BufferVar>()).as<BufferVar>()) {
         reads.push_back(BufferRegion(buffer.value(), read->region));
       } else {
         reads.push_back(read);
       }
     }
-    ffi::Array<BufferRegion> writes;
+    ffi::Array<TensorRegion> writes;
     writes.reserve(block->writes.size());
-    for (const BufferRegion& write : block->writes) {
-      if (ffi::Optional<BufferVar> buffer = VarRemapGet(write->buffer).as<BufferVar>()) {
+    for (const TensorRegion& write : block->writes) {
+      if (ffi::Optional<BufferVar> buffer =
+              VarRemapGet(write->source.as_or_throw<tvm::tirx::BufferVar>()).as<BufferVar>()) {
         writes.push_back(BufferRegion(buffer.value(), write->region));
       } else {
         writes.push_back(write);
@@ -389,7 +392,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
 };
 
 void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<int64_t>& padding) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   // Step 1: Input checking and error handling
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
@@ -451,7 +454,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   ffi::Array<Stmt> write_blocks;
   ffi::Array<SBlock> new_copy_blocks;
   ffi::Array<BufferVar> alloc_buffers;
-  for (const BufferRegion& buffer_region : block->reads) {
+  for (const TensorRegion& buffer_region : block->reads) {
     if (f_needs_padding(buffer_region->region)) {
       BufferPadding bp =
           BufferPadding::FromBufferRegion(buffer_region, replacer->iter2padded_extents);
@@ -460,7 +463,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
       alloc_buffers.push_back(bp.padded_buffer);
     }
   }
-  for (const BufferRegion& buffer_region : block->writes) {
+  for (const TensorRegion& buffer_region : block->writes) {
     if (f_needs_padding(buffer_region->region)) {
       BufferPadding bp =
           BufferPadding::FromBufferRegion(buffer_region, replacer->iter2padded_extents);

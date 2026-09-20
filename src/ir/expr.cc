@@ -21,7 +21,6 @@
  * \file src/ir/expr.cc
  * \brief The expression AST nodes for the common IR infra.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
@@ -32,7 +31,6 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
-#include <tvm/te/tensor.h>
 
 #include <cmath>
 #include <utility>
@@ -42,6 +40,39 @@
 namespace tvm {
 
 namespace {
+
+template <typename TNode>
+TVMFFIAny ConstantVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  const TNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TNode>(value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->ty));
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+template <typename TNode>
+TVMFFIAny ConstantMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  const TNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TNode>(value);
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
+                                    mutator->MutateExpected(self->ty));
+  if (mapped_ty.UnchangedOrSameAs(self->ty)) return ffi::Unchanged().CopyToTVMFFIAny();
+  ffi::ObjectPtr<TNode> copy = ffi::make_object<TNode>(*self);
+  copy->ty = std::move(mapped_ty).ValueOrUnchanged(std::move(copy->ty));
+  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+}
+
+template <typename TNode>
+TVMFFIAny ConstantMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                     ffi::AnyView value) noexcept {
+  TNode* self = const_cast<TNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
+                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
+  if (!mapped_ty.UnchangedOrSameAs(self->ty)) {
+    self->ty = std::move(mapped_ty).ValueUnchecked();
+  }
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
 
 TVMFFIAny OpaqueExprVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const OpaqueExprNode* self =
@@ -125,6 +156,57 @@ TVMFFIAny TensorLoadMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   if (!mapped_ty_u.IsUnchanged()) self->ty = std::move(mapped_ty_u).ValueUnchecked();
   if (!mapped_source_u.IsUnchanged()) self->source = std::move(mapped_source_u).ValueUnchecked();
   if (!mapped_indices_u.IsUnchanged()) self->indices = std::move(mapped_indices_u).ValueUnchecked();
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
+TVMFFIAny TensorRegionVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  const TensorRegionNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorRegionNode>(value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->ty));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->source));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->region));
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny TensorRegionMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  const TensorRegionNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorRegionNode>(value);
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty_u,
+                                    mutator->MutateExpected(self->ty));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_source_u,
+                                    mutator->MutateExpected(self->source));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Range>>, mapped_region_u,
+                                    mutator->MutateExpected(self->region));
+  if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_source_u.UnchangedOrSameAs(self->source) &&
+      mapped_region_u.UnchangedOrSameAs(self->region)) {
+    return ffi::Unchanged().CopyToTVMFFIAny();
+  }
+  ffi::ObjectPtr<TensorRegionNode> copy = ffi::make_object<TensorRegionNode>(*self);
+  if (!mapped_ty_u.IsUnchanged()) copy->ty = std::move(mapped_ty_u).ValueUnchecked();
+  if (!mapped_source_u.IsUnchanged()) copy->source = std::move(mapped_source_u).ValueUnchecked();
+  if (!mapped_region_u.IsUnchanged()) copy->region = std::move(mapped_region_u).ValueUnchecked();
+  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+}
+
+TVMFFIAny TensorRegionMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                         ffi::AnyView value) noexcept {
+  TensorRegionNode* self = const_cast<TensorRegionNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorRegionNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty_u,
+                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<Expr>, mapped_source_u,
+      mutator->MutateExpected(self->source, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Array<Range>>, mapped_region_u,
+      mutator->MutateExpected(self->region, ffi::InplaceMode::kAllow));
+  if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_source_u.UnchangedOrSameAs(self->source) &&
+      mapped_region_u.UnchangedOrSameAs(self->region)) {
+    return ffi::Unchanged().CopyToTVMFFIAny();
+  }
+  if (!mapped_ty_u.IsUnchanged()) self->ty = std::move(mapped_ty_u).ValueUnchecked();
+  if (!mapped_source_u.IsUnchanged()) self->source = std::move(mapped_source_u).ValueUnchecked();
+  if (!mapped_region_u.IsUnchanged()) self->region = std::move(mapped_region_u).ValueUnchecked();
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
@@ -539,6 +621,29 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             reinterpret_cast<void*>(&TensorLoadMaybeInplaceMutate));
 }
 
+TensorRegion::TensorRegion(Expr source, ffi::Array<Range> region, Type ty, Span span) {
+  auto node = ffi::make_object<TensorRegionNode>();
+  node->source = std::move(source);
+  node->region = std::move(region);
+  node->ty = std::move(ty);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  TensorRegionNode::RegisterReflection();
+  refl::TypeAttrDef<TensorRegionNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TensorRegionVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TensorRegionMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&TensorRegionMaybeInplaceMutate));
+  refl::GlobalDef().def("ir.TensorRegion",
+                        [](Expr source, ffi::Array<Range> region, Type ty, Span span) {
+                          return TensorRegion(source, region, ty, span);
+                        });
+}
+
 // Tuple
 Tuple::Tuple(ffi::Array<Expr> fields, Span span) {
   ffi::Optional<Type> tuple_ty = [&]() -> ffi::Optional<Type> {
@@ -611,7 +716,7 @@ PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm::Int32(value)) {}
 
 PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(PrimType::Float(32), value)) {}
 
-PrimExpr PrimExpr::ConvertFallbackValue(ffi::String value) { return prim::StringImm(value); }
+Expr ffi::TypeTraits<Expr>::ConvertFallbackValue(ffi::String value) { return StringImm(value); }
 
 namespace ffi {
 
@@ -637,8 +742,58 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](Expr tuple, int index, Span span) { return TupleGetItem(tuple, index, span); });
 }
 
-// IntImm
-IntImm::IntImm(PrimType value_ty, int64_t value, Span span) {
+// Constants
+GenericConst::GenericConst(ffi::Any value, Type ty, Span span) {
+  TVM_FFI_CHECK(!ty.IsMissing(), TypeError) << "GenericConst requires an expression type";
+  TVM_FFI_CHECK(!value.as<ffi::BigInt>() && !value.as<bool>() && !value.as<double>() &&
+                    !value.as<ffi::String>(),
+                TypeError)
+      << "Primitive literals use IntImm, FloatImm, or StringImm";
+  auto node = ffi::make_object<GenericConstNode>();
+  node->value = std::move(value);
+  node->ty = std::move(ty);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+StringImm::StringImm(ffi::String value, Span span) {
+  auto node = ffi::make_object<StringImmNode>();
+  node->value = std::move(value);
+  node->ty = StringType();
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  ConstantNode::RegisterReflection();
+  GenericConstNode::RegisterReflection();
+  refl::TypeAttrDef<GenericConstNode>()
+      .attr(refl::type_attr::kStructuralVisit,
+            reinterpret_cast<void*>(&ConstantVisit<GenericConstNode>))
+      .attr(refl::type_attr::kStructuralMutate,
+            reinterpret_cast<void*>(&ConstantMutate<GenericConstNode>))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&ConstantMaybeInplaceMutate<GenericConstNode>));
+  StringImmNode::RegisterReflection();
+  refl::TypeAttrDef<StringImmNode>()
+      .attr(refl::type_attr::kStructuralVisit,
+            reinterpret_cast<void*>(&ConstantVisit<StringImmNode>))
+      .attr(refl::type_attr::kStructuralMutate,
+            reinterpret_cast<void*>(&ConstantMutate<StringImmNode>))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&ConstantMaybeInplaceMutate<StringImmNode>));
+  refl::GlobalDef()
+      .def("ir.GenericConst",
+           [](ffi::Any value, Type ty, Span span) {
+             return GenericConst(std::move(value), std::move(ty), std::move(span));
+           })
+      .def("ir.StringImm", [](ffi::String value, Span span) {
+        return StringImm(std::move(value), std::move(span));
+      });
+}
+
+IntImm::IntImm(PrimType value_ty, ffi::BigInt value, Span span) {
   DLDataType runtime_dtype = value_ty->dtype;
   DLDataTypeCode code = value_ty.code();
   int32_t bits = value_ty.bits();
@@ -648,26 +803,36 @@ IntImm::IntImm(PrimType value_ty, int64_t value, Span span) {
                                      DLDataTypeCode::kDLBool),
                 ValueError)
       << "IntImm supports only int or uint or bool type, but " << runtime_dtype << " was supplied.";
+  TVM_FFI_CHECK_GT(bits, 0, ValueError) << "IntImm requires a positive integer width";
   if (code == DLDataTypeCode::kDLUInt) {
-    TVM_FFI_CHECK_GE(value, 0U, ValueError)
+    TVM_FFI_CHECK_GE(value, 0, ValueError)
         << "Literal value " << value << " is negative for unsigned integer type " << runtime_dtype;
-    if (bits < 64) {
-      TVM_FFI_CHECK_LT(value, 1LL << bits, ValueError)
+    if (bits <= 64) {
+      auto small = value.as<uint64_t>();
+      TVM_FFI_CHECK(small.has_value() && (bits == 64 || *small < (uint64_t{1} << bits)), ValueError)
+          << "Literal value " << value << " exceeds maximum of " << runtime_dtype;
+    } else {
+      TVM_FFI_CHECK_LT(value, ffi::BigInt(1) << bits, ValueError)
           << "Literal value " << value << " exceeds maximum of " << runtime_dtype;
     }
   } else if (bits == 1 || code == DLDataTypeCode::kDLBool) {
-    // int(1)
+    // Preserve the historical int1 and bool literal range.
     TVM_FFI_CHECK(value == 0 || value == 1, ValueError)
         << value << " exceeds range of " << runtime_dtype;
-  } else if (bits < 64) {
-    TVM_FFI_CHECK_GE(value, -(1LL << (bits - 1)), ValueError)
-        << "Literal value " << value << " exceeds minimum of " << runtime_dtype;
-    TVM_FFI_CHECK_LT(value, 1LL << (bits - 1), ValueError)
-        << "Literal value " << value << " exceeds maximum of " << runtime_dtype;
+  } else if (bits <= 64) {
+    auto small = value.as<int64_t>();
+    TVM_FFI_CHECK(small.has_value() && (bits == 64 || (*small >= -(int64_t{1} << (bits - 1)) &&
+                                                       *small < (int64_t{1} << (bits - 1)))),
+                  ValueError)
+        << "Literal value " << value << " exceeds range of " << runtime_dtype;
+  } else {
+    ffi::BigInt limit = ffi::BigInt(1) << (bits - 1);
+    TVM_FFI_CHECK(value >= -limit && value < limit, ValueError)
+        << "Literal value " << value << " exceeds range of " << runtime_dtype;
   }
   ffi::ObjectPtr<IntImmNode> node = ffi::make_object<IntImmNode>();
   node->ExprNode::ty = std::move(value_ty);
-  node->value = value;
+  node->value = std::move(value);
   node->span = span;
   data_ = std::move(node);
 }
@@ -681,7 +846,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&IntImmMaybeInplaceMutate));
 
-  refl::GlobalDef().def("ir.IntImm", [](DLDataType dtype, int64_t value, Span span) {
+  refl::GlobalDef().def("ir.IntImm", [](DLDataType dtype, ffi::BigInt value, Span span) {
     return IntImm(PrimType(dtype), value, span);
   });
 }

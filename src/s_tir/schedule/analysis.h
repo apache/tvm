@@ -19,11 +19,12 @@
 #ifndef TVM_S_TIR_SCHEDULE_ANALYSIS_H_
 #define TVM_S_TIR_SCHEDULE_ANALYSIS_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/index_map.h>
 
@@ -83,7 +84,7 @@ StmtSRef GetSRefTreeRoot(const StmtSRef& sref);
  * \param analyzer The analyzer to be bound
  */
 void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
-                       arith::AnalyzerObj* analyzer);
+                       sym::AnalyzerObj* analyzer);
 
 /******** Scope ********/
 /*!
@@ -234,7 +235,7 @@ bool IsWriteCache(const StmtSRef& block_sref);
  * \return A boolean flag indicating if the binding is affine
  */
 bool IsAffineBinding(const SBlockRealize& realize, const ffi::Map<Var, Range>& loop_var_ranges,
-                     arith::AnalyzerObj* analyzer);
+                     sym::AnalyzerObj* analyzer);
 
 /*!
  * \brief Check whether a block has an affine binding using the cached flag, and throw an exception
@@ -300,7 +301,7 @@ bool GetVarsTouchedByBlockIters(const SBlockRealize& block_realize,
  * \throw ScheduleError If the loop doesn't starts with zero.
  */
 void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
-                             arith::AnalyzerObj* analyzer);
+                             sym::AnalyzerObj* analyzer);
 
 /*!
  * \brief Check whether a block has a trivial binding, i.e. each block var is bound to a outer loop,
@@ -464,7 +465,7 @@ BufferVar GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int
  * \return The n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
-BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& block, int n,
+TensorRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& block, int n,
                                       BufferIndexType index_type);
 
 /*!
@@ -605,7 +606,7 @@ bool CanReverseComputeAt(const ScheduleState& self, const StmtSRef& block_sref,
 ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
                                         const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
-                                        arith::AnalyzerObj* analyzer);
+                                        sym::AnalyzerObj* analyzer);
 
 /*!
  * \brief Checks if the given AST contains the specific operators
@@ -649,7 +650,7 @@ std::tuple</*exists=*/bool,
            /*ordered=*/bool,
            /*no_const_read=*/bool,
            /*no_shift_read=*/bool>
-AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& write_region);
+AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& write_region);
 
 /*!
  * \brief Check if the block is a data parallel block, i.e. all the block vars are data parallel
@@ -705,11 +706,11 @@ bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
  * \param dom_high_exclusive The highest node in the sref tree path
  * \return An n-dimensional integer set
  */
-ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,
-                                                  const PrimExpr& predicate,
-                                                  const StmtSRef& dom_low_inclusive,
-                                                  const StmtSRef& dom_high_exclusive,
-                                                  arith::AnalyzerObj* analyzer);
+ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(const TensorRegion& region,
+                                                const PrimExpr& predicate,
+                                                const StmtSRef& dom_low_inclusive,
+                                                const StmtSRef& dom_high_exclusive,
+                                                sym::AnalyzerObj* analyzer);
 
 /*!
  * \brief Analyze the buffer region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
@@ -721,11 +722,11 @@ ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,
  * \param analyzer The analyzer
  * \return An n-dimensional integer set
  */
-ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,
-                                                  const PrimExpr& predicate,
-                                                  const StmtSRef& dom_low_inclusive,
-                                                  const StmtSRef& dom_high_exclusive,
-                                                  arith::AnalyzerObj* analyzer);
+ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(const TensorRegion& region,
+                                                const PrimExpr& predicate,
+                                                const StmtSRef& dom_low_inclusive,
+                                                const StmtSRef& dom_high_exclusive,
+                                                sym::AnalyzerObj* analyzer);
 
 /*!
  * \brief Simplify non-trivial expressions
@@ -737,7 +738,7 @@ ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,
  * simplified to constant values for further scheduling and analysis because simplifing away the
  * block iters may result in loss of information for further analysis.
  */
-PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, arith::AnalyzerObj* analyzer);
+PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, sym::AnalyzerObj* analyzer);
 
 /*! \brief Necessary information used for tensorization */
 class TensorizeInfoNode : public ffi::Object {

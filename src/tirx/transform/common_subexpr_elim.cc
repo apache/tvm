@@ -286,7 +286,7 @@ class CSEPlanner : public StmtExprVisitor {
    * \return true if the expression can participate in CSE.
    */
   static bool IsEligible(const PrimExpr& expr) {
-    if (expr.as<IntImmNode>() || expr.as<FloatImmNode>() || expr.as<prim::StringImmNode>() ||
+    if (expr.as<IntImmNode>() || expr.as<FloatImmNode>() || expr.as<StringImmNode>() ||
         expr.as<VarNode>()) {
       return false;
     }
@@ -499,8 +499,18 @@ class CSEPlanner : public StmtExprVisitor {
   CSE_VISIT_BINARY(prim::GENode)
   CSE_VISIT_BINARY(prim::AndNode)
   CSE_VISIT_BINARY(prim::OrNode)
+  CSE_VISIT_BINARY(prim::LShiftNode)
+  CSE_VISIT_BINARY(prim::RShiftNode)
+  CSE_VISIT_BINARY(prim::BitwiseAndNode)
+  CSE_VISIT_BINARY(prim::BitwiseOrNode)
+  CSE_VISIT_BINARY(prim::BitwiseXorNode)
 #undef CSE_VISIT_BINARY
 
+  ffi::Optional<VisitInterrupt> Visit_(const prim::BitwiseNotNode* op) override {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    RecordExpr(ffi::GetRef<PrimExpr>(op), {op->a});
+    return std::nullopt;
+  }
   ffi::Optional<VisitInterrupt> Visit_(const prim::NotNode* op) override {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->a});

@@ -26,15 +26,12 @@
 #define TVM_TIR_EXPR_FUNCTOR_H_
 
 #include <tvm/ir/expr_functor.h>
-#include <tvm/tirx/buffer_region.h>
-
-#include <utility>
 
 namespace tvm {
 namespace tirx {
 
 /*!
- * \brief Shared expression dispatch extended with the TIRx BufferRegion hook.
+ * \brief Dialect entry point for shared expression dispatch.
  *
  * Override Dispatch_ for a node type or DispatchDefault_ for default behavior.
  * Core expression hooks, result types, argument forwarding and registered-ancestor
@@ -49,20 +46,15 @@ class ExprFunctor;
 template <typename R, typename... Args>
 class ExprFunctor<R(const Expr&, Args...)> : public tvm::ExprFunctor<R(const Expr&, Args...)> {
  private:
-  using TSelf = ExprFunctor<R(const Expr&, Args...)>;
   using Parent = tvm::ExprFunctor<R(const Expr&, Args...)>;
 
  public:
   using Parent::Dispatch_;
 
-  /*! \brief Construct a functor with the inherited core and TIRx hooks. */
-  ExprFunctor() : Parent(GlobalVTable()) {}
+  /*! \brief Construct a functor with the inherited expression hooks. */
+  ExprFunctor() = default;
   /*! \brief Destroy through the dialect functor base. */
   virtual ~ExprFunctor() = default;
-
-  virtual R Dispatch_(const BufferRegionNode* node, Args... args) {
-    return this->DispatchDefault_(node, std::forward<Args>(args)...);
-  }
 
  protected:
   using Parent::SetDispatch;
@@ -71,22 +63,8 @@ class ExprFunctor<R(const Expr&, Args...)> : public tvm::ExprFunctor<R(const Exp
   /*! \brief Construct with a finalized table that outlives the functor. */
   explicit ExprFunctor(const VTable* vtable) : Parent(vtable) {}
 
-  /*! \brief Initialize inherited dispatch and add the dialect-only hook. */
-  static void InitVTable(VTable* vtable) {
-    Parent::InitVTable(vtable);
-    Parent::template SetDispatch<TSelf, BufferRegionNode>(vtable);
-  }
-
- private:
-  static const VTable* GlobalVTable() {
-    static const VTable table = [] {
-      VTable table;
-      InitVTable(&table);
-      table.Finalize();
-      return table;
-    }();
-    return &table;
-  }
+  /*! \brief Initialize the inherited expression dispatch. */
+  static void InitVTable(VTable* vtable) { Parent::InitVTable(vtable); }
 };
 
 }  // namespace tirx

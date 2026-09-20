@@ -349,14 +349,14 @@ class FunctionCopier : public SymbolicVarRenewMutator {
 };
 
 /*!
- * \brief Create a Constant with a scalar
+ * \brief Create a GenericConst with a scalar
  *
  * \param dtype The data type.
  * \param value The value of the scalar.
- * \return A Constant.
+ * \return A GenericConst.
  */
 template <typename T>
-inline Constant MakeConstantScalar(T value, DLDataType dtype) {
+inline GenericConst MakeConstantScalar(T value, DLDataType dtype) {
   runtime::Tensor arr = runtime::Tensor::Empty({}, dtype, {kDLCPU, 0});
   if (dtype == DLDataType{kDLFloat, 32, 1}) {
     *static_cast<float*>(arr->data) = static_cast<float>(value);
@@ -395,7 +395,7 @@ inline Constant MakeConstantScalar(T value, DLDataType dtype) {
   } else {
     TVM_FFI_THROW(InternalError) << "Unsupported dtype " << dtype;
   }
-  return Constant(arr);
+  return MakeTensorConst(arr);
 }
 
 inline ffi::Array<int64_t> GetOrderedPositiveAxes(const ffi::Array<int64_t>& axes, int ndim) {

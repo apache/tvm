@@ -21,7 +21,6 @@
  * \file vectorize_loop.cc
  */
 // Loop vectorizer as in Halide pipeline.
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_mutate.h>
@@ -30,6 +29,7 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
@@ -447,7 +447,7 @@ class VecAllocAccess : public StmtExprMutator {
   // the lanes.
   PrimExpr var_lanes_;
   // Analyzer for simplifications
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 // Vectorization supplies its own dtype-aware expression traversal.
@@ -493,7 +493,7 @@ class Vectorizer : public StmtExprMutator {
     TVM_FFI_UNREACHABLE();
   }
 
-  UnchangedOr<Expr> Mutate_(const BufferRegionNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
     TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     TVM_FFI_UNREACHABLE();
   }
@@ -597,6 +597,28 @@ class Vectorizer : public StmtExprMutator {
     return BinaryVec<prim::Or>(op, inplace_mode);
   }
 
+  UnchangedOr<PrimExpr> Mutate_(const prim::LShiftNode* op, InplaceMode inplace_mode) final {
+    return BinaryVec<prim::LShift>(op, inplace_mode);
+  }
+  UnchangedOr<PrimExpr> Mutate_(const prim::RShiftNode* op, InplaceMode inplace_mode) final {
+    return BinaryVec<prim::RShift>(op, inplace_mode);
+  }
+  UnchangedOr<PrimExpr> Mutate_(const prim::BitwiseAndNode* op, InplaceMode inplace_mode) final {
+    return BinaryVec<prim::BitwiseAnd>(op, inplace_mode);
+  }
+  UnchangedOr<PrimExpr> Mutate_(const prim::BitwiseOrNode* op, InplaceMode inplace_mode) final {
+    return BinaryVec<prim::BitwiseOr>(op, inplace_mode);
+  }
+  UnchangedOr<PrimExpr> Mutate_(const prim::BitwiseXorNode* op, InplaceMode inplace_mode) final {
+    return BinaryVec<prim::BitwiseXor>(op, inplace_mode);
+  }
+
+  UnchangedOr<PrimExpr> Mutate_(const prim::BitwiseNotNode* op, InplaceMode inplace_mode) final {
+    auto a = this->Mutate(op->a, inplace_mode);
+    if (a.UnchangedOrSameAs(op->a)) return ffi::Unchanged();
+    return prim::BitwiseNot(std::move(a).ValueOrUnchanged(op->a), op->span);
+  }
+
   UnchangedOr<PrimExpr> Mutate_(const prim::NotNode* op, InplaceMode inplace_mode) final {
     auto a_update = this->Mutate(op->a, inplace_mode);
     bool a_unchanged = a_update.UnchangedOrSameAs(op->a);
@@ -619,8 +641,8 @@ class Vectorizer : public StmtExprMutator {
       TVM_FFI_ICHECK(op->lanes->IsInstance<IntImmNode>())
           << "Vectorizing over existing scalable vectors is not supported.";
       const prim::RampNode* base_ramp = base.as<prim::RampNode>();
-      int op_lanes = static_cast<int>(op->lanes.as_or_throw<IntImm>()->value);
-      int base_ramp_lanes = static_cast<int>(base_ramp->lanes.as_or_throw<IntImm>()->value);
+      int op_lanes = op->lanes.as_or_throw<IntImm>()->value.as<int>().value();
+      int base_ramp_lanes = base_ramp->lanes.as_or_throw<IntImm>()->value.as<int>().value();
       if (analyzer_->CanProve(base_ramp->stride ==
                               stride * MakeConst(stride.ty(), base_ramp_lanes))) {
         return prim::Ramp(base_ramp->base, stride, op_lanes * base_ramp_lanes);
@@ -912,7 +934,8 @@ class Vectorizer : public StmtExprMutator {
       return ffi::Unchanged();
     }
 
-    int new_vec_length = var_lanes_.as_or_throw<IntImm>()->value / op->vectors[0].ty().lanes();
+    int new_vec_length =
+        var_lanes_.as_or_throw<IntImm>()->value.as<int>().value() / op->vectors[0].ty().lanes();
     PrimExpr updated_index = indices[0];
     // Check that the indices satisfy the specific patterns.
     auto f_check_index = [this, op](const PrimExpr& index) {
@@ -1143,7 +1166,7 @@ class Vectorizer : public StmtExprMutator {
 
  private:
   // analyzer
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   // deep equal
   prim::ExprDeepEqual deep_equal_;
   // variable to be replaced
@@ -1234,7 +1257,7 @@ class Vectorizer : public StmtExprMutator {
       int b_lanes = GetLanesOrVScaleFactor(b.ty());
       int lanes = std::max(a_lanes, b_lanes);
       bool is_scalable = a.ty().IsScalableVector() || b.ty().IsScalableVector();
-      return TOp(BroadcastTo(a, lanes, is_scalable), BroadcastTo(b, lanes, is_scalable));
+      return TOp(BroadcastTo(a, lanes, is_scalable), BroadcastTo(b, lanes, is_scalable), op->span);
     }
   }
   template <typename T, typename FCompute>
@@ -1292,7 +1315,7 @@ class LoopVectorizer : public StmtExprMutator {
       // lane count, so keep them on the existing fixed-width path for now.
       if (extent_as_int && extent_as_int->value > 1 && TargetHasRVV(target_) &&
           !ContainsCallNode(op->body)) {
-        return VectorizeFixedLoopForRVV(op, extent_as_int->value);
+        return VectorizeFixedLoopForRVV(op, extent_as_int->value.as<int>().value());
       }
 
       if (!extent_as_int || extent_as_int->value < 1) {

@@ -27,14 +27,12 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include <algorithm>
 #include <functional>
 #include <utility>
-#include <vector>
 
 #include "tvm/ir/expr.h"
 #include "tvm/ir/prim/expr.h"
@@ -44,7 +42,6 @@
 namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
-
 UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
   auto result = StmtExprMutator::Mutate_(op, inplace_mode);
   if (!result.IsUnchanged()) {
@@ -74,51 +71,8 @@ UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const ForNode* op, InplaceMode inpl
   return For(n);
 }
 
-UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const SBlockRealizeNode* op,
-                                             InplaceMode inplace_mode) {
-  SBlockRealize realize = StmtExprMutator::Mutate_(op, inplace_mode)
-                              .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                              .as_or_throw<SBlockRealize>();
-  ffi::Array<PrimExpr> new_iter_values;
-  bool changed = false;
-  for (int i = 0; i < static_cast<int>(op->iter_values.size()); ++i) {
-    PrimType dtype = realize->block->iter_vars[i]->var.ty();
-    if (op->iter_values[i].ty() != dtype) {
-      new_iter_values.push_back(prim::cast(dtype, realize->iter_values[i]));
-      changed = true;
-    } else {
-      new_iter_values.push_back(realize->iter_values[i]);
-    }
-  }
-  if (changed) {
-    realize.CopyOnWrite()->iter_values = std::move(new_iter_values);
-  }
-  return realize;
-}
-
-UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
-  SBlock new_block = StmtExprMutator::Mutate_(op, inplace_mode)
-                         .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                         .as_or_throw<SBlock>();
-  ffi::Array<IterVar> new_iter_vars = new_block->iter_vars.Map([](const IterVar& iter) {
-    PrimType dtype = iter->var.ty();
-    if (iter->dom->min.ty() != dtype || iter->dom->extent.ty() != dtype) {
-      IterVar new_iter = iter;
-      new_iter.CopyOnWrite()->dom =
-          Range(prim::cast(dtype, iter->dom->min), prim::cast(dtype, iter->dom->extent));
-      return new_iter;
-    } else {
-      return iter;
-    }
-  });
-  if (!op->iter_vars.same_as(new_iter_vars)) {
-    new_block.CopyOnWrite()->iter_vars = std::move(new_iter_vars);
-  }
-  return new_block;
-}
-
 UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
-  if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
+  if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread) {
     Stmt s = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = s.as<AttrStmtNode>();
     TVM_FFI_ICHECK(op != nullptr) << "Expected type to be AttrStmtNode"
@@ -142,7 +96,8 @@ UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const AttrStmtNode* op, InplaceMode
       }
       ivmap_[iv] = IterVar(dom, var, iv->iter_type, iv->thread_tag);
     }
-    return AttrStmt(ivmap_[iv], op->attr_key, prim::cast(var.ty(), op->value), op->body);
+    return AttrStmt(ivmap_[iv], op->attr_key,
+                    prim::cast(var.ty(), op->value.as_or_throw<PrimExpr>()), op->body);
   }
   return StmtExprMutator::Mutate_(op, inplace_mode);
 }
@@ -297,11 +252,60 @@ TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::LTNode, operator<);  // NOLINT
 TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::GTNode, operator>);  // NOLINT(*)
 TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::GENode, operator>=);
 
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::BitwiseAndNode, bitwise_and);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::BitwiseOrNode, bitwise_or);
+TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::BitwiseXorNode, bitwise_xor);
+
 #undef TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH
+
+UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::LShiftNode* op,
+                                                 InplaceMode inplace_mode) {
+  PrimType before_dtype = op->a.ty();
+  // Preserve the original operands while computing the narrowed shift.
+  PrimExpr lhs = Mutate(op->a, InplaceMode::kDisallow).ValueOrUnchanged(op->a);
+  PrimExpr rhs = Mutate(op->b, InplaceMode::kDisallow).ValueOrUnchanged(op->b);
+  PrimType after_dtype = lhs.ty();
+  if (ShouldClampShiftAmounts() && before_dtype.code() == DLDataTypeCode::kDLInt &&
+      after_dtype.code() == DLDataTypeCode::kDLInt && before_dtype.bits() > after_dtype.bits()) {
+    // Values fit in the narrowed dtype.  Clamp lane-wise to keep dynamic and
+    // vector shift amounts below its width, preserving representable results.
+    rhs = min(rhs, MakeConst(rhs.ty(), after_dtype.bits() - 1, op->span), op->span);
+  }
+  if (lhs.same_as(op->a) && rhs.same_as(op->b) && lhs.ty() == rhs.ty()) {
+    return ffi::Unchanged();
+  }
+  return left_shift(lhs, rhs, op->span);
+}
+
+UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::RShiftNode* op,
+                                                 InplaceMode inplace_mode) {
+  PrimType before_dtype = op->a.ty();
+  // Preserve the original operands while computing the narrowed shift.
+  PrimExpr lhs = Mutate(op->a, InplaceMode::kDisallow).ValueOrUnchanged(op->a);
+  PrimExpr rhs = Mutate(op->b, InplaceMode::kDisallow).ValueOrUnchanged(op->b);
+  PrimType after_dtype = lhs.ty();
+  if (ShouldClampShiftAmounts() && before_dtype.code() == DLDataTypeCode::kDLInt &&
+      after_dtype.code() == DLDataTypeCode::kDLInt && before_dtype.bits() > after_dtype.bits()) {
+    // Values fit in the narrowed dtype.  Clamp lane-wise to keep dynamic and
+    // vector shift amounts below its width, preserving representable results.
+    rhs = min(rhs, MakeConst(rhs.ty(), after_dtype.bits() - 1, op->span), op->span);
+  }
+  if (lhs.same_as(op->a) && rhs.same_as(op->b) && lhs.ty() == rhs.ty()) {
+    return ffi::Unchanged();
+  }
+  return right_shift(lhs, rhs, op->span);
+}
+
+UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::BitwiseNotNode* op,
+                                                 InplaceMode inplace_mode) {
+  auto a = Mutate(op->a, inplace_mode);
+  if (a.UnchangedOrSameAs(op->a)) return ffi::Unchanged();
+  return prim::BitwiseNot(std::move(a).ValueOrUnchanged(op->a), op->span);
+}
 
 UnchangedOr<Expr> DataTypeLegalizer::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   Call before = ffi::GetRef<Call>(op);
-  // Keep the original argument dtypes available for shift and clz correction below.
+  // Keep the original argument dtype available for clz correction below.
   Expr e =
       StmtExprMutator::Mutate_(op, InplaceMode::kDisallow).ValueOrUnchanged(ffi::GetRef<Expr>(op));
   op = e.as<CallNode>();
@@ -311,40 +315,6 @@ UnchangedOr<Expr> DataTypeLegalizer::Mutate_(const CallNode* op, InplaceMode inp
     return e;
   }
   PrimExpr prim_e = e.as_or_throw<PrimExpr>();
-  if (op->op.same_as(prim::builtin::shift_right())) {
-    PrimExpr lhs = op->args[0].as_or_throw<PrimExpr>();
-    PrimExpr rhs = op->args[1].as_or_throw<PrimExpr>();
-    PrimType before_dtype = before->args[0].as_or_throw<PrimExpr>().ty();
-    PrimType after_dtype = lhs.ty();
-    if (ShouldClampShiftAmounts() && before_dtype.code() == DLDataTypeCode::kDLInt &&
-        after_dtype.code() == DLDataTypeCode::kDLInt && before_dtype.bits() > after_dtype.bits()) {
-      // Values are assumed to fit in the narrowed dtype.  An arithmetic right
-      // shift at or beyond its sign bit therefore has the same value as a shift
-      // by the new sign-bit position.  Clamp lane-wise so dynamic and vector
-      // shift amounts remain valid for the narrowed dtype.
-      rhs = min(rhs, MakeConst(rhs.ty(), after_dtype.bits() - 1, op->span), op->span);
-    }
-    return lhs >> rhs;
-  } else if (op->op.same_as(prim::builtin::shift_left())) {
-    PrimExpr lhs = op->args[0].as_or_throw<PrimExpr>();
-    PrimExpr rhs = op->args[1].as_or_throw<PrimExpr>();
-    PrimType before_dtype = before->args[0].as_or_throw<PrimExpr>().ty();
-    PrimType after_dtype = lhs.ty();
-    if (ShouldClampShiftAmounts() && before_dtype.code() == DLDataTypeCode::kDLInt &&
-        after_dtype.code() == DLDataTypeCode::kDLInt && before_dtype.bits() > after_dtype.bits()) {
-      // Keep dynamic and vector shift amounts valid for the narrowed dtype.  Under the pass's
-      // representability precondition, a left shift at or beyond the narrowed width can only
-      // produce a representable result when lhs is zero, so clamping does not alter valid cases.
-      rhs = min(rhs, MakeConst(rhs.ty(), after_dtype.bits() - 1, op->span), op->span);
-    }
-    return lhs << rhs;
-  } else if (op->op.same_as(prim::builtin::bitwise_and())) {
-    return op->args[0].as_or_throw<PrimExpr>() & op->args[1].as_or_throw<PrimExpr>();
-  } else if (op->op.same_as(prim::builtin::bitwise_or())) {
-    return op->args[0].as_or_throw<PrimExpr>() | op->args[1].as_or_throw<PrimExpr>();
-  } else if (op->op.same_as(prim::builtin::bitwise_xor())) {
-    return op->args[0].as_or_throw<PrimExpr>() ^ op->args[1].as_or_throw<PrimExpr>();
-  }
   static const Op& pow_op = Op::Get("tirx.pow");
   static const Op& clz_op = prim::builtin::clz();
   if (op->op.same_as(pow_op)) {
@@ -374,7 +344,7 @@ UnchangedOr<Expr> DataTypeLegalizer::Mutate_(const CallNode* op, InplaceMode inp
 }
 
 UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
-  if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
+  if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread) {
     bool is_enabled = is_enabled_;
     is_enabled_ = true;
     auto stmt = DataTypeLegalizer::Mutate_(op, inplace_mode);
@@ -390,164 +360,6 @@ UnchangedOr<ffi::Any> IndexDataTypeRewriter::Mutate(ffi::AnyView value, InplaceM
   auto result = DataTypeLegalizer::Mutate(value, inplace_mode);
   is_enabled_ = is_enabled;
   return result;
-}
-
-UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const SBlockRealizeNode* op,
-                                                 InplaceMode inplace_mode) {
-  bool is_condition = is_condition_;
-  is_condition_ = true;
-  auto new_predicate_result = Mutate(op->predicate, inplace_mode);
-  bool new_predicate_unchanged = new_predicate_result.UnchangedOrSameAs(op->predicate);
-  auto new_predicate = std::move(new_predicate_result).ValueOrUnchanged(op->predicate);
-  is_condition_ = is_condition;
-
-  bool is_enabled = is_enabled_;
-  is_enabled_ = true;
-  auto new_iter_values = Mutate(op->iter_values, inplace_mode)
-                             .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
-                             .ValueOrUnchanged(op->iter_values);
-  is_enabled_ = is_enabled;
-  SBlock new_body =
-      this->Mutate(op->block, inplace_mode).ValueOrUnchanged(op->block).as_or_throw<SBlock>();
-  if (!new_predicate_unchanged || !new_iter_values.same_as(op->iter_values) ||
-      !new_body.same_as(op->block)) {
-    SBlockRealize new_block_realize = ffi::GetRef<SBlockRealize>(op);
-    auto* n = new_block_realize.CopyOnWrite();
-    n->predicate = std::move(new_predicate);
-    n->iter_values = std::move(new_iter_values);
-    n->block = std::move(new_body);
-    return new_block_realize;
-
-  } else {
-    return ffi::Unchanged();
-  }
-}
-
-UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
-  auto new_alloc_buffers = WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
-    return Mutate(op->alloc_buffers, inplace_mode)
-        .as_or_throw<UnchangedOr<ffi::Array<BufferVar>>>()
-        .ValueOrUnchanged(op->alloc_buffers);
-  });
-  auto new_match_buffers = op->match_buffers.Map([this](const MatchBufferRegion& match) {
-    BufferVar buffer = WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
-      return Mutate(match->buffer, InplaceMode::kDisallow)
-          .as_or_throw<UnchangedOr<BufferVar>>()
-          .ValueOrUnchanged(match->buffer);
-    });
-    BufferRegion source = VisitBufferRegion(match->source);
-    if (buffer.same_as(match->buffer) && source.same_as(match->source)) return match;
-    return MatchBufferRegion(buffer, source);
-  });
-  ffi::Array<BufferRegion> new_reads = op->reads.Map(
-      [this](const BufferRegion& buffer_region) { return this->VisitBufferRegion(buffer_region); });
-  ffi::Array<BufferRegion> new_writes = op->writes.Map(
-      [this](const BufferRegion& buffer_region) { return this->VisitBufferRegion(buffer_region); });
-  ffi::Array<IterVar> new_iter_vars =
-      op->iter_vars.Map([this](const IterVar& iter_var) { return this->VisitIterVar(iter_var); });
-  ffi::Optional<Stmt> new_init = std::nullopt;
-  if (op->init.has_value()) {
-    new_init = this->Mutate(op->init.value(), inplace_mode).ValueOrUnchanged(op->init.value());
-  }
-  ffi::Map<ffi::String, ffi::Any> new_annotations = VisitBlockAnnotations(op->annotations);
-  auto new_body_result = this->Mutate(op->body, inplace_mode);
-  bool new_body_unchanged = new_body_result.UnchangedOrSameAs(op->body);
-  Stmt new_body = std::move(new_body_result).ValueOrUnchanged(op->body);
-
-  if (!new_init.same_as(op->init) || !new_body_unchanged ||
-      !new_alloc_buffers.same_as(op->alloc_buffers) ||
-      !new_match_buffers.same_as(op->match_buffers) || !new_reads.same_as(op->reads) ||
-      !new_writes.same_as(op->writes) || !new_iter_vars.same_as(op->iter_vars) ||
-      !new_annotations.same_as(op->annotations)) {
-    SBlock new_block = ffi::GetRef<SBlock>(op);
-    SBlockNode* n = new_block.CopyOnWrite();
-    n->alloc_buffers = std::move(new_alloc_buffers);
-    n->match_buffers = std::move(new_match_buffers);
-    n->reads = std::move(new_reads);
-    n->writes = std::move(new_writes);
-    n->iter_vars = std::move(new_iter_vars);
-    n->init = std::move(new_init);
-    n->annotations = std::move(new_annotations);
-    n->body = std::move(new_body);
-    return new_block;
-  }
-  return ffi::Unchanged();
-}
-
-ffi::Map<ffi::String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
-    const ffi::Map<ffi::String, ffi::Any>& annotations) {
-  auto new_annotations = annotations;
-
-  std::function<Any(const Any&)> f_mutate_obj = [this, &f_mutate_obj](const Any& obj) -> Any {
-    if (obj == nullptr) {
-      return obj;
-    }
-    if (auto var = obj.as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
-      BufferVar buffer(var.value());
-      if (BufferVar new_buffer = Mutate(buffer, InplaceMode::kDisallow)
-                                     .as_or_throw<UnchangedOr<BufferVar>>()
-                                     .ValueOrUnchanged(buffer);
-          !new_buffer.same_as(buffer)) {
-        return new_buffer;
-      }
-    } else if (obj.as<ffi::ArrayObj>()) {
-      return obj.as_or_throw<ffi::Array<Any>>().Map(f_mutate_obj);
-    }
-    return obj;
-  };
-  for (const auto& [key, value] : annotations) {
-    if (auto opt_object_ref = value.as<ffi::ObjectRef>()) {
-      auto new_value = f_mutate_obj(*opt_object_ref);
-      if (!new_value.same_as(*opt_object_ref)) {
-        new_annotations.Set(key, new_value);
-      }
-    }
-  }
-  return new_annotations;
-}
-
-IterVar IndexDataTypeRewriter::VisitIterVar(const IterVar& iter_var) {
-  bool is_enabled = is_enabled_;
-  is_enabled_ = true;
-  PrimVar new_var = Mutate(iter_var->var, InplaceMode::kDisallow)
-                        .ValueOrUnchanged(iter_var->var)
-                        .as_or_throw<PrimVar>();
-  PrimExpr min =
-      Mutate(iter_var->dom->min, InplaceMode::kDisallow).ValueOrUnchanged(iter_var->dom->min);
-  PrimExpr extent =
-      Mutate(iter_var->dom->extent, InplaceMode::kDisallow).ValueOrUnchanged(iter_var->dom->extent);
-  is_enabled_ = is_enabled;
-  if (!new_var.same_as(iter_var->var) || !min.same_as(iter_var->dom->min) ||
-      !extent.same_as(iter_var->dom->extent)) {
-    IterVar new_iter_var = iter_var;
-    IterVarNode* n = new_iter_var.CopyOnWrite();
-    n->var = std::move(new_var);
-    n->dom = Range(min, extent);
-    return new_iter_var;
-  }
-  return iter_var;
-}
-
-BufferRegion IndexDataTypeRewriter::VisitBufferRegion(const BufferRegion& buffer_region) {
-  BufferVar remapped_buffer = Mutate(buffer_region->buffer, InplaceMode::kDisallow)
-                                  .as_or_throw<UnchangedOr<BufferVar>>()
-                                  .ValueOrUnchanged(buffer_region->buffer);
-
-  bool is_enabled = is_enabled_;
-  is_enabled_ = true;
-  auto new_region = buffer_region->region.Map([&](const Range& range) {
-    return Range::FromMinExtent(
-        this->Mutate(range->min, InplaceMode::kDisallow).ValueOrUnchanged(range->min),
-        this->Mutate(range->extent, InplaceMode::kDisallow).ValueOrUnchanged(range->extent));
-  });
-  is_enabled_ = is_enabled;
-
-  if (!remapped_buffer.same_as(buffer_region->buffer) ||
-      !new_region.same_as(buffer_region->region)) {
-    return BufferRegion(remapped_buffer, new_region);
-  } else {
-    return buffer_region;
-  }
 }
 
 UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const BufferStoreNode* op,
@@ -753,6 +565,9 @@ UnchangedOr<PrimExpr> IndexDataTypeRewriter::Mutate_(const prim::SelectNode* op,
 
 IndexDataTypeNormalizer::IndexDataTypeNormalizer(PrimType target_data_type)
     : target_data_type_(std::move(target_data_type)) {}
+
+IndexDataTypeNormalizer::IndexDataTypeNormalizer(PrimType target_data_type, const VTable* vtable)
+    : IndexDataTypeRewriter(vtable), target_data_type_(std::move(target_data_type)) {}
 
 PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   // Collect scalar dtype requirements without changing types.  Buffer definitions

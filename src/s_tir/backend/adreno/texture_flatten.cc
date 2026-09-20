@@ -35,7 +35,7 @@
 
 #include "../../../backend/opencl/runtime/texture.h"
 #include "../../../runtime/thread_storage_scope.h"
-#include "../../../tirx/ir_visitor_with_analyzer.h"
+#include "../../../s_tir/ir/ir_visitor_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
@@ -153,7 +153,7 @@ class TextureFlattener : public TextureLoweringBase {
     PrimExpr depth_offset = SimplifyOffset(depth_dims, depth_indices);
     PrimExpr channel_size =
         IntImm(PrimType::Int(32, 1),
-               *tvm::prim::as_const_int(buffer->shape.back()) * buffer->dtype.bits());
+               buffer->shape.back().as_or_throw<IntImm>()->value * buffer->dtype.bits());
     args.push_back(row_offset);
     args.push_back(col_offset);
     args.push_back(depth_offset);

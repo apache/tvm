@@ -22,12 +22,12 @@
  * \file unroll_loop.cc
  */
 // Unrolls the loop as in Halide pipeline.
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -109,13 +109,13 @@ class LoopUnroller : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == "pragma_auto_unroll_max_step") {
-      int value = static_cast<int>(op->value.as_or_throw<IntImm>()->value);
+      int value = op->value.as_or_throw<IntImm>()->value.as<int>().value();
       std::swap(value, auto_max_step_);
       Stmt ret = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
       std::swap(value, auto_max_step_);
       return ret;
     } else if (op->attr_key == "pragma_unroll_explicit") {
-      bool explicit_unroll = op->value.as_or_throw<IntImm>()->value;
+      bool explicit_unroll = static_cast<bool>(op->value.as_or_throw<IntImm>()->value);
       std::swap(explicit_unroll, explicit_unroll_);
       Stmt ret = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
       std::swap(explicit_unroll, explicit_unroll_);
@@ -269,8 +269,8 @@ class LoopUnroller : public StmtExprMutator {
     int value = -1;
     // integers that do not fit in int32_t are treated as symbolic,
     // as it's impossible to unroll such large loops
-    if (v1 != nullptr && v1->value <= std::numeric_limits<int>::max()) {
-      value = static_cast<int>(v1->value);
+    if (v1 != nullptr) {
+      value = v1->value.as<int>().value_or(-1);
     }
     return value;
   }
@@ -293,7 +293,7 @@ class LoopUnroller : public StmtExprMutator {
   // set of indices touched during visit local memory
   std::unordered_set<Var> var_touched_local_;
   // analyzer
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 Stmt UnrollLoop(Stmt stmt, UnrollLoopConfig cfg) {

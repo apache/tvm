@@ -724,9 +724,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 isinstance(rhs, tvm.ir.Var) and isinstance(rhs.ty, relax.TensorType)
             ):
                 return call_binary_op(relax_op, lhs, rhs)
-            elif isinstance(lhs, relax.expr.Constant) and not isinstance(rhs, relax.expr.Constant):
+            elif isinstance(lhs, tvm.ir.GenericConst) and not isinstance(rhs, tvm.ir.GenericConst):
                 return call_binary_op(relax_op, lhs, relax.const(rhs, dtype=lhs.ty.dtype))
-            elif isinstance(rhs, relax.expr.Constant) and not isinstance(lhs, relax.expr.Constant):
+            elif isinstance(rhs, tvm.ir.GenericConst) and not isinstance(lhs, tvm.ir.GenericConst):
                 return call_binary_op(relax_op, relax.const(lhs, dtype=rhs.ty.dtype), rhs)
             return intrinsic_op(lhs, rhs)
 
@@ -3122,9 +3122,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             for i in expand_dim:
                 sliced_shape.insert(i, 1)
             return self.block_builder.emit(relax.op.reshape(sliced, sliced_shape))
-        elif isinstance(x, relax.Constant):
+        elif isinstance(x, tvm.ir.GenericConst):
             dtype = x.ty.dtype
-            return relax.const(x.data.numpy()[node.args[1]], dtype)
+            return relax.const(x.value.numpy()[node.args[1]], dtype)
         else:
             assert False
 
@@ -3132,7 +3132,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         shape = self.shape_of(x)
         dtype = x.ty.dtype
-        analyzer = tvm.arith.Analyzer()
+        analyzer = tvm.sym.Analyzer()
         has_single_element = shape is not None and all(
             analyzer.can_prove_equal(dim, 1) for dim in shape
         )

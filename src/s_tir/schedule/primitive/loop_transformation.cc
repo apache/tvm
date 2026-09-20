@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 
@@ -142,12 +143,12 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
       return realize;
     }
     ffi::Array<PrimExpr> v =
-        arith::IterMapSimplify(/*indices=*/op->iter_values,
-                               /*input_iters=*/loop_var2extent_,
-                               /*input_pred=*/op->predicate,
-                               /*check_level=*/arith::IterMapLevel::Surjective,
-                               /*analyzer=*/analzyer_,
-                               /*simplify_trivial_iterators=*/!preserve_unit_iters_);
+        sym::IterMapSimplify(/*indices=*/op->iter_values,
+                             /*input_iters=*/loop_var2extent_,
+                             /*input_pred=*/op->predicate,
+                             /*check_level=*/sym::IterMapLevel::Surjective,
+                             /*analyzer=*/analzyer_,
+                             /*simplify_trivial_iterators=*/!preserve_unit_iters_);
     if (v.same_as(op->iter_values)) {
       return ffi::Unchanged();
     } else {
@@ -167,7 +168,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   /*! \brief The range of loops */
   ffi::Map<PrimVar, Range> loop_var2extent_;
   /*! \brief Internal analyzer */
-  arith::Analyzer analzyer_;
+  sym::Analyzer analzyer_;
   /*! \brief Whether or not to simplify unit iterators */
   bool preserve_unit_iters_;
 };
@@ -440,7 +441,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
     throw MakeScheduleError<HasAnnotationOrThreadBindingError>(self->mod, ffi::GetRef<For>(loop));
   }
   // Currently, loops not starting with 0 are not supported
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   CheckLoopStartsWithZero(self, loop_sref, analyzer.get());
 
   // Find the most common dtype
@@ -471,8 +472,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
                  .ValueOrUnchanged(std::move(new_stmt));
   // Step 3. Update predicate to guard the loop
   PrimExpr predicate = substitute_value < loop->extent;
-  if (!disable_predication &&
-      !analyzer->CanProve(predicate, arith::ProofStrength::kSymbolicBound)) {
+  if (!disable_predication && !analyzer->CanProve(predicate, sym::ProofStrength::kSymbolicBound)) {
     new_stmt = ffi::make_object<BlockPredicateAppender>(/*predicate=*/predicate)
                    ->Mutate(new_stmt, InplaceMode::kAllow)
                    .ValueOrUnchanged(std::move(new_stmt));
@@ -547,17 +547,19 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
   ffi::Map<ffi::String, ffi::Array<ffi::String>> buffer_indices_map;
 };
 
-ffi::Array<BufferRegion> MutateBufferRegion(
+ffi::Array<TensorRegion> MutateBufferRegion(
     ffi::Map<ffi::String, ffi::Array<ffi::String>> buffer_indices_map,
-    ffi::Map<ffi::String, Range> index_range_map, ffi::Array<BufferRegion> region_arr) {
-  // Update the region with new Ranges and return new BufferRegion
-  ffi::Array<BufferRegion> new_region_arr =
-      MutateArray(region_arr, [&buffer_indices_map, &index_range_map](const BufferRegion& region) {
-        BufferRegion new_region = region;
-        auto it = buffer_indices_map.find(new_region->buffer.name());
+    ffi::Map<ffi::String, Range> index_range_map, ffi::Array<TensorRegion> region_arr) {
+  // Update the region with new Ranges and return new TensorRegion
+  ffi::Array<TensorRegion> new_region_arr =
+      region_arr.Map([&buffer_indices_map, &index_range_map](const TensorRegion& region) {
+        TensorRegion new_region = region;
+        auto it =
+            buffer_indices_map.find(new_region->source.as_or_throw<tvm::tirx::BufferVar>().name());
         if (it == buffer_indices_map.end()) return new_region;
 
-        ffi::Array<ffi::String> old_indices = buffer_indices_map[new_region->buffer.name()];
+        ffi::Array<ffi::String> old_indices =
+            buffer_indices_map[new_region->source.as_or_throw<tvm::tirx::BufferVar>().name()];
         ffi::Array<Range> new_ranges;
         for (size_t i = 0; i < old_indices.size(); i++) {
           new_ranges.push_back(index_range_map[old_indices[i]]);
@@ -593,7 +595,7 @@ class BlockMutator : public StmtExprMutator {
     inner_iter_var_index = -1;
     // As we are working on cloned block, we need to create new instances of iter_var
     ffi::Array<IterVar> new_iter_vars =
-        MutateArray(new_block->iter_vars, [this, &iter_var_](const IterVar& iter) {
+        new_block->iter_vars.Map([this, &iter_var_](const IterVar& iter) {
           auto dtype = iter->var.ty();
           // Create new Var instance for each IterVar
           Var new_var = Var(iter->var->name, iter->var.ty());
@@ -624,13 +626,13 @@ class BlockMutator : public StmtExprMutator {
     // Get the (BufferVar, indices) map
     ffi::Map<ffi::String, ffi::Array<ffi::String>> buffer_indices_map =
         BufferIndicesMapExtractor::Extract(new_loop_var_, new_block);
-    ffi::Array<BufferRegion> new_writes =
+    ffi::Array<TensorRegion> new_writes =
         MutateBufferRegion(buffer_indices_map, index_range_map, new_block->writes);
     if (!new_block->writes.same_as(new_writes)) {
       // Update the writes with new_writes
       new_block.CopyOnWrite()->writes = std::move(new_writes);
     }
-    ffi::Array<BufferRegion> new_reads =
+    ffi::Array<TensorRegion> new_reads =
         MutateBufferRegion(buffer_indices_map, index_range_map, new_block->reads);
     if (!new_block->reads.same_as(new_reads)) {
       // Update the reads with new_reads
@@ -714,7 +716,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
     throw MakeScheduleError<HasAnnotationOrThreadBindingError>(self->mod, ffi::GetRef<For>(loop));
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   // Find the most common dtype
   PrimType dtype = PrimType::Int(32);
   {
@@ -879,7 +881,7 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
   // - The total repeat number has not changed for each direct child block.
   // - The execution order has not changed. (The block executes with the same
   //   args and the same order with before.)
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   StmtSRef scope_root_sref;
   StmtSRef lca = GetSRefLowestCommonAncestor(loop_srefs);
   std::vector<std::vector<For>> lca_nest_loops;
@@ -955,7 +957,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   loops.reserve(loop_srefs.size());
   StmtSRef outer_loop_sref{nullptr};
   const ForNode* outer_loop = nullptr;
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   std::unordered_set<const VarNode*> outer_loop_vars;
   // Step 1. check correctness
   for (const StmtSRef& sref : loop_srefs) {

@@ -40,9 +40,9 @@
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Support/Casting.h>
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
@@ -94,6 +94,9 @@ using namespace tirx;
 class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
                     public StmtFunctor<void(const Stmt&)> {
  public:
+  using tirx::ExprFunctor<llvm::Value*(const Expr&)>::Dispatch;
+  using StmtFunctor::Dispatch;
+
   CodeGenLLVM();           // Do not make it default here.
   virtual ~CodeGenLLVM();  // Do not make it default here.
 
@@ -186,6 +189,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
     if (auto prim = e.as<PrimExpr>()) return MakeValue(prim.value());
     if (const auto* var = e.as<VarNode>()) return GetVarValue(var);
     if (const auto* call = e.as<CallNode>()) return Dispatch_(call);
+    if (const auto* str = e.as<StringImmNode>()) return Dispatch_(str);
     TVM_FFI_THROW(TypeError) << "Cannot lower non-primitive expression " << e->GetTypeKey();
     TVM_FFI_UNREACHABLE();
   }
@@ -202,7 +206,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   llvm::Value* Dispatch_(const prim::CastNode* op) override;
   llvm::Value* Dispatch_(const IntImmNode* op) override;
   llvm::Value* Dispatch_(const FloatImmNode* op) override;
-  llvm::Value* Dispatch_(const prim::StringImmNode* op) override;
+  llvm::Value* Dispatch_(const StringImmNode* op) override;
   llvm::Value* Dispatch_(const prim::AddNode* op) override;
   llvm::Value* Dispatch_(const prim::SubNode* op) override;
   llvm::Value* Dispatch_(const prim::MulNode* op) override;
@@ -219,6 +223,12 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   llvm::Value* Dispatch_(const prim::AndNode* op) override;
   llvm::Value* Dispatch_(const prim::OrNode* op) override;
   llvm::Value* Dispatch_(const prim::NotNode* op) override;
+  llvm::Value* Dispatch_(const prim::LShiftNode* op) override;
+  llvm::Value* Dispatch_(const prim::RShiftNode* op) override;
+  llvm::Value* Dispatch_(const prim::BitwiseAndNode* op) override;
+  llvm::Value* Dispatch_(const prim::BitwiseOrNode* op) override;
+  llvm::Value* Dispatch_(const prim::BitwiseXorNode* op) override;
+  llvm::Value* Dispatch_(const prim::BitwiseNotNode* op) override;
   llvm::Value* Dispatch_(const prim::SelectNode* op) override;
   llvm::Value* Dispatch_(const prim::LetNode* op) override;
   llvm::Value* Dispatch_(const TensorLoadNode* op) override;
@@ -227,18 +237,18 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   llvm::Value* Dispatch_(const prim::ShuffleNode* op) override;
   llvm::Value* Dispatch_(const prim::BroadcastNode* op) override;
   // stmt
-  void VisitStmt_(const BufferStoreNode* op) override;
-  void VisitStmt_(const ForNode* op) override;
-  void VisitStmt_(const WhileNode* op) override;
-  void VisitStmt_(const ReturnNode* op) override;
-  void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const AllocBufferNode* op) override;
-  void VisitStmt_(const AttrStmtNode* op) override;
-  void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const BindNode* op) override;
-  void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const EvaluateNode* op) override;
-  void VisitStmt_(const DeclBufferNode* op) override;
+  void Dispatch_(const BufferStoreNode* op) override;
+  void Dispatch_(const ForNode* op) override;
+  void Dispatch_(const WhileNode* op) override;
+  void Dispatch_(const ReturnNode* op) override;
+  void Dispatch_(const IfThenElseNode* op) override;
+  void Dispatch_(const AllocBufferNode* op) override;
+  void Dispatch_(const AttrStmtNode* op) override;
+  void Dispatch_(const AssertStmtNode* op) override;
+  void Dispatch_(const BindNode* op) override;
+  void Dispatch_(const SeqStmtNode* op) override;
+  void Dispatch_(const EvaluateNode* op) override;
+  void Dispatch_(const DeclBufferNode* op) override;
 
   // Get constant string
   llvm::Constant* GetConstString(const std::string& str);
@@ -566,7 +576,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   // Whether current function is restricted
   bool is_restricted_{true};
   // The analyzer information
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   // set of var that are not restricted(can alias)
   std::unordered_set<const VarNode*> alias_var_set_;
   // set of volatile buffer.

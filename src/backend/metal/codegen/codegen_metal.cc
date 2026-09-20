@@ -22,12 +22,12 @@
  */
 #include "codegen_metal.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -294,7 +294,7 @@ void CodeGenMetal::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*
 }
 
 void CodeGenMetal::PrintStorageSync(const CallNode* op) {
-  const std::string& sync = op->args[0].as<prim::StringImmNode>()->value;
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
     this->PrintIndent();
     this->stream << "simdgroup_barrier(mem_flags::mem_threadgroup);\n";
@@ -330,10 +330,10 @@ void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os)
   }
 }
 
-void CodeGenMetal::VisitStmt_(const BindNode* op) {
+void CodeGenMetal::Dispatch_(const BindNode* op) {
   const auto* pointer_type = op->var->ty.as<PointerTypeNode>();
   if (pointer_type == nullptr || pointer_type->storage_scope.empty()) {
-    return CodeGenC::VisitStmt_(op);
+    return CodeGenC::Dispatch_(op);
   }
 
   const std::string& storage_scope = pointer_type->storage_scope;
@@ -355,20 +355,21 @@ void CodeGenMetal::VisitStmt_(const BindNode* op) {
   stream << "*)" << value << ";\n";
 }
 
-void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
+void CodeGenMetal::Dispatch_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
   std::string vid = AllocVarID(op->buffer.get());
 
   this->PrintIndent();
   // Compute a compile-time upper bound on the number of buffer elements.
   size_t constant_size = 1;
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   for (const auto& dim : op->buffer->shape) {
     const auto* dim_imm = dim.as<IntImmNode>();
-    int64_t dim_size = dim_imm ? dim_imm->value : analyzer->const_int_bound(dim)->max_value;
+    int64_t dim_size =
+        dim_imm ? static_cast<int64_t>(dim_imm->value) : analyzer->const_int_bound(dim)->max_value;
     if (dim_imm == nullptr) {
       // An integer dtype's intrinsic maximum is not a program-derived allocation bound.
-      TVM_FFI_ICHECK(dim_size != arith::ConstIntBound::kPosInf)
+      TVM_FFI_ICHECK(dim_size != sym::ConstIntBound::kPosInf)
           << "Metal allocation extent requires a finite compile-time upper bound, but got " << dim;
       if (const auto* dtype_max = max_value(dim.ty()).as<IntImmNode>()) {
         TVM_FFI_ICHECK_LT(dim_size, dtype_max->value)
@@ -437,8 +438,8 @@ void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
   auto f_check_simdgroup_shape = [](PrimExpr col, PrimExpr row) {
     TVM_FFI_ICHECK(col->IsInstance<IntImmNode>() && row->IsInstance<IntImmNode>())
         << "Only constant shape is supported for simdgroup matrix, but got " << col << "x" << row;
-    int col_val = col.as<IntImmNode>()->value;
-    int row_val = row.as<IntImmNode>()->value;
+    int col_val = col.as<IntImmNode>()->value.as<int>().value();
+    int row_val = row.as<IntImmNode>()->value.as<int>().value();
     TVM_FFI_ICHECK(col_val == 8 && row_val == 8)
         << "Only 8x8 matrix is supported, but got " << col_val << "x" << row_val;
   };

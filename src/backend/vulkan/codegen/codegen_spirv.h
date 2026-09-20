@@ -24,8 +24,8 @@
 #ifndef TVM_TARGET_VULKAN_CODEGEN_SPIRV_H_
 #define TVM_TARGET_VULKAN_CODEGEN_SPIRV_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
@@ -53,6 +53,9 @@ using namespace tirx;
 class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
                      public StmtFunctor<void(const Stmt&)> {
  public:
+  using tirx::ExprFunctor<spirv::Value(const Expr&)>::Dispatch;
+  using StmtFunctor::Dispatch;
+
   /*!
    * \brief Initialize the codegen based on a specific target.
    *
@@ -80,7 +83,7 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   spirv::Value Dispatch_(const prim::CastNode* op) override;
   spirv::Value Dispatch_(const IntImmNode* op) override;
   spirv::Value Dispatch_(const FloatImmNode* op) override;
-  spirv::Value Dispatch_(const prim::StringImmNode* op) override;
+  spirv::Value Dispatch_(const StringImmNode* op) override;
   spirv::Value Dispatch_(const prim::AddNode* op) override;
   spirv::Value Dispatch_(const prim::SubNode* op) override;
   spirv::Value Dispatch_(const prim::MulNode* op) override;
@@ -97,6 +100,12 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   spirv::Value Dispatch_(const prim::AndNode* op) override;
   spirv::Value Dispatch_(const prim::OrNode* op) override;
   spirv::Value Dispatch_(const prim::NotNode* op) override;
+  spirv::Value Dispatch_(const prim::LShiftNode* op) override;
+  spirv::Value Dispatch_(const prim::RShiftNode* op) override;
+  spirv::Value Dispatch_(const prim::BitwiseAndNode* op) override;
+  spirv::Value Dispatch_(const prim::BitwiseOrNode* op) override;
+  spirv::Value Dispatch_(const prim::BitwiseXorNode* op) override;
+  spirv::Value Dispatch_(const prim::BitwiseNotNode* op) override;
   spirv::Value Dispatch_(const prim::SelectNode* op) override;
   spirv::Value Dispatch_(const prim::LetNode* op) override;
   spirv::Value Dispatch_(const CallNode* op) override;
@@ -105,17 +114,17 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   spirv::Value Dispatch_(const TensorLoadNode* op) override;
   spirv::Value Dispatch_(const prim::ShuffleNode* op) override;
   // stmt
-  void VisitStmt_(const BufferStoreNode* op) override;
-  void VisitStmt_(const ForNode* op) override;
-  void VisitStmt_(const WhileNode* op) override;
-  void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const DeclBufferNode* op) override;
-  void VisitStmt_(const AllocBufferNode* op) override;
-  void VisitStmt_(const AttrStmtNode* op) override;
-  void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const BindNode* op) override;
-  void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const EvaluateNode* op) override;
+  void Dispatch_(const BufferStoreNode* op) override;
+  void Dispatch_(const ForNode* op) override;
+  void Dispatch_(const WhileNode* op) override;
+  void Dispatch_(const IfThenElseNode* op) override;
+  void Dispatch_(const DeclBufferNode* op) override;
+  void Dispatch_(const AllocBufferNode* op) override;
+  void Dispatch_(const AttrStmtNode* op) override;
+  void Dispatch_(const AssertStmtNode* op) override;
+  void Dispatch_(const BindNode* op) override;
+  void Dispatch_(const SeqStmtNode* op) override;
+  void Dispatch_(const EvaluateNode* op) override;
 
  protected:
   /*! \brief Storage information for a buffer */
@@ -223,7 +232,7 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   std::unordered_map<const VarNode*, spirv::Value> var_map_;
 
   // The analyzer.
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 
   // deep comparison of PrimExpr
   prim::ExprDeepEqual deep_equal_;

@@ -22,7 +22,6 @@
  * \brief Memory access pattern analysis and optimization.
  *  Re-write data access to enable memory sharing when possible.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
@@ -32,6 +31,7 @@
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/layout.h>
@@ -43,8 +43,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../arith/int_operator.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "../../sym/int_operator.h"
 #include "../ir/buffer_common.h"
 #include "ir_utils.h"
 
@@ -242,7 +242,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       in_thread_env_ = false;
     } else if (op->attr_key == attr::extern_scope) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
-    } else if (op->attr_key == s_tir::attr::virtual_thread) {
+    } else if (op->attr_key == tvm::tirx::attr::virtual_thread) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
     } else {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
@@ -668,7 +668,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread ||
+    if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread ||
         attr::IsPragmaKey(op->attr_key)) {
       // remake all the allocation at the attach scope.
       if (attach_map_.count(op)) {
@@ -1088,8 +1088,8 @@ class StoragePlanRewriter : public StmtExprMutator {
       // enter/exit new scope
       if (s.stmt->IsInstance<AttrStmtNode>()) {
         const auto* op = static_cast<const AttrStmtNode*>(s.stmt);
-        if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread ||
-            attr::IsPragmaKey(op->attr_key)) {
+        if (op->attr_key == attr::thread_extent ||
+            op->attr_key == tvm::tirx::attr::virtual_thread || attr::IsPragmaKey(op->attr_key)) {
           PlanNewScope(op);
         } else {
           TVM_FFI_ICHECK(op->attr_key == attr::extern_scope);
@@ -1255,7 +1255,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   // Physical roots of buffer aliases, flattened by LinearAccessPatternFinder.
   ffi::Map<Var, Var> buffer_aliases_;
   // analyzer
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 /* Helper struct containing information on how a buffer is declared and used
@@ -1331,8 +1331,8 @@ struct BufferVarInfo {
           return element_dtype;
         }
       }
-      arith::Analyzer analyzer_;
-      arith::ModularSet me = analyzer_->modular_set(extent);
+      sym::Analyzer analyzer_;
+      sym::ModularSet me = analyzer_->modular_set(extent);
       if ((me->coeff % lanes == 0) && (me->base % lanes == 0)) {
         preferred_lanes = lanes;
       }
@@ -1570,8 +1570,8 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       const prim::RampNode* ramp_index = indices[indices.size() - 1].as<prim::RampNode>();
       if (ramp_index && is_one(ramp_index->stride)) {
         if (ramp_index->lanes->IsInstance<IntImmNode>()) {
-          int lanes = static_cast<int>(ramp_index->lanes.as_or_throw<IntImm>()->value);
-          arith::ModularSet me = analyzer_->modular_set(ramp_index->base);
+          int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
+          sym::ModularSet me = analyzer_->modular_set(ramp_index->base);
           if ((me->coeff % lanes == 0) && (me->base % lanes == 0)) {
             lanes_used = lanes;
           }
@@ -1582,9 +1582,13 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     if (detect_scalar_read_patterns_ && is_buffer_load && indices.size()) {
       const PrimExpr last_dim_index = indices[indices.size() - 1];
       if (last_dim_index.ty().lanes() == 1) {
-        arith::ModularSet me = analyzer_->modular_set(last_dim_index);
-        var_info.scalar_read_dtype.emplace(access_dtype.WithLanes(me->coeff));
-        return;
+        sym::ModularSet me = analyzer_->modular_set(last_dim_index);
+        // Fixed lane counts use 15 bits; retain the scalar access when the modular
+        // coefficient cannot be represented by the vector type.
+        if (int64_t lanes = me->coeff; lanes >= 0 && lanes <= 32767) {
+          var_info.scalar_read_dtype.emplace(access_dtype.WithLanes(static_cast<int>(lanes)));
+          return;
+        }
       }
     }
     var_info.access_dtype.insert(access_dtype.WithLanes(lanes_used));
@@ -1616,7 +1620,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   bool detect_scalar_read_patterns_{true};
 
   // internal analyzer
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 /* \brief Rewrites buffer/pointer variables from scalar types to vectorized
@@ -1747,7 +1751,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     }
 
     if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
-      int lanes = static_cast<int>(ramp_index->lanes.as_or_throw<IntImm>()->value);
+      int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
       PrimExpr new_index = ramp_index->base / MakeConst(ramp_index->base.ty(), lanes);
       if (lanes != info.factor()) {
         TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);
@@ -1757,7 +1761,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       }
       indices.Set(indices.size() - 1, new_index);
     } else if (last_dim_index.ty().lanes() == 1 && info.factor() > 1) {
-      arith::ModularSet me = analyzer_->modular_set(last_dim_index);
+      sym::ModularSet me = analyzer_->modular_set(last_dim_index);
       TVM_FFI_ICHECK(me->coeff == 0 || info.factor() % me->coeff == 0);
       PrimExpr new_index = last_dim_index / MakeConst(last_dim_index.ty(), info.factor());
       shuffle_index = me->base % info.factor();
@@ -1792,7 +1796,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     }
 
     if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
-      int lanes = static_cast<int>(ramp_index->lanes.as_or_throw<IntImm>()->value);
+      int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
       PrimExpr new_index = ramp_index->base / MakeConst(ramp_index->base.ty(), lanes);
       if (lanes != info.factor()) {
         TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);
@@ -1802,7 +1806,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       }
       indices.Set(indices.size() - 1, new_index);
     } else if (last_dim_index.ty().lanes() == 1 && info.factor() > 1) {
-      arith::ModularSet me = analyzer_->modular_set(last_dim_index);
+      sym::ModularSet me = analyzer_->modular_set(last_dim_index);
       TVM_FFI_ICHECK(me->coeff == 0 || info.factor() % me->coeff == 0);
       PrimExpr new_index = last_dim_index / MakeConst(last_dim_index.ty(), info.factor());
       shuffle_index = me->base % info.factor();
@@ -2092,7 +2096,7 @@ class VectorTypeRewriter : public StmtExprMutator {
   bool rewrite_indices_{true};
   std::unordered_map<const VarNode*, RewriteInfo> rewrite_map_;
   const ffi::Map<Var, Var>& buffer_aliases_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 // Rewrite allocates, pointer parameters, and buffer parameters into vectorized versions

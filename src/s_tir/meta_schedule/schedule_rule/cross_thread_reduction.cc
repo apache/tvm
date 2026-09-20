@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 
@@ -225,7 +226,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     // - If the lowest common ancestor is a loop, the target block is also the first consumer.
     const tirx::StmtSRef& lca_sref =
         s_tir::GetSRefLowestCommonAncestor(s_tir::SBlockRVs2StmtSRefs(sch, consumers));
-    if (consumers.size() > 1 && lca_sref->StmtAs<tirx::SBlockNode>() != nullptr) {
+    if (consumers.size() > 1 && lca_sref->StmtAs<s_tir::SBlockNode>() != nullptr) {
       return std::make_tuple(false, s_tir::LoopRV{ffi::UnsafeInit()},
                              s_tir::SBlockRV{ffi::UnsafeInit()}, s_tir::LoopRV{ffi::UnsafeInit()});
     }

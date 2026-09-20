@@ -26,12 +26,13 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <initializer_list>
 #include <unordered_set>
@@ -120,9 +121,9 @@ TEST(IRF, PreOrderStructuralWalk) {
   Stmt init =
       IfThenElse(IntImm::Bool(true), Evaluate(IntImm::Int32(0)), Evaluate(IntImm::Int32(0)));
   Stmt body = Evaluate(IntImm::Int32(1));
-  SBlock block(/*iter_vars=*/{}, /*reads=*/{},
-               /*writes=*/{}, /*name_hint=*/"block", /*body=*/body,
-               /*init=*/init);
+  s_tir::SBlock block(/*iter_vars=*/{}, /*reads=*/{},
+                      /*writes=*/{}, /*name_hint=*/"block", /*body=*/body,
+                      /*init=*/init);
   bool init_visited = false;
   bool stopped_at_if = true;
   bool body_visited = false;
@@ -157,7 +158,7 @@ TEST(IRF, ExprTransform) {
   class MyExprFunctor : public tirx::ExprFunctor<int(const Expr&, int)> {
    public:
     int Dispatch_(const VarNode* op, int b) final { return b; }
-    int Dispatch_(const IntImmNode* op, int b) final { return op->value; }
+    int Dispatch_(const IntImmNode* op, int b) final { return op->value.as<int>().value(); }
     int Dispatch_(const prim::AddNode* op, int b) final {
       return Dispatch(op->a, b) + Dispatch(op->b, b);
     }
@@ -181,6 +182,8 @@ TEST(IRF, ExprVisit) {
   class MyVisitor : public tirx::ExprFunctor<void(const Expr&)>,
                     public tirx::StmtFunctor<void(const Stmt&)> {
    public:
+    using tirx::ExprFunctor<void(const Expr&)>::Dispatch;
+    using tirx::StmtFunctor<void(const Stmt&)>::Dispatch;
     int count = 0;
     // implementation
     void Dispatch_(const VarNode* op) final { ++count; }
@@ -189,10 +192,10 @@ TEST(IRF, ExprVisit) {
       Dispatch(op->a);
       Dispatch(op->b);
     }
-    void VisitStmt_(const EvaluateNode* op) final { Dispatch(op->value); }
+    void Dispatch_(const EvaluateNode* op) final { Dispatch(op->value); }
   };
   MyVisitor v;
-  v.VisitStmt(Evaluate(z));
+  v.Dispatch(Evaluate(z));
   TVM_FFI_ICHECK_EQ(v.count, 1);
 }
 
@@ -200,7 +203,7 @@ TEST(IRF, StmtVisitor) {
   using namespace tvm;
   using namespace tvm::tirx;
   PrimVar x("x");
-  class MyVisitor : public StmtExprVisitor {
+  class MyVisitor : public s_tir::StmtExprVisitor {
    public:
     int count = 0;
     // implementation
@@ -231,13 +234,13 @@ TEST(IRF, StmtVisitor) {
     tirx::Var buf_var("b", PointerType(dtype));
     BufferVar buffer = decl_buffer({16});
     body = SeqStmt({DeclBuffer(buffer, buf_var), std::move(body)});
-    BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
-    MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
+    TensorRegion buffer_region = BufferRegion(buffer, {Range::FromMinExtent(x + 1, 1)});
+    s_tir::MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
 
     // construct block and block_realize
-    SBlock block = SBlock({}, {buffer_region}, {buffer_region}, "block", body, body, {},
-                          {match_buffer_region});
-    Stmt block_realize = SBlockRealize({}, IntImm::Bool(true), block);
+    s_tir::SBlock block = s_tir::SBlock({}, {buffer_region}, {buffer_region}, "block", body, body,
+                                        {}, {match_buffer_region});
+    Stmt block_realize = s_tir::SBlockRealize({}, IntImm::Bool(true), block);
 
     v->count = 0;
     v->Visit(block_realize);
@@ -254,9 +257,9 @@ TEST(IRF, StmtExprMutator) {
   using namespace tvm::tirx;
   PrimVar x("x");
 
-  class MyMutator : public tirx::StmtExprMutator {
+  class MyMutator : public s_tir::StmtExprMutator {
    public:
-    using StmtExprMutator::Mutate_;
+    using s_tir::StmtExprMutator::Mutate_;
     UnchangedOr<PrimExpr> Mutate_(const prim::AddNode* op, InplaceMode) final { return op->a; }
   };
   auto fmakealloc = [&]() {
@@ -312,7 +315,7 @@ TEST(IRF, StmtExprMutator) {
 
   {
     auto body = Evaluate(
-        Call(PrimType::Int(32), tirx::builtin::call_extern(), {prim::StringImm("xyz"), x + 1}));
+        Call(PrimType::Int(32), tirx::builtin::call_extern(), {::tvm::StringImm("xyz"), x + 1}));
     auto res = v->Mutate(body).ValueOrUnchanged(std::move(body));
     TVM_FFI_ICHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[1].same_as(x));
   }
@@ -359,15 +362,15 @@ TEST(IRF, StmtExprMutator) {
     Stmt alloc = fmakealloc();
     // body is: DeclBuffer, AllocBuffer, Evaluate
     Stmt body = SeqStmt({decl, alloc, eval_body});
-    BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
-    MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
+    TensorRegion buffer_region = BufferRegion(buffer, {Range::FromMinExtent(x + 1, 1)});
+    s_tir::MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
     // construct block and block_realize
-    SBlock block = SBlock({}, {buffer_region}, {buffer_region}, "block", body, body, {},
-                          {match_buffer_region});
-    Stmt block_realize = SBlockRealize({}, IntImm::Bool(true), block);
+    s_tir::SBlock block = s_tir::SBlock({}, {buffer_region}, {buffer_region}, "block", body, body,
+                                        {}, {match_buffer_region});
+    Stmt block_realize = s_tir::SBlockRealize({}, IntImm::Bool(true), block);
     body = v->Mutate(block_realize).ValueOrUnchanged(std::move(block_realize));
     // the body should be changed
-    SBlock new_block = body.as<SBlockRealizeNode>()->block;
+    s_tir::SBlock new_block = body.as<s_tir::SBlockRealizeNode>()->block;
     // body is a SeqStmt; the Evaluate(x+1) -> Evaluate(x)
     auto* seq = new_block->body.as<SeqStmtNode>();
     TVM_FFI_ICHECK(seq != nullptr);

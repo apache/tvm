@@ -363,8 +363,8 @@ def test_access_of_padding_pattern():
     buffer_var_map = {buf: buf for buf in alloc_buffers}
 
     def do_compare_buffer_region(region, expect):
-        assert region.buffer == expect.buffer
-        analyzer = tvm.arith.Analyzer()
+        assert region.source == expect.source
+        analyzer = tvm.sym.Analyzer()
         for observed_range, expected_range in zip(region.region, expect.region):
             analyzer.can_prove_equal(observed_range.min, expected_range.min)
             analyzer.can_prove_equal(observed_range.extent, expected_range.extent)
@@ -459,7 +459,7 @@ def test_buffer_access_with_nested_let_binding():
 
 @pytest.mark.parametrize("case", ["coupled", "equal", "nonlinear", "empty", "unbounded", "rounded"])
 def test_conditional_inequality_access_regions(case):
-    # Retain the live cases from the former arith inequality solver tests through
+    # Retain the live cases from the former sym inequality solver tests through
     # the block-access consumer, including its conservative unresolved fallback.
     tirx = tvm.tirx
     x, y, z = [tirx.Var(name, "int32") for name in ("x", "y", "z")]
@@ -504,7 +504,7 @@ def test_conditional_inequality_access_regions(case):
     )
     for var, (minimum, extent) in reversed(list(zip(variables, domains))):
         body = tirx.For(var, minimum, extent, tirx.ForKind.SERIAL, body)
-    block = tirx.SBlock([], [], [], "conditional", body)
+    block = s_tir.SBlock([], [], [], "conditional", body)
     # Unbounded access sets conservatively cover the whole buffer.
     outside_expected = [(0, 256)] if case == "unbounded" else domains
     reads, writes, opaque = s_tir.analysis.get_sblock_access_region(

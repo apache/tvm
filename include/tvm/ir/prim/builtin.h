@@ -40,24 +40,6 @@ TVM_DLL const Op& log2();
 /*! \brief Count leading zero bits. */
 TVM_DLL const Op& clz();
 
-/*! \brief Left shift. */
-TVM_DLL const Op& shift_left();
-
-/*! \brief Right shift. */
-TVM_DLL const Op& shift_right();
-
-/*! \brief Bitwise and operator. */
-TVM_DLL const Op& bitwise_and();
-
-/*! \brief Bitwise or operator. */
-TVM_DLL const Op& bitwise_or();
-
-/*! \brief Bitwise xor operator. */
-TVM_DLL const Op& bitwise_xor();
-
-/*! \brief Bitwise not operator. */
-TVM_DLL const Op& bitwise_not();
-
 /*!
  * \brief Same as select, used for unsafe memory access.
  *

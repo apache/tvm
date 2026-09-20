@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "./utils.h"
 namespace tvm {

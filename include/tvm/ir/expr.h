@@ -24,6 +24,7 @@
 #ifndef TVM_IR_EXPR_H_
 #define TVM_IR_EXPR_H_
 
+#include <tvm/ffi/big_int.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -513,20 +514,74 @@ class Call : public Expr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };
 
+/*! \brief Base node for literal constants. */
+class ConstantNode : public ExprNode {
+ public:
+  static constexpr uint32_t _type_child_slots = 4;
+  static void RegisterReflection() { ffi::reflection::ObjectDef<ConstantNode>(); }
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Constant", ConstantNode, ExprNode);
+};
+
+/*! \brief Managed reference to a literal constant. */
+class Constant : public Expr {
+ public:
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Constant, Expr, ConstantNode);
+};
+
+/*! \brief A constant whose payload is separate from its expression type. */
+class GenericConstNode : public ConstantNode {
+ public:
+  ffi::Any value;
+
+  static void RegisterReflection() {
+    ffi::reflection::ObjectDef<GenericConstNode>().def_ro("value", &GenericConstNode::value);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.GenericConst", GenericConstNode, ConstantNode);
+};
+
+/*! \brief Managed reference to a generic constant. */
+class GenericConst : public Constant {
+ public:
+  TVM_DLL GenericConst(ffi::Any value, Type ty, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GenericConst, Constant, GenericConstNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(GenericConstNode);
+};
+
+/*! \brief A string literal with shared semantic StringType. */
+class StringImmNode : public ConstantNode {
+ public:
+  ffi::String value;
+
+  static void RegisterReflection() {
+    ffi::reflection::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.StringImm", StringImmNode, ConstantNode);
+};
+
+/*! \brief Managed reference to a string literal. */
+class StringImm : public Constant {
+ public:
+  TVM_DLL explicit StringImm(ffi::String value, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StringImm, Constant, StringImmNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
+};
+
 /*!
  * \brief Constant integer literals in the program.
  * \sa IntImm
  */
-class IntImmNode : public ExprNode {
+class IntImmNode : public ConstantNode {
  public:
   /*! \brief the Internal value. */
-  int64_t value;
+  ffi::BigInt value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IntImmNode>().def_ro("value", &IntImmNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IntImm", IntImmNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IntImm", IntImmNode, ConstantNode);
 };
 
 /*!
@@ -542,7 +597,12 @@ class IntImm : public PrimExpr {
    * \param value The internal value.
    * \param span The location of this object in the source code.
    */
-  TVM_DLL IntImm(PrimType value_ty, int64_t value, Span span = Span());
+  TVM_DLL IntImm(PrimType value_ty, ffi::BigInt value, Span span = Span());
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
+  IntImm(PrimType value_ty, Enum value, Span span = Span())
+      : IntImm(std::move(value_ty), ffi::BigInt(static_cast<std::underlying_type_t<Enum>>(value)),
+               std::move(span)) {}
 
   /*!
    * \brief Construct a scalar boolean constant.
@@ -558,8 +618,13 @@ class IntImm : public PrimExpr {
    * \param value The integer value.
    * \param span The location of this object in the source code.
    */
-  static IntImm Int32(int64_t value, Span span = Span()) {
-    return IntImm(PrimType::Int(32), value, span);
+  static IntImm Int32(ffi::BigInt value, Span span = Span()) {
+    return IntImm(PrimType::Int(32), std::move(value), span);
+  }
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
+  static IntImm Int32(Enum value, Span span = Span()) {
+    return IntImm(PrimType::Int(32), value, std::move(span));
   }
 
   /*!
@@ -567,8 +632,13 @@ class IntImm : public PrimExpr {
    * \param value The integer value.
    * \param span The location of this object in the source code.
    */
-  static IntImm Int64(int64_t value, Span span = Span()) {
-    return IntImm(PrimType::Int(64), value, span);
+  static IntImm Int64(ffi::BigInt value, Span span = Span()) {
+    return IntImm(PrimType::Int(64), std::move(value), span);
+  }
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
+  static IntImm Int64(Enum value, Span span = Span()) {
+    return IntImm(PrimType::Int(64), value, std::move(span));
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntImm, PrimExpr, IntImmNode);
@@ -580,7 +650,7 @@ class IntImm : public PrimExpr {
  * \brief Constant floating point literals in the program.
  * \sa FloatImm
  */
-class FloatImmNode : public ExprNode {
+class FloatImmNode : public ConstantNode {
  public:
   /*! \brief The constant value content. */
   double value;
@@ -589,7 +659,7 @@ class FloatImmNode : public ExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FloatImmNode>().def_ro("value", &FloatImmNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.FloatImm", FloatImmNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.FloatImm", FloatImmNode, ConstantNode);
 };
 
 /*!
@@ -662,6 +732,36 @@ class Range : public ffi::ObjectRef {
   TVM_DLL static Range FromMinExtent(PrimExpr min, PrimExpr extent, Span span = Span());
   // declare range.
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Range, ffi::ObjectRef, RangeNode);
+};
+
+/*! \brief A region of an indexed expression source. */
+class TensorRegionNode : public ExprNode {
+ public:
+  /*! \brief The indexed source expression. */
+  Expr source;
+  /*! \brief The ranges selected from the source. */
+  ffi::Array<Range> region;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    // A region's source and symbolic source type form a definition pattern;
+    // ranges then refer to those same identities.
+    refl::ObjectDef<TensorRegionNode>()
+        .def_ro("source", &TensorRegionNode::source, refl::AttachFieldFlag::SEqHashDefPattern())
+        .def_ro("region", &TensorRegionNode::region);
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TensorRegion", TensorRegionNode, ExprNode);
+};
+
+/*! \brief Managed reference to TensorRegionNode. */
+class TensorRegion : public Expr {
+ public:
+  TVM_DLL TensorRegion(Expr source, ffi::Array<Range> region, Type ty, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorRegion, Expr, TensorRegionNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TensorRegionNode);
 };
 
 /*!
@@ -751,6 +851,16 @@ template <>
 struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, double> {
   TVM_FFI_INLINE static FloatImm ConvertFallbackValue(double value) {
     return FloatImm(PrimType::Float(32), value);
+  }
+};
+template <>
+inline constexpr bool use_default_type_traits_v<tvm::StringImm> = false;
+
+template <>
+struct TypeTraits<tvm::StringImm>
+    : public ObjectRefWithFallbackTraitsBase<tvm::StringImm, ffi::String> {
+  TVM_FFI_INLINE static tvm::StringImm ConvertFallbackValue(ffi::String value) {
+    return tvm::StringImm(value);
   }
 };
 }  // namespace ffi

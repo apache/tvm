@@ -23,11 +23,11 @@
  * declarations and emits launch params).
  */
 
-#include <tvm/arith/analyzer.h>
-#include <tvm/arith/pattern.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/sym/pattern.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_context.h>
@@ -45,7 +45,6 @@
 #include <vector>
 
 #include "../analysis/filter_canonical.h"
-#include "../ir/functor_common.h"
 #include "../ir/tir_visitor_with_path.h"
 
 namespace tvm {
@@ -246,7 +245,7 @@ class NoOpCallVerifier : public Verifier<NoOpCallVerifier> {
  private:
   using Verifier::Visit;
 
-  void VisitStmt_(const tirx::TilePrimitiveCallNode* obj, ffi::reflection::AccessPath path) final {
+  void Dispatch_(const tirx::TilePrimitiveCallNode* obj, ffi::reflection::AccessPath path) final {
     Verify(false) << "TIRxError: TilePrimitiveCall at " << path
                   << " is not allowed in TIRx before lowering";
   }
@@ -322,7 +321,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
     launch_params_.clear();
     // Pre-dispatch: only populate ``launch_params_`` + synthesize
-    // ``warp_id_in_cta``. The dispatch impls (run via ``VisitStmt`` below)
+    // ``warp_id_in_cta``. The dispatch impls (run via ``Dispatch`` below)
     // read ``launch_params_`` through ``sctx``, so this much must happen
     // first. The per-def Bind resolution is deferred to AFTER dispatch so
     // it can pick up any ``ScopeIdDef`` declared inside dispatched impls.
@@ -823,7 +822,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         if (it == launch_params_.end()) continue;
         const auto* imm = it->second->dom->extent.as<IntImmNode>();
         if (imm == nullptr) return 0;  // symbolic
-        n *= imm->value;
+        auto product = (n * imm->value).as<int64_t>();
+        if (!product.has_value()) return 0;
+        n = *product;
       }
       return n;
     };
@@ -834,7 +835,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         if (it == launch_params_.end()) continue;
         const auto* imm = it->second->dom->extent.as<IntImmNode>();
         if (imm == nullptr) return std::vector<std::pair<std::string, int64_t>>();
-        out.push_back({axis_name, imm->value});
+        auto value = imm->value.as<int64_t>();
+        if (!value.has_value()) return std::vector<std::pair<std::string, int64_t>>();
+        out.push_back({axis_name, *value});
       }
       return out;
     };
@@ -874,14 +877,14 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
   struct ScopeIdRange {
     ScopeIdTarget target;
-    int64_t lo = arith::ConstIntBound::kNegInf;
-    int64_t hi = arith::ConstIntBound::kPosInf;
+    int64_t lo = sym::ConstIntBound::kNegInf;
+    int64_t hi = sym::ConstIntBound::kPosInf;
   };
 
   struct PendingRangeGroup {
     ScopeIdTarget target;
-    int64_t lo = arith::ConstIntBound::kNegInf;
-    int64_t hi = arith::ConstIntBound::kPosInf;
+    int64_t lo = sym::ConstIntBound::kNegInf;
+    int64_t hi = sym::ConstIntBound::kPosInf;
     std::vector<size_t> indices;
   };
 
@@ -1033,8 +1036,10 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
   static bool TryExtractIntImm(const PrimExpr& expr, int64_t* value) {
     if (const auto* imm = expr.as<IntImmNode>()) {
-      *value = imm->value;
-      return true;
+      if (auto value_i64 = imm->value.as<int64_t>(); value_i64.has_value()) {
+        *value = *value_i64;
+        return true;
+      }
     }
     return false;
   }
@@ -1068,7 +1073,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
                                  int64_t* base) {
     PrimExpr simplified = analyzer_->Simplify(diff);
     for (const auto& [var, candidate] : ScopeIdTargets()) {
-      ffi::Array<PrimExpr> linear = arith::DetectLinearEquation(simplified, {var});
+      ffi::Array<PrimExpr> linear = sym::DetectLinearEquation(simplified, {var});
       if (linear.size() != 2) continue;
       int64_t c = 0;
       int64_t b = 0;
@@ -1093,8 +1098,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     if (!TryExtractLinearScopeDiff(lhs - rhs, &target, &coeff, &base)) return false;
 
     // Interpret `coeff * v + base <op> 0` where coeff is +/- 1.
-    int64_t lo = arith::ConstIntBound::kNegInf;
-    int64_t hi = arith::ConstIntBound::kPosInf;
+    int64_t lo = sym::ConstIntBound::kNegInf;
+    int64_t hi = sym::ConstIntBound::kPosInf;
     if (lhs_less_rhs) {
       if (coeff == 1) {
         // v + base < 0  -> v < -base
@@ -1222,22 +1227,16 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return false;
   }
 
-  static bool IsBitwiseAndCall(const CallNode* call) {
-    return call->op.same_as(prim::builtin::bitwise_and()) && call->args.size() == 2;
-  }
-
   void FlattenConjuncts(const PrimExpr& pred, std::vector<PrimExpr>* out) const {
     if (const auto* and_node = pred.as<prim::AndNode>()) {
       FlattenConjuncts(and_node->a, out);
       FlattenConjuncts(and_node->b, out);
       return;
     }
-    if (const auto* call = pred.as<CallNode>()) {
-      if (IsBitwiseAndCall(call)) {
-        FlattenConjuncts(call->args[0].as_or_throw<PrimExpr>(), out);
-        FlattenConjuncts(call->args[1].as_or_throw<PrimExpr>(), out);
-        return;
-      }
+    if (const auto* and_node = pred.as<prim::BitwiseAndNode>()) {
+      FlattenConjuncts(and_node->a, out);
+      FlattenConjuncts(and_node->b, out);
+      return;
     }
     out->push_back(pred);
   }
@@ -1450,16 +1449,12 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
   int PushPredicateCtx(const PrimExpr& pred) {
     if (ctx_stack_.empty()) return 0;
-    if (const auto* and_node = pred.as<prim::AndNode>()) {
-      (void)and_node;
+    if (pred.as<prim::AndNode>() || pred.as<prim::BitwiseAndNode>()) {
       return PushConjunctivePredicateCtx(pred);
     }
     if (const auto* call = pred.as<CallNode>()) {
       if (call->op.same_as(tirx::builtin::filter())) {
         return PushFilterPredicateCtx(call);
-      }
-      if (IsBitwiseAndCall(call)) {
-        return PushConjunctivePredicateCtx(pred);
       }
     }
     if (TryPushComparisonPredicate(pred)) return 1;
@@ -1480,6 +1475,41 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         return pred;
       }
       return PrimExpr(a && b);
+    }
+    if (const auto* op = pred.as<prim::LShiftNode>()) {
+      PrimExpr a = RewriteFilterCalls(op->a);
+      PrimExpr b = RewriteFilterCalls(op->b);
+      if (a.same_as(op->a) && b.same_as(op->b)) return pred;
+      return tvm::left_shift(a, b, op->span);
+    }
+    if (const auto* op = pred.as<prim::RShiftNode>()) {
+      PrimExpr a = RewriteFilterCalls(op->a);
+      PrimExpr b = RewriteFilterCalls(op->b);
+      if (a.same_as(op->a) && b.same_as(op->b)) return pred;
+      return tvm::right_shift(a, b, op->span);
+    }
+    if (const auto* op = pred.as<prim::BitwiseAndNode>()) {
+      PrimExpr a = RewriteFilterCalls(op->a);
+      PrimExpr b = RewriteFilterCalls(op->b);
+      if (a.same_as(op->a) && b.same_as(op->b)) return pred;
+      return tvm::bitwise_and(a, b, op->span);
+    }
+    if (const auto* op = pred.as<prim::BitwiseOrNode>()) {
+      PrimExpr a = RewriteFilterCalls(op->a);
+      PrimExpr b = RewriteFilterCalls(op->b);
+      if (a.same_as(op->a) && b.same_as(op->b)) return pred;
+      return tvm::bitwise_or(a, b, op->span);
+    }
+    if (const auto* op = pred.as<prim::BitwiseXorNode>()) {
+      PrimExpr a = RewriteFilterCalls(op->a);
+      PrimExpr b = RewriteFilterCalls(op->b);
+      if (a.same_as(op->a) && b.same_as(op->b)) return pred;
+      return tvm::bitwise_xor(a, b, op->span);
+    }
+    if (const auto* op = pred.as<prim::BitwiseNotNode>()) {
+      PrimExpr a = RewriteFilterCalls(op->a);
+      if (a.same_as(op->a)) return pred;
+      return prim::BitwiseNot(a, op->span);
     }
     if (const auto* call = pred.as<CallNode>()) {
       if (call->op.same_as(tirx::builtin::filter())) {
@@ -1512,7 +1542,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   }
 
   ffi::Map<Var, Range> var_range_map_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   const Target& target_;
   // List of ScopeIdDefs visible at each nesting level (one entry for the
   // device-entry body itself, plus one per ScopeIdDefStmt-bearing region).

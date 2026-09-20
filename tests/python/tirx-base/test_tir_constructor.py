@@ -20,6 +20,7 @@ import tvm_ffi
 
 import tvm
 from tvm import te, topi
+from tvm.ir import TensorRegion
 from tvm.ir.prim import expr_deep_equal
 from tvm.script import tirx as T
 
@@ -44,8 +45,8 @@ def test_expr_constructor():
     assert x.value == 2
     assert x.ty == tvm.ir.PrimType("int64")
 
-    x = tvm.tirx.StringImm("xyza")
-    assert isinstance(x, tvm.tirx.StringImm)
+    x = tvm.ir.StringImm("xyza")
+    assert isinstance(x, tvm.ir.StringImm)
     assert x.value == "xyza"
 
     x = tvm.tirx.Cast("float32", tvm.tirx.IntImm("uint32", 1))
@@ -119,7 +120,7 @@ def test_expr_constructor():
     assert x.vectors[0] == a
     assert x.indices[0].value == 0
 
-    x = tvm.ir.Call("tirx.call_extern", [tvm.tirx.StringImm("xyz"), a], ret_ty="float32")
+    x = tvm.ir.Call("tirx.call_extern", [tvm.ir.StringImm("xyz"), a], ret_ty="float32")
     assert isinstance(x, tvm.ir.Call)
     assert tvm.ir.is_prim_expr(x)
     assert x.ty == tvm.ir.PrimType("float32")
@@ -130,7 +131,7 @@ def test_expr_constructor():
     attr_arg = tvm.tirx.Var("attr_arg", "float32")
     x_with_attrs = tvm.ir.Call(
         "tirx.call_extern",
-        [tvm.tirx.StringImm("xyz"), attr_arg],
+        [tvm.ir.StringImm("xyz"), attr_arg],
         attrs={"disable_tma": True},
         ret_ty="float32",
     )
@@ -139,7 +140,7 @@ def test_expr_constructor():
     script = tvm.tirx.Evaluate(x_with_attrs).script()
     assert "attrs" in script
     assert "disable_tma" in script
-    func = tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(x_with_attrs))
+    func = tvm.tirx.PrimFunc([attr_arg], tvm.tirx.Evaluate(x_with_attrs))
     assert tvm.script.from_source(func.script()).script() == func.script()
 
     y = tvm.tirx.Var("y", "float32")
@@ -152,12 +153,12 @@ def test_expr_constructor():
     assert mutated.args[1].same_as(y)
 
     x_from_intrin = tvm.tirx.call_intrin(
-        "float32", "tirx.call_extern", tvm.tirx.StringImm("xyz"), attrs={"disable_tma": True}
+        "float32", "tirx.call_extern", tvm.ir.StringImm("xyz"), attrs={"disable_tma": True}
     )
     assert x_from_intrin.attrs["disable_tma"] is True
     x_with_other_attrs = tvm.ir.Call(
         "tirx.call_extern",
-        [tvm.tirx.StringImm("xyz"), attr_arg],
+        [tvm.ir.StringImm("xyz"), attr_arg],
         attrs={"disable_tma": False},
         ret_ty="float32",
     )
@@ -170,7 +171,7 @@ def test_expr_constructor():
     def call_with(arg):
         return tvm.ir.Call(
             "tirx.call_extern",
-            [tvm.tirx.StringImm("tuple_arg"), arg],
+            [tvm.ir.StringImm("tuple_arg"), arg],
             ret_ty="int32",
         )
 
@@ -217,7 +218,6 @@ def test_buffer_region_call_wrappers_reject():
         lambda: tvm.tirx.call_cpacked("consume", region, 0),
         lambda: tvm.tirx.call_packed_lowered("consume", region),
         lambda: tvm.tirx.call_cpacked_lowered("consume", region, 0),
-        lambda: tvm.tirx.call_tir(tvm.ir.GlobalVar("callee"), region),
         lambda: tvm.tirx.trace([region]),
         lambda: T.evaluate(region),
     ]
@@ -231,14 +231,14 @@ def test_buffer_region_call_wrappers_reject():
 def test_buffer_region_type_is_singleton():
     lhs = tvm.tirx.decl_buffer([1], "int32")[0:1]
     rhs = tvm.tirx.decl_buffer([2], "float32")[0:2]
-    assert isinstance(lhs, tvm.tirx.BufferRegion)
-    assert isinstance(rhs, tvm.tirx.BufferRegion)
+    assert isinstance(lhs, TensorRegion)
+    assert isinstance(rhs, TensorRegion)
     assert lhs.ty.same_as(rhs.ty)
 
 
 def test_buffer_region_is_not_arithmetic_operand():
     int_region = tvm.tirx.decl_buffer([4], "int32")[0:4]
-    with pytest.raises(TypeError, match="construct a BufferLoad explicitly"):
+    with pytest.raises(TypeError, match="construct a TensorLoad explicitly"):
         tvm.tirx.IterVar((0, 4), "i", tvm.tirx.IterVar.DataPar) + int_region
 
 
@@ -285,8 +285,8 @@ def test_stmt_constructor():
 
     x = tvm.tirx.AssertStmt(
         tvm.tirx.const(1, "bool"),
-        tvm.tirx.StringImm("RuntimeError"),
-        [tvm.tirx.StringImm("hellow")],
+        tvm.ir.StringImm("RuntimeError"),
+        [tvm.ir.StringImm("hellow")],
     )
     assert isinstance(x, tvm.tirx.AssertStmt)
     assert x.error_kind.value == "RuntimeError"

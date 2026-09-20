@@ -21,26 +21,26 @@
  * \file domain_touched.cc
  * \brief Analyze buffer domains touched by a statement
  */
-#include <tvm/arith/int_set.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/int_set.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../tirx/ir_visitor_with_analyzer.h"
+#include "../../s_tir/ir/ir_visitor_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
 
 using namespace tirx;
-using arith::IntSet;
+using sym::IntSet;
 
 namespace {
 
@@ -63,9 +63,9 @@ using BufferDomainAccess = std::tuple<LoadAccess, StoreAccess, CombinedAccess>;
 }  // namespace
 
 // Find Read region of the tensor in the stmt.
-class BufferTouchedDomain final : public tirx::IRVisitorWithAnalyzer {
+class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
  public:
-  using tirx::IRVisitorWithAnalyzer::Visit_;
+  using s_tir::IRVisitorWithAnalyzer::Visit_;
 
   std::unordered_map<const VarNode*, BufferDomainAccess>& GetAccessedBufferRegions() {
     return buffer_access_map_;
@@ -93,13 +93,13 @@ class BufferTouchedDomain final : public tirx::IRVisitorWithAnalyzer {
           << "Must consider at least on of either loads and stores, but both are false";
     }
     for (size_t i = 0; i < bounds.size(); ++i) {
-      ret.push_back(arith::Union(bounds[i]).CoverRange(none));
+      ret.push_back(sym::Union(bounds[i]).CoverRange(none));
     }
     return ret;
   }
 
  private:
-  using Parent = tirx::IRVisitorWithAnalyzer;
+  using Parent = s_tir::IRVisitorWithAnalyzer;
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();

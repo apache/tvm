@@ -22,17 +22,17 @@
  */
 // Instrument checkers for out of the bounds access.
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <utility>
@@ -177,7 +177,7 @@ class BoundChecker : public StmtExprMutator {
         if (!lanes_int) {
           return false;
         }
-        int lanes = static_cast<int>(ramp_index->lanes.as_or_throw<IntImm>()->value);
+        int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
         if (lanes <= 0) {
           return false;
         }
@@ -247,7 +247,7 @@ class BoundChecker : public StmtExprMutator {
   // Hashtable which maps buffer_var to shape.
   std::unordered_map<const VarNode*, ffi::Array<PrimExpr>> mem_to_shape_;
   // internal analyzer
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 Stmt InstrumentBoundCheckers(Stmt stmt) {

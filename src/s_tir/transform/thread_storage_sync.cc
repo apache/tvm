@@ -25,12 +25,13 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
 
@@ -306,7 +307,7 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
       auto sync = Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(),
-                                {prim::StringImm(sync_scope_.to_string())})
+                                {StringImm(sync_scope_.to_string())})
                                .as_or_throw<PrimExpr>());
       auto inner = op->body.as<AttrStmtNode>();
       TVM_FFI_ICHECK(inner && inner->attr_key == s_tir::attr::async_wait_inflight_count);
@@ -335,7 +336,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     if (syncs_.empty()) return ffi::Unchanged();
     if (!syncs_.count(stmt)) return StmtExprMutator::Mutate(value, inplace_mode);
     Stmt barrier = Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(),
-                                 {prim::StringImm(sync_scope_.to_string())})
+                                 {StringImm(sync_scope_.to_string())})
                                 .as_or_throw<PrimExpr>());
     // Mutate after query, to avoid stmt change.
     auto result = StmtExprMutator::Mutate(value, inplace_mode);

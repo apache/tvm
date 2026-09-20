@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/variant.h>
@@ -27,6 +26,8 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
@@ -157,12 +158,12 @@ BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
     TVM_FFI_THROW(InternalError) << "ValueError: Can not bind non-input param to buffer.";
   } else if (const auto* buffer_load = param.as<TensorLoadNode>()) {
     SBlockFrame frame = FindSBlockFrame("T.match_buffer");
-    frame->match_buffers.push_back(tvm::tirx::MatchBufferRegion(
+    frame->match_buffers.push_back(tvm::s_tir::MatchBufferRegion(
         buffer, BufferRegionFromLoad(ffi::GetRef<tvm::TensorLoad>(buffer_load))));
-  } else if (const auto* buffer_region = param.as<tvm::tirx::BufferRegionNode>()) {
+  } else if (const auto* buffer_region = param.as<tvm::TensorRegionNode>()) {
     SBlockFrame frame = FindSBlockFrame("T.match_buffer");
     frame->match_buffers.push_back(
-        tvm::tirx::MatchBufferRegion(buffer, ffi::GetRef<tvm::tirx::BufferRegion>(buffer_region)));
+        tvm::s_tir::MatchBufferRegion(buffer, ffi::GetRef<tvm::TensorRegion>(buffer_region)));
   } else {
     TVM_FFI_THROW(InternalError) << "ValueError: Unexpected type for TIR MatchBuffer.";
   }
@@ -292,9 +293,9 @@ void Reads(ffi::Array<ffi::ObjectRef> buffer_slices) {
     TVM_FFI_THROW(InternalError)
         << "ValueError: Duplicate read region declaration, previous one is " << frame->reads;
   }
-  ffi::Array<BufferRegion> reads;
+  ffi::Array<TensorRegion> reads;
   for (const ffi::ObjectRef& obj : buffer_slices) {
-    if (auto buffer_region = obj.as<BufferRegion>()) {
+    if (auto buffer_region = obj.as<TensorRegion>()) {
       reads.push_back(buffer_region.value());
     } else if (auto buffer_load = obj.as<TensorLoad>()) {
       reads.push_back(BufferRegionFromLoad(buffer_load.value()));
@@ -312,9 +313,9 @@ void Writes(ffi::Array<ffi::ObjectRef> buffer_slices) {
     TVM_FFI_THROW(InternalError)
         << "ValueError: Duplicate write region declaration, previous one is " << frame->writes;
   }
-  ffi::Array<BufferRegion> writes;
+  ffi::Array<TensorRegion> writes;
   for (const ffi::ObjectRef& obj : buffer_slices) {
-    if (auto buffer_region = obj.as<BufferRegion>()) {
+    if (auto buffer_region = obj.as<TensorRegion>()) {
       writes.push_back(buffer_region.value());
     } else if (auto buffer_load = obj.as<TensorLoad>()) {
       writes.push_back(BufferRegionFromLoad(buffer_load.value()));
@@ -399,7 +400,7 @@ ffi::Variant<BufferVar, AllocBufferFrame> SBlockAllocBuffer(
            "Use `T.alloc_buffer()` inside default (tirx) PrimFuncs.";
   }
 
-  // Walk up the frame stack: attach to the innermost enclosing SBlock (lifting
+  // Walk up the frame stack: attach to the innermost enclosing s_tir::SBlock (lifting
   // the allocation past any intermediate For/If/While frames). Fall back to the
   // PrimFunc root when no sblock is in scope. When neither is present (raw
   // IRBuilder construction used by tests), just return the buffer.
@@ -535,7 +536,7 @@ PrimExpr ConvertLoopBound(const PrimExpr& e, const PrimType& var_ty) {
                   ffi::Optional<PrimExpr> step, ffi::Optional<PrimType> dtype) {                \
     PrimType var_ty = InferLoopVarDtype(start, stop, dtype);                                    \
     PrimExpr min = ConvertLoopBound(start, var_ty);                                             \
-    PrimExpr extent = arith::Analyzer()->Simplify(ConvertLoopBound(stop, var_ty) - min);        \
+    PrimExpr extent = sym::Analyzer()->Simplify(ConvertLoopBound(stop, var_ty) - min);          \
     if (step.has_value()) {                                                                     \
       step = ConvertLoopBound(step.value(), var_ty);                                            \
     }                                                                                           \
@@ -567,7 +568,7 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
                        ffi::Optional<ffi::Map<ffi::String, Any>> annotations) {
   using namespace tvm::tirx;
   PrimExpr min = start;
-  PrimExpr extent = arith::Analyzer()->Simplify(stop - start);
+  PrimExpr extent = sym::Analyzer()->Simplify(stop - start);
   ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();
   PrimType min_ty = min.ty();
   PrimType extent_ty = extent.ty();
@@ -638,10 +639,10 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
                    ffi::Array<ffi::String> message_parts) {
   ffi::ObjectPtr<AssertFrameNode> n = ffi::make_object<AssertFrameNode>();
   n->condition = condition;
-  n->error_kind = tvm::prim::StringImm(error_kind);
-  ffi::Array<tvm::prim::StringImm> parts;
+  n->error_kind = tvm::StringImm(error_kind);
+  ffi::Array<tvm::StringImm> parts;
   for (const auto& p : message_parts) {
-    parts.push_back(tvm::prim::StringImm(p));
+    parts.push_back(tvm::StringImm(p));
   }
   n->message_parts = parts;
   return AssertFrame(n);
@@ -679,13 +680,14 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
   if (!iter_var->dom.defined()) {
     const_cast<tvm::tirx::IterVarNode*>(iter_var.get())->dom =
         Range(tvm::IntImm(extent.ty(), 0), extent);
-  } else if (!arith::Analyzer()->CanProveEqual(iter_var->dom->extent, extent)) {
+  } else if (!sym::Analyzer()->CanProveEqual(iter_var->dom->extent, extent)) {
     TVM_FFI_THROW(InternalError) << "ValueError: Inconsistent extents of environment thread. "
                                  << iter_var->dom->extent << " vs " << extent;
   }
   n->iter_var = iter_var;
   n->extent = extent;
-  n->attr_key = iter_var->thread_tag == "vthread" ? "virtual_thread" : "thread_extent";
+  n->attr_key =
+      iter_var->thread_tag == "vthread" ? tvm::tirx::attr::virtual_thread : "thread_extent";
   return LaunchThreadFrame(n);
 }
 
@@ -693,7 +695,7 @@ LaunchThreadFrame LaunchThread(ffi::String thread_tag, PrimExpr extent) {
   return LaunchThread(EnvThread(thread_tag, extent.ty()), extent);
 }
 
-AttrFrame Attr(ffi::Any node, ffi::String attr_key, PrimExpr value) {
+AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value) {
   ffi::ObjectPtr<AttrFrameNode> n = ffi::make_object<AttrFrameNode>();
   n->node = std::move(node);
   n->attr_key = attr_key;

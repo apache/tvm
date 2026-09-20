@@ -96,7 +96,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     function_->addFnAttr("amdgpu-flat-work-group-size", attr.str());
   }
 
-  void VisitStmt_(const AllocBufferNode* op) final {
+  void Dispatch_(const AllocBufferNode* op) final {
     llvm::Value* buf = nullptr;
     StorageInfo& info = alloc_storage_info_[op->buffer.get()];
     auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer.var()));
@@ -109,7 +109,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     } else {
       const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
       TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
-      size_t constant_size = static_cast<size_t>(dim_imm->value);
+      size_t constant_size = dim_imm->value.as<size_t>().value();
       TVM_FFI_ICHECK_GT(constant_size, 0)
           << "Can only handle constant size stack allocation in GPU";
 
@@ -192,7 +192,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 
   llvm::Value* CreateStorageSync(const CallNode* op) final {
-    const std::string& sync = op->args[0].as<prim::StringImmNode>()->value;
+    const std::string& sync = op->args[0].as<StringImmNode>()->value;
     if (sync == "warp") {
       return nullptr;
     } else if (sync == "shared") {

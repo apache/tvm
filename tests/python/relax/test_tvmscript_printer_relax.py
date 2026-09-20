@@ -398,12 +398,12 @@ def test_primitive_bindings_roundtrip_without_prim_value_marker():
 
 
 def test_string_imm():
-    obj = relax.StringImm("hello")
-    _assert_print(obj, 'R.str("hello")')
+    obj = tvm.ir.StringImm("hello")
+    _assert_print(obj, '"hello"')
 
 
 def test_data_type_imm():
-    obj = relax.DataTypeImm("float32")
+    obj = tvm.ir.GenericConst(tvm.DataType("float32"), tvm.relax.AnyType())
     _assert_print(obj, 'R.dtype("float32")')
 
 

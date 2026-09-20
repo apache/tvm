@@ -19,7 +19,6 @@
 #ifndef TVM_S_TIR_META_SCHEDULE_UTILS_H_
 #define TVM_S_TIR_META_SCHEDULE_UTILS_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
@@ -41,8 +40,10 @@
 #include <tvm/s_tir/meta_schedule/task_scheduler.h>
 #include <tvm/s_tir/meta_schedule/tune_context.h>
 #include <tvm/s_tir/schedule/schedule.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -301,7 +302,7 @@ inline std::string Concat(const ffi::Array<ffi::String>& strs, const std::string
  */
 inline s_tir::SBlockRV GetRVFromSRef(const s_tir::Schedule& sch, const tirx::StmtSRef& block_sref,
                                      const ffi::String& global_var_name) {
-  const tirx::SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+  const s_tir::SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   return sch->GetSBlock(block->name_hint, global_var_name);
 }
 
@@ -470,7 +471,7 @@ inline ffi::Array<FloatImm> AsFloatArray(const ffi::ObjectRef& obj) {
   for (Any val : *arr) {
     auto float_value = [&]() -> FloatImm {
       if (auto opt_int_imm = val.try_cast<IntImm>()) {
-        return FloatImm(PrimType::Float(32), (*opt_int_imm)->value);
+        return FloatImm(PrimType::Float(32), static_cast<double>((*opt_int_imm)->value));
       } else if (auto opt_float_imm = val.try_cast<FloatImm>()) {
         return *std::move(opt_float_imm);
       } else {
@@ -498,7 +499,7 @@ inline ffi::Array<int64_t> AsIntArray(const ffi::ObjectRef& obj) {
   for (Any val : *arr) {
     auto int_value = [&]() -> int64_t {
       if (auto opt_int_imm = val.try_cast<IntImm>()) {
-        return (*opt_int_imm)->value;
+        return static_cast<int64_t>((*opt_int_imm)->value);
       } else {
         TVM_FFI_THROW(TypeError) << "Expect an array of integers, but gets: " << val.GetTypeKey();
         TVM_FFI_UNREACHABLE();
@@ -612,13 +613,13 @@ inline double Sum(const ffi::Array<FloatImm>& arr) {
 }
 
 /*! \brief Collecting all the blocks */
-class SBlockCollector : public tirx::StmtExprVisitor {
+class SBlockCollector : public s_tir::StmtExprVisitor {
  public:
-  using tirx::StmtExprVisitor::Visit_;
+  using s_tir::StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
-    return tirx::StmtExprVisitor::Visit(value);
+    return s_tir::StmtExprVisitor::Visit(value);
   }
 
   static ffi::Array<s_tir::SBlockRV> Collect(const s_tir::Schedule& sch,
@@ -662,8 +663,8 @@ class SBlockCollector : public tirx::StmtExprVisitor {
 
  private:
   /*! \brief Override the Stmt visiting behaviour */
-  ffi::Optional<VisitInterrupt> Visit_(const tirx::SBlockNode* block) override {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(tirx::StmtExprVisitor::Visit_(block));
+  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* block) override {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(block));
     TVM_FFI_ICHECK(block_names_.count(block->name_hint) == 0)
         << "Duplicated block name " << block->name_hint << " in function " << func_name_
         << " not supported!";
@@ -673,7 +674,7 @@ class SBlockCollector : public tirx::StmtExprVisitor {
     // Otherwise collect all blocks.
     bool collect_block = true;
     if (f_block_filter_ != nullptr) {
-      collect_block = f_block_filter_(ffi::GetRef<tirx::SBlock>(block)).cast<IntImm>()->value != 0;
+      collect_block = f_block_filter_(ffi::GetRef<s_tir::SBlock>(block)).cast<IntImm>()->value != 0;
     }
     if (collect_block) {
       blocks_to_collect_.push_back(block->name_hint);

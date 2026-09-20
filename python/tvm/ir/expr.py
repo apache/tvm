@@ -16,8 +16,6 @@
 # under the License.
 """Common expressions data structures in the IR."""
 
-from numbers import Number
-
 import tvm_ffi
 
 import tvm
@@ -107,23 +105,7 @@ class GlobalVar(Expr):
         call: Expr
             A call taking the variable as a function.
         """
-        from .type import PointerType
-
-        def is_tir_arg(x):
-            return (
-                isinstance(x, Number)
-                or is_prim_expr(x)
-                or (isinstance(x, Expr) and isinstance(x.ty, PointerType))
-            )
-
-        if args and all(is_tir_arg(x) for x in args):
-            return tvm.tirx.call_tir(self, *args)
-
-        if all(isinstance(x, Expr) for x in args):
-            return Call(self, args)
-
-        arg_types = [type(x) for x in args]
-        raise RuntimeError(f"Do not know how to handle GlobalVar.__call__ for types {arg_types}")
+        return Call(self, args)
 
 
 class ExprOperand:
@@ -465,9 +447,47 @@ class TensorLoad(_CallableExprWithOp):
         )
 
 
+@tvm_ffi.register_object("ir.Constant")
+class Constant(ExprWithOp):
+    """Base class of literal constants."""
+
+
+@tvm_ffi.register_object("ir.GenericConst")
+class GenericConst(_ExprCallable, Constant):
+    """A literal payload with an explicit expression type."""
+
+    def __init__(self, value, ty: "tvm.ir.Type", span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.GenericConst, value, ty, span)
+
+    def __bool__(self) -> bool:
+        return True
+
+
+@tvm_ffi.register_object("ir.StringImm")
+class StringImm(Constant):
+    """A string literal with StringType."""
+
+    value: str
+
+    def __init__(self, value: str, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.StringImm, value, span)
+
+    def __eq__(self, other) -> bool:
+        return self.value == (other.value if isinstance(other, StringImm) else other)
+
+    def __ne__(self, other) -> bool:
+        return not self.__eq__(other)
+
+    __hash__ = Expr.__hash__
+
+
 @tvm_ffi.register_object("ir.Call")
 class Call(_CallableExprWithOp):
-    """Core function call node."""
+    """Core function call node.
+
+    When ``ret_ty`` is omitted, use a missing type for subsequent normalization.
+    Builders may supply a known result type explicitly.
+    """
 
     op: Expr
     args: list[Expr]
@@ -502,6 +522,38 @@ class Call(_CallableExprWithOp):
         if ty_args is None:
             ty_args = []
         self.__init_handle_by_constructor__(_ffi_api.Call, ret_ty, op, args, attrs, ty_args, span)
+
+
+@tvm_ffi.register_object("ir.TensorRegion")
+class TensorRegion(Expr, Scriptable):
+    """A region of an arbitrary tensor expression.
+
+    Parameters
+    ----------
+    source : Expr
+        The source expression.
+
+    region : list[Range]
+        The ranges describing the region.
+
+    ty : tvm.ir.Type
+        The result type, including any dialect-specific subscript semantics.
+
+    span : Span | None
+        The location of the expression in the source code.
+    """
+
+    source: Expr
+    region: list["Range"]
+
+    def __init__(
+        self,
+        source: Expr,
+        region: list["Range"],
+        ty: "tvm.ir.Type",
+        span: Span | None = None,
+    ) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.TensorRegion, source, region, ty, span)
 
 
 @tvm_ffi.register_object("ir.Var")

@@ -26,7 +26,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
@@ -37,7 +36,6 @@
 #include <unordered_set>
 
 #include "../transform/ir_utils.h"
-#include "functor_common.h"
 
 namespace tvm {
 namespace tirx {
@@ -66,7 +64,7 @@ inline bool IsParam(const PrimFunc& func, const Var& param) {
     if (a_unchanged && b_unchanged) {                                                   \
       return ffi::Unchanged();                                                          \
     } else {                                                                            \
-      return BinaryFunc(a, b);                                                          \
+      return BinaryFunc(a, b, op->span);                                                \
     }                                                                                   \
   }
 #define DEFINE_SPECIALIZER_UNARY_OP_MUTATE(UnaryNode, UnaryFunc)                       \
@@ -77,7 +75,7 @@ inline bool IsParam(const PrimFunc& func, const Var& param) {
     if (a_unchanged) {                                                                 \
       return ffi::Unchanged();                                                         \
     } else {                                                                           \
-      return UnaryFunc(a);                                                             \
+      return UnaryFunc(a, op->span);                                                   \
     }                                                                                  \
   }
 
@@ -162,7 +160,12 @@ class PrimFuncSpecializer : public StmtExprMutator {
     ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
       if (op->ty.as<BufferTypeNode>()) {
         if (def_region_kind() == kTVMFFIDefRegionKindSimple) {
-          specializer_->MutateAllocBuffer(GetBufferVar(op));
+          const BufferVar buffer = GetBufferVar(op);
+          specializer_->MutateAllocBuffer(buffer);
+          // Structural extension nodes expose buffer definitions without a native
+          // statement hook. Plan their metadata as uses after defining the buffer.
+          return this->WithDefRegionKind(kTVMFFIDefRegionKindNone,
+                                         [&]() { return VisitBufferMetadata(buffer); });
         } else {
           specializer_->ValidateBufferUse(GetBufferVar(op));
         }
@@ -170,41 +173,16 @@ class PrimFuncSpecializer : public StmtExprMutator {
       return StmtExprVisitor::Visit_(op);
     }
 
+    ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
+      return this->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
+                                     [&]() { return this->Visit(op->buffer); });
+    }
+
     ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
       // The declaration establishes the buffer before visiting its data expression.
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
           kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->buffer); }));
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(op->buffer));
       return Visit(op->data);
-    }
-
-    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-      // Block allocations were planned before all other block children by the specializer.
-      for (const BufferVar& buffer : op->alloc_buffers) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
-            kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(buffer); }));
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(buffer));
-      }
-      for (const IterVar& iter : op->iter_vars) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(iter->dom->min));
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(iter->dom->extent));
-      }
-      for (const BufferRegion& region : op->reads) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(region));
-      }
-      for (const BufferRegion& region : op->writes) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(region));
-      }
-      for (const MatchBufferRegion& match : op->match_buffers) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
-            kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(match->buffer); }));
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitBufferMetadata(match->buffer));
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(match->source));
-      }
-      if (op->init.has_value()) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->init.value()));
-      }
-      return Visit(op->body);
     }
 
     PrimFuncSpecializer* specializer_;
@@ -238,11 +216,14 @@ class PrimFuncSpecializer : public StmtExprMutator {
     return load;
   }
 
-  UnchangedOr<Expr> Mutate_(const BufferRegionNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
     auto result = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow);
     if (result.UnchangedOrSameAs(ffi::GetRef<Expr>(op))) return ffi::Unchanged();
-    auto region = std::move(result).ValueUnchecked().as_or_throw<BufferRegion>();
-    return BufferRegion(region->buffer, region->region);
+    auto region = std::move(result).ValueUnchecked().as_or_throw<TensorRegion>();
+    if (auto buffer = region->source.as<BufferVar>()) {
+      return BufferRegion(buffer.value(), region->region, region->span);
+    }
+    return region;
   }
 
   DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::AddNode, add);
@@ -263,6 +244,12 @@ class PrimFuncSpecializer : public StmtExprMutator {
   DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::AndNode, logical_and);
   DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::OrNode, logical_or);
   DEFINE_SPECIALIZER_UNARY_OP_MUTATE(prim::NotNode, logical_not);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::LShiftNode, left_shift);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::RShiftNode, right_shift);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::BitwiseAndNode, bitwise_and);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::BitwiseOrNode, bitwise_or);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::BitwiseXorNode, bitwise_xor);
+  DEFINE_SPECIALIZER_UNARY_OP_MUTATE(prim::BitwiseNotNode, prim::BitwiseNot);
   BufferVar MutateBuffer(const BufferVar& buffer) {
     ffi::Any mapped = VarRemapGet(buffer);
     if (mapped.type_index() != ffi::TypeIndex::kTVMFFINone) {
@@ -345,7 +332,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
         << "(see discussion on https://github.com/apache/tvm/pull/14565 for more details).  "
         << "Please add a definition for this buffer, "
         << "either as a BufferType-annotated PrimFunc parameter, "
-        << "in a tirx::SBlock's alloc_buffer, "
+        << "in a block's buffer allocations, "
         << "or in a DeclBuffer statement.";
   }
 

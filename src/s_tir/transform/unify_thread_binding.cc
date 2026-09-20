@@ -21,13 +21,14 @@
  * \file unify_thread_binding.cc
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../support/utils.h"
 #include "../../tirx/transform/ir_utils.h"
@@ -62,8 +63,9 @@ class ThreadBindingUnifier : public StmtExprMutator {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     IterVar old_iter_var = op->node.as_or_throw<IterVar>();
+    PrimExpr extent = op->value.as_or_throw<PrimExpr>();
     return UnifyThreadBindingImpl(op, old_iter_var->var, old_iter_var,
-                                  Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value),
+                                  Range::FromMinExtent(IntImm(extent.ty(), 0), extent),
                                   inplace_mode);
   }
 
@@ -185,7 +187,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
   /*! \brief A integer counter storing the depth of thread bindings of "blockIdx.x/y/z" */
   int thread_block_depth_ = 0;
   /*! \brief An analyzer used for equality proof */
-  arith::Analyzer ana;
+  sym::Analyzer ana;
 };
 
 namespace transform {

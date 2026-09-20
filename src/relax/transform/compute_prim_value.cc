@@ -64,6 +64,12 @@ class PrimExprComputeInjector : public ExprMutator {
 
   RELAX_LIFT_PRIM_EXPR(TensorLoadNode);
   RELAX_LIFT_PRIM_EXPR(prim::AddNode);
+  RELAX_LIFT_PRIM_EXPR(prim::LShiftNode);
+  RELAX_LIFT_PRIM_EXPR(prim::RShiftNode);
+  RELAX_LIFT_PRIM_EXPR(prim::BitwiseAndNode);
+  RELAX_LIFT_PRIM_EXPR(prim::BitwiseOrNode);
+  RELAX_LIFT_PRIM_EXPR(prim::BitwiseXorNode);
+  RELAX_LIFT_PRIM_EXPR(prim::BitwiseNotNode);
   RELAX_LIFT_PRIM_EXPR(prim::SubNode);
   RELAX_LIFT_PRIM_EXPR(prim::MulNode);
   RELAX_LIFT_PRIM_EXPR(prim::DivNode);
@@ -88,7 +94,6 @@ class PrimExprComputeInjector : public ExprMutator {
   RELAX_LIFT_PRIM_EXPR(prim::ShuffleNode);
   RELAX_LIFT_PRIM_EXPR(tvm::IntImmNode);
   RELAX_LIFT_PRIM_EXPR(tvm::FloatImmNode);
-  RELAX_LIFT_PRIM_EXPR(prim::StringImmNode);
 
 #undef RELAX_LIFT_PRIM_EXPR
 

@@ -129,8 +129,9 @@ NLayout GetNLayout(const VarLayoutMap& var_layout_map, const Expr& arg) {
       } else {
         return InitialNLayout(expr);
       }
-    } else if (const auto* constant = expr.as<ConstantNode>()) {
-      return InitialLayoutDecision(constant->data.Shape().size());
+    } else if (const auto* constant = expr.as<GenericConstNode>();
+               constant && constant->value.as<runtime::Tensor>()) {
+      return InitialLayoutDecision(constant->value.cast<runtime::Tensor>().Shape().size());
     }
     return LayoutDecision::InitUnknownDim();
   };

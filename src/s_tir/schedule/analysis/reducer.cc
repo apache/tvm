@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/te/operation.h>
 
 #include "../utils.h"
@@ -32,7 +33,7 @@ using namespace tvm::tirx;
 /*!
  * \brief PrimExpr pattern matcher.
  *
- * It is different from the pattern matcher in arith/pattern_match.h, which is dedicated
+ * It is different from the pattern matcher in sym/pattern_match.h, which is dedicated
  * for compile-time constant patterns. This pattern matcher can work on dynamic user-specific
  * patterns.
  *
@@ -505,7 +506,7 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
   const ffi::Array<PrimExpr>& expected_indices = updates[0]->indices;
   TVM_FFI_ICHECK_EQ(expected_shape.size(), expected_indices.size());
   int n_dim = expected_indices.size();
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   for (int i = 0; i < n_buffers; ++i) {
     if (static_cast<int>(updates[i]->buffer->shape.size()) != n_dim) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/11);
@@ -561,8 +562,8 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
   // Step 2. Check if the reduction block iters are used to index the output buffer.
   std::unordered_set<const VarNode*> buffer_written;
   buffer_written.reserve(block->writes.size());
-  for (const BufferRegion& write_region : block->writes) {
-    buffer_written.insert(write_region->buffer.get());
+  for (const TensorRegion& write_region : block->writes) {
+    buffer_written.insert(write_region->source.as_or_throw<tvm::tirx::BufferVar>().get());
   }
 
   std::unordered_set<const VarNode*> buffer_allocated;
@@ -582,11 +583,13 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
 
   std::unordered_map<const VarNode*, const VarNode*> match_buffer_sources;
   for (const MatchBufferRegion& region : block->match_buffers) {
-    match_buffer_sources[region->buffer.get()] = region->source->buffer.get();
+    match_buffer_sources[region->buffer.get()] =
+        region->source->source.as_or_throw<tvm::tirx::BufferVar>().get();
   }
   auto visit_block = [&](const SBlock& nested_block) -> ffi::Expected<ffi::WalkResult> {
     for (const MatchBufferRegion& region : nested_block->match_buffers) {
-      match_buffer_sources[region->buffer.get()] = region->source->buffer.get();
+      match_buffer_sources[region->buffer.get()] =
+          region->source->source.as_or_throw<tvm::tirx::BufferVar>().get();
     }
     return ffi::WalkResult::Advance();
   };

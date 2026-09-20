@@ -30,9 +30,9 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <list>
 #include <map>
@@ -93,8 +93,9 @@ static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents) {
   int64_t result = 1;
   for (size_t i = 0; i < extents.size(); ++i) {
     if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
-      result *= int_size->value;
-      if (result > std::numeric_limits<int64_t>::max()) return 0;
+      auto product = (result * int_size->value).as<int64_t>();
+      if (!product.has_value()) return 0;
+      result = *product;
     } else {
       return 0;
     }

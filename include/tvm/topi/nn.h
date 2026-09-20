@@ -24,8 +24,8 @@
 #ifndef TVM_TOPI_NN_H_
 #define TVM_TOPI_NN_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/op.h>
 #include <tvm/topi/detail/constant_utils.h>
@@ -164,7 +164,7 @@ inline tvm::te::Tensor pad(
     }
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   TVM_FFI_ICHECK_GE(pad_before.size(), 1);
   TVM_FFI_ICHECK_EQ(pad_before.size(), pad_after.size());
   tvm::ffi::Array<tvm::PrimExpr> pad_before_int32;
@@ -637,9 +637,12 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
     strides.push_back(IntImm(index_ty, 1));
     if (i > 0 && i <= num_block_dims) {
       // prepare begin and end index for spatial dimensions
-      int64_t begin_i = GetConstInt(crop_begin_list[i - 1]);
-      int64_t end_i = GetConstInt(crop_end_list[i - 1]);
-      int64_t out_i = GetConstInt(r_p_shape[i]);
+      const auto* begin_i_imm = crop_begin_list[i - 1].as<IntImmNode>();
+      ffi::BigInt begin_i = begin_i_imm ? begin_i_imm->value : GetConstInt(crop_begin_list[i - 1]);
+      const auto* end_i_imm = crop_end_list[i - 1].as<IntImmNode>();
+      ffi::BigInt end_i = end_i_imm ? end_i_imm->value : GetConstInt(crop_end_list[i - 1]);
+      const auto* out_i_imm = r_p_shape[i].as<IntImmNode>();
+      ffi::BigInt out_i = out_i_imm ? out_i_imm->value : GetConstInt(r_p_shape[i]);
       TVM_FFI_ICHECK_GT(out_i, (begin_i + end_i))
           << "Incorrect crop sizes for (" << i << ")th dim, can not crop more than"
           << " output size" << out_i << " vs " << (begin_i + end_i);
@@ -648,7 +651,8 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
     } else {
       // ignore the batch and remaining dimension
       begin_idx.push_back(IntImm(index_ty, 0));
-      end_idx.push_back(IntImm(index_ty, GetConstInt(r_p_shape[i])));
+      const auto* extent = r_p_shape[i].as<IntImmNode>();
+      end_idx.push_back(IntImm(index_ty, extent ? extent->value : GetConstInt(r_p_shape[i])));
     }
   }
 

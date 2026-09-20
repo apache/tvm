@@ -20,13 +20,13 @@
  * \file src/relax/transform/rewrite_dataflow_reshape.cc
  * \brief Transform all reshape within dataflow block to a relax.reshape operator
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 
@@ -149,7 +149,7 @@ class DataflowReshapeRewriter : public ExprMutator {
     };
     auto inp_count = product(inp_ty->GetShape().value());
     auto res_count = product(res_ty->GetShape().value());
-    if (!arith::Analyzer()->CanProveEqual(inp_count, res_count)) {
+    if (!sym::Analyzer()->CanProveEqual(inp_count, res_count)) {
       return false;
     }
 

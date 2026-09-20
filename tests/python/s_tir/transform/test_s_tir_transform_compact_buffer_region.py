@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E501
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import s_tir, tirx
@@ -37,7 +39,7 @@ class BaseCompactTest:
         before = tvm.IRModule.from_expr(self.before.with_attr("global_symbol", "main"))
         expected = tvm.IRModule.from_expr(self.expected.with_attr("global_symbol", "main"))
         simplify = tvm.transform.Sequential(
-            [tirx.transform.StmtSimplify(), tirx.transform.RemoveNoOp()]
+            [s_tir.transform.StmtSimplify(), tirx.transform.RemoveNoOp()]
         )
         after = simplify(s_tir.transform.CompactBufferAllocation(is_strict=is_strict)(before))
         expected = simplify(expected)
@@ -1300,7 +1302,7 @@ def test_loop_var_does_not_escape_compacted_buffer_extent():
                 tmp[j] = A[j]
 
     after = s_tir.transform.CompactBufferAllocation()(tvm.IRModule.from_expr(before))
-    assert tirx.analysis.verify_well_formed(after)
+    assert s_tir.analysis.verify_well_formed(after)
 
 
 class TestCompactSymbolicBound0:
@@ -1430,11 +1432,22 @@ class TestSymbolicDiagMaskCase:
                         ]
 
 
-def test_unsigned_condition():
-    x = tirx.Var("x", "uint32")
-    func = tirx.PrimFunc([x], tirx.Evaluate(tirx.if_then_else(x != 0, 1, 0)))
+@pytest.mark.parametrize("dtype, value", [("uint32", 0), ("uint64", 2**63), ("uint64", 2**64 - 1)])
+def test_unsigned_condition(dtype, value):
+    x = tirx.Var("x", dtype)
+    # Both branches must handle unsigned constants, including BigInt values.
+    func = tirx.PrimFunc([x], tirx.Evaluate(tirx.if_then_else(x != tirx.const(value, dtype), 1, 0)))
     before = tvm.IRModule.from_expr(func)
     # Exercise ConditionalBoundsContext without any buffer accesses.
+    after = s_tir.transform.CompactBufferAllocation()(before)
+    tvm.ir.assert_structural_equal(after, before)
+
+
+def test_unsigned_wraparound_condition():
+    x = tirx.Var("x", "uint32")
+    # Do not treat modular arithmetic as a signed linear inequality.
+    func = tirx.PrimFunc([x], tirx.Evaluate(tirx.if_then_else(x + 1 < x, 1, 0)))
+    before = tvm.IRModule.from_expr(func)
     after = s_tir.transform.CompactBufferAllocation()(before)
     tvm.ir.assert_structural_equal(after, before)
 

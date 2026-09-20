@@ -313,7 +313,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              const auto* imm = index.value().as<IntImmNode>();
              TVM_FFI_CHECK(imm != nullptr, TypeError)
                  << "A Relax expression requires a constant integer index";
-             return TupleGetItem(value, static_cast<int>(imm->value), span);
+             return TupleGetItem(value, imm->value.as<int>().value(), span);
            });
 }
 

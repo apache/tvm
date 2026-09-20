@@ -24,10 +24,10 @@
 #ifndef TVM_TE_OPERATION_H_
 #define TVM_TE_OPERATION_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/op.h>

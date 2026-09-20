@@ -37,8 +37,8 @@
 #include <limits>
 #include <unordered_set>
 
-#include "../../arith/pattern_match.h"
-#include "../ir_mutator_with_analyzer.h"
+#include "../../sym/pattern_match.h"
+#include "../ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace tirx {
@@ -132,7 +132,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
 
   using FLowerGeneral = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
-  IntrinInjecter(const arith::Analyzer& analyzer, const Target& tgt, bool enable_fast_math)
+  IntrinInjecter(const sym::Analyzer& analyzer, const Target& tgt, bool enable_fast_math)
       : IRMutatorWithAnalyzer(analyzer) {
     std::string target = tgt->kind->name;
     ffi::String mtriple = tgt->GetAttr<ffi::String>("mtriple").value_or("");
@@ -237,12 +237,15 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
       if (analyzer_->CanProveGreaterEqual(op->a, 0) || analyzer_->CanProveGreaterEqual(e, 0)) {
         return truncdiv(op->a, op->b);
       }
-      if (const IntImmNode* b_as_intimm = op->b.as<IntImmNode>()) {
-        int64_t b_value = b_as_intimm->value;
-        if (auto opt_c_value = TryFindShiftCoefficientForPositiveRange(op->a, b_value)) {
+      const auto* b_as_intimm = op->b.as<IntImmNode>();
+      if (auto b_value = b_as_intimm ? b_as_intimm->value.as<int64_t>() : std::nullopt;
+          b_value.has_value()) {
+        if (auto opt_c_value = TryFindShiftCoefficientForPositiveRange(op->a, *b_value);
+            opt_c_value.has_value()) {
           int64_t c_value = *opt_c_value;
           // now we can safely lower to truncdiv
-          return truncdiv(op->a + IntImm(dtype, b_value * c_value), op->b) - IntImm(dtype, c_value);
+          return truncdiv(op->a + IntImm(dtype, b_as_intimm->value * c_value), op->b) -
+                 IntImm(dtype, c_value);
         }
       }
       DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divident";
@@ -291,7 +294,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
 
     if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
       // lower to masking if possible.
-      int64_t mask = (static_cast<int64_t>(1) << static_cast<int64_t>(shift)) - 1;
+      ffi::BigInt mask = (ffi::BigInt(1) << shift) - 1;
       return op->a & IntImm(dtype, mask);
     }
 
@@ -300,12 +303,14 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
       if (analyzer_->CanProveGreaterEqual(op->a, 0)) {
         return truncmod(op->a, op->b);
       }
-      if (const IntImmNode* b_as_intimm = op->b.as<IntImmNode>()) {
-        int64_t b_value = b_as_intimm->value;
-        if (auto opt_c_value = TryFindShiftCoefficientForPositiveRange(op->a, b_value)) {
+      const auto* b_as_intimm = op->b.as<IntImmNode>();
+      if (auto b_value = b_as_intimm ? b_as_intimm->value.as<int64_t>() : std::nullopt;
+          b_value.has_value()) {
+        if (auto opt_c_value = TryFindShiftCoefficientForPositiveRange(op->a, *b_value);
+            opt_c_value.has_value()) {
           int64_t c_value = *opt_c_value;
           // floormod(a, b) == floormod(a + b*c, b)  == truncmod(a + b*c, b)
-          return truncmod(op->a + IntImm(dtype, c_value * b_value), op->b);
+          return truncmod(op->a + IntImm(dtype, b_as_intimm->value * c_value), op->b);
         }
       }
       DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divident";
@@ -343,7 +348,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::MaxNode* op, InplaceMode inplace_mode) final {
-    using namespace arith;
+    using namespace sym;
     PVar<PrimExpr> x, y;
     PVar<IntImm> c;
     auto e = ffi::GetRef<PrimExpr>(op);
@@ -356,7 +361,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::EQNode* op, InplaceMode inplace_mode) final {
-    using namespace arith;
+    using namespace sym;
     PVar<PrimExpr> x, y;
     auto e = ffi::GetRef<PrimExpr>(op);
     if ((floormod(x, y) == 0).Match(e)) {
@@ -367,7 +372,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::NENode* op, InplaceMode inplace_mode) final {
-    using namespace arith;
+    using namespace sym;
     PVar<PrimExpr> x, y;
     auto e = ffi::GetRef<PrimExpr>(op);
     if ((floormod(x, y) != 0).Match(e)) {
@@ -450,14 +455,17 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     // NOTE: we need to be very careful in the checks below, to make sure
     // all the intermediate calculations in both compiler checks and runtime checks
     // do not overflow
-    arith::ConstIntBound const_int_bound_a = analyzer_->const_int_bound(a);
+    sym::ConstIntBound const_int_bound_a = analyzer_->const_int_bound(a);
     if (const_int_bound_a->min_value >= 0) {
       return std::nullopt;
     }
     PrimType a_ty = a.ty();
     // This overflow check is scalar element based. Lane count is intentionally ignored.
-    const int64_t max_value_of_dtype =
-        tvm::prim::max_value(PrimType(a_ty.code(), a_ty.bits())).as_or_throw<IntImm>()->value;
+    auto dtype_max = tvm::prim::max_value(PrimType(a_ty.code(), a_ty.bits()))
+                         .as_or_throw<IntImm>()
+                         ->value.as<int64_t>();
+    if (!dtype_max.has_value()) return std::nullopt;
+    const int64_t max_value_of_dtype = *dtype_max;
 
     // NOTE: ensures that (b-1) - a_min does not overflow
     // also note: max_value_of_dtype + const_int_bound_a->min_value won't overflow
@@ -487,7 +495,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
 };
 
 Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   bool enable_fast_math =
       transform::PassContext::Current()->GetConfig<bool>("tirx.enable_fast_math", false).value();
   return ffi::make_object<IntrinInjecter>(analyzer, Target(ffi::String(target)), enable_fast_math)
@@ -502,7 +510,7 @@ Pass LowerIntrin() {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     TVM_FFI_ICHECK(target.has_value()) << "LowerIntrin: Require the target attribute";
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     bool enable_fast_math = ctx->GetConfig<bool>("tirx.enable_fast_math", false).value();
     n->body = ffi::make_object<IntrinInjecter>(analyzer, target.value(), enable_fast_math)
                   ->Mutate(n->body, InplaceMode::kAllow)

@@ -72,9 +72,9 @@ def is_smem_ewise(spec):
         if msg is not None or plan is None:
             return False, msg
         for br in buffer_regions(plan):
-            if not br.buffer.scope().startswith("shared"):
-                return False, f"operand scope {br.buffer.scope()} != shared*"
-            if br.buffer.layout is None:
+            if not br.source.scope().startswith("shared"):
+                return False, f"operand scope {br.source.scope()} != shared*"
+            if br.source.layout is None:
                 return False, "shared operand has no layout"
         if spec.check_extras is not None:
             ok2, reason2 = spec.check_extras(plan.extras, compute_dtype_of(plan))
@@ -101,10 +101,10 @@ def is_smem_ewise(spec):
 def _max_layout_vec(plan, total: int, thread_cnt: int) -> int:
     """Widest vec_chunk dividing all operands' innermost extents AND
     ``total / thread_cnt``, within dtype-bit candidates ``{128,64,32,16,8}``."""
-    max_bits = dtype_bits(plan.dst.buffer.dtype)
+    max_bits = dtype_bits(plan.dst.source.dtype)
     for s in plan.srcs:
         if s.buf_region is not None:
-            max_bits = max(max_bits, dtype_bits(s.buf_region.buffer.dtype))
+            max_bits = max(max_bits, dtype_bits(s.buf_region.source.dtype))
     per_thread = total // thread_cnt if thread_cnt > 0 else total
     if total % thread_cnt != 0:
         return 1
@@ -193,7 +193,7 @@ def _src_lane_indices(src_br, dst_lane_indices, dst_st, dst_ext, vec_chunk, fuse
 def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc:
     extras = plan.extras
     srcs = plan.srcs
-    dst_buf = plan.dst.buffer
+    dst_buf = plan.dst.source
     dst_st, dst_ext = get_st_extent(plan.dst)
     sync = emit_scope_sync(sctx.scope_kind)
     n_outer = (total + vec_chunk * thread_cnt - 1) // (vec_chunk * thread_cnt)
@@ -214,7 +214,7 @@ def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc
                         srcs[i].scalar
                         if srcs[i].is_scalar
                         else (
-                            srcs[i].buf_region.buffer,
+                            srcs[i].buf_region.source,
                             _src_lane_indices(
                                 srcs[i].buf_region,
                                 dst_lane_indices,
@@ -239,7 +239,7 @@ def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc
 def _emit_scalar(plan, spec, vec_chunk, total, thread_cnt, sctx) -> PrimFunc:
     extras = plan.extras
     srcs = plan.srcs
-    dst_buf = plan.dst.buffer
+    dst_buf = plan.dst.source
     dst_st, dst_ext = get_st_extent(plan.dst)
     dst_dtype = dst_buf.dtype
     compute = spec.compute_scalar

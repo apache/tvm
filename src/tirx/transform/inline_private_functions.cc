@@ -121,12 +121,19 @@ bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
     if (param->ty.as<BufferTypeNode>()) return false;
   }
 
-  // We do not currently support inlining of schedulable TIR
-  // functions.  To support this use case, repeated names in
-  // `tirx::SBlock` nodes resulting from multiple calls to the same
-  // inlined function will need to be de-duplicated.
-  bool has_block_node = prim_func->body.as<SBlockRealizeNode>();
-  if (has_block_node) return false;
+  // Generalize the old SBlockRealize exclusion to all non-native statement roots:
+  // they may introduce binder or naming rules that this pass cannot preserve.
+  // Only inline roots supported by native TIRX traversal.
+  struct NativeStmtTable : StmtExprVisitor {
+    static VTable Make() {
+      VTable table;
+      InitVTable(&table);
+      table.Finalize();
+      return table;
+    }
+  };
+  static const auto native_stmts = NativeStmtTable::Make();
+  if (!native_stmts.CanDispatch(prim_func->body.get())) return false;
 
   return true;
 }

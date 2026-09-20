@@ -32,24 +32,24 @@ Example::
             cache="nc", l1_evict="L1::no_allocate", prefetch_size="L2::256B")
 """
 
-from tvm.arith.analyzer import Analyzer
+from tvm.ir import TensorRegion
 from tvm.runtime import DataType
 from tvm.script import tirx as T
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.stmt import BufferRegion
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ._common import copy_ptx_form, copy_ptx_ld_chain
 from .utils import _scope_allowed
 
 
-def _region_start(buffer_region: BufferRegion):
+def _region_start(buffer_region: TensorRegion):
     return [r.min for r in buffer_region.region]
 
 
-def _region_elements(buffer_region: BufferRegion):
+def _region_elements(buffer_region: TensorRegion):
     product = 1
     for r in buffer_region.region:
         product *= r.extent
@@ -106,8 +106,8 @@ def _is_forced_vec_copy(
         return False, scope_reason
 
     op_call = TilePrimitiveCall.downcast(op_call)
-    src: Buffer = op_call.src.buffer
-    dst: Buffer = op_call.dst.buffer
+    src: Buffer = op_call.src.source
+    dst: Buffer = op_call.dst.source
     if src.dtype != dst.dtype:
         return False, f"dtype mismatch: src={src.dtype}, dst={dst.dtype}"
 
@@ -137,8 +137,8 @@ def _is_forced_vec_copy(
 
 def _emit_forced_vec_copy(op_call: TilePrimitiveCall, _sctx: DispatchContext, num_bytes: int):
     op_call = TilePrimitiveCall.downcast(op_call)
-    src: Buffer = op_call.src.buffer
-    dst: Buffer = op_call.dst.buffer
+    src: Buffer = op_call.src.source
+    dst: Buffer = op_call.dst.source
     src_scope = src.scope()
     dst_scope = dst.scope()
     src_is_local = src_scope == "local"

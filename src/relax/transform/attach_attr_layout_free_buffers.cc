@@ -60,8 +60,8 @@ class AttrAttacher : public ExprMutator {
     return ExprMutator::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const ConstantNode* op) final {
-    layout_free_exprs_.insert(op);
+  Expr VisitExpr_(const GenericConstNode* op) final {
+    if (op->value.as<runtime::Tensor>()) layout_free_exprs_.insert(op);
     return ExprMutator::VisitExpr_(op);
   }
 

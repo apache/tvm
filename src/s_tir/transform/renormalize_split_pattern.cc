@@ -23,20 +23,21 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
 
-#include "../../arith/pattern_match.h"
-#include "../../tirx/ir_mutator_with_analyzer.h"
+#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
+#include "../../sym/pattern_match.h"
 
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-using namespace arith;
+using namespace sym;
 
 // macro for doing simple rewrite
 #define TRY_REWRITE(SrcExpr, ResExpr) \
@@ -77,24 +78,28 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
         floormod(floordiv(x, broadcast(c2, lanes)), broadcast(floordiv(c3, c2), lanes)),
         c3.Eval()->value % c2.Eval()->value == 0);
 
+    // Factoring a product requires signed, non-wrapping index arithmetic.
+    if (ret.ty().MatchesCode(DLDataTypeCode::kDLUInt)) return ret;
+
     // floordiv(x*c1*c3 + y, c2*c3) = floordiv(x*c1 + floordiv(y, c3), c2)
     if ((floordiv(x * c1 + y, c2)).Match(ret)) {
-      int64_t c1_val = c1.Eval()->value;
-      int64_t c2_val = c2.Eval()->value;
+      ffi::BigInt c1_val = c1.Eval()->value;
+      ffi::BigInt c2_val = c2.Eval()->value;
       if (c1_val > 0 && c2_val > 0) {
-        int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
+        ffi::BigInt c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
           IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
           IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
-          return RecursiveRewrite(floordiv(x.Eval() * c1_div + floordiv(y.Eval(), c3), c2_div));
+          return RecursiveRewrite(
+              floordiv(x.Eval() * c1_div + floordiv(y.Eval(), IntImm(c1.Eval().ty(), c3)), c2_div));
         }
       }
     }
     if ((floordiv(x * broadcast(c1, lanes) + y, broadcast(c2, lanes))).Match(ret)) {
-      int64_t c1_val = c1.Eval()->value;
-      int64_t c2_val = c2.Eval()->value;
+      ffi::BigInt c1_val = c1.Eval()->value;
+      ffi::BigInt c2_val = c2.Eval()->value;
       if (c1_val > 0 && c2_val > 0) {
-        int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
+        ffi::BigInt c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
           IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
           IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
@@ -108,23 +113,24 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
 
     // floordiv(x*c1*c3 + y + z, c2*c3) = floordiv(x*c1 + floordiv(y + z, c3), c2)
     if ((floordiv(x * c1 + y + z, c2)).Match(ret)) {
-      int64_t c1_val = c1.Eval()->value;
-      int64_t c2_val = c2.Eval()->value;
+      ffi::BigInt c1_val = c1.Eval()->value;
+      ffi::BigInt c2_val = c2.Eval()->value;
       if (c1_val > 0 && c2_val > 0) {
-        int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
+        ffi::BigInt c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
           IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
           IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
-          return RecursiveRewrite(
-              floordiv(x.Eval() * c1_div + floordiv(y.Eval() + z.Eval(), c3), c2_div));
+          return RecursiveRewrite(floordiv(
+              x.Eval() * c1_div + floordiv(y.Eval() + z.Eval(), IntImm(c1.Eval().ty(), c3)),
+              c2_div));
         }
       }
     }
     if ((floordiv(x * broadcast(c1, lanes) + y + z, broadcast(c2, lanes))).Match(ret)) {
-      int64_t c1_val = c1.Eval()->value;
-      int64_t c2_val = c2.Eval()->value;
+      ffi::BigInt c1_val = c1.Eval()->value;
+      ffi::BigInt c2_val = c2.Eval()->value;
       if (c1_val > 0 && c2_val > 0) {
-        int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
+        ffi::BigInt c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
           IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
           IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
@@ -212,7 +218,7 @@ namespace transform {
 Pass RenormalizeSplitPattern() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     n->body = ffi::make_object<SplitPatternReNormalizer>(analyzer)
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(std::move(n->body));

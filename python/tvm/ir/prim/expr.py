@@ -20,13 +20,9 @@ import tvm_ffi
 
 from .. import _ffi_api as _ir_ffi_api
 from ..base import Span
-from ..expr import Expr, ExprWithOp, Var
+from ..expr import Constant, Expr, ExprWithOp, Var
 from ..type import PrimType
 from . import _ffi_api as _prim_ffi_api
-
-
-class ConstExpr(ExprWithOp):
-    pass
 
 
 class BinaryOpExpr(ExprWithOp):
@@ -44,7 +40,7 @@ class LogicalExpr(ExprWithOp):
 
 
 @tvm_ffi.register_object("ir.FloatImm")
-class FloatImm(ConstExpr):
+class FloatImm(Constant):
     """Float constant.
 
     Parameters
@@ -76,7 +72,7 @@ class FloatImm(ConstExpr):
 
 
 @tvm_ffi.register_object("ir.IntImm")
-class IntImm(ConstExpr):
+class IntImm(Constant):
     """Int constant.
 
     Parameters
@@ -122,38 +118,6 @@ class IntImm(ConstExpr):
         return self.__nonzero__()
 
 
-@tvm_ffi.register_object("prim.StringImm")  # type: ignore
-class StringImm(ConstExpr):
-    """String constant.
-
-    Parameters
-    ----------
-    value : str
-        The value of the function.
-
-    span : Optional[Span]
-        The location of this expression in the source code.
-    """
-
-    value: str
-
-    def __init__(self, value: str, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.StringImm, value, span)  # type: ignore
-
-    def __eq__(self, other: Expr) -> bool:
-        if isinstance(other, ConstExpr):
-            return self.value == other.value
-        return self.value == other
-
-    def __ne__(self, other: Expr) -> bool:
-        if isinstance(other, ConstExpr):
-            return self.value != other.value
-        return self.value != other
-
-    def __hash__(self) -> int:
-        return Expr.__hash__(self)
-
-
 @tvm_ffi.register_object("prim.Cast")
 class Cast(ExprWithOp):
     """Cast expression.
@@ -176,6 +140,125 @@ class Cast(ExprWithOp):
         if isinstance(dtype, PrimType):
             dtype = dtype.dtype
         self.__init_handle_by_constructor__(_prim_ffi_api.Cast, dtype, value, span)  # type: ignore
+
+
+@tvm_ffi.register_object("prim.LShift")
+class LShift(BinaryOpExpr):
+    """Left shift node.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand.
+
+    b : Expr
+        The right hand operand.
+
+    span : Optional[Span]
+        The location of this expression in the source code.
+    """
+
+    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.LShift, a, b, span)  # type: ignore
+
+
+@tvm_ffi.register_object("prim.RShift")
+class RShift(BinaryOpExpr):
+    """Right shift node.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand.
+
+    b : Expr
+        The right hand operand.
+
+    span : Optional[Span]
+        The location of this expression in the source code.
+    """
+
+    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.RShift, a, b, span)  # type: ignore
+
+
+@tvm_ffi.register_object("prim.BitwiseAnd")
+class BitwiseAnd(BinaryOpExpr):
+    """Bitwise and node.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand.
+
+    b : Expr
+        The right hand operand.
+
+    span : Optional[Span]
+        The location of this expression in the source code.
+    """
+
+    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.BitwiseAnd, a, b, span)  # type: ignore
+
+
+@tvm_ffi.register_object("prim.BitwiseOr")
+class BitwiseOr(BinaryOpExpr):
+    """Bitwise or node.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand.
+
+    b : Expr
+        The right hand operand.
+
+    span : Optional[Span]
+        The location of this expression in the source code.
+    """
+
+    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.BitwiseOr, a, b, span)  # type: ignore
+
+
+@tvm_ffi.register_object("prim.BitwiseXor")
+class BitwiseXor(BinaryOpExpr):
+    """Bitwise xor node.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand.
+
+    b : Expr
+        The right hand operand.
+
+    span : Optional[Span]
+        The location of this expression in the source code.
+    """
+
+    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.BitwiseXor, a, b, span)  # type: ignore
+
+
+@tvm_ffi.register_object("prim.BitwiseNot")
+class BitwiseNot(ExprWithOp):
+    """Bitwise not node.
+
+    Parameters
+    ----------
+    a : Expr
+        The input value.
+
+    span : Optional[Span]
+        The location of this expression in the source code.
+    """
+
+    a: Expr
+
+    def __init__(self, a: Expr, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.BitwiseNot, a, span)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.Add")

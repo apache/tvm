@@ -20,6 +20,8 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/tensor_intrin.h>
 
 #include <random>
 
@@ -34,7 +36,7 @@ Schedule Schedule::Concrete(IRModule mod, LinearCongruentialEngine::TRandState s
   n->state_ = ScheduleState(mod, debug_mask, enable_check);
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
-  n->analyzer_ = arith::Analyzer();
+  n->analyzer_ = sym::Analyzer();
   n->Seed(seed);
   GlobalVar gv;
   if (FindEntryFunc(mod, &gv) != nullptr) {
@@ -202,7 +204,7 @@ Schedule ConcreteScheduleNode::Copy() {
   n->func_working_on_ = this->func_working_on_;
   n->error_render_level_ = this->error_render_level_;
   ConcreteScheduleNode::Copy(&n->state_, &n->symbol_table_);
-  n->analyzer_ = arith::Analyzer();  // new analyzer needed because it is stateful
+  n->analyzer_ = sym::Analyzer();  // new analyzer needed because it is stateful
   n->rand_state_ = ForkSeed();
   return Schedule(std::move(n));
 }
@@ -462,7 +464,7 @@ class WrongFactorError : public ScheduleErrorContextObj {
 
 class NonPositiveFactorError : public ScheduleErrorContextObj {
  public:
-  explicit NonPositiveFactorError(IRModule mod, int64_t factor, size_t idx)
+  explicit NonPositiveFactorError(IRModule mod, ffi::BigInt factor, size_t idx)
       : mod_(std::move(mod)), factor_(factor), idx_(idx) {}
 
   ffi::String FastErrorString() const final {
@@ -480,7 +482,7 @@ class NonPositiveFactorError : public ScheduleErrorContextObj {
 
  private:
   IRModule mod_;
-  int64_t factor_;
+  ffi::BigInt factor_;
   size_t idx_;
 };
 
@@ -927,7 +929,7 @@ SBlockRV ConcreteScheduleNode::Blockize(const ffi::Array<SBlockRV>& blocks,
 void ConcreteScheduleNode::Tensorize(const LoopRV& loop_rv, const ffi::String& intrin,
                                      bool preserve_unit_iters) {
   TVM_TIR_SCHEDULE_BEGIN();
-  s_tir::Tensorize(state_, this->GetSRef(loop_rv), tirx::TensorIntrin::Get(intrin).value(),
+  s_tir::Tensorize(state_, this->GetSRef(loop_rv), TensorIntrin::Get(intrin).value(),
                    preserve_unit_iters);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("tensorize", this->error_render_level_);
@@ -936,7 +938,7 @@ void ConcreteScheduleNode::Tensorize(const LoopRV& loop_rv, const ffi::String& i
 void ConcreteScheduleNode::Tensorize(const SBlockRV& block_rv, const ffi::String& intrin,
                                      bool preserve_unit_iters) {
   TVM_TIR_SCHEDULE_BEGIN();
-  s_tir::Tensorize(state_, this->GetSRef(block_rv), tirx::TensorIntrin::Get(intrin).value(),
+  s_tir::Tensorize(state_, this->GetSRef(block_rv), TensorIntrin::Get(intrin).value(),
                    preserve_unit_iters);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("tensorize", this->error_render_level_);

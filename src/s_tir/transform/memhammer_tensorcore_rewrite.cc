@@ -21,6 +21,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/op.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "./memhammer_rewrite_rule.h"
 
@@ -45,7 +46,7 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
   PrimExpr extent_last1 = loops[n - 1]->extent;
   PrimExpr extent_last2 = loops[n - 2]->extent;
   {
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     if (!analyzer->CanProveEqual(floormod(extent_last1, 16), 0) ||
         !analyzer->CanProveEqual(floormod(extent_last2, 16), 0)) {
       return std::make_pair(stmt, std::nullopt);
@@ -96,11 +97,11 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
 
 ffi::Array<Range> RelaxIndices(const ffi::Array<PrimExpr>& indices,
                                const ffi::Array<PrimExpr>& shape,
-                               const ffi::Map<Var, arith::IntSet>& var_dom) {
-  ffi::Array<arith::IntSet> int_set;
+                               const ffi::Map<Var, sym::IntSet>& var_dom) {
+  ffi::Array<sym::IntSet> int_set;
   int_set.reserve(indices.size());
   for (auto& indice : indices) {
-    int_set.push_back(arith::EvalSet(indice, var_dom));
+    int_set.push_back(sym::EvalSet(indice, var_dom));
   }
   int ndim = int_set.size();
   ffi::Array<Range> region;
@@ -117,7 +118,7 @@ ffi::Array<Range> RelaxIndices(const ffi::Array<PrimExpr>& indices,
  * \return The stmt after rewrite
  */
 Stmt RewriteWmmaLoad(Stmt stmt) {
-  using arith::IntSet;
+  using sym::IntSet;
   const PrimType dtype_ty = PrimType::Float(16);
   const PrimType& dtype = dtype_ty;
   const PrimType int32_ty = PrimType::Int(32);
@@ -216,7 +217,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
  * \return The stmt after rewrite
  */
 Stmt RewriteWmmaStore(Stmt stmt) {
-  using arith::IntSet;
+  using sym::IntSet;
   const PrimType int32_ty = PrimType::Int(32);
 
   Stmt body = stmt;
@@ -310,14 +311,14 @@ Stmt RewriteWmmaStore(Stmt stmt) {
 Stmt SharedToWmma::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                            OutputSet* output) const {
   Stmt after_tiling = TileWmmaBlock(stmt).first;
-  output->padding_min.Set(constraints.read_region->buffer, 8);
+  output->padding_min.Set(constraints.read_region->source.as_or_throw<tvm::tirx::BufferVar>(), 8);
   return RewriteWmmaLoad(after_tiling);
 }
 
 Stmt WmmaToShared::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                            OutputSet* output) const {
   Stmt after_tiling = TileWmmaBlock(stmt).first;
-  output->padding_min.Set(constraints.write_region->buffer, 8);
+  output->padding_min.Set(constraints.write_region->source.as_or_throw<tvm::tirx::BufferVar>(), 8);
   return RewriteWmmaStore(after_tiling);
 }
 
@@ -377,7 +378,7 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
   PrimExpr extent_last1 = loops[n - 1]->extent;
   PrimExpr extent_last2 = loops[n - 2]->extent;
   {
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     // Only tile when both extent % 8 == 0
     if (!analyzer->CanProveEqual(floormod(extent_last1, 8), 0) ||
         !analyzer->CanProveEqual(floormod(extent_last2, 8), 0)) {
@@ -433,7 +434,7 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
  * \return The stmt after rewrite
  */
 Stmt RewriteMmaStore(Stmt stmt) {
-  using arith::IntSet;
+  using sym::IntSet;
   const PrimType int32_ty = PrimType::Int(32);
 
   // Step 1. Get inner loop body

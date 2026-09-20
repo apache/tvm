@@ -24,7 +24,7 @@
 #ifndef TVM_TIR_TRANSFORM_REMOVE_NO_OP_H_
 #define TVM_TIR_TRANSFORM_REMOVE_NO_OP_H_
 
-#include <tvm/arith/analyzer.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/stmt.h>
 
 namespace tvm {
@@ -41,7 +41,7 @@ namespace tirx {
  *
  * \return The modified statement with no-ops removed
  */
-Stmt RemoveNoOp(Stmt stmt, const arith::Analyzer& analyzer, bool ignore_profiler_call = false);
+Stmt RemoveNoOp(Stmt stmt, const sym::Analyzer& analyzer, bool ignore_profiler_call = false);
 
 }  // namespace tirx
 }  // namespace tvm

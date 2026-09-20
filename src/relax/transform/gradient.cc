@@ -347,7 +347,7 @@ class BackwardBindingGenerator : private ExprVisitor {
     // TODO(chaofan, yixin): support other types of binding values
     TVM_FFI_ICHECK(value->IsInstance<CallNode>() || value->IsInstance<TupleNode>() ||
                    value->IsInstance<TupleGetItemNode>() || value->IsInstance<VarNode>() ||
-                   value->IsInstance<ConstantNode>())
+                   value->IsInstance<GenericConstNode>())
         << "Now does not support the type of binding value: " << value;
 
     ExprVisitor::VisitBinding_(var_binding);
@@ -456,7 +456,7 @@ class BackwardBindingGenerator : private ExprVisitor {
   }
 
   // For constant nodes, we do not have to handle it because it does not contribute to the adjoint
-  void VisitBinding_(const VarBindingNode* binding, const ConstantNode* var) final { return; }
+  void VisitBinding_(const VarBindingNode* binding, const GenericConstNode* var) final { return; }
 
   // Add partial to the adjoint of expr
   // expr may be a argument of a func call / tuple definition. Its type can be
@@ -476,14 +476,14 @@ class BackwardBindingGenerator : private ExprVisitor {
           updated_adjoint_expr = TupleAwareAdd((*it).second, updated_adjoint_expr);
         }
         EmitAdjoint(v, updated_adjoint_expr, false);
-      } else if (leaf->IsInstance<ConstantNode>()) {
+      } else if (leaf->IsInstance<GenericConstNode>()) {
         // nothing to do
       } else if (leaf->IsInstance<ShapeExprNode>()) {
         // must be no grad
         TVM_FFI_ICHECK(IsCallNoGrad(partial));
       } else {
         TVM_FFI_THROW(InternalError)
-            << "UpdateAdjoint: leaf type not supported. Currently Var and Constant leaves "
+            << "UpdateAdjoint: leaf type not supported. Currently Var and GenericConst leaves "
                "are supported.";
       }
     });

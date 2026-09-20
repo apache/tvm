@@ -41,7 +41,7 @@ using backend::contrib::NodeEntries;
 
 class ExampleNPUJSONSerializer : public JSONSerializer {
  public:
-  ExampleNPUJSONSerializer(ffi::Map<Constant, ffi::String> constant_names,
+  ExampleNPUJSONSerializer(ffi::Map<GenericConst, ffi::String> constant_names,
                            ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
@@ -73,7 +73,7 @@ class ExampleNPUJSONSerializer : public JSONSerializer {
 
 ffi::Array<ffi::Module> ExampleNPUCompiler(ffi::Array<Function> functions,
                                            ffi::Map<ffi::String, ffi::Any> /*unused*/,
-                                           ffi::Map<Constant, ffi::String> constant_names) {
+                                           ffi::Map<GenericConst, ffi::String> constant_names) {
   ffi::Array<ffi::Module> compiled_functions;
   const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.ExampleNPUJSONRuntimeCreate");
 

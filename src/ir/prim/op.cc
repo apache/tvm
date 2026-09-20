@@ -153,14 +153,6 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
 
 }  // namespace prim::detail
 namespace prim {
-// LargeUIntImm
-PrimExpr LargeUIntImm(PrimType value_ty, int64_t low, int64_t high, Span span) {
-  return Call(value_ty, Op::Get("tirx.large_uint_imm"),
-              {IntImm(PrimType::UInt(32), low, span), IntImm(PrimType::UInt(32), high, span)}, {},
-              {}, span)
-      .as_or_throw<PrimExpr>();
-}
-
 // maximum and min limits
 PrimExpr max_value(PrimType value_ty, Span span) {
   PrimType dtype = value_ty;
@@ -376,7 +368,13 @@ PrimExpr operator-(PrimExpr a) { return neg(a); }
 PrimExpr neg(PrimExpr a, Span span) {
   const IntImmNode* pa = a.as<IntImmNode>();
   const FloatImmNode* fa = a.as<FloatImmNode>();
-  if (pa) return IntImm(a.ty(), -pa->value, span);
+  if (pa) {
+    ffi::BigInt value = -pa->value;
+    if (a.ty().MatchesCode(DLDataTypeCode::kDLInt) && a.ty().bits() >= 64) {
+      value = prim::detail::GetFoldResult(std::move(value), a.ty());
+    }
+    return IntImm(a.ty(), std::move(value), span);
+  }
   if (fa) return FloatImm(a.ty(), -fa->value, span);
   return MakeConst(a.ty(), 0, span) - a;
 }
@@ -585,7 +583,7 @@ PrimExpr right_shift(PrimExpr a, PrimExpr b, Span span) {
     }
   });
 
-  return Call(a.ty(), prim::builtin::shift_right(), {a, b}, {}, {}, span).as_or_throw<PrimExpr>();
+  return prim::RShift(a, b, span);
 }
 
 // shift left
@@ -599,12 +597,16 @@ PrimExpr left_shift(PrimExpr a, PrimExpr b, Span span) {
       TVM_FFI_ICHECK(pb->value >= 0 && pb->value < result_ty.bits())
           << "Shift amount must be non-negative and less than " << result_ty.bits() << " for type "
           << result_ty;
-    if (pa && pb) return IntImm(result_ty, (pa->value << pb->value), span);
+    if (pa && pb) {
+      ffi::BigInt value = pa->value << pb->value;
+      if (result_ty.bits() >= 64) value = prim::detail::GetFoldResult(std::move(value), result_ty);
+      return IntImm(result_ty, std::move(value), span);
+    }
     if (pb) {
       if (pb->value == 0) return a;
     }
   });
-  return Call(a.ty(), prim::builtin::shift_left(), {a, b}, {}, {}, span).as_or_throw<PrimExpr>();
+  return prim::LShift(a, b, span);
 }
 
 // bitwise and
@@ -616,7 +618,7 @@ PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Span span) {
     PrimType result_ty = a.ty();
     if (pa && pb) return IntImm(result_ty, (pa->value & pb->value), span);
   });
-  return Call(a.ty(), prim::builtin::bitwise_and(), {a, b}, {}, {}, span).as_or_throw<PrimExpr>();
+  return prim::BitwiseAnd(a, b, span);
 }
 
 // bitwise_or
@@ -628,7 +630,7 @@ PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Span span) {
     PrimType result_ty = a.ty();
     if (pa && pb) return IntImm(result_ty, (pa->value | pb->value), span);
   });
-  return Call(a.ty(), prim::builtin::bitwise_or(), {a, b}, {}, {}, span).as_or_throw<PrimExpr>();
+  return prim::BitwiseOr(a, b, span);
 }
 
 // bitwise_xor
@@ -640,7 +642,7 @@ PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Span span) {
     PrimType result_ty = a.ty();
     if (pa && pb) return IntImm(result_ty, (pa->value ^ pb->value), span);
   });
-  return Call(a.ty(), prim::builtin::bitwise_xor(), {a, b}, {}, {}, span).as_or_throw<PrimExpr>();
+  return prim::BitwiseXor(a, b, span);
 }
 
 // bitwise_not
@@ -648,7 +650,7 @@ PrimExpr operator~(PrimExpr a) { return bitwise_neg(a); }
 
 PrimExpr bitwise_neg(PrimExpr a, Span span) {
   type_check_int_or_bool_args(a, "~ operator (bitwise NOT)");
-  return Call(a.ty(), prim::builtin::bitwise_not(), {a}, {}, {}, span).as_or_throw<PrimExpr>();
+  return prim::BitwiseNot(a, span);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -660,7 +662,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 PrimExpr prim::IntegerAbs(PrimExpr x, Span span) {
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
     if (const IntImmNode* px = x.as<IntImmNode>()) {
-      return IntImm(x.ty(), std::abs(px->value), px->span);
+      ffi::BigInt value = px->value < 0 ? -px->value : px->value;
+      if (x.ty().bits() >= 64) value = prim::detail::GetFoldResult(std::move(value), x.ty());
+      return IntImm(x.ty(), std::move(value), px->span);
     }
     return Select(x >= MakeConst(x.ty(), 0), x, -x, span);
   }
@@ -748,15 +752,6 @@ PrimExpr log2(PrimExpr x, Span span) {
 
 PrimExpr prim::clz(PrimExpr x, Span span) {
   PrimType x_ty = x.ty();
-  if (x_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
-    PrimType f32_ty = x_ty.IsScalableVector() ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat,
-                                                                         32, x_ty.VScaleFactor())
-                                              : PrimType::Float(32, x_ty.lanes());
-    PrimExpr x_fp32 = prim::Cast(f32_ty, x, span);
-    PrimExpr result_fp32 =
-        Call(f32_ty, prim::builtin::clz(), {x_fp32}, {}, {}, span).as_or_throw<PrimExpr>();
-    return prim::Cast(x_ty, result_fp32, span);
-  }
   return Call(x_ty, prim::builtin::clz(), {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
@@ -764,7 +759,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef()
       .def_packed("node._const",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
-                    if (auto opt = args[0].try_cast<int64_t>()) {
+                    if (auto opt = args[0].try_cast<ffi::BigInt>(); opt.has_value()) {
                       *ret = prim::MakeConst(args[1].cast<PrimType>(), *opt, args[2].cast<Span>());
                     } else if (auto opt = args[0].try_cast<double>()) {
                       *ret = prim::MakeConst(args[1].cast<PrimType>(), *opt, args[2].cast<Span>());
@@ -775,7 +770,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           << args[0].GetTypeKey();
                     }
                   })
-      .def("node.LargeUIntImm", prim::LargeUIntImm)
       .def("prim.max_value", static_cast<PrimExpr (*)(PrimType, Span)>(&prim::max_value))
       .def("prim._cast",
            [](PrimType dtype, PrimExpr value, Span span) { return prim::cast(dtype, value, span); })

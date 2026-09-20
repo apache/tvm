@@ -20,16 +20,17 @@
 /*!
  * \file lower_cross_thread_reduction.cc
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/utils.h"
@@ -83,16 +84,17 @@ bool IsDominantBlock(const SBlock& scope_block, const SBlock& block) {
   // Step 1. Count the number of writers for each buffer written by the scope block.
   std::unordered_map<const VarNode*, int> buffer_writer_cnt;
   auto walk_fn = [&buffer_writer_cnt](const SBlock& block) -> ffi::Expected<ffi::WalkResult> {
-    for (const BufferRegion& buffer_region : block->writes) {
-      ++buffer_writer_cnt[buffer_region->buffer.get()];
+    for (const TensorRegion& buffer_region : block->writes) {
+      ++buffer_writer_cnt[buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().get()];
     }
     return ffi::WalkResult::Skip();
   };
   ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(scope_block->body, walk_fn);
   // Step 2. Check whether `block` is the only writer of its outputs.
-  for (const BufferRegion& buffer_region : block->writes) {
-    TVM_FFI_ICHECK(buffer_writer_cnt.count(buffer_region->buffer.get()));
-    if (buffer_writer_cnt[buffer_region->buffer.get()] != 1) {
+  for (const TensorRegion& buffer_region : block->writes) {
+    TVM_FFI_ICHECK(
+        buffer_writer_cnt.count(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().get()));
+    if (buffer_writer_cnt[buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().get()] != 1) {
       return false;
     }
   }
@@ -111,7 +113,7 @@ bool IsDominantBlock(const SBlock& scope_block, const SBlock& block) {
  * check again.
  */
 bool IsReductionBlock(const SBlockRealize& realize, const ffi::Map<Var, Range>& loop_range_map,
-                      const SBlock& scope_block, arith::AnalyzerObj* analyzer) {
+                      const SBlock& scope_block, sym::AnalyzerObj* analyzer) {
   const auto* block = realize->block.as<SBlockNode>();
   // Cond 1. The block has the `init` statement.
   if (!block->init.has_value()) {
@@ -333,7 +335,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
   const SBlockNode* block = realize->block.get();
 
   auto f_create_buffer_regions = [](ffi::Array<BufferVar> buffers) {
-    ffi::Array<BufferRegion> regions;
+    ffi::Array<TensorRegion> regions;
     regions.reserve(buffers.size());
     for (const BufferVar& buffer : buffers) {
       regions.push_back(BufferRegion(buffer, {Range::FromMinExtent(0, 1)}));
@@ -341,8 +343,8 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     return regions;
   };
 
-  ffi::Array<BufferRegion> ct_buffer_regions = f_create_buffer_regions(ct_buffers);
-  ffi::Optional<ffi::Array<BufferRegion>> it_buffer_regions = std::nullopt;
+  ffi::Array<TensorRegion> ct_buffer_regions = f_create_buffer_regions(ct_buffers);
+  ffi::Optional<ffi::Array<TensorRegion>> it_buffer_regions = std::nullopt;
   if (it_buffers.has_value()) {
     it_buffer_regions = f_create_buffer_regions(it_buffers.value());
   }
@@ -423,7 +425,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     // Step 3.2. Create the block and the block-realize.
     ffi::Array<IterVar> iter_vars{nullptr};
     ffi::Array<PrimExpr> bindings{nullptr};
-    ffi::Array<BufferRegion> reads{nullptr};
+    ffi::Array<TensorRegion> reads{nullptr};
     if (it_buffers.has_value()) {
       iter_vars = ffi::Array<IterVar>{};
       bindings = ffi::Array<PrimExpr>{};
@@ -477,7 +479,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
       }
     }
     ffi::Array<Stmt> wb_updates;
-    ffi::Array<BufferRegion> wb_regions;
+    ffi::Array<TensorRegion> wb_regions;
     wb_updates.reserve(n_buffers);
     wb_regions.reserve(n_buffers);
     int n_dim = static_cast<int>(old_wb_indices.size());
@@ -632,8 +634,8 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     SBlock block = realize->block;
 
     // If the block writes to local memory, no rewrite is needed.
-    for (BufferRegion write_region : block->writes) {
-      if (write_region->buffer.scope() == "local") {
+    for (TensorRegion write_region : block->writes) {
+      if (write_region->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "local") {
         return {};
       }
     }
@@ -641,8 +643,9 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     // Find out the reduction threads for the read-buffers which are produced by
     // cross-thread reduction.
     std::unordered_map<ThreadScope, Range, ThreadScopeHash, ThreadScopeEqual> thread2range;
-    for (BufferRegion read_region : block->reads) {
-      auto buf_it = crt_buf2threads_.find(read_region->buffer.get());
+    for (TensorRegion read_region : block->reads) {
+      auto buf_it =
+          crt_buf2threads_.find(read_region->source.as_or_throw<tvm::tirx::BufferVar>().get());
       if (buf_it == crt_buf2threads_.end()) {
         continue;
       }
@@ -970,7 +973,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
   std::unordered_map<const SBlockNode*, ffi::Array<BufferVar>> block2new_buffers_;
   std::unordered_map<const ForNode*, Stmt> loop2new_stmt_;
   ffi::Map<Var, Range> loop_range_map_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 
   int block_idx_depth = 0;
   int thread_idx_depth = 0;

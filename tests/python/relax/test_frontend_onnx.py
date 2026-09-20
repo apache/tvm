@@ -621,8 +621,8 @@ def test_constant_comparison_outputs_bool(op_name, np_op, np_dtype):
     constants = []
 
     def collect_constants(expr):
-        if isinstance(expr, relax.Constant):
-            constants.append(expr.data.numpy())
+        if isinstance(expr, tvm.ir.GenericConst):
+            constants.append(expr.value.numpy())
 
     relax.analysis.post_order_visit(mod["main"].body, collect_constants)
     folded_outputs = [arr for arr in constants if arr.shape == (3, 1)]
@@ -707,8 +707,8 @@ def test_div_integer_constant_folding_preserves_int64_precision():
     folded_outputs = []
 
     def collect_constants(expr):
-        if isinstance(expr, relax.Constant):
-            folded_outputs.append(expr.data.numpy())
+        if isinstance(expr, tvm.ir.GenericConst):
+            folded_outputs.append(expr.value.numpy())
 
     relax.analysis.post_order_visit(tvm_model["main"].body, collect_constants)
     assert len(folded_outputs) == 1
@@ -12141,7 +12141,7 @@ def test_nms_scalar_shape1_constants():
         outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [0, 3])],
     )
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
-    # Default import folds initializers to relax.Constant, exercising the scalar-cast path.
+    # Default import folds initializers to tvm.ir.GenericConst, exercising the scalar-cast path.
     from_onnx(model)
 
 

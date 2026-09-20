@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/tensor_intrin.h>
 
 #include "../../schedule/analysis.h"
 #include "../../schedule/transform.h"
@@ -52,7 +53,7 @@ class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
  protected:
   ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch,
                                     const s_tir::SBlockRV& block_rv) final {
-    auto desc_func = tirx::TensorIntrin::Get(intrin_name).value()->desc;
+    auto desc_func = TensorIntrin::Get(intrin_name).value()->desc;
     if (!CheckAutoTensorizeApplicable(sch, block_rv, desc_func)) {
       TVM_PY_LOG(INFO, logger) << "The workload cannot be tensorized.";
       return {sch};
@@ -106,7 +107,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(
     ffi::Optional<ffi::Array<int64_t>> vector_load_lens,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write) {
-  TVM_FFI_ICHECK(tirx::TensorIntrin::Get(intrin_name).has_value())
+  TVM_FFI_ICHECK(TensorIntrin::Get(intrin_name).has_value())
       << "Provided tensor intrinsic " << intrin_name << " is not registered.";
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingWithIntrinNode>(
       structure, tile_binds, max_innermost_factor, vector_load_lens, reuse_read, reuse_write);

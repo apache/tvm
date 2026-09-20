@@ -22,12 +22,12 @@
  * \brief Check if a loop nest is equivalent to memcpy
  */
 
-#include <tvm/arith/int_set.h>
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/analysis.h>
+#include <tvm/sym/int_set.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/op.h>
@@ -38,15 +38,15 @@
 #include <string>
 #include <variant>
 
-#include "../../tirx/ir_visitor_with_analyzer.h"
+#include "../../s_tir/ir/ir_visitor_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
 std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
-                                                            arith::AnalyzerObj* analyzer) {
-  ffi::Map<Var, arith::IntSet> loop_intervals;
+                                                            sym::AnalyzerObj* analyzer) {
+  ffi::Map<Var, sym::IntSet> loop_intervals;
   ffi::Map<PrimVar, Range> loop_ranges;
   PrimExpr total_loop_iterations = 1;
 
@@ -56,7 +56,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   while (auto* for_node = stmt.as<ForNode>()) {
     loop_ranges.Set(for_node->loop_var, Range::FromMinExtent(for_node->min, for_node->extent));
     loop_intervals.Set(for_node->loop_var,
-                       arith::IntSet::FromMinExtent(for_node->min, for_node->extent));
+                       sym::IntSet::FromMinExtent(for_node->min, for_node->extent));
     total_loop_iterations = total_loop_iterations * for_node->extent;
 
     stmt = for_node->body;
@@ -108,22 +108,22 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   // for i in T.serial(16):
   //     B[i] = A[T.abs(i-8)]
 
-  arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
-  auto src_iter_map = arith::DetectIterMap({src_index}, loop_ranges, IntImm::Bool(true),
-                                           arith::IterMapLevel::Bijective, analyzer_ref);
+  sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
+  auto src_iter_map = sym::DetectIterMap({src_index}, loop_ranges, IntImm::Bool(true),
+                                         sym::IterMapLevel::Bijective, analyzer_ref);
   if (src_iter_map->errors.size()) {
     return static_cast<const std::stringstream&>(std::stringstream()
-                                                 << "arith::DetectIterMap(src) returned "
+                                                 << "sym::DetectIterMap(src) returned "
                                                  << src_iter_map->errors.size() << " errors: ["
                                                  << src_iter_map->errors << "]"
                                                  << " for src_index = " << src_index)
         .str();
   }
-  auto dst_iter_map = arith::DetectIterMap({dst_index}, loop_ranges, IntImm::Bool(true),
-                                           arith::IterMapLevel::Bijective, analyzer_ref);
+  auto dst_iter_map = sym::DetectIterMap({dst_index}, loop_ranges, IntImm::Bool(true),
+                                         sym::IterMapLevel::Bijective, analyzer_ref);
   if (dst_iter_map->errors.size()) {
     return static_cast<const std::stringstream&>(std::stringstream()
-                                                 << "arith::DetectIterMap(dst) returned "
+                                                 << "sym::DetectIterMap(dst) returned "
                                                  << dst_iter_map->errors.size() << " errors: ["
                                                  << dst_iter_map->errors << "]"
                                                  << " for dst_index = " << dst_index)
@@ -211,13 +211,13 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
                << "IterMaps were detected as src = " << src_iter_sum << ", dst = " << dst_iter_sum)
         .str();
   }
-  std::vector<arith::IterSplitExpr> src_iter_terms(src_iter_sum->args.begin(),
-                                                   src_iter_sum->args.end());
-  std::vector<arith::IterSplitExpr> dst_iter_terms(dst_iter_sum->args.begin(),
-                                                   dst_iter_sum->args.end());
+  std::vector<sym::IterSplitExpr> src_iter_terms(src_iter_sum->args.begin(),
+                                                 src_iter_sum->args.end());
+  std::vector<sym::IterSplitExpr> dst_iter_terms(dst_iter_sum->args.begin(),
+                                                 dst_iter_sum->args.end());
 
-  auto make_comparison_tuple = [](const arith::IterSplitExpr& expr) {
-    auto as_int_or_zero = [](auto& val) -> int64_t {
+  auto make_comparison_tuple = [](const sym::IterSplitExpr& expr) {
+    auto as_int_or_zero = [](auto& val) -> ffi::BigInt {
       if (auto* as_int = val.template as<IntImmNode>()) {
         return as_int->value;
       } else {
@@ -230,19 +230,19 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
         static_cast<bool>(expr->lower_factor.as<IntImmNode>()), as_int_or_zero(expr->lower_factor),
     };
   };
-  auto sorting_function = [&make_comparison_tuple](const arith::IterSplitExpr& lhs,
-                                                   const arith::IterSplitExpr& rhs) -> bool {
+  auto sorting_function = [&make_comparison_tuple](const sym::IterSplitExpr& lhs,
+                                                   const sym::IterSplitExpr& rhs) -> bool {
     return make_comparison_tuple(lhs) < make_comparison_tuple(rhs);
   };
   std::sort(src_iter_terms.begin(), src_iter_terms.end(), sorting_function);
   std::sort(dst_iter_terms.begin(), dst_iter_terms.end(), sorting_function);
 
   for (size_t i = 0; i < src_iter_terms.size(); i++) {
-    const arith::IterSplitExpr& src_term = src_iter_terms[i];
-    const arith::IterSplitExpr& dst_term = dst_iter_terms[i];
+    const sym::IterSplitExpr& src_term = src_iter_terms[i];
+    const sym::IterSplitExpr& dst_term = dst_iter_terms[i];
 
     if (!analyzer->CanProve(
-            arith::NormalizeIterMapToExpr(src_term->source->source == dst_term->source->source))) {
+            sym::NormalizeIterMapToExpr(src_term->source->source == dst_term->source->source))) {
       return static_cast<const std::stringstream&>(
                  std::stringstream()
                  << "Term " << i << " had different source, src_term->source = " << src_term->source
@@ -273,15 +273,16 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
     }
   }
 
-  BufferRegion src_region(
+  TensorRegion src_region = BufferRegion(
       load->source.as_or_throw<tvm::tirx::BufferVar>(),
       DomainTouched(loop, load->source.as_or_throw<tvm::tirx::BufferVar>(), true, true));
-  BufferRegion dst_region(store->buffer, DomainTouched(loop, store->buffer, true, true));
+  TensorRegion dst_region =
+      BufferRegion(store->buffer, DomainTouched(loop, store->buffer, true, true));
 
   return MemCpyDetails{src_region, dst_region};
 }
 
-std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, const arith::Analyzer& analyzer) {
+std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, const sym::Analyzer& analyzer) {
   auto result = IdentifyMemCpyImpl(loop, analyzer.get());
   if (auto* ptr = std::get_if<MemCpyDetails>(&result)) {
     return *ptr;
@@ -296,9 +297,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("s_tir.analysis._identify_memcpy", [](const Stmt& stmt) {
     ffi::Array<ffi::ObjectRef> output;
 
-    struct Visitor : tirx::IRVisitorWithAnalyzer {
+    struct Visitor : s_tir::IRVisitorWithAnalyzer {
      public:
-      using tirx::IRVisitorWithAnalyzer::Visit_;
+      using s_tir::IRVisitorWithAnalyzer::Visit_;
 
       explicit Visitor(ffi::Array<ffi::ObjectRef>* output) : output(output) {}
       ffi::Array<ffi::ObjectRef>* output;
@@ -310,7 +311,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         if (auto* ptr = std::get_if<MemCpyDetails>(&result)) {
           output->push_back(ffi::Array{ptr->source, ptr->dest});
         } else if (auto* ptr = std::get_if<std::string>(&result)) {
-          output->push_back(prim::StringImm(*ptr));
+          output->push_back(StringImm(*ptr));
         } else {
           TVM_FFI_THROW(InternalError) << "Internal error, unhandled std::variant type";
         }

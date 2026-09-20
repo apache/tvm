@@ -19,31 +19,33 @@
 #ifndef TVM_S_TIR_SCHEDULE_UTILS_H_
 #define TVM_S_TIR_SCHEDULE_UTILS_H_
 
-#include <tvm/arith/analyzer.h>
-#include <tvm/arith/int_set.h>
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/schedule/instruction.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
 #include <tvm/s_tir/schedule/trace.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/utils.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/sym/int_set.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 
-#include "../../arith/pattern_match.h"
 #include "../../ir/attr_registry.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "../../sym/pattern_match.h"
 #include "../support/array_utils.h"
 #include "../support/nd_int_set.h"
 #include "./analysis.h"
@@ -201,25 +203,6 @@ inline bool IsThreadIdx(const runtime::ThreadScope& thread_scope) {
   return thread_scope.rank == 1 && thread_scope.dim_index >= 0;
 }
 
-/**************** Loop extents ****************/
-
-/*!
- * \brief Get the extents of a loop
- * \param loop The loop to be queried
- * \return The extent of the loop, nullptr if the extent is not constant
- */
-inline const int64_t* GetLoopIntExtent(const ForNode* loop) { return as_const_int(loop->extent); }
-
-/*!
- * \brief Get the extents of a loop
- * \param loop_sref The loop to be queried
- * \return The extent of the loop, nullptr if the extent is not constant
- */
-inline const int64_t* GetLoopIntExtent(const StmtSRef& loop_sref) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  return as_const_int(loop->extent);
-}
-
 /*!
  * \brief Check if an expression consists of a single variable,
  * or a variable plus/minus an constant integer shift
@@ -233,8 +216,8 @@ inline ffi::Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr,
     *constant = std::nullopt;
     return static_cast<Var>(var.value());
   }
-  arith::PVar<Var> var;
-  arith::PVar<IntImm> shift;
+  sym::PVar<Var> var;
+  sym::PVar<IntImm> shift;
   // match: "var + shift"
   if ((var + shift).Match(expr) || (shift + var).Match(expr)) {
     *constant = shift.Eval();
@@ -388,15 +371,15 @@ inline ffi::String BufferIndexType2Str(BufferIndexType buffer_index_type) {
 
 /*! \brief Returns the names of the blocks in the provided module. */
 inline std::unordered_set<std::string> GetSBlockNames(const IRModule& mod) {
-  struct BlockNameCollector : public tirx::StmtExprVisitor {
-    using tirx::StmtExprVisitor::Visit_;
+  struct BlockNameCollector : public s_tir::StmtExprVisitor {
+    using s_tir::StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
       if (value.as<ExprNode>()) return std::nullopt;
-      return tirx::StmtExprVisitor::Visit(value);
+      return s_tir::StmtExprVisitor::Visit(value);
     }
 
-    ffi::Optional<VisitInterrupt> Visit_(const tirx::SBlockNode* block) override {
+    ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* block) override {
       block_names.insert(block->name_hint);
       return StmtExprVisitor::Visit(block->body);
     }

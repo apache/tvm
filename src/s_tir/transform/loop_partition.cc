@@ -20,8 +20,6 @@
 /*!
  * \file loop_partition.cc
  */
-#include <tvm/arith/analyzer.h>
-#include <tvm/arith/bound.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
@@ -30,19 +28,22 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/sym/bound.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../arith/interval_set.h"
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tirx/transform/ir_utils.h"
+#include "../../sym/interval_set.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -81,9 +82,9 @@ class LoopPartitionConfig : public ffi::ObjectRef {
 
 TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.LoopPartition", LoopPartitionConfig);
 
-using arith::DeduceBound;
-using arith::Intersect;
-using arith::IntSet;
+using sym::DeduceBound;
+using sym::Intersect;
+using sym::IntSet;
 
 using PartitionKey = std::pair<PrimExpr, bool>;
 struct PartitionKeyHash {
@@ -161,7 +162,7 @@ class CandidateSelector final : public StmtExprVisitor {
         return std::nullopt;
       }
     } else if (op->attr_key == s_tir::attr::pragma_loop_partition_hint) {
-      if (analyzer_->CanProve(op->value)) {
+      if (analyzer_->CanProve(op->value.as_or_throw<PrimExpr>())) {
         const VarNode* var = nullptr;
         if (op->node.as<VarNode>()) {
           var = op->node.as<VarNode>();
@@ -218,7 +219,7 @@ class CandidateSelector final : public StmtExprVisitor {
   bool no_split_{false};
   bool partition_const_loop_{false};
   std::unordered_map<const VarNode*, VarIsUsed> record_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 // Finder try best to find partitions for hinted vars
@@ -278,7 +279,8 @@ class PartitionFinder : public StmtExprVisitor {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       TVM_FFI_ICHECK(thread_axis);
       const VarNode* var = thread_axis->var.get();
-      IntSet dom = IntSet::FromRange(Range(IntImm(op->value.ty(), 0), op->value));
+      PrimExpr extent = op->value.as_or_throw<PrimExpr>();
+      IntSet dom = IntSet::FromRange(Range(IntImm(extent.ty(), 0), extent));
       hint_map_.insert({var, dom});
       relax_map_.insert({var, dom});
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
@@ -335,7 +337,7 @@ class PartitionFinder : public StmtExprVisitor {
                                      hint_map_, relax_map_);
           IntSet part2 = DeduceBound(current_var_.as_or_throw<PrimExpr>(), LE(op->a, op->b),
                                      hint_map_, relax_map_);
-          interval = arith::Intersect({part1, part2});
+          interval = sym::Intersect({part1, part2});
           if (!interval.IsNothing()) {
             // cond is true within interval
             partitions[{cond, true}] = interval;
@@ -433,7 +435,7 @@ class ThreadPartitionInserter : public StmtExprMutator {
         Stmt simplified_body =
             ffi::make_object<ConditionEliminator>(ps_)->Mutate(op->body).ValueOrUnchanged(op->body);
         Stmt body = IfThenElse(cond_, simplified_body, op->body);
-        PrimExpr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
+        Expr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
         stmt = AttrStmt(op->node, op->attr_key, value, body);
       }
       innermost_thread_scope_ = false;
@@ -496,9 +498,10 @@ class LoopPartitioner : public StmtExprMutator {
     const IterVarNode* iv = op->node.as<IterVarNode>();
     TVM_FFI_ICHECK(iv);
     Var var = iv->var;
+    PrimExpr extent = op->value.as_or_throw<PrimExpr>();
     auto as = ffi::GetRef<Stmt>(op);
     if (selector->candidates.count(as)) {
-      Stmt s = TryPartition(as, var, 0, op->value - 1, op->body, true);
+      Stmt s = TryPartition(as, var, 0, extent - 1, op->body, true);
       if (s.defined()) return s;
     }
 
@@ -508,13 +511,13 @@ class LoopPartitioner : public StmtExprMutator {
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.
       relax_map_.insert(
-          {var.get(), IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), op->value - 1)});
+          {var.get(), IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), extent - 1)});
       res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                 .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       relax_map_.erase(var.get());
     } else {
       hint_map_.insert(
-          {var.get(), IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), op->value - 1)});
+          {var.get(), IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), extent - 1)});
       res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                 .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       hint_map_.erase(var.get());
@@ -527,7 +530,7 @@ class LoopPartitioner : public StmtExprMutator {
                     bool partition_thread_scope);
 
   std::pair<IntSet, ExpressionSet> GetIntervalAndCondset(const Partition& partitions,
-                                                         const arith::IntervalSet& for_interval,
+                                                         const sym::IntervalSet& for_interval,
                                                          bool cond_value, bool has_partition_hint);
 
   inline Stmt MakeFor(const ffi::Object* op, PrimExpr extent, Stmt body);
@@ -535,7 +538,7 @@ class LoopPartitioner : public StmtExprMutator {
   /* Candidate IRs that may be partitioned potentially */
   std::unordered_map<const VarNode*, IntSet> hint_map_;
   std::unordered_map<const VarNode*, IntSet> relax_map_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   ffi::ObjectPtr<CandidateSelector> selector;
   bool no_unroll_loop_with_extent_one_;
   bool unroll_loop_with_partition_hint_no_interval_;
@@ -544,15 +547,15 @@ class LoopPartitioner : public StmtExprMutator {
 // Returns an interval (in the first component) in which all the conditions
 // given in the second component provably have value given by cond_value
 std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
-    const Partition& partitions, const arith::IntervalSet& for_interval, bool cond_value,
+    const Partition& partitions, const sym::IntervalSet& for_interval, bool cond_value,
     bool has_partition_hint) {
   ffi::Array<IntSet> sets;
   ExpressionSet cond_set;
 
   for (const auto& kv : partitions) {
     if (kv.first.second == cond_value) {
-      arith::IntervalSet interval = kv.second.as_or_throw<arith::IntervalSet>();
-      arith::IntervalSet intersection = arith::Intersect(analyzer_.get(), interval, for_interval);
+      sym::IntervalSet interval = kv.second.as_or_throw<sym::IntervalSet>();
+      sym::IntervalSet intersection = sym::Intersect(analyzer_.get(), interval, for_interval);
 
       if (!intersection->IsEmpty()) {
         sets.push_back(kv.second);
@@ -565,21 +568,21 @@ std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
   // Try to find the intersection of the cond_intervals until the intersection
   // is nothing when has_partition_hint is true.
   if (interval.IsNothing() && has_partition_hint) {
-    arith::IntervalSet cond_intersection = arith::IntervalSet::Everything();
+    sym::IntervalSet cond_intersection = sym::IntervalSet::Everything();
     cond_set.clear();
 
     for (const auto& kv : partitions) {
       if (kv.first.second == cond_value) {
-        arith::IntervalSet cond_interval = kv.second.as_or_throw<arith::IntervalSet>();
-        arith::IntervalSet intersection =
-            arith::Intersect(analyzer_.get(), cond_interval, for_interval);
+        sym::IntervalSet cond_interval = kv.second.as_or_throw<sym::IntervalSet>();
+        sym::IntervalSet intersection =
+            sym::Intersect(analyzer_.get(), cond_interval, for_interval);
         if (!intersection->IsEmpty()) {
-          cond_intersection = arith::Intersect(analyzer_.get(), cond_intersection, cond_interval);
+          cond_intersection = sym::Intersect(analyzer_.get(), cond_intersection, cond_interval);
           // Return the latest interval and cond_set if the cond_intersection is nothing.
           if (!cond_intersection->IsEmpty()) {
             cond_set.insert(kv.first.first);
-            interval = arith::IntervalSet(analyzer_->Simplify(cond_intersection->min_value),
-                                          analyzer_->Simplify(cond_intersection->max_value));
+            interval = sym::IntervalSet(analyzer_->Simplify(cond_intersection->min_value),
+                                        analyzer_->Simplify(cond_intersection->max_value));
           } else {
             break;
           }
@@ -639,7 +642,7 @@ std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
  */
 Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, PrimExpr max, Stmt body,
                                    bool partition_thread_scope) {
-  using namespace arith;
+  using namespace sym;
   // include hint of var.
   hint_map_.insert({var.get(), IntSet::Interval(min, max)});
 
@@ -650,7 +653,7 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
   hint_map_.erase(var.get());
   if (finder->partitions.empty()) return Stmt();
 
-  arith::IntervalSet for_interval(min, max);
+  sym::IntervalSet for_interval(min, max);
 
   auto [middle_interval, cond_set,
         opt_cond_value] = [&]() -> std::tuple<IntSet, ExpressionSet, std::optional<bool>> {
@@ -843,7 +846,7 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
             ->Mutate(stmt)
             .ValueOrUnchanged(stmt);
   }
-  s = ConvertSSA(s);
+  s = s_tir::ConvertSSA(s);
   return s;
 }
 

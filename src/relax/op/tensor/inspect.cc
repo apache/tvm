@@ -74,7 +74,7 @@ std::tuple<TensorType, ffi::Optional<int64_t>> GetTensorArgInfoWithIndex(const C
   ffi::Optional<int64_t> int_imm_axis = std::nullopt;
   if (auto prim_value = axis.as<PrimExpr>()) {
     if (const auto* int_imm = prim_value->as<IntImmNode>()) {
-      int_imm_axis = int_imm->value;
+      int_imm_axis = static_cast<int64_t>(int_imm->value);
     }
   }
 
@@ -266,8 +266,8 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
     tirx::Var extent("extent", field_ty);
 
     tirx::Stmt body = tirx::SeqStmt(
-        {tirx::AssertStmt(0 <= axis.as_or_throw<PrimExpr>(), prim::StringImm("RuntimeError"),
-                          {prim::StringImm("Specified axis may not be negative")}),
+        {tirx::AssertStmt(0 <= axis.as_or_throw<PrimExpr>(), StringImm("RuntimeError"),
+                          {StringImm("Specified axis may not be negative")}),
          tirx::Bind(ndim,
                     tvm::Call(ndim->ty.as_or_throw<PrimType>(), tirx::builtin::tvm_struct_get(),
                               {dlpack_handle, IntImm::Int32(0),
@@ -276,9 +276,8 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
          tirx::AssertStmt(
              axis.as_or_throw<PrimExpr>() <
                  tvm::prim::cast(axis->ty.as_or_throw<PrimType>(), ndim.as_or_throw<PrimExpr>()),
-             prim::StringImm("RuntimeError"),
-             {prim::StringImm(
-                 "Specified axis may not be larger than the tensor's dimensionality")}),
+             StringImm("RuntimeError"),
+             {StringImm("Specified axis may not be larger than the tensor's dimensionality")}),
          tirx::DeclBuffer(
              shape_buffer,
              tvm::Call(shape_buffer.DataPointerType(), tirx::builtin::tvm_struct_get(),

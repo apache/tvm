@@ -36,8 +36,8 @@
 #include <unordered_set>
 
 #include "../../support/utils.h"
-#include "../../tirx/transform/ir_utils.h"
 #include "../schedule/utils.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -80,7 +80,7 @@ SBlock MakeSBlock(const Stmt& body, const ffi::Map<Var, BufferVar>& buffer_data_
     }
   }
   SBlock block(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{}, /*name_hint=*/"", /*body*/ body);
-  ffi::Array<ffi::Array<BufferRegion>> access =
+  ffi::Array<ffi::Array<TensorRegion>> access =
       GetSBlockReadWriteRegion(block, buffer_data_to_buffer);
   SBlockNode* n = block.CopyOnWrite();
   n->reads = access[0];
@@ -265,8 +265,9 @@ class PipelineBodyRewriter : public StmtExprMutator {
   }
 
  private:
-  BufferRegion RewritePipelineBufferRegion(const BufferRegion& buffer_region) {
-    if (auto replacement = VarRemapGet(buffer_region->buffer).as<BufferVar>()) {
+  TensorRegion RewritePipelineBufferRegion(const TensorRegion& buffer_region) {
+    if (auto replacement = VarRemapGet(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>())
+                               .as<BufferVar>()) {
       Region new_region = buffer_region->region;
       BufferVar new_buffer = replacement.value();
       // For pipeline buffers, relax the access region of the first dimension to full extent
@@ -296,8 +297,11 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return block;
   }
 
-  UnchangedOr<Expr> Mutate_(const BufferRegionNode* op, InplaceMode inplace_mode) final {
-    BufferRegion region = RewritePipelineBufferRegion(ffi::GetRef<BufferRegion>(op));
+  UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
+    if (!op->source.as<BufferVar>()) {
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
+    TensorRegion region = RewritePipelineBufferRegion(ffi::GetRef<TensorRegion>(op));
     return StmtExprMutator::Mutate_(region.get(), InplaceMode::kDisallow).ValueOrUnchanged(region);
   }
 
@@ -452,11 +456,11 @@ class PipelineRewriter : public StmtExprMutator {
       int stage = pair.second.stage;
       max_stage_ = std::max(max_stage_, stage);
 
-      for (const BufferRegion& write : block->writes) {
-        if (!infos.count(write->buffer)) {
-          infos.emplace(write->buffer, BufferAccessInfo{});
+      for (const TensorRegion& write : block->writes) {
+        if (!infos.count(write->source.as_or_throw<tvm::tirx::BufferVar>())) {
+          infos.emplace(write->source.as_or_throw<tvm::tirx::BufferVar>(), BufferAccessInfo{});
         }
-        auto& info = infos.at(write->buffer);
+        auto& info = infos.at(write->source.as_or_throw<tvm::tirx::BufferVar>());
         if (info.def == -1) {
           info.def = stage;
         } else {
@@ -464,11 +468,11 @@ class PipelineRewriter : public StmtExprMutator {
         }
       }
 
-      for (const BufferRegion& read : block->reads) {
-        if (!infos.count(read->buffer)) {
-          infos.emplace(read->buffer, BufferAccessInfo{});
+      for (const TensorRegion& read : block->reads) {
+        if (!infos.count(read->source.as_or_throw<tvm::tirx::BufferVar>())) {
+          infos.emplace(read->source.as_or_throw<tvm::tirx::BufferVar>(), BufferAccessInfo{});
         }
-        auto& info = infos.at(read->buffer);
+        auto& info = infos.at(read->source.as_or_throw<tvm::tirx::BufferVar>());
         info.use = std::max(info.use, stage);
       }
     }
@@ -486,9 +490,9 @@ class PipelineRewriter : public StmtExprMutator {
     for (size_t i = 0; i < region1.size(); i++) {
       Range dim1 = region1[i];
       Range dim2 = region2[i];
-      auto int_set1 = arith::IntSet::FromRange(dim1);
-      auto int_set2 = arith::IntSet::FromRange(dim2);
-      if (arith::Intersect({int_set1, int_set2}).IsNothing()) {
+      auto int_set1 = sym::IntSet::FromRange(dim1);
+      auto int_set2 = sym::IntSet::FromRange(dim2);
+      if (sym::Intersect({int_set1, int_set2}).IsNothing()) {
         return false;
       }
     }
@@ -529,10 +533,11 @@ class PipelineRewriter : public StmtExprMutator {
         const SBlock& writer_block = pair1.first;
         const auto& writer_info = pair1.second;
 
-        auto it1 = std::find_if(writer_block->writes.begin(), writer_block->writes.end(),
-                                [&](const BufferRegion& buffer_region) {
-                                  return buffer_region->buffer.same_as(buffer);
-                                });
+        auto it1 = std::find_if(
+            writer_block->writes.begin(), writer_block->writes.end(),
+            [&](const TensorRegion& buffer_region) {
+              return buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer);
+            });
         if (it1 == writer_block->writes.end()) {
           continue;
         }
@@ -540,10 +545,11 @@ class PipelineRewriter : public StmtExprMutator {
         for (const auto& pair2 : pipeline_info_) {
           const SBlock& reader_block = pair2.first;
           const auto& reader_info = pair2.second;
-          auto it2 = std::find_if(reader_block->reads.begin(), reader_block->reads.end(),
-                                  [&](const BufferRegion& buffer_region) {
-                                    return buffer_region->buffer.same_as(buffer);
-                                  });
+          auto it2 = std::find_if(
+              reader_block->reads.begin(), reader_block->reads.end(),
+              [&](const TensorRegion& buffer_region) {
+                return buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer);
+              });
           if (it2 == reader_block->reads.end()) {
             continue;
           }
@@ -646,22 +652,25 @@ class PipelineRewriter : public StmtExprMutator {
 
   // Determine where to insert async_wait and the corresponding wait count.
   void PopulateWaitCounts(const std::vector<RewrittenSBlockInfo>& new_blocks,
-                          arith::AnalyzerObj* ana_normalized,
+                          sym::AnalyzerObj* ana_normalized,
                           const std::unordered_map<const VarNode*, int>& buffer_to_commit_group,
                           std::map<int, AsyncStateLocal>* async_states_local) {
     for (size_t i = 0; i < new_blocks.size(); ++i) {
       if (new_blocks[i].is_async) {
         // Record the fact that we have encountered these write buffers.
         for (auto write_region : new_blocks[i].block->writes) {
-          (*async_states_local)[new_blocks[i].stage].seen.insert(write_region->buffer.get());
+          (*async_states_local)[new_blocks[i].stage].seen.insert(
+              write_region->source.as_or_throw<tvm::tirx::BufferVar>().get());
         }
       }
 
       int producer_stage_idx = -1;
       for (auto read_region : new_blocks[i].block->reads) {
         for (auto kv : async_states) {
-          if (kv.first <= new_blocks[i].stage && kv.second.writes(read_region->buffer)) {
-            // Found an earlier stage where read_region->buffer was asynchronously written
+          if (kv.first <= new_blocks[i].stage &&
+              kv.second.writes(read_region->source.as_or_throw<tvm::tirx::BufferVar>())) {
+            // Found an earlier stage where read_region->source.as_or_throw<tvm::tirx::BufferVar>()
+            // was asynchronously written
             TVM_FFI_ICHECK(producer_stage_idx == -1 || producer_stage_idx == kv.first)
                 << "A dependency on multiple async stages is not supported";
             producer_stage_idx = kv.first;
@@ -727,11 +736,15 @@ class PipelineRewriter : public StmtExprMutator {
         std::vector<bool> need_wait_count(num_commit_group, true);
 
         for (auto read_region : new_blocks[i].block->reads) {
-          if (!async_states[producer_stage_idx].writes(read_region->buffer)) continue;
-          auto commit_group_id = buffer_to_commit_group.at(read_region->buffer.get());
+          if (!async_states[producer_stage_idx].writes(
+                  read_region->source.as_or_throw<tvm::tirx::BufferVar>()))
+            continue;
+          auto commit_group_id = buffer_to_commit_group.at(
+              read_region->source.as_or_throw<tvm::tirx::BufferVar>().get());
           if (!need_wait_count[commit_group_id]) continue;
 
-          if (!dep_local_state.seen.count(read_region->buffer.get())) {
+          if (!dep_local_state.seen.count(
+                  read_region->source.as_or_throw<tvm::tirx::BufferVar>().get())) {
             // Multiple async producers interleaved: The most recent async write is from the
             // previous iteration. This is the B_shared case above.
             producer_head_per_commit.push_back(dep_local_state.producer_head.value() - 1);
@@ -776,7 +789,7 @@ class PipelineRewriter : public StmtExprMutator {
   ffi::Array<Stmt> CompletePipelineLoopStatements(
       const std::vector<RewrittenSBlockInfo>& blocks,
       const std::map<int, AsyncStateLocal>& async_states_local,
-      arith::AnalyzerObj* ana_normalized) const {
+      sym::AnalyzerObj* ana_normalized) const {
     std::vector<RewrittenSBlockInfo> new_blocks = blocks;
     std::vector<int> commit_group_indices(new_blocks.size(), -1);
     for (const auto& [stage_id, state] : async_states_local) {
@@ -794,7 +807,7 @@ class PipelineRewriter : public StmtExprMutator {
           auto& block = new_blocks[i].block;
           SBlockNode* n = block.CopyOnWrite();
           n->body =
-              AttrStmt(0, s_tir::attr::async_wait_queue_scope, stage_id,
+              AttrStmt(0, s_tir::attr::async_wait_queue_scope, IntImm::Int32(stage_id),
                        AttrStmt(0, s_tir::attr::async_wait_inflight_count, wait_count, n->body));
         };
 
@@ -839,7 +852,7 @@ class PipelineRewriter : public StmtExprMutator {
 
         for (auto body : group_bodies) {
           auto commit_queue_scope =
-              AttrStmt(0, s_tir::attr::async_commit_queue_scope, stage_id, body);
+              AttrStmt(0, s_tir::attr::async_commit_queue_scope, IntImm::Int32(stage_id), body);
           auto new_block = MakeSBlock(commit_queue_scope, buffer_data_to_buffer_);
           stmts.push_back(SBlockRealize({}, predicate, new_block));
         }
@@ -879,7 +892,7 @@ class PipelineRewriter : public StmtExprMutator {
 
     // In contrast to analyzer_ which is bound to [start, end), this one is bound to
     // the "normalized" range, [pipeline_loop_->min, extent).
-    arith::Analyzer ana_normalized;
+    sym::Analyzer ana_normalized;
     if (!is_unit_loop) {
       ana_normalized->Bind(new_loop_var.as_or_throw<Var>(), Range(pipeline_loop_->min, extent));
     }
@@ -963,8 +976,10 @@ class PipelineRewriter : public StmtExprMutator {
         }
 
         for (auto write_region : new_block->writes) {
-          async_states[stage].dst_buffers.insert(write_region->buffer.get());
-          buffer_to_commit_group[write_region->buffer.get()] = commit_group_id;
+          async_states[stage].dst_buffers.insert(
+              write_region->source.as_or_throw<tvm::tirx::BufferVar>().get());
+          buffer_to_commit_group[write_region->source.as_or_throw<tvm::tirx::BufferVar>().get()] =
+              commit_group_id;
         }
 
         local_state.producer_head = normalized_access_index;
@@ -976,7 +991,7 @@ class PipelineRewriter : public StmtExprMutator {
         }
 
         SBlockNode* n = new_block.CopyOnWrite();
-        n->body = AttrStmt(0, s_tir::attr::async_scope, 1, n->body);
+        n->body = AttrStmt(0, s_tir::attr::async_scope, IntImm::Int32(1), n->body);
       }
 
       new_blocks.push_back(
@@ -985,7 +1000,8 @@ class PipelineRewriter : public StmtExprMutator {
       for (auto read_region : new_block->reads) {
         for (auto kv : async_states) {
           int producer_stage_id = kv.first;
-          if (producer_stage_id <= stage && kv.second.writes(read_region->buffer)) {
+          if (producer_stage_id <= stage &&
+              kv.second.writes(read_region->source.as_or_throw<tvm::tirx::BufferVar>())) {
             async_states_local[producer_stage_id].consumed = true;
           }
         }
@@ -1035,7 +1051,7 @@ class PipelineRewriter : public StmtExprMutator {
                          MakeSBlock(std::move(new_loop), buffer_data_to_buffer_));
   }
 
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   ffi::Map<Var, BufferVar> buffer_data_to_buffer_;
   const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& double_buffers_;
   ffi::Array<BufferVar> pipeline_allocs_;
@@ -1065,8 +1081,8 @@ void BuildDependencyGraph(const ffi::Array<SBlock>& blocks,
   std::unordered_map<Var, ffi::Array<SBlock>> buffer_writers;
 
   for (const SBlock& block : blocks) {
-    for (const BufferRegion& read : block->reads) {
-      auto it = buffer_writers.find(read->buffer.var());
+    for (const TensorRegion& read : block->reads) {
+      auto it = buffer_writers.find(read->source.as_or_throw<tvm::tirx::BufferVar>().var());
       if (it != buffer_writers.end()) {
         for (const SBlock& writer : it->second) {
           if (dep_src2dst != nullptr) {
@@ -1078,8 +1094,8 @@ void BuildDependencyGraph(const ffi::Array<SBlock>& blocks,
         }
       }
     }
-    for (const BufferRegion& write : block->writes) {
-      buffer_writers[write->buffer.var()].push_back(block);
+    for (const TensorRegion& write : block->writes) {
+      buffer_writers[write->source.as_or_throw<tvm::tirx::BufferVar>().var()].push_back(block);
     }
   }
 }
@@ -1286,12 +1302,12 @@ class PipelineInjector : public StmtExprMutator {
 
     auto it = op->annotations.find(s_tir::attr::double_buffer_scope);
     if (it != op->annotations.end()) {
-      int buffer_index = static_cast<int>((*it).second.cast<IntImm>()->value);
+      int buffer_index = (*it).second.cast<IntImm>()->value.as<int>().value();
       TVM_FFI_CHECK(buffer_index >= 0 && static_cast<size_t>(buffer_index) < op->writes.size(),
                     ValueError)
           << "Index of the buffer exceeds the size of the write regions of the block. ("
           << buffer_index << " vs. " << op->writes.size() << ")";
-      double_buffers.insert(op->writes[buffer_index]->buffer);
+      double_buffers.insert(op->writes[buffer_index]->source.as_or_throw<tvm::tirx::BufferVar>());
     }
     SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
@@ -1338,7 +1354,7 @@ Pass InjectSoftwarePipeline() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* fptr = f.CopyOnWrite();
     fptr->body = software_pipeline::PipelineInjector::Inject(f);
-    fptr->body = ConvertSSA(std::move(fptr->body));
+    fptr->body = s_tir::ConvertSSA(std::move(fptr->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectSoftwarePipeline", {});

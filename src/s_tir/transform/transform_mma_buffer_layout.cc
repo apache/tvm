@@ -17,13 +17,15 @@
  * under the License.
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/index_map.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../tirx/transform/ir_utils.h"
 
@@ -186,7 +188,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
   }
 
  private:
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
 };
 
 namespace transform {

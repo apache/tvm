@@ -389,7 +389,7 @@ void CodeGenOpenCL::PrintVecElemLoadExpr(const PrimType& t, int i, const std::st
 }
 
 void CodeGenOpenCL::PrintStorageSync(const CallNode* op) {
-  const std::string& sync = op->args[0].as<prim::StringImmNode>()->value;
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
     this->PrintIndent();
     this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";
@@ -445,16 +445,16 @@ std::string CodeGenOpenCL::CastTo(std::string value, const PrimType& target) {
   }
 }
 
-void CodeGenOpenCL::VisitStmt_(const AllocBufferNode* op) {
+void CodeGenOpenCL::Dispatch_(const AllocBufferNode* op) {
   // Compute constant_size from buffer shape
   size_t constant_size = 1;
   for (const auto& dim : op->buffer->shape) {
     const IntImmNode* dim_imm = dim.as<IntImmNode>();
     TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
-    constant_size *= dim_imm->value;
+    constant_size *= dim_imm->value.as<size_t>().value();
   }
   allocation_size_.insert({op->buffer.get(), constant_size * op->buffer->dtype.lanes()});
-  CodeGenC::VisitStmt_(op);
+  CodeGenC::Dispatch_(op);
 }
 
 void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
@@ -475,7 +475,7 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
     os << ')';
   } else if (op->op.same_as(tirx::builtin::texture2d_store())) {
     TextureArgument texture = UnwrapTextureArgument(op->args[0]);
-    const int channel_size = op->args[4].as_or_throw<IntImm>()->value;
+    const int channel_size = op->args[4].as_or_throw<IntImm>()->value.as<int>().value();
     TVM_FFI_ICHECK(channel_size == 64 || channel_size == 128)
         << "Unsupported Channel Size: " << channel_size;
     PrimType channel_type(runtime::GetChannelType(channel_size));
@@ -511,7 +511,7 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
     TextureArgument texture = UnwrapTextureArgument(op->args[0]);
     enable_compliant_texture_reads_ = true;
     std::stringstream ss;
-    const int channel_size = op->args[4].as_or_throw<IntImm>()->value;
+    const int channel_size = op->args[4].as_or_throw<IntImm>()->value.as<int>().value();
     PrimType op_ty = op->ty.as_or_throw<PrimType>();
     const int data_lanes = channel_size / op_ty.bits();
     TVM_FFI_ICHECK(channel_size == 64 || channel_size == 128)
@@ -541,13 +541,16 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
 
     std::string rhs = SSAGetID(ss.str(), op_ty.WithLanes(data_lanes));
     if (auto ramp = op->args.back().as<prim::RampNode>()) {
-      if (ramp->base.as<IntImmNode>() && *tvm::prim::as_const_int(ramp->base) == 0 &&
-          *tvm::prim::as_const_int(ramp->lanes) == data_lanes &&
-          *tvm::prim::as_const_int(ramp->stride) == 1) {
+      const auto* base = ramp->base.as<IntImmNode>();
+      const auto* lanes_imm = ramp->lanes.as<IntImmNode>();
+      auto lanes = lanes_imm ? lanes_imm->value.as<int>() : std::nullopt;
+      const auto* stride = ramp->stride.as<IntImmNode>();
+      if (base && lanes.has_value() && stride && base->value == 0 && *lanes == data_lanes &&
+          stride->value == 1) {
         os << rhs;
-      } else if (*tvm::prim::as_const_int(ramp->stride) == 1) {
+      } else if (lanes.has_value() && stride && stride->value == 1) {
         os << "(*(";
-        this->PrintType(op_ty.WithLanes(*tvm::prim::as_const_int(ramp->lanes)), os);
+        this->PrintType(op_ty.WithLanes(*lanes), os);
         os << "*)";
         os << "((";
         this->PrintType(op_ty.WithLanes(1), os);
@@ -565,7 +568,7 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
       os << "]";
     }
   } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
-    auto func = op->args[0].as_or_throw<prim::StringImm>();
+    auto func = op->args[0].as_or_throw<StringImm>();
     // Enable atomics extension if used.
     if (func->value == "atomic_add" &&
         op->ty.as_or_throw<PrimType>().code() == DLDataTypeCode::kDLFloat) {

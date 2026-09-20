@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/runtime/device_api.h>  // For `kAllocAlignment`
+#include <tvm/s_tir/stmt.h>
 
 #include <algorithm>
 #include <utility>
@@ -393,9 +394,9 @@ ffi::Array<Doc> BufferSlices(const ffi::Array<Range>& region, const AccessPath& 
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::BufferRegion>(
-      "", [](tirx::BufferRegion buffer_region, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc prefix = d->AsDoc<ExprDoc>(buffer_region->buffer, p->Attr("buffer"));
+  IRDocsifier::vtable().set_dispatch<tvm::TensorRegion>(
+      "", [](tvm::TensorRegion buffer_region, AccessPath p, IRDocsifier d) -> Doc {
+        ExprDoc prefix = d->AsDoc<ExprDoc>(buffer_region->source, p->Attr("source"));
         return prefix[BufferSlices(buffer_region->region, p->Attr("region"), d)];
       });
 }
@@ -575,8 +576,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::MatchBufferRegion>(
-      "", [](tirx::MatchBufferRegion stmt, AccessPath p, IRDocsifier d) -> Doc {
+  IRDocsifier::vtable().set_dispatch<s_tir::MatchBufferRegion>(
+      "", [](s_tir::MatchBufferRegion stmt, AccessPath p, IRDocsifier d) -> Doc {
         Frame frame = d->frames.back();
         ExprDoc lhs = DefineBuffer(stmt->buffer, frame, d);
         ExprDoc src_buffer = d->AsDoc<ExprDoc>(stmt->source, p->Attr("source"));
@@ -586,14 +587,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_SCRIPT_REPR(tirx::BufferRegionNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tvm::TensorRegionNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(TensorLoadNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::BufferStoreNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::BufferTypeNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::IterNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::TileLayoutNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::ComposeLayoutNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::MatchBufferRegionNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(s_tir::MatchBufferRegionNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

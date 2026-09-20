@@ -22,18 +22,19 @@
  * \brief The pass for lowering match_buffer.
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
-#include "../../tirx/ir/functor_common.h"
 #include "../../tirx/transform/ir_utils.h"
+#include "../transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -78,9 +79,9 @@ class MatchBufferLower : public StmtExprMutator {
     }
     op = stmt.as<SBlockNode>();
     TVM_FFI_ICHECK(op != nullptr);
-    ffi::Array<BufferRegion> reads =
+    ffi::Array<TensorRegion> reads =
         op->reads.Map(std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));
-    ffi::Array<BufferRegion> writes = op->writes.Map(
+    ffi::Array<TensorRegion> writes = op->writes.Map(
         std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));
 
     if (reads.same_as(op->reads) && writes.same_as(op->writes) && op->match_buffers.empty()) {
@@ -114,7 +115,7 @@ class MatchBufferLower : public StmtExprMutator {
           var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
         auto it = match_buffers_.find(BufferVar(var.value()));
         if (it != match_buffers_.end()) {
-          return (*it).second->buffer.data();
+          return (*it).second->source.as_or_throw<tvm::tirx::BufferVar>().data();
         }
       }
     }
@@ -136,11 +137,11 @@ class MatchBufferLower : public StmtExprMutator {
       return stmt;
     } else {
       const BufferVar& buffer = (*it).first;
-      const BufferRegion& source = (*it).second;
+      const TensorRegion& source = (*it).second;
 
       auto* n = stmt.CopyOnWrite();
       n->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
-      n->buffer = source->buffer;
+      n->buffer = source->source.as_or_throw<tvm::tirx::BufferVar>();
       return stmt;
     }
   }
@@ -158,29 +159,29 @@ class MatchBufferLower : public StmtExprMutator {
       return expr;
     } else {
       const BufferVar& buffer = (*it).first;
-      const BufferRegion& source = (*it).second;
+      const TensorRegion& source = (*it).second;
       ffi::Array<PrimExpr> indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
-      return BufferLoad(source->buffer, indices);
+      return BufferLoad(source->source.as_or_throw<tvm::tirx::BufferVar>(), indices);
     }
   }
 
-  BufferRegion VisitBufferRegion(const BufferRegion& buffer_region) {
-    const BufferVar& buffer = buffer_region->buffer;
+  TensorRegion VisitBufferRegion(const TensorRegion& buffer_region) {
+    const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
     auto it = match_buffers_.find(buffer);
     if (it == match_buffers_.end()) {
       return buffer_region;
     } else {
-      const BufferRegion& source = (*it).second;
+      const TensorRegion& source = (*it).second;
       Region region = ConvertRegion(MatchBufferRegion(buffer, source), buffer_region->region);
-      return BufferRegion(source->buffer, std::move(region));
+      return BufferRegion(source->source.as_or_throw<tvm::tirx::BufferVar>(), std::move(region));
     }
   }
 
   void CheckAndUpdateVarMap(const MatchBufferRegion& match_buffer) {
     // Step.1. Check
     const BufferVar& buffer = match_buffer->buffer;
-    const BufferRegion& source = VisitBufferRegion(match_buffer->source);
-    const BufferVar& source_buffer = source->buffer;
+    const TensorRegion& source = VisitBufferRegion(match_buffer->source);
+    const BufferVar& source_buffer = source->source.as_or_throw<tvm::tirx::BufferVar>();
 
     // Step.1.1. Check scope & dtype
     TVM_FFI_ICHECK_EQ(buffer.scope(), source_buffer.scope())
@@ -310,9 +311,9 @@ class MatchBufferLower : public StmtExprMutator {
   }
 
   /*! \brief BufferVar region mapping. */
-  ffi::Map<BufferVar, BufferRegion> match_buffers_;
+  ffi::Map<BufferVar, TensorRegion> match_buffers_;
   /*! \brief The analyzer */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 namespace transform {

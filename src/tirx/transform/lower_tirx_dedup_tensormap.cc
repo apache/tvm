@@ -22,8 +22,8 @@
  * \brief Deduplicate identical cuTensorMap objects created by TIRx schedules.
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -44,7 +44,7 @@ inline bool IsTensorMapAlloca(const BindNode* bind) {
   if (const auto* call = bind->value.as<CallNode>()) {
     if (IsBuiltin(call, builtin::tvm_stack_alloca())) {
       if (call->args.size() == 2) {
-        if (const auto* type_str = call->args[0].as<prim::StringImmNode>()) {
+        if (const auto* type_str = call->args[0].as<StringImmNode>()) {
           return type_str->value == "tensormap";
         }
       }
@@ -58,7 +58,7 @@ inline const CallNode* AsCuTensorMapEncode(const EvaluateNode* eval) {
   const CallNode* call = eval->value.as<CallNode>();
   if (!call || !call->op.same_as(builtin::tvm_call_packed())) return nullptr;
   if (call->args.empty()) return nullptr;
-  if (const auto* s = call->args[0].as<prim::StringImmNode>()) {
+  if (const auto* s = call->args[0].as<StringImmNode>()) {
     if (s->value == "runtime.cuTensorMapEncodeTiled") return call;
   }
   return nullptr;

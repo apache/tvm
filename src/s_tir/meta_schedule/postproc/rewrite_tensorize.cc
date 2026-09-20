@@ -37,9 +37,9 @@ void CollectTensorizationJobs(
     const s_tir::Schedule& sch, const ffi::String& func_name, const tirx::PrimFuncNode* func,
     bool vectorize_init_loop,
     std::vector<std::tuple<ffi::String, ffi::String, std::function<void(s_tir::SBlockRV)>>>* jobs) {
-  auto walk_fn = [=, &jobs](const tirx::SBlock& block) -> ffi::Expected<ffi::WalkResult> {
+  auto walk_fn = [=, &jobs](const s_tir::SBlock& block) -> ffi::Expected<ffi::WalkResult> {
     tirx::StmtSRef block_sref = sch->GetSRef(block.get());
-    std::string block_name = block_sref->StmtAs<tirx::SBlockNode>()->name_hint;
+    std::string block_name = block_sref->StmtAs<s_tir::SBlockNode>()->name_hint;
     if (ffi::Optional<ffi::String> intrin_name =
             s_tir::GetAnn<ffi::String>(block_sref, s_tir::attr::meta_schedule_auto_tensorize)) {
       if (intrin_name.value() != "") {

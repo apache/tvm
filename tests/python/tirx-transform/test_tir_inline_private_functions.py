@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 class BaseTestCase:
     def test_well_formed(self):
         After = tvm.tirx.transform.InlinePrivateFunctions()(self.Before)
-        tvm.tirx.analysis.verify_well_formed(After)
+        tvm.s_tir.analysis.verify_well_formed(After)
 
     def test_produces_expected(self):
         After = tvm.tirx.transform.InlinePrivateFunctions()(self.Before)
@@ -85,7 +85,7 @@ class TestRetainCrossFunctionSubroutines(BaseTestCase):
 
         @T.prim_func(private=True, s_tir=True)
         def subroutine(A_data: T.handle("float32"), B_data: T.handle("float32")):
-            T.func_attr({"target": T.target("cuda")})
+            T.func_attr({"target": T.target({"kind": "cuda", "arch": "sm_80"})})
             A = T.decl_buffer([16, 16], "float32", data=A_data)
             B = T.decl_buffer([16], "float32", data=B_data)
             for i in range(16):

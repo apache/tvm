@@ -24,14 +24,13 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <unordered_set>
-
-#include "../../tirx/ir/functor_common.h"
 
 namespace tvm {
 namespace tirx {
@@ -43,7 +42,7 @@ using namespace tvm::prim;
  */
 class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> {
  public:
-  explicit SymbolicMatcher(arith::AnalyzerObj* analyzer, ffi::Map<tirx::Var, PrimExpr>* var_remap)
+  explicit SymbolicMatcher(sym::AnalyzerObj* analyzer, ffi::Map<tirx::Var, PrimExpr>* var_remap)
       : analyzer_(analyzer), var_remap_(var_remap) {}
 
   void Match(const ffi::Array<PrimExpr>& params, const ffi::Array<PrimExpr>& args) {
@@ -164,7 +163,7 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
     }
   }
 
-  arith::AnalyzerObj* analyzer_;
+  sym::AnalyzerObj* analyzer_;
   ffi::Map<tirx::Var, PrimExpr>* var_remap_;
   PrimExpr must_prove_ = IntImm::Bool(true);
 };
@@ -172,7 +171,7 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
 /*!
  * \brief Substitute a given source buffer with a given target buffer in statements or expressions.
  */
-class FuseTIRBufferSubstitutor : public StmtExprMutator {
+class FuseTIRBufferSubstitutor : public s_tir::StmtExprMutator {
  public:
   explicit FuseTIRBufferSubstitutor(const ffi::Map<BufferVar, BufferVar>& buffer_map,
                                     const ffi::Map<Var, PrimExpr>& var_map) {
@@ -192,12 +191,12 @@ class FuseTIRBufferSubstitutor : public StmtExprMutator {
   }
 
  private:
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
-                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                       .as_or_throw<SBlock>();
-    ffi::Array<BufferRegion> reads = UnionAccessRegion(block->reads);
-    ffi::Array<BufferRegion> writes = UnionAccessRegion(block->writes);
+  UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
+    s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
+                              .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                              .as_or_throw<s_tir::SBlock>();
+    ffi::Array<TensorRegion> reads = UnionAccessRegion(block->reads);
+    ffi::Array<TensorRegion> writes = UnionAccessRegion(block->writes);
     if (!reads.same_as(block->reads) || !writes.same_as(block->writes)) {
       auto* n = block.CopyOnWrite();
       n->reads = std::move(reads);
@@ -206,19 +205,20 @@ class FuseTIRBufferSubstitutor : public StmtExprMutator {
     return block;
   }
 
-  ffi::Array<tirx::BufferRegion> UnionAccessRegion(const ffi::Array<BufferRegion>& regions) const {
+  ffi::Array<tvm::TensorRegion> UnionAccessRegion(const ffi::Array<TensorRegion>& regions) const {
     // For now we only allow buffers to access the same elements.
     // e.g. `[A[vi, vj], A[vi, vj]]` is a legal pattern but need to union to `A[vi, vj]`
     // However, `A[vi, vj], A[vi, vj + 1]` is not allow for now.
     // Note: the order of return region should remain the same as the first occurrence of the region
-    ffi::Array<BufferRegion> ret;
+    ffi::Array<TensorRegion> ret;
     std::unordered_map<const VarNode*, ffi::Array<Range>> buffer_region_set;
 
-    for (const BufferRegion& region : regions) {
-      auto it = buffer_region_set.find(region->buffer.get());
+    for (const TensorRegion& region : regions) {
+      auto it = buffer_region_set.find(region->source.as_or_throw<tvm::tirx::BufferVar>().get());
       if (it == buffer_region_set.end()) {
         ret.push_back(region);
-        buffer_region_set[region->buffer.get()] = region->region;
+        buffer_region_set[region->source.as_or_throw<tvm::tirx::BufferVar>().get()] =
+            region->region;
       }
     }
 
@@ -231,19 +231,19 @@ class FuseTIRBufferSubstitutor : public StmtExprMutator {
 };
 
 /*! \brief A mutator which detect block name duplication and deduplicate the names. */
-class SBlockNameDeduplicator : public tirx::StmtExprMutator {
+class SBlockNameDeduplicator : public s_tir::StmtExprMutator {
  public:
-  using StmtExprMutator::Mutate;
+  using s_tir::StmtExprMutator::Mutate;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
     if (value.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(value, inplace_mode);
+    return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
   }
 
  private:
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    SBlock block = tirx::StmtExprMutator::Mutate_(op, inplace_mode)
-                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                       .as_or_throw<SBlock>();
+  UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
+    s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
+                              .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                              .as_or_throw<s_tir::SBlock>();
 
     ffi::String name = GetUniqueName(block->name_hint);
 
@@ -574,10 +574,10 @@ class FusedTIRConstructor : public ExprVisitor {
 
     // Step 3. Check functions are all schedulable funcs. i.e. the body of func is root block
     // TODO(Siyuan): support un-schedulable functions.
-    TVM_FFI_ICHECK(prim_func->body->IsInstance<tirx::SBlockRealizeNode>())
+    TVM_FFI_ICHECK(prim_func->body->IsInstance<s_tir::SBlockRealizeNode>())
         << "Only schedulable functions (whose body is the root block) can be fused";
-    const tirx::SBlockRealize& root_realize = prim_func->body.as_or_throw<tirx::SBlockRealize>();
-    const tirx::SBlock& root_block = root_realize->block;
+    const s_tir::SBlockRealize& root_realize = prim_func->body.as_or_throw<s_tir::SBlockRealize>();
+    const s_tir::SBlock& root_block = root_realize->block;
 
     // Step 4. Add all the original alloc_buffers and body to the fused function.
     func_info_.alloc_buffers.insert(func_info_.alloc_buffers.end(),
@@ -626,8 +626,9 @@ class FusedTIRConstructor : public ExprVisitor {
     }
   }
 
-  void VisitExpr_(const ConstantNode* op) final {
-    TVM_FFI_THROW(InternalError) << "Relax.Constant is not supported in primitive functions.";
+  void VisitExpr_(const GenericConstNode* op) final {
+    if (!op->value.as<runtime::Tensor>()) return;
+    TVM_FFI_THROW(InternalError) << "Tensor constants are not supported in primitive functions.";
   }
 
   /*!
@@ -879,8 +880,8 @@ class FusedTIRConstructor : public ExprVisitor {
     body = ffi::make_object<tirx::SBlockNameDeduplicator>()->Mutate(body).ValueOrUnchanged(body);
 
     body = subst->Mutate(body).ValueOrUnchanged(body);
-    body = tirx::SBlock({}, {}, {}, "root", std::move(body), std::nullopt, alloc_buffers);
-    body = tirx::SBlockRealize({}, IntImm::Bool(true), body.as_or_throw<tirx::SBlock>());
+    body = s_tir::SBlock({}, {}, {}, "root", std::move(body), std::nullopt, alloc_buffers);
+    body = s_tir::SBlockRealize({}, IntImm::Bool(true), body.as_or_throw<s_tir::SBlock>());
     ffi::Array<tirx::Var> params = func_info_.params.Map([&](const tirx::Var& param) {
       if (auto buffer = func_info_.buffer_map.Get(param)) {
         return buffer.value().var();
@@ -951,7 +952,7 @@ class FusedTIRConstructor : public ExprVisitor {
      * `symbolic_var_matcher`, and must be before it in the struct
      * order.
      */
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
 
     /*! \brief The map from symbolic var to its corresponding var in the fused function */
     tirx::SymbolicMatcher symbolic_var_matcher =

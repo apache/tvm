@@ -50,8 +50,8 @@ def binary_trn(
 
     # Extract buffers and constants
     CONST = _src2 if isinstance(_src2, FloatImm) else None
-    dst, src1 = _dst.buffer, _src1.buffer
-    src2 = None if CONST is not None else _src2.buffer
+    dst, src1 = _dst.source, _src1.source
+    src2 = None if CONST is not None else _src2.source
 
     p_var = T.Var("P", "int32")
     b_var = T.Var("B", "int32")
@@ -72,7 +72,8 @@ def binary_trn(
         return _func(*args, reverse[0]) if inst_types[0] == InstType.TENSOR_SCALAR else _func(*args)
 
     # Define the implementation function
-    @T.prim_func
+    # This fragment captures buffers and indices from its insertion scope.
+    @T.prim_func(check_well_formed=False)
     def impl():
         for b_loop in T.serial(0, b_extent):
             with T.attr(0, "tensorized_nki_instruction", 1):

@@ -67,7 +67,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
     Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
 
     // Step 3. Handle annotations
-    std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
+    std::vector<std::pair<std::string, Expr>> pragma_attrs;
     ffi::Map<ffi::String, ffi::Any> new_annotations =
         HandleAnnotations(op->annotations, &pragma_attrs);
     // Step 4. Create new For loop accordingly
@@ -100,7 +100,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
                      /*thread_tag=*/thread_tag);
     ffi::String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||
                             thread_tag == "vthread.y" || thread_tag == "vthread.z")
-                               ? s_tir::attr::virtual_thread
+                               ? tvm::tirx::attr::virtual_thread
                                : tirx::attr::thread_extent;
     return AttrStmt(/*node=*/std::move(iter_var),
                     /*attr_key=*/std::move(attr_key),
@@ -108,16 +108,16 @@ class TIRxOpaqueLower : public StmtExprMutator {
                     /*body=*/std::move(body));
   }
 
-  /*! \brief Convert attr value from annotation map into PrimExpr. */
-  PrimExpr ConvertAttrValue(const ffi::String& key, const Any& obj) {
-    if (auto expr = obj.try_cast<PrimExpr>()) {
+  /*! \brief Convert attr value from annotation map into Expr. */
+  Expr ConvertAttrValue(const ffi::String& key, const Any& obj) {
+    if (auto expr = obj.try_cast<Expr>()) {
       return expr.value();
     } else if (auto str = obj.try_cast<ffi::String>()) {
-      return std::move(prim::StringImm(str.value()));
+      return std::move(StringImm(str.value()));
     } else {
       LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj.GetTypeKey()
                  << " not supported";
-      return PrimExpr();
+      return Expr();
     }
   }
 
@@ -131,7 +131,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
    */
   ffi::Map<ffi::String, ffi::Any> HandleAnnotations(
       const ffi::Map<ffi::String, ffi::Any>& annotations,
-      std::vector<std::pair<std::string, PrimExpr>>* pragma_attrs) {
+      std::vector<std::pair<std::string, Expr>>* pragma_attrs) {
     ffi::Map<ffi::String, ffi::Any> preserved_annotations;
     pragma_attrs->clear();
     for (const auto& kv : annotations) {

@@ -223,11 +223,11 @@ void CodeGenCHost::PrintGetFuncFromBackend(const std::string& func_name,
 }
 
 void CodeGenCHost::PrintCallPacked(const CallNode* op) {
-  const prim::StringImmNode* func_name = op->args[0].as<prim::StringImmNode>();
+  const StringImmNode* func_name = op->args[0].as<StringImmNode>();
   TVM_FFI_ICHECK(func_name != nullptr)
       << "tvm_call_[c]packed_lowered expects first argument as function name";
-  int64_t begin = op->args[2].as<IntImmNode>()->value;
-  int64_t end = op->args[3].as<IntImmNode>()->value;
+  int64_t begin = static_cast<int64_t>(op->args[2].as<IntImmNode>()->value);
+  int64_t end = static_cast<int64_t>(op->args[3].as<IntImmNode>()->value);
   int64_t num_args = end - begin;
   TVM_FFI_ICHECK_GE(num_args, 0);
 
@@ -269,7 +269,7 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
 }
 
 std::string CodeGenCHost::GetPackedName(const CallNode* op) {
-  const prim::StringImmNode* s = op->args[0].as<prim::StringImmNode>();
+  const StringImmNode* s = op->args[0].as<StringImmNode>();
   TVM_FFI_ICHECK(s != nullptr) << "tvm_call_packed_lowered expects first argument as function name";
   std::string func_name = s->value;
   std::string packed_func_name = func_name + "_packed";
@@ -288,18 +288,19 @@ std::string CodeGenCHost::GetPackedName(const CallNode* op) {
 void CodeGenCHost::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (op->op.same_as(builtin::tvm_stack_alloca())) {
     std::string stack_name = name_supply_->FreshName("stack");
-    const std::string& type = op->args[0].as<prim::StringImmNode>()->value;
+    const std::string& type = op->args[0].as<StringImmNode>()->value;
     const IntImmNode* num = op->args[1].as<IntImmNode>();
     TVM_FFI_ICHECK(num != nullptr);
     static_assert(alignof(TVMFFIAny) % alignof(DLTensor) == 0, "invariant");
+    size_t count = num->value.as<size_t>().value();
     size_t unit = sizeof(TVMFFIAny);
     size_t size = 0;
     if (type == "shape") {
-      size = (num->value * sizeof(ffi::Shape::index_type) + unit - 1) / unit;
+      size = (count * sizeof(ffi::Shape::index_type) + unit - 1) / unit;
     } else if (type == "tvm_ffi_any") {
-      size = (num->value * sizeof(TVMFFIAny) + unit - 1) / unit;
+      size = (count * sizeof(TVMFFIAny) + unit - 1) / unit;
     } else if (type == "array") {
-      size = (num->value * sizeof(DLTensor) + unit - 1) / unit;
+      size = (count * sizeof(DLTensor) + unit - 1) / unit;
     } else {
       TVM_FFI_THROW(InternalError) << "Unknown stack alloca type " << type;
     }
@@ -320,7 +321,7 @@ void CodeGenCHost::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
   }
 }
 
-void CodeGenCHost::VisitStmt_(const AssertStmtNode* op) {  // NOLINT(*)
+void CodeGenCHost::Dispatch_(const AssertStmtNode* op) {  // NOLINT(*)
   if (emit_asserts_) {
     std::string cond = PrintExpr(op->condition);
     PrintIndent();
