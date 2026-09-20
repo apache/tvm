@@ -23,7 +23,6 @@
 
 #include "codegen_cuda.h"
 
-#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
@@ -327,21 +326,14 @@ std::string CodeGenCUDA::Finish() {
   ffi::Array<ffi::String> tags;
   for (const auto& tag : codegen_tags_) tags.push_back(ffi::String(tag));
   std::string header = header_generator.value()(tags).cast<ffi::String>().operator std::string();
-  source_metadata_.Set("header_tags", tags);
-  source_metadata_.Set("header", ffi::String(header));
-  ffi::json::Array utilities;
-  std::string code = header;
-  for (const auto& [name, utility_code] : util_funcs_) {
-    ffi::json::Object utility;
-    utility.Set("name", ffi::String(name));
-    utility.Set("code", ffi::String(utility_code));
-    utilities.push_back(utility);
-    code += utility_code;
+  decl_stream << header;
+
+  // Generate util functions
+  for (const auto& [name, code] : util_funcs_) {
+    decl_stream << code;
   }
-  source_metadata_.Set("utilities", utilities);
-  std::string body = CodeGenC::Finish();
-  source_metadata_.Set("body", ffi::String(body));
-  return code + body;
+
+  return CodeGenC::Finish();
 }
 
 void CodeGenCUDA::Dispatch_(const tirx::ForNode* op) {
@@ -2212,18 +2204,9 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   }
 
   std::string code = cg.Finish();
-  ffi::Map<ffi::String, ffi::String> source_map;
-  auto metadata = cg.GetSourceMetadata();
-  ffi::Array<ffi::String> symbols;
-  for (auto [gvar, prim_func] : functions) symbols.push_back(cg.GetFunctionName(gvar));
-  metadata.Set("symbols", symbols);
-  source_map.Set("cuda.bundle", ffi::json::Stringify(metadata));
 
   if (auto f = ffi::Function::GetGlobal("tvm_callback_cuda_postproc")) {
-    std::string processed = (*f)(code, target).cast<std::string>();
-    // A source rewrite invalidates the original codegen components.
-    if (processed != code) source_map.clear();
-    code = std::move(processed);
+    code = (*f)(code, target).cast<std::string>();
   }
 
   // Hand off raw CUDA source to the fallback-aware factory.  When the real
@@ -2231,6 +2214,7 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   // factory invokes JitCompileFromSource via tvm_callback_cuda_compile and
   // builds a real CUDAModuleNode.  Otherwise it stores the source in a
   // CUDAFallbackModuleNode for later cross-compile.
+  ffi::Map<ffi::String, ffi::String> source_map;
   return ::tvm::target::CUDAModuleCreateWithFallback(
       ffi::Bytes(code.data(), code.size()), ffi::String("cuda"), ExtractFuncInfo(mod), source_map);
 }

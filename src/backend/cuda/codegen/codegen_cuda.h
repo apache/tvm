@@ -41,7 +41,6 @@ class CodeGenCUDA final : public CodeGenC {
   CodeGenCUDA(Target target);
   void Init(bool output_ssa);
   std::string Finish();
-  ffi::Map<ffi::String, ffi::Any> GetSourceMetadata() const { return source_metadata_; }
   bool need_include_path() {
     std::vector<std::string> tag_list{"fp16", "bf16", "int8",           "fp8",
                                       "fp6",  "fp4",  "math_constants", "mma"};
@@ -126,8 +125,6 @@ class CodeGenCUDA final : public CodeGenC {
   std::unordered_map<int, int> barrier_count_;
   // Functions to be added to the util functions during codegen
   std::unordered_map<std::string, std::string> util_funcs_;
-  // Source components retained for explicit host/device translation-unit assembly.
-  ffi::Map<ffi::String, ffi::Any> source_metadata_;
 
   // The name prefix of the cuda::barrier array in shared memory
   const std::string cuda_barrier_name_ = "cubar";

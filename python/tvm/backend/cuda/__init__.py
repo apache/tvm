@@ -23,7 +23,7 @@ from tvm_ffi.libinfo import load_lib_ctypes
 
 from tvm.base import _LOADED_LIBS
 
-from .host import bundle_cuda_host_device
+from .host import bundle_cuda_host
 
 _LAZY_SUBMODULES = {
     "codegen",
@@ -112,7 +112,7 @@ def __getattr__(name: str):
 
 
 __all__ = [
-    "bundle_cuda_host_device",
+    "bundle_cuda_host",
     "codegen",
     "cpp",
     "iket",

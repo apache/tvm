@@ -59,10 +59,9 @@ def setup_cuda_compile_mode(request):
 def test_cuda_host_bundle(tmp_path):
     from shutil import which
 
-    from tvm_ffi import libinfo
+    import tvm_ffi.cpp
 
-    from tvm.backend.cuda import bundle_cuda_host_device
-    from tvm.support import cc
+    from tvm.backend.cuda import bundle_cuda_host
 
     if which("nvcc") is None:
         pytest.skip("CUDA-host compilation requires NVCC")
@@ -73,26 +72,17 @@ def test_cuda_host_bundle(tmp_path):
             B[tx] = A[tx] + T.float32(1)
 
     target = tvm.target.Target("cuda", host="cuda_host")
-    built = tvm.tirx.build(add_one, target=target)
-    source = bundle_cuda_host_device(built)
+    built = tvm.compile(add_one, target=target).mod
+    source = bundle_cuda_host(built)
     assert source.index("__global__") < source.index("<<<")
-    cuda_file = tmp_path / "add_one.cu"
-    cuda_file.write_text(source)
-    library = tmp_path / "add_one.so"
-    cc.create_shared(
-        str(library),
-        [str(cuda_file)],
-        cc="nvcc",
-        options=[
-            "-std=c++17",
-            "-Xcompiler=-fPIC",
-            f"-arch={target.arch}",
-            f"-I{tvm.libinfo.find_include_path()}",
-            f"-I{libinfo.find_include_path()}",
-            f"-I{libinfo.find_dlpack_include_path()}",
-        ],
+    library = tvm_ffi.cpp.build_inline(
+        name="cuda_host_add_one",
+        cuda_sources=source,
+        extra_cuda_cflags=[f"-arch={target.arch}"],
+        build_directory=str(tmp_path),
+        backend="cuda",
     )
-    loaded = tvm.runtime.load_module(str(library))
+    loaded = tvm_ffi.load_module(library)
 
     def run_and_check():
         dev = tvm.cuda(0)
