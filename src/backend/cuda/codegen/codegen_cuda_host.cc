@@ -72,7 +72,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
     }
   }
 
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& func, bool) {
+  void AddFunction(const GlobalVar& gvar, const PrimFunc& func) override {
     // A guard destructor may report a CUDA error on any return path. Keep it
     // inside the FFI exception boundary along with device selection and setup.
     InitFuncState(func);
@@ -369,7 +369,7 @@ ffi::Module BuildCUDAHost(IRModule mod, Target target) {
     return lhs.first->name_hint < rhs.first->name_hint;
   });
   for (const auto& [gvar, func] : functions) cg.DeclareFunction(gvar, func);
-  for (const auto& [gvar, func] : functions) cg.AddFunction(gvar, func, true);
+  for (const auto& [gvar, func] : functions) cg.AddFunction(gvar, func);
   return CSourceModuleCreate(cg.Finish(), "cu", cg.GetFunctionNames());
 }
 
