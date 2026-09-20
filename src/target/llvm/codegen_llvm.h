@@ -223,6 +223,12 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   llvm::Value* Dispatch_(const prim::AndNode* op) override;
   llvm::Value* Dispatch_(const prim::OrNode* op) override;
   llvm::Value* Dispatch_(const prim::NotNode* op) override;
+  llvm::Value* Dispatch_(const prim::LShiftNode* op) override;
+  llvm::Value* Dispatch_(const prim::RShiftNode* op) override;
+  llvm::Value* Dispatch_(const prim::BitwiseAndNode* op) override;
+  llvm::Value* Dispatch_(const prim::BitwiseOrNode* op) override;
+  llvm::Value* Dispatch_(const prim::BitwiseXorNode* op) override;
+  llvm::Value* Dispatch_(const prim::BitwiseNotNode* op) override;
   llvm::Value* Dispatch_(const prim::SelectNode* op) override;
   llvm::Value* Dispatch_(const prim::LetNode* op) override;
   llvm::Value* Dispatch_(const TensorLoadNode* op) override;

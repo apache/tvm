@@ -34,30 +34,6 @@ PRIM_DEFINE_BUILTIN_FUNC(likely)
     .set_attr<TCallEffectKind>("TCallEffectKind",
                                static_cast<int64_t>(CallEffectKind::kExprAnnotation))
     .set_attr<bool>("TVectorizable", true);
-PRIM_DEFINE_BUILTIN_FUNC(bitwise_and)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<bool>("TVectorizable", true);
-PRIM_DEFINE_BUILTIN_FUNC(bitwise_or)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<bool>("TVectorizable", true);
-PRIM_DEFINE_BUILTIN_FUNC(bitwise_xor)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<bool>("TVectorizable", true);
-PRIM_DEFINE_BUILTIN_FUNC(bitwise_not)
-    .set_num_inputs(1)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<bool>("TVectorizable", true);
-PRIM_DEFINE_BUILTIN_FUNC(shift_left)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<bool>("TVectorizable", true);
-PRIM_DEFINE_BUILTIN_FUNC(shift_right)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<bool>("TVectorizable", true);
 PRIM_DEFINE_BUILTIN_FUNC(if_then_else)
     .set_num_inputs(3)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));

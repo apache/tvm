@@ -2411,6 +2411,30 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::SelectNode* o
   return ret;
 }
 
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::LShiftNode* op,
+                                                       InplaceMode inplace_mode) {
+  PrimExpr ret =
+      SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
+  op = ret.as<prim::LShiftNode>();
+  if (op && op->a.as<IntImmNode>() && op->b.as<IntImmNode>()) {
+    // The operator overload eagerly folds constant operands.
+    return op->a << op->b;
+  }
+  return ret;
+}
+
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::RShiftNode* op,
+                                                       InplaceMode inplace_mode) {
+  PrimExpr ret =
+      SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
+  op = ret.as<prim::RShiftNode>();
+  if (op && op->a.as<IntImmNode>() && op->b.as<IntImmNode>()) {
+    // The operator overload eagerly folds constant operands.
+    return op->a >> op->b;
+  }
+  return ret;
+}
+
 UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   // add condition context to if_then_else
   Expr expr = SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op));
@@ -2425,16 +2449,6 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
   if (op->op.same_as(prim::builtin::likely()) &&
       prim::is_const_int(op->args[0].as_or_throw<PrimExpr>())) {
     return op->args[0].as_or_throw<PrimExpr>();
-  } else if (op->op.same_as(prim::builtin::shift_right())) {
-    if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
-      // the operator overload will eagerly constant fold.
-      return op->args[0].as_or_throw<PrimExpr>() >> op->args[1].as_or_throw<PrimExpr>();
-    }
-  } else if (op->op.same_as(prim::builtin::shift_left())) {
-    if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
-      // the operator overload will eagerly constant fold.
-      return op->args[0].as_or_throw<PrimExpr>() << op->args[1].as_or_throw<PrimExpr>();
-    }
   }
   static const Op& ceil_op = prim::builtin::ceil();
   static const Op& log2_op = prim::builtin::log2();

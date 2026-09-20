@@ -1227,22 +1227,16 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return false;
   }
 
-  static bool IsBitwiseAndCall(const CallNode* call) {
-    return call->op.same_as(prim::builtin::bitwise_and()) && call->args.size() == 2;
-  }
-
   void FlattenConjuncts(const PrimExpr& pred, std::vector<PrimExpr>* out) const {
     if (const auto* and_node = pred.as<prim::AndNode>()) {
       FlattenConjuncts(and_node->a, out);
       FlattenConjuncts(and_node->b, out);
       return;
     }
-    if (const auto* call = pred.as<CallNode>()) {
-      if (IsBitwiseAndCall(call)) {
-        FlattenConjuncts(call->args[0].as_or_throw<PrimExpr>(), out);
-        FlattenConjuncts(call->args[1].as_or_throw<PrimExpr>(), out);
-        return;
-      }
+    if (const auto* and_node = pred.as<prim::BitwiseAndNode>()) {
+      FlattenConjuncts(and_node->a, out);
+      FlattenConjuncts(and_node->b, out);
+      return;
     }
     out->push_back(pred);
   }
@@ -1455,16 +1449,12 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
   int PushPredicateCtx(const PrimExpr& pred) {
     if (ctx_stack_.empty()) return 0;
-    if (const auto* and_node = pred.as<prim::AndNode>()) {
-      (void)and_node;
+    if (pred.as<prim::AndNode>() || pred.as<prim::BitwiseAndNode>()) {
       return PushConjunctivePredicateCtx(pred);
     }
     if (const auto* call = pred.as<CallNode>()) {
       if (call->op.same_as(tirx::builtin::filter())) {
         return PushFilterPredicateCtx(call);
-      }
-      if (IsBitwiseAndCall(call)) {
-        return PushConjunctivePredicateCtx(pred);
       }
     }
     if (TryPushComparisonPredicate(pred)) return 1;
@@ -1485,6 +1475,41 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         return pred;
       }
       return PrimExpr(a && b);
+    }
+    if (const auto* op = pred.as<prim::LShiftNode>()) {
+      PrimExpr a = RewriteFilterCalls(op->a);
+      PrimExpr b = RewriteFilterCalls(op->b);
+      if (a.same_as(op->a) && b.same_as(op->b)) return pred;
+      return tvm::left_shift(a, b, op->span);
+    }
+    if (const auto* op = pred.as<prim::RShiftNode>()) {
+      PrimExpr a = RewriteFilterCalls(op->a);
+      PrimExpr b = RewriteFilterCalls(op->b);
+      if (a.same_as(op->a) && b.same_as(op->b)) return pred;
+      return tvm::right_shift(a, b, op->span);
+    }
+    if (const auto* op = pred.as<prim::BitwiseAndNode>()) {
+      PrimExpr a = RewriteFilterCalls(op->a);
+      PrimExpr b = RewriteFilterCalls(op->b);
+      if (a.same_as(op->a) && b.same_as(op->b)) return pred;
+      return tvm::bitwise_and(a, b, op->span);
+    }
+    if (const auto* op = pred.as<prim::BitwiseOrNode>()) {
+      PrimExpr a = RewriteFilterCalls(op->a);
+      PrimExpr b = RewriteFilterCalls(op->b);
+      if (a.same_as(op->a) && b.same_as(op->b)) return pred;
+      return tvm::bitwise_or(a, b, op->span);
+    }
+    if (const auto* op = pred.as<prim::BitwiseXorNode>()) {
+      PrimExpr a = RewriteFilterCalls(op->a);
+      PrimExpr b = RewriteFilterCalls(op->b);
+      if (a.same_as(op->a) && b.same_as(op->b)) return pred;
+      return tvm::bitwise_xor(a, b, op->span);
+    }
+    if (const auto* op = pred.as<prim::BitwiseNotNode>()) {
+      PrimExpr a = RewriteFilterCalls(op->a);
+      if (a.same_as(op->a)) return pred;
+      return prim::BitwiseNot(a, op->span);
     }
     if (const auto* call = pred.as<CallNode>()) {
       if (call->op.same_as(tirx::builtin::filter())) {

@@ -330,9 +330,10 @@ class PConst : public Pattern<PConst<T>> {
  * \tparam OpType The AST noderef type.
  * \tparam TA The pattern type of the first operand.
  * \tparam TB The pattern type of the second operand.
+ * \tparam kFoldConstants Whether evaluation folds constant operands.
  */
-template <typename OpType, typename TA, typename TB>
-class PBinaryExpr : public Pattern<PBinaryExpr<OpType, TA, TB>> {
+template <typename OpType, typename TA, typename TB, bool kFoldConstants = true>
+class PBinaryExpr : public Pattern<PBinaryExpr<OpType, TA, TB, kFoldConstants>> {
  public:
   PBinaryExpr(const TA& a, const TB& b) : a_(a), b_(b) {}
 
@@ -355,7 +356,9 @@ class PBinaryExpr : public Pattern<PBinaryExpr<OpType, TA, TB>> {
   PrimExpr Eval() const {
     PrimExpr lhs = a_.Eval();
     PrimExpr rhs = b_.Eval();
-    if (auto ret = TryConstFold<OpType>(lhs, rhs)) return ret.value();
+    if constexpr (kFoldConstants) {
+      if (auto ret = TryConstFold<OpType>(lhs, rhs)) return ret.value();
+    }
     return OpType(lhs, rhs);
   }
 
@@ -423,6 +426,22 @@ TVM_PATTERN_BINARY_OP(truncmod, prim::Mod);
 TVM_PATTERN_BINARY_OP(floordiv, prim::FloorDiv);
 TVM_PATTERN_BINARY_OP(floormod, prim::FloorMod);
 
+// Bitwise patterns preserve nonfolding construction during evaluation.
+#define TVM_PATTERN_BITWISE_OP(FuncName, NodeName)                             \
+  template <typename TA, typename TB>                                          \
+  inline PBinaryExpr<NodeName, TA, TB, false> FuncName(const Pattern<TA>& a,   \
+                                                       const Pattern<TB>& b) { \
+    return PBinaryExpr<NodeName, TA, TB, false>(a.derived(), b.derived());     \
+  }
+
+TVM_PATTERN_BITWISE_OP(operator<<, prim::LShift);
+TVM_PATTERN_BITWISE_OP(operator>>, prim::RShift);
+TVM_PATTERN_BITWISE_OP(operator&, prim::BitwiseAnd);
+TVM_PATTERN_BITWISE_OP(operator|, prim::BitwiseOr);
+TVM_PATTERN_BITWISE_OP(operator^, prim::BitwiseXor);
+
+#undef TVM_PATTERN_BITWISE_OP
+
 // logical expressions
 TVM_PATTERN_BINARY_OP(operator>, prim::GT);
 TVM_PATTERN_BINARY_OP(operator>=, prim::GE);
@@ -462,6 +481,37 @@ class PNotExpr : public Pattern<PNotExpr<TA>> {
 template <typename TA>
 inline PNotExpr<TA> operator!(const Pattern<TA>& value) {
   return PNotExpr<TA>(value.derived());
+}
+
+/*!
+ * \brief Pattern bitwise not expression.
+ * \tparam TA The pattern type of the true operand.
+ */
+template <typename TA>
+class PBitwiseNotExpr : public Pattern<PBitwiseNotExpr<TA>> {
+ public:
+  explicit PBitwiseNotExpr(const TA& value) : value_(value) {}
+
+  void InitMatch_() const { value_.InitMatch_(); }
+
+  bool Match_(const ffi::ObjectRef& node) const {
+    if (const prim::BitwiseNotNode* ptr = node.as<prim::BitwiseNotNode>()) {
+      if (!value_.Match_(ptr->a)) return false;
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  PrimExpr Eval() const { return prim::BitwiseNot(value_.Eval()); }
+
+ private:
+  typename TA::Nested value_;
+};
+
+template <typename TA>
+inline PBitwiseNotExpr<TA> operator~(const Pattern<TA>& value) {
+  return PBitwiseNotExpr<TA>(value.derived());
 }
 
 // select
@@ -777,40 +827,6 @@ class PCallExpr : public Pattern<PCallExpr<Op, TArgs...>> {
  private:
   std::tuple<typename TArgs::Nested...> args_;
 };
-
-// arithemetic intrinsics
-#define TVM_PATTERN_BINARY_INTRIN(FuncName, OpName, IntrinOpName)                         \
-  struct OpName {                                                                         \
-    static PrimExpr Eval(ffi::Array<PrimExpr> args) {                                     \
-      return Call(args[0].ty(), GetOp(), args).as_or_throw<PrimExpr>();                   \
-    }                                                                                     \
-    static const Op& GetOp() { return prim::builtin::IntrinOpName(); }                    \
-  };                                                                                      \
-  template <typename TA, typename TB>                                                     \
-  inline PCallExpr<OpName, TA, TB> FuncName(const Pattern<TA>& a, const Pattern<TB>& b) { \
-    return PCallExpr<OpName, TA, TB>(a.derived(), b.derived());                           \
-  }
-
-TVM_PATTERN_BINARY_INTRIN(operator<<, PLeftShiftOp, shift_left);
-TVM_PATTERN_BINARY_INTRIN(operator>>, PRightShiftOp, shift_right);
-TVM_PATTERN_BINARY_INTRIN(operator&, PBitwiseAndOp, bitwise_and);
-TVM_PATTERN_BINARY_INTRIN(operator|, PBitwiseOrOp, bitwise_or);
-TVM_PATTERN_BINARY_INTRIN(operator^, PBitwiseXorOp, bitwise_xor);
-
-// unary intrinsics
-#define TVM_PATTERN_UNARY_INTRIN(FuncName, OpName, IntrinOpName)        \
-  struct OpName {                                                       \
-    static PrimExpr Eval(ffi::Array<PrimExpr> args) {                   \
-      return Call(args[0].ty(), GetOp(), args).as_or_throw<PrimExpr>(); \
-    }                                                                   \
-    static const Op& GetOp() { return prim::builtin::IntrinOpName(); }  \
-  };                                                                    \
-  template <typename TA>                                                \
-  inline PCallExpr<OpName, TA> FuncName(const Pattern<TA>& a) {         \
-    return PCallExpr<OpName, TA>(a.derived());                          \
-  }
-
-TVM_PATTERN_UNARY_INTRIN(operator~, PBitwiseNotOp, bitwise_not);
 
 // if_then_else
 struct PIfThenElseOp {
