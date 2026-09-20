@@ -159,18 +159,26 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const IfThenElseNode* op,
       }
     }
 
+    // A branch only establishes a memory-dependent predicate at entry.  Loads
+    // may change after stores, opaque calls, or another iteration of a nested
+    // loop, so they cannot be facts for the entire branch scope.
+    bool condition_is_pure = SideEffect(real_condition) <= CallEffectKind::kPure;
     Stmt then_case;
     ffi::Optional<Stmt> else_case;
     constraint_scope_.WithNewScope([&]() {
-      EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, real_condition);
-      WithRecordIterPredicate(real_condition, [&] {
+      if (condition_is_pure) {
+        EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, real_condition);
+      }
+      WithRecordIterPredicate(condition_is_pure ? real_condition : IntImm::Bool(true), [&] {
         then_case = this->Mutate(op->then_case, inplace_mode).ValueOrUnchanged(op->then_case);
       });
     });
     if (op->else_case) {
       PrimExpr neg_condition = analyzer_->rewrite_simplify(prim::Not(real_condition));
       constraint_scope_.WithNewScope([&]() {
-        constraint_scope_.Current().Emplace(analyzer_, neg_condition);
+        if (condition_is_pure) {
+          constraint_scope_.Current().Emplace(analyzer_, neg_condition);
+        }
         else_case = this->Mutate(op->else_case.value(), inplace_mode)
                         .ValueOrUnchanged(op->else_case.value());
       });
@@ -220,7 +228,10 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const AssertStmtNode* op,
   auto condition_result = this->Mutate(op->condition, inplace_mode);
   bool condition_unchanged = condition_result.UnchangedOrSameAs(op->condition);
   PrimExpr condition = std::move(condition_result).ValueOrUnchanged(op->condition);
-  constraint_scope_.Current().Emplace(analyzer_, condition);
+  // Like branch predicates, assertions about mutable memory are snapshots.
+  if (SideEffect(condition) <= CallEffectKind::kPure) {
+    constraint_scope_.Current().Emplace(analyzer_, condition);
+  }
 
   if (condition_unchanged) {
     return ffi::Unchanged();
