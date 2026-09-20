@@ -255,6 +255,33 @@ def call_packed(*args, span=None):
     return Call(Op.get("tirx.tvm_call_packed"), call_args, span=span, ret_ty="int32")
 
 
+@tvm_ffi.register_object("tirx.CallFFIKernelAttr")
+class CallFFIKernelAttr(tvm.ir.Attrs):
+    """Ordered launch tags for an explicit FFI kernel call."""
+
+    launch_params: list[str]
+
+    def __init__(self, launch_params):
+        self.__init_handle_by_constructor__(_ffi_api.CallFFIKernelAttr, launch_params)
+
+
+def call_ffi_kernel(*args, launch_params, ret_ty="int32", span=None):
+    """Call a kernel with its symbol, kernel operands, then launch values.
+
+    ``launch_params`` contains ordered tags for the launch-value suffix.
+    Flag-only tags consume no argument, and dynamic shared-memory bytes are
+    last when present. Host codegen may launch directly; other hosts use the
+    existing packed-function calling convention.
+    """
+    return Call(
+        "tirx.call_ffi_kernel",
+        args,
+        attrs=CallFFIKernelAttr(launch_params),
+        ret_ty=ret_ty,
+        span=span,
+    )
+
+
 def call_cpacked(*args, span=None):
     """Build expression by call an external packed function.
 

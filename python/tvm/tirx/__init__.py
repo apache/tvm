@@ -61,6 +61,7 @@ from .function import PrimFunc, IndexMap
 
 from .op import call_packed_lowered, call_cpacked_lowered, register_intrin_lowering
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
+from .op import CallFFIKernelAttr, call_ffi_kernel
 from .op import call_llvm_intrin, call_llvm_pure_intrin, all, any, min_value, max_value, trace
 from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
 from .op import tvm_tuple, handle_add_byte_offset, tvm_struct_get, tvm_struct_set

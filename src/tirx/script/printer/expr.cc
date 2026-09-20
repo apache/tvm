@@ -18,6 +18,7 @@
  */
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/te/operation.h>
+#include <tvm/tirx/attrs.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/type.h>
 
@@ -376,6 +377,15 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     call_args.reserve(n_args);
     for (int i = 0; i < n_args; ++i) {
       call_args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
+    }
+    if (call->op.same_as(tirx::builtin::call_ffi_kernel())) {
+      const auto* attrs = call->attrs.as<tirx::CallFFIKernelAttr>();
+      TVM_FFI_ICHECK(attrs);
+      return TIR(d, "call_ffi_kernel")
+          ->Call(call_args, {"launch_params", "ret_ty"},
+                 {d->AsDoc<ExprDoc>(attrs->launch_params,
+                                    call_p->Attr("attrs")->Attr("launch_params")),
+                  get_call_return_type_doc()});
     }
     ExprDoc op_doc = call->op.as<Op>()
                          ? LiteralDoc::Str(call->op.as<Op>().value()->name, call_p->Attr("op"))
