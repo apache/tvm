@@ -359,6 +359,15 @@ TVM_DLL const Op& tvm_call_packed();
 TVM_DLL const Op& call_ffi_kernel();
 
 /*!
+ * \brief Encode a tiled tensor map at invocation time.
+ *
+ * TensorMapEncodeTiledAttr stores the descriptor dtype, rank and fixed options.
+ * Arguments are descriptor and data pointers, global dimensions (rank), byte
+ * strides (rank - 1), box dimensions (rank), then element strides (rank).
+ */
+TVM_DLL const Op& tensormap_encode_tiled();
+
+/*!
  * \brief See pesudo code
  *
  * return_type tvm_call_packed(fname, TVMFFIAny* args) {

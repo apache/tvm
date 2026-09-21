@@ -2048,21 +2048,20 @@ def _get_or_encode_descriptor(spec: TensorMapSpec, sctx: DispatchContext):
     @T.prim_func(check_well_formed=False)
     def create_tensor_map():
         T.Bind(T.tvm_stack_alloca("tensormap", 1), var=tensor_map)
-        T.call_packed(
-            "runtime.cuTensorMapEncodeTiled",
+        T.tensormap_encode_tiled(
             tensor_map,
-            spec.descriptor_dtype,
-            spec.rank,
             spec.base,
             *spec.global_dims,
             *spec.global_strides,
             *spec.box_dims,
             *spec.element_strides,
-            spec.interleave,
-            spec.swizzle,
-            spec.l2_promotion,
-            spec.oob_fill,
-            *([spec.force_cu_dtype] if spec.force_cu_dtype >= 0 else []),
+            descriptor_dtype=spec.descriptor_dtype,
+            rank=spec.rank,
+            interleave=spec.interleave,
+            swizzle=spec.swizzle,
+            l2_promotion=spec.l2_promotion,
+            oob_fill=spec.oob_fill,
+            force_cu_dtype=spec.force_cu_dtype,
         )
         T.tvm_kernel_replace_point()
     # fmt: on

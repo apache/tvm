@@ -34,6 +34,21 @@ namespace tirx {
 namespace builtin {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  TensorMapEncodeTiledAttr::RegisterReflection();
+  ffi::reflection::GlobalDef().def(
+      "tirx.TensorMapEncodeTiledAttr",
+      [](DLDataType descriptor_dtype, int64_t rank, int64_t interleave, int64_t swizzle,
+         int64_t l2_promotion, int64_t oob_fill, int64_t force_cu_dtype) {
+        auto attrs = ffi::make_object<TensorMapEncodeTiledAttr>();
+        attrs->descriptor_dtype = descriptor_dtype;
+        attrs->rank = rank;
+        attrs->interleave = interleave;
+        attrs->swizzle = swizzle;
+        attrs->l2_promotion = l2_promotion;
+        attrs->oob_fill = oob_fill;
+        attrs->force_cu_dtype = force_cu_dtype;
+        return Attrs(attrs);
+      });
   CallFFIKernelAttr::RegisterReflection();
   ffi::reflection::GlobalDef().def("tirx.CallFFIKernelAttr",
                                    [](ffi::Array<ffi::String> launch_params) {
@@ -217,6 +232,9 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_stack_make_array)
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_packed)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
     .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("call_packed"), /*plevel=*/20);
+
+TIR_DEFINE_BUILTIN_FUNC(tensormap_encode_tiled)
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIR_DEFINE_BUILTIN_FUNC(call_ffi_kernel)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));

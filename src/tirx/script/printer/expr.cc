@@ -378,6 +378,23 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     for (int i = 0; i < n_args; ++i) {
       call_args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
     }
+    if (call->op.same_as(tirx::builtin::tensormap_encode_tiled())) {
+      const auto* attrs = call->attrs.as<tirx::TensorMapEncodeTiledAttr>();
+      TVM_FFI_ICHECK(attrs);
+      auto attr_p = call_p->Attr("attrs");
+      return TIR(d, "tensormap_encode_tiled")
+          ->Call(call_args,
+                 {"descriptor_dtype", "rank", "interleave", "swizzle", "l2_promotion", "oob_fill",
+                  "force_cu_dtype"},
+                 {LiteralDoc::Str(ffi::DLDataTypeToString(attrs->descriptor_dtype),
+                                  attr_p->Attr("descriptor_dtype")),
+                  LiteralDoc::Int(attrs->rank, attr_p->Attr("rank")),
+                  LiteralDoc::Int(attrs->interleave, attr_p->Attr("interleave")),
+                  LiteralDoc::Int(attrs->swizzle, attr_p->Attr("swizzle")),
+                  LiteralDoc::Int(attrs->l2_promotion, attr_p->Attr("l2_promotion")),
+                  LiteralDoc::Int(attrs->oob_fill, attr_p->Attr("oob_fill")),
+                  LiteralDoc::Int(attrs->force_cu_dtype, attr_p->Attr("force_cu_dtype"))});
+    }
     if (call->op.same_as(tirx::builtin::call_ffi_kernel())) {
       const auto* attrs = call->attrs.as<tirx::CallFFIKernelAttr>();
       TVM_FFI_ICHECK(attrs);

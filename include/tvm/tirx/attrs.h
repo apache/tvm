@@ -43,6 +43,30 @@ struct CallFFIKernelAttr : public AttrsNode {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.CallFFIKernelAttr", CallFFIKernelAttr, AttrsNode);
 };
 
+/*! \brief Fixed encoding options for tensormap_encode_tiled. */
+struct TensorMapEncodeTiledAttr : public AttrsNode {
+  DLDataType descriptor_dtype;
+  int64_t rank;
+  int64_t interleave;
+  int64_t swizzle;
+  int64_t l2_promotion;
+  int64_t oob_fill;
+  int64_t force_cu_dtype;
+
+  static void RegisterReflection() {
+    ffi::reflection::ObjectDef<TensorMapEncodeTiledAttr>()
+        .def_ro("descriptor_dtype", &TensorMapEncodeTiledAttr::descriptor_dtype)
+        .def_ro("rank", &TensorMapEncodeTiledAttr::rank)
+        .def_ro("interleave", &TensorMapEncodeTiledAttr::interleave)
+        .def_ro("swizzle", &TensorMapEncodeTiledAttr::swizzle)
+        .def_ro("l2_promotion", &TensorMapEncodeTiledAttr::l2_promotion)
+        .def_ro("oob_fill", &TensorMapEncodeTiledAttr::oob_fill)
+        .def_ro("force_cu_dtype", &TensorMapEncodeTiledAttr::force_cu_dtype);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TensorMapEncodeTiledAttr", TensorMapEncodeTiledAttr,
+                                    AttrsNode);
+};
+
 }  // namespace tirx
 }  // namespace tvm
 

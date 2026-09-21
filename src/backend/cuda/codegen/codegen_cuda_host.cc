@@ -26,7 +26,9 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -114,24 +116,20 @@ class CodeGenCUDAHost : public CodeGenCHost {
     }
     if (op->op.same_as(tirx::builtin::tvm_call_packed_lowered())) {
       const auto& name = op->args[0].as_or_throw<StringImm>()->value;
-      if (name == "__tvm_set_device" || name == "runtime.cuTensorMapEncodeTiled" ||
-          name == "runtime.cuTensorMapInit") {
+      if (name == "runtime.cuTensorMapEncodeTiled" || name == "runtime.cuTensorMapInit") {
+        TVM_FFI_THROW(ValueError)
+            << "cuda_host requires tensormap_encode_tiled instead of a packed tensor-map encoder";
+      }
+      if (name == "__tvm_set_device") {
         std::string args =
             "((TVMFFIAny*)" + PrintExpr(op->args[1]) + " + " + PrintExpr(op->args[2]) + ")";
-        if (name == "__tvm_set_device") {
-          std::string guard = name_supply_->FreshName("cuda_device_guard");
-          PrintIndent();
-          stream << "if (" << args << "[0].v_int64 != kDLCUDA) {\n"
-                 << "  TVMFFIErrorSetRaisedFromCStr(\"ValueError\", "
-                 << "\"cuda_host requires a CUDA device\");\n  return -1;\n}\n";
-          PrintIndent();
-          stream << "tvm::ffi::CUDADeviceGuard " << guard << "(" << args << "[1].v_int64);\n";
-        } else {
-          EmitTensorMapEncoder();
-          PrintIndent();
-          stream << "if (::" << encode_tensormap_ << "(" << args << ", " << PrintExpr(op->args[3])
-                 << " - " << PrintExpr(op->args[2]) << ") != 0) return -1;\n";
-        }
+        std::string guard = name_supply_->FreshName("cuda_device_guard");
+        PrintIndent();
+        stream << "if (" << args << "[0].v_int64 != kDLCUDA) {\n"
+               << "  TVMFFIErrorSetRaisedFromCStr(\"ValueError\", "
+               << "\"cuda_host requires a CUDA device\");\n  return -1;\n}\n";
+        PrintIndent();
+        stream << "tvm::ffi::CUDADeviceGuard " << guard << "(" << args << "[1].v_int64);\n";
         os << "0";
         return;
       }
@@ -154,6 +152,11 @@ class CodeGenCUDAHost : public CodeGenCHost {
       const auto& symbol = op->args[0].as_or_throw<StringImm>()->value;
       TVM_FFI_CHECK(std::string(symbol).rfind("TVMBackend", 0) != 0, ValueError)
           << "cuda_host does not provide TVM runtime operation: " << symbol;
+    }
+    if (op->op.same_as(tirx::builtin::tensormap_encode_tiled())) {
+      PrintTensorMapEncode(op);
+      os << "0";
+      return;
     }
     if (!op->op.same_as(tirx::builtin::call_ffi_kernel())) {
       CodeGenCHost::Dispatch_(op, os);
@@ -279,82 +282,99 @@ class CodeGenCUDAHost : public CodeGenCHost {
     if (allow_unloading) stream << ", true";
     stream << ") != 0) return -1;\n";
   }
-  void EmitTensorMapEncoder() {
-    if (!encode_tensormap_.empty()) return;
-    encode_tensormap_ = name_supply_->FreshName("cuda_encode_tensormap");
-    decl_stream << "static int " << encode_tensormap_ << "(const TVMFFIAny* values, int count) {\n";
-    decl_stream << R"(
-  TVM_FFI_SAFE_CALL_BEGIN();
-  auto arg = [&](int i) { return tvm::ffi::AnyView::CopyFromTVMFFIAny(values[i]); };
-  TVM_FFI_CHECK(count >= 4, ValueError) << "Invalid tensor-map argument count";
-  int rank = arg(2).cast<int>();
-  TVM_FFI_CHECK(rank >= 1 && rank <= 5, ValueError) << "Tensor-map rank must be 1..5";
-  int base_count = 4 * rank + 7;
-  TVM_FFI_CHECK(count == base_count || count == base_count + 1, ValueError)
-      << "Invalid tensor-map argument count";
-  DLDataType dtype = arg(1).cast<DLDataType>();
-  TVM_FFI_CHECK(dtype.lanes == 1, ValueError) << "Tensor-map dtype must be scalar";
-  CUtensorMapDataType cuda_dtype;
-  if ((dtype.code == kDLUInt || dtype.code == kDLInt) && dtype.bits == 8) {
-    cuda_dtype = CU_TENSOR_MAP_DATA_TYPE_UINT8;
-  } else if (dtype.code == kDLUInt && dtype.bits == 16) {
-    cuda_dtype = CU_TENSOR_MAP_DATA_TYPE_UINT16;
-  } else if (dtype.code == kDLUInt && dtype.bits == 32) {
-    cuda_dtype = CU_TENSOR_MAP_DATA_TYPE_UINT32;
-  } else if (dtype.code == kDLUInt && dtype.bits == 64) {
-    cuda_dtype = CU_TENSOR_MAP_DATA_TYPE_UINT64;
-  } else if (dtype.code == kDLInt && dtype.bits == 32) {
-    cuda_dtype = CU_TENSOR_MAP_DATA_TYPE_INT32;
-  } else if (dtype.code == kDLInt && dtype.bits == 64) {
-    cuda_dtype = CU_TENSOR_MAP_DATA_TYPE_INT64;
-  } else if (dtype.code == kDLFloat && dtype.bits == 16) {
-    cuda_dtype = CU_TENSOR_MAP_DATA_TYPE_FLOAT16;
-  } else if (dtype.code == kDLFloat && dtype.bits == 32) {
-    cuda_dtype = CU_TENSOR_MAP_DATA_TYPE_FLOAT32;
-  } else if (dtype.code == kDLFloat && dtype.bits == 64) {
-    cuda_dtype = CU_TENSOR_MAP_DATA_TYPE_FLOAT64;
-  } else if (dtype.code == kDLBfloat && dtype.bits == 16) {
-    cuda_dtype = CU_TENSOR_MAP_DATA_TYPE_BFLOAT16;
-  } else if (dtype.code == kDLFloat8_e4m3fn || dtype.code == kDLFloat8_e5m2) {
-    cuda_dtype = CU_TENSOR_MAP_DATA_TYPE_UINT8;
-  } else {
-    TVM_FFI_THROW(ValueError) << "Unsupported cuda_host tensor-map dtype";
-  }
-  if (count > base_count && arg(base_count).cast<int>() != -1) {
-    int forced = arg(base_count).cast<int>();
-    TVM_FFI_CHECK(forced == CU_TENSOR_MAP_DATA_TYPE_TFLOAT32 &&
-                      dtype.code == kDLFloat && dtype.bits == 32,
+  void PrintTensorMapEncode(const CallNode* op) {
+    const auto* attr = op->attrs.as<tirx::TensorMapEncodeTiledAttr>();
+    TVM_FFI_CHECK(attr && attr->rank >= 1 && attr->rank <= 5 &&
+                      op->args.size() == static_cast<size_t>(4 * attr->rank + 1),
                   ValueError)
-        << "cuda_host only supports a TFLOAT32 tensor-map dtype override";
-    cuda_dtype = CU_TENSOR_MAP_DATA_TYPE_TFLOAT32;
-  }
-  cuuint64_t shape[5], strides[5];
-  cuuint32_t box[5], element_strides[5];
-  int index = 4;
-  for (int i = 0; i < rank; ++i) shape[i] = arg(index++).cast<uint64_t>();
-  for (int i = 0; i < rank - 1; ++i) strides[i] = arg(index++).cast<uint64_t>();
-  for (int i = 0; i < rank; ++i) box[i] = arg(index++).cast<uint32_t>();
-  for (int i = 0; i < rank; ++i) element_strides[i] = arg(index++).cast<uint32_t>();
-  auto interleave = static_cast<CUtensorMapInterleave>(arg(index++).cast<int>());
-  auto swizzle = static_cast<CUtensorMapSwizzle>(arg(index++).cast<int>());
-  auto promotion = static_cast<CUtensorMapL2promotion>(arg(index++).cast<int>());
-  auto fill = static_cast<CUtensorMapFloatOOBfill>(arg(index++).cast<int>());
-  CUresult error = cuTensorMapEncodeTiled(static_cast<CUtensorMap*>(arg(0).cast<void*>()),
-      cuda_dtype, rank, arg(3).cast<void*>(), shape, strides, box, element_strides,
-      interleave, swizzle, promotion, fill);
-  if (error != CUDA_SUCCESS) {
-    const char* message = "cuTensorMapEncodeTiled failed";
-    cuGetErrorString(error, &message);
-    TVMFFIErrorSetRaisedFromCStr("CUDAError", message);
-    return -1;
-  }
-  TVM_FFI_SAFE_CALL_END();
-}
-)";
+        << "Invalid tensormap_encode_tiled attributes or operands";
+    static const std::unordered_map<std::string, std::string> dtype_names{
+        {"int8", "UINT8"},        {"uint8", "UINT8"},
+        {"uint16", "UINT16"},     {"uint32", "UINT32"},
+        {"uint64", "UINT64"},     {"int32", "INT32"},
+        {"int64", "INT64"},       {"float16", "FLOAT16"},
+        {"float32", "FLOAT32"},   {"float64", "FLOAT64"},
+        {"bfloat16", "BFLOAT16"}, {"float8_e4m3fn", "UINT8"},
+        {"float8_e5m2", "UINT8"}, {"float4_e2m1fn", "16U4_ALIGN16B"}};
+    auto dtype = dtype_names.find(ffi::DLDataTypeToString(attr->descriptor_dtype));
+    TVM_FFI_CHECK(dtype != dtype_names.end(), ValueError)
+        << "Unsupported cuda_host tensor-map descriptor dtype: "
+        << ffi::DLDataTypeToString(attr->descriptor_dtype);
+    std::string cuda_dtype = "CU_TENSOR_MAP_DATA_TYPE_" + dtype->second;
+    if (attr->force_cu_dtype != -1) {
+      TVM_FFI_CHECK(attr->force_cu_dtype == 11 && attr->descriptor_dtype.code == kDLFloat &&
+                        attr->descriptor_dtype.bits == 32 && attr->descriptor_dtype.lanes == 1,
+                    ValueError)
+          << "cuda_host only supports a TFLOAT32 tensor-map dtype override";
+      cuda_dtype = "CU_TENSOR_MAP_DATA_TYPE_TFLOAT32";
+    }
+    for (int64_t value : {attr->interleave, attr->swizzle, attr->l2_promotion, attr->oob_fill}) {
+      TVM_FFI_CHECK(value >= 0 && value <= std::numeric_limits<int>::max(), ValueError)
+          << "cuda_host tensor-map options must fit a nonnegative CUDA enum";
+    }
+    // Preserve operand evaluation order and reject narrowing that could turn an
+    // invalid dynamic dimension or stride into a valid but different CUDA input.
+    std::vector<std::string> values;
+    for (size_t i = 0; i < op->args.size(); ++i) {
+      std::string value = PrintExpr(op->args[i]);
+      std::string name = name_supply_->FreshName("tensormap_arg");
+      PrintIndent();
+      stream << "auto " << name << " = " << value << ";\n";
+      values.push_back(name);
+    }
+    for (size_t i = 2; i < op->args.size(); ++i) {
+      const std::string& name = values[i];
+      auto type = op->args[i]->ty.as<PrimType>();
+      TVM_FFI_CHECK(type && type.value().IsScalar() && type.value().bits() <= 64 &&
+                        type.value().MatchesCode(kDLInt, kDLUInt),
+                    ValueError)
+          << "cuda_host tensor-map dimensions and strides must be scalar integers";
+      if (type.value().MatchesCode(kDLInt)) {
+        PrintIndent();
+        stream << "TVM_FFI_CHECK(" << name << " >= 0, ValueError) "
+               << "<< \"Negative tensor-map dimension or stride\";\n";
+      }
+      if (i >= static_cast<size_t>(2 * attr->rank + 1)) {
+        PrintIndent();
+        stream << "TVM_FFI_CHECK(static_cast<uint64_t>(" << name
+               << ") <= 4294967295ULL, ValueError) "
+               << "<< \"Tensor-map dimension or stride exceeds uint32\";\n";
+      }
+    }
+    size_t index = 2;
+    auto array = [&](const char* type, int64_t count) {
+      std::string name = name_supply_->FreshName("tensormap_values");
+      PrintIndent();
+      stream << type << " " << name << "[" << std::max<int64_t>(count, 1) << "] = {";
+      for (int64_t i = 0; i < count; ++i) {
+        if (i) stream << ", ";
+        stream << "static_cast<" << type << ">(" << values[index++] << ")";
+      }
+      stream << "};\n";
+      return name;
+    };
+    std::string shape = array("cuuint64_t", attr->rank);
+    std::string strides = array("cuuint64_t", attr->rank - 1);
+    std::string box = array("cuuint32_t", attr->rank);
+    std::string element_strides = array("cuuint32_t", attr->rank);
+    std::string error = name_supply_->FreshName("tensormap_error");
+    PrintIndent();
+    stream << "CUresult " << error << " = cuTensorMapEncodeTiled(static_cast<CUtensorMap*>("
+           << values[0] << "), " << cuda_dtype << ", " << attr->rank << ", " << values[1] << ", "
+           << shape << ", " << strides << ", " << box << ", " << element_strides
+           << ", static_cast<CUtensorMapInterleave>(" << attr->interleave
+           << "), static_cast<CUtensorMapSwizzle>(" << attr->swizzle
+           << "), static_cast<CUtensorMapL2promotion>(" << attr->l2_promotion
+           << "), static_cast<CUtensorMapFloatOOBfill>(" << attr->oob_fill << "));\n";
+    PrintIndent();
+    stream << "if (" << error << " != CUDA_SUCCESS) {\n"
+           << "  const char* message = \"cuTensorMapEncodeTiled failed\";\n"
+           << "  cuGetErrorString(" << error << ", &message);\n"
+           << "  TVMFFIErrorSetRaisedFromCStr(\"CUDAError\", message);\n"
+           << "  return -1;\n}\n";
   }
 
   std::string check_error_;
-  std::string encode_tensormap_;
   ffi::Array<ffi::String> function_names_;
 };
 
