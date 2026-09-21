@@ -140,7 +140,7 @@ def test_ramp():
             for i in T.thread_binding(1, thread="threadIdx.x"):
                 with T.sblock("block"):
                     tx = T.axis.spatial(1, i)
-                    r = T.ramp(tx, 3, 2)
+                    r: T.let = T.ramp(tx, 3, 2)
                     A[0, T.ramp(0, 1, 2)] = r
 
     f = tvm.compile(IRModule, target=target)
@@ -408,6 +408,83 @@ def test_bounded_symbolic_stack_allocation():
 
     source = _build_metal(Module).inspect_source()
     assert "thread float scratch[128]" in source
+
+
+@pytest.mark.parametrize("bounded", [True, False])
+def test_bound_symbolic_stack_allocation(bounded):
+    limit = 64 if bounded else 2147483647
+
+    @I.ir_module
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(n: T.int32):
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "main",
+                    "target": T.target("metal"),
+                    "tirx.kernel_launch_params": [],
+                    "tirx.is_global_func": True,
+                }
+            )
+            # Common subexpression elimination can hoist the bounded extent.
+            extent: T.let[T.int32] = T.min(n, limit)
+            elements: T.let[T.int32] = extent * 2
+            scratch = T.alloc_buffer((elements,), "float32", scope="local")
+            T.evaluate(scratch.data)
+
+    if bounded:
+        source = _build_metal(Module).inspect_source()
+        assert "thread float scratch[128]" in source
+    else:
+        with pytest.raises(
+            tvm.error.InternalError,
+            match="Metal allocation extent requires a finite compile-time upper bound",
+        ):
+            _build_metal(Module)
+
+
+@pytest.mark.parametrize("scope", ["local", "shared"])
+@pytest.mark.parametrize("bounded", [True, False])
+def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
+    @I.ir_module
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main():
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "main",
+                    "target": T.target("metal"),
+                    "tirx.kernel_launch_params": [],
+                    "tirx.is_global_func": True,
+                }
+            )
+            state = T.alloc_buffer((1,), "int32", scope="local")
+            state[0] = 0
+            snapshot: T.let[T.int32] = state[0]
+            state[0] = 32
+            difference: T.let[T.int32] = state[0] - snapshot
+            # The snapshot is immutable, but the buffer it read has changed.
+            # Substituting the load would incorrectly reduce this extent to 1.
+            scratch = T.alloc_buffer(
+                (T.min(T.max(difference, 1), 32 if bounded else 2147483647),),
+                "float32",
+                scope=scope,
+            )
+            scratch[31] = 1.0
+
+    if bounded:
+        source = _build_metal(Module).inspect_source()
+        storage = "threadgroup" if scope == "shared" else "thread"
+        assert f"{storage} float scratch[32]" in source
+        assert "scratch[31] =" in source
+    else:
+        with pytest.raises(
+            tvm.error.InternalError,
+            match="Metal allocation extent requires a finite compile-time upper bound",
+        ):
+            _build_metal(Module)
 
 
 def test_bounded_uint64_symbolic_stack_allocation():

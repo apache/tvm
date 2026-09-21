@@ -27,7 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/support/io.h>
-#include <tvm/sym/analyzer.h>
+#include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/transform.h>
 
@@ -171,6 +171,7 @@ std::string CodeGenWebGPU::Finish() {
 
 void CodeGenWebGPU::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
+  analyzer_ = sym::Analyzer();
   workgroup_memory_bytes_ = 0;
   // analyze the data;
   for (Var arg : f->params) {
@@ -652,6 +653,11 @@ void CodeGenWebGPU::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // 
 }
 
 void CodeGenWebGPU::Dispatch_(const BindNode* op) {
+  // Stateful reads cannot be substituted after the underlying state changes.
+  if (auto prim_value = op->value.as<PrimExpr>();
+      prim_value && SideEffect(prim_value.value()) <= CallEffectKind::kPure) {
+    analyzer_->Bind(op->var, prim_value.value());
+  }
   // use ssa form.
   if (print_ssa_form_) {
     std::string value = PrintExpr(op->value);
@@ -730,11 +736,10 @@ void CodeGenWebGPU::Dispatch_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
   std::string vid = AllocVarID(op->buffer.get());
   size_t constant_size = 1;
-  sym::Analyzer analyzer;
   for (const auto& dim : op->buffer->shape) {
     const auto* dim_imm = dim.as<IntImmNode>();
     int64_t dim_size =
-        dim_imm ? static_cast<int64_t>(dim_imm->value) : analyzer->const_int_bound(dim)->max_value;
+        dim_imm ? static_cast<int64_t>(dim_imm->value) : analyzer_->const_int_bound(dim)->max_value;
     if (dim_imm == nullptr) {
       const auto* dtype_max = max_value(dim.ty()).as<IntImmNode>();
       // An integer dtype's intrinsic maximum is not a program-derived allocation bound.
