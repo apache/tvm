@@ -17,6 +17,7 @@
  * under the License.
  */
 const { WebGPUContext } = require("../../src/webgpu");
+const { CacheState } = require("../../src/cache_state");
 
 global.GPUBufferUsage = {
   MAP_READ: 1 << 0,
@@ -145,14 +146,14 @@ function createMockDevice({
   return { device, queue, events, trace, encoders };
 }
 
-function createContext(deviceOptions) {
+function createContext(deviceOptions, cacheState) {
   const gpu = createMockDevice(deviceOptions);
   const memory = {
     loadRawBytes: jest.fn(),
     viewRawBytes: jest.fn(),
     storeRawBytes: jest.fn(),
   };
-  const context = new WebGPUContext(memory, gpu.device);
+  const context = new WebGPUContext(memory, gpu.device, cacheState);
   const allocate = context.getDeviceAPI("deviceAllocDataSpace");
 
   return {
@@ -576,4 +577,172 @@ test("a launch that throws leaves the shared pass usable and closable", async ()
 
   expect(trace).toEqual(["beginPass", "dispatch", "endPass", "finish"]);
   expect(queue.submit).toHaveBeenCalledTimes(1);
+});
+
+// A kernel with two buffer arguments, one int32 POD argument and a blockIdx.x
+// launch dimension: shader(bufferA, bufferB, podValue, gridX).
+function createBufferShader(context, name = "kernel", extraPodArgs = 0) {
+  const podTypes = new Array(1 + extraPodArgs).fill("int32");
+  return context.createShader(
+    {
+      name,
+      arg_types: ["handle", "handle", ...podTypes],
+      launch_param_tags: ["blockIdx.x", "paramWriteAccess:[0,1]"],
+    },
+    "@compute @workgroup_size(1) fn " + name + "() {}"
+  );
+}
+
+function boundBuffers(device, callIndex) {
+  const descriptor = device.createBindGroup.mock.calls[callIndex][0];
+  return descriptor.entries.map((entry) => entry.resource.buffer);
+}
+
+test("a launch reuses the bind group of its shader, buffers and batch position", async () => {
+  const { context, device, encoders, source, destination } = createContext();
+  const shader = createBufferShader(context);
+
+  shader(source, destination, 7, 1);
+  await context.sync();
+  shader(source, destination, 8, 1);
+  await context.sync();
+
+  expect(device.createBindGroup).toHaveBeenCalledTimes(1);
+  const bindGroup = device.createBindGroup.mock.results[0].value;
+  expect(encoders[0].passes[0].setBindGroup).toHaveBeenCalledWith(0, bindGroup);
+  expect(encoders[1].passes[0].setBindGroup).toHaveBeenCalledWith(0, bindGroup);
+
+  // The second position of a batch owns another uniform buffer, since both
+  // launches are pending at once and may carry different POD arguments.
+  shader(source, destination, 9, 1);
+  shader(source, destination, 10, 1);
+  await context.sync();
+  expect(device.createBindGroup).toHaveBeenCalledTimes(2);
+  expect(boundBuffers(device, 1)[2]).not.toBe(boundBuffers(device, 0)[2]);
+  shader(source, destination, 9, 1);
+  shader(source, destination, 10, 1);
+  expect(device.createBindGroup).toHaveBeenCalledTimes(2);
+});
+
+test("different buffer arguments or shaders get different bind groups", () => {
+  const { context, device, source, destination } = createContext();
+  const first = createBufferShader(context, "first");
+  const second = createBufferShader(context, "second");
+  const buffers = device.createBuffer.mock.results.map((r) => r.value);
+
+  first(source, destination, 7, 1);
+  context.flushCommands();
+  first(destination, source, 7, 1);
+  context.flushCommands();
+  second(source, destination, 7, 1);
+
+  expect(device.createBindGroup).toHaveBeenCalledTimes(3);
+  expect(boundBuffers(device, 0).slice(0, 2)).toEqual([buffers[0], buffers[1]]);
+  expect(boundBuffers(device, 1).slice(0, 2)).toEqual([buffers[1], buffers[0]]);
+  expect(boundBuffers(device, 2).slice(0, 2)).toEqual([buffers[0], buffers[1]]);
+});
+
+test("a pointer slot reused by a new buffer never hits a stale bind group", () => {
+  const { context, device, source, destination } = createContext();
+  const allocate = context.getDeviceAPI("deviceAllocDataSpace");
+  const free = context.getDeviceAPI("deviceFreeDataSpace");
+  const shader = createBufferShader(context);
+
+  shader(source, destination, 7, 1);
+  free(source);
+  const reused = allocate(64);
+  expect(reused).toBe(source);
+  const newBuffer = device.createBuffer.mock.results.at(-1).value;
+
+  shader(reused, destination, 7, 1);
+
+  expect(device.createBindGroup).toHaveBeenCalledTimes(2);
+  expect(boundBuffers(device, 1)[0]).toBe(newBuffer);
+});
+
+test("a replaced uniform pool buffer never hits a stale bind group", () => {
+  const { context, device, source, destination } = createContext();
+  const small = createBufferShader(context, "small");
+  const large = createBufferShader(context, "large", 4);
+
+  small(source, destination, 7, 1);
+  context.flushCommands();
+  const smallUniform = boundBuffers(device, 0)[2];
+
+  // Pool slot 0 is too small for this kernel, so its buffer is replaced.
+  large(source, destination, 1, 2, 3, 4, 5, 1);
+  context.flushCommands();
+  expect(smallUniform.destroy).toHaveBeenCalledTimes(1);
+
+  small(source, destination, 7, 1);
+
+  expect(device.createBindGroup).toHaveBeenCalledTimes(3);
+  expect(boundBuffers(device, 2)[2]).toBe(boundBuffers(device, 1)[2]);
+  expect(boundBuffers(device, 2)[2]).not.toBe(smallUniform);
+});
+
+test("every buffer argument contributes a defined id to the cache key", () => {
+  const { context, source, destination } = createContext();
+  const allocate = context.getDeviceAPI("deviceAllocDataSpace");
+  const computeKey = CacheState.computeBindGroupKey;
+  const seen = [];
+  // The runtime reuses one array for the buffer ids, so copy it per call.
+  const keys = jest.spyOn(CacheState, "computeBindGroupKey").mockImplementation(
+    (shaderUid, bufferUids, uniformUid) => {
+      seen.push([shaderUid, ...bufferUids, uniformUid]);
+      return computeKey(shaderUid, bufferUids, uniformUid);
+    }
+  );
+  const shader = createBufferShader(context);
+
+  shader(source, destination, 7, 1);
+  shader(destination, allocate(64), 7, 1);
+  keys.mockRestore();
+
+  expect(seen).toHaveLength(2);
+  expect(seen.flat().every(Number.isInteger)).toBe(true);
+  // Three buffers and two uniform pool buffers: five distinct ids.
+  const bufferAndUniformIds = seen.flatMap((ids) => ids.slice(1));
+  expect(new Set(bufferAndUniformIds).size).toBe(5);
+});
+
+test("the bind group cache is bounded by the CacheState size", () => {
+  const { context, device } = createContext(undefined, new CacheState(256, 2));
+  const allocate = context.getDeviceAPI("deviceAllocDataSpace");
+  const [a, b, c] = [allocate(64), allocate(64), allocate(64)];
+  const shader = createBufferShader(context);
+  const run = (x, y) => {
+    shader(x, y, 7, 1);
+    context.flushCommands();
+  };
+
+  run(a, b);
+  run(a, c);
+  run(a, b); // hit, and now more recently used than (a, c)
+  run(b, c); // evicts (a, c)
+  run(a, b); // still cached
+  expect(device.createBindGroup).toHaveBeenCalledTimes(3);
+  run(a, c); // was evicted
+  expect(device.createBindGroup).toHaveBeenCalledTimes(4);
+});
+
+test("contexts sharing a CacheState never share bind groups, and dispose clears them", () => {
+  const cacheState = new CacheState();
+  const launch = () => {
+    const { context, device } = createContext(undefined, cacheState);
+    const allocate = context.getDeviceAPI("deviceAllocDataSpace");
+    createBufferShader(context)(allocate(64), allocate(64), 7, 1);
+    return { context, device };
+  };
+
+  // Same shader, pointers and pool slot on two devices: a bind group of the
+  // first device must not be handed to the second.
+  const first = launch();
+  const second = launch();
+  expect(first.device.createBindGroup).toHaveBeenCalledTimes(1);
+  expect(second.device.createBindGroup).toHaveBeenCalledTimes(1);
+  expect(cacheState.bindGroupCache.size).toBe(2);
+
+  first.context.dispose();
+  expect(cacheState.bindGroupCache.size).toBe(0);
 });

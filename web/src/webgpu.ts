@@ -20,6 +20,7 @@ import { assert } from "./support";
 import { Pointer } from "./ctypes";
 import { Memory } from "./memory";
 import { Disposable } from "./types";
+import { CacheState } from "./cache_state";
 
 /** A pointer to points to the raw address space. */
 export type GPUPointer = number;
@@ -452,7 +453,14 @@ export class WebGPUContext {
   // as needed but buffers are never destroyed — just reused next batch.
   private uniformBufferPool: Array<GPUBuffer> = [];
   private uniformBufferPoolSizes: Array<number> = [];
+  private uniformBufferPoolUids: Array<number> = [];
   private pendingDispatchCount = 0;
+  // bufferUidTable[ptr] is the unique id of bufferTable[ptr], assigned by
+  // index next to it (bufferTable[0] is the null pointer and has no id). Ids
+  // are never reused, so in a bind group cache key a recycled pointer or a
+  // replaced pool buffer cannot be mistaken for the buffer it took over from.
+  private bufferUidTable: Array<number | undefined> = [];
+  private readonly cacheState: CacheState;
   // flags for debugging
   // stats of the runtime.
   // peak allocation
@@ -468,9 +476,10 @@ export class WebGPUContext {
   // log and sync each step
   protected debugLogFinish = false;
 
-  constructor(memory: Memory, device: GPUDevice) {
+  constructor(memory: Memory, device: GPUDevice, cacheState: CacheState = new CacheState()) {
     this.memory = memory;
     this.device = device;
+    this.cacheState = cacheState;
   }
 
   /**
@@ -517,6 +526,8 @@ export class WebGPUContext {
     }
     this.uniformBufferPool.length = 0;
     this.uniformBufferPoolSizes.length = 0;
+    this.uniformBufferPoolUids.length = 0;
+    this.cacheState.bindGroupCache.invalidate();
     while (this.readStagingBufferPool.length != 0) {
       this.readStagingBufferPool.pop()?.buffer.destroy();
     }
@@ -657,13 +668,14 @@ export class WebGPUContext {
    * dispatch starts a fresh encoder, so no stale state carries over.
    *
    * @param nbytes Minimum buffer size in bytes.
-   * @returns A GPUBuffer with UNIFORM | COPY_DST usage, at least nbytes large.
+   * @returns The pool slot of a GPUBuffer with UNIFORM | COPY_DST usage, at
+   *          least nbytes large.
    */
-  private getUniformFromPool(nbytes: number): GPUBuffer {
+  private getUniformFromPool(nbytes: number): number {
     const dispatchIdx = this.pendingDispatchCount++;
     if (dispatchIdx < this.uniformBufferPool.length &&
         this.uniformBufferPoolSizes[dispatchIdx] >= nbytes) {
-      return this.uniformBufferPool[dispatchIdx];
+      return dispatchIdx;
     }
     // Destroy old undersized buffer if it exists.
     if (dispatchIdx < this.uniformBufferPool.length) {
@@ -675,7 +687,8 @@ export class WebGPUContext {
     });
     this.uniformBufferPool[dispatchIdx] = buffer;
     this.uniformBufferPoolSizes[dispatchIdx] = nbytes;
-    return buffer;
+    this.uniformBufferPoolUids[dispatchIdx] = this.cacheState.allocUid();
+    return dispatchIdx;
   }
 
   /**
@@ -750,6 +763,9 @@ export class WebGPUContext {
     const pipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [bindGroupLayout]
     });
+    const shaderUid = this.cacheState.allocUid();
+    // Scratch space for the bind group cache key, reused by every launch.
+    const bufferUids: Array<number> = new Array(bufferArgIndices.length);
 
     // Function to create the pipeline.
     const createShaderFunc = (pipeline: GPUComputePipeline): Function => {
@@ -770,7 +786,6 @@ export class WebGPUContext {
 
         const compute = this.pendingComputePass;
         compute.setPipeline(pipeline);
-        const bindGroupEntries: Array<GPUBindGroupEntry> = [];
         const numBufferOrPodArgs = bufferArgIndices.length + podArgIndices.length;
 
         assert(args.length == numBufferOrPodArgs + dispatchToDim.length);
@@ -804,18 +819,10 @@ export class WebGPUContext {
           assert(wl_x * wl_z >= packDimX);
         }
 
-        for (let i = 0; i < bufferArgIndices.length; ++i) {
-          bindGroupEntries.push({
-            binding: i,
-            resource: {
-              buffer: this.gpuBufferFromPtr(args[bufferArgIndices[i]])
-            }
-          });
-        }
-
         const sizeOfI32 = 4;
         const bufBytes = (podArgIndices.length + 1) * sizeOfI32;
-        const podArgBuffer = this.getUniformFromPool(bufBytes);
+        const uniformSlot = this.getUniformFromPool(bufBytes);
+        const podArgBuffer = this.uniformBufferPool[uniformSlot];
         const i32View = new Int32Array(podArgIndices.length + 1);
         const u32View = new Uint32Array(i32View.buffer);
         const f32View = new Float32Array(i32View.buffer);
@@ -837,18 +844,38 @@ export class WebGPUContext {
         u32View[podArgIndices.length] = packDimX;
         this.device.queue.writeBuffer(podArgBuffer, 0, i32View.buffer);
 
-        bindGroupEntries.push({
-          binding: bufferArgIndices.length,
-          resource: {
-            buffer: podArgBuffer,
-            size: i32View.buffer.byteLength
+        for (let i = 0; i < bufferArgIndices.length; ++i) {
+          const ptr = args[bufferArgIndices[i]];
+          const uid = this.bufferUidTable[ptr];
+          // a missing id would render as "" in the key and alias other buffers
+          assert(uid !== undefined);
+          bufferUids[i] = uid;
+        }
+        const bindGroupKey = CacheState.computeBindGroupKey(
+          shaderUid, bufferUids, this.uniformBufferPoolUids[uniformSlot]);
+        const bindGroup = this.cacheState.bindGroupCache.get(bindGroupKey, () => {
+          const bindGroupEntries: Array<GPUBindGroupEntry> = [];
+          for (let i = 0; i < bufferArgIndices.length; ++i) {
+            bindGroupEntries.push({
+              binding: i,
+              resource: {
+                buffer: this.gpuBufferFromPtr(args[bufferArgIndices[i]])
+              }
+            });
           }
+          bindGroupEntries.push({
+            binding: bufferArgIndices.length,
+            resource: {
+              buffer: podArgBuffer,
+              size: bufBytes
+            }
+          });
+          return this.device.createBindGroup({
+            layout: bindGroupLayout,
+            entries: bindGroupEntries
+          });
         });
-
-        compute.setBindGroup(0, this.device.createBindGroup({
-          layout: bindGroupLayout,
-          entries: bindGroupEntries
-        }));
+        compute.setBindGroup(0, bindGroup);
 
         compute.dispatchWorkgroups(workDim[0], workDim[1], workDim[2]);
 
@@ -965,6 +992,7 @@ export class WebGPUContext {
     const idx = ptr;
     const buffer = this.bufferTable[idx];
     this.bufferTable[idx] = undefined;
+    this.bufferUidTable[idx] = undefined;
     assert(buffer !== undefined);
     this.bufferTableFreeId.push(idx);
     this.currAllocatedBytes -= buffer.size;
@@ -1113,10 +1141,12 @@ export class WebGPUContext {
     if (this.bufferTableFreeId.length != 0) {
       const idx = this.bufferTableFreeId.pop() as number;
       this.bufferTable[idx] = buffer;
+      this.bufferUidTable[idx] = this.cacheState.allocUid();
       return idx;
     } else {
       const idx = this.bufferTable.length;
       this.bufferTable.push(buffer);
+      this.bufferUidTable[idx] = this.cacheState.allocUid();
       return idx;
     }
   }
