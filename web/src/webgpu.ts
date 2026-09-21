@@ -454,6 +454,10 @@ export class WebGPUContext {
   private uniformBufferPool: Array<GPUBuffer> = [];
   private uniformBufferPoolSizes: Array<number> = [];
   private uniformBufferPoolUids: Array<number> = [];
+  // Words last written to each pool buffer (undefined: never written). Only
+  // submitShader writes to pool buffers, so this mirrors their GPU contents
+  // and lets a launch skip the upload when its POD arguments are already there.
+  private uniformBufferPoolContents: Array<Int32Array | undefined> = [];
   private pendingDispatchCount = 0;
   // bufferUidTable[ptr] is the unique id of bufferTable[ptr], assigned by
   // index next to it (bufferTable[0] is the null pointer and has no id). Ids
@@ -527,6 +531,7 @@ export class WebGPUContext {
     this.uniformBufferPool.length = 0;
     this.uniformBufferPoolSizes.length = 0;
     this.uniformBufferPoolUids.length = 0;
+    this.uniformBufferPoolContents.length = 0;
     this.cacheState.bindGroupCache.invalidate();
     while (this.readStagingBufferPool.length != 0) {
       this.readStagingBufferPool.pop()?.buffer.destroy();
@@ -688,7 +693,38 @@ export class WebGPUContext {
     this.uniformBufferPool[dispatchIdx] = buffer;
     this.uniformBufferPoolSizes[dispatchIdx] = nbytes;
     this.uniformBufferPoolUids[dispatchIdx] = this.cacheState.allocUid();
+    this.uniformBufferPoolContents[dispatchIdx] = undefined;
     return dispatchIdx;
+  }
+
+  /**
+   * Upload the POD arguments of a launch to its pool buffer, unless the
+   * buffer already starts with exactly these words. Skipping is safe because
+   * the buffer keeps its contents across flushes and the launch binds only the
+   * first `words.length` words. Words are compared as int32 bit patterns, so
+   * floats are handled exactly (-0.0 != 0.0, and a NaN equals itself).
+   *
+   * @param uniformSlot The pool slot returned by getUniformFromPool.
+   * @param words The POD arguments; the pool keeps its own copy.
+   */
+  private writeUniformIfChanged(uniformSlot: number, words: Int32Array): void {
+    const held = this.uniformBufferPoolContents[uniformSlot];
+    if (held !== undefined && held.length >= words.length) {
+      let same = true;
+      for (let i = 0; i < words.length; ++i) {
+        if (held[i] !== words[i]) {
+          same = false;
+          break;
+        }
+      }
+      if (same) return;
+    }
+    // Copied before the write (the caller may reuse its array) and committed
+    // after it, so a throwing write leaves the contents unknown.
+    const record = words.slice();
+    this.uniformBufferPoolContents[uniformSlot] = undefined;
+    this.device.queue.writeBuffer(this.uniformBufferPool[uniformSlot], 0, words.buffer);
+    this.uniformBufferPoolContents[uniformSlot] = record;
   }
 
   /**
@@ -842,7 +878,7 @@ export class WebGPUContext {
         }
         // always pass in dim z launching grid size in
         u32View[podArgIndices.length] = packDimX;
-        this.device.queue.writeBuffer(podArgBuffer, 0, i32View.buffer);
+        this.writeUniformIfChanged(uniformSlot, i32View);
 
         for (let i = 0; i < bufferArgIndices.length; ++i) {
           const ptr = args[bufferArgIndices[i]];
