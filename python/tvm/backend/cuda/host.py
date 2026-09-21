@@ -19,7 +19,7 @@
 from tvm_ffi import Module
 
 
-def bundle_cuda_host(mod: Module) -> str:
+def export_cuda_host(mod: Module) -> str:
     """Return one CUDA C++ translation unit from a built CUDA-host module.
 
     Build ``mod`` with a CUDA target whose host is ``"cuda_host"``. Its CUDA
@@ -50,7 +50,7 @@ def bundle_cuda_host(mod: Module) -> str:
         (for example, after loading a device module saved as a binary).
     """
     if not isinstance(mod, Module):
-        raise TypeError("bundle_cuda_host expects a runtime Module")
+        raise TypeError("export_cuda_host expects a runtime Module")
     if mod.kind != "c" or "cu" not in mod.get_write_formats():
         raise ValueError("Expected a source module built with host='cuda_host'")
     host_source = mod.inspect_source()

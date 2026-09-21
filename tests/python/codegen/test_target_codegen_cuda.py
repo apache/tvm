@@ -61,7 +61,7 @@ def test_cuda_host_bundle(tmp_path):
 
     import tvm_ffi.cpp
 
-    from tvm.backend.cuda import bundle_cuda_host
+    from tvm.backend.cuda import export_cuda_host
 
     if which("nvcc") is None:
         pytest.skip("CUDA-host compilation requires NVCC")
@@ -73,7 +73,7 @@ def test_cuda_host_bundle(tmp_path):
 
     target = tvm.target.Target("cuda", host="cuda_host")
     built = tvm.compile(add_one, target=target).mod
-    source = bundle_cuda_host(built)
+    source = export_cuda_host(built)
     assert source.index("__global__") < source.index("<<<")
     library = tvm_ffi.cpp.build_inline(
         name="cuda_host_add_one",
