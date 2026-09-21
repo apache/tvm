@@ -122,7 +122,8 @@ def test_serialization_and_structural_identity():
     )
 
 
-def test_structural_walk_and_mutation_reach_binding_metadata():
+@pytest.mark.parametrize("move", [False, True])
+def test_structural_walk_and_mutation_reach_binding_metadata(move):
     extent = tirx.Var("extent", "int32")
     thread_var = tirx.Var("thread", "int32")
     replacement = tirx.Var("new_thread", "int32")
@@ -141,7 +142,10 @@ def test_structural_walk_and_mutation_reach_binding_metadata():
             return tirx.IntImm("int32", 16)
         return var
 
-    rewritten = tvm_ffi.structural_map(loop, (tirx.Var, rewrite), order="post")
+    visited.clear()  # Do not retain the root while exercising ownership transfer.
+    rewritten = tvm_ffi.structural_map(
+        loop._move() if move else loop, (tirx.Var, rewrite), order="post"
+    )
     assert rewritten.thread_binding.var.same_as(replacement)
     assert int(rewritten.thread_binding.dom.min) == 2
     assert int(rewritten.thread_binding.dom.extent) == 16
@@ -149,8 +153,9 @@ def test_structural_walk_and_mutation_reach_binding_metadata():
     assert rewritten.thread_binding.thread_tag == binding.thread_tag
     # Auxiliary hints remain opaque; only the semantic annotation is traversed.
     assert rewritten.annotations["custom_hint"].same_as(extent)
-    assert loop.thread_binding.var.same_as(thread_var)
-    assert loop.thread_binding.dom.extent.same_as(extent)
+    if not move:
+        assert loop.thread_binding.var.same_as(thread_var)
+        assert loop.thread_binding.dom.extent.same_as(extent)
 
 
 def test_script_roundtrip_keeps_hints_separate():
