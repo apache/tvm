@@ -459,6 +459,14 @@ export class WebGPUContext {
   // and lets a launch skip the upload when its POD arguments are already there.
   private uniformBufferPoolContents: Array<Int32Array | undefined> = [];
   private pendingDispatchCount = 0;
+  /**
+   * Submit the pending commands once this many dispatches have been recorded
+   * since the last submission, so the GPU executes the first dispatches while
+   * the host is still encoding the rest. 0 (or less) turns periodic
+   * submission off, so commands go out only at flush points.
+   */
+  maxDispatchesPerFlush = 32;
+  private dispatchesSinceSubmit = 0;
   // bufferUidTable[ptr] is the unique id of bufferTable[ptr], assigned by
   // index next to it (bufferTable[0] is the null pointer and has no id). Ids
   // are never reused, so in a bind group cache key a recycled pointer or a
@@ -498,13 +506,23 @@ export class WebGPUContext {
    * - Queue sync (sync)
    */
   flushCommands(): void {
+    this.submitPendingCommands();
+    // the pool position restarts only here, never at a periodic submission
+    this.pendingDispatchCount = 0;
+  }
+
+  /**
+   * Finish and submit the pending command encoder, if any. The uniform pool
+   * position is kept, so bind groups and uniform contents stay reusable.
+   */
+  private submitPendingCommands(): void {
     this.endPendingComputePass();
     if (this.pendingEncoder) {
       this.device.queue.submit([this.pendingEncoder.finish()]);
       this.pendingEncoder = null;
-      this.pendingDispatchCount = 0;
       this.pendingGPUToCPUCopyIsQueueTail = false;
     }
+    this.dispatchesSinceSubmit = 0;
   }
 
   /** End the compute pass shared by pending dispatches, if one is open. */
@@ -664,13 +682,11 @@ export class WebGPUContext {
    * consume it.
    *
    * The pool grows as needed. Buffers are reused across flushes (indexed by
-   * dispatch position within the current batch). If the pool has no slot for
-   * this dispatch, we flush first — this submits all pending passes, resets
-   * pendingDispatchCount to 0, and allows reuse from the start of the pool.
-   *
-   * State after flush: the pending encoder and all bind group / buffer
-   * references from prior dispatches are submitted and consumed. The new
-   * dispatch starts a fresh encoder, so no stale state carries over.
+   * dispatch position within the current batch): the position restarts at 0
+   * only in flushCommands(), never at a periodic submission, so within a batch
+   * no two launches share a buffer. A slot's buffer is replaced when a later
+   * batch revisits the slot with a larger request; by then every command
+   * buffer that referenced the old one has been submitted.
    *
    * @param nbytes Minimum buffer size in bytes.
    * @returns The pool slot of a GPUBuffer with UNIFORM | COPY_DST usage, at
@@ -914,6 +930,11 @@ export class WebGPUContext {
         compute.setBindGroup(0, bindGroup);
 
         compute.dispatchWorkgroups(workDim[0], workDim[1], workDim[2]);
+        this.dispatchesSinceSubmit += 1;
+        if (this.maxDispatchesPerFlush > 0 &&
+            this.dispatchesSinceSubmit >= this.maxDispatchesPerFlush) {
+          this.submitPendingCommands();
+        }
 
         // In debug mode, flush immediately so we can observe each submission.
         if (this.debugLogFinish) {
