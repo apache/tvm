@@ -255,6 +255,90 @@ def call_packed(*args, span=None):
     return Call(Op.get("tirx.tvm_call_packed"), call_args, span=span, ret_ty="int32")
 
 
+@tvm_ffi.register_object("tirx.CallFFIKernelAttr")
+class CallFFIKernelAttr(tvm.ir.Attrs):
+    """Ordered launch tags for an explicit FFI kernel call."""
+
+    launch_params: list[str]
+
+    def __init__(self, launch_params):
+        self.__init_handle_by_constructor__(_ffi_api.CallFFIKernelAttr, launch_params)
+
+
+def call_ffi_kernel(*args, launch_params, ret_ty="int32", span=None):
+    """Call a kernel with its symbol, kernel operands, then launch values.
+
+    ``launch_params`` contains ordered tags for the launch-value suffix.
+    Flag-only tags consume no argument, and dynamic shared-memory bytes are
+    last when present. Host codegen may launch directly; other hosts use the
+    existing packed-function calling convention.
+    """
+    return Call(
+        "tirx.call_ffi_kernel",
+        args,
+        attrs=CallFFIKernelAttr(launch_params),
+        ret_ty=ret_ty,
+        span=span,
+    )
+
+
+@tvm_ffi.register_object("tirx.TensorMapEncodeTiledAttr")
+class TensorMapEncodeTiledAttr(tvm.ir.Attrs):
+    """Descriptor dtype and fixed options for tiled tensor-map encoding."""
+
+    def __init__(
+        self,
+        descriptor_dtype,
+        rank,
+        interleave=0,
+        swizzle=0,
+        l2_promotion=0,
+        oob_fill=0,
+        force_cu_dtype=-1,
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.TensorMapEncodeTiledAttr,
+            descriptor_dtype,
+            rank,
+            interleave,
+            swizzle,
+            l2_promotion,
+            oob_fill,
+            force_cu_dtype,
+        )
+
+
+def tensormap_encode_tiled(
+    *args,
+    descriptor_dtype,
+    rank,
+    interleave=0,
+    swizzle=0,
+    l2_promotion=0,
+    oob_fill=0,
+    force_cu_dtype=-1,
+    span=None,
+):
+    """Encode a tiled tensor map using runtime pointers and shape operands.
+
+    Arguments are the descriptor and data pointers, global dimensions (rank),
+    byte strides (rank - 1), box dimensions (rank), and element strides (rank).
+    The dtype describes the final descriptor units, including any promotion.
+    CUDA-host codegen encodes directly; other hosts use the runtime packed call.
+    """
+    if not 1 <= rank <= 5 or len(args) != 4 * rank + 1:
+        raise ValueError("tensormap_encode_tiled requires rank 1..5 and 4 * rank + 1 operands")
+    return Call(
+        "tirx.tensormap_encode_tiled",
+        args,
+        attrs=TensorMapEncodeTiledAttr(
+            descriptor_dtype, rank, interleave, swizzle, l2_promotion, oob_fill, force_cu_dtype
+        ),
+        ret_ty="int32",
+        span=span,
+    )
+
+
 def call_cpacked(*args, span=None):
     """Build expression by call an external packed function.
 

@@ -26,7 +26,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm.ir import PointerType, PrimType, Range, StringImm
+from tvm.ir import PointerType, PrimType, Range
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.sym import Analyzer
@@ -123,12 +123,7 @@ class _EncodeCollector:
         self.calls = []
 
     def _visit_call(self, op):
-        if (
-            isinstance(op.op, tvm.ir.Op)
-            and op.op.name == "tirx.tvm_call_packed"
-            and isinstance(op.args[0], StringImm)
-            and op.args[0].value == "runtime.cuTensorMapEncodeTiled"
-        ):
+        if isinstance(op.op, tvm.ir.Op) and op.op.name == "tirx.tensormap_encode_tiled":
             self.calls.append(op)
 
     def visit_stmt(self, stmt):
@@ -271,8 +266,8 @@ def _collect_encodes(stmts):
 
 
 def _encode_signature(call):
-    rank = int(call.args[3])
-    cursor = 5
+    rank = call.attrs.rank
+    cursor = 2
     dims = tuple(call.args[cursor : cursor + rank])
     cursor += rank
     strides = tuple(call.args[cursor : cursor + rank - 1])
@@ -281,13 +276,17 @@ def _encode_signature(call):
     cursor += rank
     element_strides = tuple(call.args[cursor : cursor + rank])
     cursor += rank
-    enums = tuple(call.args[cursor : cursor + 4])
-    cursor += 4
-    forced_dtype = call.args[cursor] if cursor < len(call.args) else None
+    enums = (
+        call.attrs.interleave,
+        call.attrs.swizzle,
+        call.attrs.l2_promotion,
+        call.attrs.oob_fill,
+    )
+    forced_dtype = call.attrs.force_cu_dtype if call.attrs.force_cu_dtype >= 0 else None
     return {
-        "dtype": call.args[2].value,
+        "dtype": str(call.attrs.descriptor_dtype),
         "rank": rank,
-        "base": call.args[4],
+        "base": call.args[1],
         "dims": dims,
         "strides": strides,
         "boxes": boxes,
@@ -1226,7 +1225,7 @@ def test_auto_maximum_prefix_and_mixed_radix_issue_pointer():
     assert _count_tma(impl).total == 512
 
 
-def test_copy_tma_host_init_dtype_is_string():
+def test_copy_tma_host_init_dtype_is_attribute():
     """The host-init encode call must carry the dtype as a StringImm, not a
     packed enum -- ``_encode_signature`` reads ``args[2].value`` as a str."""
     _, host_init_stmts, _ = _lower_direct(
@@ -1238,8 +1237,7 @@ def test_copy_tma_host_init_dtype_is_string():
         dtype="float16",
     )
     encode_call = _collect_encodes(host_init_stmts)[0]
-    assert isinstance(encode_call.args[2], StringImm)
-    assert encode_call.args[2].value == "float16"
+    assert str(encode_call.attrs.descriptor_dtype) == "float16"
 
 
 @pytest.mark.parametrize(

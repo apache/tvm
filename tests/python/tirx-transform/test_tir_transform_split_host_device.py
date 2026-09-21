@@ -70,7 +70,7 @@ def test_split_host_device():
         @T.prim_func(s_tir=True)
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
-            T.call_packed("main_kernel", n)
+            T.call_ffi_kernel("main_kernel", n, launch_params=[])
 
         @T.prim_func(s_tir=True)
         def main_kernel(n: T.int32):
@@ -164,7 +164,7 @@ def test_split_host_device_without_func_host_attribute():
         @T.prim_func(s_tir=True)
         def main(n: T.int32):
             T.func_attr({"target": T.target("llvm")})
-            T.call_packed("main_kernel", n)
+            T.call_ffi_kernel("main_kernel", n, launch_params=[])
 
         @T.prim_func(s_tir=True)
         def main_kernel(n: T.int32):
@@ -229,7 +229,7 @@ def test_split_host_device_name_collision():
         @T.prim_func(s_tir=True)
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
-            T.call_packed("main_kernel_1", n)
+            T.call_ffi_kernel("main_kernel_1", n, launch_params=[])
 
         @T.prim_func(s_tir=True)
         def main_kernel_1(n: T.int32):
@@ -384,7 +384,7 @@ def test_thread_extent_region_extracted_as_device_kernel():
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer(16, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            T.call_packed("main_kernel", A.data, 16)
+            T.call_ffi_kernel("main_kernel", A.data, 16, launch_params=["threadIdx.x"])
 
         @T.prim_func(s_tir=True)
         def main_kernel(A_data: T.handle("float32")):
@@ -433,9 +433,14 @@ def test_cuda_launch_preserves_flag_metadata():
 
     launch = after["main"].body.value
     assert isinstance(launch, tvm.ir.Call)
+    assert launch.op == tvm.ir.Op.get("tirx.call_ffi_kernel")
+    assert isinstance(launch.attrs, tvm.tirx.CallFFIKernelAttr)
+    assert list(launch.attrs.launch_params) == list(kernel.attrs["tirx.kernel_launch_params"])
     # Programmatic launch is flag-only and therefore adds no packed operand.
     assert len(launch.args) == 3
     assert int(launch.args[-1]) == 16
+    tvm.ir.assert_structural_equal(after, tvm.ir.load_json(tvm.ir.save_json(after)))
+    tvm.ir.assert_structural_equal(after, tvm.script.from_source(after.script()))
 
 
 def test_cuda_required_block_size_coexists_with_launch_bounds():
@@ -515,7 +520,7 @@ def test_device_scope_region_extracted_as_device_kernel():
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            T.call_packed("main_kernel", A.data)
+            T.call_ffi_kernel("main_kernel", A.data, launch_params=[])
 
         @T.prim_func(s_tir=True)
         def main_kernel(A_data: T.handle("float32")):
@@ -558,7 +563,7 @@ def test_lower_device_kernel_launch():
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
-            T.call_packed("kernel", A.data)
+            T.call_ffi_kernel("kernel", A.data, launch_params=[])
 
         @T.prim_func(s_tir=True)
         def kernel(A_data: T.handle("float32")):
@@ -599,7 +604,7 @@ def test_externally_visible_kernel_launch():
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
-            T.call_packed("kernel_by_another_name", A.data)
+            T.call_ffi_kernel("kernel_by_another_name", A.data, launch_params=[])
 
         @T.prim_func(s_tir=True)
         def kernel(A_data: T.handle("float32")):
@@ -646,7 +651,7 @@ def test_collect_launch_parameter():
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer(16, "float32")):
             T.func_attr({"target": T.target("llvm")})
-            T.call_packed("kernel", A.data, 16)
+            T.call_ffi_kernel("kernel", A.data, 16, launch_params=["threadIdx.x"])
 
         @T.prim_func(s_tir=True)
         def kernel(A_data: T.handle("float32")):
@@ -729,7 +734,7 @@ def test_bind_before_thread_extent():
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer(16, "float32"), n: T.int32):
             T.func_attr({"target": T.target("llvm")})
-            T.call_packed("kernel", A.data, n, n + 1)
+            T.call_ffi_kernel("kernel", A.data, n, n + 1, launch_params=["threadIdx.x"])
 
         @T.prim_func(s_tir=True)
         def kernel(A_data: T.handle("float32"), n: T.int32):
