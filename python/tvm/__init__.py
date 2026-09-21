@@ -19,8 +19,8 @@
 """TVM: Open Deep Learning Compiler Stack."""
 
 import multiprocessing
-import sys
 import os
+import sys
 
 # ffi module must load first
 from tvm_ffi import register_object, register_global_func, get_global_func
@@ -125,3 +125,11 @@ sys.excepthook = tvm_wrap_excepthook(sys.excepthook)
 from .backend._autoload_backends import _autoload_backends
 
 _autoload_backends()
+
+# Load the optional ORC JIT extension for its global FFI registrations.  LLVM
+# function lookup reports a targeted installation error if this import fails;
+# importing TVM itself remains silent for AOT-only workflows.
+try:
+    import tvm_ffi_orcjit as _tvm_ffi_orcjit
+except Exception:  # pylint: disable=broad-exception-caught
+    pass
