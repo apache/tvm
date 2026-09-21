@@ -31,6 +31,7 @@
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/attrs.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -859,7 +860,10 @@ class DeviceKernelMutator : public StmtExprMutator {
     PrimType node_ty = IsVoidType(node->ty) ? PrimType::Void() : node->ty.as_or_throw<PrimType>();
     PrimType ret_ty = node_ty.IsVoid() ? PrimType::Int(32) : node_ty;
 
-    return Call(ret_ty, builtin::tvm_call_packed(), call_args).as_or_throw<PrimExpr>();
+    auto attrs = ffi::make_object<CallFFIKernelAttr>();
+    attrs->launch_params = dev_info.launch_params;
+    return Call(ret_ty, builtin::call_ffi_kernel(), call_args, Attrs(attrs))
+        .as_or_throw<PrimExpr>();
   }
 
   ffi::Optional<Target> current_target_;

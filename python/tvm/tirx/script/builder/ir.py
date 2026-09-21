@@ -3202,6 +3202,8 @@ tvm_stack_alloca = _op_wrapper(_tir_op.tvm_stack_alloca)
 tvm_stack_make_shape = _op_wrapper(_tir_op.tvm_stack_make_shape)
 tvm_stack_make_array = _op_wrapper(_tir_op.tvm_stack_make_array)
 call_packed = _op_wrapper(_tir_op.call_packed)
+call_ffi_kernel = _op_wrapper(_tir_op.call_ffi_kernel)
+tensormap_encode_tiled = _op_wrapper(_tir_op.tensormap_encode_tiled)
 call_cpacked = _op_wrapper(_tir_op.call_cpacked)
 call_packed_lowered = _op_wrapper(_tir_op.call_packed_lowered)
 call_cpacked_lowered = _op_wrapper(_tir_op.call_cpacked_lowered)
@@ -3520,6 +3522,8 @@ __all__ = [
     "tvm_stack_make_shape",
     "tvm_stack_make_array",
     "call_packed",
+    "call_ffi_kernel",
+    "tensormap_encode_tiled",
     "call_cpacked",
     "call_packed_lowered",
     "call_cpacked_lowered",

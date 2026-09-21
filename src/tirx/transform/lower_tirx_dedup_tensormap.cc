@@ -53,10 +53,12 @@ inline bool IsTensorMapAlloca(const BindNode* bind) {
   return false;
 }
 
-// Is an Evaluate of tvm_call_packed("runtime.cuTensorMapEncodeTiled", ...)?
+// Recognize typed encoding and legacy manually authored packed encoding.
 inline const CallNode* AsCuTensorMapEncode(const EvaluateNode* eval) {
   const CallNode* call = eval->value.as<CallNode>();
-  if (!call || !call->op.same_as(builtin::tvm_call_packed())) return nullptr;
+  if (!call) return nullptr;
+  if (call->op.same_as(builtin::tensormap_encode_tiled())) return call;
+  if (!call->op.same_as(builtin::tvm_call_packed())) return nullptr;
   if (call->args.empty()) return nullptr;
   if (const auto* s = call->args[0].as<StringImmNode>()) {
     if (s->value == "runtime.cuTensorMapEncodeTiled") return call;
@@ -64,23 +66,17 @@ inline const CallNode* AsCuTensorMapEncode(const EvaluateNode* eval) {
   return nullptr;
 }
 
-// Extract the tensormap var and the key (arguments after the tensormap var)
-inline std::pair<ffi::Optional<Var>, ffi::Array<Expr>> ExtractEncodeKey(const CallNode* call) {
-  TVM_FFI_ICHECK(call->op.same_as(builtin::tvm_call_packed()));
-  // args[0] is function name, args[1] is tensormap handle, rest are parameters
-  if (call->args.size() < 2) return {ffi::Optional<Var>(), ffi::Array<Expr>()};
-  ffi::Optional<Var> tensormap;
-  if (auto v = call->args[1].as<Var>()) {
-    tensormap = v.value();
-  } else {
-    tensormap = ffi::Optional<Var>();
+// Exclude only the output pointer; retain op, attributes and all input operands
+// so descriptor dtype, forced dtype and encoding modes participate in equality.
+inline std::pair<ffi::Optional<Var>, Call> ExtractEncodeKey(const CallNode* call) {
+  size_t output_index = call->op.same_as(builtin::tensormap_encode_tiled()) ? 0 : 1;
+  TVM_FFI_ICHECK_GT(call->args.size(), output_index);
+  ffi::Optional<Var> tensormap = call->args[output_index].as<Var>();
+  ffi::Array<Expr> args;
+  for (size_t i = 0; i < call->args.size(); ++i) {
+    if (i != output_index) args.push_back(call->args[i]);
   }
-  ffi::Array<Expr> key;
-  key.reserve(call->args.size() - 2);
-  for (size_t i = 2; i < call->args.size(); ++i) {
-    key.push_back(call->args[i]);
-  }
-  return {tensormap, key};
+  return {tensormap, Call(call->ty, call->op, args, call->attrs)};
 }
 
 }  // namespace
@@ -88,14 +84,12 @@ inline std::pair<ffi::Optional<Var>, ffi::Array<Expr>> ExtractEncodeKey(const Ca
 // First pass: Analyze encode calls and decide canonical tensormap per-parameter set
 class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
  public:
-  CuTensorMapDedupAnalyzer() {
-    canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
-  }
+  CuTensorMapDedupAnalyzer() { canonical_list_.emplace_back(std::vector<std::pair<Call, Var>>()); }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->min));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->extent));
-    canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
+    canonical_list_.emplace_back(std::vector<std::pair<Call, Var>>());
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->body));
     canonical_list_.pop_back();
     return std::nullopt;
@@ -103,7 +97,7 @@ class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->condition));
-    canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
+    canonical_list_.emplace_back(std::vector<std::pair<Call, Var>>());
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->body));
     canonical_list_.pop_back();
     return std::nullopt;
@@ -111,11 +105,11 @@ class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->condition));
-    canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
+    canonical_list_.emplace_back(std::vector<std::pair<Call, Var>>());
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->then_case));
     canonical_list_.pop_back();
     if (op->else_case) {
-      canonical_list_.emplace_back(std::vector<std::pair<ffi::Array<Expr>, Var>>());
+      canonical_list_.emplace_back(std::vector<std::pair<Call, Var>>());
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->else_case.value()));
       canonical_list_.pop_back();
     }
@@ -153,7 +147,7 @@ class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
   }
 
  private:
-  std::vector<std::vector<std::pair<ffi::Array<Expr>, Var>>> canonical_list_;
+  std::vector<std::vector<std::pair<Call, Var>>> canonical_list_;
   std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> tensormap_var_remap_;
 };
 
@@ -165,7 +159,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
   CuTensorMapDedupRewriter(
       std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap) {
     for (const auto& [source, target] : var_remap) VarRemapSet(source, target);
-    emitted_keys_.emplace_back(std::vector<ffi::Array<Expr>>());
+    emitted_keys_.emplace_back(std::vector<Call>());
   }
 
  private:
@@ -297,7 +291,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
   }
 
   // Track which parameter keys have already emitted an encode call
-  std::vector<std::vector<ffi::Array<Expr>>> emitted_keys_;
+  std::vector<std::vector<Call>> emitted_keys_;
 };
 
 namespace transform {
