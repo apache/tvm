@@ -351,7 +351,6 @@ def test_registered_tirx_ops_have_exactly_one_category():
         "tirx.add",
         "tirx.binary_chain",
         "tirx.binary_reduce",
-        "tirx.compose_op",
         "tirx.copy",
         "tirx.copy_async",
         "tirx.fdiv",

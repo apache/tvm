@@ -27,7 +27,7 @@ from tvm.tirx.exec_scope import _SCOPE_KIND_TO_NAME, ExecScope
 from tvm.tirx.expr import FloatImm, IntImm
 from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool
 
-from . import _ffi_api, frame
+from . import _ffi_api
 from .ir import decl_buffer, meta_class
 
 
@@ -1315,27 +1315,6 @@ def log2(
     )
 
 
-def compose_op(
-    workspace: dict[str, Buffer] | None = None, dispatch: str | None = None, **kwargs
-) -> frame.ComposeOpFrame:
-    """Compose a TIRx op.
-
-    Parameters
-    ----------
-    workspace : Optional[Dict[str, Buffer]]
-        The workspace of the operator
-
-    Returns
-    -------
-    res : frame.ComposeOpFrame
-        The result ComposeOpFrame.
-    """
-    if workspace is None:
-        workspace = {}
-    config = kwargs or {}
-    return _ffi_api.ComposeOp(workspace, config, dispatch)  # pylint: disable=no-member
-
-
 @ScopedOp
 def binary_reduce(
     binary_output: TensorRegion | Buffer,
@@ -1768,7 +1747,6 @@ __all__ = [
     "binary_reduce",
     "cast",
     "cluster",
-    "compose_op",
     "copy",
     "copy_async",
     "cta",
