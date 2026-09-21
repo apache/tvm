@@ -30,7 +30,7 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/iter_affine_map.h>
-#include <tvm/tirx/buffer.h>
+#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt.h>
 
 #include <optional>
