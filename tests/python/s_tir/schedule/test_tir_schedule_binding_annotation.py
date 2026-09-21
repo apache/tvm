@@ -21,6 +21,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import tirx
+from tvm.s_tir.schedule.analysis import get_auto_tensorize_mapping_info
 from tvm.script import tirx as T
 
 
@@ -113,6 +114,17 @@ def test_sblock_thread_binding_hint_is_not_reserved():
     assert sch.get(block).annotations["thread_binding"] == "block_hint"
     sch.unannotate(block, "thread_binding")
     assert "thread_binding" not in sch.get(block).annotations
+
+
+def test_sblock_thread_binding_hint_in_tensorize_comparison():
+    sch, _ = make_schedule("serial")
+    block = sch.get_sblock("copy")
+    sch.annotate(block, "thread_binding", "block_hint")
+    desc = sch.mod["main"]
+    assert get_auto_tensorize_mapping_info(sch, block, desc) is not None
+    sch.unannotate(block, "thread_binding")
+    sch.annotate(block, "thread_binding", "different_hint")
+    assert get_auto_tensorize_mapping_info(sch, block, desc) is None
 
 
 if __name__ == "__main__":

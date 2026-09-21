@@ -218,7 +218,22 @@ bool TensorizeComparator::Dispatch_(const ForNode* op, const Stmt& other) {
     }
     return false;
   }
-  if (!CompareAnnotationMap(op->annotations, rhs->annotations)) {
+  // Only For annotations reserve thread_binding as an IterVar definition.
+  // SBlock annotations with the same spelling remain ordinary hints.
+  if (auto binding = op->GetThreadBinding()) {
+    IterVar lhs_iter = binding.value();
+    IterVar rhs_iter = rhs->GetThreadBinding().value();
+    if (!(CompareIterVar(lhs_iter, rhs_iter) && lhs_iter->thread_tag == rhs_iter->thread_tag &&
+          lhs_iter->dom.defined() == rhs_iter->dom.defined() &&
+          (!lhs_iter->dom.defined() || CompareRange(lhs_iter->dom, rhs_iter->dom)))) {
+      return false;
+    }
+  }
+  auto lhs_annotations = op->annotations;
+  auto rhs_annotations = rhs->annotations;
+  lhs_annotations.erase(tirx::attr::thread_binding);
+  rhs_annotations.erase(tirx::attr::thread_binding);
+  if (!CompareAnnotationMap(lhs_annotations, rhs_annotations)) {
     if (assert_mode_) {
       std::ostringstream os;
       os << "ForNode annotation maps do not match: op->annotations=" << op->annotations
@@ -441,15 +456,6 @@ bool TensorizeComparator::CompareAnnotation(const std::pair<ffi::String, ffi::An
       EmitError(os.str());
     }
     return false;
-  }
-  // Thread bindings carry IterVar definitions, which must use the comparator's
-  // variable mapping rather than object identity.
-  if (lhs.first == tirx::attr::thread_binding) {
-    IterVar lhs_iter = lhs.second.as_or_throw<IterVar>();
-    IterVar rhs_iter = rhs.second.as_or_throw<IterVar>();
-    return CompareIterVar(lhs_iter, rhs_iter) && lhs_iter->thread_tag == rhs_iter->thread_tag &&
-           lhs_iter->dom.defined() == rhs_iter->dom.defined() &&
-           (!lhs_iter->dom.defined() || CompareRange(lhs_iter->dom, rhs_iter->dom));
   }
   // handle expr values
   if (lhs.second.as<PrimExpr>() && rhs.second.as<PrimExpr>()) {
