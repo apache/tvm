@@ -240,8 +240,7 @@ TVMFFIAny ForMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noex
                                     mutator->MutateExpected(self->step));
   if (mapped_loop_var.UnchangedOrSameAs(self->loop_var) &&
       mapped_min.UnchangedOrSameAs(self->min) && mapped_extent.UnchangedOrSameAs(self->extent) &&
-      mapped_body.UnchangedOrSameAs(self->body) &&
-      mapped_step.UnchangedOrSameAs(self->step)) {
+      mapped_body.UnchangedOrSameAs(self->body) && mapped_step.UnchangedOrSameAs(self->step)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
   ffi::ObjectPtr<ForNode> copy = ffi::make_object<ForNode>(*self);
@@ -273,8 +272,7 @@ TVMFFIAny ForMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
                                     mutator->MutateExpected(self->step, ffi::InplaceMode::kAllow));
   if (mapped_loop_var.UnchangedOrSameAs(self->loop_var) &&
       mapped_min.UnchangedOrSameAs(self->min) && mapped_extent.UnchangedOrSameAs(self->extent) &&
-      mapped_body.UnchangedOrSameAs(self->body) &&
-      mapped_step.UnchangedOrSameAs(self->step)) {
+      mapped_body.UnchangedOrSameAs(self->body) && mapped_step.UnchangedOrSameAs(self->step)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
   if (!mapped_loop_var.IsUnchanged()) self->loop_var = std::move(mapped_loop_var).ValueUnchecked();
