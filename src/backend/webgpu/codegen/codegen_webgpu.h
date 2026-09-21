@@ -27,6 +27,7 @@
 #ifndef TVM_TARGET_WEBGPU_CODEGEN_WEBGPU_H_
 #define TVM_TARGET_WEBGPU_CODEGEN_WEBGPU_H_
 
+#include <tvm/sym/analyzer.h>
 #include <tvm/target/codegen.h>
 
 #include <cstddef>
@@ -88,6 +89,8 @@ class CodeGenWebGPU final : public CodeGenC {
   void Dispatch_(const ContinueNode* op) final;
 
  private:
+  sym::Analyzer analyzer_;
+
   /*!
    * \brief Enforce value to be U32.
    */
