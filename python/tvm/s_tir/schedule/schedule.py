@@ -3128,6 +3128,9 @@ class Schedule(Object):
     ) -> None:
         """Annotate a block/loop with a key value pair
 
+        The semantic loop annotation ``thread_binding`` must be set with
+        :meth:`bind`, which checks scheduling legality.
+
         Parameters
         ----------
         block_or_loop: SBlockRV | LoopRV
@@ -3183,6 +3186,9 @@ class Schedule(Object):
     @type_checked
     def unannotate(self, block_or_loop: SBlockRV | LoopRV, ann_key: str) -> None:
         """Unannotate a block/loop's annotation with key ann_key
+
+        Remove a loop's semantic ``thread_binding`` with :meth:`parallel`,
+        which checks whether ordinary parallel execution is legal.
 
         Parameters
         ----------

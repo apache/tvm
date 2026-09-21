@@ -586,7 +586,7 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
     IterVar iter_var(Range(nullptr), tvm::PrimVar("iter", dtype), IterVarType::kThreadIndex,
                      thread);
     return For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent,
-               ForKind::kThreadBinding, body, iter_var,
+               ForKind::kParallel, body, iter_var,
                annotations.value_or(ffi::Map<ffi::String, ffi::Any>()), std::nullopt);
   };
   return ForFrame(n);

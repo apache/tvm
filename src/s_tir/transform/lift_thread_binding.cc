@@ -48,7 +48,7 @@ FindLoopLCA(const Stmt& root) {
     ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
       stack.push_back(ffi::GetRef<Stmt>(op));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-      if (op->kind == ForKind::kThreadBinding) {
+      if (op->IsThreadBinding()) {
         UpdateLCA(op);
       }
       stack.pop_back();
@@ -56,21 +56,23 @@ FindLoopLCA(const Stmt& root) {
     }
 
     void UpdateLCA(const ForNode* loop) {
-      std::string thread_tag = loop->thread_binding.value()->thread_tag;
+      std::string thread_tag = loop->GetThreadBinding().value()->thread_tag;
       {
         ffi::Map<ffi::String, ffi::Any>* tgt = &annotations[thread_tag];
         for (const auto& kv : loop->annotations) {
-          tgt->Set(kv.first, kv.second);
+          if (kv.first != tirx::attr::thread_binding) {
+            tgt->Set(kv.first, kv.second);
+          }
         }
       }
       IterVar& iter_var = iters[thread_tag];
       if (!iter_var.defined()) {
         iter_var = IterVar(Range::FromMinExtent(loop->min, loop->extent),  //
                            loop->loop_var
-                               .as_or_throw<Var>()                   //
-                               .CopyWithName(thread_tag)             //
-                               .as_or_throw<PrimVar>(),              //
-                           loop->thread_binding.value()->iter_type,  //
+                               .as_or_throw<Var>()                       //
+                               .CopyWithName(thread_tag)                 //
+                               .as_or_throw<PrimVar>(),                  //
+                           loop->GetThreadBinding().value()->iter_type,  //
                            thread_tag);
         lca[thread_tag] = stack;
         var_subst.Set(loop->loop_var, iter_var->var);
@@ -133,7 +135,7 @@ class ThreadBindingLifter : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const ForNode* _op, InplaceMode inplace_mode) final {
     For op = ffi::GetRef<For>(_op);
     bool is_kernel_root = false;
-    if (op->kind == ForKind::kThreadBinding) {
+    if (op->IsThreadBinding()) {
       if (iter_lca.empty()) {
         is_kernel_root = true;
         SetKernelRoot(_op);
@@ -145,8 +147,8 @@ class ThreadBindingLifter : public StmtExprMutator {
     Stmt body = std::move(new_op.CopyOnWrite()->body);
     if (auto it = iter_lca.find(op); it != iter_lca.end()) {
       for (const auto& [iter_var, annotation] : it->second) {
-        body = For(iter_var->var, iter_var->dom->min, iter_var->dom->extent,
-                   ForKind::kThreadBinding, std::move(body),
+        body = For(iter_var->var, iter_var->dom->min, iter_var->dom->extent, ForKind::kParallel,
+                   std::move(body),
                    IterVar(Range(nullptr), PrimVar(iter_var->thread_tag, iter_var->var.ty()),
                            kThreadIndex, iter_var->thread_tag),
                    annotation, std::nullopt);
@@ -155,7 +157,7 @@ class ThreadBindingLifter : public StmtExprMutator {
     if (is_kernel_root) {
       iter_lca.clear();
     }
-    if (op->kind == ForKind::kThreadBinding) {
+    if (op->IsThreadBinding()) {
       return body;
     } else {
       new_op.CopyOnWrite()->body = std::move(body);

@@ -559,7 +559,7 @@ class IfThenElse : public Stmt {
 enum class ForKind : int {
   /*! \brief default semantics -- serial execution. */
   kSerial = 0,
-  /*! \brief Parallel execution on CPU. */
+  /*! \brief Parallel execution, optionally bound to an execution thread. */
   kParallel = 1,
   /*!
    * \brief Vector SIMD loop.
@@ -567,14 +567,7 @@ enum class ForKind : int {
    */
   kVectorized = 2,
   /*! \brief The loop body must be unrolled. */
-  kUnrolled = 3,
-  /*!
-   * \brief The loop variable is bound to a thread in
-   * an environment. In the final stage of lowering,
-   * the loop is simply removed and the loop variable is
-   * mapped to the corresponding context thread.
-   */
-  kThreadBinding = 4
+  kUnrolled = 3
 };
 
 /*!
@@ -600,17 +593,11 @@ class ForNode : public StmtNode {
   /*! \brief The body of the for loop. */
   Stmt body;
   /*!
-   * \brief Only valid when kind == ForKind::kThreadBinding
-   * The context thread that this loop variable bounds to.
-   */
-  ffi::Optional<IterVar> thread_binding;
-  /*!
    * \brief Additional annotations about the loop.
    *
-   *  These annotations can be used as auxiliary hint
-   *  to future transformations. An annotation should
-   *  not change the control flow semantics of the loop
-   *  and can be ignored in most passes.
+   *  Most annotations are auxiliary transformation hints. The reserved
+   *  thread_binding annotation is semantic: its IterVar binds a parallel loop
+   *  to an execution thread and must be preserved until binding is lowered.
    */
   ffi::Map<ffi::String, ffi::Any> annotations;
   /*!
@@ -626,13 +613,21 @@ class ForNode : public StmtNode {
         .def_ro("extent", &ForNode::extent)
         .def_ro("kind", &ForNode::kind)
         .def_ro("body", &ForNode::body)
-        .def_ro("thread_binding", &ForNode::thread_binding)
         .def_ro("annotations", &ForNode::annotations)
         .def_ro("step", &ForNode::step);
   }
 
   /*! \brief Check it is a loop without nontrivial loop step. */
   bool HasTrivialStep() const;
+
+  /*! \brief Get the validated semantic thread binding, if present. */
+  TVM_DLL ffi::Optional<IterVar> GetThreadBinding() const;
+  /*! \brief Set or remove the semantic binding on a parallel loop. */
+  TVM_DLL void SetThreadBinding(ffi::Optional<IterVar> binding);
+  /*! \brief Whether this parallel loop is bound to an execution thread. */
+  bool IsThreadBinding() const { return GetThreadBinding().has_value(); }
+  /*! \brief Whether this is an ordinary, unbound CPU parallel loop. */
+  bool IsParallel() const { return kind == ForKind::kParallel && !IsThreadBinding(); }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.For", ForNode, StmtNode);
 };
@@ -799,6 +794,8 @@ class ScopeIdDefStmt : public Stmt {
 
 /*! \brief namespace of possible attributes in AttrStmt.attr_key */
 namespace attr {
+/*! \brief Semantic IterVar binding of a parallel For loop to an execution thread. */
+constexpr const char* thread_binding = "thread_binding";
 /*!
  * \brief Mark the scope as when computation start to happen.
  *  This can hint some code generator to create a new function for compute.
@@ -886,8 +883,6 @@ inline const char* ForKind2String(ForKind t) {
       return "vectorized";
     case ForKind::kUnrolled:
       return "unroll";
-    case ForKind::kThreadBinding:
-      return "thread_binding";
   }
   TVM_FFI_THROW(InternalError) << "Unknown ForKind" << t;
   TVM_FFI_UNREACHABLE();

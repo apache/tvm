@@ -465,11 +465,11 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const ForNode* op, InplaceMode 
     n->loop_var = new_loop_var;
     n->min = prim::cast(new_loop_var.ty(), min);
     n->extent = prim::cast(new_loop_var.ty(), extent);
-    if (op->thread_binding.has_value()) {
-      auto old_thread_binding = op->thread_binding.value();
+    if (op->GetThreadBinding().has_value()) {
+      auto old_thread_binding = op->GetThreadBinding().value();
       auto* ptr = old_thread_binding.CopyOnWrite();
       ptr->var = old_thread_binding->var.CopyWithDType(new_loop_var.ty());
-      n->thread_binding = ffi::Optional<IterVar>(std::move(old_thread_binding));
+      n->SetThreadBinding(ffi::Optional<IterVar>(std::move(old_thread_binding)));
     }
     n->body = new_body;
     return new_for;

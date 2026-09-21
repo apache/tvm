@@ -42,7 +42,7 @@ def _has_internal_thread_env(stmt: tirx.Stmt) -> bool:
 
     def visit_for(node: tirx.For):
         nonlocal found
-        if node.kind == tirx.ForKind.THREAD_BINDING:
+        if node.is_thread_binding():
             found = True
 
     tvm_ffi.structural_walk(

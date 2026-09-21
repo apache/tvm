@@ -65,11 +65,11 @@ struct ThreadScopeEqual {
  * \return True if the loop is bound to threadIdx.x/y/z
  */
 bool IsBoundToThreadIdx(const ForNode* loop) {
-  if (!loop->thread_binding.has_value()) {
+  if (!loop->GetThreadBinding().has_value()) {
     return false;
   }
   runtime::ThreadScope scope =
-      runtime::ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+      runtime::ThreadScope::Create(loop->GetThreadBinding().value()->thread_tag);
   return scope.rank == 1 && scope.dim_index >= 0;
 }
 
@@ -280,7 +280,7 @@ class InThreadReducerMaker : public StmtExprMutator {
                                          .ValueOrUnchanged(ffi::GetRef<Stmt>(loop))
                                          .as<For>()) {
       For res = *opt_res;
-      if (res->thread_binding.has_value()) {
+      if (res->GetThreadBinding().has_value()) {
         if (!res->body.defined() ||
             UnderLoopReductionBlockVarCollector::CheckHasReductionBlocks(res)) {
           return res->body;
@@ -418,7 +418,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     }
     // Next arguments: all the reduction threads
     for (const ForNode* reduction_loop : reduction_loops) {
-      if (reduction_loop->thread_binding.has_value()) {
+      if (reduction_loop->GetThreadBinding().has_value()) {
         parameters.push_back(reduction_loop->loop_var);
       }
     }
@@ -546,7 +546,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(realize->predicate, walk_fn);
     if (wb_buffers[0].scope() != "local") {
       for (const ForNode* loop : reduction_loops) {
-        if (loop->thread_binding.has_value()) {
+        if (loop->GetThreadBinding().has_value()) {
           wb_predicate = wb_predicate &&
                          (static_cast<PrimExpr>(loop->loop_var) == IntImm(loop->loop_var.ty(), 0));
         }
@@ -567,7 +567,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
   Stmt new_stmt = SeqStmt::Flatten(std::move(stmts));
   for (auto rit = reduction_loops.rbegin(); rit != reduction_loops.rend(); ++rit) {
     const ForNode* loop = *rit;
-    if (loop->thread_binding.has_value()) {
+    if (loop->GetThreadBinding().has_value()) {
       ffi::ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*loop);
       n->body = std::move(new_stmt);
       new_stmt = For(n);
@@ -614,7 +614,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
         // Step 3. Collect the loop.
         reduction_loops.push_back(loop);
         // Step 4. See whether the loop is bound to some thread axis.
-        if (loop->thread_binding.has_value()) {
+        if (loop->GetThreadBinding().has_value()) {
           need = true;
         }
       }
@@ -656,8 +656,8 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
 
     // Erase those threads which are not free to this block.
     for (const ForNode* loop : loop_stack_) {
-      if (loop->thread_binding.has_value()) {
-        ThreadScope scope = ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+      if (loop->GetThreadBinding().has_value()) {
+        ThreadScope scope = ThreadScope::Create(loop->GetThreadBinding().value()->thread_tag);
         thread2range.erase(scope);
       }
     }
@@ -711,7 +711,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     // bound to `threadIdx.x/y/z`.
     int n_bound_reduction_loops = 0;
     for (const ForNode* reduction_loop : reduction_loops) {
-      if (reduction_loop->thread_binding.has_value()) {
+      if (reduction_loop->GetThreadBinding().has_value()) {
         ++n_bound_reduction_loops;
         TVM_FFI_CHECK(IsBoundToThreadIdx(reduction_loop), ValueError)
             << "Cross-thread reduction requires all the reduction-related loops that "
@@ -794,8 +794,8 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     // - we are careful about thread block boundary for safety.
     bool is_block_idx = false;
     bool is_thread_idx = false;
-    if (loop->kind == ForKind::kThreadBinding) {
-      ThreadScope scope = ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+    if (loop->IsThreadBinding()) {
+      ThreadScope scope = ThreadScope::Create(loop->GetThreadBinding().value()->thread_tag);
       if (scope.rank == 1 && scope.dim_index >= 0) {
         is_thread_idx = true;
         ++thread_idx_depth;
@@ -891,9 +891,9 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     std::vector<std::pair<ThreadScope, Range>> reduction_threads;
     reduction_threads.reserve(reduction_loops.size());
     for (const ForNode* loop : reduction_loops) {
-      if (loop->thread_binding.has_value()) {
+      if (loop->GetThreadBinding().has_value()) {
         reduction_threads.emplace_back(
-            ThreadScope::Create(loop->thread_binding.value()->thread_tag),
+            ThreadScope::Create(loop->GetThreadBinding().value()->thread_tag),
             Range::FromMinExtent(loop->min, loop->extent));
       }
     }
@@ -929,7 +929,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
           /*loop_var=*/loop_vars[i].as_or_throw<PrimVar>(),   //
           /*min=*/unbound_thread2range[i].second->min,        //
           /*extent=*/unbound_thread2range[i].second->extent,  //
-          /*kind=*/ForKind::kThreadBinding,                   //
+          /*kind=*/ForKind::kParallel,                        //
           /*body=*/body,                                      //
           /*thread_binding=*/
           IterVar(Range(), PrimVar("", loop_vars[i]->ty.as_or_throw<PrimType>()),

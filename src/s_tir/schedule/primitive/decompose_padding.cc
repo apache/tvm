@@ -374,7 +374,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
     PrimExpr min = it == new_loop_ranges.end() ? loop->min : (*it).second->min;
     PrimExpr extent = it == new_loop_ranges.end() ? loop->extent : (*it).second->extent;
     nest_stmt_root = For(loop->loop_var, min, extent, loop->kind, nest_stmt_root,
-                         loop->thread_binding, loop->annotations, loop->step, loop->span);
+                         loop->GetThreadBinding(), loop->annotations, loop->step, loop->span);
     if (loop.same_as(highest_pos_inclusive)) {
       break;
     }

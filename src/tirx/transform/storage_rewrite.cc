@@ -694,7 +694,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       op = stmt.as<ForNode>();
       return For(op->loop_var, op->min, op->extent, op->kind, MakeAttach(svec, op->body),
-                 op->thread_binding, op->annotations, op->step);
+                 op->GetThreadBinding(), op->annotations, op->step);
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
@@ -1096,7 +1096,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         }
       } else if (s.stmt->IsInstance<ForNode>()) {
         const auto* op = static_cast<const ForNode*>(s.stmt);
-        if (op->kind == ForKind::kParallel) {
+        if (op->IsParallel()) {
           if (thread_scope_ == nullptr || thread_scope_ == op) {
             PlanNewScope(op);
           }

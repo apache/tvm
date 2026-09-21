@@ -266,7 +266,7 @@ class ForMatcher : public TensorizeComparator {
     if (!DefEqual(op->loop_var, rhs->loop_var)) return false;
     // Only handle the case where the loop start from 0
     if (!is_zero(op->min) || !is_zero(rhs->min)) return false;
-    if (op->thread_binding.has_value() || rhs->thread_binding.has_value()) return false;
+    if (op->GetThreadBinding().has_value() || rhs->GetThreadBinding().has_value()) return false;
     if (op->kind != ForKind::kSerial || op->kind != rhs->kind) return false;
     if (!op->annotations.empty() || !rhs->annotations.empty()) return false;
     // Match the extents of loops

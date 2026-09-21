@@ -28,11 +28,11 @@ using namespace tvm::tirx;
 
 class WrongBlockIterTypeError : public ScheduleErrorContextObj {
  public:
-  explicit WrongBlockIterTypeError(IRModule mod, ForKind for_kind, Var loop_var, SBlock block)
+  explicit WrongBlockIterTypeError(IRModule mod, ForKind for_kind, bool is_thread_binding,
+                                   Var loop_var, SBlock block)
       : mod_(std::move(mod)), loop_var_(std::move(loop_var)), block_(std::move(block)) {
-    op_str_ = for_kind == ForKind::kParallel
-                  ? "parallel"
-                  : (for_kind == ForKind::kVectorized ? "vectorize" : "bind");
+    op_str_ =
+        is_thread_binding ? "bind" : (for_kind == ForKind::kParallel ? "parallel" : "vectorize");
   }
   ffi::String FastErrorString() const final {
     std::ostringstream os;
@@ -73,7 +73,7 @@ class WrongBlockIterTypeError : public ScheduleErrorContextObj {
  *   - the block iter is a reduction block iter, and the input `thread_tag` starts with "threadIdx"
  *   in case of cross-thread reduction.
  * \param self The schedule state
- * \param for_kind The desired ForKind (only `kParallel`, `kVectorized` and `kThreadBinding` are
+ * \param for_kind The desired ForKind (only `kParallel` and `kVectorized` are
  * allowed)
  * \param loop_var The loop variable of the loop to be checked
  * \param block_realize The block-realize of the block to be checked
@@ -112,7 +112,8 @@ void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
     IterVarType iter_type = iter_var->iter_type;
     if (!(iter_type == kDataPar ||
           (iter_type == kCommReduce && thread_scope.rank == 1 && thread_scope.dim_index != -1))) {
-      throw MakeScheduleError<WrongBlockIterTypeError>(self->mod, for_kind, loop_var, block);
+      throw MakeScheduleError<WrongBlockIterTypeError>(self->mod, for_kind, thread_scope.rank != -1,
+                                                       loop_var, block);
     }
   }
 }
@@ -122,7 +123,7 @@ void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
  * parallelized/vectorized/bound with regard to the block
  * \param self The schedule state
  * \param loop The loop to be parallelized/vectorized/bound
- * \param for_kind The desired ForKind (only `kParallel`, `kVectorized` and `kThreadBinding` are
+ * \param for_kind The desired ForKind (only `kParallel` and `kVectorized` are
  * allowed)
  * \param thread_scope The thread scope of the thread axis to be bound, which is an invalid value if
  * the operation is not "bind"
@@ -145,10 +146,10 @@ void CheckParallelizability(const ScheduleState& self, const For& loop, ForKind 
  * \brief The implementation of parallelizing/vectorizing/binding a given loop
  * \param self The schedule state
  * \param loop_sref The sref of the loop to be parallelized/vectorized/bound
- * \param for_kind The type of the operation (only `kParallel`, `kVectorized` and `kThreadBinding`
+ * \param for_kind The type of the operation (only `kParallel` and `kVectorized`
  * are allowed)
  * \param thread_axis The thread axis that the input loop is bound to, which is defined only when
- * `for_kind` is `kThreadBinding`
+ * binding to a thread
  */
 void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref, ForKind for_kind,
                             ffi::Optional<ffi::String> thread_axis) {
@@ -178,14 +179,12 @@ void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref
   ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
   new_loop->kind = for_kind;
   if (thread_axis.has_value()) {
-    new_loop->thread_binding = IterVar(/*dom=*/Range(nullptr),        //
-                                                                      /*var=*/
-                                       PrimVar(thread_axis.value(),   //
-                                               loop->loop_var.ty()),  //
-                                       /*iter_type=*/kThreadIndex,    //
-                                       /*thread_tag=*/thread_axis.value());
+    new_loop->SetThreadBinding(IterVar(/*dom=*/Range(nullptr),
+                                       /*var=*/PrimVar(thread_axis.value(), loop->loop_var.ty()),
+                                       /*iter_type=*/kThreadIndex,
+                                       /*thread_tag=*/thread_axis.value()));
   } else {
-    new_loop->thread_binding = std::nullopt;
+    new_loop->SetThreadBinding(std::nullopt);
   }
   self->Replace(loop_sref, For(new_loop), {});
 }
@@ -199,14 +198,14 @@ void Vectorize(ScheduleState self, const StmtSRef& loop_sref) {
 }
 
 void Bind(ScheduleState self, const StmtSRef& loop_sref, const ffi::String& thread_axis) {
-  ParallelizeComputation(self, loop_sref, ForKind::kThreadBinding, thread_axis);
+  ParallelizeComputation(self, loop_sref, ForKind::kParallel, thread_axis);
 }
 
 void Unroll(ScheduleState self, const StmtSRef& loop_sref) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
   new_loop->kind = ForKind::kUnrolled;
-  new_loop->thread_binding = std::nullopt;
+  new_loop->SetThreadBinding(std::nullopt);
   self->Replace(loop_sref, For(new_loop), {});
 }
 

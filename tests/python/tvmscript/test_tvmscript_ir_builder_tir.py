@@ -239,7 +239,7 @@ def test_ir_builder_tir_for():
         loop_var=tirx.Var("", "int32"),
         min=0,
         extent=8,
-        kind=tirx.ForKind.THREAD_BINDING,
+        kind=tirx.ForKind.PARALLEL,
         body=tirx.Evaluate(0),
         thread_binding=tirx.IterVar(
             None, tirx.Var("", "int32"), tirx.IterVar.ThreadIndex, "threadIdx.x"

@@ -57,10 +57,10 @@ class ReturnRewriter : public StmtExprMutator {
   explicit ReturnRewriter(Var ret_var) : ret_var_(ret_var) {}
 
   UnchangedOr<Stmt> Mutate_(const ForNode* node, InplaceMode inplace_mode) override {
-    if (node->kind == ForKind::kParallel) in_parallel_ += 1;
+    if (node->IsParallel()) in_parallel_ += 1;
     Stmt ret =
         StmtExprMutator::Mutate_(node, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(node));
-    if (node->kind == ForKind::kParallel) in_parallel_ -= 1;
+    if (node->IsParallel()) in_parallel_ -= 1;
     return ret;
   }
 

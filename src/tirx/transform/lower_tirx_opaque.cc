@@ -58,7 +58,8 @@ class TIRxOpaqueLower : public StmtExprMutator {
     // Step 1. Update unit loop info.
     PrimExpr min = this->Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
     PrimExpr extent = this->Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
-    if (is_one(extent) && op->annotations.empty()) {
+    bool has_only_thread_binding = op->IsThreadBinding() && op->annotations.size() == 1;
+    if (is_one(extent) && (op->annotations.empty() || has_only_thread_binding)) {
       // handling unit loop
       VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
     }
@@ -71,10 +72,10 @@ class TIRxOpaqueLower : public StmtExprMutator {
     ffi::Map<ffi::String, ffi::Any> new_annotations =
         HandleAnnotations(op->annotations, &pragma_attrs);
     // Step 4. Create new For loop accordingly
-    if (op->kind == ForKind::kThreadBinding) {
+    if (op->IsThreadBinding()) {
       // Case 1. Thread binding → AttrStmt(thread_extent)
-      TVM_FFI_ICHECK(op->thread_binding.has_value());
-      ffi::String thread_tag = op->thread_binding.value()->thread_tag;
+      TVM_FFI_ICHECK(op->GetThreadBinding().has_value());
+      ffi::String thread_tag = op->GetThreadBinding().value()->thread_tag;
       body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
     } else if (is_one(extent) && op->annotations.empty() &&
                !op->annotations.count(s_tir::attr::irregular_loop_mark)) {

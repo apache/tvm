@@ -173,7 +173,7 @@ def _has_thread_binding(func: tvm.tirx.PrimFunc) -> bool:
 
     def _visit(node):
         nonlocal found
-        if isinstance(node, tvm.tirx.For) and node.kind == tvm.tirx.ForKind.THREAD_BINDING:
+        if isinstance(node, tvm.tirx.For) and node.is_thread_binding():
             found = True
 
     tvm_ffi.structural_walk(func.body, _visit)

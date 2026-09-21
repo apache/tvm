@@ -342,16 +342,16 @@ struct LoopNest {
   int64_t prod = 1;    // The product of the extents of all the loops
   ForVec loops;        // All the loops
   IntVec auto_unroll;  // The loops with auto unroll pragma
-  ForVec parallel;     // The loops whose ForKind are kParallel
+  ForVec parallel;     // The CPU parallel loops
   ForVec vectorize;    // The loops whose ForKind are kVectorized
   ForVec unroll;       // The loops whose ForKind are kUnrolled
-  ForVec blockIdx_x;   // The loops whose ForKind are kThreadBinding to blockIdx.x
-  ForVec blockIdx_y;   // The loops whose ForKind are kThreadBinding to blockIdx.y
-  ForVec blockIdx_z;   // The loops whose ForKind are kThreadBinding to blockIdx.z
-  ForVec threadIdx_x;  // The loops whose ForKind are kThreadBinding to threadIdx.x
-  ForVec threadIdx_y;  // The loops whose ForKind are kThreadBinding to threadIdx.y
-  ForVec threadIdx_z;  // The loops whose ForKind are kThreadBinding to threadIdx.z
-  ForVec vthread;      // The loops whose ForKind are kThreadBinding to vthread.*
+  ForVec blockIdx_x;   // The loops bound to blockIdx.x
+  ForVec blockIdx_y;   // The loops bound to blockIdx.y
+  ForVec blockIdx_z;   // The loops bound to blockIdx.z
+  ForVec threadIdx_x;  // The loops bound to threadIdx.x
+  ForVec threadIdx_y;  // The loops bound to threadIdx.y
+  ForVec threadIdx_z;  // The loops bound to threadIdx.z
+  ForVec vthread;      // The loops bound to vthread.*
 
   /*!
    * \brief Push a new loop into the loop nest
@@ -370,14 +370,14 @@ struct LoopNest {
       this->auto_unroll.push_back(*auto_unroll_attr);
     }
     ForVec* ref_loops = nullptr;
-    if (loop->kind == ForKind::kParallel) {
+    if (loop->IsParallel()) {
       ref_loops = &parallel;
     } else if (loop->kind == ForKind::kVectorized) {
       ref_loops = &vectorize;
     } else if (loop->kind == ForKind::kUnrolled) {
       ref_loops = &unroll;
-    } else if (loop->kind == ForKind::kThreadBinding) {
-      std::string thread_tag = loop->thread_binding.value()->thread_tag;
+    } else if (loop->IsThreadBinding()) {
+      std::string thread_tag = loop->GetThreadBinding().value()->thread_tag;
       if (thread_tag == "blockIdx.x") {
         ref_loops = &blockIdx_x;
       } else if (thread_tag == "blockIdx.y") {

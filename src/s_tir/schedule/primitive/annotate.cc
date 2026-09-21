@@ -27,6 +27,8 @@ using namespace tvm::tirx;
 
 void Annotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_key,
               const Any& ann_val) {
+  TVM_FFI_CHECK(!sref->StmtAs<ForNode>() || ann_key != tirx::attr::thread_binding, ValueError)
+      << "thread_binding is a semantic annotation; use Schedule.bind to set it";
   // Extract annotation
   const ffi::Map<ffi::String, ffi::Any>* annotations = nullptr;
   if (const auto* loop = sref->StmtAs<ForNode>()) {
@@ -47,6 +49,8 @@ void Annotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_k
   if (const auto* loop = sref->StmtAs<ForNode>()) {
     ffi::ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*loop);
     n->annotations = std::move(new_ann);
+    // Validate semantic loop annotations before installing the replacement.
+    n->GetThreadBinding();
     self->Replace(sref, For(n), {});
   } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
     ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block);
@@ -60,6 +64,8 @@ void Annotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_k
 }
 
 void Unannotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_key) {
+  TVM_FFI_CHECK(!sref->StmtAs<ForNode>() || ann_key != tirx::attr::thread_binding, ValueError)
+      << "thread_binding is a semantic annotation; use Schedule.parallel to remove it";
   // Extract annotation
   const ffi::Map<ffi::String, ffi::Any>* annotations = nullptr;
   if (const auto* loop = sref->StmtAs<ForNode>()) {
@@ -78,6 +84,8 @@ void Unannotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann
   if (const auto* loop = sref->StmtAs<ForNode>()) {
     ffi::ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*loop);
     n->annotations = std::move(new_ann);
+    // Validate semantic loop annotations before installing the replacement.
+    n->GetThreadBinding();
     self->Replace(sref, For(n), {});
   } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
     ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block);

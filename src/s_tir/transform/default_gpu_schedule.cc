@@ -40,7 +40,7 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   ffi::Array<s_tir::LoopRV> loops = sch->GetLoops(block);
   for (const s_tir::LoopRV& loop : loops) {
     // skip block if already scheduled
-    if (sch->Get(loop)->thread_binding.has_value()) {
+    if (sch->Get(loop)->GetThreadBinding().has_value()) {
       return;
     }
   }

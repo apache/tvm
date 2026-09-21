@@ -1192,7 +1192,7 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
   EmitDebugLocation(op);
   if (op->kind == ForKind::kSerial || op->kind == ForKind::kUnrolled) {
     CodeGenLLVM::Dispatch_(op);
-  } else if (op->kind == ForKind::kParallel) {
+  } else if (op->IsParallel()) {
     TVM_FFI_ICHECK(is_zero(op->min))
         << "Parallel launch require canonical loop with zero start index";
     TVM_FFI_ICHECK(op->HasTrivialStep())

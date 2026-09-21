@@ -1174,6 +1174,8 @@ class PipelineInjector : public StmtExprMutator {
     if (!HasPipelineAnnotation(op)) {
       return for_node;
     }
+    TVM_FFI_CHECK(!for_node->IsThreadBinding(), ValueError)
+        << "Software pipelining cannot replace a thread-bound loop";
     // Step 2: Find the body and buffer allocations of the pipeline. The body can be direct child of
     // the for-loop. If the for-loop has BlockRealize as its child, the pipeline body will be the
     // child of the block.

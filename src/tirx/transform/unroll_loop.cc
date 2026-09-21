@@ -134,6 +134,11 @@ class LoopUnroller : public StmtExprMutator {
         inplace_mode = InplaceMode::kDisallow;
       }
     }
+    // A thread-bound loop defines an execution scope even when its extent is one.
+    if (op->IsThreadBinding()) {
+      normal_loop_depth_ += 1;
+      return result;
+    }
     int value = GetExtent(op);
     // condition for auto unroll
     bool auto_unroll = (op->kind == ForKind::kSerial && value >= 0 && normal_loop_depth_ == 0 &&

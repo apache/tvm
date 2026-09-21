@@ -210,7 +210,7 @@ TVMFFIAny AssertStmtMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
 }
 
 TVMFFIAny ForVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  // skips: kind and constant annotations; unlike SBlock annotations, these carry no expressions.
+  // Skip the kind and auxiliary hints, but traverse the semantic thread binding.
   const ForNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ForNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
@@ -218,13 +218,13 @@ TVMFFIAny ForVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexc
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->min));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->extent));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->body));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->thread_binding));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->GetThreadBinding()));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->step));
   return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
 
 TVMFFIAny ForMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: kind and constant annotations; unlike SBlock annotations, these carry no expressions.
+  // Skip the kind and auxiliary hints, but traverse the semantic thread binding.
   const ForNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ForNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimVar>, mapped_loop_var,
@@ -238,13 +238,13 @@ TVMFFIAny ForMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noex
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
                                     mutator->MutateExpected(self->body));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<IterVar>>, mapped_thread_binding,
-                                    mutator->MutateExpected(self->thread_binding));
+                                    mutator->MutateExpected(self->GetThreadBinding()));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<PrimExpr>>, mapped_step,
                                     mutator->MutateExpected(self->step));
   if (mapped_loop_var.UnchangedOrSameAs(self->loop_var) &&
       mapped_min.UnchangedOrSameAs(self->min) && mapped_extent.UnchangedOrSameAs(self->extent) &&
       mapped_body.UnchangedOrSameAs(self->body) &&
-      mapped_thread_binding.UnchangedOrSameAs(self->thread_binding) &&
+      mapped_thread_binding.UnchangedOrSameAs(self->GetThreadBinding()) &&
       mapped_step.UnchangedOrSameAs(self->step)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
@@ -253,14 +253,14 @@ TVMFFIAny ForMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noex
   copy->min = std::move(mapped_min).ValueOrUnchanged(std::move(copy->min));
   copy->extent = std::move(mapped_extent).ValueOrUnchanged(std::move(copy->extent));
   copy->body = std::move(mapped_body).ValueOrUnchanged(std::move(copy->body));
-  copy->thread_binding =
-      std::move(mapped_thread_binding).ValueOrUnchanged(std::move(copy->thread_binding));
+  copy->SetThreadBinding(
+      std::move(mapped_thread_binding).ValueOrUnchanged(copy->GetThreadBinding()));
   copy->step = std::move(mapped_step).ValueOrUnchanged(std::move(copy->step));
   return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
 }
 
 TVMFFIAny ForMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: kind and constant annotations; unlike SBlock annotations, these carry no expressions.
+  // Skip the kind and auxiliary hints, but traverse the semantic thread binding.
   ForNode* self = const_cast<ForNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ForNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimVar>, mapped_loop_var,
@@ -277,13 +277,13 @@ TVMFFIAny ForMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
                                     mutator->MutateExpected(self->body, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<ffi::Optional<IterVar>>, mapped_thread_binding,
-      mutator->MutateExpected(self->thread_binding, ffi::InplaceMode::kAllow));
+      mutator->MutateExpected(self->GetThreadBinding(), ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<PrimExpr>>, mapped_step,
                                     mutator->MutateExpected(self->step, ffi::InplaceMode::kAllow));
   if (mapped_loop_var.UnchangedOrSameAs(self->loop_var) &&
       mapped_min.UnchangedOrSameAs(self->min) && mapped_extent.UnchangedOrSameAs(self->extent) &&
       mapped_body.UnchangedOrSameAs(self->body) &&
-      mapped_thread_binding.UnchangedOrSameAs(self->thread_binding) &&
+      mapped_thread_binding.UnchangedOrSameAs(self->GetThreadBinding()) &&
       mapped_step.UnchangedOrSameAs(self->step)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
   }
@@ -292,7 +292,7 @@ TVMFFIAny ForMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView
   if (!mapped_extent.IsUnchanged()) self->extent = std::move(mapped_extent).ValueUnchecked();
   if (!mapped_body.IsUnchanged()) self->body = std::move(mapped_body).ValueUnchecked();
   if (!mapped_thread_binding.IsUnchanged()) {
-    self->thread_binding = std::move(mapped_thread_binding).ValueUnchecked();
+    self->SetThreadBinding(std::move(mapped_thread_binding).ValueUnchecked());
   }
   if (!mapped_step.IsUnchanged()) self->step = std::move(mapped_step).ValueUnchecked();
   return ffi::Unchanged().CopyToTVMFFIAny();
@@ -850,6 +850,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
          ffi::Optional<IterVar> thread_binding, ffi::Map<ffi::String, Any> annotations,
          ffi::Optional<PrimExpr> step, Span span) {
+  TVM_FFI_CHECK(kind >= ForKind::kSerial && kind <= ForKind::kUnrolled, ValueError)
+      << "Invalid ForKind: " << static_cast<int>(kind);
   TVM_FFI_ICHECK(loop_var.defined());
   TVM_FFI_ICHECK(min.defined());
   TVM_FFI_ICHECK(extent.defined());
@@ -904,8 +906,16 @@ For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt bod
   node->extent = std::move(extent);
   node->kind = kind;
   node->body = std::move(body);
-  node->thread_binding = std::move(thread_binding);
   node->annotations = std::move(annotations);
+  if (thread_binding.has_value()) {
+    if (auto existing = node->GetThreadBinding()) {
+      TVM_FFI_CHECK(existing.value().same_as(thread_binding.value()), ValueError)
+          << "Conflicting thread_binding argument and annotation";
+    }
+    node->SetThreadBinding(std::move(thread_binding));
+  } else {
+    node->GetThreadBinding();
+  }
   node->step = std::move(step);
   node->span = std::move(span);
   data_ = std::move(node);
@@ -929,6 +939,30 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
+ffi::Optional<IterVar> ForNode::GetThreadBinding() const {
+  auto value = annotations.Get(attr::thread_binding);
+  if (!value.has_value()) return std::nullopt;
+  TVM_FFI_CHECK(kind == ForKind::kParallel, ValueError)
+      << "thread_binding is only valid on parallel loops";
+  auto binding = value.value().as<IterVar>();
+  TVM_FFI_CHECK(binding.has_value(), TypeError) << "thread_binding annotation must be an IterVar";
+  TVM_FFI_CHECK(!binding.value()->thread_tag.empty(), ValueError)
+      << "thread_binding must have a nonempty thread tag";
+  return binding;
+}
+
+void ForNode::SetThreadBinding(ffi::Optional<IterVar> binding) {
+  if (binding.has_value()) {
+    TVM_FFI_CHECK(kind == ForKind::kParallel, ValueError)
+        << "thread_binding is only valid on parallel loops";
+    TVM_FFI_CHECK(!binding.value()->thread_tag.empty(), ValueError)
+        << "thread_binding must have a nonempty thread tag";
+    annotations.Set(attr::thread_binding, binding.value());
+  } else {
+    annotations.erase(attr::thread_binding);
+  }
+}
+
 bool ForNode::HasTrivialStep() const { return !step.has_value() || is_one(*step); }
 
 std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
@@ -944,9 +978,6 @@ std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
       break;
     case ForKind::kVectorized:
       out << "vectorized";
-      break;
-    case ForKind::kThreadBinding:
-      out << "launch_thread";
       break;
   }
   return out;
