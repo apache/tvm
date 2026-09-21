@@ -551,8 +551,8 @@ PrimExpr ConvertLoopBound(const PrimExpr& e, const PrimType& var_ty) {
       TVM_FFI_ICHECK_EQ(doms.size(), 1);                                                        \
       TVM_FFI_ICHECK_EQ(steps.size(), 1);                                                       \
       return tvm::tirx::For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent, \
-                            Kind, body, std::nullopt,                                           \
-                            annotations.value_or(ffi::Map<ffi::String, Any>()), steps[0]);      \
+                            Kind, body, annotations.value_or(ffi::Map<ffi::String, Any>()),     \
+                            steps[0]);                                                          \
     };                                                                                          \
     return ForFrame(n);                                                                         \
   }
@@ -577,17 +577,16 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
   n->vars = {Var("v", dtype)};
   n->doms = {Range::FromMinExtent(min, extent)};
   n->steps = {std::nullopt};
-  n->f_make_for_loop = [annotations, thread, dtype](ffi::Array<Var> vars, ffi::Array<Range> doms,
-                                                    ffi::Array<ffi::Optional<PrimExpr>> steps,
-                                                    Stmt body) -> For {
+  n->f_make_for_loop = [annotations, thread](ffi::Array<Var> vars, ffi::Array<Range> doms,
+                                             ffi::Array<ffi::Optional<PrimExpr>> steps,
+                                             Stmt body) -> For {
     TVM_FFI_ICHECK_EQ(vars.size(), 1);
     TVM_FFI_ICHECK_EQ(doms.size(), 1);
     TVM_FFI_ICHECK(steps.size() == 1 && (!steps[0].has_value() || is_one(*steps[0])));
-    IterVar iter_var(Range(nullptr), tvm::PrimVar("iter", dtype), IterVarType::kThreadIndex,
-                     thread);
+    auto loop_annotations = annotations.value_or(ffi::Map<ffi::String, ffi::Any>());
+    loop_annotations.Set(s_tir::attr::thread_binding, thread);
     return For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent,
-               ForKind::kParallel, body, iter_var,
-               annotations.value_or(ffi::Map<ffi::String, ffi::Any>()), std::nullopt);
+               ForKind::kParallel, body, loop_annotations, std::nullopt);
   };
   return ForFrame(n);
 }
@@ -628,7 +627,7 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
       Var var = vars[i];
       body = For(var.as_or_throw<tvm::PrimVar>(), dom->min, dom->extent, ForKind::kSerial,
                  std::move(body),
-                 /*thread_binding=*/std::nullopt, /*annotations=*/{}, /*step=*/steps[i]);
+                 /*annotations=*/{}, /*step=*/steps[i]);
     }
     return body;
   };

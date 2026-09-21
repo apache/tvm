@@ -30,6 +30,25 @@
 
 namespace tvm {
 namespace s_tir {
+
+ffi::Optional<ffi::String> GetThreadBinding(const tirx::ForNode* loop) {
+  auto value = loop->annotations.Get(attr::thread_binding);
+  if (!value.has_value()) return std::nullopt;
+  TVM_FFI_CHECK(loop->kind == tirx::ForKind::kParallel, ValueError)
+      << "thread_binding is only valid on parallel loops";
+  auto binding = value.value().as<ffi::String>();
+  TVM_FFI_CHECK(binding.has_value(), TypeError) << "thread_binding annotation must be a String";
+  TVM_FFI_CHECK(!binding.value().empty(), ValueError)
+      << "thread_binding must have a nonempty thread tag";
+  return binding;
+}
+
+bool IsThreadBinding(const tirx::ForNode* loop) { return GetThreadBinding(loop).has_value(); }
+
+bool IsParallel(const tirx::ForNode* loop) {
+  return loop->kind == tirx::ForKind::kParallel && !IsThreadBinding(loop);
+}
+
 using namespace tvm::tirx;
 using namespace tvm::prim;
 

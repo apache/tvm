@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "./utils.h"
 
@@ -83,7 +84,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           max = d->AsDoc<ExprDoc>(loop->min + loop->extent, loop_p->Attr("extent"));
         }
         auto loop_annotations = loop->annotations;
-        loop_annotations.erase(tirx::attr::thread_binding);
+        loop_annotations.erase(s_tir::attr::thread_binding);
         if (!loop_annotations.empty()) {
           annotations = d->AsDoc<ExprDoc>(loop_annotations, loop_p->Attr("annotations"));
         }
@@ -96,12 +97,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           } else {
             prefix = TIR(d, "serial");
           }
-        } else if (loop->IsThreadBinding()) {
+        } else if (s_tir::IsThreadBinding(loop.get())) {
           prefix = TIR(d, "thread_binding");
-          thread = LiteralDoc::Str(
-              loop->GetThreadBinding().value()->thread_tag,
-              loop_p->Attr("annotations")->MapItem(tirx::attr::thread_binding)->Attr("thread_tag"));
-        } else if (loop->IsParallel()) {
+          thread =
+              LiteralDoc::Str(s_tir::GetThreadBinding(loop.get()).value(),
+                              loop_p->Attr("annotations")->MapItem(s_tir::attr::thread_binding));
+        } else if (s_tir::IsParallel(loop.get())) {
           prefix = TIR(d, "parallel");
         } else if (loop->kind == tirx::ForKind::kUnrolled) {
           prefix = TIR(d, "unroll");
@@ -128,12 +129,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           // - annotations == {"disable_unroll": True}: print as unroll=False
           // - annotations == {"pragma_unroll": value}: print as unroll=value
           bool printed_as_unroll = false;
-          if (!loop->IsThreadBinding() && loop_annotations.size() == 1 &&
+          if (!s_tir::IsThreadBinding(loop.get()) && loop_annotations.size() == 1 &&
               loop_annotations.count("disable_unroll")) {
             kwargs_keys.push_back("unroll");
             kwargs_values.push_back(LiteralDoc::Boolean(false, loop_p->Attr("annotations")));
             printed_as_unroll = true;
-          } else if (!loop->IsThreadBinding() && loop_annotations.size() == 1 &&
+          } else if (!s_tir::IsThreadBinding(loop.get()) && loop_annotations.size() == 1 &&
                      loop_annotations.count("pragma_unroll")) {
             kwargs_keys.push_back("unroll");
             kwargs_values.push_back(

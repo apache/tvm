@@ -310,16 +310,8 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     Var old_loop_var = old_loop->loop_var;
     PrimVar new_loop_var = old_loop->loop_var.CopyWithSuffix("_init");
     loop_var_map[old_loop_var] = new_loop_var;
-    ffi::Optional<IterVar> opt_thread_binding = old_loop->GetThreadBinding();
-    if (opt_thread_binding) {
-      auto thread_binding = opt_thread_binding.value();
-      auto new_var = thread_binding->var.CopyWithSuffix("");
-      thread_binding.CopyOnWrite()->var = new_var;
-      opt_thread_binding = thread_binding;
-    }
     auto new_loop = old_loop.CopyOnWrite();
     new_loop->loop_var = new_loop_var;
-    new_loop->SetThreadBinding(opt_thread_binding);
     new_loop->body = body;
     body = ffi::GetRef<For>(new_loop);
   }

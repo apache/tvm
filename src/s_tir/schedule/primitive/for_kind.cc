@@ -179,12 +179,9 @@ void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref
   ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
   new_loop->kind = for_kind;
   if (thread_axis.has_value()) {
-    new_loop->SetThreadBinding(IterVar(/*dom=*/Range(nullptr),
-                                       /*var=*/PrimVar(thread_axis.value(), loop->loop_var.ty()),
-                                       /*iter_type=*/kThreadIndex,
-                                       /*thread_tag=*/thread_axis.value()));
+    new_loop->annotations.Set(s_tir::attr::thread_binding, thread_axis.value());
   } else {
-    new_loop->SetThreadBinding(std::nullopt);
+    new_loop->annotations.erase(s_tir::attr::thread_binding);
   }
   self->Replace(loop_sref, For(new_loop), {});
 }
@@ -205,7 +202,7 @@ void Unroll(ScheduleState self, const StmtSRef& loop_sref) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
   new_loop->kind = ForKind::kUnrolled;
-  new_loop->SetThreadBinding(std::nullopt);
+  new_loop->annotations.erase(s_tir::attr::thread_binding);
   self->Replace(loop_sref, For(new_loop), {});
 }
 

@@ -1370,9 +1370,9 @@ class LoopVectorizer : public StmtExprMutator {
     Stmt body = substituter->Mutate(op->body).ValueOrUnchanged(op->body);
     Stmt guarded_body = IfThenElse(index < fixed_extent, body, std::nullopt, op->span);
     Stmt vector_loop = For(inner, IntImm(lane_dtype, 0), scalable_lanes, ForKind::kVectorized,
-                           guarded_body, std::nullopt, op->annotations, std::nullopt, op->span);
-    Stmt loop = For(outer, zero, num_chunks, ForKind::kSerial, vector_loop, std::nullopt, {},
-                    std::nullopt, op->span);
+                           guarded_body, op->annotations, std::nullopt, op->span);
+    Stmt loop =
+        For(outer, zero, num_chunks, ForKind::kSerial, vector_loop, {}, std::nullopt, op->span);
 
     return this->Mutate(loop, InplaceMode::kDisallow).ValueOrUnchanged(loop);
   }

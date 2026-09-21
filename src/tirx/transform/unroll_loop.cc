@@ -27,6 +27,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -135,7 +136,7 @@ class LoopUnroller : public StmtExprMutator {
       }
     }
     // A thread-bound loop defines an execution scope even when its extent is one.
-    if (op->IsThreadBinding()) {
+    if (s_tir::IsThreadBinding(op)) {
       normal_loop_depth_ += 1;
       return result;
     }

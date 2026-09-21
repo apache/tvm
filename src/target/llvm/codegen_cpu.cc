@@ -51,6 +51,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
 
 #include <algorithm>
@@ -1192,7 +1193,7 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
   EmitDebugLocation(op);
   if (op->kind == ForKind::kSerial || op->kind == ForKind::kUnrolled) {
     CodeGenLLVM::Dispatch_(op);
-  } else if (op->IsParallel()) {
+  } else if (s_tir::IsParallel(op)) {
     TVM_FFI_ICHECK(is_zero(op->min))
         << "Parallel launch require canonical loop with zero start index";
     TVM_FFI_ICHECK(op->HasTrivialStep())

@@ -32,6 +32,13 @@
 namespace tvm {
 namespace s_tir {
 
+/*! \brief Return the validated S-TIR thread-binding annotation, if present. */
+TVM_DLL ffi::Optional<ffi::String> GetThreadBinding(const tirx::ForNode* loop);
+/*! \brief Whether the parallel loop is bound to a device thread axis. */
+TVM_DLL bool IsThreadBinding(const tirx::ForNode* loop);
+/*! \brief Whether the loop is unbound host parallel work. */
+TVM_DLL bool IsParallel(const tirx::ForNode* loop);
+
 /*!
  * \brief Match introduces a constraint that the source buffer region can be remapped to the data
  * layout specified by the buffer field. The constraint can be checked in later part of lowering (or
@@ -199,6 +206,8 @@ class SBlockRealize : public tirx::Stmt {
 };
 
 namespace attr {
+/*! \brief Device thread axis name attached to an S-TIR parallel loop. */
+constexpr const char* thread_binding = "thread_binding";
 
 /*!
  * \brief Annotations for invoking and synchronizing asynchronous operations.

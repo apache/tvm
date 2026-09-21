@@ -39,7 +39,7 @@ from tvm.runtime import Object, Scriptable
 from . import _ffi_api
 from .buffer import Buffer
 from .exec_scope import ScopeIdDef
-from .expr import IterVar, Var
+from .expr import Var
 
 
 @tvm_ffi.register_object("tirx.Stmt")
@@ -194,16 +194,12 @@ class For(Stmt):
     body : Stmt
         The body statement.
 
-    thread_binding: Optional[tirx.IterVar]
-        The thread this loop binds to. Only valid
-        if kind is PARALLEL. Stored in the semantic thread_binding annotation.
-
     step : Expr
         The loop step. Default to none which
         represent one.
 
     annotations: Optional[Mapping[str, Object]]
-        Additional annotations, including the semantic thread_binding IterVar.
+        Additional execution annotations and transformation hints.
 
     span : Optional[Span]
         The location of the stmt in the source code.
@@ -225,7 +221,6 @@ class For(Stmt):
         extent: Expr,
         kind: ForKind,
         body: Stmt,
-        thread_binding: IterVar | None = None,
         annotations: Mapping[str, Object] | None = None,
         step: Expr | None = None,
         span: Span | None = None,
@@ -238,24 +233,10 @@ class For(Stmt):
             extent,
             kind,
             body,
-            thread_binding,
             annotations,
             step,
             span,
         )
-
-    @property
-    def thread_binding(self) -> IterVar | None:
-        """The semantic thread binding of this parallel loop, if present."""
-        return self.annotations.get("thread_binding")
-
-    def is_thread_binding(self) -> bool:
-        """Whether this loop is bound to an execution thread."""
-        return self.thread_binding is not None
-
-    def is_parallel(self) -> bool:
-        """Whether this is an ordinary unbound CPU parallel loop."""
-        return self.kind == ForKind.PARALLEL and not self.is_thread_binding()
 
 
 @tvm_ffi.register_object("tirx.While")

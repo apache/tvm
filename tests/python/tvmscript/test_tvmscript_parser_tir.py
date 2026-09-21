@@ -533,9 +533,7 @@ def test_thread_binding_dtype():
     loop_i = func.body
     loop_j = loop_i.body
     assert loop_i.loop_var.ty.dtype == "int64"
-    assert loop_i.thread_binding.var.ty.dtype == "int64"
     assert loop_j.loop_var.ty.dtype == "int32"
-    assert loop_j.thread_binding.var.ty.dtype == "int32"
 
 
 def test_inferred_ty_with_prim_args():

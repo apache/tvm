@@ -1027,7 +1027,7 @@ class PipelineRewriter : public StmtExprMutator {
     if (!is_unit_loop) {
       new_loop = For(new_loop_var.as_or_throw<PrimVar>(), pipeline_loop_->min, extent,
                      unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop),
-                     std::nullopt, preserved_annotations_, std::nullopt);
+                     preserved_annotations_, std::nullopt);
     }
 
     // Update producer heads in the global async states.
@@ -1174,7 +1174,7 @@ class PipelineInjector : public StmtExprMutator {
     if (!HasPipelineAnnotation(op)) {
       return for_node;
     }
-    TVM_FFI_CHECK(!for_node->IsThreadBinding(), ValueError)
+    TVM_FFI_CHECK(!IsThreadBinding(for_node.get()), ValueError)
         << "Software pipelining cannot replace a thread-bound loop";
     // Step 2: Find the body and buffer allocations of the pipeline. The body can be direct child of
     // the for-loop. If the for-loop has BlockRealize as its child, the pipeline body will be the

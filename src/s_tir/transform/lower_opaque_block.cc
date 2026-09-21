@@ -94,7 +94,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     // Step 1. Update unit loop info.
     PrimExpr min = this->Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
     PrimExpr extent = this->Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
-    bool has_only_thread_binding = op->IsThreadBinding() && op->annotations.size() == 1;
+    bool has_only_thread_binding = IsThreadBinding(op) && op->annotations.size() == 1;
     if (is_one(extent) && (op->annotations.empty() || has_only_thread_binding)) {
       // handling unit loop
       VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
@@ -108,10 +108,10 @@ class OpaqueBlockLower : public StmtExprMutator {
     ffi::Map<ffi::String, ffi::Any> new_annotations =
         HandleAnnotations(op->annotations, &pragma_attrs, /*is_block=*/false);
     // Step 4. Create new For loop accordingly
-    if (op->IsThreadBinding()) {
+    if (IsThreadBinding(op)) {
       // Case 1. Thread binding
-      TVM_FFI_ICHECK(op->GetThreadBinding().has_value());
-      ffi::String thread_tag = op->GetThreadBinding().value()->thread_tag;
+      TVM_FFI_ICHECK(GetThreadBinding(op).has_value());
+      ffi::String thread_tag = GetThreadBinding(op).value();
       body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
     } else if (is_one(extent) && op->annotations.empty() &&
                !op->annotations.count(s_tir::attr::irregular_loop_mark)) {
@@ -120,7 +120,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     } else {
       // Case 3. An ordinary loop
       body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
-                 std::nullopt, new_annotations, op->step);
+                 new_annotations, op->step);
     }
     // Step 5. Insert nested attrs
     for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {

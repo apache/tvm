@@ -92,7 +92,7 @@ class LoopAnalyzer : public StmtExprVisitor {
           if (has_parallel) {
             loop_info.has_parallel = true;
             parent_parallel = true;
-          } else if (f->IsParallel()) {
+          } else if (IsParallel(f)) {
             // has_parallel for the current loop is being set to 'false' since the
             // intrinsic is added outside of the loop. The instrumentation isn't
             // allowed for the subsequent nested loops.
@@ -127,7 +127,7 @@ class LoopAnalyzer : public StmtExprVisitor {
       if (has_parallel) {
         loop_info.has_parallel = true;
         parent_parallel = true;
-      } else if (f->IsParallel()) {
+      } else if (IsParallel(f)) {
         // has_parallel for the current loop is being set to 'false' since the
         // intrinsic is added outside of the loop. The instrumentation isn't
         // allowed for the subsequent nested loops.
@@ -235,7 +235,7 @@ class CheckParallelLoops : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-    if (op->IsParallel()) {
+    if (IsParallel(op)) {
       has_parallel = true;
     } else {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));

@@ -102,7 +102,7 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-    if (op->IsThreadBinding()) {
+    if (s_tir::IsThreadBinding(op)) {
       // Enter GPU scope for thread binding loops
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;
@@ -191,7 +191,7 @@ class CallSubstitutor : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    if (op->IsThreadBinding()) {
+    if (s_tir::IsThreadBinding(op)) {
       // Enter GPU scope for thread binding loops
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;

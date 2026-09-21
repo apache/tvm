@@ -370,14 +370,14 @@ struct LoopNest {
       this->auto_unroll.push_back(*auto_unroll_attr);
     }
     ForVec* ref_loops = nullptr;
-    if (loop->IsParallel()) {
+    if (IsParallel(loop)) {
       ref_loops = &parallel;
     } else if (loop->kind == ForKind::kVectorized) {
       ref_loops = &vectorize;
     } else if (loop->kind == ForKind::kUnrolled) {
       ref_loops = &unroll;
-    } else if (loop->IsThreadBinding()) {
-      std::string thread_tag = loop->GetThreadBinding().value()->thread_tag;
+    } else if (IsThreadBinding(loop)) {
+      std::string thread_tag = GetThreadBinding(loop).value();
       if (thread_tag == "blockIdx.x") {
         ref_loops = &blockIdx_x;
       } else if (thread_tag == "blockIdx.y") {

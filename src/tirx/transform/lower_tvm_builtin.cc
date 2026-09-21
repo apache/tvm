@@ -29,6 +29,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/attrs.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -358,7 +359,7 @@ class BuiltinLower : public StmtExprMutator {
     PrimExpr extent = std::move(extent_result).ValueOrUnchanged(op->extent);
     Stmt body;
 
-    if (op->IsParallel()) {
+    if (s_tir::IsParallel(op)) {
       body = this->VisitBodyAndRealizeAlloca(op->body);
     } else {
       body = scope_.WithNewScope([&]() -> Stmt {

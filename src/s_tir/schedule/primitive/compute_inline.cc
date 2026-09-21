@@ -1796,7 +1796,7 @@ class SingleBlockFusionReplacer : public StmtExprMutator {
     }
 
     return For(loop->loop_var, loop->min, loop->extent, loop->kind, mutated_body,
-               loop->GetThreadBinding(), loop->annotations);
+               loop->annotations);
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {

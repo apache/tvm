@@ -28,6 +28,7 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/buffer.h>
@@ -57,10 +58,10 @@ class ReturnRewriter : public StmtExprMutator {
   explicit ReturnRewriter(Var ret_var) : ret_var_(ret_var) {}
 
   UnchangedOr<Stmt> Mutate_(const ForNode* node, InplaceMode inplace_mode) override {
-    if (node->IsParallel()) in_parallel_ += 1;
+    if (s_tir::IsParallel(node)) in_parallel_ += 1;
     Stmt ret =
         StmtExprMutator::Mutate_(node, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(node));
-    if (node->IsParallel()) in_parallel_ -= 1;
+    if (s_tir::IsParallel(node)) in_parallel_ -= 1;
     return ret;
   }
 

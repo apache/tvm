@@ -330,7 +330,6 @@ def test_replace_block_in_opaque_block():
         extent=128,
         kind=tirx.ForKind.SERIAL,
         body=tirx.Evaluate(0),
-        thread_binding=None,
         annotations=None,
     )
     s.replace(sref, new_for_loop)

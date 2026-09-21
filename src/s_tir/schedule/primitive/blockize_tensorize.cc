@@ -759,7 +759,7 @@ class BlockizeRewriter : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     if (loop == lca_->stmt) {
       return For(loop->loop_var, loop->min, loop->extent, loop->kind, RewriteSeq(loop->body),
-                 loop->GetThreadBinding(), loop->annotations, loop->step, loop->span);
+                 loop->annotations, loop->step, loop->span);
     }
     return StmtExprMutator::Mutate_(loop, inplace_mode);
   }

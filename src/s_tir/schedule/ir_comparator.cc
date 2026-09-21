@@ -200,16 +200,6 @@ bool TensorizeComparator::Dispatch_(const ForNode* op, const Stmt& other) {
     }
     return false;
   }
-  if (op->GetThreadBinding().has_value() != rhs->GetThreadBinding().has_value()) {
-    if (assert_mode_) {
-      std::ostringstream os;
-      os << "ForNode thread_bindings do not match: op->GetThreadBinding().has_value()="
-         << op->GetThreadBinding().has_value()
-         << " vs rhs->GetThreadBinding().has_value()=" << rhs->GetThreadBinding().has_value();
-      EmitError(os.str());
-    }
-    return false;
-  }
   if (op->kind != rhs->kind) {
     if (assert_mode_) {
       std::ostringstream os;
@@ -218,22 +208,7 @@ bool TensorizeComparator::Dispatch_(const ForNode* op, const Stmt& other) {
     }
     return false;
   }
-  // Only For annotations reserve thread_binding as an IterVar definition.
-  // SBlock annotations with the same spelling remain ordinary hints.
-  if (auto binding = op->GetThreadBinding()) {
-    IterVar lhs_iter = binding.value();
-    IterVar rhs_iter = rhs->GetThreadBinding().value();
-    if (!(CompareIterVar(lhs_iter, rhs_iter) && lhs_iter->thread_tag == rhs_iter->thread_tag &&
-          lhs_iter->dom.defined() == rhs_iter->dom.defined() &&
-          (!lhs_iter->dom.defined() || CompareRange(lhs_iter->dom, rhs_iter->dom)))) {
-      return false;
-    }
-  }
-  auto lhs_annotations = op->annotations;
-  auto rhs_annotations = rhs->annotations;
-  lhs_annotations.erase(tirx::attr::thread_binding);
-  rhs_annotations.erase(tirx::attr::thread_binding);
-  if (!CompareAnnotationMap(lhs_annotations, rhs_annotations)) {
+  if (!CompareAnnotationMap(op->annotations, rhs->annotations)) {
     if (assert_mode_) {
       std::ostringstream os;
       os << "ForNode annotation maps do not match: op->annotations=" << op->annotations

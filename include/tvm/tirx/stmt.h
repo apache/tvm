@@ -595,9 +595,8 @@ class ForNode : public StmtNode {
   /*!
    * \brief Additional annotations about the loop.
    *
-   *  Most annotations are auxiliary transformation hints. The reserved
-   *  thread_binding annotation is semantic: its IterVar binds a parallel loop
-   *  to an execution thread and must be preserved until binding is lowered.
+   *  Annotations may carry execution semantics as well as transformation hints.
+   *  Transformations must preserve annotations until their semantics are consumed.
    */
   ffi::Map<ffi::String, ffi::Any> annotations;
   /*!
@@ -620,15 +619,6 @@ class ForNode : public StmtNode {
   /*! \brief Check it is a loop without nontrivial loop step. */
   bool HasTrivialStep() const;
 
-  /*! \brief Get the validated semantic thread binding, if present. */
-  TVM_DLL ffi::Optional<IterVar> GetThreadBinding() const;
-  /*! \brief Set or remove the semantic binding on a parallel loop. */
-  TVM_DLL void SetThreadBinding(ffi::Optional<IterVar> binding);
-  /*! \brief Whether this parallel loop is bound to an execution thread. */
-  bool IsThreadBinding() const { return GetThreadBinding().has_value(); }
-  /*! \brief Whether this is an ordinary, unbound CPU parallel loop. */
-  bool IsParallel() const { return kind == ForKind::kParallel && !IsThreadBinding(); }
-
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.For", ForNode, StmtNode);
 };
 
@@ -639,7 +629,6 @@ class ForNode : public StmtNode {
 class For : public Stmt {
  public:
   TVM_DLL For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
-              ffi::Optional<IterVar> thread_binding = std::nullopt,
               ffi::Map<ffi::String, ffi::Any> annotations = {},
               ffi::Optional<PrimExpr> step = std::nullopt, Span span = Span());
 
@@ -794,8 +783,6 @@ class ScopeIdDefStmt : public Stmt {
 
 /*! \brief namespace of possible attributes in AttrStmt.attr_key */
 namespace attr {
-/*! \brief Semantic IterVar binding of a parallel For loop to an execution thread. */
-constexpr const char* thread_binding = "thread_binding";
 /*!
  * \brief Mark the scope as when computation start to happen.
  *  This can hint some code generator to create a new function for compute.

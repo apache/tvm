@@ -864,7 +864,7 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
     };
     return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, f_substitute).as_or_throw<Stmt>();
   } else {
-    TVM_FFI_ICHECK(!for_node->IsThreadBinding());
+    TVM_FFI_ICHECK(!IsThreadBinding(for_node));
     auto new_loop = ffi::make_object<ForNode>(*for_node);
     new_loop->min = IntImm(for_node->min.ty(), 0);
     new_loop->extent = extent;

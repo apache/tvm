@@ -186,9 +186,9 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     Range loop_range = Range::FromMinExtent(op->min, op->extent);
-    IterVar iter = op->IsThreadBinding() ? IterVar(Range(), op->loop_var, IterVarType::kThreadIndex,
-                                                   op->GetThreadBinding().value()->thread_tag)
-                                         : IterVar(Range(), op->loop_var, IterVarType::kDataPar);
+    IterVar iter = IsThreadBinding(op) ? IterVar(Range(), op->loop_var, IterVarType::kThreadIndex,
+                                                 GetThreadBinding(op).value())
+                                       : IterVar(Range(), op->loop_var, IterVarType::kDataPar);
     ancestor_iters_.push_back(iter);
     dom_analyzer_->Bind(op->loop_var, loop_range);
     dom_map_.emplace(op->loop_var.get(), sym::IntSet::FromRange(loop_range));
