@@ -746,3 +746,120 @@ test("contexts sharing a CacheState never share bind groups, and dispose clears 
   first.context.dispose();
   expect(cacheState.bindGroupCache.size).toBe(0);
 });
+
+// Uploads of POD arguments: writeBuffer(buffer, 0, data). Host-to-GPU copies
+// pass five arguments.
+function uniformWrites(queue) {
+  return queue.writeBuffer.mock.calls
+    .filter((call) => call.length === 3)
+    .map((call) => Array.from(new Int32Array(call[2])));
+}
+
+test("POD arguments are uploaded only when the launch's pool buffer holds other words", async () => {
+  const { context, queue, source, destination } = createContext();
+  const shader = createBufferShader(context);
+
+  shader(source, destination, 7, 1);
+  await context.sync();
+  shader(source, destination, 7, 1);
+  await context.sync();
+  expect(uniformWrites(queue)).toEqual([[7, 1]]);
+
+  shader(source, destination, 8, 1);
+  await context.sync();
+  shader(source, destination, 7, 2);
+  await context.sync();
+  expect(uniformWrites(queue)).toEqual([[7, 1], [8, 1], [7, 2]]);
+
+  // Each batch position has its own pool buffer, and so its own record.
+  shader(source, destination, 7, 2);
+  shader(source, destination, 8, 1);
+  await context.sync();
+  shader(source, destination, 8, 1);
+  shader(source, destination, 7, 2);
+  expect(uniformWrites(queue)).toEqual([[7, 1], [8, 1], [7, 2], [8, 1], [8, 1], [7, 2]]);
+});
+
+test("a launch reuses a matching prefix of its pool buffer, but never a replaced buffer", async () => {
+  const { context, queue, source, destination } = createContext();
+  const small = createBufferShader(context, "small");
+  const large = createBufferShader(context, "large", 1);
+
+  small(source, destination, 7, 1);
+  await context.sync();
+  // Slot 0 is too small for the large kernel: its buffer is replaced and
+  // written although the first two words would match.
+  large(source, destination, 7, 1, 1);
+  await context.sync();
+  const writes = queue.writeBuffer.mock.calls.filter((call) => call.length === 3);
+  expect(writes[1][0]).not.toBe(writes[0][0]);
+  expect(writes[0][0].destroy).toHaveBeenCalledTimes(1);
+  // The pool buffer holds [7, 1, 1]; the small kernel reads its first two words.
+  small(source, destination, 7, 1);
+  await context.sync();
+  expect(uniformWrites(queue)).toEqual([[7, 1], [7, 1, 1]]);
+
+  small(source, destination, 7, 2);
+  await context.sync();
+  // Only two words were rewritten, so the record must not claim three.
+  large(source, destination, 7, 2, 1);
+  expect(uniformWrites(queue)).toEqual([[7, 1], [7, 1, 1], [7, 2], [7, 2, 1]]);
+});
+
+test("float POD arguments are compared by bit pattern", async () => {
+  const { context, queue, source } = createContext();
+  const shader = context.createShader(
+    {
+      name: "scale",
+      arg_types: ["handle", "float32"],
+      launch_param_tags: ["blockIdx.x", "paramWriteAccess:[1]"],
+    },
+    "@compute @workgroup_size(1) fn scale() {}"
+  );
+  const uploads = () => queue.writeBuffer.mock.calls.filter((call) => call.length === 3).length;
+
+  shader(source, 0.0, 1);
+  await context.sync();
+  expect(uploads()).toBe(1);
+
+  // -0.0 == 0.0 as floats, but the bits differ: it must be uploaded.
+  shader(source, -0.0, 1);
+  await context.sync();
+  expect(uploads()).toBe(2);
+
+  shader(source, NaN, 1);
+  await context.sync();
+  expect(uploads()).toBe(3);
+
+  // NaN != NaN as floats, but the bits are equal: no upload.
+  shader(source, NaN, 1);
+  expect(uploads()).toBe(3);
+});
+
+test("the pool owns the upload record and commits it only after a successful write", async () => {
+  const { context, queue, source, destination } = createContext();
+  const shader = createBufferShader(context);
+  const written = [];
+  // Record what each upload carried, then scribble over the caller's array,
+  // as a runtime that reuses one array per shader would.
+  queue.writeBuffer.mockImplementation((_buffer, _offset, data) => {
+    const words = new Int32Array(data);
+    written.push(Array.from(words));
+    words.fill(-1);
+  });
+
+  shader(source, destination, 7, 1);
+  await context.sync();
+  shader(source, destination, 7, 1);
+  await context.sync();
+  expect(written).toEqual([[7, 1]]);
+
+  queue.writeBuffer.mockImplementationOnce(() => {
+    throw new Error("mock WebGPU: writeBuffer failed");
+  });
+  expect(() => shader(source, destination, 8, 1)).toThrow("writeBuffer failed");
+  await context.sync();
+  // The pool buffer still holds [7, 1]: the same arguments are uploaded again.
+  shader(source, destination, 8, 1);
+  expect(written).toEqual([[7, 1], [8, 1]]);
+});
