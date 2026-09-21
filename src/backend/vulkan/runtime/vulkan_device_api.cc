@@ -34,6 +34,13 @@ namespace runtime {
 namespace vulkan {
 
 VulkanDeviceAPI* VulkanDeviceAPI::Global() {
+#ifdef _WIN32
+  // DLL static destructors run during loader shutdown, when calling the Vulkan
+  // driver (e.g. vkDestroyDevice) is no longer safe. Keep the singleton alive
+  // for the process lifetime, as CUDADeviceAPI does, and let the OS reclaim it.
+  static auto* inst = new VulkanDeviceAPI();
+  return inst;
+#else
   // Most of the TVM Global() functions allocate with "new" and do
   // not deallocate, as the OS can clean up any leftover buffers at
   // the end.  In this case, we need the VulkanDeviceAPI destructor
@@ -41,6 +48,7 @@ VulkanDeviceAPI* VulkanDeviceAPI::Global() {
   // using some nvidia drivers.
   static VulkanDeviceAPI inst;
   return &inst;
+#endif
 }
 
 VulkanDeviceAPI::VulkanDeviceAPI() {
