@@ -110,13 +110,19 @@ def test_lower_call_packed():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
-def test_lower_call_packed_raw_string():
+@pytest.mark.parametrize("call", [tvm.tirx.call_packed, tvm.tirx.call_ffi_kernel])
+def test_lower_call_packed_raw_string(call):
+    def invoke(*args):
+        if call is tvm.tirx.call_ffi_kernel:
+            return call(*args, launch_params=[])
+        return call(*args)
+
     @I.ir_module
     class Before:
         @T.prim_func(s_tir=True)
         def main():
             T.func_attr({"target": tvm.target.Target("llvm")})
-            T.call_packed("testing.echo", "payload")
+            T.evaluate(invoke("testing.echo", "payload"))
 
     @I.ir_module
     class Expected:

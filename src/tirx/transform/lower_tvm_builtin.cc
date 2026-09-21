@@ -29,6 +29,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/tirx/attrs.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -57,17 +58,21 @@ class BuiltinLower : public StmtExprMutator {
   using StmtExprMutator::Mutate_;
   static PrimFunc Build(PrimFunc func) {
     ffi::Optional<PrimExpr> device_type = std::nullopt;
+    bool preserve_ffi_kernel = false;
     if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
       device_type = IntImm::Int32(target.value()->kind->default_device_type);
+      auto host = target.value()->GetHost().value_or(target.value());
+      preserve_ffi_kernel = host->kind->name == "cuda_host";
     }
 
-    auto mutator = ffi::make_object<BuiltinLower>(device_type);
+    auto mutator = ffi::make_object<BuiltinLower>(device_type, preserve_ffi_kernel);
     func.CopyOnWrite()->body = mutator->VisitBodyAndRealizeAlloca(func->body);
     return func;
   }
 
-  explicit BuiltinLower(ffi::Optional<PrimExpr> device_type = std::nullopt)
-      : device_type_(device_type) {}
+  explicit BuiltinLower(ffi::Optional<PrimExpr> device_type = std::nullopt,
+                        bool preserve_ffi_kernel = false)
+      : device_type_(device_type), preserve_ffi_kernel_(preserve_ffi_kernel) {}
 
   // NOTE: Right now, we make the following scoping requirement
   // for memory allocated by the following primitives
@@ -405,7 +410,27 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(builtin::tvm_call_packed())) {
+    if (op->op.same_as(builtin::tensormap_encode_tiled()) && !preserve_ffi_kernel_) {
+      const auto* attr = op->attrs.as<TensorMapEncodeTiledAttr>();
+      TVM_FFI_CHECK(attr && attr->rank >= 1 && attr->rank <= 5 &&
+                        op->args.size() == static_cast<size_t>(4 * attr->rank + 1),
+                    ValueError)
+          << "Invalid tensormap_encode_tiled attributes or operands";
+      ffi::Array<Expr> args{StringImm("runtime.cuTensorMapEncodeTiled"), op->args[0],
+                            StringImm(ffi::DLDataTypeToString(attr->descriptor_dtype)),
+                            IntImm(PrimType::Int(32), attr->rank), op->args[1]};
+      for (size_t i = 2; i < op->args.size(); ++i) args.push_back(op->args[i]);
+      for (int64_t value : {attr->interleave, attr->swizzle, attr->l2_promotion, attr->oob_fill}) {
+        args.push_back(IntImm(PrimType::Int(32), value));
+      }
+      if (attr->force_cu_dtype != -1) {
+        args.push_back(IntImm(PrimType::Int(32), attr->force_cu_dtype));
+      }
+      Call packed(op->ty, builtin::tvm_call_packed(), args);
+      return MakeCallPackedGeneric(packed.get(), 0, builtin::tvm_call_packed_lowered(), false);
+    }
+    if (op->op.same_as(builtin::tvm_call_packed()) ||
+        (op->op.same_as(builtin::call_ffi_kernel()) && !preserve_ffi_kernel_)) {
       return MakeCallPackedGeneric(op, 0, builtin::tvm_call_packed_lowered(),
                                    /* use_last_value_as_traced_value*/ false);
     } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
@@ -797,6 +822,8 @@ class BuiltinLower : public StmtExprMutator {
   ffi::Optional<PrimExpr> device_type_{std::nullopt};
   ffi::Optional<PrimExpr> device_id_{std::nullopt};
 
+  // CUDA host codegen consumes explicit launches after ordinary builtin lowering.
+  bool preserve_ffi_kernel_{false};
   bool is_precheck_{false};
 
   // Record all stack frames.
