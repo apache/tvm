@@ -863,3 +863,143 @@ test("the pool owns the upload record and commits it only after a successful wri
   shader(source, destination, 8, 1);
   expect(written).toEqual([[7, 1], [8, 1]]);
 });
+
+test("pending dispatches are submitted every maxDispatchesPerFlush launches", async () => {
+  const { context, queue, trace } = createContext();
+  const shader = createNoArgShader(context);
+  expect(context.maxDispatchesPerFlush).toBeGreaterThan(0); // periodic submission is on by default
+  context.maxDispatchesPerFlush = 2;
+
+  for (let i = 0; i < 5; ++i) shader();
+
+  expect(queue.submit).toHaveBeenCalledTimes(2);
+  expect(trace).toEqual([
+    "beginPass", "dispatch", "dispatch", "endPass", "finish",
+    "beginPass", "dispatch", "dispatch", "endPass", "finish",
+    "beginPass", "dispatch",
+  ]);
+
+  await context.sync();
+  expect(queue.submit).toHaveBeenCalledTimes(3);
+
+  // A flush point restarts the count.
+  shader();
+  expect(queue.submit).toHaveBeenCalledTimes(3);
+  shader();
+  expect(queue.submit).toHaveBeenCalledTimes(4);
+});
+
+test("maxDispatchesPerFlush is read at every launch and 0 turns periodic submission off", async () => {
+  const { context, queue } = createContext();
+  const shader = createNoArgShader(context);
+  context.maxDispatchesPerFlush = 2;
+
+  shader();
+  context.maxDispatchesPerFlush = 0;
+  shader();
+  shader();
+  expect(queue.submit).not.toHaveBeenCalled();
+
+  context.maxDispatchesPerFlush = 1;
+  shader(); // the count is already past the threshold
+  expect(queue.submit).toHaveBeenCalledTimes(1);
+  shader();
+  expect(queue.submit).toHaveBeenCalledTimes(2);
+
+  await context.sync();
+  expect(queue.submit).toHaveBeenCalledTimes(2);
+});
+
+test("pool positions restart at a flush point even if nothing is pending", async () => {
+  const { context, device, queue, source, destination } = createContext();
+  const shader = createBufferShader(context);
+  context.maxDispatchesPerFlush = 1;
+
+  // The periodic submission leaves nothing pending when sync() runs.
+  shader(source, destination, 7, 1);
+  expect(queue.submit).toHaveBeenCalledTimes(1);
+  await context.sync();
+  shader(source, destination, 7, 1);
+  await context.sync();
+
+  expect(device.createBuffer.mock.calls.filter(
+    ([d]) => d.usage === (GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST)
+  )).toHaveLength(1);
+});
+
+// A periodic submission puts dispatches on the queue after an in-flight
+// readback, so the readback is no longer the queue tail and sync() must await
+// onSubmittedWorkDone(), even though nothing is pending when sync() runs.
+test("sync waits for the queue after a periodic submission that followed a readback", async () => {
+  const readback = createDeferred();
+  const queueDone = createDeferred();
+  const { context, queue, memory, source } = createContext({
+    mapAsync: () => readback.promise,
+    onSubmittedWorkDone: () => queueDone.promise,
+  });
+  const copyFromGPU = context.getDeviceAPI("deviceCopyFromGPU");
+  const shader = createNoArgShader(context);
+  context.maxDispatchesPerFlush = 2;
+
+  copyFromGPU(source, 0, 128, 16);
+  shader();
+  shader(); // periodic submission: the readback is no longer the queue tail
+  expect(queue.submit).toHaveBeenCalledTimes(2);
+
+  let syncResolved = false;
+  const syncPromise = context.sync().then(() => {
+    syncResolved = true;
+  });
+  expect(queue.submit).toHaveBeenCalledTimes(2);
+  expect(queue.onSubmittedWorkDone).toHaveBeenCalledTimes(1);
+
+  readback.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(memory.storeRawBytes).toHaveBeenCalledTimes(1);
+  expect(syncResolved).toBe(false);
+
+  queueDone.resolve();
+  await syncPromise;
+  expect(syncResolved).toBe(true);
+});
+
+test("a pool buffer replaced after periodic submissions is destroyed only after every submit that used it", () => {
+  const { context, device, queue, events, source, destination } = createContext();
+  const small = createBufferShader(context, "small");
+  const large = createBufferShader(context, "large", 4);
+  context.maxDispatchesPerFlush = 2;
+
+  small(source, destination, 7, 1);
+  small(source, destination, 8, 1); // periodic submission (slots 0, 1)
+  small(source, destination, 9, 1); // pending, slot 2
+  const slot0 = boundBuffers(device, 0)[2];
+  expect(slot0.destroy).not.toHaveBeenCalled();
+
+  context.flushCommands(); // submits slot 2's command buffer, restarts the pool
+  large(source, destination, 1, 2, 3, 4, 5, 1); // slot 0 is undersized: replaced
+
+  expect(slot0.destroy).toHaveBeenCalledTimes(1);
+  expect(queue.submit).toHaveBeenCalledTimes(2);
+  expect(events.indexOf("destroy")).toBeGreaterThan(events.lastIndexOf("submit"));
+  expect(boundBuffers(device, 3)[2]).not.toBe(slot0);
+});
+
+test("a periodic submission keeps uniform pool positions, so caches still hit", async () => {
+  const { context, device, queue, source, destination } = createContext();
+  const shader = createBufferShader(context);
+  context.maxDispatchesPerFlush = 3;
+
+  for (let i = 0; i < 10; ++i) shader(source, destination, i, 1);
+  expect(queue.submit).toHaveBeenCalledTimes(3);
+  const uniforms = [];
+  for (let i = 0; i < 10; ++i) uniforms.push(boundBuffers(device, i)[2]);
+  expect(new Set(uniforms).size).toBe(10);
+
+  await context.sync();
+  expect(queue.submit).toHaveBeenCalledTimes(4);
+  // The next batch revisits the same slots in the same order, so every bind
+  // group and every uniform upload is reused.
+  for (let i = 0; i < 10; ++i) shader(source, destination, i, 1);
+  expect(device.createBindGroup).toHaveBeenCalledTimes(10);
+  expect(uniformWrites(queue)).toHaveLength(10);
+});
