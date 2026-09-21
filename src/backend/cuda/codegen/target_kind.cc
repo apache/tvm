@@ -114,6 +114,8 @@ ffi::Map<ffi::String, ffi::Any> UpdateNVPTXAttrs(ffi::Map<ffi::String, ffi::Any>
 void RegisterTargetKinds() {
   namespace refl = tvm::ffi::reflection;
 
+  TVM_REGISTER_TARGET_KIND("cuda_host", kDLCPU).set_default_keys({"cpu"});
+
   TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
       .add_attr_option<ffi::String>("mcpu")
       .add_attr_option<ffi::String>("arch")
