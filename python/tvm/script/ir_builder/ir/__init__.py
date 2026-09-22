@@ -17,8 +17,13 @@
 # under the License.
 """Package tvm.script.ir_builder.ir"""
 
+from tvm.ir import GenericConst, Range, StringImm, StringType
+from tvm.script.parser.protocol import constexpr as constexpr
+
+from .. import parser_support
 from .frame import IRModuleFrame
 from .ir import (
+    reserve_function,
     decl_function,
     def_function,
     ir_module,

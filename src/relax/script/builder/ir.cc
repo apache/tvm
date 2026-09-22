@@ -61,6 +61,32 @@ FunctionFrame Function(bool is_pure, bool is_private) {
   return FunctionFrame(n);
 }
 
+FunctionFrame DeclFunction(bool is_pure, bool is_private, bool local) {
+  FunctionFrame frame = Function(is_pure, is_private);
+  frame->declaration = true;
+  frame->local = local;
+  return frame;
+}
+
+FunctionFrame LocalFunction(bool is_pure, const tvm::Var& reference) {
+  FunctionFrame frame = Function(is_pure, true);
+  frame->local = true;
+  frame->local_var = reference;
+  return frame;
+}
+
+tvm::Var ArgVar(const ffi::String& name, const tvm::Var& var) {
+  FunctionFrame frame = FindFunctionFrame("R.arg");
+  TVM_FFI_CHECK(var->name == name, ValueError)
+      << "A cached parameter must retain its declaration name";
+  for (const auto& param : frame->params) {
+    TVM_FFI_CHECK(param->name != name, ValueError) << "Duplicate function parameter: " << name;
+  }
+  frame->params.push_back(var);
+  frame->block_builder->AddDefinitionToScope(var);
+  return var;
+}
+
 tvm::Var Arg(const ffi::String& name, const tvm::Type& ty) {
   FunctionFrame frame = FindFunctionFrame("R.Arg");
   tvm::Var var(name, ty);
@@ -142,6 +168,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.relax.Function", Function)
+      .def("script.ir_builder.relax.DeclFunction", DeclFunction)
+      .def("script.ir_builder.relax.LocalFunction", LocalFunction)
+      .def("script.ir_builder.relax.ArgVar", ArgVar)
       .def("script.ir_builder.relax.Arg", Arg)
       .def("script.ir_builder.relax.FuncName", FuncName)
       .def("script.ir_builder.relax.FuncAttrs", FuncAttrs)
@@ -239,12 +268,37 @@ tvm::Var EmitVarBinding(const tvm::relax::VarBinding& binding) {
   return binding->var;
 }
 
+namespace {
+
+tvm::Var RecordBindingSpan(tvm::Var var, const ffi::Optional<Span>& name_span) {
+  Span span = IRBuilder::Current()->GetCurrentSourceSpan();
+  if (span.defined()) {
+    CheckBindingBlockFrameExistAndUnended()->binding_spans.Set(var, span);
+  }
+  var->span = name_span.value_or(span);
+  return var;
+}
+
+}  // namespace
+
+tvm::Var EmitWithSpan(const tvm::relax::Expr& value, const ffi::Optional<tvm::Type>& annotate_ty,
+                      const ffi::Optional<Span>& name_span) {
+  return RecordBindingSpan(Emit(value, annotate_ty), name_span);
+}
+
+tvm::Var EmitMatchCastWithSpan(const tvm::relax::Expr& value, const tvm::Type& ty,
+                               const ffi::Optional<Span>& name_span) {
+  return RecordBindingSpan(EmitMatchCast(value, ty), name_span);
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.relax.Emit", Emit)
       .def("script.ir_builder.relax.EmitMatchCast", EmitMatchCast)
-      .def("script.ir_builder.relax.EmitVarBinding", EmitVarBinding);
+      .def("script.ir_builder.relax.EmitVarBinding", EmitVarBinding)
+      .def("script.ir_builder.relax.EmitWithSpan", EmitWithSpan)
+      .def("script.ir_builder.relax.EmitMatchCastWithSpan", EmitMatchCastWithSpan);
 }
 
 /////////////////////////////// SeqExpr ///////////////////////////////

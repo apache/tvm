@@ -21,7 +21,9 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/script/ir_builder/base.h>
+#include <tvm/tirx/stmt.h>
 
+#include <algorithm>
 #include <utility>
 
 namespace tvm {
@@ -43,27 +45,73 @@ bool Contains(const Span& outer, const Span& inner) {
          PositionLessEqual(inner->end_line, inner->end_column, outer->end_line, outer->end_column);
 }
 
+bool SameLocation(const Span& lhs, const Span& rhs) {
+  return Contains(lhs, rhs) && Contains(rhs, lhs);
+}
+
 void AppendNormalizedSpan(const Span& span, std::vector<Span>* normalized) {
   if (!span.defined()) {
     return;
   }
   if (const auto* sequential = span.as<SequentialSpanNode>()) {
-    for (const Span& nested : sequential->spans) {
-      AppendNormalizedSpan(nested, normalized);
+    // Stored node/frame context can repeat the active caller prefix.  Merge
+    // overlapping chains before appending their distinct definition locations.
+    std::vector<Span> nested;
+    for (const Span& item : sequential->spans) {
+      AppendNormalizedSpan(item, &nested);
+    }
+    size_t common_prefix = 0;
+    while (common_prefix < normalized->size() && common_prefix < nested.size() &&
+           SameLocation((*normalized)[common_prefix], nested[common_prefix])) {
+      ++common_prefix;
+    }
+    size_t overlap = std::min(normalized->size(), nested.size());
+    for (; overlap > 0; --overlap) {
+      bool matches = true;
+      for (size_t i = 0; i < overlap; ++i) {
+        if (!SameLocation((*normalized)[normalized->size() - overlap + i], nested[i])) {
+          matches = false;
+          break;
+        }
+      }
+      if (matches) {
+        break;
+      }
+    }
+    for (size_t i = std::max(overlap, common_prefix); i < nested.size(); ++i) {
+      AppendNormalizedSpan(nested[i], normalized);
     }
     return;
   }
   if (!normalized->empty() && Contains(normalized->back(), span)) {
     normalized->back() = span;
-  } else {
+  } else if (normalized->empty() || !Contains(span, normalized->back())) {
     normalized->push_back(span);
   }
+}
+
+Span NormalizedSpan(const std::vector<Span>& normalized) {
+  if (normalized.empty()) {
+    return Span();
+  }
+  if (normalized.size() == 1) {
+    return normalized[0];
+  }
+  return SequentialSpan(ffi::Array<Span>(normalized.begin(), normalized.end()));
+}
+
+Span ComposeSpan(const Span& active, const Span& existing) {
+  std::vector<Span> normalized;
+  AppendNormalizedSpan(active, &normalized);
+  AppendNormalizedSpan(existing, &normalized);
+  return NormalizedSpan(normalized);
 }
 
 }  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRBuilderFrameNode::RegisterReflection();
+  TypeVarFrameNode::RegisterReflection();
   IRBuilderNode::RegisterReflection();
 }
 
@@ -111,25 +159,18 @@ Span IRBuilderNode::GetCurrentSourceSpan() const {
   for (const Span& span : source_spans) {
     AppendNormalizedSpan(span, &normalized);
   }
-  if (normalized.empty()) {
-    return Span();
-  }
-  if (normalized.size() == 1) {
-    return normalized[0];
-  }
-  ffi::Array<Span> spans;
-  spans.reserve(normalized.size());
-  for (const Span& span : normalized) {
-    spans.push_back(span);
-  }
-  return SequentialSpan(std::move(spans));
+  return NormalizedSpan(normalized);
 }
 
 ffi::ObjectRef IRBuilderNode::SetCurrentSourceSpan(ffi::ObjectRef obj) const {
   Span span = GetCurrentSourceSpan();
   if (span.defined()) {
-    if (const auto* expr = obj.as<ExprNode>(); expr != nullptr && !expr->span.defined()) {
-      expr->span = std::move(span);
+    if (const auto* expr = obj.as<ExprNode>()) {
+      expr->span = ComposeSpan(span, expr->span);
+    } else if (const auto* stmt = obj.as<tvm::tirx::StmtNode>()) {
+      stmt->span = ComposeSpan(span, stmt->span);
+    } else if (const auto* frame = obj.as<IRBuilderFrameNode>()) {
+      frame->source_span = ComposeSpan(span, frame->source_span);
     }
   }
   return obj;
@@ -193,6 +234,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("script.ir_builder.IRBuilderFrameEnter", &IRBuilderFrameNode::EnterWithScope)
       .def_method("script.ir_builder.IRBuilderFrameExit", &IRBuilderFrameNode::ExitWithScope)
       .def_method("script.ir_builder.IRBuilderFrameAddCallback", &IRBuilderFrameNode::AddCallback)
+      .def("script.ir_builder.TypeVarFrame", []() { return TypeVarFrame(); })
+      .def("script.ir_builder.TypeVarFrameSetSymbol",
+           [](TypeVarFrame frame, ffi::String name, tvm::Var symbol) {
+             frame->symbols.Set(name, symbol);
+           })
       .def("script.ir_builder.IRBuilder", []() { return IRBuilder(); })
       .def_method("script.ir_builder.IRBuilderEnter", &IRBuilder::EnterWithScope)
       .def_method("script.ir_builder.IRBuilderExit", &IRBuilder::ExitWithScope)

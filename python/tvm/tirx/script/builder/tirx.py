@@ -27,18 +27,12 @@ from tvm.tirx.exec_scope import _SCOPE_KIND_TO_NAME, ExecScope
 from tvm.tirx.expr import FloatImm, IntImm
 from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool
 
-from . import _ffi_api
+from . import _ffi_api, frame
 from .ir import decl_buffer, meta_class
 
 
 def _normalize_scope(scope) -> ExecScope:
-    """Normalize a scope selector to an ``ExecScope``.
-
-    Accepts an ``ExecScope`` (passed through), a scope-name ``str``
-    (e.g. ``"warp"``, normalized via the FFI ctor / ``StringToScopeKind``),
-    or an ``int`` ``ScopeKind`` value. ``None`` resolves to the default
-    ``thread`` scope, keeping the default in one place.
-    """
+    """Normalize a scope selector to an ``ExecScope``."""
     if scope is None:
         return ExecScope("thread")
     if isinstance(scope, ExecScope):
@@ -69,10 +63,7 @@ class ScopedOp:
         return self._fn(*args, scope=ExecScope("thread"), **kwargs)
 
     def _bind(self, scope: ExecScope):
-        """Return a callable that emits this op at ``scope``.
-
-        Used by :class:`ScopeNamespace`; not part of the user-facing surface.
-        """
+        """Return a callable that emits this op at ``scope``."""
         return lambda *args, **kwargs: self._fn(*args, scope=scope, **kwargs)
 
 
@@ -464,12 +455,7 @@ def cast(
     scope: ExecScope | None = None,
     **kwargs,
 ):
-    """Cast — overloaded.
-
-    1. ``cast(value, dtype)`` — expression-level cast: returns ``T.cast(value, dtype)``.
-       Also accepts ``cast(value, dtype=...)`` as a kwarg form.
-    2. ``cast(dst, src, workspace=..., dispatch=...)`` — buffer-level Cast operator.
-    """
+    """Cast — overloaded."""
     # Expression-level cast: src is a dtype (str / DataType) — emit T.cast(value, dtype).
     from tvm import tirx as _tirx
 
@@ -893,11 +879,7 @@ def max(
     scope: ExecScope | None = None,
     **kwargs,
 ):
-    """Max — overloaded.
-
-    1. ``max(a, b)`` — expression: returns ``tirx.max(a, b)``.
-    2. ``max(dst, src, axes=, accum=)`` — reduction operator over buffers.
-    """
+    """Max — overloaded."""
     from tvm import tirx as _tirx
 
     if not _is_buffer_or_region(dst) or not _is_buffer_or_region(src):
@@ -934,11 +916,7 @@ def min(
     scope: ExecScope | None = None,
     **kwargs,
 ):
-    """Min — overloaded.
-
-    1. ``min(a, b)`` — expression: returns ``tirx.min(a, b)``.
-    2. ``min(dst, src, axes=, accum=)`` — reduction operator over buffers.
-    """
+    """Min — overloaded."""
     from tvm import tirx as _tirx
 
     if not _is_buffer_or_region(dst) or not _is_buffer_or_region(src):
@@ -1315,6 +1293,8 @@ def log2(
     )
 
 
+
+
 @ScopedOp
 def binary_reduce(
     binary_output: TensorRegion | Buffer,
@@ -1357,8 +1337,14 @@ def binary_reduce(
     workspace : Dict[str, Buffer]
         The workspace of the operator.
 
-    config : Dict[str, Any]
-        The scheduler configuration.
+    dispatch : str, optional
+        The dispatch implementation requested for this operator.
+
+    scope : ExecScope, optional
+        The execution scope for this operator.
+
+    **kwargs
+        Scheduler configuration passed as keyword arguments.
     """
     if workspace is None:
         workspace = {}
@@ -1439,8 +1425,14 @@ def unary_reduce(
     workspace : Dict[str, Buffer]
         The workspace of the operator.
 
-    config : Dict[str, Any]
-        The scheduler configuration.
+    dispatch : str, optional
+        The dispatch implementation requested for this operator.
+
+    scope : ExecScope, optional
+        The execution scope for this operator.
+
+    **kwargs
+        Scheduler configuration passed as keyword arguments.
     """
     if workspace is None:
         workspace = {}
@@ -1524,8 +1516,14 @@ def binary_chain(
     workspace : Dict[str, Buffer]
         The workspace of the operator.
 
-    config : Dict[str, Any]
-        The scheduler configuration.
+    dispatch : str, optional
+        The dispatch implementation requested for this operator.
+
+    scope : ExecScope, optional
+        The execution scope for this operator.
+
+    **kwargs
+        Scheduler configuration passed as keyword arguments.
     """
     if workspace is None:
         workspace = {}
@@ -1594,8 +1592,14 @@ def reduce_negate(
     workspace : Dict[str, Buffer]
         The workspace of the operator.
 
-    config : Dict[str, Any]
-        The scheduler configuration.
+    dispatch : str, optional
+        The dispatch implementation requested for this operator.
+
+    scope : ExecScope, optional
+        The execution scope for this operator.
+
+    **kwargs
+        Scheduler configuration passed as keyword arguments.
     """
     if workspace is None:
         workspace = {}
@@ -1645,7 +1649,7 @@ def select(
 
     pred : Union[LambdaExpr, Callable[..., Expr]]
         The predicate to evaluate. The callable should take the same number of arguments as the dimensions of the destination buffer.
-    """  # noqa: E501
+    """
     dst = _to_region(dst)
     if is_buffer_var(true_value):
         true_value = _to_region(true_value)

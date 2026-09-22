@@ -14,24 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TIRX-layer TVMScript pieces (parser, builder).
+"""Public canonical TVMScript dialect namespace."""
+import importlib as _importlib
 
-After the per-dialect TVMScript restructure, the TIRX layer owns its own
-``script/{parser,builder}`` subpackages. ``tvm.script.tirx`` resolves to
-this module via the dialect registry, so the public parser surface
-(``prim_func``, ``Buffer``, ``Ptr``, etc.) is re-exported here.
-"""
 
-# pylint: disable=redefined-builtin,wildcard-import,unused-wildcard-import
-from .parser import *
-from .parser import Buffer, Ptr, prim_func
-
-try:
-    from .parser import macro
-except ImportError:
-    macro = None
-from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool
-
-from . import tile
-from .builder.ir import TensorMap, meta_class
-from .tile import cluster, cta, thread, warp, warpgroup, wg
+def __getattr__(name):
+    if name in ("builder", "tile"):
+        return _importlib.import_module(__name__ + "." + name)
+    if name.startswith("_") and name != "__all__":
+        raise AttributeError(name)
+    from tvm.script import parser as _parser
+    _parser._initialize()
+    if name in globals():
+        return globals()[name]
+    builder = _importlib.import_module(__name__ + ".builder")
+    return getattr(builder, name)

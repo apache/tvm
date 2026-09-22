@@ -118,7 +118,9 @@ void PrimFuncFrameNode::ExitWithScope() {
   // s_tir-mode normalization: drop stale default layouts (see comment on
   // STirBufferLayoutNormalizer above) and rewrite body references coherently.
   ffi::Array<tvm::tirx::BufferVar> effective_root_alloc_buffers = root_alloc_buffers;
-  tvm::tirx::Stmt body = AsStmt(stmts);
+  TVM_FFI_CHECK(!is_declaration || (stmts.empty() && root_alloc_buffers.empty()), ValueError)
+      << "A function declaration cannot contain body statements";
+  tvm::tirx::Stmt body = is_declaration ? tvm::tirx::Stmt() : AsStmt(stmts);
   auto normalizer = ffi::make_object<STirBufferLayoutNormalizer>();
   ffi::Array<tvm::tirx::Var> effective_args;
   ffi::Map<tvm::tirx::Var, tvm::Expr> param_replacements;
@@ -150,14 +152,16 @@ void PrimFuncFrameNode::ExitWithScope() {
     }
   }
   if (!normalizer->Empty()) {
-    body = normalizer->Mutate(body, InplaceMode::kAllow).ValueOrUnchanged(body);
+    if (!is_declaration) {
+      body = normalizer->Mutate(body, InplaceMode::kAllow).ValueOrUnchanged(body);
+    }
     ffi::Array<tvm::tirx::BufferVar> new_root_alloc_buffers;
     for (const tvm::tirx::BufferVar& buffer : root_alloc_buffers) {
       new_root_alloc_buffers.push_back(normalizer->Lookup(buffer));
     }
     effective_root_alloc_buffers = std::move(new_root_alloc_buffers);
   }
-  if (!param_replacements.empty()) {
+  if (!is_declaration && !param_replacements.empty()) {
     auto f_substitute =
         [&param_replacements](
             const tvm::tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -174,10 +178,13 @@ void PrimFuncFrameNode::ExitWithScope() {
       /*body=*/body,
       /*ret_type=*/ret_type.value_or(TupleType::Empty()),
       /*attrs=*/attrs.defined() ? DictAttrs(attrs) : DictAttrs(),
-      /*span=*/tvm::Span());
-  func = tvm::tirx::ScriptComplete(func, effective_root_alloc_buffers, s_tir);
+      /*span=*/IRBuilder::Current()->GetCurrentSourceSpan());
+  if (!is_declaration) {
+    func = tvm::tirx::ScriptComplete(func, effective_root_alloc_buffers, s_tir);
+  }
+  function = func;
   IRBuilder builder = IRBuilder::Current();
-  if (builder->frames.empty()) {
+  if (!builder->HasConstructionFrames()) {
     TVM_FFI_CHECK(!builder->result.has_value(), ValueError)
         << "Builder.result has already been set";
     builder->result = func;
@@ -187,13 +194,20 @@ void PrimFuncFrameNode::ExitWithScope() {
            "function scope, if it's defined in a Module";
     const ir::IRModuleFrame& frame = opt_frame.value();
     const ffi::String& func_name = name.value_or("");
-    if (!frame->global_var_map.count(func_name)) {
+    if (!frame->global_var_map.count(func_name) ||
+        !frame->functions.count(frame->global_var_map.at(func_name))) {
       // Case. First time visiting the function.
-      ir::DeclFunction(func_name, func);
+      global_var = ir::DeclFunction(func_name, func);
     }
     // Define the function.
     // Note we do checks to disallow redefinition of functions inside the `DefFunction`.
-    ir::DefFunction(func_name, func);
+    if (!global_var.has_value()) {
+      TVM_FFI_CHECK(!is_declaration, ValueError) << "function " << func_name << " already exists";
+      global_var = frame->global_var_map.at(func_name);
+    }
+    if (!is_declaration) {
+      ir::DefFunction(func_name, func);
+    }
   } else {
     TVM_FFI_THROW(ValueError) << "Cannot find where to insert PrimFunc";
   }

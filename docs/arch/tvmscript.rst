@@ -22,22 +22,22 @@ TVMScript
 
 TVMScript is a Python-based domain-specific language (DSL) for writing TVM IR. It lets users
 define ``IRModule``\ s — containing both Relax functions and TIR ``PrimFunc``\ s — using
-familiar Python syntax. Although TVMScript *looks* like Python, it is **not executed by the
-Python interpreter**. Instead, Python decorators extract the AST from the source code and
-transform it into TVM IR through a dedicated parser and IR builder pipeline.
+familiar Python syntax. Decorators acquire the source and its definition context. A syntax
+transpiler translates the Python AST into a Python builder program; executing that program
+constructs TVM IR. The scripted function body is therefore translated before execution.
 
 TVMScript serves two roles in the TVM stack:
 
 - **Authoring**: users write TIR kernels and Relax programs directly in TVMScript.
-- **Roundtrip**: every ``IRModule`` can be printed back to TVMScript via ``mod.script()`` and
-  re-parsed to produce an equivalent module. This makes TVMScript the primary tool for
-  inspecting, debugging, and serializing IR.
+- **Roundtrip**: ``mod.script()`` prints IR as TVMScript, which can be re-parsed with any
+  required external symbols to reconstruct equivalent IR. This supports inspection,
+  debugging, and serialization of printable IR.
 
 
 Overview
 --------
 
-The TVMScript system has three components:
+TVMScript separates source acquisition, syntax translation, IR construction, and printing:
 
 .. code-block:: text
 
@@ -45,13 +45,17 @@ The TVMScript system has three components:
 
    Python source (TVMScript)
         │
-        ▼  ast.parse + convert
+        ▼  Frontend: source + definition context
         │
-   Doc AST (mirror of Python AST)
+   Python AST
         │
-        ▼  Parser (dispatch by token: ir / tirx / relax)
+        ▼  Syntax transpiler + construction protocol
         │
-        ▼  IR Builder (frame stack)
+   Generated Python builder program
+        │
+        ▼  Frontend: recompose and execute callable
+        │
+        ▼  IR builders (frame stack + dialect policy)
         │
    TVM IR (IRModule, PrimFunc, relax.Function)
 
@@ -68,14 +72,17 @@ The TVMScript system has three components:
         │
    TVMScript text
 
-- **Parser** (Python): reads Python source, converts it to a ``Doc AST`` (a mirror of
-  Python's ``ast`` module), then walks the tree using dialect-specific handlers that call
-  into the IR builder.
-- **IR Builder** (Python + C++): provides a frame-stack API where each ``with`` block or
-  decorator pushes a frame. When the frame exits, the constructed IR is finalized. The builder
-  is shared across dialects — TIR and Relax each register their own frame types.
-- **Printer** (C++): converts TVM IR objects to a ``Doc`` tree (an intermediate representation
-  of Python syntax), then formats the tree into valid TVMScript text.
+- **Frontend** (Python): captures definition context, acquires source, and composes the
+  generated callable with its lexical environment. It owns decorators, helper entry points,
+  and execution of the builder program.
+- **Syntax transpiler** (Python): rewrites Python AST nodes into calls on the selected
+  construction namespace. It preserves source scopes, evaluation order, and locations.
+- **IR builders** (Python + C++): own typed values, symbol identity, dialect policy, and
+  construction frames. Exiting a frame finalizes its IR and attaches it to its parent.
+- **Printer** (C++): converts IR to a ``Doc`` tree and formats it as Python syntax. The
+  printer's Doc tree is separate from the Python AST used for parsing.
+
+All source entry points use the canonical ``tvm.script.parser`` implementation.
 
 
 Decorators
@@ -88,6 +95,12 @@ TVMScript uses three import aliases by convention:
    from tvm.script import ir as I       # module-level constructs
    from tvm.script import tirx as T     # TIR constructs
    from tvm.script import relax as R    # Relax constructs
+   from tvm.script.parser.frontend import make_helper
+   from tvm.target import Target
+
+These are public authoring APIs. ``Target`` configures compilation targets; it remains in
+``tvm.target``. Public dialect namespaces expose decorators and source constructors, so
+scripted programs do not need direct imports from builder implementation packages.
 
 The primary decorators are:
 
@@ -102,7 +115,7 @@ These can be composed:
 
    @I.ir_module
    class MyModule:
-       @T.prim_func
+       @T.prim_func(s_tir=True)
        def add_kernel(A: T.Buffer((128,), "float32"),
                       B: T.Buffer((128,), "float32"),
                       C: T.Buffer((128,), "float32")):
@@ -115,82 +128,124 @@ These can be composed:
        def main(x: R.Tensor((128,), "float32"),
                 y: R.Tensor((128,), "float32")) -> R.Tensor((128,), "float32"):
            with R.dataflow():
-               out = R.call_tir(cls.add_kernel, (x, y),
+               out = R.call_tir(MyModule.add_kernel, (x, y),
                                 out_ty=R.Tensor((128,), "float32"))
                R.output(out)
            return out
 
-When Python encounters ``@I.ir_module``, the decorator does **not** execute the class body.
-Instead, it calls ``tvm.script.parse()`` which extracts the source code of the class,
-builds a Doc AST, and hands it to the parser.
+Python creates the class before invoking ``@I.ir_module``. Function decorators inside an
+IR-module class retain method definitions for module construction. The module frontend then
+acquires the source and constructs declarations and bodies in the module's builder context.
+Standalone ``@T.prim_func`` and ``@R.function`` definitions construct their IR immediately.
+
+A helper can construct expressions or statements in the caller's active builder frames:
+
+.. code-block:: python
+
+   @make_helper(T)
+   def add_one(value):
+       return value + 1
+
+Unlike a function decorator, ``make_helper`` does not create an IR function for each helper.
+Its default return behavior is ordinary Python return from the generated helper program.
+``T.inline`` and the dialect macro decorators are supplied through the same frontend helper
+mechanism.
 
 
 Parser Architecture
 -------------------
 
-The parser lives in ``python/tvm/script/parser/``.
+The parser lives in ``python/tvm/script/parser/``. The frontend manages source and callable
+composition; the transpiler handles syntax; the builders interpret concrete values.
 
-Dispatch mechanism
-~~~~~~~~~~~~~~~~~~
+Syntax and construction protocol
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Different IR dialects (TIR, Relax) need different handling for the same Python syntax. For
-example, ``if ... else`` inside ``@T.prim_func`` creates a TIR ``If`` branch, while the same
-syntax inside ``@R.function`` creates a Relax ``If`` node with different semantics.
+A registered function decorator selects a construction namespace. The same Python syntax
+then lowers to operations supplied by that namespace: for example, unmarked ``if`` creates
+TIR control-flow frames in a primitive function and Relax control-flow frames in a Relax
+function. The transpiler emits these operations without implementing dialect IR semantics.
 
-The parser maintains a **dispatch token** stack (``["default"]`` initially). When it encounters
-a decorated function, it inspects the decorator to determine the token — ``"tirx"`` for
-``@T.prim_func``, ``"relax"`` for ``@R.function`` — and pushes it onto the stack.
+``protocol.py`` records callable syntax metadata. Argument policies such as ``expr_str``
+translate symbolic strings written directly in source expressions, while ``global_info``
+preserves a module reference for builder-side lookup. Dtype and placement strings remain
+literal. Captured or computed symbolic shapes must already contain explicit IR variables;
+the parser does not interpret expression strings found inside captured values.
 
-Each AST node type is dispatched via a virtual table:
-
-.. code-block:: text
-
-   ParseVTable[(token, node_type)] → handler function
-
-   Lookup order:
-     1. (current_token, node_type)    e.g. ("tirx", "For")
-     2. ("default", node_type)        e.g. ("default", "For")
-     3. generic_visit                  fallback
-
-Dialect-specific parsers (``parser/tirx/parser.py``, ``parser/relax/parser.py``) register
-handlers using ``@dispatch.register(token, type_name)`` decorators.
+Assignments become binding operations, standalone expressions become emission operations,
+and loops and scopes become builder contexts. Concrete binding, type checking, comparison
+construction, and frame finalization belong to the builders. Ordinary host calls and
+operator overloads execute as part of the generated Python program.
 
 Parse flow
 ~~~~~~~~~~
 
-The entry point is ``parse(program, extra_vars)``:
+The public entry points include ``tvm.script.parse`` and ``tvm.script.from_source``:
 
-1. **Source extraction**: the program's source code is extracted (from a class, function, or
-   string) and converted to a Doc AST via Python's ``ast`` module.
+1. **Acquire source and context**: the frontend accepts a function, class, or source string,
+   obtains its Python AST, and retains source locations. Decorators capture the definition
+   context; source-string callers can supply external bindings through ``extra_vars``.
+2. **Translate syntax**: ``IRBuilderTranspiler`` emits Python AST for a builder program,
+   using registered construction operations and argument policies. Name allocation avoids
+   collisions with user identifiers.
+3. **Compose the callable**: the single frontend helper ``recompose_builder`` compiles the
+   generated program with the source's globals, closure bindings, and retained annotation
+   context.
+4. **Execute construction**: the callable enters builder frames, reconstructs declarations
+   and annotations in their required context, and constructs function bodies. Builders own
+   module references and function-local symbolic identity.
+5. **Return IR**: the frontend extracts the constructed object and performs the requested
+   validation; public parsing validates well-formedness by default.
 
-2. **AST walking**: the ``Parser`` (a subclass of ``doc.NodeVisitor``) walks the Doc AST.
-   For each node, it looks up the handler in the dispatch table.
+Definition and symbol scopes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-3. **Expression evaluation**: expressions like ``T.grid(128, 128)`` are evaluated by the
-   ``ExprEvaluator``, which resolves names against the variable table and the ``T.``/``R.``
-   module namespaces.
+Python lexical bindings and DSL symbolic declarations have different owners. The frontend
+captures the exact definition scope during decoration, including enclosing names used only
+in annotations that Python may omit from the function's closure. Ordinary body references
+retain their source globals and closure bindings. Unrelated callers' local variables do not
+become part of this environment.
 
-4. **Value binding**: assignment statements (``A = T.match_buffer(...)`` in TIR,
-   ``lv = R.add(x, y)`` in Relax) go through dialect-specific ``bind_*_value()`` functions
-   that register the resulting TVM objects in the parser's ``VarTable``.
+Annotations are reconstructed as builder operations within the module/function context.
+The generated program gives them a separate, hygienic annotation scope, so a body-local
+variable cannot shadow a name used by a signature annotation. Callable recomposition and
+lexical environment setup belong to the frontend. The transpiler preserves source scopes
+through Python syntax; it does not classify each name by membership in a runtime environment
+or search caller stacks for values.
 
-5. **Scoping**: the ``VarTable`` maintains a stack of frames. Entering a ``with`` block,
-   ``for`` loop, or function body pushes a new frame; exiting pops it. This ensures variables
-   are scoped correctly.
+DSL expression strings such as ``R.Tensor(("n", 4), "float32")`` use a builder-owned
+``TypeVarFrame`` shared across one function's parameters, return annotation, and body.
+Repeated symbolic names refer to the same symbol. A Python name in ``R.Tensor((n, 4), ...)``
+instead follows its source lexical scope. Module global-info references resolve against
+the enclosing module's builder state.
 
-Variable table
-~~~~~~~~~~~~~~
+Shared construction support is exposed as ``I.parser_support``. Generated programs use its
+``at`` and ``with_at_scope`` helpers to attach locations and preserve caller/definition
+provenance while evaluating source calls once. These helpers retain returned object identity;
+builders handle results that already emitted a statement or introduced a binding.
 
-The ``VarTable`` is the parser's symbol table:
+Explicit host control flow
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: text
+Mark compile-time Python selection with ``I.constexpr`` or the identical dialect alias:
 
-   VarTable
-   ├── frames: [VarTableFrame, ...]    ← stack of scopes
-   └── name2value: {str: [Any, ...]}   ← name → value stack (for shadowing)
+.. code-block:: python
 
-When a name is looked up, the most recent binding wins. When a frame is popped, all bindings
-introduced in that frame are removed.
+   if I.constexpr(enabled):
+       T.evaluate(1)
+   else:
+       T.evaluate(0)
+
+   value = T.ramp(0, 1, lanes) if T.constexpr(lanes > 1) else 0
+
+The marker applies to the controlling value. The generated program evaluates it once and
+executes only the selected Python branch in the existing builder scope. Branch bodies and
+result expressions still translate normally. Marked ``and`` and ``or`` decisions retain
+Python short-circuiting; unmarked conditionals and logical expressions call dialect IR
+constructors. A Python boolean alone does not request compile-time branch selection.
+
+JIT supplies validated specialization bindings and optional-argument absence to builder
+execution. Syntax translation does not inspect those values to select a branch.
 
 
 IR Builder Architecture
@@ -208,7 +263,7 @@ represents and attaches it to the parent frame.
 
 .. code-block:: text
 
-   IRBuilder (thread-local singleton)
+   IRBuilder (current construction context)
    └── frame stack:
        ├── IRModuleFrame          ← @I.ir_module
        │   ├── PrimFuncFrame      ← @T.prim_func
@@ -219,19 +274,19 @@ represents and attaches it to the parent frame.
        │       └── BindingBlockFrame ← R.dataflow()
        └── ...
 
-This design means the parser never needs to build a complete IR tree in memory — it
-constructs IR top-down by entering and exiting frames, and each frame handles its own
-finalization.
+The generated program constructs IR by entering and exiting frames. Each frame owns its
+construction policy and finalization; the syntax transpiler does not maintain an IR tree.
 
 TIR builder
 ~~~~~~~~~~~
 
-The TIR builder (``ir_builder/tirx/ir.py``) provides functions that map directly to TVMScript
-syntax. Key categories:
+The TIR builder (``python/tvm/tirx/script/builder/``) implements the construction operations
+behind public ``T`` syntax. Builder modules also support direct programmatic construction;
+public decorators and internal frame-opening operations have distinct roles. Key categories:
 
 **Function and block**:
 
-- ``T.prim_func()`` → ``PrimFuncFrame``
+- ``@T.prim_func`` selects TIR construction; its builder ``function()`` opens ``PrimFuncFrame``
 - ``T.sblock(name)`` → ``SBlockFrame`` (spatial block)
 - ``T.init()`` → ``BlockInitFrame`` (reduction initialization)
 - ``T.reads(...)``, ``T.writes(...)`` → declare buffer access regions
@@ -257,11 +312,11 @@ syntax. Key categories:
 Relax builder
 ~~~~~~~~~~~~~
 
-The Relax builder (``ir_builder/relax/ir.py``) provides:
+The Relax builder (``python/tvm/relax/script/builder/``) implements:
 
 **Function and dataflow**:
 
-- ``R.function()`` → ``FunctionFrame``
+- ``@R.function`` selects Relax construction; its builder ``function()`` opens ``FunctionFrame``
 - ``R.dataflow()`` → ``BindingBlockFrame``
 - ``R.output(*vars)`` → expose variables from a dataflow block
 
@@ -269,6 +324,9 @@ The Relax builder (``ir_builder/relax/ir.py``) provides:
 
 - ``R.emit(value)`` → emit a binding, returns a ``Var``
 - ``R.emit_match_cast(value, ty)`` → emit with type assertion
+
+Generated standalone-statement emission uses the construction protocol's separate ``emit_``
+operation. Public ``R.emit`` retains its binding-returning imperative API.
 
 **Type annotations**:
 
@@ -325,17 +383,17 @@ It maintains:
 
 Each IR dialect registers its own converters:
 
-- ``src/script/printer/tirx/`` — converts PrimFunc, Buffer, SBlock, loops, expressions.
-- ``src/script/printer/relax/`` — converts relax.Function, bindings, types, operators.
+- ``src/tirx/script/printer/`` — converts PrimFunc, Buffer, SBlock, loops, expressions.
+- ``src/relax/script/printer/`` — converts relax.Function, bindings, types, operators.
 - ``src/script/printer/ir/`` — converts IRModule, shared types.
 
 The final step calls ``DocToPythonScript()`` (``src/script/printer/doc_printer/python_doc_printer.cc``)
 to format the Doc tree into properly indented Python text.
 
-Roundtrip guarantee
-~~~~~~~~~~~~~~~~~~~
+Roundtrip
+~~~~~~~~~
 
-For any ``IRModule`` constructed through the compiler:
+For printable IR with the required source context available:
 
 .. code-block:: python
 
@@ -344,9 +402,9 @@ For any ``IRModule`` constructed through the compiler:
    tvm.ir.assert_structural_equal(mod, reparsed)
 
 This roundtrip property is relied upon by testing infrastructure and serialization workflows.
-Note that the printed text may differ from hand-written TVMScript — the printer uses canonical
-forms (e.g., explicit ``R.emit`` calls, fully qualified buffer annotations) that are not required
-in hand-written code.
+Printed text uses canonical forms and may differ from hand-written TVMScript. External
+objects or Python attachments require their corresponding context; text alone does not
+serialize arbitrary Python state.
 
 
 Supported Python Syntax
@@ -364,7 +422,7 @@ and how each construct is interpreted:
      - Relax
    * - ``for i in range(n)``
      - Serial loop nest
-     - Not supported (no Relax-level ``for`` handler)
+     - No Relax IR loop construction
    * - ``with T.sblock(...)``
      - Spatial block scope
      - N/A
@@ -372,8 +430,8 @@ and how each construct is interpreted:
      - N/A
      - Dataflow block
    * - ``if ... else``
-     - TIR ``If`` branch (PrimExpr condition) or static eval (Python bool)
-     - Relax ``If`` node (plain Python ``if cond:`` syntax)
+     - TIR ``IfThenElse``; explicit ``I.constexpr`` selects a Python branch
+     - Relax ``If``; explicit ``I.constexpr`` selects a Python branch
    * - ``while``
      - ``T.While`` loop
      - Not supported
@@ -385,9 +443,9 @@ and how each construct is interpreted:
      - N/A
    * - ``x: R.Tensor(...)``
      - N/A
-     - Struct info annotation
+     - Type annotation
    * - ``return``
-     - Not used
+     - Primitive return expression
      - Function return value
    * - ``A[i, j]``
      - Buffer load
@@ -402,9 +460,9 @@ and how each construct is interpreted:
      - ``T.*`` intrinsics
      - ``R.*`` operators or ``call_tir`` / ``call_packed``
 
-**Not supported**: ``class`` definitions (except for ``@I.ir_module``), ``try/except``,
-``yield``, ``async/await``, list comprehensions, ``lambda``, ``import``, and ``global``
-statements.
+Inside scripted function bodies, unsupported statement forms include ``class``,
+``try/except``, ``import``, and ``global``. ``yield`` and ``async/await`` are also unsupported.
+Place imports and ordinary Python class definitions in the surrounding Python program.
 
 
 TIR Syntax Reference
@@ -417,6 +475,8 @@ Function definition
 
    @T.prim_func
    def func_name(a: T.handle, b: T.handle):
+       m = T.int32()
+       n = T.int32()
        A = T.match_buffer(a, (m, n), "float32")
        B = T.match_buffer(b, (m,), "float32")
        # function body
@@ -427,6 +487,8 @@ Function definition
 
 Block and axes
 ~~~~~~~~~~~~~~
+
+Use ``@T.prim_func(s_tir=True)`` for functions with scheduled-TIR blocks and block axes.
 
 .. code-block:: python
 
@@ -472,7 +534,7 @@ Common intrinsics
    T.cast(x, "float16")                              # type cast
    T.if_then_else(cond, true_val, false_val)          # conditional expression
    T.min(a, b), T.max(a, b)                           # min/max
-   T.call_extern("func_name", *args)                  # external function call
+   T.call_extern("int32", "func_name", *args)                  # external function call
    T.call_packed("func_name", *args)                   # packed function call
    T.tvm_storage_sync("shared")                        # GPU memory fence
 
@@ -514,9 +576,9 @@ Calling TIR functions
 
 .. code-block:: python
 
-   out = R.call_tir(cls.my_kernel, (x, y), out_ty=R.Tensor((128,), "float32"))
+   out = R.call_tir(MyModule.my_kernel, (x, y), out_ty=R.Tensor((128,), "float32"))
 
-- ``cls.my_kernel`` — references a TIR ``PrimFunc`` in the same module.
+- ``MyModule.my_kernel`` — references a TIR ``PrimFunc`` in the same module.
 - ``out_ty`` — the type (shape and dtype) of the output tensor.
 
 Control flow
@@ -545,31 +607,41 @@ Source Code Map
 
    * - Path
      - Contents
-   * - ``python/tvm/script/parser/core/``
-     - Core parser: dispatch, expression evaluator, variable table, Doc AST
-   * - ``python/tvm/script/parser/tirx/``
-     - TIR-specific parser handlers and value binding
-   * - ``python/tvm/script/parser/relax/``
-     - Relax-specific parser handlers and value binding
-   * - ``python/tvm/script/parser/ir/``
-     - ``@I.ir_module`` entry point and module-level parsing
+   * - ``python/tvm/script/parser/frontend.py``
+     - Source acquisition, decorators/helpers, definition context, callable recomposition
+   * - ``python/tvm/script/parser/transpile.py``
+     - Python AST transformation and lexical syntax lowering
+   * - ``python/tvm/script/parser/expression.py`` and ``python/tvm/script/parser/protocol.py``
+     - Expression-string rewriting and registered callable syntax policies
+   * - ``python/tvm/script/parser/jit.py``
+     - JIT argument validation, specialization inputs, and caching
+   * - ``python/tvm/script/parser/ir.py``
+     - Public ``I`` namespace and module-level entry points
    * - ``python/tvm/script/ir_builder/base.py``
-     - IRBuilder base class and frame stack mechanism
-   * - ``python/tvm/script/ir_builder/tirx/``
-     - TIR frame types and builder functions (``T.*``)
-   * - ``python/tvm/script/ir_builder/relax/``
-     - Relax frame types and builder functions (``R.*``)
+     - IRBuilder context, frame stack, and source-span support
+   * - ``python/tvm/script/ir_builder/construction.py``
+     - Runtime function declarations, specialization context, and construction state
+   * - ``python/tvm/script/ir_builder/parser_support.py`` and ``python/tvm/script/ir_builder/type_var_frame.py``
+     - Shared parser-facing builder support and function-local symbolic identity
+   * - ``python/tvm/tirx/script/`` and ``python/tvm/relax/script/``
+     - Public dialect namespaces exposed through ``tvm.script``
+   * - ``python/tvm/tirx/script/builder/``
+     - TIR frame types and concrete construction operations
+   * - ``python/tvm/relax/script/builder/``
+     - Relax frame types and concrete construction operations
    * - ``python/tvm/script/ir_builder/ir/``
-     - IRModule builder (``I.*``)
+     - IRModule construction and module-owned global information
    * - ``src/script/printer/``
-     - C++ printer: Doc tree, IRDocsifier, Python code generation
-   * - ``src/script/printer/tirx/``
-     - TIR-specific IR-to-Doc converters
-   * - ``src/script/printer/relax/``
-     - Relax-specific IR-to-Doc converters
+     - Shared C++ printer: Doc tree, IRDocsifier, Python code generation
+   * - ``src/tirx/script/printer/`` and ``src/relax/script/printer/``
+     - Dialect-specific IR-to-Doc converters
    * - ``src/script/ir_builder/``
-     - C++ backend for frame stack and IR construction
+     - Shared C++ builder context and module construction
+   * - ``src/tirx/script/builder/`` and ``src/relax/script/builder/``
+     - C++ dialect construction frames and operations
    * - ``include/tvm/script/printer/``
-     - C++ headers: Doc classes, IRDocsifier, dispatch functor
+     - Shared C++ printer interfaces
    * - ``include/tvm/script/ir_builder/``
-     - C++ headers: builder base, dialect-specific frame types
+     - Shared C++ builder and module-frame interfaces
+   * - ``include/tvm/tirx/script/builder/`` and ``include/tvm/relax/script/builder/``
+     - C++ dialect builder interfaces

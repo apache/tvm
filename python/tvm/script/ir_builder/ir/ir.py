@@ -16,11 +16,13 @@
 # under the License.
 """Package tvm.script.ir_builder.ir.ir"""
 
+import inspect
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from tvm.ir import BaseFunc, GlobalInfo, GlobalVar
 from tvm.runtime import Object as tvm_Object
 
+from ..base import IRBuilder
 from . import _ffi_api
 from .frame import IRModuleFrame
 
@@ -36,18 +38,7 @@ if TYPE_CHECKING:
 else:
 
     class meta_var:  # pylint: disable=invalid-name
-        """A value used only for TVMScript parser-time metaprogramming.
-
-        Assignments unwrap this object without emitting an IR binding.  The
-        shared wrapper is exposed as ``I.meta_var``; dialect namespaces may
-        provide compatibility aliases to the same implementation.
-        For Relax, this is the explicit opt-out from default primitive binding emission.
-
-        Parameters
-        ----------
-        value : Any
-            The parser-time value.
-        """
+        """A value used only for TVMScript parser-time metaprogramming."""
 
         def __init__(self, value: Any) -> None:
             self.value = value
@@ -57,13 +48,13 @@ else:
 
 
 def ir_module() -> IRModuleFrame:
-    """Start a ir_module frame.
-    Returns
-    -------
-    frame: IRModuleFrame
-        The constructed frame.
-    """
+    """Start a ir_module frame."""
     return _ffi_api.IRModule()  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def reserve_function(func_name: str) -> GlobalVar:
+    """Reserve a module identity before a declaration frame evaluates its signature."""
+    return _ffi_api.ReserveFunction(func_name)
 
 
 def decl_function(func_name: str, func_signature: BaseFunc) -> GlobalVar:
@@ -152,25 +143,65 @@ def module_set_attr(
 
 
 def module_global_infos(global_infos: dict[str, list[GlobalInfo]]) -> None:
-    """Specify the global infos of the ir_module frame.
-    Parameters
-    ----------
-    global_infos: Dict[str, List[GlobalInfo]]
-        The module global infos.
-    """
-    return _ffi_api.ModuleGlobalInfos(global_infos)  # type: ignore[attr-defined] # pylint: disable=no-member
+    """Specify the global infos of the ir_module frame."""
+    if IRBuilder.is_in_scope():
+        return _ffi_api.ModuleGlobalInfos(global_infos)
+    # Keep native argument validation even before Python has applied the module decorator.
+    _ffi_api.ModuleGlobalInfos(global_infos)
+    frame = inspect.currentframe().f_back
+    try:
+        if _is_class_frame(frame):
+            previous = frame.f_locals.get("__tvm_script_global_infos__")
+            if previous:
+                raise ValueError(f"Duplicate module global_infos, previous one is:\n{previous}")
+            frame.f_locals["__tvm_script_global_infos__"] = {
+                name: tuple(values) for name, values in global_infos.items()
+            }
+    finally:
+        del frame
+
+
+def _is_class_frame(frame):
+    return (
+        not frame.f_code.co_flags & inspect.CO_NEWLOCALS
+        and frame.f_locals is not frame.f_globals
+        and "__module__" in frame.f_locals
+        and frame.f_locals.get("__qualname__", "").split(".")[-1] == frame.f_code.co_name
+    )
+
+
+def _class_global_infos():
+    # Only a still-executing class owns eager signature context. Never retain its frame,
+    # and do not fall through an inner class to an unrelated outer module declaration.
+    frame = inspect.currentframe().f_back
+    try:
+        while frame is not None:
+            if _is_class_frame(frame):
+                return frame.f_locals.get("__tvm_script_global_infos__", {})
+            frame = frame.f_back
+    finally:
+        del frame
+    return {}
+
+
+def lookup_global_info(name: str, index: int) -> GlobalInfo:
+    """Resolve a concrete global info in a builder or an executing module class."""
+    if IRBuilder.is_in_scope():
+        for frame in reversed(IRBuilder.current().frames):
+            if isinstance(frame, IRModuleFrame):
+                return frame.global_infos[name][index]
+        raise ValueError("The GlobalInfos in the IRModule is not defined.")
+    infos = _class_global_infos()
+    if not infos:
+        raise ValueError("The GlobalInfos in the IRModule is not defined.")
+    return infos[name][index]
 
 
 ############################### GlobalInfo ###############################
 
 
 def dummy_global_info() -> "DummyGlobalInfo":
-    """Create a dummy global info expression.
-    Returns
-    -------
-    res : DummyGlobalInfo
-        The result dummy global info.
-    """
+    """Create a dummy global info expression."""
     from tvm.relax import DummyGlobalInfo  # pylint: disable=import-outside-toplevel
 
     return DummyGlobalInfo()  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -202,16 +233,35 @@ def lookup_vdevice(target_kind: str | None = None, device_index: int = -1) -> "V
     Parameters
     ----------
     target_kind: str
-        The target device kind, for example 'llvm' or 'cuda'.
+        The target device kind, for example 'llvm' or 'cuda'. Use 'vdevice'
+        to index the complete virtual-device list.
     device_index: int
-        The virtual device index.
+        The zero-based index among devices of the selected target kind, or
+        among all devices when target_kind is 'vdevice'.
 
     Returns
     -------
     res : VDevice
         The result virtual device.
     """
-    return _ffi_api.LookupVDevice(target_kind, device_index)  # type: ignore[attr-defined] # pylint: disable=no-member
+    if IRBuilder.is_in_scope():
+        return _ffi_api.LookupVDevice(target_kind, device_index)
+    from tvm.relax import VDevice  # pylint: disable=import-outside-toplevel
+
+    infos = _class_global_infos()
+    if not infos:
+        raise ValueError("The GlobalInfos in the IRModule is not defined.")
+    vdevices = infos["vdevice"]
+    if device_index < 0 or device_index >= len(vdevices):
+        raise ValueError("The target VDevice in the GlobalInfos was not found.")
+    if not all(isinstance(value, VDevice) for value in vdevices):
+        raise TypeError("The vdevice global infos must contain VDevice values.")
+    if target_kind == "vdevice":
+        return vdevices[device_index]
+    matches = [value for value in vdevices if value.target.kind.name == target_kind]
+    if device_index >= len(matches):
+        raise ValueError("The target VDevice in the GlobalInfos was not found.")
+    return matches[device_index]
 
 
 def lookup_name(name: str) -> bool:

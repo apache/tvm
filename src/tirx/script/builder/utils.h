@@ -38,8 +38,8 @@ namespace tirx {
 inline void AddToParent(tvm::tirx::Stmt stmt) {
   IRBuilder builder = IRBuilder::Current();
   // Some builder paths use an undefined statement as an omitted branch.
-  if (stmt.defined() && !stmt->span.defined()) {
-    stmt->span = builder->GetCurrentSourceSpan();
+  if (stmt.defined()) {
+    builder->SetCurrentSourceSpan(stmt);
   }
   if (builder->frames.empty()) {
     TVM_FFI_CHECK(!builder->result.has_value(), ValueError)

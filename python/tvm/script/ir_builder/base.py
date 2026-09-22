@@ -17,11 +17,12 @@
 """A generic IRBuilder across the TVM stack"""
 
 from collections.abc import Callable
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from typing import Any
 
 from tvm_ffi import register_object as _register_object
 
+from tvm import ir
 from tvm.runtime import Object as _Object
 
 from . import _ffi_api
@@ -37,7 +38,7 @@ class IRBuilderFrame(_Object):
     Examples
     --------
 
-    The `T.match_buffer` below instead an element in the buffer map of `PrimFuncFrame`:
+    The `T.match_buffer` below matches a function parameter in the active `PrimFuncFrame`:
 
     .. code-block:: python
 
@@ -60,29 +61,24 @@ class IRBuilderFrame(_Object):
         with IRBuilder() as builder:
             with T.prim_func(...):  # pushes a PrimFuncFrame (subclass of IRBuilderFrame)
                                     # to `builder`'s stack of frames
-               with T.sblock(...):  # pushes a BlockFrame (subclass of IRBuilderFrame)
+                with T.sblock(...):  # pushes an SBlockFrame (subclass of IRBuilderFrame)
                                     # to `builder`'s stack of frames
                     buffer = T.match_buffer(...)
-
     """
 
     def __enter__(self) -> "IRBuilderFrame":
-        _ffi_api.IRBuilderFrameEnter(self)  # type: ignore[attr-defined] # pylint: disable=no-member
+        with _construction_span(self.source_span):
+            _ffi_api.IRBuilderFrameEnter(self)  # type: ignore[attr-defined] # pylint: disable=no-member
         return self
 
     def __exit__(self, exc_type, exc_value, trace) -> None:  # pylint: disable=unused-argument
         if exc_type is None and exc_value is None:
             # Do not execute `FrameExit` if the with scope exits because of exceptions
-            _ffi_api.IRBuilderFrameExit(self)  # type: ignore[attr-defined] # pylint: disable=no-member
+            with _construction_span(self.source_span):
+                _ffi_api.IRBuilderFrameExit(self)  # type: ignore[attr-defined] # pylint: disable=no-member
 
     def add_callback(self, callback: Callable[[], None]) -> None:
-        """Add a callback method invoked when exiting the with-scope.
-
-        Parameters
-        ----------
-        callback : Callable[[], None]
-            The callback method to be invoked.
-        """
+        """Add a callback method invoked when exiting the with-scope."""
         _ffi_api.IRBuilderFrameAddCallback(  # type: ignore[attr-defined] # pylint: disable=no-member
             self, callback
         )
@@ -138,24 +134,12 @@ class IRBuilder(_Object):
 
     @staticmethod
     def current() -> "IRBuilder":
-        """Get the current IRBuilder put in the with-scope.
-
-        Returns
-        -------
-        builder : IRBuilder
-            The current IRBuilder.
-        """
+        """Get the current IRBuilder put in the with-scope."""
         return _ffi_api.IRBuilderCurrent()  # type: ignore[attr-defined] # pylint: disable=no-member
 
     @staticmethod
     def is_in_scope() -> bool:
-        """See if the current thread-local scope has an IRBuilder.
-
-        Returns
-        -------
-        bool
-            Whether the current thread-local scope has an IRBuilder
-        """
+        """See if the current thread-local scope has an IRBuilder."""
         return _ffi_api.IRBuilderIsInScope()  # type: ignore[attr-defined] # pylint: disable=no-member
 
     def get(self) -> _Object:
@@ -185,7 +169,7 @@ class IRBuilder(_Object):
             )
 
     def _set_current_source_span(self, value):
-        """Attach the active source span to an expression without one."""
+        """Compose the active source span onto the same supported IR node or frame."""
         return _ffi_api.IRBuilderSetCurrentSourceSpan(  # type: ignore[attr-defined] # pylint: disable=no-member
             self, value
         )
@@ -229,3 +213,101 @@ class IRBuilder(_Object):
         """
         assert len(s) == len(vs)
         return [IRBuilder.name(i, v) for i, v in zip(s, vs)]
+
+
+# Absence is an explicit value; no function data is retained.
+class _Missing:
+    def __repr__(self):
+        return "MISSING"
+
+
+MISSING = _Missing()
+
+
+def source_span(location):
+    """Materialize a source range without retaining source-unit state."""
+    if location is None or isinstance(location, (ir.Span, ir.SequentialSpan)):
+        return location
+    source_name, line, end_line, column, end_column = location
+    if isinstance(source_name, str):
+        source_name = ir.SourceName(source_name)
+    return ir.Span(source_name, line, end_line, column, end_column)
+
+
+@contextmanager
+def _construction_span(span):
+    """Apply a builder operation's span through the existing native span stack."""
+    if span is None:
+        yield
+        return
+    span = source_span(span)
+    context = (
+        IRBuilder.current().with_source_span(span)
+        if span is not None and IRBuilder.is_in_scope()
+        else nullcontext()
+    )
+    try:
+        with context:
+            yield
+    except Exception as error:
+        if span is not None and not hasattr(error, "__tvm_script_location__"):
+            diagnostic_span = span.spans[-1] if isinstance(span, ir.SequentialSpan) else span
+            error.__tvm_script_location__ = (
+                str(diagnostic_span.source_name.name),
+                diagnostic_span.line,
+                diagnostic_span.end_line,
+                diagnostic_span.column,
+                diagnostic_span.end_column,
+            )
+        raise
+
+
+class BypassBind:
+    """Carry an already-constructed value through assignment without binding it."""
+
+    __slots__ = ("value",)
+
+    def __init__(self, value):
+        self.value = value
+
+
+class BypassEmit:
+    """Reference an already-emitted statement without emitting it again."""
+
+    __slots__ = ("stmt",)
+
+    def __init__(self, stmt):
+        self.stmt = stmt
+
+
+def at(span, value):
+    """Attach source context to the same IR node, emission receipt, or frame.
+
+    Native mutation annotates the statement held by the builder itself.  Keep
+    the original Python facade as well, including callable objects and frames.
+    Unsupported objects and ordinary Python values pass through unchanged.
+    """
+    if span is None or not IRBuilder.is_in_scope():
+        return value
+    target = value.stmt if isinstance(value, BypassEmit) else value
+    if isinstance(target, BypassBind):
+        if isinstance(target.value, (list, tuple)):
+            for item in target.value:
+                at(span, item)
+        else:
+            at(span, target.value)
+        return value
+    if isinstance(target, _Object):
+        with _construction_span(span):
+            IRBuilder.current()._set_current_source_span(target)
+    elif callable(set_source_span := getattr(target, "_set_source_span", None)):
+        set_source_span(span)
+    return value
+
+
+def _frame_result(frame, name):
+    """Read one explicit export without consulting ambient construction state."""
+    if not isinstance(name, str):
+        raise TypeError("A frame result name must be a string")
+    exports = frame if isinstance(frame, dict) else getattr(frame, "result", {})
+    return exports.get(name, MISSING)

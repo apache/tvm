@@ -36,6 +36,9 @@ namespace ir {
  */
 TVM_DLL IRModuleFrame IRModule();
 
+/*! \brief Reserve a stable function identity before evaluating its signature. */
+TVM_DLL GlobalVar ReserveFunction(const ffi::String& func_name);
+
 /*!
  * \brief Declare a Function without given the specific function implementation.
  * \note It is usually used in cross-function call. And we can specify the function by `DefFunction`

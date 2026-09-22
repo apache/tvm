@@ -68,6 +68,9 @@ BufferVar BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
  */
 PrimFuncFrame PrimFunc(bool is_private, bool s_tir = false, bool persistent = false);
 
+/*! \brief Construct a bodyless function signature using the ordinary signature operations. */
+PrimFuncFrame DeclFunction(bool is_private = false, bool s_tir = false, bool persistent = false);
+
 /*!
  * \brief The PrimFunc variable arguments adding function.
  * \param name The name of the variable.
@@ -494,8 +497,9 @@ void BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices)
 /*!
  * \brief Evaluate the input expression.
  * \param value The input expression to evaluate.
+ * \return The same statement that was added to the parent frame.
  */
-void Evaluate(Expr value);
+tvm::tirx::Stmt Evaluate(Expr value);
 
 /*!
  * \brief Create a TIR var that represents a pointer

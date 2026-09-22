@@ -84,6 +84,12 @@ PrimFuncFrame PrimFunc(bool is_private, bool s_tir, bool persistent) {
   return PrimFuncFrame(n);
 }
 
+PrimFuncFrame DeclFunction(bool is_private, bool s_tir, bool persistent) {
+  PrimFuncFrame frame = PrimFunc(is_private, s_tir, persistent);
+  frame->is_declaration = true;
+  return frame;
+}
+
 Var Arg(ffi::String name, Var var) {
   PrimFuncFrame frame = FindPrimFuncFrame("T.Arg");
   details::Namer::Name(var, name);
@@ -906,7 +912,11 @@ BufferVar AllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String st
   return buffer;
 }
 
-void Evaluate(Expr value) { AddToParent(tvm::tirx::Evaluate(value)); }
+tvm::tirx::Stmt Evaluate(Expr value) {
+  tvm::tirx::Stmt stmt = tvm::tirx::Evaluate(value);
+  AddToParent(stmt);
+  return stmt;
+}
 
 Var Ptr(PrimType dtype, ffi::String storage_scope = "global") {
   PointerType type_annotation(dtype, storage_scope);
@@ -949,6 +959,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                      ffi::Optional<PrimExpr>, ffi::String, int, int,
                                      ffi::Optional<Layout>, ffi::Array<PrimExpr>)>(BufferDecl))
       .def("script.ir_builder.tirx.PrimFunc", PrimFunc)
+      .def("script.ir_builder.tirx.DeclFunction", DeclFunction)
       .def("script.ir_builder.tirx.Arg",
            [](ffi::String name, ffi::ObjectRef obj) -> ffi::ObjectRef {
              using namespace tvm::tirx;

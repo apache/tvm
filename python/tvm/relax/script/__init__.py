@@ -14,14 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Relax-layer TVMScript pieces (parser, builder).
+"""Public canonical TVMScript dialect namespace."""
+import importlib as _importlib
 
-After the per-dialect TVMScript restructure, the Relax layer owns its own
-``script/{parser,builder}`` subpackages. ``tvm.script.relax`` resolves to
-this module via the dialect registry, so the public parser surface
-(``function``, ``Tensor``, ``match_cast``, etc.) is re-exported here.
-"""
 
-# pylint: disable=redefined-builtin,wildcard-import,unused-wildcard-import
-from .parser import *
-from .parser import dist
+def __getattr__(name):
+    if name in ("builder", "tile"):
+        return _importlib.import_module(__name__ + "." + name)
+    if name.startswith("_") and name != "__all__":
+        raise AttributeError(name)
+    from tvm.script import parser as _parser
+    _parser._initialize()
+    if name in globals():
+        return globals()[name]
+    builder = _importlib.import_module(__name__ + ".builder")
+    return getattr(builder, name)

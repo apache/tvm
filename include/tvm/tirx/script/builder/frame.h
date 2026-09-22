@@ -93,6 +93,11 @@ class PrimFuncFrameNode : public TIRFrameNode {
   bool s_tir;
   /*! \brief Whether it is a persistent kernel. */
   bool persistent;
+  /*! \brief Whether this frame declares a bodyless signature. */
+  bool is_declaration{false};
+  /*! \brief Finalized function and its module identity. */
+  ffi::Optional<tvm::tirx::PrimFunc> function;
+  ffi::Optional<GlobalVar> global_var;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -106,7 +111,10 @@ class PrimFuncFrameNode : public TIRFrameNode {
         .def_ro("env_threads", &PrimFuncFrameNode::env_threads)
         .def_ro("root_alloc_buffers", &PrimFuncFrameNode::root_alloc_buffers)
         .def_ro("s_tir", &PrimFuncFrameNode::s_tir)
-        .def_ro("persistent", &PrimFuncFrameNode::persistent);
+        .def_ro("persistent", &PrimFuncFrameNode::persistent)
+        .def_ro("is_declaration", &PrimFuncFrameNode::is_declaration)
+        .def_ro("function", &PrimFuncFrameNode::function)
+        .def_ro("global_var", &PrimFuncFrameNode::global_var);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.PrimFuncFrame", PrimFuncFrameNode,
                                     TIRFrameNode);

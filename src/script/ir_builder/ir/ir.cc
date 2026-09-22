@@ -70,12 +70,21 @@ inline ffi::Optional<Type> GetGlobalVarType(const BaseFunc& func) {
   return std::nullopt;
 }
 
-GlobalVar DeclFunction(const ffi::String& func_name, const BaseFunc& func_signature) {
+GlobalVar ReserveFunction(const ffi::String& func_name) {
   IRModuleFrame frame = FindModuleFrame();
   TVM_FFI_CHECK(!frame->global_var_map.count(func_name), ValueError)
       << "function " << func_name << " already exists";
+  GlobalVar gv(func_name);
+  frame->global_var_map.Set(func_name, gv);
+  return gv;
+}
 
-  GlobalVar gv = GlobalVar(func_name);
+GlobalVar DeclFunction(const ffi::String& func_name, const BaseFunc& func_signature) {
+  IRModuleFrame frame = FindModuleFrame();
+  GlobalVar gv = frame->global_var_map.count(func_name) ? frame->global_var_map.at(func_name)
+                                                        : GlobalVar(func_name);
+  TVM_FFI_CHECK(!frame->functions.count(gv), ValueError)
+      << "function " << func_name << " already exists";
   if (auto ty = GetGlobalVarType(func_signature)) {
     gv->ty = ty.value();
   } else {
@@ -113,14 +122,14 @@ void ModuleAttrs(ffi::Map<ffi::String, Any> attrs, bool allow_overwrite) {
   }
 }
 
-ffi::Optional<ffi::ObjectRef> ModuleGetAttr(const ffi::String& key) {
+Any ModuleGetAttr(const ffi::String& key) {
   if (IRBuilder::IsInScope()) {
     IRModuleFrame frame = FindModuleFrame();
     if (frame->attrs.find(key) != frame->attrs.end()) {
-      return frame->attrs[key].cast<ffi::ObjectRef>();
+      return frame->attrs[key];
     }
   }
-  return std::nullopt;
+  return Any();
 }
 
 void ModuleSetAttr(const ffi::String& key, const ffi::Optional<ffi::ObjectRef>& value,
@@ -192,6 +201,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.ir.IRModule", IRModule)
+      .def("script.ir_builder.ir.ReserveFunction", ReserveFunction)
       .def("script.ir_builder.ir.DeclFunction", DeclFunction)
       .def("script.ir_builder.ir.DefFunction", DefFunction)
       .def("script.ir_builder.ir.ModuleAttrs", ModuleAttrs)

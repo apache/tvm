@@ -14,22 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The ir_builder subpackage of TVMScript.
-
-Per-dialect builder submodules (``tvm.script.ir_builder.tirx``, etc.) are
-resolved lazily via :data:`tvm.script._DIALECT_REGISTRY`.  When a dialect
-is accessed (e.g. ``tvm.script.ir_builder.tirx``), this subpackage's
-``__getattr__`` looks up the dialect in ``_DIALECT_REGISTRY`` and imports
-``<dialect_module_path>.builder`` (e.g. ``tvm.tirx.script.builder``),
-caching the result so subsequent accesses skip ``__getattr__``.
-
-The IR layer is foundational and is NOT registered as a dialect — its
-builder lives as a real submodule ``tvm.script.ir_builder.ir``.
-
-See :mod:`tvm.script` for a full description of the dialect resolution
-mechanism, including the ``_DialectRedirectFinder`` that handles
-deep statement-form imports.
-"""
+"""The ir_builder subpackage of TVMScript."""
 
 import importlib
 from typing import Any
