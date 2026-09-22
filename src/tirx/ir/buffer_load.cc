@@ -22,7 +22,7 @@
  * \brief Buffer-load expression definition.
  */
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/buffer.h>
+#include <tvm/tirx/expr.h>
 
 namespace tvm {
 namespace tirx {

@@ -84,7 +84,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IfFrameNode::RegisterReflection();
   ThenFrameNode::RegisterReflection();
   ElseFrameNode::RegisterReflection();
-  ComposeOpFrameNode::RegisterReflection();
   DeclBufferFrameNode::RegisterReflection();
   AllocBufferFrameNode::RegisterReflection();
   HintFrameNode::RegisterReflection();
@@ -330,19 +329,6 @@ void DeclBufferFrameNode::ExitWithScope() {
     // data is undefined in `decl_buffer(...)`, lower to `alloc_buffer(...)`.
     AddToParent(tvm::tirx::SeqStmt::Flatten(tvm::tirx::AllocBuffer(buffer), AsStmt(stmts)));
   }
-}
-
-void ComposeOpFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  ffi::Array<ffi::ObjectRef> ops;
-  for (const auto& stmt : stmts) {
-    auto op_call = stmt.as<tvm::tirx::TilePrimitiveCallNode>();
-    TVM_FFI_ICHECK(op_call) << "ValueError: Only TIRx op calls allowed in ComposeOp. Violated by "
-                            << stmt;
-    ops.push_back(ffi::GetRef<tvm::tirx::TilePrimitiveCall>(op_call));
-  }
-  static const Op& compose_op_op = Op::Get("tirx.tile.compose_op");
-  AddToParent(tvm::tirx::TilePrimitiveCall(compose_op_op, ops, workspace, config, dispatch));
 }
 
 void AllocBufferFrameNode::ExitWithScope() {
