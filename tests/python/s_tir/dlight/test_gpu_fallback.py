@@ -69,6 +69,23 @@ def test_fallback():
     assert_structural_equal(mod, After)
 
 
+def test_fallback_skips_zero_extent_spatial():
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((4, 0), "float32"), B: T.Buffer((4, 0), "float32")):
+            for i, j in T.grid(4, 0):
+                with T.sblock("copy"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj]
+
+    with Target("nvidia/geforce-rtx-3090-ti"):
+        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            dl.gpu.Fallback(),
+        )(Module)
+    assert_structural_equal(mod, Module)
+
+
 def test_fallback_reduction():
     @I.ir_module(s_tir=True)
     class Module:
