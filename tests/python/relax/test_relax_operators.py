@@ -482,6 +482,54 @@ def test_op_call_py_func(exec_mode):
     clear_func()
 
 
+def test_op_call_py_func_survives_unrelated_base_py_module_gc(exec_mode):
+    """Collecting an unrelated BasePyModule must not drop registered Python functions."""
+    import gc
+
+    from tvm.relax.base_py_module import BasePyModule
+
+    def py_relu(x):
+        if not isinstance(x, tvm.runtime.Tensor):
+            x = x[0]
+        return tvm.runtime.tensor(np.maximum(x.numpy(), 0.0))
+
+    @tvm.script.ir_module
+    class CallPyFunc:
+        @R.function
+        def main(x: R.Tensor((3,), "float32")):
+            y = R.call_py_func(R.str("py_relu"), (x,), out_ty=R.Tensor((3,), "float32"))
+            return y
+
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        # BasePyModule instances sit in reference cycles, so they are released by the
+        # cyclic garbage collector at an arbitrary later point.
+        BasePyModule(tvm.IRModule({}), device=tvm.cpu(0), target="llvm")
+        tvm.get_global_func("vm.builtin.register_py_func")("py_relu", py_relu)
+        gc.collect()
+
+        x = np.array([-1.0, 0.0, 2.0], dtype="float32")
+        result = run_cpu(CallPyFunc, "main", tvm.runtime.tensor(x), exec_mode=exec_mode)
+        np.testing.assert_array_equal(result.numpy(), np.maximum(x, 0.0))
+    finally:
+        tvm.get_global_func("vm.builtin.clear_py_func_registry")()
+        if gc_was_enabled:
+            gc.enable()
+
+
+def test_py_func_registry_exit_with_registered_function():
+    """Exiting with a Python function still registered must not crash the process."""
+    import subprocess
+
+    code = (
+        "import tvm\n"
+        "tvm.get_global_func('vm.builtin.register_py_func')('py_identity', lambda x: x)\n"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
 def test_op_to_device(exec_mode):
     @tvm.script.ir_module
     class CallToDevice:
