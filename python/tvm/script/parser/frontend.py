@@ -327,7 +327,12 @@ def make_decorator(builder, *, option_map=None, defaults=None):
             function.__tvm_function_options__ = options
             if deferred:
                 return function
-            return parse(function)
+            result = parse(
+                function,
+                check_well_formed=options.get("check_well_formed", True),
+            )
+            result.__name__ = function.__name__
+            return result
 
         return apply(function) if function is not None else apply
 
@@ -607,8 +612,8 @@ class Compiler:
                         for value in (
                             node.lineno,
                             node.end_lineno,
-                            node.col_offset,
-                            node.end_col_offset,
+                            node.col_offset + 1,
+                            node.end_col_offset + 1,
                         )
                     ],
                 ],
@@ -921,15 +926,79 @@ def parse(source, extra_vars=None, *, filename=None, track_span: bool = True, **
     try:
         root = compiler.tree.body[-1]
         root_name = root.name if isinstance(root, ast.FunctionDef) else None
-        with construction.specialization_context(
-            root_name, options.get("_specialization_bindings", {})
-        ):
+        specialization = options.get("_specialization_bindings")
+        if specialization is None and options.get("absent_params") is not None:
+            specialization = {}
+        check_well_formed = options.get("check_well_formed")
+        if check_well_formed is None:
+            check_well_formed = True
+            for decorator in getattr(root, "decorator_list", ()):
+                if isinstance(decorator, ast.Call):
+                    for keyword in decorator.keywords:
+                        if keyword.arg == "check_well_formed":
+                            check_well_formed = eval(
+                                compile(ast.Expression(keyword.value), compiler.filename, "eval"),
+                                compiler.env,
+                            )
+        with construction.specialization_context(root_name, specialization):
             with construction.absent_parameters(root_name, options.get("absent_params")):
-                return compiler.build()
+                result = compiler.build()
+        if check_well_formed:
+            _check_well_formed(result)
+        return result
     except DiagnosticError:
         raise
     except Exception as error:
         raise diagnostic_error(error, compiler) from error
+
+
+def _check_well_formed(result):
+    """Apply the public entry point's default validation to constructed IR."""
+    from tvm import ir, relax, s_tir, tirx
+
+    message = (
+        "Program is not well-formed. If this is deliberate, set "
+        "check_well_formed=False in the top-level decorator."
+    )
+    if isinstance(result, ir.IRModule | relax.Function):
+        if not relax.analysis.check_well_formed(result):
+            raise ValueError(message)
+    if not isinstance(result, ir.IRModule | relax.Function | tirx.PrimFunc):
+        return
+    module = result if isinstance(result, ir.IRModule) else ir.IRModule.from_expr(result)
+    try:
+        s_tir.analysis.verify_well_formed(module)
+        for function in module.functions.values():
+            if isinstance(function, tirx.PrimFunc) and not function.attrs.get("s_tir", False):
+                tirx.analysis.verify_tirx_well_formed(function)
+    except Exception as error:
+        raise ValueError(f"{message}\n{error}") from error
+
+
+class _PyModuleFactory:
+    """Keep executable Python attachments on each fresh module instance."""
+
+    def __init__(self, module, original_class):
+        self.ir_module = module
+        self.original_class = original_class
+        self.pyfunc_methods = list(getattr(module, "pyfuncs", {}))
+        self.__name__ = original_class.__name__
+
+    def __call__(self, device=None, target=None):
+        from tvm import cpu, ir
+        from tvm.relax.base_py_module import BasePyModule
+
+        source = self.ir_module
+        instance_module = ir.IRModule(
+            source.functions, attrs=source.attrs, global_infos=source.global_infos
+        )
+        instance = BasePyModule(instance_module, device or cpu(0), target)
+        for name in self.pyfunc_methods:
+            instance.add_python_function(name, getattr(self.original_class, name))
+        return instance
+
+    def __getattr__(self, name):
+        return getattr(self.ir_module, name)
 
 
 def ir_module(module=None, **options):
@@ -971,7 +1040,13 @@ def ir_module(module=None, **options):
             definition_scope = _definition_scope(frame)
         finally:
             del frame
-        return parse(module, _definition_scope=definition_scope, **options)
+        result = parse(module, _definition_scope=definition_scope, **options)
+        from tvm.relax.base_py_module import BasePyModule
+
+        if issubclass(module, BasePyModule):
+            return _PyModuleFactory(result, module)
+        result.__name__ = module.__name__
+        return result
 
     return apply(module) if module is not None else apply
 

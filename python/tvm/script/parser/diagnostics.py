@@ -37,6 +37,7 @@ def diagnostic_error(error, compiler):
     location = getattr(error, "__tvm_script_location__", None)
     if location is not None:
         filename, start, end, column, end_column = location
+        column, end_column = column - 1, end_column - 1
     elif isinstance(error, SyntaxError) and error.lineno:
         start = error.lineno
         end = error.end_lineno or start

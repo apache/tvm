@@ -207,14 +207,8 @@ class TIRJit:
             self._closure_vars,
             _definition_scope=self._definition_scope,
             _specialization_bindings={**effective, **absent_params},
+            check_well_formed=self.check_well_formed,
         )
-        if self.check_well_formed:
-            from tvm.s_tir.analysis import verify_well_formed
-            from tvm.tirx.analysis import verify_tirx_well_formed
-
-            verify_well_formed(prim_func)
-            if not prim_func.attrs.get("s_tir", False):
-                verify_tirx_well_formed(prim_func)
         setattr(prim_func, "__name__", self.func.__name__)
         self._cache[cache_key] = prim_func
         return prim_func

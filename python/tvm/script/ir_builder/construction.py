@@ -41,7 +41,7 @@ _ABSENT_PARAMETERS = ContextVar("tvm_builder_absent_parameters", default=None)
 @contextmanager
 def specialization_context(name, bindings):
     """Pass validated JIT bindings to one root builder execution."""
-    token = _SPECIALIZATION.set((name, dict(bindings)))
+    token = _SPECIALIZATION.set(None if bindings is None else (name, dict(bindings)))
     try:
         yield
     finally:
@@ -148,9 +148,8 @@ class FunctionRecord:
             ):
                 self.symbols.bind(captured_name, value)
         context = _SPECIALIZATION.get()
-        self.specialization = (
-            context[1] if context is not None and context[0] == name and not local else {}
-        )
+        self.is_specialization = context is not None and context[0] == name and not local
+        self.specialization = context[1] if self.is_specialization else {}
         self.captured_bindings = dict(captures or {}) if not local else {}
         absent = _ABSENT_PARAMETERS.get()
         self.absent_parameters = (
@@ -191,6 +190,8 @@ class FunctionRecord:
         # Optional is an annotation wrapper, owned by the JIT entry point.
         unwrap = getattr(annotation, "__tvm_optional_annotation__", None)
         if unwrap is not None:
+            if not self.is_specialization:
+                raise TypeError("T.Optional is only supported by @T.jit")
             annotation = unwrap()
         return self.parameter(name, annotation, location)
 
