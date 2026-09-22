@@ -100,10 +100,11 @@ def test_dispatch_forced_variant_missing_table_and_message():
     assert "no variant named '__nonexistent__' is registered" in msg
 
 
-def test_dispatch_raises_with_aggregated_reasons():
+def test_dispatch_raises_with_aggregated_reasons(monkeypatch):
     """Validate STRICT mode raises aggregated error message with reasons."""
     _import_and_register()
     from tvm.ir import Op
+    from tvm.tirx.operator.tile_primitive import dispatcher
     from tvm.tirx.operator.tile_primitive.dispatcher import run_dispatch
 
     class _OpCall:
@@ -111,8 +112,15 @@ def test_dispatch_raises_with_aggregated_reasons():
             self.op = op
             self.args = []
 
-    # Use TRN compose_op; variant implementation raises NotImplementedError
-    op_call = _OpCall(Op.get("tirx.tile.compose_op"))
+    def failing_impl(op, sctx):
+        raise NotImplementedError("unsupported operation")
+
+    op_call = _OpCall(Op.get("tirx.tile.copy"))
+    monkeypatch.setitem(
+        dispatcher._DISPATCH_TABLE,
+        (op_call.op, "trn"),
+        [dispatcher.DispatchCase("default", 0, [], failing_impl)],
+    )
     sctx = _DummySctx(target_kind="trn", exec_scope="thread")
 
     with pytest.raises(RuntimeError) as e:
@@ -120,7 +128,7 @@ def test_dispatch_raises_with_aggregated_reasons():
 
     msg = str(e.value)
     print(msg)
-    assert "TIRx schedule dispatch failed: op=tirx.tile.compose_op target=trn" in msg
+    assert "TIRx schedule dispatch failed: op=tirx.tile.copy target=trn" in msg
     assert "default" in msg
     assert "exception — NotImplementedError" in msg
     # opcall content and backtrace should be included inside the table

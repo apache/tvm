@@ -476,17 +476,6 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent);
 LaunchThreadFrame LaunchThread(ffi::String thread_tag, PrimExpr extent);
 
 /*!
- * \brief Compose TIRx op.
- * \param workspace The workspace of the compose op.
- * \param config The config of the compose op.
- * \param dispatch The optional dispatch variant name.
- * \return The result ComposeOpFrame.
- */
-ComposeOpFrame ComposeOp(ffi::Map<ffi::String, BufferVar> workspace,
-                         ffi::Map<ffi::String, ffi::Any> config,
-                         ffi::Optional<ffi::String> dispatch = std::nullopt);
-
-/*!
  * \brief Bind a var to thread env.
  * \param thread_tag The thread type tag.
  * \param dtype The data type of the variable.

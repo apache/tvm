@@ -17,6 +17,5 @@
 
 from .binary_chain import *
 from .binary_reduce import *
-from .compose_op import *
 from .reduce_negate import *
 from .unary_reduce import *

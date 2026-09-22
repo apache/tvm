@@ -42,7 +42,7 @@
 
 #include "../../tirx/analysis/check_contains.h"
 #include "tvm/ffi/dtype.h"
-#include "tvm/tirx/buffer.h"
+#include "tvm/tirx/expr.h"
 
 namespace tvm {
 namespace tirx {

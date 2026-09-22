@@ -767,16 +767,6 @@ HintFrame Hint(ffi::String message, ffi::Map<ffi::String, ffi::Any> attrs) {
   return HintFrame(n);
 }
 
-ComposeOpFrame ComposeOp(ffi::Map<ffi::String, BufferVar> workspace,
-                         ffi::Map<ffi::String, ffi::Any> config,
-                         ffi::Optional<ffi::String> dispatch) {
-  ffi::ObjectPtr<ComposeOpFrameNode> n = ffi::make_object<ComposeOpFrameNode>();
-  n->workspace = workspace;
-  n->config = config;
-  n->dispatch = dispatch;
-  return ComposeOpFrame(n);
-}
-
 Var EnvThread(ffi::String thread_tag, PrimType dtype) {
   IterVar iter_var(Range{nullptr}, tvm::PrimVar("", dtype), tvm::tirx::IterVarType::kThreadIndex,
                    thread_tag);
@@ -1047,7 +1037,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("script.ir_builder.tirx.EnvThread", EnvThread)
       .def("script.ir_builder.tirx.Hint", Hint)
-      .def("script.ir_builder.tirx.ComposeOp", ComposeOp)
       .def("script.ir_builder.tirx.BufferStore", BufferStore)
       .def("script.ir_builder.tirx.Evaluate", Evaluate)
       .def("script.ir_builder.tirx.Ptr", Ptr);

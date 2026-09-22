@@ -95,10 +95,6 @@ class LaunchThreadFrame(TIRFrame):
         return self.iter_var.var
 
 
-@_register_object("script.ir_builder.tirx.ComposeOpFrame")
-class ComposeOpFrame(TIRFrame): ...
-
-
 @_register_object("script.ir_builder.tirx.AllocBufferFrame")
 class AllocBufferFrame(TIRFrame):
     def __enter__(self) -> Buffer:

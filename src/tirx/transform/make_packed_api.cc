@@ -30,8 +30,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/buffer.h>
 #include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 

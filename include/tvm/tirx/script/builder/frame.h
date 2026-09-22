@@ -639,37 +639,6 @@ class DeclBufferFrame : public TIRFrame {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeclBufferFrame, TIRFrame, DeclBufferFrameNode);
 };
 
-class ComposeOpFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The workspace of the compose op. */
-  ffi::Map<ffi::String, tvm::tirx::BufferVar> workspace;
-  /*! \brief The config of the compose op. */
-  ffi::Map<ffi::String, ffi::Any> config;
-  /*! \brief The optional dispatch variant name of the compose op. */
-  ffi::Optional<ffi::String> dispatch{std::nullopt};
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ComposeOpFrameNode>()
-        .def_ro("workspace", &ComposeOpFrameNode::workspace)
-        .def_ro("config", &ComposeOpFrameNode::config)
-        .def_ro("dispatch", &ComposeOpFrameNode::dispatch);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ComposeOpFrame", ComposeOpFrameNode,
-                                    TIRFrameNode);
-
- public:
-  void ExitWithScope() final;
-};
-
-class ComposeOpFrame : public TIRFrame {
- public:
-  explicit ComposeOpFrame(ffi::ObjectPtr<ComposeOpFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ComposeOpFrame, TIRFrame, ComposeOpFrameNode);
-};
 class AllocBufferFrameNode : public TIRFrameNode {
  public:
   /*! \brief The allocated buffer. */
