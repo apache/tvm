@@ -40,7 +40,7 @@ from onnx import ModelProto, TensorProto, helper, numpy_helper
 
 import tvm
 import tvm.testing
-from tvm import relax
+from tvm import relax, tirx
 from tvm.relax.frontend.onnx import from_onnx
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -1062,11 +1062,10 @@ def _make_expected_broadcast_ir_min(
             x: R.Tensor(x_shape, dtype="float32"),
             y: R.Tensor(y_shape, dtype="float32"),
         ) -> R.Tensor(output_shape, dtype="float32"):
-            n = T.int64()
             R.func_attr({"num_input": 2})
             with R.dataflow():
-                lv = R.broadcast_to(x, R.shape((n, 4)))
-                lv1 = R.broadcast_to(y, R.shape((n, 4)))
+                lv = R.broadcast_to(x, R.shape(output_shape))
+                lv1 = R.broadcast_to(y, R.shape(output_shape))
                 lv2 = R.stack((lv, lv1), axis=0)
                 gv = R.min(lv2, axis=[0], keepdims=False)
                 R.output(gv)
@@ -1097,11 +1096,10 @@ def _make_expected_broadcast_ir_max(
             x: R.Tensor(x_shape, dtype="float32"),
             y: R.Tensor(y_shape, dtype="float32"),
         ) -> R.Tensor(output_shape, dtype="float32"):
-            n = T.int64()
             R.func_attr({"num_input": 2})
             with R.dataflow():
-                lv = R.broadcast_to(x, R.shape((n, 4)))
-                lv1 = R.broadcast_to(y, R.shape((n, 4)))
+                lv = R.broadcast_to(x, R.shape(output_shape))
+                lv1 = R.broadcast_to(y, R.shape(output_shape))
                 lv2 = R.stack((lv, lv1), axis=0)
                 gv = R.max(lv2, axis=[0], keepdims=False)
                 R.output(gv)
@@ -1135,10 +1133,13 @@ def _test_symbolic_broadcast_case(
 
     if should_pass:
         tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
+        n = tirx.Var("n", "int64")
+        expected_x_shape = (n, *x_shape[1:])
+        expected_y_shape = (n, *y_shape[1:])
         if op_name == "Min":
-            expected = _make_expected_broadcast_ir_min(tuple(x_shape), tuple(y_shape))
+            expected = _make_expected_broadcast_ir_min(expected_x_shape, expected_y_shape)
         else:
-            expected = _make_expected_broadcast_ir_max(tuple(x_shape), tuple(y_shape))
+            expected = _make_expected_broadcast_ir_max(expected_x_shape, expected_y_shape)
         tvm.ir.assert_structural_equal(tvm_model, expected)
     else:
         with pytest.raises(ValueError, match=error_pattern):
@@ -6846,7 +6847,7 @@ def _make_reduce_expected_ir(
     def expected_input_shape(shape):
         if not dynamic:
             return tuple(shape)
-        return tuple(f"reduce_dim_{i}" for i in range(len(shape)))
+        return tuple(tirx.Var(f"reduce_dim_{i}", "int64") for i in range(len(shape)))
 
     axis = None if not axes else tuple(axes)
     parser_vars = {
@@ -8784,7 +8785,7 @@ def test_split():
             shape = shape_tuple(shape)
             if not dynamic:
                 return shape
-            return tuple(f"split_input_dim_{i}" for i in range(len(shape)))
+            return tuple(tirx.Var(f"split_input_dim_{i}", "int64") for i in range(len(shape)))
 
         dtype = np.dtype(fp_arith).name
         input_shape = expected_input_shape(indata_shape)
@@ -9078,7 +9079,9 @@ def test_tile_dynamic_repeats():
     def make_expected(dynamic_input, in_shape):
         rank = len(in_shape)
         input_shape = (
-            tuple(f"tile_data_dim_{i}" for i in range(rank)) if dynamic_input else tuple(in_shape)
+            tuple(tirx.Var(f"tile_data_dim_{i}", "int64") for i in range(rank))
+            if dynamic_input
+            else tuple(in_shape)
         )
 
         if rank == 2:
