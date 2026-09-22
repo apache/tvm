@@ -478,6 +478,29 @@ def test_dispatch_topk_cuda_large_batch():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+@pytest.mark.skipif(not tvm.testing.env.has_llvm(), reason="need llvm for the host module")
+@pytest.mark.parametrize("op", ["sort", "argsort", "topk"])
+@pytest.mark.parametrize("size", [300, None])
+def test_dispatch_sort_webgpu_merge_grid(op, size):
+    """Merge passes must not use blockIdx.z, which WebGPU reserves to extend blockIdx.x."""
+    n = size if size is not None else tirx.Var("n", "int64")
+    x = relax.Var("x", relax.TensorType((tirx.Var("m", "int64"), n), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("main", [x]):
+        if op == "sort":
+            out = relax.op.sort(x, axis=-1, descending=False)
+        elif op == "argsort":
+            out = relax.op.argsort(x, axis=-1, descending=True, dtype="int32")
+        else:
+            out = relax.op.topk(x, k=4, axis=-1, ret_type="values", largest=True)
+        bb.emit_func_output(bb.emit(out))
+
+    target = tvm.target.Target("webgpu", host="llvm")
+    with target:
+        mod = DispatchSortScan()(bb.get())
+    tvm.compile(mod, target)
+
+
 @pytest.mark.parametrize(
     "target",
     [
