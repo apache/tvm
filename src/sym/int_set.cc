@@ -195,7 +195,7 @@ inline IntervalSet Combine<prim::Mul>(AnalyzerObj* analyzer, IntervalSet a, Inte
       PrimExpr max_value = a->HasLowerBound() ? a->min_value * b->min_value : pos_inf();
       return IntervalSet(min_value, max_value);
     } else if (a->HasUpperBound() && a->HasLowerBound()) {
-      PrimExpr sign = b->min_value >= IntImm(b->min_value.ty().WithLanes(1), 0);
+      PrimExpr sign = b->min_value >= prim::MakeConstScalar(b->min_value.ty().WithLanes(1), 0);
       PrimExpr e1 = a->min_value * b->min_value;
       PrimExpr e2 = a->max_value * b->min_value;
       return IntervalSet(prim::Select(sign, e1, e2), prim::Select(sign, e2, e1));
@@ -228,7 +228,7 @@ inline IntervalSet Combine<prim::Div>(AnalyzerObj* analyzer, IntervalSet a, Inte
       PrimExpr max_value = a->HasLowerBound() ? a->min_value / b->min_value : pos_inf();
       return IntervalSet(min_value, max_value);
     } else if (a->HasUpperBound() && a->HasLowerBound()) {
-      PrimExpr sign = b->min_value >= IntImm(b->min_value.ty().WithLanes(1), 0);
+      PrimExpr sign = b->min_value >= prim::MakeConstScalar(b->min_value.ty().WithLanes(1), 0);
       PrimExpr e1 = a->min_value / b->min_value;
       PrimExpr e2 = a->max_value / b->min_value;
       return IntervalSet(prim::Select(sign, e1, e2), prim::Select(sign, e2, e1));
@@ -290,7 +290,7 @@ inline IntervalSet Combine<prim::FloorDiv>(AnalyzerObj* analyzer, IntervalSet a,
       PrimExpr max_value = a->HasLowerBound() ? floordiv(a->min_value, b->min_value) : pos_inf();
       return IntervalSet(min_value, max_value);
     } else if (a->HasUpperBound() && a->HasLowerBound()) {
-      PrimExpr sign = b->min_value >= IntImm(b->min_value.ty().WithLanes(1), 0);
+      PrimExpr sign = b->min_value >= prim::MakeConstScalar(b->min_value.ty().WithLanes(1), 0);
       PrimExpr e1 = floordiv(a->min_value, b->min_value);
       PrimExpr e2 = floordiv(a->max_value, b->min_value);
       return IntervalSet(prim::Select(sign, e1, e2), prim::Select(sign, e2, e1));
