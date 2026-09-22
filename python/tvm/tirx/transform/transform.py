@@ -357,6 +357,9 @@ def NarrowDataType(target_bits: int):
 def ForceNarrowIndexToInt32():
     """Force narrow down indexing expressions and integer buffers to int32 dtype.
 
+    The function must not contain S-TIR blocks. Use
+    :py:func:`tvm.s_tir.transform.ForceNarrowIndexToInt32` before block lowering.
+
     Returns
     -------
     fpass : tvm.transform.Pass

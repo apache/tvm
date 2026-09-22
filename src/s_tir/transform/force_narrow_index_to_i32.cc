@@ -19,57 +19,60 @@
 
 /*!
  * \file force_narrow_index_to_i32.cc
- * \brief Force narrow down indexing expressions and integer buffers to int32 dtype.
+ * \brief Force narrow down indexing expressions and integer buffers to int32 dtype in functions
+ *        that still contain S-TIR blocks.
  * \note This pass is not used in default cases.
  */
 
-#include "force_narrow_index_to_i32.h"
+#include "../../tirx/transform/force_narrow_index_to_i32.h"
 
-#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/s_tir/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tirx/transform.h>
 
+#include "../ir/data_type_rewriter.h"
+
 namespace tvm {
-namespace tirx {
+namespace s_tir {
+using namespace tvm::tirx;
 
 class Int32DTypeNarrower : public Int32DTypeNarrowerBase<IndexDataTypeNormalizer> {
  public:
+  using Int32DTypeNarrowerBase::Mutate;
+  using Int32DTypeNarrowerBase::Mutate_;
   static PrimFunc RewriteDataType(PrimFunc func) {
-    // The TIRX normalizer does not rewrite S-TIR block iterators, regions, or match buffers, so
-    // narrowing a function that still contains blocks would leave their index types inconsistent.
-    if (ContainsNode<s_tir::SBlockRealizeNode>(func->body)) {
-      TVM_FFI_THROW(ValueError)
-          << "tirx.transform.ForceNarrowIndexToInt32 requires a function without S-TIR blocks. "
-          << "Use s_tir.transform.ForceNarrowIndexToInt32 before block lowering.";
-    }
     CheckBufferParams(func);
     auto narrower = ffi::make_object<Int32DTypeNarrower>(func);
     return narrower->Rewrite(func);
   }
 
   explicit Int32DTypeNarrower(PrimFunc func) : Int32DTypeNarrowerBase(std::move(func)) {}
-};
 
-PrimFunc ForceNarrowIndexToInt32(PrimFunc func) {
-  return Int32DTypeNarrower::RewriteDataType(func);
-}
+ private:
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    auto result = IndexDataTypeNormalizer::Mutate_(op, inplace_mode);
+    auto block = std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
+    for (const BufferVar& buf : block->alloc_buffers) {
+      CheckAllocatedBuffer(buf);
+    }
+    return block;
+  }
+};
 
 namespace transform {
 
 Pass ForceNarrowIndexToInt32() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    return ForceNarrowIndexToInt32(f);
+    return Int32DTypeNarrower::RewriteDataType(std::move(f));
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.NarrowDataType", {});
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.ForceNarrowIndexToInt32", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.transform.ForceNarrowIndexToInt32", ForceNarrowIndexToInt32);
+  refl::GlobalDef().def("s_tir.transform.ForceNarrowIndexToInt32", ForceNarrowIndexToInt32);
 }
 
 }  // namespace transform
-}  // namespace tirx
+}  // namespace s_tir
 }  // namespace tvm
