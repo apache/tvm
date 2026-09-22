@@ -316,6 +316,44 @@ def test_lower_floordiv_overflow_checks():
     check_value(res, [x], data_check5, lambda a: (min(max(a, -10), 32758)) // 3)
 
 
+@pytest.mark.parametrize("runtime_arg", [1, 3], ids=["multiplier", "shift"])
+def test_q_multiply_shift_runtime_argument(runtime_arg):
+    value = tvm.tirx.Var("value", "int32")
+    args = [tvm.tirx.const(arg, "int32") for arg in [3, 1 << 30, 31, 1]]
+    replacement = args[runtime_arg]
+    args[runtime_arg] = value
+    lowered = lower_intrin([value], tvm.tirx.call_intrin("int32", "tirx.q_multiply_shift", *args))
+    lowered = tvm_ffi.structural_map(
+        lowered, (tvm.tirx.Var, lambda var: replacement if var.same_as(value) else var)
+    )
+    tvm.ir.assert_structural_equal(tvm.sym.Analyzer().simplify(lowered), tvm.tirx.const(3, "int32"))
+
+
+def test_q_multiply_shift_zero_exponent():
+    x = tvm.tirx.Var("x", "int32")
+    lowered = lower_intrin(
+        [x], tvm.tirx.call_intrin("int32", "tirx.q_multiply_shift", x, 1 << 30, 31, 1)
+    )
+    tvm.ir.assert_structural_equal(lowered, x)
+
+
+def test_q_multiply_shift_non_q31():
+    lowered = lower_intrin(
+        [], tvm.tirx.call_intrin("int32", "tirx.q_multiply_shift", 3, 1 << 30, 30, 2)
+    )
+    tvm.ir.assert_structural_equal(
+        tvm.sym.Analyzer().simplify(lowered), tvm.tirx.const(12, "int32")
+    )
+
+
+def test_q_multiply_shift_per_axis_integer_flag():
+    lowered = lower_intrin(
+        [],
+        tvm.tirx.call_intrin("int32", "tirx.q_multiply_shift_per_axis", 3, 1 << 30, 2, 1, 31, 1, 1),
+    )
+    tvm.ir.assert_structural_equal(tvm.sym.Analyzer().simplify(lowered), tvm.tirx.const(3, "int32"))
+
+
 if __name__ == "__main__":
     test_lower_floordiv()
     test_lower_floormod()
