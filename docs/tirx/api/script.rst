@@ -30,10 +30,10 @@ authoring layers and TIRx IR, see :ref:`tirx-programming-model`.
 
 Parser entry points
 -------------------
-.. automodule:: tvm.tirx.script.parser.entry
-   :members:
+.. automodule:: tvm.script.tirx
+   :members: prim_func, jit, inline, macro
+   :undoc-members:
    :no-index:
-   :exclude-members: TIRInline
 
 Core IR builder
 ---------------

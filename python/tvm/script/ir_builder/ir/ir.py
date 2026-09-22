@@ -230,6 +230,7 @@ def vdevice(target=None, vdevice_id: int = 0, memory_scope: str = "global") -> "
 
 def lookup_vdevice(target_kind: str | None = None, device_index: int = -1) -> "VDevice":
     """Retrieve a virtual device from the globalinfo vdevice list.
+
     Parameters
     ----------
     target_kind: str

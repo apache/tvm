@@ -24,6 +24,9 @@ tvm.script.parser
    :members:
    :imported-members:
 
+The dialect aliases below share the public construction namespaces documented
+in :doc:`script`. Parser entry points above use the canonical frontend.
+
 tvm.script.parser.ir
 ********************
 .. automodule:: tvm.script.parser.ir

@@ -215,6 +215,7 @@ def frame_result(completed_frame, name):
 
 def function(is_pure=True, is_private=False, *, local=False, reference=None, span=None):
     """Start a function frame.
+
     Parameters
     ----------
     is_pure: bool
@@ -249,6 +250,7 @@ def decl_function(is_pure=True, is_private=False, *, local=False, span=None):
 
 def arg(name, ty, *, span=None):
     """Add a parameter to the last function frame.
+
     Parameters
     ----------
     name: str

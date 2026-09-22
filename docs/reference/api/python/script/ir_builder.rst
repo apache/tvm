@@ -23,17 +23,20 @@ tvm.script.ir_builder
 .. automodule:: tvm.script.ir_builder
    :members:
    :imported-members:
+   :exclude-members: Any
 
 tvm.script.ir_builder.ir
 ************************
 .. automodule:: tvm.script.ir_builder.ir
    :members:
    :imported-members:
+   :exclude-members: GenericConst, Range, StringImm, StringType
 
 tvm.script.ir_builder.relax
 ***************************
 .. automodule:: tvm.script.ir_builder.relax
    :members:
+   :exclude-members: ExternFunc, ShapeExpr, TupleGetItem, Range
 
 tvm.script.ir_builder.relax.distributed
 ***************************************

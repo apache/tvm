@@ -23,13 +23,28 @@ tvm.script
 .. automodule:: tvm.script
    :members:
    :imported-members:
+   :exclude-members: Any
 
 tvm.script.relax
 ****************
 .. automodule:: tvm.script.relax
    :members:
+   :exclude-members: ExternFunc, ShapeExpr, TupleGetItem, Range
+
+.. autofunction:: tvm.script.relax.function
+
+.. autofunction:: tvm.script.relax.macro
 
 tvm.script.tirx
 ***************
 .. automodule:: tvm.script.tirx
    :members:
+   :exclude-members: Range, meta_var, Var, Call, CommReducer, Reduce, SMEMPool, TMEMPool, FloatImm, IntImm, Cast, Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod, LShift, RShift, BitwiseAnd, BitwiseOr, BitwiseXor, BitwiseNot, Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not, Select, Ramp, Broadcast, Shuffle, CallEffectKind, IterVar
+
+.. autofunction:: tvm.script.tirx.prim_func
+
+.. autofunction:: tvm.script.tirx.jit
+
+.. autofunction:: tvm.script.tirx.inline
+
+.. autofunction:: tvm.script.tirx.macro
