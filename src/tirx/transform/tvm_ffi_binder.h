@@ -31,7 +31,7 @@
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/buffer.h>
+#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt.h>
 
 #include <string>

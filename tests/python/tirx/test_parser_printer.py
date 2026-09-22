@@ -619,23 +619,6 @@ def test_roundtrip_alloc_under_any_scope():
     assert_structural_equal(test, from_source(code))
 
 
-def test_roundtrip_compose_op():
-    # fmt: off
-    @T.prim_func
-    def test():
-        T.device_entry()
-        A = T.alloc_buffer([10], "float32", scope="trn.sbuf")
-        B = T.alloc_buffer([10], "float32", scope="trn.sbuf")
-        C = T.alloc_buffer([10], "float32", scope="trn.sbuf")
-        with Tx.compose_op():
-            Tx.add(B, A, T.float32(1))
-            Tx.add(C, B, T.float32(1))
-        # fmt: on
-    code = test.script()
-    assert from_source(code).script() == code
-    assert_structural_equal(test, from_source(code))
-
-
 def test_roundtrip_op_call_workspace():
     # fmt: off
     @T.prim_func
@@ -651,25 +634,6 @@ def test_roundtrip_op_call_workspace():
     assert_structural_equal(test, from_source(code))
 
 
-def test_roundtrip_compose_op_call_workspace():
-    # fmt: off
-    @T.prim_func
-    def test():
-        T.device_entry()
-        A = T.alloc_buffer([10], "float32", scope="trn.sbuf")
-        B = T.alloc_buffer([10], "float32", scope="trn.sbuf")
-        C = T.alloc_buffer([10], "float32", scope="trn.sbuf")
-        psum = T.alloc_buffer([10], "float32", scope="trn.psum")
-        intermediate = T.alloc_buffer([10], "float32", scope="trn.sbuf")
-        with Tx.compose_op(workspace={"intermediate": intermediate}):
-            Tx.add(B, A, T.float32(1))
-            Tx.add(C, B, T.float32(1), workspace={"psum": psum})
-        # fmt: on
-    code = test.script()
-    assert from_source(code).script() == code
-    assert_structural_equal(test, from_source(code))
-
-
 def test_roundtrip_op_call_config():
     # fmt: off
     @T.prim_func
@@ -678,24 +642,6 @@ def test_roundtrip_op_call_config():
         B = T.match_buffer(B_ptr, [10], "float32", scope="global")
         T.device_entry()
         Tx.add(B, A, T.float32(1), schedule="A")
-        # fmt: on
-    code = test.script()
-    assert from_source(code).script() == code
-    assert_structural_equal(test, from_source(code))
-
-
-def test_roundtrip_compose_op_call_config():
-    # fmt: off
-    @T.prim_func
-    def test():
-        T.device_entry()
-        A = T.alloc_buffer([10], "float32", scope="trn.sbuf")
-        B = T.alloc_buffer([10], "float32", scope="trn.sbuf")
-        C = T.alloc_buffer([10], "float32", scope="trn.sbuf")
-        psum = T.alloc_buffer([10], "float32", scope="trn.psum")
-        with Tx.compose_op( schedule="A"):
-            Tx.add(B, A, T.float32(1))
-            Tx.add(C, B, T.float32(1), workspace={"psum": psum})
         # fmt: on
     code = test.script()
     assert from_source(code).script() == code

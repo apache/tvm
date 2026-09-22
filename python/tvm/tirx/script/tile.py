@@ -108,13 +108,9 @@ warpgroup = _builder.ScopeNamespace("warpgroup", "warpgroup")
 warp = _builder.ScopeNamespace("warp", "warp")
 thread = _builder.ScopeNamespace("thread", "thread")
 
-compose_op = _builder.compose_op
-
-
 __all__ = [
     *_SCOPED_TILE_OP_NAMES,
     "cluster",
-    "compose_op",
     "cta",
     "thread",
     "warp",
