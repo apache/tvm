@@ -530,7 +530,7 @@ def test_dispatch_cumsum_gpu(target, index_bits):
     with tvm.target.Target(target):
         mod = DispatchSortScan(index_bits=index_bits)(Module)
         if index_bits == 32:
-            mod = tirx.transform.ForceNarrowIndexToInt32()(mod)
+            mod = tvm.s_tir.transform.ForceNarrowIndexToInt32()(mod)
         ex = tvm.compile(mod, target)
 
     def run_and_check():
@@ -572,7 +572,7 @@ def test_dispatch_cumsum_index_width(target_kind, index_bits):
     assert_structural_equal(mod["gpu_2d_continuous_cumsum"], expected)
     if expected_bits == 32:
         # This previously failed on Metal with a 2**35 IntImm.
-        tirx.transform.ForceNarrowIndexToInt32()(mod)
+        tvm.s_tir.transform.ForceNarrowIndexToInt32()(mod)
 
 
 @pytest.mark.parametrize("index_bits", [0, 16, 128])
