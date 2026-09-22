@@ -507,23 +507,32 @@ def _sort_common(
             nbx = cast(ceil_div(width, max_threads * thread_work), "int32")
             nbz = cast(ceil_div(size, width), "int32")
 
-        is_cuda = target.kind.name == "cuda"
         tx = te.thread_axis("threadIdx.x")
-        bx = te.thread_axis("blockIdx.z")  # nbx
-        if is_cuda:
-            by = te.thread_axis("blockIdx.x")  # batch
-            bz = te.thread_axis("blockIdx.y")  # nbz
-        else:
+        if target.kind.name == "webgpu":
+            # WebGPU reserves blockIdx.z to extend blockIdx.x beyond 65535, so fold the
+            # merge-path (nbx) and section (nbz) axes into blockIdx.x.
+            bxz = te.thread_axis("blockIdx.x")
             by = te.thread_axis("blockIdx.y")  # batch
-            bz = te.thread_axis("blockIdx.x")  # nbz
-        with T.frame_scope(
-            [
-                T.attr(tx, "thread_extent", ntx),
+            grid_extents = [
+                T.attr(bxz, "thread_extent", nbx * nbz),
+                T.attr(by, "thread_extent", nthread_by),
+            ]
+            bx = tvm.tirx.indexmod(bxz, nbx)
+            bz = tvm.tirx.indexdiv(bxz, nbx)
+        else:
+            bx = te.thread_axis("blockIdx.z")  # nbx
+            if target.kind.name == "cuda":
+                by = te.thread_axis("blockIdx.x")  # batch
+                bz = te.thread_axis("blockIdx.y")  # nbz
+            else:
+                by = te.thread_axis("blockIdx.y")  # batch
+                bz = te.thread_axis("blockIdx.x")  # nbz
+            grid_extents = [
                 T.attr(bx, "thread_extent", nbx),
                 T.attr(by, "thread_extent", nthread_by),
                 T.attr(bz, "thread_extent", nbz),
             ]
-        ):
+        with T.frame_scope([T.attr(tx, "thread_extent", ntx), *grid_extents]):
             base_idx = by * size
 
             # calculate the start, mid, and end points of this section
