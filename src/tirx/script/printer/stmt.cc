@@ -112,67 +112,36 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           }
           return TIRx(d, "tile")->Attr(op_name);
         };
-        if (!op.same_as(tirx::compose_op())) {
-          // Trim trailing None args (e.g. optional bias=None, scale=None)
-          size_t n_args = op_call->args.size();
-          while (n_args > 0 &&
-                 op_call->args[n_args - 1].type_index() == ffi::TypeIndex::kTVMFFINone) {
-            --n_args;
-          }
-          // Detect in-place unary ops: after trimming Nones, if exactly 2 args
-          // and args[0]/args[1] refer to the same buffer region, collapse to 1 arg
-          bool inplace_unary = false;
-          if (n_args == 2) {
-            auto dst_opt = op_call->args[0].as<tvm::TensorRegion>();
-            auto src_opt = op_call->args[1].as<tvm::TensorRegion>();
-            if (dst_opt.has_value() && src_opt.has_value() &&
-                dst_opt.value()->source.same_as(src_opt.value()->source) &&
-                StructuralEqual()(dst_opt.value()->region, src_opt.value()->region)) {
-              inplace_unary = true;
-            }
-          }
-          ffi::Array<Doc> args;
-          for (size_t i = 0; i < n_args; ++i) {
-            if (inplace_unary && i == 1) continue;  // skip duplicate src
-            args.push_back(d->AsDoc<Doc>(op_call->args[i], p->Attr("args")->ArrayItem(i)));
-          }
-          ffi::Optional<ExprDoc> disp = std::nullopt;
-          if (op_call->dispatch.has_value()) {
-            disp = LiteralDoc::Str(op_call->dispatch.value(), p->Attr("dispatch"));
-          }
-          return OpCallDoc(scoped_callee(name), args,
-                           d->AsDoc<DictDoc>(op_call->workspace, p->Attr("workspace")),
-                           d->AsDoc<DictDoc>(op_call->config, p->Attr("config")), disp);
-        } else {
-          With<TIRFrame> f(d, op_call);
-          ffi::Array<tirx::Stmt> stmts;
-          for (size_t i = 0, n = op_call->args.size(); i < n; ++i) {
-            stmts.push_back(op_call->args[i].as_or_throw<tirx::Stmt>());
-          }
-          tirx::SeqStmt seq_stmt(stmts);
-          AsDocBody(seq_stmt, p->Attr("args"), f->get(), d);
-          // Build kwargs: workspace, dispatch, then flatten config
-          ffi::Array<ffi::String> kw_keys;
-          ffi::Array<ExprDoc> kw_values;
-          if (!op_call->workspace.empty()) {
-            kw_keys.push_back("workspace");
-            kw_values.push_back(d->AsDoc<DictDoc>(op_call->workspace, p->Attr("workspace")));
-          }
-          if (op_call->dispatch.has_value()) {
-            kw_keys.push_back("dispatch");
-            kw_values.push_back(LiteralDoc::Str(op_call->dispatch.value(), p->Attr("dispatch")));
-          }
-          using POO = std::pair<ffi::String, ffi::Any>;
-          std::vector<POO> items{op_call->config.begin(), op_call->config.end()};
-          std::sort(items.begin(), items.end(),
-                    [](const POO& a, const POO& b) { return a.first < b.first; });
-          for (const auto& kv : items) {
-            kw_keys.push_back(kv.first);
-            kw_values.push_back(d->AsDoc<ExprDoc>(kv.second, p->Attr("config")->MapItem(kv.first)));
-          }
-          return ScopeDoc(std::nullopt, scoped_callee("compose_op")->Call({}, kw_keys, kw_values),
-                          (*f)->stmts);
+        // Trim trailing None args (e.g. optional bias=None, scale=None)
+        size_t n_args = op_call->args.size();
+        while (n_args > 0 &&
+               op_call->args[n_args - 1].type_index() == ffi::TypeIndex::kTVMFFINone) {
+          --n_args;
         }
+        // Detect in-place unary ops: after trimming Nones, if exactly 2 args
+        // and args[0]/args[1] refer to the same buffer region, collapse to 1 arg
+        bool inplace_unary = false;
+        if (n_args == 2) {
+          auto dst_opt = op_call->args[0].as<tvm::TensorRegion>();
+          auto src_opt = op_call->args[1].as<tvm::TensorRegion>();
+          if (dst_opt.has_value() && src_opt.has_value() &&
+              dst_opt.value()->source.same_as(src_opt.value()->source) &&
+              StructuralEqual()(dst_opt.value()->region, src_opt.value()->region)) {
+            inplace_unary = true;
+          }
+        }
+        ffi::Array<Doc> args;
+        for (size_t i = 0; i < n_args; ++i) {
+          if (inplace_unary && i == 1) continue;  // skip duplicate src
+          args.push_back(d->AsDoc<Doc>(op_call->args[i], p->Attr("args")->ArrayItem(i)));
+        }
+        ffi::Optional<ExprDoc> disp = std::nullopt;
+        if (op_call->dispatch.has_value()) {
+          disp = LiteralDoc::Str(op_call->dispatch.value(), p->Attr("dispatch"));
+        }
+        return OpCallDoc(scoped_callee(name), args,
+                         d->AsDoc<DictDoc>(op_call->workspace, p->Attr("workspace")),
+                         d->AsDoc<DictDoc>(op_call->config, p->Attr("config")), disp);
       });
 }
 TVM_SCRIPT_REPR(tirx::TilePrimitiveCallNode, ReprPrintTIR);

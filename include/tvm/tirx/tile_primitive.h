@@ -337,8 +337,6 @@ TVM_DLL const Op& fma();
 
 TVM_DLL const Op& silu();
 
-TVM_DLL const Op& compose_op();
-
 TVM_DLL const Op& permute_layout();
 
 }  // namespace tirx

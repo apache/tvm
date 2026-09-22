@@ -35,10 +35,6 @@ the explicit ``Tx.tile`` form consistently.  See the
 :doc:`programming guide <../tile_primitives>` for the model, primitive catalog,
 and dispatch configuration.
 
-.. automodule:: tvm.tirx.script.tile
-   :members: compose_op
-   :no-index:
-
 Scope namespaces
 ----------------
 
