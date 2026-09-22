@@ -85,7 +85,10 @@ void FunctionFrameNode::ExitWithScope() {
     function = tvm::relax::Function::CreateEmpty(params, ret_ty.value_or(tvm::relax::AnyType()),
                                                  is_pure.value_or(true), DictAttrs(attrs), span);
     if (local) {
-      local_var = tvm::Var(name.value(), tvm::relax::GetType(function.value()), span);
+      auto ty = tvm::relax::GetType(function.value());
+      local_var = CheckBindingBlockFrameExistAndUnended()->is_dataflow
+                      ? tvm::relax::DataflowVar(name.value(), ty, span)
+                      : tvm::Var(name.value(), ty, span);
     } else {
       global_var = ir::DeclFunction(name.value(), function.value());
     }
@@ -115,9 +118,38 @@ void FunctionFrameNode::ExitWithScope() {
   if (local) {
     TVM_FFI_CHECK(local_var.has_value(), ValueError)
         << "A local function definition requires its declared reference";
+    bool recursive = false;
+    for (const tvm::Var& var : tvm::relax::FreeVars(func)) {
+      recursive = recursive || var.same_as(local_var.value());
+    }
     // Retain the declared reference identity while publishing its inferred type,
     // just as DefFunction refines a module's global reference after definition.
-    local_var.value()->ty = tvm::relax::GetType(func);
+    Type reference_type = tvm::relax::GetType(func);
+    if (recursive) {
+      // A recursive reference has its own provisional signature.  Its formal
+      // primitive parameters must not bind the definition's parameter objects.
+      // Keep lexical captures intact while renewing these signature binders.
+      ffi::Map<tvm::Var, tvm::Expr> signature_params;
+      for (const tvm::Var& param : params) {
+        if (param.as<PrimVar>()) {
+          signature_params.Set(param, param.CopyWithName(param->name));
+        }
+      }
+      if (!signature_params.empty()) {
+        auto signature = reference_type.as_or_throw<tvm::relax::FuncType>();
+        auto bind_param = [&](const Type& ty) { return tvm::relax::Bind(ty, signature_params); };
+        reference_type =
+            tvm::relax::FuncType(signature->params.value().Map(bind_param),
+                                 bind_param(signature->ret), signature->purity, signature->span);
+      }
+      if (local_var.value()->IsInstance<tvm::relax::DataflowVarNode>()) {
+        // The self-reference is captured by the nested function, so it must
+        // survive the dataflow region.  Region finalization rewrites every use
+        // together, including recursive calls, to the same ordinary Var.
+        CheckBindingBlockFrameExistAndUnended()->output_vars.push_back(local_var.value());
+      }
+    }
+    local_var.value()->ty = reference_type;
     EmitVarBinding(tvm::relax::VarBinding(local_var.value(), func, span));
   } else if (!builder->HasConstructionFrames()) {
     // Case 0. No outer frame, return function directly
@@ -204,6 +236,9 @@ void BindingBlockFrameNode::ExitWithScope() {
     ffi::Array<tvm::Var> new_output_vars;
     std::unordered_map<tvm::Var, tvm::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap;
     for (const auto& output_var : output_vars) {
+      if (var_remap.count(output_var)) {
+        continue;
+      }
       tvm::Var new_output_var(output_var->name, tvm::relax::GetType(output_var), output_var->span);
       new_output_vars.push_back(new_output_var);
       if (auto span = binding_spans.Get(output_var)) {
