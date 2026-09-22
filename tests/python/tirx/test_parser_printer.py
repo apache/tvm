@@ -852,7 +852,7 @@ def test_macro_recursive():
 
             @T.inline
             def add(x, c):
-                if c > 0:
+                if T.constexpr(c > 0):
                     add(x, c - 1)
                 T.evaluate(x)
 

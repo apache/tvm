@@ -84,7 +84,7 @@ def binary_trn(
                         if inst_gen.make_guard(_dst):
                             dst_indices = T.meta_var(inst_gen.generate_indices(_dst))
                             src1_indices = T.meta_var(inst_gen.generate_indices(_src1))
-                            if CONST is None:
+                            if T.constexpr(CONST is None):
                                 src2_indices = T.meta_var(inst_gen.generate_indices(_src2))
                                 T.evaluate(
                                     func(

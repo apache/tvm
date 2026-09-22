@@ -502,7 +502,7 @@ def test_illegal_extent():
     class Mod:
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer((25,), "int32")):
-            n = T.Var("n", ty="int32")
+            n = T.int32()
             for j in T.vectorized(n):
                 A[j] = 3
 

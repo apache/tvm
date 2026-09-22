@@ -118,16 +118,19 @@ def main(A: T.Buffer(("n",), "float32"), n: T.int64):
     assert str(n.ty.dtype) == "int64"
 
 
-def test_tir_string_defined_symbol_does_not_take_dtype_from_body():
-    with pytest.raises(tvm.error.DiagnosticError):
-        tvm.script.from_source(
-            """
+def test_tir_string_defined_symbol_uses_prescanned_body_dtype():
+    func = tvm.script.from_source(
+        """
 @T.prim_func
 def main(A: T.Buffer(("n",), "float32")):
     n = T.int64()
     T.evaluate(n)
 """
-        )
+    )
+
+    n = func.params[0].ty.shape[0]
+    assert str(n.ty.dtype) == "int64"
+    assert func.body.value.same_as(n)
 
 
 def test_tir_direct_use_before_string_definition_is_undefined():
@@ -690,7 +693,7 @@ def test_deterministic_branch():
     def create_func(predicate: bool):
         @T.prim_func(private=True, s_tir=True)
         def func() -> None:
-            if predicate:
+            if T.constexpr(predicate):
                 T.evaluate(0)
             else:
                 T.evaluate(1)

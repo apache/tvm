@@ -488,7 +488,7 @@ def test_cooperative_matrix(out_dtype):
                     v_j_o = T.axis.spatial(1, 0)
                     T.reads()
                     T.writes(compute_wmma_accumulator[0:16, 0:16])
-                    C = T.match_buffer(compute_wmma_accumulator[0:16, 0:16], (16, 16), out_dtype, strides=("C_s0", "C_s1"), scope="wmma.accumulator", offset_factor=16)
+                    C = T.match_buffer(compute_wmma_accumulator[0:16, 0:16], (16, 16), out_dtype, strides=("C_0_s0", "C_0_s1"), scope="wmma.accumulator", offset_factor=16)
                     T.tvm_fill_fragment(C.data, 16, 16, 16, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16, T.float32(0.0))
                 for k_0 in range(2):
                     for ax0_ax1_fused_0 in range(2):
@@ -516,8 +516,8 @@ def test_cooperative_matrix(out_dtype):
                                 v1_o = T.axis.spatial(2, k_0 + ax1_0)
                                 T.reads(X_shared[0:16, v1_o * 16:v1_o * 16 + 16])
                                 T.writes(X_shared_wmma_matrix_a[0:16, v1_o * 16:v1_o * 16 + 16])
-                                A = T.match_buffer(X_shared[0:16, v1_o * 16:v1_o * 16 + 16], (16, 16), "float16", strides=("A_s0", "A_s1"), scope="shared", offset_factor=16)
-                                C = T.match_buffer(X_shared_wmma_matrix_a[0:16, v1_o * 16:v1_o * 16 + 16], (16, 16), "float16", strides=("C_s0", "C_s1"), scope="wmma.matrix_a", offset_factor=16)
+                                A = T.match_buffer(X_shared[0:16, v1_o * 16:v1_o * 16 + 16], (16, 16), "float16", strides=("A_0_s0", "A_0_s1"), scope="shared", offset_factor=16)
+                                C = T.match_buffer(X_shared_wmma_matrix_a[0:16, v1_o * 16:v1_o * 16 + 16], (16, 16), "float16", strides=("C_1_s0", "C_1_s1"), scope="wmma.matrix_a", offset_factor=16)
                                 T.tvm_load_matrix_sync(C.data, 16, 16, 16, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16, T.tvm_access_ptr(T.type_annotation("float16"), A.data, A.elem_offset, A.strides[0] * 16, 1), A.strides[0], "row_major")
                     for ax0_0 in T.unroll(1):
                         for ax1_0 in T.unroll(1):
@@ -526,8 +526,8 @@ def test_cooperative_matrix(out_dtype):
                                 v1_o = T.axis.spatial(1, ax1_0)
                                 T.reads(W_shared[v0_o * 16:v0_o * 16 + 16, 0:16])
                                 T.writes(W_shared_wmma_matrix_b[v0_o * 16:v0_o * 16 + 16, 0:16])
-                                A = T.match_buffer(W_shared[v0_o * 16:v0_o * 16 + 16, 0:16], (16, 16), "float16", strides=("A_s0", "A_s1"), scope="shared", offset_factor=16)
-                                C = T.match_buffer(W_shared_wmma_matrix_b[v0_o * 16:v0_o * 16 + 16, 0:16], (16, 16), "float16", strides=("C_s0", "C_s1"), scope="wmma.matrix_b", offset_factor=16)
+                                A = T.match_buffer(W_shared[v0_o * 16:v0_o * 16 + 16, 0:16], (16, 16), "float16", strides=("A_1_s0", "A_1_s1"), scope="shared", offset_factor=16)
+                                C = T.match_buffer(W_shared_wmma_matrix_b[v0_o * 16:v0_o * 16 + 16, 0:16], (16, 16), "float16", strides=("C_2_s0", "C_2_s1"), scope="wmma.matrix_b", offset_factor=16)
                                 T.tvm_load_matrix_sync(C.data, 16, 16, 16, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16, T.tvm_access_ptr(T.type_annotation("float16"), A.data, A.elem_offset, A.strides[0] * 16, 1), A.strides[0], "row_major")
                     with T.sblock("compute_update_o"):
                         v_i_o = T.axis.spatial(1, 0)
@@ -535,17 +535,17 @@ def test_cooperative_matrix(out_dtype):
                         v_k_o = T.axis.reduce(2, k_0)
                         T.reads(compute_wmma_accumulator[0:16, 0:16], X_shared_wmma_matrix_a[0:16, v_k_o * 16:v_k_o * 16 + 16], W_shared_wmma_matrix_b[v_k_o * 16:v_k_o * 16 + 16, 0:16])
                         T.writes(compute_wmma_accumulator[0:16, 0:16])
-                        A = T.match_buffer(X_shared_wmma_matrix_a[0:16, v_k_o * 16:v_k_o * 16 + 16], (16, 16), "float16", strides=("A_s0", "A_s1"), scope="wmma.matrix_a", offset_factor=16)
-                        B = T.match_buffer(W_shared_wmma_matrix_b[v_k_o * 16:v_k_o * 16 + 16, 0:16], (16, 16), "float16", strides=("B_s0", "B_s1"), scope="wmma.matrix_b", offset_factor=16)
-                        C = T.match_buffer(compute_wmma_accumulator[0:16, 0:16], (16, 16), out_dtype, strides=("C_s0", "C_s1"), scope="wmma.accumulator", offset_factor=16)
+                        A = T.match_buffer(X_shared_wmma_matrix_a[0:16, v_k_o * 16:v_k_o * 16 + 16], (16, 16), "float16", strides=("A_2_s0", "A_2_s1"), scope="wmma.matrix_a", offset_factor=16)
+                        B = T.match_buffer(W_shared_wmma_matrix_b[v_k_o * 16:v_k_o * 16 + 16, 0:16], (16, 16), "float16", strides=("B_0_s0", "B_0_s1"), scope="wmma.matrix_b", offset_factor=16)
+                        C = T.match_buffer(compute_wmma_accumulator[0:16, 0:16], (16, 16), out_dtype, strides=("C_3_s0", "C_3_s1"), scope="wmma.accumulator", offset_factor=16)
                         T.tvm_mma_sync(C.data, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16, A.data, A.elem_offset // A.strides[0] // 16 * (A.strides[0] // 16) + A.elem_offset % A.strides[0] // 16, B.data, B.elem_offset // B.strides[0] // 16 * (B.strides[0] // 16) + B.elem_offset % B.strides[0] // 16, C.data, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16)
                 with T.sblock("compute_wmma.accumulator_o"):
                     v0_o = T.axis.spatial(1, 0)
                     v1_o = T.axis.spatial(1, 0)
                     T.reads(compute_wmma_accumulator[0:16, 0:16])
                     T.writes(compute[0:16, 0:16])
-                    A = T.match_buffer(compute_wmma_accumulator[0:16, 0:16], (16, 16), out_dtype, strides=("A_s0", "A_s1"), scope="wmma.accumulator", offset_factor=16)
-                    C = T.match_buffer(compute[0:16, 0:16], (16, 16), out_dtype, strides=("C_s0", "C_s1"), offset_factor=16)
+                    A = T.match_buffer(compute_wmma_accumulator[0:16, 0:16], (16, 16), out_dtype, strides=("A_3_s0", "A_3_s1"), scope="wmma.accumulator", offset_factor=16)
+                    C = T.match_buffer(compute[0:16, 0:16], (16, 16), out_dtype, strides=("C_4_s0", "C_4_s1"), offset_factor=16)
                     T.tvm_store_matrix_sync(A.data, 16, 16, 16, A.elem_offset // A.strides[0] // 16 * (A.strides[0] // 16) + A.elem_offset % A.strides[0] // 16, T.tvm_access_ptr(T.type_annotation(out_dtype), C.data, C.elem_offset, C.strides[0] * 16, 2), C.strides[0], "row_major")
     # fmt: on
 

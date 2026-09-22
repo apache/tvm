@@ -649,8 +649,6 @@ def test_prim_type_lca(test_case):
     def _normalize_ty(ty):
         if isinstance(ty, tvm.relax.Type):
             return ty
-        elif isinstance(ty, tvm.script.parser.relax.entry.TypeProxy):
-            return ty.as_ty()
         elif callable(ty):
             return ty()
         else:

@@ -336,8 +336,8 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
             T.launch_thread(tx, WARP_SIZE)
             C[tx, T.ramp(0, 1, local_size_out)] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id(mfma_intrin),
-                A[tx, T.ramp(0, 1, local_size) if local_size > 1 else 0],
-                B[tx, T.ramp(0, 1, local_size) if local_size > 1 else 0],
+                A[tx, T.ramp(0, 1, local_size) if T.constexpr(local_size > 1) else 0],
+                B[tx, T.ramp(0, 1, local_size) if T.constexpr(local_size > 1) else 0],
                 C[tx, T.ramp(0, 1, local_size_out)],
                 T.int32(0),
                 T.int32(0),
@@ -366,12 +366,12 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
                 T.call_intrin(
                     "int32",
                     "tirx.reinterpret",
-                    A[tx, T.ramp(0, 1, local_size) if local_size > 1 else 0],
+                    A[tx, T.ramp(0, 1, local_size) if T.constexpr(local_size > 1) else 0],
                 ),
                 T.call_intrin(
                     "int32",
                     "tirx.reinterpret",
-                    B[tx, T.ramp(0, 1, local_size) if local_size > 1 else 0],
+                    B[tx, T.ramp(0, 1, local_size) if T.constexpr(local_size > 1) else 0],
                 ),
                 C[tx, T.ramp(0, 1, local_size_out)],
                 T.int32(0),

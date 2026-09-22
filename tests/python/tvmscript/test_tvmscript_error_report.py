@@ -619,7 +619,7 @@ def test_format_source_snippet_multi_line():
     """Unit-level check that _format_source_snippet renders every line in a
     multi-line span, with the underline covering start-col..EOL on the first
     line, full interior lines, and col-1..end-col on the last line."""
-    from tvm.script.parser.core.diagnostics import _format_source_snippet
+    from tvm.script.parser.diagnostics import _format_source_snippet
 
     source_lines = [
         "first ignored line\n",
@@ -647,7 +647,7 @@ def test_format_source_snippet_multi_line():
 def test_format_source_snippet_single_line_unchanged():
     """A single-line span (end_lineno == lineno) underlines only the
     [col_offset, end_col_offset) columns on that one line."""
-    from tvm.script.parser.core.diagnostics import _format_source_snippet
+    from tvm.script.parser.diagnostics import _format_source_snippet
 
     source_lines = ["ignored\n", "    abc + def\n", "ignored\n"]
     # Underline just 'abc' (cols 5..8 exclusive) on line 2.

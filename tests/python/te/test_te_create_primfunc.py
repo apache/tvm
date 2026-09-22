@@ -242,9 +242,9 @@ def te_extern():
 @T.prim_func(s_tir=True)
 def tir_extern(a: T.handle, b: T.handle, c: T.handle) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    off1 = te.var("elem_offset")
-    off2 = te.var("elem_offset_1")
-    off3 = te.var("elem_offset_2")
+    off1 = T.int32()
+    off2 = T.int32()
+    off3 = T.int32()
     A = T.match_buffer(a, (128, 128), elem_offset=off1)
     B = T.match_buffer(b, (128, 128), elem_offset=off2)
     C = T.match_buffer(c, (128, 128), elem_offset=off3)

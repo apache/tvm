@@ -229,7 +229,8 @@ def test_backend_specific_wrappers_are_not_root_exports():
 
 
 def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
-    from tvm.tirx.script import builder, parser
+    from tvm.script.parser import tirx as parser
+    from tvm.tirx.script import builder
     from tvm.tirx.script.builder import ir as builder_ir
 
     backend_name = "unit_test_backend"

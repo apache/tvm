@@ -235,7 +235,7 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
                         rhs_indices = T.meta_var(inst_gen.generate_indices(B_buffer_region))
                         C_indices = T.meta_var(inst_gen.generate_indices(C_buffer_region))
                         if inst_gen.make_guard(A_buffer_region) and inst_gen.make_guard(B_buffer_region):  # noqa: E501
-                            if C_as_output:
+                            if T.constexpr(C_as_output):
                                 T.evaluate(T.nki.matmul(acc[C_indices], A[lhs_indices], B[rhs_indices]))  # noqa: E501
                             else:
                                 T.evaluate(T.nki.matmul(acc[b_idx % max_psum_slots, lhs_f_loop, rhs_f_loop], A[lhs_indices], B[rhs_indices]))  # noqa: E501

@@ -56,7 +56,7 @@ def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
                 "__dp4a",
                 A.vload([0], vec_type_a),
                 B.vload([0], vec_type_b),
-                T.uint32(0) if dtype_c == "uint32" else T.int32(0),
+                T.uint32(0) if T.constexpr(dtype_c == "uint32") else T.int32(0),
                 dtype=dtype_c,
             )
 
