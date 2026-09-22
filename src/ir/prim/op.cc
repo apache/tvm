@@ -395,6 +395,14 @@ PrimExpr mul(PrimExpr a, PrimExpr b, Span span) {
 }
 
 PrimExpr div(PrimExpr a, PrimExpr b, Span span) {
+  TVM_FFI_CHECK(
+      a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLFloat),
+      TypeError)
+      << "Div only supports integer and floating-point data types, but got " << a.ty();
+  TVM_FFI_CHECK(
+      b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLFloat),
+      TypeError)
+      << "Div only supports integer and floating-point data types, but got " << b.ty();
   BinaryOpMatchTypes(a, b, span);
   if (auto ret = prim::detail::TryConstFold<prim::Div>(a, b)) return ret.value();
   return prim::Div(a, b, span);
@@ -407,6 +415,10 @@ PrimExpr truncdiv(PrimExpr a, PrimExpr b, Span span) {
 }
 
 PrimExpr truncmod(PrimExpr a, PrimExpr b, Span span) {
+  TVM_FFI_CHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt), TypeError)
+      << "Mod only supports integer data types, but got " << a.ty();
+  TVM_FFI_CHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt), TypeError)
+      << "Mod only supports integer data types, but got " << b.ty();
   BinaryOpMatchTypes(a, b, span);
   if (auto ret = prim::detail::TryConstFold<prim::Mod>(a, b)) return ret.value();
   return prim::Mod(a, b, span);

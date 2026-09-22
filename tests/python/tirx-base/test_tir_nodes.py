@@ -269,6 +269,15 @@ def test_divide_by_zero():
             pass
 
 
+@pytest.mark.parametrize("op", [tvm.tirx.div, tvm.tirx.truncmod])
+@pytest.mark.parametrize("lhs_dtype,rhs_dtype", [("bool", "int32"), ("int32", "bool")])
+def test_reject_boolean_divide_and_modulo(op, lhs_dtype, rhs_dtype):
+    lhs = tvm.tirx.const(True if lhs_dtype == "bool" else 1, lhs_dtype)
+    rhs = tvm.tirx.const(True if rhs_dtype == "bool" else 1, rhs_dtype)
+    with pytest.raises(TypeError, match="only supports"):
+        op(lhs, rhs)
+
+
 def test_infinity():
     assert str(tvm.tirx.infinity("float16")) == 'T.float16("inf")'
     assert str(tvm.tirx.infinity("float32")) == 'T.float32("inf")'
