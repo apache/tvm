@@ -1053,19 +1053,19 @@ def _make_expected_broadcast_ir_min(
     Returns:
         Expected IR module for the Min operation.
     """
-    output_shape = (x_shape[0], 4)
 
     @I.ir_module
     class ExpectedMin:
         @R.function
         def main(
-            x: R.Tensor(x_shape, dtype="float32"),
-            y: R.Tensor(y_shape, dtype="float32"),
-        ) -> R.Tensor(output_shape, dtype="float32"):
+            x: R.Tensor(("n", x_shape[1]), dtype="float32"),
+            y: R.Tensor(("n", y_shape[1]), dtype="float32"),
+        ) -> R.Tensor(("n", 4), dtype="float32"):
+            n = T.int64()
             R.func_attr({"num_input": 2})
             with R.dataflow():
-                lv = R.broadcast_to(x, R.shape(output_shape))
-                lv1 = R.broadcast_to(y, R.shape(output_shape))
+                lv = R.broadcast_to(x, R.shape((n, 4)))
+                lv1 = R.broadcast_to(y, R.shape((n, 4)))
                 lv2 = R.stack((lv, lv1), axis=0)
                 gv = R.min(lv2, axis=[0], keepdims=False)
                 R.output(gv)
@@ -1087,19 +1087,19 @@ def _make_expected_broadcast_ir_max(
     Returns:
         Expected IR module for the Max operation.
     """
-    output_shape = (x_shape[0], 4)
 
     @I.ir_module
     class ExpectedMax:
         @R.function
         def main(
-            x: R.Tensor(x_shape, dtype="float32"),
-            y: R.Tensor(y_shape, dtype="float32"),
-        ) -> R.Tensor(output_shape, dtype="float32"):
+            x: R.Tensor(("n", x_shape[1]), dtype="float32"),
+            y: R.Tensor(("n", y_shape[1]), dtype="float32"),
+        ) -> R.Tensor(("n", 4), dtype="float32"):
+            n = T.int64()
             R.func_attr({"num_input": 2})
             with R.dataflow():
-                lv = R.broadcast_to(x, R.shape(output_shape))
-                lv1 = R.broadcast_to(y, R.shape(output_shape))
+                lv = R.broadcast_to(x, R.shape((n, 4)))
+                lv1 = R.broadcast_to(y, R.shape((n, 4)))
                 lv2 = R.stack((lv, lv1), axis=0)
                 gv = R.max(lv2, axis=[0], keepdims=False)
                 R.output(gv)
@@ -1133,13 +1133,10 @@ def _test_symbolic_broadcast_case(
 
     if should_pass:
         tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
-        n = tirx.Var("n", "int64")
-        expected_x_shape = (n, *x_shape[1:])
-        expected_y_shape = (n, *y_shape[1:])
         if op_name == "Min":
-            expected = _make_expected_broadcast_ir_min(expected_x_shape, expected_y_shape)
+            expected = _make_expected_broadcast_ir_min(tuple(x_shape), tuple(y_shape))
         else:
-            expected = _make_expected_broadcast_ir_max(expected_x_shape, expected_y_shape)
+            expected = _make_expected_broadcast_ir_max(tuple(x_shape), tuple(y_shape))
         tvm.ir.assert_structural_equal(tvm_model, expected)
     else:
         with pytest.raises(ValueError, match=error_pattern):
