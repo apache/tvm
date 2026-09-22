@@ -159,10 +159,14 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
       PrimExpr e = strides[i];
       AccessPath e_p = strides_p->ArrayItem(i);
       if (is_new_var(e)) {
-        if (try_inline_def(e, e_p, [=]() {
-              return d->AsDoc<ExprDoc>(buffer, buffer_p)
-                  ->Attr("strides")[{LiteralDoc::Int(i, std::nullopt)}];
-            })) {
+        // String stride declarations have int64 dtype.
+        PrimType stride_ty = e.ty();
+        if (!stride_ty.IsScalar() || !stride_ty.MatchesElementType(DLDataTypeCode::kDLInt, 64)) {
+          add_out_of_line_var_def(e.as_or_throw<Var>(), e_p);
+        } else if (try_inline_def(e, e_p, [=]() {
+                     return d->AsDoc<ExprDoc>(buffer, buffer_p)
+                         ->Attr("strides")[{LiteralDoc::Int(i, std::nullopt)}];
+                   })) {
           results.push_back(LiteralDoc::Str(e.as_or_throw<Var>()->name, e_p));
           continue;
         }

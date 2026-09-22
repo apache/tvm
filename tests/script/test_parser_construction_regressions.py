@@ -119,6 +119,29 @@ def main(a: T.handle):
     assert str(buffer.strides[0].ty.dtype) == dtype
 
 
+@pytest.mark.parametrize("dtype", ["int32", "int64"])
+def test_decl_buffer_stride_roundtrip_preserves_dtype(dtype):
+    # Standalone buffer declarations can contain free stride symbols.
+    function = parser.parse(
+        f"""
+@T.prim_func(s_tir=True)
+def main(data: T.handle("float32")):
+    s0 = T.{dtype}()
+    A = T.decl_buffer((1,), "float32", data=data, strides=(s0,))
+    T.evaluate(A[0])
+""",
+        check_well_formed=False,
+    )
+    printed = function.script()
+    if dtype == "int64":
+        assert 'strides=("s0",)' in printed
+    else:
+        assert "s0 = T.int32()" in printed
+    tvm.ir.assert_structural_equal(
+        function, parser.parse(printed, check_well_formed=False), map_free_vars=True
+    )
+
+
 @pytest.mark.parametrize(
     "axes",
     [
