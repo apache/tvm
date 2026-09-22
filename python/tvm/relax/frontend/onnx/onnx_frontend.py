@@ -1080,6 +1080,14 @@ class Hardmax(OnnxOpConverter):
             data = bb.normalize(data)
         normalized_axis, axis_extent = _get_axis_extent(data, axis, "Hardmax")
         dtype = data.ty.dtype
+        if not isinstance(axis_extent, int):
+            # one_hot needs a static depth. For a symbolic extent, mark the first
+            # maximum by comparing its index against a broadcast iota instead.
+            argmax = relax.op.argmax(data, axis=normalized_axis, keepdims=True)
+            iota_shape = [1] * data.ty.ndim
+            iota_shape[normalized_axis] = axis_extent
+            iota = relax.op.reshape(relax.op.arange(0, axis_extent, dtype="int64"), iota_shape)
+            return relax.op.astype(relax.op.equal(iota, argmax), dtype)
         argmax = relax.op.argmax(data, axis=normalized_axis)
         on_value = relax.prim_value(tvm.tirx.const(1.0, dtype))
         off_value = relax.prim_value(tvm.tirx.const(0.0, dtype))

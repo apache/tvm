@@ -1467,6 +1467,32 @@ def test_hardmax_ir():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+@pytest.mark.parametrize(
+    "opset, axis, input_shape, concrete_shape",
+    [
+        # The reduced axis itself is symbolic.
+        (13, -1, ["N", 3, "W"], [2, 3, 5]),
+        (13, 0, ["N", 3, 4], [2, 3, 4]),
+        # Opset <= 12 flattens to 2-D, so the reduced extent is a product of dims.
+        (11, 1, ["N", 3, "W"], [2, 3, 5]),
+        (11, 0, [2, 3, "W"], [2, 3, 5]),
+        # A static axis on a symbolic input keeps using one_hot.
+        (13, 1, ["N", 3, "W"], [2, 3, 5]),
+    ],
+)
+def test_hardmax_symbolic_shape(opset, axis, input_shape, concrete_shape):
+    model = make_unary_model("Hardmax", input_shape, attrs={"axis": axis})
+    x = generate_random_value(concrete_shape, TensorProto.FLOAT)
+    check_correctness(model, inputs={"x": x}, opset=opset)
+
+
+@pytest.mark.parametrize("opset", [11, 13])
+def test_hardmax_symbolic_shape_ties_pick_first(opset):
+    model = make_unary_model("Hardmax", ["N", "W"], attrs={"axis": 1})
+    x = np.array([[1.0, 3.0, 3.0, 0.0], [2.0, 2.0, 2.0, 2.0]], dtype="float32")
+    check_correctness(model, inputs={"x": x}, opset=opset)
+
+
 def test_legacy_softmax_family_opset11_axis_semantics():
     def verify_legacy_softmax_family_axis_ir(op_name: str, expected, axis_attr: int | None = None):
         attrs = {} if axis_attr is None else {"axis": axis_attr}
