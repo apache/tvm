@@ -202,6 +202,20 @@ def test_block():
     tvm.ir.assert_structural_equal(func, _lower_blocks(expected))
 
 
+def test_reject_blocks():
+    @T.prim_func(private=True, s_tir=True)
+    def before(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+        for i in T.serial(0, T.int64(16)):
+            for j in T.serial(0, T.int64(8)):
+                with T.sblock():
+                    vi = T.axis.spatial(T.int64(128), i * T.int64(8) + j)
+                    B[vi] = A[vi] + T.float32(1)
+
+    mod = tvm.IRModule.from_expr(before)
+    with pytest.raises(ValueError, match="requires a function without S-TIR blocks"):
+        tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)
+
+
 def test_i16_buffer():
     @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer((128,), "int16"), B: T.Buffer((128,), "int16")):
