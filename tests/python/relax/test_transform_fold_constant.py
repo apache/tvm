@@ -445,6 +445,21 @@ def test_fold_shape_computation():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_fold_shape_to_tensor_symbolic_shape():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor(("m",), "float32")):
+            with R.dataflow():
+                shape = R.shape_of(x)
+                shape_tensor = R.shape_to_tensor(shape)
+                R.output(shape_tensor)
+            return shape_tensor
+
+    after = relax.transform.FoldConstant()(Module)
+    tvm.ir.assert_structural_equal(after, Module)
+
+
 def test_fold_tuple_output():
     @tvm.script.ir_module
     class Module:
