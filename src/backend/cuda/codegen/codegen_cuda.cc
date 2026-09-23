@@ -80,17 +80,10 @@ TVM_FFI_INLINE bool IsPackedFloat(const PrimType& ty) {
 // Constant-operand handling for min/max, same semantics as apache/tvm
 // #20054's min_max_utils.h (host side). A constant NaN operand is printed
 // directly; a constant non-NaN operand lets the ternary skip its NaN clause
-// (an ordered compare against a constant is never NaN). The two
-// implementations can be merged once the host/CUDA split is revisited.
-TVM_FFI_INLINE const FloatImmNode* AsFloatImm(const PrimExpr& e) {
-  if (const auto* fa = e.as<FloatImmNode>()) {
-    return fa;
-  }
-  if (const auto* bc = e.as<BroadcastNode>()) {
-    return bc->value.as<FloatImmNode>();
-  }
-  return nullptr;
-}
+// (an ordered compare against a constant is never NaN). Scalar constants
+// only: a vector constant (Broadcast of a FloatImm) takes the general
+// per-lane path.
+TVM_FFI_INLINE const FloatImmNode* AsFloatImm(const PrimExpr& e) { return e.as<FloatImmNode>(); }
 
 // NaN-preserving min/max is emitted for float, half and bfloat16: the C
 // ternary below keeps the NaN operand instead of discarding it (apache/tvm
