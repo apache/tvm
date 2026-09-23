@@ -1185,5 +1185,41 @@ def test_gemv_broadcast_epilogue():
     assert mod["main"].attrs["tirx.is_scheduled"] == 1
 
 
+def test_gemv_falls_back_for_non_unit_outer_spatial_tile():
+    @T.prim_func(private=True, s_tir=True)
+    def before(
+        data: T.Buffer((1, 1, 3, 10), "float32"),
+        weight: T.Buffer((1, 1, 1, 2), "float32"),
+        output: T.Buffer((1, 1, 3, 9), "float32"),
+    ):
+        T.func_attr({"tirx.noalias": True})
+        padded = T.sblock_alloc_buffer((1, 1, 3, 10), "float32")
+        for i0, i1, i2, i3 in T.grid(1, 1, 3, 10):
+            with T.sblock("pad"):
+                v0, v1, v2, v3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(data[v0, v1, v2, v3])
+                T.writes(padded[v0, v1, v2, v3])
+                padded[v0, v1, v2, v3] = data[v0, v1, v2, v3]
+        for nn, ff, yy, xx, rc, ry, rx in T.grid(1, 1, 3, 9, 1, 1, 2):
+            with T.sblock("conv2d"):
+                vnn, vff, vyy, vxx, vrc, vry, vrx = T.axis.remap(
+                    "SSSSRRR", [nn, ff, yy, xx, rc, ry, rx]
+                )
+                T.reads(padded[vnn, vrc, vyy + vry, vxx + vrx], weight[vff, vrc, vry, vrx])
+                T.writes(output[vnn, vff, vyy, vxx])
+                with T.init():
+                    output[vnn, vff, vyy, vxx] = T.float32(0)
+                output[vnn, vff, vyy, vxx] += (
+                    padded[vnn, vrc, vyy + vry, vxx + vrx] * weight[vff, vrc, vry, vrx]
+                )
+
+    mod = tvm.IRModule({"main": before})
+    target = Target({"kind": "cuda", "max_num_threads": 1024, "max_shared_memory_per_block": 49152})
+    with target:
+        mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV(), dl.gpu.Fallback())(mod)
+
+    assert mod["main"].attrs["tirx.is_scheduled"] == 1
+
+
 if __name__ == "__main__":
     tvm.testing.main()
