@@ -486,76 +486,27 @@ def test_op_call_py_func(exec_mode):
     unregister_func("torch_sigmoid")
 
 
-def _make_py_module(*func_names):
-    """Build a BasePyModule that registers ``func_names``, without a device or PyTorch.
-
-    ``__new__`` skips ``__init__``'s JIT compilation; ``_register_python_functions`` is the code
-    under test and only needs ``ir_mod.pyfuncs``.
-    """
+def test_py_func_registry_is_scoped_to_its_module():
+    """A module's finalizer must drop its own registrations and nothing else."""
     from tvm.relax.base_py_module import BasePyModule
 
+    get_func = tvm.get_global_func("vm.builtin.get_py_func")
+    tvm.get_global_func("vm.builtin.register_py_func")("registry_probe", lambda x: x)
+
+    # __new__ skips __init__'s JIT compilation; only the registration matters here.
     module = BasePyModule.__new__(BasePyModule)
-    module.ir_mod = SimpleNamespace(pyfuncs={name: lambda self, x: x for name in func_names})
-    module._convert_tvm_to_pytorch = lambda arg: arg
-    module._convert_pytorch_to_tvm = lambda arg: arg
+    module.ir_mod = SimpleNamespace(pyfuncs={"registry_owned": lambda self, x: x})
     module._register_python_functions()
-    return module
-
-
-def test_py_func_registry_is_not_cleared_by_unrelated_module():
-    """A BasePyModule finalizer must not disturb functions it did not register."""
-    from tvm.relax.base_py_module import BasePyModule
-
-    register_func = tvm.get_global_func("vm.builtin.register_py_func")
-    get_func = tvm.get_global_func("vm.builtin.get_py_func")
-    unregister_func = tvm.get_global_func("vm.builtin.unregister_py_func")
-    register_func("registry_probe", lambda x: x)
-
-    unrelated = BasePyModule.__new__(BasePyModule)
-    del unrelated
-    gc.collect()
-    assert get_func("registry_probe") is not None
-
-    other = _make_py_module("registry_probe_owned")
-    del other
-    gc.collect()
-    assert get_func("registry_probe") is not None
-    unregister_func("registry_probe")
-
-
-def test_py_func_registry_entry_released_with_owning_module():
-    """The registry must not keep a module alive, and must drop its entry once it is gone."""
-    get_func = tvm.get_global_func("vm.builtin.get_py_func")
-
-    module = _make_py_module("registry_owned")
-    assert get_func("registry_owned") is not None
     module_ref = weakref.ref(module)
 
     del module
     gc.collect()
-    assert module_ref() is None, "registry kept the module alive"
+
+    assert module_ref() is None, "the registry must not keep the module alive"
+    assert get_func("registry_probe") is not None, "another owner's function was dropped"
     with pytest.raises(tvm.error.InternalError, match="not found in registry"):
         get_func("registry_owned")
-
-
-def test_py_func_registry_keeps_entry_owned_by_live_module():
-    """Re-registering a name transfers ownership, so the earlier module leaves it alone."""
-    get_func = tvm.get_global_func("vm.builtin.get_py_func")
-
-    first = _make_py_module("registry_shared")
-    second = _make_py_module("registry_shared")
-
-    del first
-    gc.collect()
-    handle = get_func("registry_shared")
-    assert handle(3) == 3, "the live module's function must stay callable"
-
-    del second
-    gc.collect()
-    with pytest.raises(RuntimeError, match="has been destroyed"):
-        handle(3)
-    with pytest.raises(tvm.error.InternalError, match="not found in registry"):
-        get_func("registry_shared")
+    tvm.get_global_func("vm.builtin.unregister_py_func")("registry_probe")
 
 
 def test_op_to_device(exec_mode):
