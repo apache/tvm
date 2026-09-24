@@ -472,6 +472,9 @@ class Layout(Object):
             raise ValueError(f"Unsupported layout type: {type(self)}")
 
 
+# Result namespaces are available once this class has been created.
+
+
 # Set of axis names registered on the C++ side. Used for lazy resolution of
 # both module-level (`from tvm.tirx.layout import laneid`) and class-attribute
 # (`Axis.laneid`) accesses. The actual FFI call to look up each axis is
@@ -1539,6 +1542,9 @@ class TileLayout(Layout):
         return self.permute_dims(flat)
 
 
+# Result namespaces are available once this class has been created.
+
+
 @tvm_ffi.register_object("tirx.ComposeLayout")
 class ComposeLayout(Layout):
     """A memory layout that swizzles a tile layout.
@@ -1571,3 +1577,6 @@ class ComposeLayout(Layout):
             tile_layout,
             swizzle_inner,
         )
+
+
+# Result namespaces are available once this class has been created.

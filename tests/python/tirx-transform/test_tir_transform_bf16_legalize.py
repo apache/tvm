@@ -118,6 +118,7 @@ def test_bf16_masked_load_store_will_legalize():
                 A = T.decl_buffer((16,), "bfloat16", data=Aptr)
                 B = T.decl_buffer((16,), "bfloat16")
                 C = T.decl_buffer((16,), "bfloat16", data=Cptr)
+                mask = T.local_scalar("boolx4")
                 mask = T.Broadcast(T.bool(True), 4)
                 T.evaluate(
                     T.call_intrin(

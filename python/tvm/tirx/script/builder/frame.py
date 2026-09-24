@@ -16,10 +16,15 @@
 # under the License.
 """IRBuilder for TIR"""
 
+from collections.abc import Sequence
+
+from tvm_ffi import Array
 from tvm_ffi import register_object as _register_object
 
-from tvm.script.ir_builder.base import IRBuilderFrame
+from tvm.script.ir_builder.base import IRBuilderFrame, _resolve_type_var
 from tvm.tirx import Buffer, Var
+
+from . import _ffi_api
 
 
 @_register_object("script.ir_builder.tirx.TIRFrame")
@@ -27,7 +32,17 @@ class TIRFrame(IRBuilderFrame): ...
 
 
 @_register_object("script.ir_builder.tirx.PrimFuncFrame")
-class PrimFuncFrame(TIRFrame): ...
+class PrimFuncFrame(TIRFrame):
+    """Native function frame retaining signature, symbols and finalized results."""
+
+    @property
+    def params(self):
+        """The native declared parameters, shared with the resumed body."""
+        return self.args
+
+    def resolve_type_var(self, name, dtype=None, *, value=None, span=None):
+        """Resolve a primitive symbol in this function's native map."""
+        return _resolve_type_var(self, _ffi_api.ResolveTypeVar, name, dtype, value=value, span=span)
 
 
 @_register_object("script.ir_builder.tirx.SSBlockFrame")
@@ -40,25 +55,23 @@ class BlockInitFrame(TIRFrame): ...
 
 @_register_object("script.ir_builder.tirx.ForFrame")
 class ForFrame(TIRFrame):
-    def __enter__(self) -> Var | list[Var]:  # type: ignore[override]
+    def set_names(self, names: str | Sequence[str] | None) -> None:
+        """Configure final variable names before entry, preserving native identities.
+
+        A starred target expands to the remaining dimensions. Omitted names
+        preserve defaults supplied by native construction; no names are replayed
+        during entry.
+        """
+        _ffi_api.ForFrameSetNames(self, names)
+
+    def __enter__(self) -> Var | Array[Var]:  # type: ignore[override]
+        """Enter with one variable directly, or the native sequence for multiple loops."""
         super().__enter__()
-        return self.vars if len(self.vars) > 1 else self.vars[0]
+        return self.vars[0] if len(self.vars) == 1 else self.vars
 
 
 @_register_object("script.ir_builder.tirx.AssertFrame")
 class AssertFrame(TIRFrame): ...
-
-
-class LetFrame(TIRFrame):
-    def __enter__(self) -> Var:
-        super().__enter__()
-        return self.var
-
-
-class AllocateFrame(TIRFrame):
-    def __enter__(self) -> Buffer:
-        super().__enter__()
-        return self.buffer_var
 
 
 @_register_object("script.ir_builder.tirx.AttrFrame")
@@ -93,13 +106,6 @@ class LaunchThreadFrame(TIRFrame):
     def __enter__(self) -> Var:
         super().__enter__()
         return self.iter_var.var
-
-
-@_register_object("script.ir_builder.tirx.AllocBufferFrame")
-class AllocBufferFrame(TIRFrame):
-    def __enter__(self) -> Buffer:
-        super().__enter__()
-        return self.buffer
 
 
 @_register_object("script.ir_builder.tirx.HintFrame")

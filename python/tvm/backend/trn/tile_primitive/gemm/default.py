@@ -227,7 +227,6 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
             for p_loop in T.serial(0, p_size, annotations={"nki_dim": "P"}):
                 for lhs_f_loop in T.serial(0, lhs_f_size, annotations={"nki_dim": "lhs_F"}):
                     for rhs_f_loop in T.serial(0, inst_repr.size, annotations={"nki_dim": "rhs_F"}):
-                        b_idx = T.meta_var(lhs_b_loop * rhs_b_extent + rhs_b_loop)
                         inst_gen.set_bind_map(A_buffer_region, {lhs_b: lhs_b_loop, lhs_f: lhs_f_loop, p: p_loop, reduction_b: reduction_b_loop})  # noqa: E501
                         inst_gen.set_bind_map(B_buffer_region, {rhs_b: rhs_b_loop, rhs_f: rhs_f_loop, p: p_loop, reduction_b: reduction_b_loop})  # noqa: E501
                         inst_gen.set_bind_map(C_buffer_region, {lhs_f: lhs_f_loop, rhs_f: rhs_f_loop, lhs_b: lhs_b_loop, rhs_b: rhs_b_loop})  # noqa: E501
@@ -235,10 +234,10 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
                         rhs_indices = T.meta_var(inst_gen.generate_indices(B_buffer_region))
                         C_indices = T.meta_var(inst_gen.generate_indices(C_buffer_region))
                         if inst_gen.make_guard(A_buffer_region) and inst_gen.make_guard(B_buffer_region):  # noqa: E501
-                            if C_as_output:
+                            if T.constexpr(C_as_output):
                                 T.evaluate(T.nki.matmul(acc[C_indices], A[lhs_indices], B[rhs_indices]))  # noqa: E501
                             else:
-                                T.evaluate(T.nki.matmul(acc[b_idx % max_psum_slots, lhs_f_loop, rhs_f_loop], A[lhs_indices], B[rhs_indices]))  # noqa: E501
+                                T.evaluate(T.nki.matmul(acc[(lhs_b_loop * rhs_b_extent + rhs_b_loop) % max_psum_slots, lhs_f_loop, rhs_f_loop], A[lhs_indices], B[rhs_indices]))  # noqa: E501
 
     if C.scope() == "trn.psum":
         # This fragment captures buffers and indices from its insertion scope.
@@ -280,11 +279,10 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
             with T.attr(0, "tensorized_nki_instruction", 1):
                 for lhs_f_loop in T.serial(0, lhs_f_size, annotations={"nki_dim": "P"}):
                     for rhs_f_loop in T.serial(0, inst_repr.size, annotations={"nki_dim": "F"}):
-                        b_idx = T.meta_var(lhs_b_loop * rhs_b_extent + rhs_b_loop)
                         inst_gen.set_bind_map(C_buffer_region, {lhs_f: lhs_f_loop, rhs_f: rhs_f_loop, lhs_b: lhs_b_loop, rhs_b: rhs_b_loop})  # noqa: E501
                         if inst_gen.make_guard(C_buffer_region):
                             acc_indices = T.meta_var(inst_gen.generate_indices(C_buffer_region))
-                            T.evaluate(T.nki.tensor_copy(C[acc_indices], acc_psum[b_idx % max_psum_slots, lhs_f_loop, rhs_f_loop]))  # noqa: E501
+                            T.evaluate(T.nki.tensor_copy(C[acc_indices], acc_psum[(lhs_b_loop * rhs_b_extent + rhs_b_loop) % max_psum_slots, lhs_f_loop, rhs_f_loop]))  # noqa: E501
     # fmt: on
     return impl_C_sbuf
 

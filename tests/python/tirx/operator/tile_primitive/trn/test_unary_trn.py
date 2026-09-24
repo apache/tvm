@@ -65,7 +65,7 @@ def test_simple_unary(op_type):
         T.device_entry()
         A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        if op_type == "memset":
+        if T.constexpr(op_type == "memset"):
             tx_func(B_sbuf, T.float32(0.0))
         else:
             tx_func(B_sbuf, A_sbuf)
@@ -79,11 +79,11 @@ def test_simple_unary(op_type):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
-                    if op_type == "reciprocal":
+                    if T.constexpr(op_type == "reciprocal"):
                         T.nki.reciprocal(
                             B_sbuf[p_loop, f_loop], A_sbuf[p_loop, f_loop]
                         )
-                    elif op_type == "memset":
+                    elif T.constexpr(op_type == "memset"):
                         T.nki.memset(B_sbuf[p_loop, f_loop], 0.0)
             # fmt: on
     with target:
@@ -110,7 +110,7 @@ def test_unary_in_a_loop(op_type):
         A_sbuf_view = A_sbuf.view(128, 8, 512)
         B_sbuf_view = B_sbuf.view(128, 4, 512)
         for i in range(4):
-            if op_type == "memset":
+            if T.constexpr(op_type == "memset"):
                 Tx_func(B_sbuf_view[:, i, :], T.float32(0.0))
             else:
                 Tx_func(B_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :])
@@ -126,9 +126,9 @@ def test_unary_in_a_loop(op_type):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
-                    if op_type == "reciprocal":
+                    if T.constexpr(op_type == "reciprocal"):
                         T.nki.reciprocal(B_sbuf_view[p_loop, i * 512 + f_loop], A_sbuf_view[p_loop, i * 1024 + f_loop])  # noqa: E501
-                    elif op_type == "memset":
+                    elif T.constexpr(op_type == "memset"):
                         T.nki.memset(B_sbuf_view[p_loop, i * 512 + f_loop], 0.0)
             # fmt: on
     with target:

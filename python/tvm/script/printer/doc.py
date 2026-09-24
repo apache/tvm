@@ -23,8 +23,8 @@ from typing import Union
 from tvm_ffi import register_object
 from tvm_ffi.access_path import AccessPath
 
+from tvm.ir.prim import FloatImm, IntImm
 from tvm.runtime import Object
-from tvm.tirx import FloatImm, IntImm
 
 from . import _ffi_api
 

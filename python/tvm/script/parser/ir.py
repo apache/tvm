@@ -1,4 +1,3 @@
-# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,25 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The ir module parser"""
+"""Module construction and shared parser support."""
 
-from tvm.ir import Range, StringType, StringImm, GenericConst
-from ...ir_builder.ir import *  # pylint: disable=redefined-builtin
-from . import parser as _parser
-from .entry import ir_module, pyfunc
+import sys as _sys
 
+from tvm.script.ir_builder.ir import *  # noqa: F403
 
-__all__ = [
-    "GenericConst",
-    "Range",
-    "StringImm",
-    "StringType",
-    "dummy_global_info",
-    "ir_module",
-    "lookup_vdevice",
-    "meta_var",
-    "module_attrs",
-    "module_global_infos",
-    "pyfunc",
-    "vdevice",
-]
+from . import register_namespace
+from .entry import ir_module as ir_module
+from .entry import pyfunc as pyfunc
+
+register_namespace("I", _sys.modules[__name__])
+register_namespace("ir", _sys.modules[__name__])

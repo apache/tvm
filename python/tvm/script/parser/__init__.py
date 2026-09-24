@@ -14,38 +14,72 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The parser subpackage of TVMScript.
+"""Canonical TVMScript parser with language variant namespace initialization."""
 
-Per-dialect parser submodules (``tvm.script.parser.tirx``, etc.) are
-resolved lazily via :data:`tvm.script._DIALECT_REGISTRY`.  When a dialect
-is accessed (e.g. ``tvm.script.parser.tirx``), this subpackage's
-``__getattr__`` looks up the dialect in ``_DIALECT_REGISTRY`` and imports
-``<dialect_module_path>.parser`` (e.g. ``tvm.tirx.script.parser``),
-caching the result so subsequent accesses skip ``__getattr__``.
-
-The IR layer is foundational and is NOT registered as a dialect — its
-parser lives as a real submodule ``tvm.script.parser.ir``, with
-``ir_module`` re-exported at this level for convenience.
-
-See :mod:`tvm.script` for a full description of the dialect resolution
-mechanism, including the ``_DialectRedirectFinder`` that handles
-deep statement-form imports.
-"""
+from __future__ import annotations
 
 import importlib
-from typing import Any
+from collections.abc import Callable
+from typing import Any, TypeVar
 
-from . import _core, ir, tirx
-from ._core import parse
-from .ir import ir_module
+_NAMESPACES: dict[str, object] = {}
+_NAMESPACE_INITIALIZERS: list[Callable[[], None]] = []
+_NAMESPACE_ALIASES: set[str] = {"I", "ir"}
+_ENTRY_EXPORTS = (
+    "from_source",
+    "ir_module",
+    "make_decorator",
+    "make_macro_decorator",
+    "parse",
+    "pyfunc",
+)
+__all__ = [*_ENTRY_EXPORTS, "register_namespace", "register_namespace_initializer"]
+_initialized = False
+_initializing = False
+
+
+def register_namespace(alias: str, namespace: object) -> None:
+    """Register an opaque fixed namespace; its first alias is the syntax key root.
+
+    Each parse borrows these namespaces. Replacing an alias affects future parses
+    only; registration enters no builder frame and inspects no namespace members.
+    """
+    _NAMESPACES[alias] = namespace
+
+
+def register_namespace_initializer(
+    initializer: Callable[[], None], *, aliases: tuple[str, ...] = ()
+) -> None:
+    """Register a lazy bootstrap callback without importing the language variant."""
+    _NAMESPACE_ALIASES.update(aliases)
+    if any(existing is initializer for existing in _NAMESPACE_INITIALIZERS):
+        return
+    _NAMESPACE_INITIALIZERS.append(initializer)
+    if _initialized:
+        initializer()
+
+
+def _initialize() -> None:
+    global _initialized, _initializing
+    if _initialized or _initializing:
+        return
+    _initializing = True
+    try:
+        importlib.import_module(__name__ + ".ir")
+        register_namespace("TypeVar", TypeVar)
+        for initialize in _NAMESPACE_INITIALIZERS:
+            initialize()
+        _initialized = True
+    finally:
+        _initializing = False
 
 
 def __getattr__(name: str) -> Any:
-    # Lazy import to avoid loading tvm.script during dialect bootstrap.
-    from tvm.script import _DIALECT_REGISTRY  # pylint: disable=import-outside-toplevel
-
-    if name in _DIALECT_REGISTRY:
-        module = importlib.import_module(f"{_DIALECT_REGISTRY[name]}.parser")
-        globals()[name] = module
-        return module
-    raise AttributeError(f"module 'tvm.script.parser' has no attribute {name!r}")
+    if name not in _ENTRY_EXPORTS and name not in _NAMESPACES and name not in _NAMESPACE_ALIASES:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    _initialize()
+    if name in _ENTRY_EXPORTS:
+        return getattr(importlib.import_module(__name__ + ".entry"), name)
+    if name in _NAMESPACES:
+        return _NAMESPACES[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
