@@ -29,15 +29,15 @@ from collections.abc import Callable
 from typing import Any
 
 _DIALECT_REGISTRY: dict[str, str] = {}
+_DIALECT_BUILDER_REGISTRY: dict[str, str] = {}
 # Language variants register whole-module checks at import, independently of source decorators.
 # Callbacks own concrete eligibility; this list retains no source or construction state.
 _MODULE_VALIDATORS: list[Callable[[Any], None]] = []
 
-# An empty suffix names the public language variant namespace itself.
-# Builder redirection applies only when no real package owns that name.
+# Public parser and builder compatibility paths consume dialect-owned registrations.
 _REDIRECTED_SUBPACKAGES = {
-    "tvm.script.parser": "",
-    "tvm.script.ir_builder": "builder",
+    "tvm.script.parser": _DIALECT_REGISTRY,
+    "tvm.script.ir_builder": _DIALECT_BUILDER_REGISTRY,
 }
 
 
@@ -73,40 +73,44 @@ def register_module_validator(validator: Callable[[Any], None], *, prepend: bool
         _MODULE_VALIDATORS.append(validator)
 
 
-def register_dialect(name: str, module_path: str) -> None:
-    """Register a language variant's script package path.
+def register_dialect(name: str, module_path: str, *, builder_path: str | None = None) -> None:
+    """Register a dialect's script namespace and canonical builder package.
 
-    Writes ``name -> module_path`` into ``_DIALECT_REGISTRY``.  After
-    registration, ``tvm.script.<name>`` resolves to ``module_path`` via
-    ``__getattr__``, and ``tvm.script.parser.<name>`` / ``tvm.script.ir_builder.<name>``
-    resolve to the same script namespace and the corresponding real builder
-    package, respectively. When no real builder package exists, external language
-    variants resolve through ``module_path + ".builder"``. Registered namespace
-    imports are handled by ``_DialectRedirectFinder`` on ``sys.meta_path``.
+    Registration is lazy: it records paths without importing either package.
+    ``tvm.script.<name>`` and ``tvm.script.parser.<name>`` expose ``module_path``;
+    ``tvm.script.ir_builder.<name>`` exposes ``builder_path``. Deep imports under
+    these compatibility paths resolve to the same canonical modules, preserving
+    their identity and avoiding repeated initialization. Existing physical
+    out-of-tree packages under ``tvm.script.ir_builder`` retain normal package
+    lookup precedence.
 
-    This function is idempotent — re-registering the same name with the same
-    path is harmless.
-
-    Each in-tree language variant calls this from its own ``__init__.py``::
+    Each dialect registers from its own package initialization::
 
         import tvm.script
-        tvm.script.register_dialect("tirx", "tvm.tirx.script")
+        tvm.script.register_dialect(
+            "example", "example.script", builder_path="example.script.ir_builder"
+        )
 
-    Out-of-tree language variants do the same in their own package init without
-    editing any in-tree file.
+    Out-of-tree dialects register the same way without editing shared TVMScript
+    files. Re-registering the same name and paths is idempotent.
 
     Parameters
     ----------
     name : str
-        The short name exposed under ``tvm.script.<name>`` (e.g. ``"tirx"``).
+        Short name exposed under ``tvm.script.<name>``.
     module_path : str
-        The full dotted module path of the language variant's script package, e.g.
-        ``"tvm.tirx.script"``. That package exposes its public construction
-        entry points directly. Out-of-tree language variants provide imperative
-        APIs in a ``builder`` submodule; in-tree builders live in
-        ``tvm.script.ir_builder.<name>``.
+        Full dotted path of the dialect's script package, which owns its public
+        construction namespace.
+    builder_path : str, optional
+        Full dotted path of the dialect-owned imperative builder package,
+        normally ``module_path + ".ir_builder"``. When omitted, use
+        ``module_path + ".builder"`` to preserve existing out-of-tree
+        registrations. No imports or aliases are created at registration time.
     """
     _DIALECT_REGISTRY[name] = module_path
+    _DIALECT_BUILDER_REGISTRY[name] = (
+        builder_path if builder_path is not None else module_path + ".builder"
+    )
 
 
 def _redirect_target(fullname: str) -> str | None:
@@ -122,13 +126,13 @@ def _redirect_target(fullname: str) -> str | None:
             target = _DIALECT_REGISTRY[head]
             return f"{target}.{tail}" if tail else target
         # Registered language variants may redirect parser and builder subpackages.
-        for prefix, sub in _REDIRECTED_SUBPACKAGES.items():
+        for prefix, registry in _REDIRECTED_SUBPACKAGES.items():
             if fullname == prefix or not fullname.startswith(prefix + "."):
                 continue
             rest = fullname[len(prefix) + 1 :]
             head, _, tail = rest.partition(".")
-            if head in _DIALECT_REGISTRY:
-                target = _DIALECT_REGISTRY[head] + (f".{sub}" if sub else "")
+            if head in registry:
+                target = registry[head]
                 return f"{target}.{tail}" if tail else target
     return None
 
@@ -156,8 +160,7 @@ class _DialectRedirectFinder:
 
     @classmethod
     def find_spec(cls, fullname, path, target=None):
-        # A real builder package owns its canonical name. Only missing packages
-        # use the out-of-tree language variant registry fallback.
+        # Preserve real external builder packages before the registered fallback.
         prefix = "tvm.script.ir_builder."
         if fullname.startswith(prefix):
             package_name = prefix + fullname[len(prefix) :].partition(".")[0]

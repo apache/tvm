@@ -31,11 +31,11 @@ def _initialize() -> None:
         return
     _initializing = True
     try:
-        from tvm.script.ir_builder import tirx as builder
         from tvm.script.parser import entry, register_namespace
         from tvm.script.parser.protocol_registry import declaration_kind
         from tvm.tirx.layout import Axis
 
+        from . import ir_builder as builder
         from . import tile
         from .jit import make_jit
 
@@ -68,6 +68,8 @@ def _initialize() -> None:
 
 
 def __getattr__(name: str) -> _Any:
+    if name == "ir_builder":
+        return _importlib.import_module(__name__ + ".ir_builder")
     if name == "tile":
         return _importlib.import_module(__name__ + ".tile")
     if name.startswith("_") and name != "__all__":
@@ -75,7 +77,7 @@ def __getattr__(name: str) -> _Any:
     _initialize()
     if name in globals():
         return globals()[name]
-    return getattr(_importlib.import_module("tvm.script.ir_builder.tirx"), name)
+    return getattr(_importlib.import_module("tvm.tirx.script.ir_builder"), name)
 
 
 from .jit import OptionalAnnotation as Optional

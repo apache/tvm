@@ -29,7 +29,7 @@ from collections.abc import Sequence
 from functools import partial as _partial
 from typing import Any
 
-import tvm.script.ir_builder.tirx as _builder
+import tvm.tirx.script.ir_builder as _builder
 from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm.ir.prim import _ffi_api as _prim_ffi

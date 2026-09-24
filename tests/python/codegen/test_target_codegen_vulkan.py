@@ -27,8 +27,8 @@ from tvm.script import ir as I
 from tvm.script import ir_builder as I_builder
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as T_builder
 from tvm.testing import env
+from tvm.tirx.script import ir_builder as T_builder
 
 dtype = tvm.testing.parameter("float32", "int32", "float16", "int8")
 fuzz_seed = tvm.testing.parameter(range(25))

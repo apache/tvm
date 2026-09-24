@@ -897,8 +897,8 @@ def function_(*, decl: bool = False, span: _Span = None, **options: Any) -> IRBu
         Language variant options: TIRx ``private``, ``s_tir`` and ``persistent``
         default to False. Relax ``pure`` defaults to True and ``private``/``local``
         to False; ``local=True`` requires a declared reference when building its
-        body. See :func:`tvm.script.ir_builder.tirx.function_` and
-        :func:`tvm.script.ir_builder.relax.function_` for their concrete options.
+        body. See :func:`tvm.tirx.script.ir_builder.function_` and
+        :func:`tvm.relax.script.ir_builder.function_` for their concrete options.
 
     Returns
     -------
