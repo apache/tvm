@@ -116,6 +116,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           for (const auto& kv : *f->global_infos) {
             for (int i = 0; i < static_cast<int>(kv.second.size()); i++) {
               if (kv.second[i].same_as(n)) {
+                // Module-owned selectors must be evaluated inside the declaration frame.
+                for (const Frame& frame : d->frames) {
+                  if (const auto* relax_frame = frame.as<RelaxFrameNode>()) {
+                    if (relax_frame->func_vars != nullptr) {
+                      d->ir_usage.insert("future_annotations");
+                      break;
+                    }
+                  }
+                }
                 std::stringstream ss;
                 ss << kv.first << "[" << i << "]";
                 return d->AsDoc<Doc>(ffi::String(ss.str()), n_p);

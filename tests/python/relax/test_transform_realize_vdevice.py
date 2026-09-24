@@ -86,10 +86,10 @@ def test_dataflow_binding():
 
         @R.function
         def foo(
-            x: R.Tensor((2, 3), "float32", "llvm"),
-            y: R.Tensor((2, 3), "float32", "llvm"),
-            z: R.Tensor((2, 3), "float32", "llvm"),
-        ) -> R.Tensor((2, 3), "float32", "llvm"):
+            x: 'R.Tensor((2, 3), "float32", "llvm")',
+            y: 'R.Tensor((2, 3), "float32", "llvm")',
+            z: 'R.Tensor((2, 3), "float32", "llvm")',
+        ) -> 'R.Tensor((2, 3), "float32", "llvm")':
             with R.dataflow():
                 x1: R.Tensor((2, 3), "float32", "llvm") = x
                 y1: R.Tensor((2, 3), "float32", "llvm") = y
@@ -144,10 +144,10 @@ def test_binding():
 
         @R.function
         def foo(
-            x: R.Tensor((2, 3), "float32", "llvm"),
-            y: R.Tensor((2, 3), "float32", "llvm"),
-            z: R.Tensor((2, 3), "float32", "llvm"),
-        ) -> R.Tensor((2, 3), "float32", "llvm"):
+            x: 'R.Tensor((2, 3), "float32", "llvm")',
+            y: 'R.Tensor((2, 3), "float32", "llvm")',
+            z: 'R.Tensor((2, 3), "float32", "llvm")',
+        ) -> 'R.Tensor((2, 3), "float32", "llvm")':
             x1: R.Tensor((2, 3), "float32", "llvm") = x
             y1: R.Tensor((2, 3), "float32", "llvm") = y
             x2: R.Tensor((2, 3), "float32", "llvm") = x1
@@ -177,7 +177,7 @@ def test_func_ret():
             x: R.Tensor((2, 3), "float32"),
             y: R.Tensor((2, 3), "float32"),
             z: R.Tensor((2, 3), "float32"),
-        ) -> R.Tensor((2, 3), "float32", "cuda"):
+        ) -> 'R.Tensor((2, 3), "float32", "cuda")':
             with R.dataflow():
                 lv0 = R.add(x, y)
                 gv = R.multiply(lv0, z)
@@ -197,10 +197,10 @@ def test_func_ret():
 
         @R.function
         def foo(
-            x: R.Tensor((2, 3), "float32", "cuda"),
-            y: R.Tensor((2, 3), "float32", "cuda"),
-            z: R.Tensor((2, 3), "float32", "cuda"),
-        ) -> R.Tensor((2, 3), "float32", "cuda"):
+            x: 'R.Tensor((2, 3), "float32", "cuda")',
+            y: 'R.Tensor((2, 3), "float32", "cuda")',
+            z: 'R.Tensor((2, 3), "float32", "cuda")',
+        ) -> 'R.Tensor((2, 3), "float32", "cuda")':
             with R.dataflow():
                 lv0: R.Tensor((2, 3), "float32", "cuda") = R.add(x, y)
                 gv: R.Tensor((2, 3), "float32", "cuda") = R.multiply(lv0, z)
@@ -227,7 +227,7 @@ def test_tuple_func_ret():
             x: R.Tensor((2, 3), "float32"),
             y: R.Tensor((2, 3), "float32"),
             z: R.Tensor((2, 3), "float32"),
-        ) -> R.Tuple([R.Tensor((2, 3), "float32", "cuda"), R.Tensor((2, 3), "float32", "cuda")]):
+        ) -> 'R.Tuple([R.Tensor((2, 3), "float32", "cuda"), R.Tensor((2, 3), "float32", "cuda")])':
             with R.dataflow():
                 lv0 = R.add(x, y)
                 gv = R.multiply(lv0, z)
@@ -247,10 +247,10 @@ def test_tuple_func_ret():
 
         @R.function
         def foo(
-            x: R.Tensor((2, 3), "float32", "cuda"),
-            y: R.Tensor((2, 3), "float32", "cuda"),
-            z: R.Tensor((2, 3), "float32", "cuda"),
-        ) -> R.Tuple([R.Tensor((2, 3), "float32", "cuda"), R.Tensor((2, 3), "float32", "cuda")]):
+            x: 'R.Tensor((2, 3), "float32", "cuda")',
+            y: 'R.Tensor((2, 3), "float32", "cuda")',
+            z: 'R.Tensor((2, 3), "float32", "cuda")',
+        ) -> 'R.Tuple([R.Tensor((2, 3), "float32", "cuda"), R.Tensor((2, 3), "float32", "cuda")])':
             with R.dataflow():
                 lv0: R.Tensor((2, 3), "float32", "cuda") = R.add(x, y)
                 gv: R.Tensor((2, 3), "float32", "cuda") = R.multiply(lv0, z)
@@ -280,7 +280,7 @@ def test_multi_device():
             x: R.Tensor((2, 3), "float32"),
             y: R.Tensor((2, 3), "float32"),
             z: R.Tensor((2, 3), "float32"),
-        ) -> R.Tensor((2, 3), "float32", "cuda"):
+        ) -> 'R.Tensor((2, 3), "float32", "cuda")':
             with R.dataflow():
                 lv0 = R.add(x, y)
                 lv0 = R.hint_on_device(lv0, tvm.cpu())
@@ -306,10 +306,10 @@ def test_multi_device():
 
         @R.function
         def foo(
-            x: R.Tensor((2, 3), "float32", "llvm"),
-            y: R.Tensor((2, 3), "float32", "llvm"),
-            z: R.Tensor((2, 3), "float32", "cuda"),
-        ) -> R.Tensor((2, 3), "float32", "cuda"):
+            x: 'R.Tensor((2, 3), "float32", "llvm")',
+            y: 'R.Tensor((2, 3), "float32", "llvm")',
+            z: 'R.Tensor((2, 3), "float32", "cuda")',
+        ) -> 'R.Tensor((2, 3), "float32", "cuda")':
             with R.dataflow():
                 lv0: R.Tensor((2, 3), "float32", "llvm") = R.add(x, y)
                 lv0: R.Tensor((2, 3), "float32", "llvm") = lv0
@@ -369,10 +369,10 @@ def test_insert_to_vdevice():
 
         @R.function
         def foo(
-            x: R.Tensor((2, 3), "float32", "llvm"),
-            y: R.Tensor((2, 3), "float32", "llvm"),
-            z: R.Tensor((2, 3), "float32", "cuda"),
-        ) -> R.Tensor((2, 3), "float32", "cuda"):
+            x: 'R.Tensor((2, 3), "float32", "llvm")',
+            y: 'R.Tensor((2, 3), "float32", "llvm")',
+            z: 'R.Tensor((2, 3), "float32", "cuda")',
+        ) -> 'R.Tensor((2, 3), "float32", "cuda")':
             with R.dataflow():
                 lv0: R.Tensor((2, 3), "float32", "llvm") = y
                 lv1: R.Tensor((2, 3), "float32", "llvm") = R.add(x, lv0)

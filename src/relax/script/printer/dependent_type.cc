@@ -117,6 +117,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           kwargs_values.push_back(LiteralDoc::Int(n->ndim, n_p->Attr("ndim")));
         }
         if (n->vdevice.has_value() && n->vdevice.value()->target.defined()) {
+          // Module-owned selectors must be evaluated inside the declaration frame.
+          for (const Frame& frame : d->frames) {
+            if (const auto* relax_frame = frame.as<RelaxFrameNode>()) {
+              if (relax_frame->func_vars != nullptr) {
+                d->ir_usage.insert("future_annotations");
+                break;
+              }
+            }
+          }
           kwargs_keys.push_back("vdevice");
           std::string dev_kind = n->vdevice.value()->target->kind->name;
           int dev_index = FindVDeviceIndexByTargetKind(n->vdevice.value(), d);

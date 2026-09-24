@@ -179,8 +179,8 @@ def test_single_arg_return():
 
         @R.function
         def main(
-            x: R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),
-        ) -> R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"):
+            x: 'R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global")',
+        ) -> 'R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global")':
             cls = Input
             with R.dataflow():
                 lv = R.call_tir(
@@ -277,12 +277,12 @@ def test_multi_arg_return():
 
         @R.function
         def main(
-            x: R.Tensor((2, 16, 28, 28), dtype="float32", vdevice="opencl:1:global"),
-            w: R.Tensor((4, 16, 3, 3), dtype="float32", vdevice="opencl:1:global"),
-        ) -> R.Tuple(
+            x: 'R.Tensor((2, 16, 28, 28), dtype="float32", vdevice="opencl:1:global")',
+            w: 'R.Tensor((4, 16, 3, 3), dtype="float32", vdevice="opencl:1:global")',
+        ) -> """R.Tuple(
             R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),
             R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),
-        ):
+        )""":
             cls = Input
             with R.dataflow():
                 lv = R.call_tir(

@@ -253,10 +253,10 @@ def resolve_global_info_(content: Any) -> Any:
 
     .. code:: python
 
-        # Source
+        # The constructor decorator calls this resolver for string selectors.
         R.Tensor((n,), "float32", vdevice="cuda:0")
-        # Generated builder
-        R.Tensor((n,), "float32", vdevice=R.resolve_global_info_("cuda:0"))
+        # Direct resolution requires the same active module frame.
+        device = R.resolve_global_info_("cuda:0")
     """
     if not isinstance(content, str):
         return content

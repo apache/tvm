@@ -28,6 +28,7 @@ namespace ir {
 TVM_FFI_STATIC_INIT_BLOCK() { IRModuleFrameNode::RegisterReflection(); }
 
 void IRModuleFrameNode::ExitWithScope() {
+  IRBuilderFrameNode::ExitWithScope();
   ffi::Map<GlobalVar, BaseFunc> func_map;
   TVM_FFI_ICHECK_EQ(functions.size(), global_var_map.size())
       << "All functions must be defined in the IRModule. Got " << global_var_map.size()

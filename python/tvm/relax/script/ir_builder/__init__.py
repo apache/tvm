@@ -27,7 +27,7 @@ from tvm.relax.distributed import DeviceMesh as _DeviceMesh
 from tvm.relax.distributed import DTensorType as _DTensorType
 from tvm.relax.distributed import Placement as _Placement
 from tvm.relax.distributed import device_mesh as device_mesh
-from tvm.script.ir_builder import IRBuilder as _IRBuilder
+from tvm.script.ir_builder import resolve_global_info_args as _resolve_global_info_args
 from tvm.script.ir_builder.base import at as _at
 from tvm.script.ir_builder.base import source_span as _source_span
 from tvm.script.parser.protocol_registry import ARGS_POLICIES as _ARGS_POLICIES
@@ -83,7 +83,8 @@ For = for_
 supports_mutable_declarations = False
 
 
-@_args_policy("R.Tensor", {"shape": "expr_str", "vdevice": "global_info"}, scalar_strings=False)
+@_resolve_global_info_args("vdevice", resolver=resolve_global_info_)
+@_args_policy("R.Tensor", {"shape": "expr_str"}, scalar_strings=False)
 def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
     """Construct a Relax tensor type.
 
@@ -97,7 +98,9 @@ def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
         Element type; None leaves the element type unknown.
     vdevice : VDevice or str, optional
         Concrete virtual device or a module metadata selector, such as "cuda:0".
-        None leaves the virtual device unspecified.
+        None leaves the virtual device unspecified. Strings require an active module
+        builder; use a quoted whole annotation or postponed annotations when defining
+        a Python function before its module builder opens.
     ndim : int, optional
         Rank when shape is unknown; -1 means unknown rank. Do not supply
         an explicit rank together with a known shape.
@@ -107,22 +110,16 @@ def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
     Returns
     -------
     result : TensorType or Type
-        The tensor type. A string device selector evaluated before the module
-        builder opens returns a missing type for the generated declaration to resolve.
+        The tensor type, or a missing type for an unresolved eager shape annotation.
+        String selectors outside an active module always raise ValueError.
     """
     if isinstance(shape, _python.str) and dtype is None:
         dtype, shape = shape, None
-    if isinstance(vdevice, _python.str) and not _IRBuilder.is_in_scope():
-        # Python evaluates annotations before the module decorator opens its
-        # frame. The generated declaration resolves this module-owned reference.
-        return _ir.Type.missing()
-    vdevice = resolve_global_info_(vdevice)
     return _relax.TensorType(shape, dtype, vdevice, ndim, _source_span(span))
 
 
-@_args_policy(
-    "R.DTensor", {"shape": "expr_str", "device_mesh": "global_info"}, scalar_strings=False
-)
+@_resolve_global_info_args("device_mesh", resolver=resolve_global_info_)
+@_args_policy("R.DTensor", {"shape": "expr_str"}, scalar_strings=False)
 def DTensor(shape=None, dtype=None, device_mesh=None, placement="", *, ndim=-1, span=None):
     """Construct a Relax distributed tensor type.
 
@@ -135,7 +132,8 @@ def DTensor(shape=None, dtype=None, device_mesh=None, placement="", *, ndim=-1, 
         Element type; None leaves the element type unknown.
     device_mesh : DeviceMesh or str, optional
         Concrete mesh or module metadata selector. None creates an empty mesh
-        placeholder. A selector is resolved in the enclosing module builder.
+        placeholder. A string selector requires an active module builder; use a quoted
+        whole annotation or postponed annotations before the builder opens.
     placement : Placement or str, optional
         Distribution placement. Text, including the default empty string, is
         parsed with Placement.from_text.
@@ -147,15 +145,11 @@ def DTensor(shape=None, dtype=None, device_mesh=None, placement="", *, ndim=-1, 
     Returns
     -------
     result : DTensorType or Type
-        The distributed type. A string mesh selector evaluated before the
-        module builder opens returns a missing type for later resolution.
+        The distributed type, or a missing type for an unresolved eager shape annotation.
+        String selectors outside an active module always raise ValueError.
     """
-    if isinstance(device_mesh, _python.str) and not _IRBuilder.is_in_scope():
-        return _ir.Type.missing()
     if device_mesh is None:
         device_mesh = _DeviceMesh([], _ir.Range(0, 1))
-    else:
-        device_mesh = resolve_global_info_(device_mesh)
     if isinstance(placement, _python.str):
         placement = _Placement.from_text(placement)
     return _DTensorType(Tensor(shape, dtype, ndim=ndim), device_mesh, placement, _source_span(span))

@@ -375,7 +375,7 @@ def test_legalize_with_vdevice():
 
         @R.function
         def func_llvm(
-            A: R.Tensor([32, 32], "float32", "llvm"), B: R.Tensor([32, 32], "float32", "llvm")
+            A: 'R.Tensor([32, 32], "float32", "llvm")', B: 'R.Tensor([32, 32], "float32", "llvm")'
         ):
             C = R.add(A, B)
             return C
@@ -407,8 +407,8 @@ def test_legalize_with_vdevice():
 
         @R.function
         def func_llvm(
-            A: R.Tensor((32, 32), dtype="float32", vdevice="llvm"),
-            B: R.Tensor((32, 32), dtype="float32", vdevice="llvm"),
+            A: 'R.Tensor((32, 32), dtype="float32", vdevice="llvm")',
+            B: 'R.Tensor((32, 32), dtype="float32", vdevice="llvm")',
         ):
             cls = Expected
             C = R.call_tir(

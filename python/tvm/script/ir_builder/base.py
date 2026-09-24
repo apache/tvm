@@ -19,6 +19,7 @@
 from collections.abc import Callable
 from contextlib import contextmanager, nullcontext
 from functools import wraps
+from inspect import signature
 from typing import Any, Generic, TypeVar
 
 from tvm_ffi import register_object as _register_object
@@ -28,6 +29,72 @@ from tvm import ir
 from tvm.runtime import Object as _Object
 
 from . import _ffi_api
+
+
+def resolve_global_info_args(
+    *fields: str, resolver: Callable[[str], Any]
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Resolve selected string arguments before calling a builder operation.
+
+    Parameters
+    ----------
+    *fields : str
+        Names of positional-only, positional-or-keyword, or keyword-only parameters.
+        Repeated names are resolved once. Omitted arguments use their declared defaults.
+    resolver : Callable[[str], Any]
+        Explicit callback receiving each selected string and returning its replacement.
+        The callback owns selector syntax, lookup scope, and errors. Non-string values
+        pass through with their identity preserved; containers are not decoded recursively.
+
+    Returns
+    -------
+    Callable
+        Decorator preserving the callable's signature, name, and documentation. The
+        signature is inspected once when decorating, then reused for argument binding.
+
+    Raises
+    ------
+    ValueError
+        If a selected name is absent or names a variadic parameter.
+
+    Notes
+    -----
+    All argument expressions are evaluated once in ordinary Python order before binding,
+    resolution, and the callable body. Positional, keyword, unpacked, and aliased calls
+    share this behavior. Selected string defaults are resolved on every call. Exceptions
+    from binding, the resolver, and the callable propagate unchanged.
+
+    .. code:: python
+
+        @resolve_global_info_args("device", resolver=lookup_device)
+        def tensor(shape, device="default"):
+            return make_tensor(shape, device)
+    """
+    fields = tuple(dict.fromkeys(fields))
+
+    def decorate(function: Callable[..., Any]) -> Callable[..., Any]:
+        call_signature = signature(function)
+        for field in fields:
+            parameter = call_signature.parameters.get(field)
+            if parameter is None or parameter.kind in (
+                parameter.VAR_POSITIONAL,
+                parameter.VAR_KEYWORD,
+            ):
+                raise ValueError(f"Unknown or variadic global-info argument: {field!r}")
+
+        @wraps(function)
+        def invoke(*args, **kwargs):
+            bound = call_signature.bind(*args, **kwargs)
+            bound.apply_defaults()
+            for field in fields:
+                value = bound.arguments[field]
+                if isinstance(value, str):
+                    bound.arguments[field] = resolver(value)
+            return function(*bound.args, **bound.kwargs)
+
+        return invoke
+
+    return decorate
 
 
 @_register_object("script.ir_builder.IRBuilderFrame")

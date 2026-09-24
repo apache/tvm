@@ -112,10 +112,10 @@ def test_mlp():
 
         @R.function
         def foo(
-            x: R.DTensor((128, 128), "float32", "mesh[0]", "R"),
-            weight1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
-            weight2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
-        ) -> R.DTensor((128, 128), "float32", "mesh[0]", "R"):
+            x: 'R.DTensor((128, 128), "float32", "mesh[0]", "R")',
+            weight1: 'R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")',
+            weight2: 'R.DTensor((128, 128), "float32", "mesh[0]", "S[0]")',
+        ) -> 'R.DTensor((128, 128), "float32", "mesh[0]", "R")':
             R.func_attr({"num_input": 1})
             cls = MLP
             lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.dist.call_tir_local_view(
@@ -292,12 +292,12 @@ def test_mlp_with_tuple():
 
         @R.function
         def foo(
-            x: R.DTensor((128, 128), "float32", "mesh[0]", "R"),
-            weight_packed: R.Tuple(
+            x: 'R.DTensor((128, 128), "float32", "mesh[0]", "R")',
+            weight_packed: """R.Tuple(
                 R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
                 R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
-            ),
-        ) -> R.DTensor((64, 128), "float32", "mesh[0]", "R"):
+            )""",
+        ) -> 'R.DTensor((64, 128), "float32", "mesh[0]", "R")':
             cls = MLPWithTuple
             weight1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = weight_packed[0]
             lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.dist.call_tir_local_view(

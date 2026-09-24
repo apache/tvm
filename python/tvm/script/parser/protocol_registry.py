@@ -59,7 +59,7 @@ class ExprStrPolicy(NamedTuple):
 class ArgsPolicy(NamedTuple):
     """Argument policies and positional names computed once at registration.
 
-    ``fields`` maps parameter names to ``expr_str`` or ``global_info``.
+    ``fields`` maps parameter names to ``expr_str``.
     ``expression`` describes the expression-string subset. ``positional_parameters``
     lists positional-only and positional-or-keyword names in signature order;
     keyword-only parameters remain available through ``fields``.
@@ -126,7 +126,7 @@ def args_policy(
     namespace_path : str
         Registered namespace alias followed by the exported member path.
     fields : Mapping[str, str]
-        Parameter names mapped to ``expr_str`` or ``global_info``.
+        Parameter names mapped to ``expr_str``.
     scalar_strings : bool, optional
         Whether bare strings in expression fields denote expressions. Defaults to True.
     dtype : object, optional
@@ -159,7 +159,7 @@ def args_policy(
         # Builder: M.Tensor((M.resolve_type_var_("n"),))
     """
     fields = dict(fields)
-    unsupported = set(fields.values()).difference(("expr_str", "global_info"))
+    unsupported = set(fields.values()).difference(("expr_str",))
     if unsupported:
         raise ValueError(f"Unknown argument policies: {sorted(unsupported)}")
 
