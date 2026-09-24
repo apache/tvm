@@ -155,7 +155,7 @@ class TVM_DLL PrinterConfig : public ffi::ObjectRef {
  * \brief The fallback body used by TVM_REGISTER_SCRIPT_AS_REPR (defined in printer.h).
  *
  * Tries to format \p obj via tvm::Script; on error falls back to a plain
- * address string.  Defined in src/script/printer/config.cc so that
+ * address string.  Defined in src/script/printer/script_printer.cc so that
  * <tvm/runtime/logging.h> is not pulled into this public header.
  */
 TVM_DLL std::string RedirectedReprPrinterMethod(const ffi::ObjectRef& obj);

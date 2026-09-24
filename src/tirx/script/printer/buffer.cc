@@ -497,7 +497,7 @@ Doc PrintTileLayout(tirx::TileLayout layout, IRDocsifier d, AccessPath p) {
       keys.push_back("offset");
       values.push_back(DictDoc(offset_keys, offset_values));
     }
-    return TIRx(d, "TileLayout")->Attr("from_iters")->Call({}, keys, values);
+    return TIR(d, "TileLayout")->Attr("from_iters")->Call({}, keys, values);
   }
 
   // Compose `Tx.S[..] [+ Tx.R[..]] [+ offset_expr]`.
@@ -511,10 +511,10 @@ Doc PrintTileLayout(tirx::TileLayout layout, IRDocsifier d, AccessPath p) {
 
   ffi::Optional<ExprDoc> spec;
   if (layout->shard.size() > 0) {
-    add_term(spec, iters_to_index(TIRx(d, "S"), layout->shard));
+    add_term(spec, iters_to_index(TIR(d, "S"), layout->shard));
   }
   if (layout->replica.size() > 0) {
-    add_term(spec, iters_to_index(TIRx(d, "R"), layout->replica));
+    add_term(spec, iters_to_index(TIR(d, "R"), layout->replica));
   }
   if (layout->offset.size() > 0) {
     // Sort by axis name so the printed text is deterministic across builds
@@ -542,7 +542,7 @@ Doc PrintTileLayout(tirx::TileLayout layout, IRDocsifier d, AccessPath p) {
     add_term(spec, off_doc.value());
   }
 
-  return TIRx(d, "TileLayout")->Call({spec.value()}, {}, {});
+  return TIR(d, "TileLayout")->Call({spec.value()}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -568,7 +568,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               kwargs_values.push_back(
                   LiteralDoc::Boolean(layout->swizzle_inner, p->Attr("swizzle_inner")));
             }
-            return TIRx(d, "ComposeLayout")
+            return TIR(d, "ComposeLayout")
                 ->Call({per_element, swizzle_len, atom_len, tile_doc}, kwargs_keys, kwargs_values);
           });
 }
@@ -585,14 +585,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_SCRIPT_REPR(tvm::TensorRegionNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(TensorLoadNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::BufferStoreNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::BufferTypeNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::IterNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::TileLayoutNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::ComposeLayoutNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(s_tir::MatchBufferRegionNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tvm::TensorRegionNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(TensorLoadNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::BufferStoreNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::BufferTypeNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::IterNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::TileLayoutNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::ComposeLayoutNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(s_tir::MatchBufferRegionNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

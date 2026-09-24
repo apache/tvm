@@ -349,10 +349,6 @@ LambdaDoc PrintLambda(const ffi::ObjectRef& pred, const ffi::Array<tirx::Var>& v
                       const AccessPath& vs_p, const PrimExpr& p, const AccessPath& p_p,
                       const IRDocsifier& d);
 
-#ifndef TVM_SCRIPT_REPR
-#define TVM_SCRIPT_REPR(ObjectType, Method) TVM_REGISTER_SCRIPT_AS_REPR(ObjectType, Method)
-#endif
-
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
