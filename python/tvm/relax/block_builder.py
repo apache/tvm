@@ -646,7 +646,7 @@ class BlockBuilder(Object):
         # `bb.function()`, then any variables provided from the params
         # are not in scope.  Otherwise, TIR variables used in dynamic
         # inputs are removed as undefined (e.g. Replacing
-        # `R.Tensor(["batch_size"])` with `R.Tensor(ndims=1)`).
+        # `R.Tensor([batch_size])` with `R.Tensor(ndims=1)`).
         self.begin_scope(self._func._params)
         try:
             seqe = self.normalize(seqe)
