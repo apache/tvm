@@ -210,44 +210,14 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
     if sliding_window:
         global_symbol += "_sliding_window"
 
+    # webgpu: long contexts (picked on the host from the page count) use a sequence-sharded nest
+    use_sharded = target.kind.name == "webgpu" and D % 4 == 0
+    LONG_CONTEXT_PAGES = 256 // page_size
+    sharded_nest = _make_seq_sharded_decode_nest(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_window, rope_scaling, target, page_size) if use_sharded else None
+
     # pylint: disable=too-many-branches
-    @T.prim_func(s_tir=True)
-    def batch_decode_paged_kv(
-        Q_handle: T.handle,
-        pages_handle: T.handle,
-        page_table_indptr_handle: T.handle,
-        page_table_values_handle: T.handle,
-        var_length_info: T.handle, # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset_handle: T.handle,
-        q_rope_position_handle: T.handle,
-        output_handle: T.handle,
-        lse_handle: T.handle,
-        rotary_mode: T.int32,
-        rope_scale: T.float32,
-        rope_theta: T.float32,
-        sm_scale: T.float32,
-    ):
-        T.func_attr({"tirx.is_scheduled": True, "global_symbol": global_symbol})
-        B = T.int32()
-        nnz_pages = T.int32()
-        max_num_pages = T.int32()
-        pages_elem_offset = T.int64()
-        page_indptr_elem_offset = T.int32()
-        page_values_elem_offset = T.int32()
-        k_rope_pos_offset_elem_offset = T.int32()
-        q_rope_position_elem_offset = T.int32()
-        length_info_elem_offset = T.int32()
-
-        Q = T.match_buffer(Q_handle, (B, H_qo, D), qkv_dtype)
-        pages = T.match_buffer(pages_handle, (max_num_pages, 2, H_kv, page_size, D), qkv_dtype, elem_offset=pages_elem_offset)
-        page_table_indptr = T.match_buffer(page_table_indptr_handle, (B + 1,), "int32", elem_offset=page_indptr_elem_offset)
-        page_table_values = T.match_buffer(page_table_values_handle, (nnz_pages,), "int32", elem_offset=page_values_elem_offset)
-        k_rope_pos_offset = T.match_buffer(k_rope_pos_offset_handle, (B,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
-        q_rope_position = T.match_buffer(q_rope_position_handle, (B,), "int32", elem_offset=q_rope_position_elem_offset)
-        output = T.match_buffer(output_handle, (B, H_qo, D), qkv_dtype)
-        lse = T.match_buffer(lse_handle, (B, H_qo), "float32")  # pylint: disable=unused-variable
-        length_info = _declare_length_info(var_length_info, B, sliding_window, length_info_elem_offset)
-
+    @T.macro
+    def tiled_nest(Q, pages, page_table_indptr, page_table_values, length_info, k_rope_pos_offset, q_rope_position, output, lse, B, rotary_mode, rope_scale, rope_theta, sm_scale):
         for bx in T.thread_binding(B, thread="blockIdx.x"):
             for fused_by_bz in T.thread_binding(H_kv * gdz, thread="blockIdx.y"):
                 for ty in T.thread_binding(bdy, thread="threadIdx.y"):
@@ -407,9 +377,221 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
 
                                 # store lse to global memory
                                 lse[batch_idx, by * GROUP_SIZE + bz * bdy + ty] = st_m[0] + T.log2(st_d[0])
+
+    @T.prim_func(s_tir=True)
+    def batch_decode_paged_kv(
+        Q_handle: T.handle,
+        pages_handle: T.handle,
+        page_table_indptr_handle: T.handle,
+        page_table_values_handle: T.handle,
+        var_length_info: T.handle, # [b] when sliding window = False, or otherwise [3, b]
+        k_rope_pos_offset_handle: T.handle,
+        q_rope_position_handle: T.handle,
+        output_handle: T.handle,
+        lse_handle: T.handle,
+        rotary_mode: T.int32,
+        rope_scale: T.float32,
+        rope_theta: T.float32,
+        sm_scale: T.float32,
+    ):
+        T.func_attr({"tirx.is_scheduled": True, "global_symbol": global_symbol})
+        B = T.int32()
+        nnz_pages = T.int32()
+        max_num_pages = T.int32()
+        pages_elem_offset = T.int64()
+        page_indptr_elem_offset = T.int32()
+        page_values_elem_offset = T.int32()
+        k_rope_pos_offset_elem_offset = T.int32()
+        q_rope_position_elem_offset = T.int32()
+        length_info_elem_offset = T.int32()
+
+        Q = T.match_buffer(Q_handle, (B, H_qo, D), qkv_dtype)
+        pages = T.match_buffer(pages_handle, (max_num_pages, 2, H_kv, page_size, D), qkv_dtype, elem_offset=pages_elem_offset)
+        page_table_indptr = T.match_buffer(page_table_indptr_handle, (B + 1,), "int32", elem_offset=page_indptr_elem_offset)
+        page_table_values = T.match_buffer(page_table_values_handle, (nnz_pages,), "int32", elem_offset=page_values_elem_offset)
+        k_rope_pos_offset = T.match_buffer(k_rope_pos_offset_handle, (B,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
+        q_rope_position = T.match_buffer(q_rope_position_handle, (B,), "int32", elem_offset=q_rope_position_elem_offset)
+        output = T.match_buffer(output_handle, (B, H_qo, D), qkv_dtype)
+        lse = T.match_buffer(lse_handle, (B, H_qo), "float32")  # pylint: disable=unused-variable
+        length_info = _declare_length_info(var_length_info, B, sliding_window, length_info_elem_offset)
+
+        if use_sharded:
+            if T.tvm_thread_invariant(nnz_pages > B * LONG_CONTEXT_PAGES):
+                sharded_nest(Q, pages, page_table_indptr, page_table_values, length_info, k_rope_pos_offset, q_rope_position, output, lse, B, rotary_mode, rope_scale, rope_theta, sm_scale)
+            else:
+                tiled_nest(Q, pages, page_table_indptr, page_table_values, length_info, k_rope_pos_offset, q_rope_position, output, lse, B, rotary_mode, rope_scale, rope_theta, sm_scale)
+        else:
+            tiled_nest(Q, pages, page_table_indptr, page_table_values, length_info, k_rope_pos_offset, q_rope_position, output, lse, B, rotary_mode, rope_scale, rope_theta, sm_scale)
     # pylint: enable=too-many-branches
     return batch_decode_paged_kv
 
+
+def _make_seq_sharded_decode_nest(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_window: bool, rope_scaling: dict[str, Any], target: Target, page_size: int = 16):
+    """Build a `@T.macro` decode nest that shards the KV sequence across threads (WebGPU long context)."""
+    H_qo = num_qo_heads
+    H_kv = num_kv_heads
+    D = head_dim
+    GROUP_SIZE = H_qo // H_kv
+    VEC_SIZE = 4
+
+    # a lane keeps 64 dims of q and O in registers; wider heads use several lanes per shard
+    MAX_DIMS_PER_LANE = 64
+    MAX_SHARDS = 128
+    MIN_SHARD_LEN = 8
+    SMEM_BYTES = 16384  # WebGPU default maxComputeWorkgroupStorageSize
+    lanes_per_shard = D // MAX_DIMS_PER_LANE if (D > MAX_DIMS_PER_LANE and D % MAX_DIMS_PER_LANE == 0) else 1
+    dims_per_lane = D // lanes_per_shard
+    vec_per_lane = dims_per_lane // VEC_SIZE
+    gdz = GROUP_SIZE  # one workgroup per query head
+    max_threads = get_max_num_threads_per_block(target)
+    num_shards = 1
+    while num_shards * 2 * lanes_per_shard <= max_threads and num_shards * 2 <= MAX_SHARDS:
+        num_shards *= 2
+    # merge O in chunks so the per-thread workgroup memory (chunk + m, d, two scores) fits
+    chunk = dims_per_lane
+    while chunk > VEC_SIZE and num_shards * lanes_per_shard * (chunk + 4) * 4 > SMEM_BYTES:
+        chunk //= 2
+    chunk_vecs = chunk // VEC_SIZE
+    num_chunks = dims_per_lane // chunk
+    check_thread_limits(target, bdx=num_shards, bdy=lanes_per_shard, bdz=1, gdz=1)
+
+    # pylint: disable=too-many-branches,too-many-statements
+    @T.macro
+    def sharded_nest(Q, pages, page_table_indptr, page_table_values, length_info, k_rope_pos_offset, q_rope_position, output, lse, B, rotary_mode, rope_scale, rope_theta, sm_scale):
+        for bx in T.thread_binding(B, thread="blockIdx.x"):
+            for fused_by_bz in T.thread_binding(H_kv * gdz, thread="blockIdx.y"):
+                for ty in T.thread_binding(lanes_per_shard, thread="threadIdx.y"):
+                    for tx in T.thread_binding(num_shards, thread="threadIdx.x"):
+                        with T.sblock("attn"):
+                            Q_local = T.sblock_alloc_buffer((dims_per_lane,), "float32", scope="local")
+                            O_local = T.sblock_alloc_buffer((dims_per_lane,), "float32", scope="local")
+                            QK_local = T.sblock_alloc_buffer((VEC_SIZE,), "float32", scope="local")
+                            kv_chunk_len = T.sblock_alloc_buffer((1,), "int32", scope="local")
+                            shard_len = T.sblock_alloc_buffer((1,), "int32", scope="local")
+                            num_active = T.sblock_alloc_buffer((1,), "int32", scope="local")
+                            # per-lane partial scores; two buffers so the sync pass emits one barrier per position
+                            score_a = T.sblock_alloc_buffer((num_shards, lanes_per_shard), "float32", scope="shared")
+                            score_b = T.sblock_alloc_buffer((num_shards, lanes_per_shard), "float32", scope="shared")
+                            O_chunk = T.sblock_alloc_buffer((num_shards, lanes_per_shard, chunk), "float32", scope="shared")
+                            md_shards = T.sblock_alloc_buffer((num_shards, 2), "float32", scope="shared")
+                            acc = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                            own_m = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                            weight = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                            s_acc = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                            st_m = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                            st_d = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                            m_prev = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                            exp_mprev = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                            exp_otherm = T.sblock_alloc_buffer((1,), "float32", scope="local")
+
+                            by: T.let[T.int32] = fused_by_bz % H_kv
+                            bz: T.let[T.int32] = fused_by_bz // H_kv
+                            batch_idx: T.let[T.int32] = bx
+                            q_head: T.let[T.int32] = by * GROUP_SIZE + bz
+                            cur_page_indptr_begin: T.let[T.int32] = page_table_indptr[batch_idx]
+                            cur_page_indptr_end: T.let[T.int32] = page_table_indptr[batch_idx + 1]
+                            kv_chunk_len[0] = T.if_then_else(
+                                cur_page_indptr_begin != cur_page_indptr_end,
+                                _get_kv_chunk_len(cur_page_indptr_end - cur_page_indptr_begin, page_size, batch_idx, length_info, sliding_window),
+                                0
+                            )
+                            shard_len[0] = T.max(T.ceildiv(kv_chunk_len[0], num_shards), MIN_SHARD_LEN)
+                            num_active[0] = T.ceildiv(kv_chunk_len[0], shard_len[0])
+
+                            # init states; load q (idle shards beyond the context only join the syncs)
+                            st_m[0] = -5e4
+                            st_d[0] = 1.0
+                            for lane in T.serial(vec_per_lane):
+                                for vec in T.vectorized(VEC_SIZE):
+                                    O_local[lane * VEC_SIZE + vec] = 0.0
+                            if tx < num_active[0]:
+                                for lane in T.serial(vec_per_lane):
+                                    for vec in T.vectorized(VEC_SIZE):
+                                        Q_local[lane * VEC_SIZE + vec] = T.cast(T.if_then_else(
+                                            rotary_mode == 1,
+                                            _rope(Q, q_rope_position[batch_idx], head_dim, rope_theta, rope_scale, (bx, q_head, ty * dims_per_lane + lane * VEC_SIZE + vec), qkv_dtype, rope_scaling),
+                                            Q[bx, q_head, ty * dims_per_lane + lane * VEC_SIZE + vec]
+                                        ), "float32")
+
+                            # shard tx owns rows [tx * shard_len, (tx + 1) * shard_len); the loop is
+                            # uniform across threads, invalid rows score 0 and skip the update
+                            for it2 in T.serial(T.ceildiv(shard_len[0], 2)):
+                                for half in T.unroll(2):
+                                    row_g: T.let[T.int32()] = tx * shard_len[0] + it2 * 2 + half  # type: ignore
+                                    row_c: T.let[T.int32()] = T.max(T.min(row_g, kv_chunk_len[0] - 1), 0)  # type: ignore
+                                    seq_offset: T.let[T.int32()] = _get_seq_offset(row_c, batch_idx, length_info, sliding_window)  # type: ignore
+                                    page_no: T.let[T.int32()] = page_table_values[cur_page_indptr_begin + T.floordiv(seq_offset, page_size)]  # type: ignore
+                                    page_offset: T.let[T.int32()] = T.floormod(seq_offset, page_size)  # type: ignore
+                                    # an odd shard_len's extra row belongs to the next shard
+                                    valid: T.let[T.bool] = T.And(it2 * 2 + half < shard_len[0], row_g < kv_chunk_len[0])  # type: ignore
+                                    for vec in T.vectorized(VEC_SIZE):
+                                        QK_local[vec] = 0.0
+                                    if valid:
+                                        if rotary_mode == 1:
+                                            for lane in T.serial(vec_per_lane):
+                                                for vec in T.vectorized(VEC_SIZE):
+                                                    QK_local[vec] += Q_local[lane * VEC_SIZE + vec] * T.cast(_rope(pages, k_rope_pos_offset[batch_idx] + row_g, head_dim, rope_theta, rope_scale, (page_no, 0, by, page_offset, ty * dims_per_lane + lane * VEC_SIZE + vec), qkv_dtype, rope_scaling), "float32")
+                                        else:
+                                            for lane in T.serial(vec_per_lane):
+                                                for vec in T.vectorized(VEC_SIZE):
+                                                    QK_local[vec] += Q_local[lane * VEC_SIZE + vec] * T.cast(pages[page_no, 0, by, page_offset, ty * dims_per_lane + lane * VEC_SIZE + vec], "float32")
+                                    s_acc[0] = 0.0
+                                    for vec in T.unroll(VEC_SIZE):
+                                        s_acc[0] += QK_local[vec]
+                                    if half == 0:
+                                        score_a[tx, ty] = s_acc[0]
+                                    else:
+                                        score_b[tx, ty] = s_acc[0]
+                                    T.tvm_storage_sync("shared")
+                                    s_acc[0] = 0.0
+                                    for lane_i in T.unroll(lanes_per_shard):
+                                        if half == 0:
+                                            s_acc[0] += score_a[tx, lane_i]
+                                        else:
+                                            s_acc[0] += score_b[tx, lane_i]
+                                    if valid:
+                                        # online softmax update; (m, d) is identical on every lane
+                                        s_acc[0] = s_acc[0] * sm_scale * math.log2(math.exp(1))
+                                        m_prev[0] = st_m[0]
+                                        st_m[0] = T.max(st_m[0], s_acc[0])
+                                        exp_mprev[0] = T.exp2(m_prev[0] - st_m[0])
+                                        exp_otherm[0] = T.exp2(s_acc[0] - st_m[0])
+                                        st_d[0] = st_d[0] * exp_mprev[0] + exp_otherm[0]
+                                        for lane in T.serial(vec_per_lane):
+                                            for vec in T.vectorized(VEC_SIZE):
+                                                O_local[lane * VEC_SIZE + vec] = O_local[lane * VEC_SIZE + vec] * exp_mprev[0] + T.cast(pages[page_no, 1, by, page_offset, ty * dims_per_lane + lane * VEC_SIZE + vec], "float32") * exp_otherm[0]
+
+                            # merge (m, d) across shards
+                            if ty == 0:
+                                md_shards[tx, 0] = st_m[0]
+                                md_shards[tx, 1] = st_d[0]
+                            own_m[0] = st_m[0]
+                            T.tvm_storage_sync("shared")
+                            st_m[0] = -5e4
+                            st_d[0] = 1.0
+                            for j in T.serial(num_active[0]):
+                                m_prev[0] = st_m[0]
+                                st_m[0] = T.max(st_m[0], md_shards[j, 0])
+                                st_d[0] = st_d[0] * T.exp2(m_prev[0] - st_m[0]) + md_shards[j, 1] * T.exp2(md_shards[j, 0] - st_m[0])
+                            weight[0] = T.exp2(own_m[0] - st_m[0]) / st_d[0]
+
+                            # merge O in chunks: thread (tx < chunk, ty) sums one dim over the shards
+                            for c in T.serial(num_chunks):
+                                if tx < num_active[0]:
+                                    for lane in T.serial(chunk_vecs):
+                                        for vec in T.vectorized(VEC_SIZE):
+                                            O_chunk[tx, ty, lane * VEC_SIZE + vec] = O_local[c * chunk + lane * VEC_SIZE + vec] * weight[0]
+                                T.tvm_storage_sync("shared")
+                                if tx < chunk:
+                                    acc[0] = 0.0
+                                    for j in T.serial(num_active[0]):
+                                        acc[0] += O_chunk[j, ty, tx]
+                                    output[batch_idx, q_head, ty * dims_per_lane + c * chunk + tx] = T.cast(acc[0], qkv_dtype)
+                                T.tvm_storage_sync("shared")
+                            if tx == 0 and ty == 0:
+                                lse[batch_idx, q_head] = st_m[0] + T.log2(st_d[0])
+    # pylint: enable=too-many-branches,too-many-statements
+    return sharded_nest
 
 def _merge_state_inplace_cpu(v_dtype):
     @T.prim_func(s_tir=True)

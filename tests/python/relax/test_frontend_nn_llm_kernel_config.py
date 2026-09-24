@@ -15,10 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import re
+
 import pytest
 
 import tvm
 import tvm.testing
+from tvm.relax.frontend.nn.llm._decode_kernels import _attention_decode
 from tvm.relax.frontend.nn.llm._kernel_common import (
     _get_prefill_kernel_config,
     _get_prefill_shared_memory_usage,
@@ -238,6 +241,46 @@ def test_wide_head_tree_attention_has_legal_metal_schedule(kernel):
     assert func.attrs["tirx.is_scheduled"]
     assert _get_allocated_shared_memory(func) == 24_928
     assert 24_928 <= int(target.attrs["max_shared_memory_per_block"])
+
+
+def _webgpu_kernels(func, target):
+    lib = tvm.compile(tvm.IRModule({"main": func}), target=target)
+    wgsl = lib.mod.imports[0].inspect_source("wgsl")
+    return [k for k in re.split(r"(?=// Function: )", wgsl) if "@compute" in k]
+
+
+def _workgroup_size(kernel):
+    return re.search(r"@workgroup_size\(([^)]*)\)", kernel).group(1)
+
+
+@pytest.mark.parametrize("sliding_window", [False, True])
+def test_webgpu_decode_attention_dispatches_on_context_length(sliding_window):
+    target = tvm.target.Target("webgpu", host="llvm")
+    func = _attention_decode(8, 32, 64, "float16", sliding_window, {}, target)
+    kernels = _webgpu_kernels(func, target)
+    # sharded nest (one workgroup per query head, 128 shards), then the tiled nest unchanged
+    assert [_workgroup_size(k) for k in kernels] == ["128, 1, 1", "16, 4, 4"]
+    assert kernels[0].count("workgroupBarrier") < kernels[1].count("workgroupBarrier")
+
+
+@pytest.mark.parametrize(
+    "head_dim, size", [(128, "128, 2, 1"), (256, "64, 4, 1"), (96, "128, 1, 1")]
+)
+def test_webgpu_decode_attention_lanes_follow_head_dim(head_dim, size):
+    target = tvm.target.Target("webgpu", host="llvm")
+    func = _attention_decode(4, 8, head_dim, "float16", False, {}, target)
+    kernel = _webgpu_kernels(func, target)[0]
+    assert _workgroup_size(kernel) == size
+    smem = sum(
+        int(n) * 4 for n in re.findall(r"var<workgroup>\s+\w+\s*:\s*array<f32,\s*(\d+)>", kernel)
+    )
+    assert smem <= 16384
+
+
+@pytest.mark.parametrize("kind", ["cuda", "metal"])
+def test_decode_attention_unchanged_off_webgpu(kind):
+    func = _attention_decode(8, 32, 64, "float16", False, {}, tvm.target.Target(kind))
+    assert "tvm_thread_invariant" not in func.script()
 
 
 if __name__ == "__main__":
