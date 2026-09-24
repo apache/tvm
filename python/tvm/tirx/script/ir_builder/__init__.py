@@ -98,9 +98,7 @@ is_type_var = _ir.is_prim_var
 
 @_result_span("T.Buffer")
 @_mutable_cell_decl("T.Buffer", syntax="parameter")
-@_annotation_constructor(
-    "shape", "strides", "elem_offset", "byte_offset", "allocated_addr", as_type=True
-)
+@_annotation_constructor
 def Buffer(
     shape,
     dtype="float32",

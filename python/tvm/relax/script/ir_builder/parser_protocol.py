@@ -374,7 +374,7 @@ def func_name(name: str) -> None:
 
 def func_ret_type(annotation: Any, *, span: _Span = None) -> None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.func_ret_type`."""
-    return _native.func_ret_type(_builder._type(_base._return_annotation(annotation)))
+    return _native.func_ret_type(_builder._type(annotation))
 
 
 def check_well_formed_(function: _relax.Function) -> None:
