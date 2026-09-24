@@ -271,6 +271,9 @@ raise, including when an unrelated builder is active. Concrete metadata objects 
 When defining Python functions before their module builder opens, quote the whole annotation
 or use ``from __future__ import annotations``; the parser reconstructs these annotations inside
 the module. Printed module function signatures containing selectors request postponed annotations.
+Eager printed class assignments, such as typed ``R.ExternFunc`` declarations, retrieve concrete
+virtual devices with ``R.lookup_vdevice`` because postponed annotations do not defer assignment
+values. This explicit lookup preserves the module metadata object before tensor construction.
 
 During rewriting, each needed source range becomes a fixed native span entry in an
 injected table. ``_S[i](value)`` attaches that location while preserving identity;
