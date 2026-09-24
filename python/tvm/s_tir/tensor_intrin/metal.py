@@ -53,9 +53,11 @@ def get_make_filled_simdgroup_matrix_intrin(
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     A[vi, vj] = T.float32(0)
 
+    d0 = T.dynamic("d0", "int32")
+    d1 = T.dynamic("d1", "int32")
+
     @Ts.prim_func
     def impl(a: T.handle) -> None:
-        d0, d1 = T.int32(), T.int32()
         A = T.match_buffer(
             a, (col, row), dtype, scope="metal.simdgroup", strides=[d1, d0], offset_factor=1
         )
@@ -100,9 +102,13 @@ def get_simdgroup_load_intrin(
                     else:
                         C[vii, vjj] = A[vii, vjj]
 
+    s0 = T.dynamic("s0", "int32")
+    s1 = T.dynamic("s1", "int32")
+    d0 = T.dynamic("d0", "int32")
+    d1 = T.dynamic("d1", "int32")
+
     @Ts.prim_func
     def impl(a: T.handle, c: T.handle) -> None:
-        s0, s1, d0, d1 = T.int32(), T.int32(), T.int32(), T.int32()
         A = T.match_buffer(
             a,
             (col, row),
@@ -163,9 +169,13 @@ def get_simdgroup_store_intrin(
                     else:
                         C[vii, vjj] = A[vii, vjj]
 
+    s0 = T.dynamic("s0", "int32")
+    s1 = T.dynamic("s1", "int32")
+    d0 = T.dynamic("d0", "int32")
+    d1 = T.dynamic("d1", "int32")
+
     @Ts.prim_func
     def impl(a: T.handle, c: T.handle) -> None:
-        s0, s1, d0, d1 = T.int32(), T.int32(), T.int32(), T.int32()
         A = T.match_buffer(
             a,
             (col, row),
@@ -210,9 +220,15 @@ def get_simdgroup_multiply_accumulate_intrin(
                     vii, vjj, vkk = Ts.axis.remap("SSR", [i, j, k])
                     C[vii, vjj] += A[vii, vkk] * B[vkk, vjj]
 
+    a0 = T.dynamic("a0", "int32")
+    a1 = T.dynamic("a1", "int32")
+    b0 = T.dynamic("b0", "int32")
+    b1 = T.dynamic("b1", "int32")
+    c0 = T.dynamic("c0", "int32")
+    c1 = T.dynamic("c1", "int32")
+
     @Ts.prim_func
     def impl(a: T.handle, b: T.handle, c: T.handle) -> None:
-        a0, a1, b0, b1, c0, c1 = T.int32(), T.int32(), T.int32(), T.int32(), T.int32(), T.int32()
         A = T.match_buffer(
             a, (m_dim, k_dim), dtype, scope="metal.simdgroup", strides=[a1, a0], offset_factor=1
         )

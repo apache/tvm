@@ -172,17 +172,20 @@ def test_alias_split():
 
 def test_alias_call_tir():
     # call TIR can yield either a single tensor or a tuple
+    m_tir_id = T.dynamic("m", "int32")
+    n_tir_id = T.dynamic("n", "int32")
+    m_tir_id2 = T.dynamic("m", "int32")
+    n_tir_id2 = T.dynamic("n", "int32")
+
     @I.ir_module
     class AliasCallTir:
         @Ts.prim_func
         def tir_id(x: T.handle, y: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_id"})
-            m = T.int32()
-            n = T.int32()
-            A = T.match_buffer(x, (m, n), "int32")
-            B = T.match_buffer(y, (m, n), "int32")
+            A = T.match_buffer(x, (m_tir_id, n_tir_id), "int32")
+            B = T.match_buffer(y, (m_tir_id, n_tir_id), "int32")
 
-            for i, j in T.grid(m, n):
+            for i, j in T.grid(m_tir_id, n_tir_id):
                 with Ts.sblock("id"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj]
@@ -190,13 +193,11 @@ def test_alias_call_tir():
         @Ts.prim_func
         def tir_id2(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_id"})
-            m = T.int32()
-            n = T.int32()
-            A = T.match_buffer(x, (m, n), "int32")
-            B = T.match_buffer(y, (m, n), "int32")
-            C = T.match_buffer(z, (m, n), "int32")
+            A = T.match_buffer(x, (m_tir_id2, n_tir_id2), "int32")
+            B = T.match_buffer(y, (m_tir_id2, n_tir_id2), "int32")
+            C = T.match_buffer(z, (m_tir_id2, n_tir_id2), "int32")
 
-            for i, j in T.grid(m, n):
+            for i, j in T.grid(m_tir_id2, n_tir_id2):
                 with Ts.sblock("id"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj]
@@ -545,12 +546,15 @@ def test_insert_inplace_calls():
 
 
 def test_dynamic():
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+
     @I.ir_module
     class DynamicTestCase:
         @R.function
         def main(
-            x: R.Tensor(("a", "b"), dtype="float32"), y: R.Tensor(("a", "b"), dtype="float32")
-        ) -> R.Tensor(("a", "b"), dtype="float32"):
+            x: R.Tensor((a, b), dtype="float32"), y: R.Tensor((a, b), dtype="float32")
+        ) -> R.Tensor((a, b), dtype="float32"):
             with R.dataflow():
                 z = R.add(x, y)
                 # Cannot be done in-place because x and y are arguments
@@ -563,15 +567,21 @@ def test_dynamic():
     transform_pass = DataflowUseInplaceCalls()
     new_mod = transform_pass(DynamicTestCase)
 
+    a_add_inplace = T.dynamic("a")
+    b_add_inplace = T.dynamic("b")
+    a_subtract_inplace = T.dynamic("a")
+    b_subtract_inplace = T.dynamic("b")
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def add_inplace(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
-            a, b = T.int64(), T.int64()
-            A = T.match_buffer(var_A, (a, b))
-            B = T.match_buffer(var_B, (a, b))
-            for ax0, ax1 in T.grid(a, b):
+            A = T.match_buffer(var_A, (a_add_inplace, b_add_inplace))
+            B = T.match_buffer(var_B, (a_add_inplace, b_add_inplace))
+            for ax0, ax1 in T.grid(a_add_inplace, b_add_inplace):
                 with Ts.sblock("T_add"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
                     Ts.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
@@ -581,10 +591,9 @@ def test_dynamic():
         @Ts.prim_func(private=True)
         def subtract_inplace(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
-            a, b = T.int64(), T.int64()
-            A = T.match_buffer(var_A, (a, b))
-            B = T.match_buffer(var_B, (a, b))
-            for ax0, ax1 in T.grid(a, b):
+            A = T.match_buffer(var_A, (a_subtract_inplace, b_subtract_inplace))
+            B = T.match_buffer(var_B, (a_subtract_inplace, b_subtract_inplace))
+            for ax0, ax1 in T.grid(a_subtract_inplace, b_subtract_inplace):
                 with Ts.sblock("T_subtract"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
                     Ts.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
@@ -593,23 +602,22 @@ def test_dynamic():
 
         @R.function
         def main(
-            x: R.Tensor(("a", "b"), dtype="float32"), y: R.Tensor(("a", "b"), dtype="float32")
-        ) -> R.Tensor(("a", "b"), dtype="float32"):
-            a = T.int64()
-            b = T.int64()
+            x: R.Tensor((a_main, b_main), dtype="float32"),
+            y: R.Tensor((a_main, b_main), dtype="float32"),
+        ) -> R.Tensor((a_main, b_main), dtype="float32"):
             cls = Expected
             with R.dataflow():
                 z = R.add(x, y)
                 a_1 = R.call_tir_inplace(
                     cls.add_inplace,
                     (z, y),
-                    out_ty=R.Tensor((a, b), dtype="float32"),
+                    out_ty=R.Tensor((a_main, b_main), dtype="float32"),
                     inplace_indices=[0],
                 )
                 s = R.call_tir_inplace(
                     cls.subtract_inplace,
                     (a_1, a_1),
-                    out_ty=R.Tensor((a, b), dtype="float32"),
+                    out_ty=R.Tensor((a_main, b_main), dtype="float32"),
                     inplace_indices=[1],
                 )
                 R.output(s)
@@ -629,12 +637,15 @@ def test_dynamic():
 
 def test_dynamic_mismatch():
     # cannot statically prove the shapes to be equal so the module should be unchanged
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @I.ir_module
     class DynamicMistmatchTestCase:
         @R.function
-        def main(
-            x: R.Tensor(("a", "b"), dtype="float32"), y: R.Tensor(("c", "d"), dtype="float32")
-        ):
+        def main(x: R.Tensor((a, b), dtype="float32"), y: R.Tensor((c, d), dtype="float32")):
             with R.dataflow():
                 z = R.add(x, y)
                 # Cannot be done in-place because x and y are arguments

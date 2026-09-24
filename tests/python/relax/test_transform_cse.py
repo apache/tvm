@@ -493,6 +493,11 @@ def test_match_cast():
 
 
 def test_match_cast_with_symbolic_vars():
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+    p = T.dynamic("p")
+    q = T.dynamic("q")
+
     @I.ir_module
     class Before:
         @R.function
@@ -500,18 +505,19 @@ def test_match_cast_with_symbolic_vars():
             with R.dataflow():
                 A1 = R.add(x, y)
 
-                n = T.int64()
-                m = T.int64()
                 B1 = R.match_cast(A1, R.Tensor([n, m], "float32"))
 
                 A2 = R.add(x, y)
-                p = T.int64()
-                q = T.int64()
                 B2 = R.match_cast(A2, R.Tensor([p, q], "float32"))
 
                 gv = R.multiply(B1, B2)
                 R.output(gv)
             return gv
+
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+    p = T.dynamic("p")
+    q = T.dynamic("q")
 
     @I.ir_module
     class Expected:
@@ -519,13 +525,9 @@ def test_match_cast_with_symbolic_vars():
         def foo(x: R.Tensor(dtype="float32"), y: R.Tensor(dtype="float32")):
             with R.dataflow():
                 A1 = R.add(x, y)
-                n = T.int64()
-                m = T.int64()
                 B1 = R.match_cast(A1, R.Tensor([n, m], "float32"))
 
                 A2 = A1
-                p = T.int64()
-                q = T.int64()
                 B2 = R.match_cast(A1, R.Tensor([p, q], "float32"))
 
                 gv = R.multiply(B1, B2)

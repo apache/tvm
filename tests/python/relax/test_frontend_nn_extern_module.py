@@ -86,6 +86,10 @@ def _check_ir_equality(mod):
 
     # pylint: enable=import-outside-toplevel
 
+    x = T.dynamic("x")
+    y = T.dynamic("y")
+    z = T.dynamic("z")
+
     @I.ir_module
     class ExpectedModule:
         @R.function
@@ -103,11 +107,8 @@ def _check_ir_equality(mod):
 
         @R.function
         def test_sym(
-            a: R.Tensor(("x", "y", 1), dtype="float32"), b: R.Tensor(("y", "z", 5), dtype="float32")
-        ) -> R.Tensor(("x", "y", "z", 9), dtype="float32"):
-            x = T.int64()
-            y = T.int64()
-            z = T.int64()
+            a: R.Tensor((x, y, 1), dtype="float32"), b: R.Tensor((y, z, 5), dtype="float32")
+        ) -> R.Tensor((x, y, z, 9), dtype="float32"):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 ext_test_sym = R.call_dps_packed(

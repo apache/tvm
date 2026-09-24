@@ -755,11 +755,14 @@ def test_collect_symbolic_var_from_non_tensor_params(param_type, param_order):
 
 
 def test_collect_nonnegative_expressions():
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @R.function
     def func(
-        A: R.Tensor([1024, "M", "N-2"]),
-        B: R.Tensor([128, "N", "M+2"]),
-        C: R.Shape(["M", "N"]),
+        A: R.Tensor([1024, M, N - 2]),
+        B: R.Tensor([128, N, M + 2]),
+        C: R.Shape([M, N]),
         D: T.int64,
     ):
         return R.tuple()

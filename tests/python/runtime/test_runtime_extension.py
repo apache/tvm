@@ -23,11 +23,12 @@ from tvm.script import tirx as T
 
 
 def test_dltensor_compatible():
+    n = T.dynamic("n", "int32")
+
     @I.ir_module
     class Module:
         @Ts.prim_func
         def arange(A: T.handle):
-            n = T.int32()
             Ab = T.match_buffer(A, (n,), "int64")
             for i in T.serial(n - 1):
                 Ab[i + 1] = Ab[i] + T.int64(1)

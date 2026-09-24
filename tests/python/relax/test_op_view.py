@@ -123,15 +123,17 @@ def test_error_if_static_2d_view_larger_than_source():
 
 
 def test_infer_shape_of_1d_dynamic_view():
+    N = T.dynamic("N")
+
     @R.function(private=True)
-    def explicit_ty(A: R.Tensor(["N"])) -> R.Tensor(["N // 2"]):
-        N = T.int64()
+    def explicit_ty(A: R.Tensor([N])) -> R.Tensor([N // 2]):
         B: R.Tensor([N // 2]) = R.memory.view(A, R.shape([N // 2]))
         return B
 
+    N = T.dynamic("N")
+
     @R.function(private=True)
-    def inferred_ty(A: R.Tensor(["N"])):
-        N = T.int64()
+    def inferred_ty(A: R.Tensor([N])):
         B = R.memory.view(A, R.shape([N // 2]))
         return B
 
@@ -139,15 +141,17 @@ def test_infer_shape_of_1d_dynamic_view():
 
 
 def test_infer_shape_of_2d_dynamic_view_of_1d_source():
+    N = T.dynamic("N")
+
     @R.function(private=True)
-    def explicit_ty(A: R.Tensor(["N"])) -> R.Tensor(["N // 8", 8]):
-        N = T.int64()
+    def explicit_ty(A: R.Tensor([N])) -> R.Tensor([N // 8, 8]):
         B: R.Tensor([N // 8, 8]) = R.memory.view(A, R.shape([N // 8, 8]))
         return B
 
+    N = T.dynamic("N")
+
     @R.function(private=True)
-    def inferred_ty(A: R.Tensor(["N"])):
-        N = T.int64()
+    def inferred_ty(A: R.Tensor([N])):
         B = R.memory.view(A, R.shape([N // 8, 8]))
         return B
 
@@ -155,15 +159,17 @@ def test_infer_shape_of_2d_dynamic_view_of_1d_source():
 
 
 def test_infer_shape_of_2d_dynamic_view():
+    N = T.dynamic("N")
+
     @R.function(private=True)
-    def explicit_ty(A: R.Tensor(["N"])) -> R.Tensor(["N // 2"]):
-        N = T.int64()
+    def explicit_ty(A: R.Tensor([N])) -> R.Tensor([N // 2]):
         B: R.Tensor([N // 2]) = R.memory.view(A, R.shape([N // 2]))
         return B
 
+    N = T.dynamic("N")
+
     @R.function(private=True)
-    def inferred_ty(A: R.Tensor(["N"])):
-        N = T.int64()
+    def inferred_ty(A: R.Tensor([N])):
         B = R.memory.view(A, R.shape([N // 2]))
         return B
 
@@ -172,30 +178,30 @@ def test_infer_shape_of_2d_dynamic_view():
 
 def test_error_if_1d_dynamic_view_larger_than_1d_source():
     with pytest.raises(ValueError):
+        N = T.dynamic("N")
 
         @R.function
-        def func(A: R.Tensor(["N"])):
-            N = T.int64()
+        def func(A: R.Tensor([N])):
             B = R.memory.view(A, R.shape([N + 1]))
             return B
 
 
 def test_error_if_1d_dynamic_view_provably_larger_than_1d_source():
     with pytest.raises(ValueError):
+        N = T.dynamic("N")
 
         @R.function
-        def func(A: R.Tensor(["N"])):
-            N = T.int64()
+        def func(A: R.Tensor([N])):
             B = R.memory.view(A, R.shape([N + T.if_then_else(N < 0, -1, 1)]))
             return B
 
 
 def test_error_if_2d_dynamic_view_provably_larger_than_1d_source():
     with pytest.raises(ValueError):
+        N = T.dynamic("N")
 
         @R.function
-        def func(A: R.Tensor(["N"])):
-            N = T.int64()
+        def func(A: R.Tensor([N])):
             B = R.memory.view(A, R.shape([N // 4 + 1, 4]))
             return B
 
@@ -215,9 +221,10 @@ def test_validity_of_dynamic_view_may_depend_on_runtime_value():
 
     """
 
+    N = T.dynamic("N")
+
     @R.function
-    def func(A: R.Tensor(["N"])):
-        N = T.int64()
+    def func(A: R.Tensor([N])):
         B = R.memory.view(A, R.shape([(N + 3) // 4, 4]))
         return B
 

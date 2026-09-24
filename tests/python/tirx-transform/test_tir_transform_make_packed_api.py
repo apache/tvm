@@ -447,12 +447,13 @@ def test_forward_reference_symbolic_variable():
     ensures all variable definitions precede all assertions.
     """
 
+    batch_size = T.dynamic("batch_size")
+
     @I.ir_module
     class Before:
         @T.prim_func
         def main(a: T.handle, b: T.handle):
             T.func_attr({"target": T.target("llvm", host="llvm")})
-            batch_size = T.int64()
             A = T.match_buffer(a, (batch_size + 1,), "int32")
             B = T.match_buffer(b, (batch_size,), "int32")
             for i in range(batch_size):

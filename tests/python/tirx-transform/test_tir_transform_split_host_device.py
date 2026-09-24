@@ -327,12 +327,13 @@ def test_dynamic_launch_thread():
 
 
 def test_symbolic_var_parameter():
+    m = T.dynamic("m")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"target": T.target("cuda")})
-            m = T.int64()
             A = T.match_buffer(var_A, (m,))
             B = T.match_buffer(var_B, (m,))
             T.attr(T.target("cuda"), "target", 0)

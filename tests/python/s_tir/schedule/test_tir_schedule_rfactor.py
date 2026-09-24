@@ -1000,6 +1000,9 @@ def argmax_split_body_bufferstore_value_not_var(
 
 
 # v_unbound is unbound
+v_unbound = T.dynamic("v_unbound", "int32")
+
+
 @Ts.prim_func(check_well_formed=False)
 def argmax_split_body_bufferstore_value_unbound_var(
     idx: T.Buffer((128, 128), "int32"),
@@ -1007,7 +1010,6 @@ def argmax_split_body_bufferstore_value_unbound_var(
     argmax_v0: T.Buffer((128,), "int32"),
     argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
-    v_unbound = T.int32()
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with Ts.sblock("argmax"):
             i = Ts.axis.spatial(128, i0)

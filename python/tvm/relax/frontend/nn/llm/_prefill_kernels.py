@@ -69,6 +69,17 @@ def _attention_prefill_cpu(
     group_size = h_q // h_kv
 
     # pylint: disable=too-many-branches
+    batch_size = T.dynamic("batch_size", "int32")
+    total_len = T.dynamic("total_len", "int32")
+    nnz_pages = T.dynamic("nnz_pages", "int32")
+    max_num_pages = T.dynamic("max_num_pages", "int32")
+    q_indptr_elem_offset = T.dynamic("q_indptr_elem_offset", "int32")
+    page_indptr_elem_offset = T.dynamic("page_indptr_elem_offset", "int32")
+    page_values_elem_offset = T.dynamic("page_values_elem_offset", "int32")
+    k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
+    q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
+    length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
+
     @Ts.prim_func
     def batch_prefill_paged_kv_cpu(
         var_q: T.handle, # [total_len, h_q, d]
@@ -88,16 +99,6 @@ def _attention_prefill_cpu(
         sm_scale: T.float32,
     ):
         T.func_attr({"global_symbol": global_symbol})
-        batch_size = T.int32()
-        total_len = T.int32()
-        nnz_pages = T.int32()
-        max_num_pages = T.int32()
-        q_indptr_elem_offset = T.int32()
-        page_indptr_elem_offset = T.int32()
-        page_values_elem_offset = T.int32()
-        k_rope_pos_offset_elem_offset = T.int32()
-        q_rope_position_elem_offset = T.int32()
-        length_info_elem_offset = T.int32()
 
         q = T.match_buffer(var_q, (total_len, h_q, d), dtype)
         q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
@@ -235,6 +236,18 @@ def _attention_prefill(
     init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, _, advance_tile_batch, paged_store_output_lse, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, tile_y, bdx, num_warps, group_size)
 
     # pylint: disable=too-many-branches
+    batch_size = T.dynamic("batch_size", "int32")
+    total_len = T.dynamic("total_len", "int32")
+    nnz_pages = T.dynamic("nnz_pages", "int32")
+    max_num_pages = T.dynamic("max_num_pages", "int32")
+    pages_elem_offset = T.dynamic("pages_elem_offset")
+    q_indptr_elem_offset = T.dynamic("q_indptr_elem_offset", "int32")
+    page_indptr_elem_offset = T.dynamic("page_indptr_elem_offset", "int32")
+    page_values_elem_offset = T.dynamic("page_values_elem_offset", "int32")
+    k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
+    q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
+    length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
+
     @Ts.prim_func
     def batch_prefill_paged_kv(
         var_q: T.handle, # [total_len, h_q, d]
@@ -254,17 +267,6 @@ def _attention_prefill(
         sm_scale: T.float32,
     ):
         T.func_attr({"global_symbol": global_symbol})
-        batch_size = T.int32()
-        total_len = T.int32()
-        nnz_pages = T.int32()
-        max_num_pages = T.int32()
-        pages_elem_offset = T.int64()
-        q_indptr_elem_offset = T.int32()
-        page_indptr_elem_offset = T.int32()
-        page_values_elem_offset = T.int32()
-        k_rope_pos_offset_elem_offset = T.int32()
-        q_rope_position_elem_offset = T.int32()
-        length_info_elem_offset = T.int32()
 
         q = T.match_buffer(var_q, (total_len, h_q, d), dtype)
         q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
@@ -397,6 +399,10 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
     _, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d, dtype, target)
     init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, tile_y, bdx, num_warps, group_size)
 
+    batch_size = T.dynamic("batch_size", "int32")
+    qo_len = T.dynamic("qo_len", "int32")
+    kv_len = T.dynamic("kv_len", "int32")
+
     @Ts.prim_func
     def batch_sequence_prefill_kv(  # pylint: disable=too-many-branches
         var_q: T.handle, # [total_len, h_q, d]
@@ -405,9 +411,6 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
         var_output: T.handle, # [total_len, h_q, d]
         var_lse: T.handle # [total_len, h_q]
     ):
-        batch_size = T.int32()
-        qo_len = T.int32()
-        kv_len = T.int32()
         q = T.match_buffer(var_q, (batch_size, qo_len, h_q, d), dtype)
         k = T.match_buffer(var_k, (batch_size, kv_len, h_kv, d), dtype)
         v = T.match_buffer(var_v, (batch_size, kv_len, h_kv, d), dtype)
@@ -564,6 +567,10 @@ def _attention_sequence_prefill_with_mask(
         pad = kv_len - valid_len
         return tirx.And(col < kv_len, col >= pad)
 
+    batch_size = T.dynamic("batch_size", "int32")
+    qo_len = T.dynamic("qo_len", "int32")
+    kv_len = T.dynamic("kv_len", "int32")
+
     @Ts.prim_func
     def batch_sequence_prefill_kv_masked(  # pylint: disable=too-many-branches
         var_q: T.handle, # [batch_size, qo_len, h_q, d]
@@ -573,9 +580,6 @@ def _attention_sequence_prefill_with_mask(
         var_output: T.handle, # [batch_size, qo_len, h_q, d]
         var_lse: T.handle # [batch_size, qo_len, h_q]
     ):
-        batch_size = T.int32()
-        qo_len = T.int32()
-        kv_len = T.int32()
         q = T.match_buffer(var_q, (batch_size, qo_len, h_q, d), dtype)
         k = T.match_buffer(var_k, (batch_size, kv_len, h_kv, d), dtype)
         v = T.match_buffer(var_v, (batch_size, kv_len, h_kv, d), dtype)
@@ -678,6 +682,14 @@ def _attention_sequence_prefill_with_mask(
 def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[str, Any]):
     group_size = h_q // h_kv
 
+    batch_size = T.dynamic("batch_size", "int32")
+    qo_len = T.dynamic("qo_len", "int32")
+    kv_len = T.dynamic("kv_len", "int32")
+    q_indptr_elem_offset = T.dynamic("q_indptr_elem_offset", "int32")
+    kv_indptr_elem_offset = T.dynamic("kv_indptr_elem_offset", "int32")
+    q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
+    k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
+
     @Ts.prim_func
     def batch_prefill_ragged_kv(  # pylint: disable=too-many-branches
         var_q: T.handle,  # [total_len, h_q, d_qk]
@@ -695,13 +707,6 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
         rope_theta: T.float32,
         sm_scale: T.float32,
     ):
-        batch_size = T.int32()
-        qo_len = T.int32()
-        kv_len = T.int32()
-        q_indptr_elem_offset = T.int32()
-        kv_indptr_elem_offset = T.int32()
-        q_rope_position_elem_offset = T.int32()
-        k_rope_pos_offset_elem_offset = T.int32()
 
         q = T.match_buffer(var_q, (qo_len, h_q, d_qk), dtype)
         q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
@@ -797,6 +802,14 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
     NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d_qk, dtype, target, d_v=d_v)
     init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, _, advance_tile_batch, paged_store_output_lse, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, d_v, bdx, num_warps, group_size)
 
+    batch_size = T.dynamic("batch_size", "int32")
+    qo_len = T.dynamic("qo_len", "int32")
+    kv_len = T.dynamic("kv_len", "int32")
+    q_indptr_elem_offset = T.dynamic("q_indptr_elem_offset", "int32")
+    kv_indptr_elem_offset = T.dynamic("kv_indptr_elem_offset", "int32")
+    q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
+    k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
+
     @Ts.prim_func
     def batch_prefill_ragged_kv(  # pylint: disable=too-many-branches
         var_q: T.handle, # [total_len, h_q, d_qk]
@@ -814,13 +827,6 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
         rope_theta: T.float32,
         sm_scale: T.float32
     ):
-        batch_size = T.int32()
-        qo_len = T.int32()
-        kv_len = T.int32()
-        q_indptr_elem_offset = T.int32()
-        kv_indptr_elem_offset = T.int32()
-        q_rope_position_elem_offset = T.int32()
-        k_rope_pos_offset_elem_offset = T.int32()
 
         q = T.match_buffer(var_q, (qo_len, h_q, d_qk), dtype)
         q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
@@ -935,6 +941,16 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
         global_symbol += "_sliding_window"
 
     # pylint: disable=too-many-branches
+    batch_size = T.dynamic("batch_size", "int32")
+    total_len = T.dynamic("total_len", "int32")
+    nnz_pages = T.dynamic("nnz_pages", "int32")
+    max_num_pages = T.dynamic("max_num_pages", "int32")
+    pages_elem_offset = T.dynamic("pages_elem_offset")
+    q_indptr_elem_offset = T.dynamic("q_indptr_elem_offset", "int32")
+    page_indptr_elem_offset = T.dynamic("page_indptr_elem_offset", "int32")
+    page_values_elem_offset = T.dynamic("page_values_elem_offset", "int32")
+    length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
+
     @Ts.prim_func
     def batch_prefill_paged_kv_mla(
         var_q: T.handle, # [total_len, h_q, d_qk]
@@ -949,15 +965,6 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
         sm_scale: T.float32,
     ):
         T.func_attr({"global_symbol": global_symbol})
-        batch_size = T.int32()
-        total_len = T.int32()
-        nnz_pages = T.int32()
-        max_num_pages = T.int32()
-        pages_elem_offset = T.int64()
-        q_indptr_elem_offset = T.int32()
-        page_indptr_elem_offset = T.int32()
-        page_values_elem_offset = T.int32()
-        length_info_elem_offset = T.int32()
 
         q = T.match_buffer(var_q, (total_len, h_q, d_qk), dtype)
         q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)

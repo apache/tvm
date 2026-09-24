@@ -659,6 +659,9 @@ def test_lower_layout():
             for vec in T.vectorized(8):
                 A_smem[row, col + vec] = A[bx * 128 + row, col + vec]
 
+    compose_m = T.dynamic("compose_m", "int32")
+    compose_q = T.dynamic("compose_q", "int32")
+
     @T.prim_func(private=True)
     def after(A_handle: T.handle) -> None:
         A = T.match_buffer(A_handle, (128, 32), "float16", layout=None)
@@ -687,8 +690,6 @@ def test_lower_layout():
                 # folded closed form: compose_m is the flat element index, so
                 # compose_m // 8 is the row and compose_m % 8 the lane, which
                 # substituted back gives the same address.
-                compose_m = T.int32()
-                compose_q = T.int32()
                 A_smem[
                     T.Let(
                         T.Let(

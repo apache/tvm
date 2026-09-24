@@ -203,11 +203,13 @@ def te_multi_output():
     return [A0, A1, B0, B1]
 
 
+m = T.dynamic("m", "int32")
+n = T.dynamic("n", "int32")
+
+
 @Ts.prim_func
 def tir_multi_output(a0: T.handle, a1: T.handle, b0: T.handle, b1: T.handle) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    m = T.int32()
-    n = T.int32()
     A0 = T.match_buffer(a0, (m, n))
     A1 = T.match_buffer(a1, (m, n))
     B0 = T.match_buffer(b0, (m, n))
@@ -240,12 +242,14 @@ def te_extern():
     return [A, B, C]
 
 
+off1 = T.dynamic("off1", "int32")
+off2 = T.dynamic("off2", "int32")
+off3 = T.dynamic("off3", "int32")
+
+
 @Ts.prim_func
 def tir_extern(a: T.handle, b: T.handle, c: T.handle) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    off1 = T.int32()
-    off2 = T.int32()
-    off3 = T.int32()
     A = T.match_buffer(a, (128, 128), elem_offset=off1)
     B = T.match_buffer(b, (128, 128), elem_offset=off2)
     C = T.match_buffer(c, (128, 128), elem_offset=off3)
@@ -553,13 +557,15 @@ def te_argmax_idx_val():
     return [idx, val, max_idx, max_val]
 
 
+m = T.dynamic("m", "int32")
+n = T.dynamic("n", "int32")
+
+
 @Ts.prim_func
 def tir_argmax_idx_val(
     var_idx: T.handle, var_val: T.handle, var_argmax_v0: T.handle, var_argmax_v1: T.handle
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    m = T.int32()
-    n = T.int32()
     idx = T.match_buffer(var_idx, [m, n], dtype="int32")
     val = T.match_buffer(var_val, [m, n], dtype="float32")
     argmax_v0 = T.match_buffer(var_argmax_v0, [m], dtype="int32")
@@ -604,13 +610,15 @@ def te_argmax_val_idx():
     return [val, idx, max_val, max_idx]
 
 
+m = T.dynamic("m", "int32")
+n = T.dynamic("n", "int32")
+
+
 @Ts.prim_func
 def tir_argmax_val_idx(
     var_val: T.handle, var_idx: T.handle, var_argmax_v0: T.handle, var_argmax_v1: T.handle
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    m = T.int32()
-    n = T.int32()
     val = T.match_buffer(var_val, [m, n], dtype="float32")
     idx = T.match_buffer(var_idx, [m, n], dtype="int32")
     argmax_v0 = T.match_buffer(var_argmax_v0, [m], dtype="float32")
@@ -727,14 +735,16 @@ def te_resize2d_symbolic():
     return [A, B]
 
 
+oh = T.dynamic("oh")
+ow = T.dynamic("ow")
+
+
 @Ts.prim_func
 def tir_resize2d_symbolic(
     A: T.Buffer((T.int64(2), T.int64(3), T.int64(128), T.int64(128)), "float32"),
     var_resize: T.handle,
 ):
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    oh = T.int64()
-    ow = T.int64()
     resize = T.match_buffer(var_resize, [T.int64(2), T.int64(3), oh, ow], dtype="float32")
     for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), oh, ow):
         with Ts.sblock("resize"):
@@ -816,10 +826,13 @@ def te_slice_with_var_input():
     return [tensor, idx, slice0]
 
 
+m = T.dynamic("m")
+n = T.dynamic("n")
+
+
 @Ts.prim_func
 def tir_slice_with_var_input(var_tensor: T.handle, idx: T.int64, var_slice: T.handle):
     T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
-    m, n = T.int64(), T.int64()
     tensor = T.match_buffer(var_tensor, (m, n))
     slice = T.match_buffer(var_slice, (idx, n))
     # with Ts.sblock("root"):

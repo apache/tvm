@@ -636,6 +636,9 @@ def test_tensor_ir_op():
     fused_heads = num_q_heads + num_kv_heads * 2
     dtype = "float16"
 
+    batch_size = T.dynamic("batch_size")
+    seq_len = T.dynamic("seq_len")
+
     @Ts.prim_func(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
@@ -644,8 +647,6 @@ def test_tensor_ir_op():
         var_k: T.handle,
         var_v: T.handle,
     ):
-        batch_size = T.int64()
-        seq_len = T.int64()
         qkv = T.match_buffer(var_qkv, (batch_size, seq_len, fused_heads, head_dim), dtype)
         q = T.match_buffer(var_q, (batch_size, seq_len, num_q_heads, head_dim), dtype)
         k = T.match_buffer(var_k, (batch_size, seq_len, num_kv_heads, head_dim), dtype)
@@ -667,11 +668,14 @@ def test_tensor_ir_op():
             return tensor_expr_op_out
 
     # fmt: off
+    batch_size = T.dynamic("batch_size")
+    seq_len = T.dynamic("seq_len")
+    offset_1 = T.dynamic("offset_1")
+
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def llama_fused_rope(var_qkv: T.handle, offset: T.int64, var_q: T.handle, var_k: T.handle, var_v: T.handle):
-            batch_size, seq_len = T.int64(), T.int64()
             qkv = T.match_buffer(var_qkv, (batch_size, seq_len, 24, 16), "float16")
             q = T.match_buffer(var_q, (batch_size, seq_len, 8, 16), "float16")
             k = T.match_buffer(var_k, (batch_size, seq_len, 8, 16), "float16")
@@ -688,8 +692,7 @@ def test_tensor_ir_op():
             return gv
 
         @R.function
-        def test(qkv: R.Tensor((1, 1, 24, 16), dtype="float16"), offset: R.Shape(["offset_1"]), _io: R.Any) -> R.Tuple(R.Tuple(R.Tensor((1, 1, 8, 16), dtype="float16"), R.Tensor((1, 1, 8, 16), dtype="float16"), R.Tensor((1, 1, 8, 16), dtype="float16")), R.Tuple(R.Any)):
-            offset_1 = T.int64()
+        def test(qkv: R.Tensor((1, 1, 24, 16), dtype="float16"), offset: R.Shape([offset_1]), _io: R.Any) -> R.Tuple(R.Tuple(R.Tensor((1, 1, 8, 16), dtype="float16"), R.Tensor((1, 1, 8, 16), dtype="float16"), R.Tensor((1, 1, 8, 16), dtype="float16")), R.Tuple(R.Any)):
             R.func_attr({"num_input": 3})
             cls = Expected
             with R.dataflow():
@@ -716,15 +719,16 @@ def test_tensor_ir_inplace_op():
     hidden_size = 4096
     dtype = "float16"
 
+    vocab_size = T.dynamic("vocab_size")
+    seq_len = T.dynamic("seq_len")
+    total_seq_len = T.dynamic("total_seq_len")
+
     @Ts.prim_func
     def inplace_take(
         var_weight: T.handle, var_pos: T.handle, var_embeddings: T.handle, offset: T.int64
     ):
         T.func_attr({"tirx.noalias": True})
-        vocab_size = T.int64()
         weight = T.match_buffer(var_weight, (vocab_size, hidden_size), dtype)
-        seq_len = T.int64()
-        total_seq_len = T.int64()
         pos = T.match_buffer(var_pos, (seq_len,), "int32")
         embeddings = T.match_buffer(var_embeddings, (total_seq_len, hidden_size), dtype)
         for ax0, ax1 in T.grid(seq_len, hidden_size):
@@ -747,6 +751,14 @@ def test_tensor_ir_inplace_op():
             )
             return tensor_expr_op_out
 
+    vocab_size_inplace_take = T.dynamic("vocab_size")
+    seq_len_inplace_take = T.dynamic("seq_len")
+    total_seq_len_inplace_take = T.dynamic("total_seq_len")
+    total_seq_len_test = T.dynamic("total_seq_len")
+    offset_1 = T.dynamic("offset_1")
+    vocab_size_test = T.dynamic("vocab_size")
+    seq_len_test = T.dynamic("seq_len")
+
     @I.ir_module
     class Expected:
         @Ts.prim_func
@@ -754,13 +766,12 @@ def test_tensor_ir_inplace_op():
             var_weight: T.handle, var_pos: T.handle, var_embeddings: T.handle, offset: T.int64
         ):
             T.func_attr({"tirx.noalias": True})
-            vocab_size = T.int64()
-            weight = T.match_buffer(var_weight, (vocab_size, hidden_size), dtype)
-            seq_len = T.int64()
-            total_seq_len = T.int64()
-            pos = T.match_buffer(var_pos, (seq_len,), "int32")
-            embeddings = T.match_buffer(var_embeddings, (total_seq_len, hidden_size), dtype)
-            for ax0, ax1 in T.grid(seq_len, hidden_size):
+            weight = T.match_buffer(var_weight, (vocab_size_inplace_take, hidden_size), dtype)
+            pos = T.match_buffer(var_pos, (seq_len_inplace_take,), "int32")
+            embeddings = T.match_buffer(
+                var_embeddings, (total_seq_len_inplace_take, hidden_size), dtype
+            )
+            for ax0, ax1 in T.grid(seq_len_inplace_take, hidden_size):
                 with Ts.sblock("T_take"):
                     v0, v1 = Ts.axis.remap("SS", [ax0, ax1])
                     Ts.reads(weight[pos[v0], v1], pos[v0])
@@ -778,24 +789,22 @@ def test_tensor_ir_inplace_op():
 
         @R.function
         def test(
-            embedding_table: R.Tensor(("vocab_size", hidden_size), dtype),
-            input_ids: R.Tensor(("seq_len",), "int32"),
-            embedding_dst: R.Tensor(("total_seq_len", hidden_size), dtype),
-            offset: R.Shape(["offset_1"]),
+            embedding_table: R.Tensor((vocab_size_test, hidden_size), dtype),
+            input_ids: R.Tensor((seq_len_test,), "int32"),
+            embedding_dst: R.Tensor((total_seq_len_test, hidden_size), dtype),
+            offset: R.Shape([offset_1]),
             packed_params: R.Tuple,
-        ) -> R.Tensor(("total_seq_len", hidden_size), dtype):
-            total_seq_len = T.int64()
-            offset_1 = T.int64()
+        ) -> R.Tensor((total_seq_len_test, hidden_size), dtype):
             R.func_attr({"num_input": 4})
             cls = Expected
             with R.dataflow():
                 lv1 = R.call_tir_inplace(
                     cls.inplace_take,
                     (embedding_table, input_ids, embedding_dst, offset_1),
-                    out_ty=R.Tensor((total_seq_len, hidden_size), dtype),
+                    out_ty=R.Tensor((total_seq_len_test, hidden_size), dtype),
                     inplace_indices=[2],
                 )
-                gv1: R.Tensor((total_seq_len, hidden_size), dtype) = lv1
+                gv1: R.Tensor((total_seq_len_test, hidden_size), dtype) = lv1
                 R.output(gv1)
             return gv1
 
@@ -1016,25 +1025,29 @@ def test_sample_top_p_top_k_from_sorted_prob():
             return z0
 
     # fmt: off
+    batch_get_index_from_sorted = T.dynamic("batch")
+    vocab_size_get_index_from_sorted = T.dynamic("vocab_size")
+    out_batch = T.dynamic("out_batch")
+    batch_get_renorm_prob = T.dynamic("batch")
+    vocab_size_get_renorm_prob = T.dynamic("vocab_size")
+
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def get_index_from_sorted(A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle, F: T.handle):
-            batch, vocab_size = T.int64(), T.int64()
-            cumsum_sorted = T.match_buffer(A, (batch, vocab_size))
-            indices = T.match_buffer(B, (batch, vocab_size), "int64")
-            renorm_prob = T.match_buffer(C, (batch, 1))
-            out_batch = T.int64()
+            cumsum_sorted = T.match_buffer(A, (batch_get_index_from_sorted, vocab_size_get_index_from_sorted))
+            indices = T.match_buffer(B, (batch_get_index_from_sorted, vocab_size_get_index_from_sorted), "int64")
+            renorm_prob = T.match_buffer(C, (batch_get_index_from_sorted, 1))
             usample = T.match_buffer(D, (out_batch, 1))
             sample_indices = T.match_buffer(E, (out_batch, 1), "int64")
             output_index = T.match_buffer(F, (out_batch, 1), "int64")
             # with Ts.sblock("root"):
-            for ax0, ax1 in T.grid(out_batch, vocab_size):
+            for ax0, ax1 in T.grid(out_batch, vocab_size_get_index_from_sorted):
                 with Ts.sblock("T_get_index_from_sorted"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
                     Ts.reads(usample[v_ax0, T.int64(0)], cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1 - T.int64(1):v_ax1 - T.int64(1) + T.int64(2)], sample_indices[v_ax0, T.int64(0)], renorm_prob[sample_indices[v_ax0, T.int64(0)], 0], indices[sample_indices[v_ax0, T.int64(0)], T.min(T.int64(0), v_ax1):T.min(T.int64(0), v_ax1) + (T.max(T.int64(0), v_ax1) + T.int64(1) - T.min(T.int64(0), v_ax1))])
                     Ts.writes(output_index[v_ax0, 0])
-                    if usample[v_ax0, T.int64(0)] < cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1] / renorm_prob[sample_indices[v_ax0, T.int64(0)], 0] or v_ax1 + T.int64(1) == vocab_size:
+                    if usample[v_ax0, T.int64(0)] < cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1] / renorm_prob[sample_indices[v_ax0, T.int64(0)], 0] or v_ax1 + T.int64(1) == vocab_size_get_index_from_sorted:
                         if v_ax1 == T.int64(0):
                             output_index[v_ax0, 0] = indices[sample_indices[v_ax0, T.int64(0)], 0]
                         else:
@@ -1043,13 +1056,12 @@ def test_sample_top_p_top_k_from_sorted_prob():
 
         @Ts.prim_func(private=True)
         def get_renorm_prob(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
-            batch, vocab_size = T.int64(), T.int64()
-            cumsum_sorted = T.match_buffer(A, (batch, vocab_size))
-            top_p = T.match_buffer(B, (batch, 1))
-            top_k = T.match_buffer(C, (batch, 1), "int64")
-            renorm_prob = T.match_buffer(D, (batch, 1))
+            cumsum_sorted = T.match_buffer(A, (batch_get_renorm_prob, vocab_size_get_renorm_prob))
+            top_p = T.match_buffer(B, (batch_get_renorm_prob, 1))
+            top_k = T.match_buffer(C, (batch_get_renorm_prob, 1), "int64")
+            renorm_prob = T.match_buffer(D, (batch_get_renorm_prob, 1))
             # with Ts.sblock("root"):
-            for ax0, ax1 in T.grid(batch, vocab_size):
+            for ax0, ax1 in T.grid(batch_get_renorm_prob, vocab_size_get_renorm_prob):
                 with Ts.sblock("T_get_renorm_prob"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
                     Ts.reads(cumsum_sorted[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], top_p[v_ax0, 0], top_k[v_ax0, 0])
@@ -1058,7 +1070,7 @@ def test_sample_top_p_top_k_from_sorted_prob():
                         renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, 0]
                     else:
                         if cumsum_sorted[v_ax0, v_ax1] < top_p[v_ax0, 0] and v_ax1 + T.int64(1) < top_k[v_ax0, 0]:
-                            if v_ax1 + T.int64(1) == vocab_size:
+                            if v_ax1 + T.int64(1) == vocab_size_get_renorm_prob:
                                 renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, v_ax1]
                             else:
                                 if not (cumsum_sorted[v_ax0, v_ax1 + T.int64(1)] < top_p[v_ax0, 0] and v_ax1 + T.int64(1) + T.int64(1) < top_k[v_ax0, 0]):
@@ -1146,6 +1158,9 @@ def test_renormalize_top_p_top_k_prob():
             return z0
 
     # fmt: off
+    batch = T.dynamic("batch")
+    vocab_size = T.dynamic("vocab_size")
+
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
@@ -1161,7 +1176,6 @@ def test_renormalize_top_p_top_k_prob():
 
         @Ts.prim_func(private=True)
         def get_renorm_cutoff(A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle):
-            batch, vocab_size = T.int64(), T.int64()
             sorted_prob = T.match_buffer(A, (batch, vocab_size))
             cumsum_sorted = T.match_buffer(B, (batch, vocab_size))
             top_p = T.match_buffer(C, (batch, 1))
@@ -1259,10 +1273,12 @@ def test_sort_argsort_topk():
             z2 = op.topk(x, k=2, axis=-1)
             return z0, z1, z2
 
+    seq_len = T.dynamic("seq_len")
+
     @I.ir_module
     class Expected:
         @R.function
-        def foo(x: R.Tensor(("seq_len", 64), dtype="float16")):
+        def foo(x: R.Tensor((seq_len, 64), dtype="float16")):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 sort = R.sort(x, axis=-1, descending=True)

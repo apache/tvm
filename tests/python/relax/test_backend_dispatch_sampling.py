@@ -45,13 +45,15 @@ class MultiFromUniformModule:
 
 def test_dispatch_multinomial_from_uniform_generic():
     # fmt: off
+    batch = T.dynamic("batch")
+    vocab_size = T.dynamic("vocab_size")
+    out_batch = T.dynamic("out_batch")
+
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def get_sample_index(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
-            batch, vocab_size = T.int64(), T.int64()
             prob = T.match_buffer(A, (batch, vocab_size))
-            out_batch = T.int64()
             usample = T.match_buffer(B, (out_batch, 1))
             sample_indices = T.match_buffer(C, (out_batch, 1), "int64")
             output_index = T.match_buffer(D, (out_batch, 1), "int64")
@@ -84,14 +86,16 @@ def test_dispatch_multinomial_from_uniform_generic():
 
 def test_dispatch_multinomial_from_uniform_gpu():
     # fmt: off
+    n = T.dynamic("n")
+    vocab_size = T.dynamic("vocab_size")
+    batch_size = T.dynamic("batch_size")
+
     @I.ir_module
     class Expected:
         @Ts.prim_func
         def parallel_sampling_from_prob(var_prob: T.handle, var_uniform_samples: T.handle, var_row_indices: T.handle, var_sampled_token_ids: T.handle):
             T.func_attr({"tirx.is_scheduled": True})
-            n, vocab_size = T.int64(), T.int64()
             prob = T.match_buffer(var_prob, (n, vocab_size))
-            batch_size = T.int64()
             uniform_samples = T.match_buffer(var_uniform_samples, (batch_size, 1))
             row_indices = T.match_buffer(var_row_indices, (batch_size, 1), "int64")
             token_ids = T.match_buffer(var_sampled_token_ids, (batch_size, 1), "int64")

@@ -276,9 +276,11 @@ def transformed_strided_buffer_func(
             C[i0 * 4 + i1, j] = B[i1, j] * T.float32(2)
 
 
+n = T.dynamic("n", "int32")
+
+
 @Ts.prim_func
 def compacted_symbolic_strided_buffer_func(a: T.handle) -> None:
-    n = T.int32()
     A = T.match_buffer(a, (1, n, 10240))
     padded_size = T.meta_var(T.min((n + 63) // 64 * 64, 96))
     # with Ts.sblock("root"):
@@ -297,9 +299,11 @@ def compacted_symbolic_strided_buffer_func(a: T.handle) -> None:
                     )
 
 
+n = T.dynamic("n", "int32")
+
+
 @Ts.prim_func
 def transformed_symbolic_strided_buffer_func(a: T.handle):
-    n = T.int32()
     A = T.match_buffer(a, (1, n, 10240))
     padded_size = T.min((n + 63) // 64 * 64, 96)
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):

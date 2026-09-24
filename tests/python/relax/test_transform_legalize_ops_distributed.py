@@ -35,6 +35,8 @@ def test_redistribute_replica_to_shard():
             gv0 = R.dist.redistribute_replica_to_shard(x, num_workers=2, axis=1)
             return gv0
 
+    worker_id = T.dynamic("worker_id")
+
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
@@ -50,7 +52,6 @@ def test_redistribute_replica_to_shard():
 
         @R.function
         def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 5), dtype="float32"):
-            worker_id = T.int64()
             cls = Expected
             gv: R.Shape(ndim=-1) = R.call_pure_packed("runtime.disco.worker_id", ty_args=(R.Shape(ndim=-1),))
             gv1: R.Shape([worker_id]) = R.match_cast(gv, R.Shape([worker_id]))

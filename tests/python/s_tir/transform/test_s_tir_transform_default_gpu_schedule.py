@@ -26,6 +26,9 @@ from tvm.script import tirx as T
 def test_broadcast_to_symbolic():
     # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
+    x_0 = T.dynamic("x_0")
+    x_1 = T.dynamic("x_1")
+
     @tvm.script.ir_module
     class Before:
         @Ts.prim_func
@@ -34,8 +37,6 @@ def test_broadcast_to_symbolic():
             var_T_broadcast_to: T.handle,
         ):
             T.func_attr({"tirx.noalias": True})
-            x_0 = T.int64()
-            x_1 = T.int64()
             T_broadcast_to = T.match_buffer(var_T_broadcast_to, (x_0, x_1))
             # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(x_0, x_1):
@@ -45,12 +46,14 @@ def test_broadcast_to_symbolic():
                     Ts.writes(T_broadcast_to[v_ax0, v_ax1])
                     T_broadcast_to[v_ax0, v_ax1] = rxplaceholder[v_ax0, T.int64(0)]
 
+    x_0 = T.dynamic("x_0")
+    x_1 = T.dynamic("x_1")
+
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func
         def broadcast_to(rxplaceholder: T.Buffer((T.int64(3), T.int64(1)), "float32"), var_T_broadcast_to: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            x_0, x_1 = T.int64(), T.int64()
             T_broadcast_to = T.match_buffer(var_T_broadcast_to, (x_0, x_1))
             for ax0_ax1_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
                 for ax0_ax1_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):

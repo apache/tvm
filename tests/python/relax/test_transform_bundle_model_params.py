@@ -299,8 +299,8 @@ def test_primitive_model_param_is_materialized_outside_if_branches():
         def main(
             cond: R.Tensor((), "bool"),
             extent: T.int64,
-            weight: R.Tensor(["extent"], "float32"),
-        ) -> R.Tensor(["extent"], "float32"):
+            weight: 'R.Tensor([extent], "float32")',  # noqa: F821
+        ) -> 'R.Tensor([extent], "float32")':  # noqa: F821
             R.func_attr({"num_input": 1})
             if cond:
                 out = R.add(weight, weight)
@@ -338,7 +338,7 @@ def test_primitive_model_param_remains_linked_to_dependent_tensor():
         def main(
             x: R.Tensor(dtype="float32", ndim=1),
             extent: T.int64,
-            weight: R.Tensor(["extent"], "float32"),
+            weight: 'R.Tensor([extent], "float32")',
         ):
             R.func_attr({"num_input": 1})
             out = R.add(x, weight)

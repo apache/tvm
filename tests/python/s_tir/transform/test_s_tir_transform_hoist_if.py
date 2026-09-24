@@ -350,7 +350,7 @@ def test_no_hoisting_4():
     dshape_inner = (33, 63)
 
     # Create iter_var for tx (used inside loop with T.attr)
-    tx_var = tvm.tirx.Var("threadIdx.x", "int32")
+    tx_var = T.dynamic("threadIdx.x", "int32")
     tx_iter = tvm.tirx.IterVar(
         tvm.ir.Range(0, dshape_inner[0]), tx_var, tvm.tirx.IterVar.ThreadIndex, "threadIdx.x"
     )
@@ -445,7 +445,7 @@ def test_hoisting_block_scope_2():
     dshape = (32, 64)
 
     # Create iter_var for bx (used inside loop with T.attr)
-    bx_var = tvm.tirx.Var("blockIdx.x", "int32")
+    bx_var = T.dynamic("blockIdx.x", "int32")
     bx_iter = tvm.tirx.IterVar(
         tvm.ir.Range(0, dshape[1]), bx_var, tvm.tirx.IterVar.ThreadIndex, "blockIdx.x"
     )

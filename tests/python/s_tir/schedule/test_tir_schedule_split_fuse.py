@@ -393,10 +393,11 @@ def test_split_with_inferred_factor():
 
 
 def test_split_with_dynamic_inferred_factor():
+    N = T.dynamic("N", "int32")
+    M = T.dynamic("M", "int32")
+
     @Ts.prim_func
     def before(a: T.handle, b: T.handle) -> None:
-        N = T.int32()
-        M = T.int32()
         A = T.match_buffer(a, (N, 128, M))
         B = T.match_buffer(b, (N, 128, M))
         for i, j, k in T.grid(N, 128, M):
@@ -404,9 +405,11 @@ def test_split_with_dynamic_inferred_factor():
                 vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
+    N = T.dynamic("N", "int32")
+    M = T.dynamic("M", "int32")
+
     @Ts.prim_func
     def expected(a: T.handle, b: T.handle) -> None:
-        N, M = T.int32(), T.int32()
         A = T.match_buffer(a, (N, 128, M))
         B = T.match_buffer(b, (N, 128, M))
         for i_0, i_1, j_0, j_1, k_0, k_1 in T.grid((N + 15) // 16, 16, 4, 32, 16, (M + 15) // 16):

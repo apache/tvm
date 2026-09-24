@@ -57,6 +57,15 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
     if sliding_window:
         global_symbol += "_sliding_window"
 
+    B = T.dynamic("B", "int32")
+    nnz_pages = T.dynamic("nnz_pages", "int32")
+    max_num_pages = T.dynamic("max_num_pages", "int32")
+    page_indptr_elem_offset = T.dynamic("page_indptr_elem_offset", "int32")
+    page_values_elem_offset = T.dynamic("page_values_elem_offset", "int32")
+    k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
+    q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
+    length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
+
     @Ts.prim_func
     def batch_decode_paged_kv(
         Q_handle: T.handle,
@@ -74,14 +83,6 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
         sm_scale: T.float32,
     ):
         T.func_attr({"tirx.is_scheduled": True, "global_symbol": global_symbol})
-        B = T.int32()
-        nnz_pages = T.int32()
-        max_num_pages = T.int32()
-        page_indptr_elem_offset = T.int32()
-        page_values_elem_offset = T.int32()
-        k_rope_pos_offset_elem_offset = T.int32()
-        q_rope_position_elem_offset = T.int32()
-        length_info_elem_offset = T.int32()
 
         Q = T.match_buffer(Q_handle, (B, H_qo, D), qkv_dtype)
         pages = T.match_buffer(pages_handle, (max_num_pages, 2, H_kv, page_size, D), qkv_dtype)
@@ -212,6 +213,16 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
         global_symbol += "_sliding_window"
 
     # pylint: disable=too-many-branches
+    B = T.dynamic("B", "int32")
+    nnz_pages = T.dynamic("nnz_pages", "int32")
+    max_num_pages = T.dynamic("max_num_pages", "int32")
+    pages_elem_offset = T.dynamic("pages_elem_offset")
+    page_indptr_elem_offset = T.dynamic("page_indptr_elem_offset", "int32")
+    page_values_elem_offset = T.dynamic("page_values_elem_offset", "int32")
+    k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
+    q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
+    length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
+
     @Ts.prim_func
     def batch_decode_paged_kv(
         Q_handle: T.handle,
@@ -229,15 +240,6 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
         sm_scale: T.float32,
     ):
         T.func_attr({"tirx.is_scheduled": True, "global_symbol": global_symbol})
-        B = T.int32()
-        nnz_pages = T.int32()
-        max_num_pages = T.int32()
-        pages_elem_offset = T.int64()
-        page_indptr_elem_offset = T.int32()
-        page_values_elem_offset = T.int32()
-        k_rope_pos_offset_elem_offset = T.int32()
-        q_rope_position_elem_offset = T.int32()
-        length_info_elem_offset = T.int32()
 
         Q = T.match_buffer(Q_handle, (B, H_qo, D), qkv_dtype)
         pages = T.match_buffer(pages_handle, (max_num_pages, 2, H_kv, page_size, D), qkv_dtype, elem_offset=pages_elem_offset)
@@ -413,6 +415,10 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
 
 
 def _merge_state_inplace_cpu(v_dtype):
+    N = T.dynamic("N", "int32")
+    H = T.dynamic("H", "int32")
+    D = T.dynamic("D", "int32")
+
     @Ts.prim_func
     def merge_state_inplace_cpu(
         v: T.handle,
@@ -421,9 +427,6 @@ def _merge_state_inplace_cpu(v_dtype):
         s_other: T.handle,
     ):
         T.func_attr({"tirx.is_scheduled": True})
-        N = T.int32()
-        H = T.int32()
-        D = T.int32()
 
         V = T.match_buffer(v, (N, H, D), v_dtype)
         S = T.match_buffer(s, (N, H), "float32")
@@ -464,6 +467,10 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_sy
     gdy = num_heads // bdy
     check_thread_limits(target, bdx=bdx, bdy=bdy, bdz=1, gdz=1)
 
+    N = T.dynamic("N", "int32")
+    H = T.dynamic("H", "int32")
+    D = T.dynamic("D", "int32")
+
     @Ts.prim_func
     def merge_state_inplace(
         v: T.handle,
@@ -472,9 +479,6 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_sy
         s_other: T.handle,
     ):
         T.func_attr({"tirx.is_scheduled": True})
-        N = T.int32()
-        H = T.int32()
-        D = T.int32()
 
         V = T.match_buffer(v, (N, H, D), v_dtype)
         S = T.match_buffer(s, (N, H), "float32")

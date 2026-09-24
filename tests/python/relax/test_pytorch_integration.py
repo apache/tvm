@@ -36,6 +36,8 @@ from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
+n_matmul = T.dynamic("n", "int32")
+
 
 @R.py_module
 class PyTorchIntegrationModule(BasePyModule):
@@ -67,12 +69,11 @@ class PyTorchIntegrationModule(BasePyModule):
         var_C: T.handle,
     ):
         """TIR function for matrix multiplication."""
-        n = T.int32()
-        A = T.match_buffer(var_A, (n, 16), "float32")
+        A = T.match_buffer(var_A, (n_matmul, 16), "float32")
         B = T.match_buffer(var_B, (16, 20), "float32")
-        C = T.match_buffer(var_C, (n, 20), "float32")
+        C = T.match_buffer(var_C, (n_matmul, 20), "float32")
 
-        for i, j, k in T.grid(n, 20, 16):
+        for i, j, k in T.grid(n_matmul, 20, 16):
             with Ts.sblock("block"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 with Ts.init():

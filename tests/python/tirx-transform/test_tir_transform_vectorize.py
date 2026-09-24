@@ -498,11 +498,12 @@ def test_vectorize_cast(extent, vec_str, target):
 
 
 def test_illegal_extent():
+    n = T.dynamic("n", "int32")
+
     @I.ir_module(check_well_formed=False)
     class Mod:
         @T.prim_func
         def main(A: T.Buffer((25,), "int32")):
-            n = T.int32()
             for j in T.vectorized(n):
                 A[j] = 3
 

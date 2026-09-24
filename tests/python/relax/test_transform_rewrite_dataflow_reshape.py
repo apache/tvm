@@ -224,12 +224,13 @@ def test_reshape_pattern_detect():
 
 
 def test_reshape_dynamic_shape():
+    n = T.dynamic("n", "int32")
+
     @tvm.script.ir_module
     class Module:
         @Ts.prim_func(private=True)
         def reshape(var_A: T.handle, var_T_reshape: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            n = T.int32()
             A = T.match_buffer(var_A, (n, 16, 128), "float16")
             T_reshape = T.match_buffer(var_T_reshape, (1, n, 16, 128), "float16")
             # with Ts.sblock("root"):
@@ -264,12 +265,13 @@ def test_reshape_dynamic_shape():
                 R.output(z)
             return z
 
+    n = T.dynamic("n", "int32")
+
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def reshape(var_A: T.handle, var_T_reshape: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            n = T.int32()
             A = T.match_buffer(var_A, (n, 16, 128), "float16")
             T_reshape = T.match_buffer(var_T_reshape, (1, n, 16, 128), "float16")
             # with Ts.sblock("root"):
@@ -638,11 +640,12 @@ def test_rewrite_static_reshape():
 
 
 # def test_rewrite_dynamic_reshape():
+#     N = T.dynamic("N")
+#
 #     @I.ir_module
 #     class Before:
 #         @R.function
-#         def main(x: R.Tensor(["N"], dtype="float32")):
-#             N = T.int64()
+#         def main(x: R.Tensor([N], dtype="float32")):
 #             with R.dataflow():
 #                 y = R.reshape(x, [N // 4, 4])
 #                 z = R.add(y, y)
@@ -652,8 +655,7 @@ def test_rewrite_static_reshape():
 #     @I.ir_module
 #     class Expected:
 #         @R.function
-#         def main(x: R.Tensor(["N"], dtype="float32")):
-#             N = T.int64()
+#         def main(x: R.Tensor([N], dtype="float32")):
 #             cls = Expected
 
 #             with R.dataflow():
@@ -702,22 +704,24 @@ def test_rewrite_static_reshape():
 
 
 def test_rewrite_dynamic_reshape():
+    N = T.dynamic("N")
+
     @I.ir_module
     class Before:
         @R.function
-        def main(x: R.Tensor(["N", 16], dtype="float32")):
-            N = T.int64()
+        def main(x: R.Tensor([N, 16], dtype="float32")):
             with R.dataflow():
                 y = R.reshape(x, [N * 4, T.int64(4)])
                 z = R.add(y, y)
                 R.output(z)
             return z
 
+    N = T.dynamic("N")
+
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(["N", 16], dtype="float32")):
-            N = T.int64()
+        def main(x: R.Tensor([N, 16], dtype="float32")):
             cls = Expected
 
             with R.dataflow():
