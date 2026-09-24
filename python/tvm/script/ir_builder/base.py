@@ -446,6 +446,13 @@ def _current_function_frame():
     raise ValueError("Symbol resolution requires an active function frame")
 
 
+def _return_annotation(annotation):
+    """Evaluate the deferred return expression before normalizing its annotation value."""
+    if callable(annotation) and not isinstance(annotation, ir.Expr | ir.Type):
+        return annotation()
+    return annotation
+
+
 def annotation_constructor(constructor):
     """Expose a constructor as a real annotation class supporting Python unions.
 
