@@ -64,7 +64,7 @@ struct SortableFunction {
   }
 };
 
-ffi::Optional<ffi::String> GetTypeVarDeclarationName(const StmtDoc& stmt) {
+ffi::Optional<ffi::String> GetDynamicDeclarationName(const StmtDoc& stmt) {
   const auto* assign = stmt.as<AssignDocNode>();
   if (assign == nullptr || !assign->rhs.has_value()) {
     return std::nullopt;
@@ -74,8 +74,8 @@ ffi::Optional<ffi::String> GetTypeVarDeclarationName(const StmtDoc& stmt) {
   if (lhs == nullptr || call == nullptr) {
     return std::nullopt;
   }
-  const auto* callee = call->callee.as<IdDocNode>();
-  if (callee == nullptr || callee->name != "TypeVar") {
+  const auto* callee = call->callee.as<AttrAccessDocNode>();
+  if (callee == nullptr || callee->name != "dynamic") {
     return std::nullopt;
   }
   return lhs->name;
@@ -123,7 +123,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           d->cfg->binding_names.pop_back();
           if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
             for (const StmtDoc& stmt : stmt_block->stmts) {
-              if (ffi::Optional<ffi::String> name = GetTypeVarDeclarationName(stmt)) {
+              if (ffi::Optional<ffi::String> name = GetDynamicDeclarationName(stmt)) {
                 if (!declared_type_vars.count(name.value())) {
                   declared_type_vars.insert(name.value());
                   type_var_decls.push_back(stmt);

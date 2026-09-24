@@ -70,12 +70,14 @@ RelaxModule.show()
 # TensorIR functions in Relax function.
 
 
+n = T.dynamic("n", "int64")
+m = T.dynamic("m", "int64")
+
+
 @I.ir_module
 class RelaxModuleWithTIR:
     @Ts.prim_func
     def relu(x: T.handle, y: T.handle):
-        n = T.int64()
-        m = T.int64()
         X = T.match_buffer(x, (n, m), "float32")
         Y = T.match_buffer(y, (n, m), "float32")
         for i, j in T.grid(n, m):
@@ -85,13 +87,12 @@ class RelaxModuleWithTIR:
 
     @R.function
     def forward(
-        data: R.Tensor(("n", 784), dtype="float32"),
+        data: R.Tensor((n, 784), dtype="float32"),
         w0: R.Tensor((128, 784), dtype="float32"),
         b0: R.Tensor((128,), dtype="float32"),
         w1: R.Tensor((10, 128), dtype="float32"),
         b1: R.Tensor((10,), dtype="float32"),
-    ) -> R.Tensor(("n", 10), dtype="float32"):
-        n = T.int64()
+    ) -> R.Tensor((n, 10), dtype="float32"):
         cls = RelaxModuleWithTIR
         with R.dataflow():
             lv0 = R.matmul(data, R.permute_dims(w0)) + b0
@@ -165,11 +166,13 @@ mod.show()
 # Tensor Expression(TE), TensorIR functions or other TVM packed functions.
 
 
+M = T.dynamic("M", "int64")
+N = T.dynamic("N", "int64")
+K = T.dynamic("K", "int64")
+
+
 @Ts.prim_func
 def tir_linear(x: T.handle, w: T.handle, b: T.handle, z: T.handle):
-    M = T.int64()
-    N = T.int64()
-    K = T.int64()
     X = T.match_buffer(x, (M, K), "float32")
     W = T.match_buffer(w, (N, K), "float32")
     B = T.match_buffer(b, (N,), "float32")
@@ -227,7 +230,7 @@ mod.show()
 # customized pass.
 
 bb = relax.BlockBuilder()
-n = T.int64()
+n = T.dynamic("n", "int64")
 x = relax.Var("x", R.Tensor((n, 784), "float32"))
 fc1_weight = relax.Var("fc1_weight", R.Tensor((128, 784), "float32"))
 fc1_bias = relax.Var("fc1_bias", R.Tensor((128,), "float32"))

@@ -119,12 +119,12 @@ def main(A: T.Buffer(("n",), "float32"), n: T.int64):
     assert str(n.ty.dtype) == "int64"
 
 
-def test_tir_string_defined_symbol_uses_prescanned_body_dtype():
+def test_tir_external_dynamic_symbol_preserves_dtype():
     func = tvm.script.from_source(
         """
+n = T.dynamic("n", "int64")
 @T.prim_func
-def main(A: T.Buffer(("n",), "float32")):
-    n = T.int64()
+def main(A: T.Buffer((n,), "float32")):
     T.evaluate(n)
 """
     )
@@ -173,7 +173,6 @@ def test_tir_return_annotation_does_not_define_symbolic_var():
             """
 @T.prim_func
 def main() -> T.Buffer(("n",), "float32"):
-    n = T.int32()
     A = T.alloc_buffer((n,), "float32")
     return A
 """
@@ -631,10 +630,11 @@ def test_inferred_ty_with_output_buffer():
 def test_inferred_ty_with_dynamic_buffer():
     """The inferred Type may contain dynamic shapes"""
 
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
+
     @Ts.prim_func
     def func(a_handle: T.handle, b_handle: T.handle):
-        M = T.int64()
-        N = T.int64()
         A = T.match_buffer(a_handle, [M, N], "float32")
         B = T.match_buffer(b_handle, [M * N], "float32")
         for i, j in T.grid(M, N):

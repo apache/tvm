@@ -178,15 +178,16 @@ print(tvm_ffi.structural_equal(ConciseModule, ConciseModuleFromPython))
 # be used to ascertain the shape and data type of a TensorIR.
 
 
+# Dynamic shape definition
+M = T.dynamic("M", "int32")
+N = T.dynamic("N", "int32")
+K = T.dynamic("K", "int32")
+
+
 @I.ir_module
 class DynamicShapeModule:
     @Ts.prim_func
     def mm_relu(a: T.handle, b: T.handle, c: T.handle):
-        # Dynamic shape definition
-        M = T.int32()
-        N = T.int32()
-        K = T.int32()
-
         # Bind the input buffers with the dynamic shapes
         A = T.match_buffer(a, [M, K], dtype)
         B = T.match_buffer(b, [K, N], dtype)

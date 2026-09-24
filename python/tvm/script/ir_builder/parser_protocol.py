@@ -782,10 +782,9 @@ def resolve_type_var_(
 
     .. code:: python
 
-        # Source
-        n = T.int64()
+        # Source: def f[n: T.int32](...)
         # Generated builder
-        n = X.resolve_type_var_("n", dtype="int64")
+        n = X.resolve_type_var_("n", dtype="int32")
     """
     raise NotImplementedError
 
@@ -873,7 +872,7 @@ def module_member_(name: str, value: Any) -> Any:
 # Syntax markers live in tvm.script.parser.protocol_registry.
 # ``constexpr(value)`` selects host evaluation in marked control flow.
 # ``args_policy(path, fields)`` marks expression-string arguments.
-# ``register_type_var_decl(path, constructor, dtype=...)`` marks symbolic declarations.
+# ``register_scalar_annotation(path, constructor, dtype=...)`` describes scalar annotations.
 # ``mutable_cell_decl(path)`` marks mutable storage declarations.
 # ``result_span(path)`` permits attaching a call's result span without a call context.
 # ``module_decorator(path)`` marks module declaration decorators.
