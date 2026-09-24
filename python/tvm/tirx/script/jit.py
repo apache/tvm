@@ -257,7 +257,7 @@ class TIRJit:
             return cached
 
         if self.builder is None:
-            from tvm.tirx.script import builder
+            from tvm.script.ir_builder import tirx as builder
         else:
             builder = self.builder
         prim_func = parse(

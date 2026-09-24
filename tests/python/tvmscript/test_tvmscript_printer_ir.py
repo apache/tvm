@@ -19,8 +19,8 @@
 import pytest
 
 from tvm import IRModule
+from tvm.script import ir_builder as I
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder import tirx as T
 
 

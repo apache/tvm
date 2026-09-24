@@ -41,6 +41,23 @@ _initializing = False
 def register_namespace(alias: str, namespace: object) -> None:
     """Register an opaque fixed namespace; its first alias is the syntax key root.
 
+    Parameters
+    ----------
+    alias : str
+        Source name for the namespace, such as ``"I"`` or ``"M"``. The first
+        registered alias for an object is its canonical syntax-policy prefix;
+        additional aliases for that object resolve to the same prefix.
+    namespace : object
+        Namespace object exposing construction operations or source decorators.
+        It is borrowed without copying or inspecting its members.
+
+    Returns
+    -------
+    None
+        Registration updates the namespaces available to subsequent parses.
+
+    Notes
+    -----
     Each parse borrows these namespaces. Replacing an alias affects future parses
     only; registration enters no builder frame and inspects no namespace members.
     """
@@ -50,7 +67,28 @@ def register_namespace(alias: str, namespace: object) -> None:
 def register_namespace_initializer(
     initializer: Callable[[], None], *, aliases: tuple[str, ...] = ()
 ) -> None:
-    """Register a lazy bootstrap callback without importing the language variant."""
+    """Register a lazy bootstrap callback without importing the language variant.
+
+    Parameters
+    ----------
+    initializer : Callable[[], None]
+        Callback that registers the language variant's namespaces. It receives
+        no arguments and is called during the parser's first initialization.
+        If initialization has already completed, a newly registered callback
+        runs immediately. Re-registering the same callback object does not
+        enqueue or invoke it again.
+    aliases : tuple[str, ...], optional
+        Names whose attribute lookup should trigger initialization. Defaults
+        to an empty tuple. These names advertise lazy namespaces; the callback
+        must still register their actual objects with :func:`register_namespace`.
+        Aliases are added even when the callback was previously registered.
+
+    Returns
+    -------
+    None
+        The callback is registered, and invoked immediately when the parser
+        is already initialized.
+    """
     _NAMESPACE_ALIASES.update(aliases)
     if any(existing is initializer for existing in _NAMESPACE_INITIALIZERS):
         return

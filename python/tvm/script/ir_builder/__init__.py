@@ -14,20 +14,72 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The ir_builder subpackage of TVMScript."""
+"""Shared TVMScript construction APIs and lazy language variant builders."""
 
-import importlib
-from typing import Any
+import importlib as _importlib
+from typing import Any as _Any
 
-from .base import AlreadyEmitted, IRBuilder
+from tvm.ir import GenericConst, Range, StringImm, StringType
+from tvm.script.parser.protocol_registry import constexpr
+
+from .base import (
+    MISSING,
+    AlreadyEmitted,
+    IRBuilder,
+    annotation_value_,
+    at_,
+    require_defined,
+    with_at_group_,
+)
+from .frame import IRModuleFrame
+from .ir import (
+    decl_function,
+    def_function,
+    ir_module,
+    lookup_name,
+    meta_var,
+    module_attrs,
+    module_get_attr,
+    module_global_infos,
+    module_set_attr,
+)
+from .parser_protocol import check_well_formed_, module_member_
+
+# Keep source namespaces independent of imported helper modules and lazy builders.
+__all__ = [
+    "MISSING",
+    "AlreadyEmitted",
+    "GenericConst",
+    "IRBuilder",
+    "IRModuleFrame",
+    "Range",
+    "StringImm",
+    "StringType",
+    "annotation_value_",
+    "at_",
+    "check_well_formed_",
+    "constexpr",
+    "decl_function",
+    "def_function",
+    "ir_module",
+    "lookup_name",
+    "meta_var",
+    "module_attrs",
+    "module_get_attr",
+    "module_global_infos",
+    "module_member_",
+    "module_set_attr",
+    "require_defined",
+    "with_at_group_",
+]
 
 
-def __getattr__(name: str) -> Any:
-    # Lazy import to avoid loading tvm.script during language variant bootstrap.
+def __getattr__(name: str) -> _Any:
+    # Real packages resolve directly; the finder supplies registered external builders.
     from tvm.script import _DIALECT_REGISTRY  # pylint: disable=import-outside-toplevel
 
     if name in _DIALECT_REGISTRY:
-        module = importlib.import_module(f"{_DIALECT_REGISTRY[name]}.builder")
+        module = _importlib.import_module(f"{__name__}.{name}")
         globals()[name] = module
         return module
     raise AttributeError(f"module 'tvm.script.ir_builder' has no attribute {name!r}")

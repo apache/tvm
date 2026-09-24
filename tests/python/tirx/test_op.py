@@ -103,7 +103,7 @@ def test_buffer_replacer_replaces_strides_and_elem_offset():
 
 def test_gemm_async_partial_scale_factor():
     """Regression test for F7: gemm_async must reject partial scale factors."""
-    from tvm.tirx.script.builder.tirx import gemm_async
+    from tvm.script.ir_builder.tirx.tirx import gemm_async
 
     A = decl_buffer((64, 64), "float16", scope="shared")
     B = decl_buffer((64, 64), "float16", scope="shared")
