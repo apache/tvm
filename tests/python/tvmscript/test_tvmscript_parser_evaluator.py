@@ -20,8 +20,8 @@
 import pytest
 
 import tvm.testing
-from tvm.script.ir_builder import tirx as T
 from tvm.script.parser.entry import _run_statements
+from tvm.tirx.script import ir_builder as T
 
 
 def _calc(expr, extra_vars=None):

@@ -30,7 +30,7 @@ OpWrapper = Callable[[Callable[..., Any]], Callable[..., Any]]
 
 def _default_op_wrapper(func: Callable[..., Any]) -> Callable[..., Any]:
     """Create the default facade for a returned-node NKI intrinsic."""
-    from tvm.script.ir_builder.tirx.ir import _op_wrapper  # pylint: disable=import-outside-toplevel
+    from tvm.tirx.script.ir_builder.ir import _op_wrapper  # pylint: disable=import-outside-toplevel
 
     # NKI producers return a single call_intrin node and never emit separately.
     return _result_span(f"T.nki.{func.__name__.removeprefix('nki_')}")(_op_wrapper(func))

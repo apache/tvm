@@ -2312,7 +2312,7 @@ def launch_thread(
 
     .. code-block:: python
 
-    from tvm.script.ir_builder import tirx as T
+    from tvm.tirx.script import ir_builder as T
     brow = T.env_thread("blockIdx.y")
     T.launch_thread(brow, 1)
 
@@ -3112,7 +3112,7 @@ def register_script_namespace(name: str, namespace: object) -> object:
     import sys  # pylint: disable=import-outside-toplevel
 
     for module_name in [
-        "tvm.script.ir_builder.tirx",
+        "tvm.tirx.script.ir_builder",
         "tvm.tirx.script",
         "tvm.script.tirx",
     ]:

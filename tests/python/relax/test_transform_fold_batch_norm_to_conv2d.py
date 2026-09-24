@@ -24,10 +24,10 @@ import tvm.testing
 from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprVisitor, visitor
+from tvm.relax.script import ir_builder as relax_builder
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import relax as relax_builder
 
 
 def get_conv2d_batchnorm_sample():

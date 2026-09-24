@@ -26,11 +26,11 @@ import tvm
 import tvm.testing
 from tvm import relax, rpc
 from tvm.relax.backend.adreno import clml
+from tvm.relax.script import ir_builder as relax_builder
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import relax as relax_builder
 
 
 def get_relax_conv2d_mod(

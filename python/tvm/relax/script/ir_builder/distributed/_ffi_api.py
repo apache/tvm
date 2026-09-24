@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI APIs for tvm.script.ir_builder.relax"""
+"""FFI APIs for tvm.relax.script.ir_builder.distributed"""
 
 import tvm_ffi
 
-tvm_ffi.init_ffi_api("script.ir_builder.relax", __name__)  # pylint: disable=protected-access
+tvm_ffi.init_ffi_api("script.ir_builder.relax.distributed", __name__)  # pylint: disable=protected-access

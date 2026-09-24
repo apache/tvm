@@ -28,10 +28,10 @@ import tvm.topi.testing
 from tvm import relax
 from tvm.contrib.pickle_memoize import memoize
 from tvm.relax.backend.cuda.cudnn import partition_for_cudnn
+from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.testing import get_relax_stacked_attention_module
 from tvm.script import relax as R
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import relax as relax_builder
 
 
 @pytest.fixture(autouse=True)

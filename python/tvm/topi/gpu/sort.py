@@ -21,7 +21,7 @@
 import tvm
 from tvm import te
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as T
+from tvm.tirx.script import ir_builder as T
 
 from ..math import cast, ceil_log2
 from ..searchsorted import binary_search

@@ -384,7 +384,7 @@ construction policy and finalization; the syntax transpiler does not maintain an
 TIR builder
 ~~~~~~~~~~~
 
-The TIR builder (``python/tvm/script/ir_builder/tirx/``) implements the construction operations
+The TIR builder (``python/tvm/tirx/script/ir_builder/``) implements the construction operations
 behind public ``T`` syntax. Builder modules also support direct programmatic construction;
 public decorators and internal frame-opening operations have distinct roles. Key categories:
 
@@ -416,7 +416,7 @@ public decorators and internal frame-opening operations have distinct roles. Key
 Relax builder
 ~~~~~~~~~~~~~
 
-The Relax builder (``python/tvm/script/ir_builder/relax/``) implements:
+The Relax builder (``python/tvm/relax/script/ir_builder/``) implements:
 
 **Function and dataflow**:
 

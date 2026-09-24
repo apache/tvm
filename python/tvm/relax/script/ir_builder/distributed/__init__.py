@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,8 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI APIs for tvm.script.ir_builder.relax.distributed"""
+# pylint: disable=unused-import
+"""Package tvm.relax.script.ir_builder.distributed"""
 
-import tvm_ffi
-
-tvm_ffi.init_ffi_api("script.ir_builder.relax.distributed", __name__)  # pylint: disable=protected-access
+from .ir import *  # pylint: disable=wildcard-import,redefined-builtin

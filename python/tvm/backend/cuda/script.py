@@ -22,9 +22,9 @@ from collections.abc import Callable
 from typing import Any
 
 from tvm.backend.cuda import op as _cuda_op
-from tvm.script.ir_builder.tirx.ir import _dtype_forward, _op_wrapper
 from tvm.tirx import is_buffer_var
 from tvm.tirx import op as _tir_op
+from tvm.tirx.script.ir_builder.ir import _dtype_forward, _op_wrapper
 
 # pylint: disable=protected-access
 

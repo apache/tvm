@@ -32,7 +32,7 @@ from typing import Any, NoReturn
 
 import tvm_ffi as _ffi
 
-import tvm.script.ir_builder.relax as _builder
+import tvm.relax.script.ir_builder as _builder
 from tvm import ir as _ir
 from tvm import relax as _relax
 from tvm import tirx as _tir
