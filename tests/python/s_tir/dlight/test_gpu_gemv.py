@@ -300,6 +300,100 @@ def test_decode_gemv_256_threads():
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
+def test_decode_gemv_webgpu():
+    # fmt: off
+    @T.prim_func(private=True, s_tir=True)
+    def before(lv571: T.Buffer((22016, 512), "uint32"), lv572: T.Buffer((22016, 128), "float16"), lv1654: T.Buffer((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Buffer((1, 1, 22016), "float16")):
+        T.func_attr({"tirx.noalias": True})
+        # with T.sblock("root"):
+        p_output0_intermediate = T.sblock_alloc_buffer((22016, 4096), "float16")
+        for i, j in T.grid(22016, 4096):
+            with T.sblock("decode"):
+                v_i, v_j = T.axis.remap("SS", [i, j])
+                T.reads(lv571[v_i, v_j // 8], lv572[v_i, v_j // 32])
+                T.writes(p_output0_intermediate[v_i, v_j])
+                p_output0_intermediate[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv571[v_i, v_j // 8], T.Cast("uint32", v_j % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv572[v_i, v_j // 32]
+        for i0, i1, i2, k in T.grid(1, 1, 22016, 4096):
+            with T.sblock("NT_matmul"):
+                v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+                T.reads(lv1654[v_i0, v_i1, v_k], p_output0_intermediate[v_i2, v_k])
+                T.writes(var_NT_matmul_intermediate[v_i0, v_i1, v_i2])
+                with T.init():
+                    var_NT_matmul_intermediate[v_i0, v_i1, v_i2] = T.float16(0)
+                var_NT_matmul_intermediate[v_i0, v_i1, v_i2] = var_NT_matmul_intermediate[v_i0, v_i1, v_i2] + lv1654[v_i0, v_i1, v_k] * p_output0_intermediate[v_i2, v_k]
+
+    @T.prim_func(private=True, s_tir=True)
+    def expected(lv571: T.Buffer((22016, 512), "uint32"), lv572: T.Buffer((22016, 128), "float16"), lv1654: T.Buffer((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Buffer((1, 1, 22016), "float16")):
+        T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
+        # with T.sblock("root"):
+        var_NT_matmul_intermediate_rf_local = T.sblock_alloc_buffer((16, 1, 1, 22016), "float16", scope="local")
+        var_NT_matmul_intermediate_rf_local_1 = T.sblock_alloc_buffer((16, 1, 1, 22016), "float16", scope="local")
+        lv571_local = T.sblock_alloc_buffer((22016, 512), "uint32", scope="local")
+        for u_fused_ax0_fused_fused_0 in T.thread_binding(2752, thread="blockIdx.x"):
+            for u_fused_ax0_fused_fused_1 in T.thread_binding(8, thread="threadIdx.y"):
+                for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.thread_binding(16, thread="threadIdx.x"):
+                    for u_fused_ax0_fused_fused_2_init in range(1):
+                        for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_1_init in T.vectorized(1):
+                            with T.sblock("NT_matmul_rf_init"):
+                                vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused = T.axis.spatial(16, ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 + ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_1_init)
+                                v0 = T.axis.spatial(22016, u_fused_ax0_fused_fused_0 * 8 + u_fused_ax0_fused_fused_1 + u_fused_ax0_fused_fused_2_init)
+                                T.reads()
+                                T.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0])
+                                var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = T.float16(0.0)
+                    for ax1_0_fused_ax1_1_fused_0 in T.serial(32, annotations={"pragma_auto_unroll_max_step": 64, "pragma_unroll_explicit": 1}):
+                        for ax0_ax1_fused_0 in range(1):
+                            for ax0_ax1_fused_1 in T.vectorized(1):
+                                with T.sblock("lv571_local"):
+                                    v0 = T.axis.spatial(22016, u_fused_ax0_fused_fused_0 * 8 + u_fused_ax0_fused_fused_1)
+                                    v1 = T.axis.spatial(512, ax1_0_fused_ax1_1_fused_0 * 16 + ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0)
+                                    T.reads(lv571[v0, v1])
+                                    T.writes(lv571_local[v0, v1])
+                                    lv571_local[v0, v1] = lv571[v0, v1]
+                        for u_fused_ax0_fused_fused_2, ax1_0_fused_ax1_1_fused_2 in T.grid(1, 8):
+                            for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_1 in T.vectorized(1):
+                                with T.sblock("NT_matmul_rf_update"):
+                                    vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused = T.axis.spatial(16, ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 + ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_1)
+                                    v0 = T.axis.spatial(22016, u_fused_ax0_fused_fused_0 * 8 + u_fused_ax0_fused_fused_1 + u_fused_ax0_fused_fused_2)
+                                    vax1_0_fused_ax1_1_fused_0, vax1_0_fused_ax1_1_fused_2 = T.axis.remap("RR", [ax1_0_fused_ax1_1_fused_0, ax1_0_fused_ax1_1_fused_2])
+                                    T.reads(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0], lv1654[0, 0, vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2], lv571_local[v0, vax1_0_fused_ax1_1_fused_0 * 16 + vax1_0_fused_ax1_1_fused_2 // 8 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused], lv572[v0, (vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2) // 32])
+                                    T.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0])
+                                    var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] + lv1654[0, 0, vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2] * ((T.Cast("float16", lv571_local[v0, vax1_0_fused_ax1_1_fused_0 * 16 + vax1_0_fused_ax1_1_fused_2 // 8 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused] >> T.Cast("uint32", (vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2) % 8) * T.uint32(4) & T.uint32(15)) - T.float16(7.0)) * lv572[v0, (vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2) // 32])
+            for ax2_fused_0_ax2_fused_1_fused in T.thread_binding(8, thread="threadIdx.y"):
+                for ax0 in T.thread_binding(16, thread="threadIdx.x"):
+                    for ax2_fused_2_0 in T.serial(1, annotations={"pragma_auto_unroll_max_step": 64, "pragma_unroll_explicit": 1}):
+                        for ax2_fused_2_1 in T.vectorized(1):
+                            with T.sblock("NT_matmul_rf_init"):
+                                vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 = T.axis.spatial(16, ax0)
+                                v0 = T.axis.spatial(22016, u_fused_ax0_fused_fused_0 * 8 + ax2_fused_0_ax2_fused_1_fused + ax2_fused_2_0 + ax2_fused_2_1)
+                                T.reads()
+                                T.writes(var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0])
+                                var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0] = T.float16(0.0)
+                            for ax1 in range(1):
+                                with T.sblock("NT_matmul_rf_update"):
+                                    vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_1 = T.axis.remap("SR", [ax0, ax1])
+                                    v0 = T.axis.spatial(22016, u_fused_ax0_fused_fused_0 * 8 + ax2_fused_0_ax2_fused_1_fused + ax2_fused_2_0 + ax2_fused_2_1)
+                                    T.reads(var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0], var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_1, 0, 0, v0])
+                                    T.writes(var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0])
+                                    var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0] = var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0] + var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_1, 0, 0, v0]
+            for ax1_fused_2 in range(1):
+                for ax1_fused_0_ax1_fused_1_fused in T.thread_binding(8, thread="threadIdx.y"):
+                    for ax0 in T.thread_binding(16, thread="threadIdx.x"):
+                        with T.sblock("NT_matmul"):
+                            vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 = T.axis.reduce(16, ax0)
+                            v0 = T.axis.spatial(22016, u_fused_ax0_fused_fused_0 * 8 + ax1_fused_0_ax1_fused_1_fused + ax1_fused_2)
+                            T.reads(var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0])
+                            T.writes(var_NT_matmul_intermediate[0, 0, v0])
+                            with T.init():
+                                var_NT_matmul_intermediate[0, 0, v0] = T.float16(0.0)
+                            var_NT_matmul_intermediate[0, 0, v0] = var_NT_matmul_intermediate[0, 0, v0] + var_NT_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0, 0, 0, v0]
+    # fmt: on
+
+    mod = tvm.IRModule({"main": before})
+    with Target("webgpu"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
+
+
 def test_decode_gemv1():
     # fmt: off
 
