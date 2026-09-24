@@ -460,6 +460,81 @@ def test_fold_shape_to_tensor_symbolic_shape():
     tvm.ir.assert_structural_equal(after, Module)
 
 
+def test_fold_shape_to_tensor_symbolic_shape_without_legalize():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor(("m",), "float32")):
+            m = T.int64()
+            with R.dataflow():
+                shape_tensor = R.shape_to_tensor(R.shape([m]))
+                R.output(shape_tensor)
+            return shape_tensor
+
+    # Exercise the C++ fallback rather than the registered legalization function.
+    op = tvm.ir.Op.get("relax.shape_to_tensor")
+    original_legalize = op.get_attr("FLegalize")
+    op.reset_attr("FLegalize")
+    try:
+        after = relax.transform.FoldConstant()(Module)
+        tvm.ir.assert_structural_equal(after, Module)
+    finally:
+        if original_legalize is not None:
+            op.set_attr("FLegalize", original_legalize)
+
+
+def test_fold_shape_to_tensor_static_shape_without_legalize():
+    @I.ir_module
+    class Module:
+        @R.function
+        def before():
+            with R.dataflow():
+                shape_tensor = R.shape_to_tensor(R.shape([2, 3]))
+                R.output(shape_tensor)
+            return shape_tensor
+
+        @R.function
+        def expected(shape_tensor: R.Tensor((2,), "int64")):
+            return shape_tensor
+
+    before = gen_mod(Module, "before", {})
+    expected = gen_mod(Module, "expected", {"shape_tensor": np.array([2, 3], dtype="int64")})
+
+    # Static dimensions must still fold when using the C++ fallback.
+    op = tvm.ir.Op.get("relax.shape_to_tensor")
+    original_legalize = op.get_attr("FLegalize")
+    op.reset_attr("FLegalize")
+    try:
+        after = relax.transform.FoldConstant()(before)
+        tvm.ir.assert_structural_equal(after, expected)
+    finally:
+        if original_legalize is not None:
+            op.set_attr("FLegalize", original_legalize)
+
+
+def test_fold_shape_to_tensor_mixed_shape_without_legalize():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((2, "m", 3), "float32")):
+            m = T.int64()
+            with R.dataflow():
+                shape_tensor = R.shape_to_tensor(R.shape([2, m, 3]))
+                R.output(shape_tensor)
+            return shape_tensor
+
+    # A symbolic dimension after a constant must prevent folding the entire call.
+    op = tvm.ir.Op.get("relax.shape_to_tensor")
+    original_legalize = op.get_attr("FLegalize")
+    op.reset_attr("FLegalize")
+    try:
+        after = relax.transform.FoldConstant()(Module)
+        tvm.ir.assert_structural_equal(after, Module)
+    finally:
+        if original_legalize is not None:
+            op.set_attr("FLegalize", original_legalize)
+
+
 def test_fold_tuple_output():
     @tvm.script.ir_module
     class Module:
