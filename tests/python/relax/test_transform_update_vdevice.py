@@ -45,10 +45,10 @@ def test_update():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("cuda", 0),
-                    I.vdevice("metal", 0, "global"),
-                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
+                    R.vdevice("llvm"),
+                    R.vdevice("cuda", 0),
+                    R.vdevice("metal", 0, "global"),
+                    R.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
@@ -67,10 +67,10 @@ def test_update():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("cuda", 0),
-                    I.vdevice("metal", 0, "global"),
-                    I.vdevice("metal", 1, "global"),
+                    R.vdevice("llvm"),
+                    R.vdevice("cuda", 0),
+                    R.vdevice("metal", 0, "global"),
+                    R.vdevice("metal", 1, "global"),
                 ]
             }
         )
@@ -89,8 +89,8 @@ def test_update():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("cuda", 0),
+                    R.vdevice("llvm"),
+                    R.vdevice("cuda", 0),
                 ]
             }
         )
@@ -109,8 +109,8 @@ def test_update():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("llvm", 1),
+                    R.vdevice("llvm"),
+                    R.vdevice("llvm", 1),
                 ]
             }
         )

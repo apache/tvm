@@ -18,8 +18,8 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/global_info.h>
 #include <tvm/ir/module.h>
-#include <tvm/relax/global_info.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/script/ir_builder/ir/ir.h>
 
@@ -72,10 +72,10 @@ inline ffi::Optional<Type> GetGlobalVarType(const BaseFunc& func) {
 
 GlobalVar DeclFunction(const ffi::String& func_name, const BaseFunc& func_signature) {
   IRModuleFrame frame = FindModuleFrame();
-  TVM_FFI_CHECK(!frame->global_var_map.count(func_name), ValueError)
+  GlobalVar gv = frame->global_var_map.count(func_name) ? frame->global_var_map.at(func_name)
+                                                        : GlobalVar(func_name);
+  TVM_FFI_CHECK(!frame->functions.count(gv), ValueError)
       << "function " << func_name << " already exists";
-
-  GlobalVar gv = GlobalVar(func_name);
   if (auto ty = GetGlobalVarType(func_signature)) {
     gv->ty = ty.value();
   } else {
@@ -113,14 +113,14 @@ void ModuleAttrs(ffi::Map<ffi::String, Any> attrs, bool allow_overwrite) {
   }
 }
 
-ffi::Optional<ffi::ObjectRef> ModuleGetAttr(const ffi::String& key) {
+Any ModuleGetAttr(const ffi::String& key) {
   if (IRBuilder::IsInScope()) {
     IRModuleFrame frame = FindModuleFrame();
     if (frame->attrs.find(key) != frame->attrs.end()) {
-      return frame->attrs[key].cast<ffi::ObjectRef>();
+      return frame->attrs[key];
     }
   }
-  return std::nullopt;
+  return Any();
 }
 
 void ModuleSetAttr(const ffi::String& key, const ffi::Optional<ffi::ObjectRef>& value,
@@ -151,35 +151,6 @@ void ModuleGlobalInfos(ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_info
   }
 }
 
-relax::VDevice LookupVDevice(ffi::String target_kind, int device_index) {
-  if (IRBuilder::IsInScope()) {
-    IRModuleFrame frame = FindModuleFrame();
-    if (frame->global_infos.empty()) {
-      TVM_FFI_THROW(ValueError) << "The GlobalInfos in the IRModule is not defined.";
-    }
-    ffi::Array<GlobalInfo> vdevices = frame->global_infos["vdevice"];
-    if (vdevices.empty() || device_index < 0 ||
-        static_cast<size_t>(device_index) >= vdevices.size()) {
-      TVM_FFI_THROW(ValueError) << "The target VDevice in the GlobalInfos was not found.";
-    }
-    if (target_kind == "vdevice") {
-      return vdevices[device_index].as_or_throw<relax::VDevice>();
-    }
-    int count = 0;
-    for (auto vdevice : vdevices) {
-      auto vdev = vdevice.as_or_throw<relax::VDevice>();
-      if (vdev->target->kind->name == target_kind) {
-        if (count == device_index) {
-          return vdev;
-        }
-        count++;
-      }
-    }
-  }
-  LOG(WARNING) << "The annotated device was not found, please check your vdevice list.";
-  return relax::VDevice();
-}
-
 bool LookupName(const ffi::String& name) {
   if (IRBuilder::IsInScope()) {
     IRModuleFrame frame = FindModuleFrame();
@@ -198,7 +169,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.ir.ModuleGetAttr", ModuleGetAttr)
       .def("script.ir_builder.ir.ModuleSetAttr", ModuleSetAttr)
       .def("script.ir_builder.ir.ModuleGlobalInfos", ModuleGlobalInfos)
-      .def("script.ir_builder.ir.LookupVDevice", LookupVDevice)
       .def("script.ir_builder.ir.LookupName", LookupName);
 }
 

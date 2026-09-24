@@ -194,7 +194,7 @@ def test_call_tir_rewrite_with_interspersed_primitive_argument():
         @R.function
         def main(
             A: R.Tensor((16,), "float32"),
-            scale: R.Prim("float32"),
+            scale: T.float32,
             C: R.Tensor((16,), "float32"),
         ) -> R.Tensor((16,), "float32"):
             R.func_attr({"relax.force_pure": True})
@@ -589,7 +589,7 @@ def test_call_tir_inplace_some_new():
 
 
 def test_call_tir_inplace_repeated_input():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @tvm.script.ir_module
         class Input:
@@ -619,7 +619,7 @@ def test_call_tir_inplace_repeated_input():
 
 
 def test_call_tir_inplace_all_new():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @tvm.script.ir_module
         class Input:
@@ -648,7 +648,7 @@ def test_inplace_mutation_with_tuple_argument_raises_error():
     triggered a segfault rather than raising an exception.
 
     """
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @I.ir_module(s_tir=True)
         class Module:
@@ -680,7 +680,7 @@ def test_inplace_mutation_with_non_tensor_argument_raises_error():
     triggered a segfault rather than raising an exception.
 
     """
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @I.ir_module(s_tir=True)
         class Module:
@@ -709,7 +709,7 @@ def test_inplace_mutation_with_incompatible_tensor_shape_raises_error():
     different than the output's shape (`[32]` as opposed to `[16]`).
 
     """
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @I.ir_module(s_tir=True)
         class Module:
@@ -738,7 +738,7 @@ def test_inplace_mutation_with_incompatible_tensor_dtype_raises_error():
     different than the output's dtype (`int32` as opposed to `float32`).
 
     """
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @I.ir_module(s_tir=True)
         class Module:

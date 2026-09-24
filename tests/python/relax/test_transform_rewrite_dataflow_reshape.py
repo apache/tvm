@@ -615,7 +615,7 @@ def test_rewrite_static_reshape():
         ):
             T.func_attr({"tirx.noalias": True})
 
-            for iters in T.grid(T.int64(64), T.int64(4)):
+            for (*iters,) in T.grid(T.int64(64), T.int64(4)):
                 with T.sblock("T_add"):
                     i, j = T.axis.remap("SS", iters)
                     z[i, j] = y1[i, j] + y2[i, j]
@@ -742,7 +742,7 @@ def test_rewrite_dynamic_reshape():
 
             T.func_attr({"tirx.noalias": True})
 
-            for iters in T.grid(N * 4, T.int64(4)):
+            for (*iters,) in T.grid(N * 4, T.int64(4)):
                 with T.sblock("T_add"):
                     i, j = T.axis.remap("SS", iters)
                     z[i, j] = y1[i, j] + y2[i, j]

@@ -21,22 +21,26 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from tvm.script.parser.protocol_registry import result_span as _result_span
+
 from . import op as _trn_op
 
 OpWrapper = Callable[[Callable[..., Any]], Callable[..., Any]]
 
 
-def _default_op_wrapper() -> OpWrapper:
+def _default_op_wrapper(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Create the default facade for a returned-node NKI intrinsic."""
     from tvm.tirx.script.builder.ir import _op_wrapper  # pylint: disable=import-outside-toplevel
 
-    return _op_wrapper
+    # NKI producers return a single call_intrin node and never emit separately.
+    return _result_span(f"T.nki.{func.__name__.removeprefix('nki_')}")(_op_wrapper(func))
 
 
 class NKINamespace:
     """The NKI instructions submodule."""
 
     def __init__(self, op_wrapper: OpWrapper | None = None):
-        wrap = op_wrapper or _default_op_wrapper()
+        wrap = _default_op_wrapper if op_wrapper is None else op_wrapper
         self.load = wrap(_trn_op.nki_load)
         self.store = wrap(_trn_op.nki_store)
         self.tensor_copy = wrap(_trn_op.nki_tensor_copy)

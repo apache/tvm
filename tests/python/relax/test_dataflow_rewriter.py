@@ -1182,7 +1182,7 @@ def test_rewrite_may_apply_within_conditional():
             )
 
     @R.function(private=True)
-    def before(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32"), cond: R.Prim("bool")):
+    def before(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32"), cond: T.bool):
         if cond:
             out = A + B
         else:
@@ -1191,7 +1191,7 @@ def test_rewrite_may_apply_within_conditional():
         return out
 
     @R.function(private=True)
-    def expected(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32"), cond: R.Prim("bool")):
+    def expected(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32"), cond: T.bool):
         if cond:
             out = R.call_pure_packed(
                 "my_optimized_add_impl", A, B, ty_args=R.Tensor([16], "float32")

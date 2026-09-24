@@ -36,7 +36,7 @@ from tvm.script import relax as R
 from tvm.script import tirx as T
 
 
-@I.ir_module(s_tir=True)
+@R.py_module(s_tir=True)
 class PyTorchIntegrationModule(BasePyModule):
     """Test module for PyTorch integration with TVM."""
 

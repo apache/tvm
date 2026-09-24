@@ -93,13 +93,12 @@ def main():
 def test_disable_concise_scoping_when_scope_annotated():
     @T.prim_func(s_tir=True)
     def _func():
-        x = 1
-        y = x + 1
+        x: T.int32 = 1
+        y: T.int32 = x + 1
         T.evaluate(y - 1)
 
-    # In fork, each bare `x = expr` lowers to AllocBuffer + BufferStore (local_scalar);
-    # the printer fuses each pair into a single `y: T.int32 = x + 1` line. Annotate the
-    # AllocBuffer that originates this fused line.
+    # Explicit scalar declarations lower to AllocBuffer + BufferStore (local_scalar).
+    # The printer fuses each pair into one line; annotate the allocation for y.
     result = _func.with_attr("global_symbol", "main").script(
         obj_to_annotate={
             _func.body.seq[2]: "annotation 1",

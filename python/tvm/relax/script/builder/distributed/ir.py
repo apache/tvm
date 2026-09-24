@@ -45,6 +45,7 @@ from tvm.relax.utils import convert_to_expr
 from tvm.runtime import _tensor
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder.ir import IRModuleFrame
+from tvm.script.ir_builder.ir.ir import lookup_global_info
 
 from . import _ffi_api
 
@@ -93,24 +94,26 @@ def const(
     value: bool | int | float | _np.ndarray | tvm.runtime.Tensor,
     ty: DTensorType,
 ) -> GenericConst:
-    """Create a constant value.
+    """Create a distributed constant value with the specified tensor type.
 
     Parameters
     ----------
-    value: Union[bool, int, float, numpy.ndarray, tvm.runtime.Tensor]
+    value : bool, int, float, numpy.ndarray or tvm.runtime.Tensor
         The constant value.
 
-    dtype: Optional[str]
-        The data type of the resulting constant.
+    ty : DTensorType
+        The distributed tensor type, including its tensor dtype, device mesh
+        and placement.
 
-    Note
-    ----
-    When dtype is None, we use the following rule:
+    Returns
+    -------
+    res : GenericConst
+        The constant carrying the supplied distributed tensor type.
 
-    - int maps to "int32"
-    - float maps to "float32"
-    - bool maps to "bool"
-    - other using the same default rule as numpy.
+    Notes
+    -----
+    Python scalars and NumPy values are converted to the dtype specified by
+    ``ty.tensor_ty``. The dtype is not inferred from the Python value.
     """
     ty = tvm.runtime.convert(ty)
     if not isinstance(ty, DTensorType):
@@ -131,10 +134,13 @@ def const(
 
 
 def _lookup_device_mesh(device_mesh_str: py_str) -> DeviceMesh:
-    if not IRBuilder.is_in_scope():
-        raise ValueError("device_mesh cannot be found in global info")
     name, index_str = device_mesh_str.split("[")
     index = int(index_str[:-1])
+    if not IRBuilder.is_in_scope():
+        device_mesh = lookup_global_info(name, index)
+        if not isinstance(device_mesh, DeviceMesh):
+            raise TypeError("The device_mesh global info must be a DeviceMesh.")
+        return device_mesh
     frames = IRBuilder.current().frames
     for f in frames:
         if isinstance(f, IRModuleFrame):

@@ -69,7 +69,7 @@ def test_attention():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
+                    R.vdevice("llvm"),
                 ]
             }
         )
@@ -105,7 +105,7 @@ def test_attention():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
+                    R.vdevice("llvm"),
                 ]
             }
         )

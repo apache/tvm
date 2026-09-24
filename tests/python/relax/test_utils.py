@@ -23,6 +23,7 @@ import pytest
 import tvm
 from tvm import relax
 from tvm.ir.base import assert_structural_equal
+from tvm.script import tirx as T
 from tvm.script.parser import relax as R
 
 
@@ -184,9 +185,9 @@ def test_structural_equal_with_recursive_lambda_function():
 
     def define_function():
         @R.function
-        def func(n: R.Prim("int64")):
+        def func(n: T.int64):
             @R.function
-            def recursive_lambda(i_arg: R.Prim("int64")) -> R.Prim("int64"):
+            def recursive_lambda(i_arg: T.int64) -> T.int64:
                 condition = R.equal(i_arg, R.prim_value(0))
                 if condition:
                     output = R.prim_value(0)
@@ -214,9 +215,9 @@ def test_structural_equal_with_distinct_recursive_lambda_function():
     """
 
     @R.function(private=True)
-    def func_a(n: R.Prim("int64")):
+    def func_a(n: T.int64):
         @R.function
-        def recursive_lambda(i_arg: R.Prim("int64")) -> R.Prim("int64"):
+        def recursive_lambda(i_arg: T.int64) -> T.int64:
             condition = R.equal(i_arg, R.prim_value(0))
             if condition:
                 output = R.prim_value(0)
@@ -231,9 +232,9 @@ def test_structural_equal_with_distinct_recursive_lambda_function():
         return recursive_lambda(n)
 
     @R.function(private=True)
-    def func_b(n: R.Prim("int64")):
+    def func_b(n: T.int64):
         @R.function
-        def recursive_lambda(i_arg: R.Prim("int64")) -> R.Prim("int64"):
+        def recursive_lambda(i_arg: T.int64) -> T.int64:
             condition = R.equal(i_arg, R.prim_value(0))
             if condition:
                 output = R.prim_value(1)

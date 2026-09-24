@@ -357,7 +357,7 @@ def test_prim_value():
     _assert_print(obj, "T.int64(1)")
 
     @R.function
-    def func() -> R.Prim("int64"):
+    def func() -> T.int64:
         return R.prim_value(1)
 
     _assert_print(
@@ -373,7 +373,7 @@ def func() -> T.int64:
     )
 
     @R.function
-    def float_func() -> R.Prim("float32"):
+    def float_func() -> T.float32:
         return R.prim_value(T.float32(1.0))
 
     float_script = float_func.script(verbose_expr=True)
@@ -384,7 +384,7 @@ def func() -> T.int64:
 
 def test_primitive_bindings_roundtrip_without_prim_value_marker():
     @R.function
-    def func(n: R.Prim("int64")) -> R.Prim("int64"):
+    def func(n: T.int64) -> T.int64:
         plus_one = n + 1
         alias = R.prim_value(plus_one)
         return alias

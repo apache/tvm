@@ -1043,10 +1043,11 @@ class TransformedMmaToGlobal:
                                                 scope="m16n8k8.matrixC",
                                                 offset_factor=8,
                                             )
+                                            s1, s0 = T.int32(), T.int32()
                                             tgt = T.match_buffer(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:8, 0:8],
                                                 (8, 8),
-                                                strides=("s1", "s0"),
+                                                strides=(s1, s0),
                                                 scope="shared.dyn",
                                                 offset_factor=8,
                                             )

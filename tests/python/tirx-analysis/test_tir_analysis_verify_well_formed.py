@@ -267,7 +267,7 @@ def test_block_match_buffer_defines_buffer_obj():
     class mod:
         @T.prim_func(s_tir=True)
         def func(A: T.Buffer([256, 256], "float32")):
-            for iters in T.grid(16, 16, 16, 16):
+            for (*iters,) in T.grid(16, 16, 16, 16):
                 with T.sblock("compute"):
                     tile_i, tile_j, i, j = T.axis.remap("SSSS", iters)
                     B = T.match_buffer(
@@ -286,7 +286,7 @@ def test_block_match_buffer_defines_symbolic_variables():
     class mod:
         @T.prim_func(s_tir=True)
         def func(A: T.Buffer([256, 256], "int32")):
-            for iters in T.grid(16, 16, 16, 16):
+            for (*iters,) in T.grid(16, 16, 16, 16):
                 with T.sblock("compute"):
                     tile_i, tile_j, i, j = T.axis.remap("SSSS", iters)
 
@@ -438,7 +438,7 @@ def test_match_buffer_in_block_is_well_formed():
     class mod:
         @T.prim_func(s_tir=True)
         def func(A: T.Buffer((128, 128), "float32")):
-            for iters in T.grid(8, 8, 16, 16):
+            for (*iters,) in T.grid(8, 8, 16, 16):
                 with T.sblock("compute"):
                     ti, tj, i, j = T.axis.remap("SSSS", iters)
                     A_tile = T.match_buffer(

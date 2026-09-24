@@ -88,8 +88,8 @@ def test_single_arg_return():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global.texture-weight"),
-                    I.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global"),
+                    R.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global.texture-weight"),
+                    R.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global"),
                 ]
             }
         )
@@ -217,8 +217,8 @@ def test_multi_arg_return():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global.texture-weight"),
-                    I.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global"),
+                    R.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global.texture-weight"),
+                    R.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global"),
                 ]
             }
         )

@@ -36,7 +36,6 @@ class Module:
     @T.prim_func(s_tir=True)
     def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
         T.func_attr({"global_symbol": "tir_matmul"})
-        k = T.int32()
         A = T.match_buffer(x, (32, 32))
         B = T.match_buffer(y, (32, 32))
         C = T.match_buffer(z, (32, 32))

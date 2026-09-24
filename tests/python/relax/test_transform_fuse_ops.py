@@ -1650,7 +1650,7 @@ def test_primitive_call_arg_not_inlined():
         def main(x: R.Tensor((4,), dtype="int64")):
             cls = Before
             with R.dataflow():
-                value: R.Prim("int64") = R.call_pure_packed("get_scalar", ty_args=R.Prim("int64"))
+                value: T.int64 = R.call_pure_packed("get_scalar", ty_args=tvm.ir.PrimType("int64"))
                 lv = R.call_tir(
                     cls.add_scalar,
                     (x, value),
@@ -1711,7 +1711,7 @@ def test_primitive_call_arg_used_by_output_shape_not_inlined():
         @R.function(pure=False)
         def main():
             cls = Before
-            n: R.Prim("int64") = R.call_packed("get_extent", ty_args=R.Prim("int64"))
+            n: T.int64 = R.call_packed("get_extent", ty_args=tvm.ir.PrimType("int64"))
             with R.dataflow():
                 lv = R.call_tir(
                     cls.make,

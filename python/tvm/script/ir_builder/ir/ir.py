@@ -16,48 +16,45 @@
 # under the License.
 """Package tvm.script.ir_builder.ir.ir"""
 
-from typing import TYPE_CHECKING, Any, TypeVar
+import inspect
+from typing import TypeVar
 
 from tvm.ir import BaseFunc, GlobalInfo, GlobalVar
 from tvm.runtime import Object as tvm_Object
 
+from ..base import IRBuilder
 from . import _ffi_api
 from .frame import IRModuleFrame
 
-if TYPE_CHECKING:
-    from tvm.relax import DummyGlobalInfo, VDevice
+T = TypeVar("T")
 
-    T = TypeVar("T")
 
-    def meta_var(value: T) -> T:
-        """Mark a value for parser-time metaprogramming."""
-        return value
+def meta_var(value: T) -> T:
+    """Return a Python metadata value without binding, naming or relocating it.
 
-else:
+    Parameters
+    ----------
+    value : T
+        Any host or IR object, including an unpackable sequence.
 
-    class meta_var:  # pylint: disable=invalid-name
-        """A value used only for TVMScript parser-time metaprogramming.
+    Returns
+    -------
+    T
+        The exact input object. No frame is required, no IR is emitted, and
+        existing names and source locations are retained.
 
-        Assignments unwrap this object without emitting an IR binding.  The
-        shared wrapper is exposed as ``I.meta_var``; dialect namespaces may
-        provide compatibility aliases to the same implementation.
-        For Relax, this is the explicit opt-out from default primitive binding emission.
+    .. code:: python
 
-        Parameters
-        ----------
-        value : Any
-            The parser-time value.
-        """
-
-        def __init__(self, value: Any) -> None:
-            self.value = value
-
-        def __iter__(self):
-            return (meta_var(item) for item in self.value)
+        # Source and generated Python (the value retains its identity)
+        value = I.meta_var(existing_value)
+        a, b = I.meta_var((left, right))
+    """
+    return value
 
 
 def ir_module() -> IRModuleFrame:
     """Start a ir_module frame.
+
     Returns
     -------
     frame: IRModuleFrame
@@ -153,65 +150,63 @@ def module_set_attr(
 
 def module_global_infos(global_infos: dict[str, list[GlobalInfo]]) -> None:
     """Specify the global infos of the ir_module frame.
+
     Parameters
     ----------
     global_infos: Dict[str, List[GlobalInfo]]
         The module global infos.
     """
-    return _ffi_api.ModuleGlobalInfos(global_infos)  # type: ignore[attr-defined] # pylint: disable=no-member
+    if IRBuilder.is_in_scope():
+        return _ffi_api.ModuleGlobalInfos(global_infos)
+    # Keep native argument validation even before Python has applied the module decorator.
+    _ffi_api.ModuleGlobalInfos(global_infos)
+    frame = inspect.currentframe().f_back
+    try:
+        if _is_class_frame(frame):
+            previous = frame.f_locals.get("__tvm_script_global_infos__")
+            if previous:
+                raise ValueError(f"Duplicate module global_infos, previous one is:\n{previous}")
+            frame.f_locals["__tvm_script_global_infos__"] = {
+                name: tuple(values) for name, values in global_infos.items()
+            }
+    finally:
+        del frame
 
 
-############################### GlobalInfo ###############################
+def _is_class_frame(frame):
+    return (
+        not frame.f_code.co_flags & inspect.CO_NEWLOCALS
+        and frame.f_locals is not frame.f_globals
+        and "__module__" in frame.f_locals
+        and frame.f_locals.get("__qualname__", "").split(".")[-1] == frame.f_code.co_name
+    )
 
 
-def dummy_global_info() -> "DummyGlobalInfo":
-    """Create a dummy global info expression.
-    Returns
-    -------
-    res : DummyGlobalInfo
-        The result dummy global info.
-    """
-    from tvm.relax import DummyGlobalInfo  # pylint: disable=import-outside-toplevel
-
-    return DummyGlobalInfo()  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def vdevice(target=None, vdevice_id: int = 0, memory_scope: str = "global") -> "VDevice":
-    """Create a virtual device global info.
-    Parameters
-    ----------
-    target
-        The target.
-    vdevice_id: int
-        The virtual device index.
-    memory_scope: str
-        The memory scope, default is "global"
-
-    Returns
-    -------
-    res : VDevice
-        The result virtual device.
-    """
-    from tvm.relax import VDevice  # pylint: disable=import-outside-toplevel
-
-    return VDevice(target, vdevice_id, memory_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
+def _class_global_infos():
+    # Only a still-executing class owns eager signature context. Never retain its frame,
+    # and do not fall through an inner class to an unrelated outer module declaration.
+    frame = inspect.currentframe().f_back
+    try:
+        while frame is not None:
+            if _is_class_frame(frame):
+                return frame.f_locals.get("__tvm_script_global_infos__", {})
+            frame = frame.f_back
+    finally:
+        del frame
+    return {}
 
 
-def lookup_vdevice(target_kind: str | None = None, device_index: int = -1) -> "VDevice":
-    """Retrieve a virtual device from the globalinfo vdevice list.
-    Parameters
-    ----------
-    target_kind: str
-        The target device kind, for example 'llvm' or 'cuda'.
-    device_index: int
-        The virtual device index.
-
-    Returns
-    -------
-    res : VDevice
-        The result virtual device.
-    """
-    return _ffi_api.LookupVDevice(target_kind, device_index)  # type: ignore[attr-defined] # pylint: disable=no-member
+def lookup_global_info(name: str, index: int) -> GlobalInfo:
+    """Resolve a concrete global info in a builder or an executing module class."""
+    if IRBuilder.is_in_scope():
+        for frame in reversed(IRBuilder.current().frames):
+            if isinstance(frame, IRModuleFrame):
+                return frame.global_infos[name][index]
+        raise ValueError("The GlobalInfos in the IRModule is not defined.")
+    infos = _class_global_infos()
+    if not infos:
+        raise ValueError("The GlobalInfos in the IRModule is not defined.")
+    return infos[name][index]
 
 
 def lookup_name(name: str) -> bool:

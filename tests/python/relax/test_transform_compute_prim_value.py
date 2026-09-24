@@ -36,7 +36,7 @@ def test_prim_value_in_assert_condition():
         @R.function(pure=False)
         def main(A: R.Tensor(["N"])):
             N = T.int64()
-            condition: R.Prim("bool") = Expected.compute_symbolic_expr(R.prim_value(N))
+            condition: T.bool = Expected.compute_symbolic_expr(R.prim_value(N))
             _ = R.assert_op(condition)
             return A
 
@@ -66,7 +66,7 @@ def test_prim_value_in_branch_condition():
         @R.function(pure=False)
         def main(A: R.Tensor(["N"])):
             N = T.int64()
-            condition: R.Prim("bool") = Expected.compute_symbolic_expr(R.prim_value(N))
+            condition: T.bool = Expected.compute_symbolic_expr(R.prim_value(N))
             if condition:
                 out = R.call_packed("fast_vectorized_impl", A, ty_args=[A.ty])
             else:

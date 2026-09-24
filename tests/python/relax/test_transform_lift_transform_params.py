@@ -1867,7 +1867,7 @@ def test_lift_transform_with_primitive_param_used_by_model_tensor():
         @R.function
         def main(
             x: R.Tensor(dtype="float32", ndim=1),
-            extent: R.Prim("int64"),
+            extent: T.int64,
             weight: R.Tensor(["extent"], "float32"),
         ):
             R.func_attr({"num_input": 1})

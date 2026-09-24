@@ -17,6 +17,11 @@
 # under the License.
 """Package tvm.script.ir_builder.ir"""
 
+from tvm.ir import GenericConst, Range, StringImm, StringType
+from tvm.script.parser.protocol_registry import constexpr
+
+from ..base import IRBuilder, MISSING, annotation_value_, at_, with_at_group_, require_defined
+from .parser_protocol import check_well_formed_, module_member_
 from .frame import IRModuleFrame
 from .ir import (
     decl_function,
@@ -26,9 +31,6 @@ from .ir import (
     module_get_attr,
     module_set_attr,
     module_global_infos,
-    lookup_vdevice,
     lookup_name,
     meta_var,
-    vdevice,
-    dummy_global_info,
 )

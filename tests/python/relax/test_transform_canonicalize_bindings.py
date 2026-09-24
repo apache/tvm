@@ -510,7 +510,7 @@ def test_match_cast_may_have_distinct_values_in_branches():
             state: R.Tensor(["N"], dtype="float32"),
             A: R.Tensor(["M", 16], dtype="float32"),
             B: R.Tensor(["M", 32], dtype="float32"),
-            scale: R.Prim("float32"),
+            scale: T.float32,
         ):
             N = T.int64()
             M = T.int64()
@@ -541,7 +541,7 @@ def test_match_cast_may_have_distinct_values_in_branches():
             state: R.Tensor(["N"], dtype="float32"),
             A: R.Tensor(["M", 16], dtype="float32"),
             B: R.Tensor(["M", 32], dtype="float32"),
-            scale: R.Prim("float32"),
+            scale: T.float32,
         ):
             N = T.int64()
             M = T.int64()

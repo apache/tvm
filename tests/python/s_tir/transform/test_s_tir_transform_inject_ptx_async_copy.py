@@ -281,45 +281,45 @@ __forceinline__ __device__ void tvm_builtin_ptx_cp_async_commit_group_async_comm
 }
 extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A_ptr, float* __restrict__ B_ptr, float* __restrict__ C_ptr);
 extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A_ptr, float* __restrict__ B_ptr, float* __restrict__ C_ptr) {
-  __shared__ alignas(64) float A_shared_ptr[64];
-  __shared__ alignas(64) float B_shared_ptr[64];
-  A_shared_ptr[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
-  B_shared_ptr[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
+  __shared__ alignas(64) float _ptr[64];
+  __shared__ alignas(64) float _ptr_1[64];
+  _ptr[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
+  _ptr_1[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
   tvm_builtin_ptx_cp_async_commit_group_async_commit_group();
   int cse_v1 = (((int)threadIdx.x) * 14);
   int cse_v2 = (((int)threadIdx.x) + 16);
-  ptx_cp_async_legacy_ca_4_4_4(A_shared_ptr, (((int)threadIdx.x) + 16), A_ptr, (((int)threadIdx.x) * 14));
-  ptx_cp_async_legacy_ca_4_4_4(B_shared_ptr, (((int)threadIdx.x) + 16), B_ptr, (((int)threadIdx.x) * 14));
+  ptx_cp_async_legacy_ca_4_4_4(_ptr, (((int)threadIdx.x) + 16), A_ptr, (((int)threadIdx.x) * 14));
+  ptx_cp_async_legacy_ca_4_4_4(_ptr_1, (((int)threadIdx.x) + 16), B_ptr, (((int)threadIdx.x) * 14));
   tvm_builtin_ptx_cp_async_commit_group_async_commit_group();
   int cse_v3 = (((int)threadIdx.x) + 32);
   int cse_v6 = ((((int)threadIdx.x) * 14) + 1);
-  ptx_cp_async_legacy_ca_4_4_4(A_shared_ptr, (((int)threadIdx.x) + 32), A_ptr, ((((int)threadIdx.x) * 14) + 1));
-  ptx_cp_async_legacy_ca_4_4_4(B_shared_ptr, (((int)threadIdx.x) + 32), B_ptr, ((((int)threadIdx.x) * 14) + 1));
+  ptx_cp_async_legacy_ca_4_4_4(_ptr, (((int)threadIdx.x) + 32), A_ptr, ((((int)threadIdx.x) * 14) + 1));
+  ptx_cp_async_legacy_ca_4_4_4(_ptr_1, (((int)threadIdx.x) + 32), B_ptr, ((((int)threadIdx.x) * 14) + 1));
   tvm_builtin_ptx_cp_async_commit_group_async_commit_group();
   int cse_v4 = (((int)threadIdx.x) * 16);
   for (int i = 0; i < 13; ++i) {
     int cse_v7 = (((((int)threadIdx.x) * 14) + i) + 2);
     int cse_v9 = ((((i + 3) & 3) * 16) + ((int)threadIdx.x));
-    ptx_cp_async_legacy_pred_ca_4_4_4(A_shared_ptr, ((((i + 3) & 3) * 16) + ((int)threadIdx.x)), A_ptr, (((((int)threadIdx.x) * 14) + i) + 2), (i < 12));
+    ptx_cp_async_legacy_pred_ca_4_4_4(_ptr, ((((i + 3) & 3) * 16) + ((int)threadIdx.x)), A_ptr, (((((int)threadIdx.x) * 14) + i) + 2), (i < 12));
     tvm_builtin_ptx_cp_async_commit_group_async_commit_group();
     tvm_builtin_ptx_cp_async_wait_group_async_wait_group_5();
     __syncthreads();
     int cse_v8 = (((i & 3) * 16) + ((int)threadIdx.x));
-    C_ptr[((((int)threadIdx.x) * 16) + i)] = (A_shared_ptr[(((i & 3) * 16) + ((int)threadIdx.x))] + B_shared_ptr[(((i & 3) * 16) + ((int)threadIdx.x))]);
+    C_ptr[((((int)threadIdx.x) * 16) + i)] = (_ptr[(((i & 3) * 16) + ((int)threadIdx.x))] + _ptr_1[(((i & 3) * 16) + ((int)threadIdx.x))]);
     __syncthreads();
-    ptx_cp_async_legacy_pred_ca_4_4_4(B_shared_ptr, ((((i + 3) & 3) * 16) + ((int)threadIdx.x)), B_ptr, (((((int)threadIdx.x) * 14) + i) + 2), (i < 12));
+    ptx_cp_async_legacy_pred_ca_4_4_4(_ptr_1, ((((i + 3) & 3) * 16) + ((int)threadIdx.x)), B_ptr, (((((int)threadIdx.x) * 14) + i) + 2), (i < 12));
     tvm_builtin_ptx_cp_async_commit_group_async_commit_group();
   }
   tvm_builtin_ptx_cp_async_wait_group_async_wait_group_2();
   __syncthreads();
-  C_ptr[((((int)threadIdx.x) * 16) + 13)] = (A_shared_ptr[(((int)threadIdx.x) + 16)] + B_shared_ptr[(((int)threadIdx.x) + 16)]);
+  C_ptr[((((int)threadIdx.x) * 16) + 13)] = (_ptr[(((int)threadIdx.x) + 16)] + _ptr_1[(((int)threadIdx.x) + 16)]);
   tvm_builtin_ptx_cp_async_wait_group_async_wait_group_1();
   __syncthreads();
-  C_ptr[((((int)threadIdx.x) * 16) + 14)] = (A_shared_ptr[(((int)threadIdx.x) + 32)] + B_shared_ptr[(((int)threadIdx.x) + 32)]);
+  C_ptr[((((int)threadIdx.x) * 16) + 14)] = (_ptr[(((int)threadIdx.x) + 32)] + _ptr_1[(((int)threadIdx.x) + 32)]);
   tvm_builtin_ptx_cp_async_wait_group_async_wait_group_0();
   __syncthreads();
   int cse_v5 = (((int)threadIdx.x) + 48);
-  C_ptr[((((int)threadIdx.x) * 16) + 15)] = (A_shared_ptr[(((int)threadIdx.x) + 48)] + B_shared_ptr[(((int)threadIdx.x) + 48)]);
+  C_ptr[((((int)threadIdx.x) * 16) + 15)] = (_ptr[(((int)threadIdx.x) + 48)] + _ptr_1[(((int)threadIdx.x) + 48)]);
 }
 
 """

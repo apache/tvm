@@ -108,7 +108,7 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::S
                                                       last_block->bindings.end() - 1);
 
   tvm::Var new_var(last_binding->var->name + output_var_suffix,
-                   tvm::relax::GetType(last_binding->var));
+                   tvm::relax::GetType(last_binding->var), last_binding->var->span);
   tvm::relax::Expr body;
 
   const auto* var_binding = last_binding.as<tvm::relax::VarBindingNode>();
@@ -116,21 +116,22 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::S
   if (var_binding && tvm::relax::IsLeafOrTuple(var_binding->value)) {
     body = var_binding->value;
   } else if (var_binding) {
-    last_block_bindings.push_back(tvm::relax::VarBinding(new_var, var_binding->value));
+    last_block_bindings.push_back(
+        tvm::relax::VarBinding(new_var, var_binding->value, var_binding->span));
     body = new_var;
   } else if (const auto* match_cast = last_binding.as<tvm::relax::MatchCastNode>()) {
     last_block_bindings.push_back(
-        tvm::relax::MatchCast(new_var, match_cast->value, match_cast->ty));
+        tvm::relax::MatchCast(new_var, match_cast->value, match_cast->ty, match_cast->span));
     body = new_var;
   } else {
     TVM_FFI_CHECK(false, TypeError) << "Unsupported binding type: " << last_binding->GetTypeKey();
   }
 
   new_blocks.push_back(last_block->IsInstance<tvm::relax::DataflowBlockNode>()
-                           ? tvm::relax::DataflowBlock(last_block_bindings)
-                           : tvm::relax::BindingBlock(last_block_bindings));
+                           ? tvm::relax::DataflowBlock(last_block_bindings, last_block->span)
+                           : tvm::relax::BindingBlock(last_block_bindings, last_block->span));
 
-  return tvm::relax::SeqExpr(new_blocks, body);
+  return tvm::relax::SeqExpr(new_blocks, body, frame->source_span);
 }
 
 }  // namespace relax

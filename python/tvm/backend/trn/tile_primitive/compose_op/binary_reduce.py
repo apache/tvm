@@ -113,7 +113,7 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
                             vec_dst_idx = T.meta_var(inst_gen.generate_indices(binary_output))
                             reduce_dst_idx = T.meta_var(inst_gen.generate_indices(reduce_output))
                             if inst_gen.make_guard(binary_output):
-                                if CONST is None:
+                                if T.constexpr(CONST is None):
                                     src_2_indices = T.meta_var(inst_gen.generate_indices(binary_input2))  # noqa: E501
                                     T.nki.tensorscalar_reduce(dst2[tuple(reduce_dst_idx)], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], src2[tuple(src_2_indices)], binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
                                 else:
@@ -134,7 +134,7 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
                                 if inst_gen.make_guard(binary_output):
                                     src_1_indices = T.meta_var(inst_gen.generate_indices(binary_input1))  # noqa: E501
                                     vec_dst_idx = T.meta_var(inst_gen.generate_indices(binary_output))  # noqa: E501
-                                    if CONST is None:
+                                    if T.constexpr(CONST is None):
                                         src_2_indices = T.meta_var(inst_gen.generate_indices(binary_input2))  # noqa: E501
                                         T.nki.tensorscalar_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], src2[tuple(src_2_indices)], binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
                                     else:

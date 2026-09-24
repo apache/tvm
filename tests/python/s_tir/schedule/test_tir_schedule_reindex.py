@@ -310,7 +310,8 @@ def test_conv2d_reindex_weight(use_block_name, use_buffer_name):
 def test_conv2d_reindex_data(use_block_name, use_buffer_name):
     sch = tvm.s_tir.Schedule(conv2d_nhwc)
     block = "conv2d_nhwc" if use_block_name else sch.get_sblock("conv2d_nhwc")
-    buf = "PadInput" if use_buffer_name else ("read", 0)
+    buffer_name = sch.get(sch.get_sblock("conv2d_nhwc")).reads[0].source.name
+    buf = buffer_name if use_buffer_name else ("read", 0)
     sch.reindex(block, buf)
     assert_structural_equal_ignore_global_symbol(conv2d_nhwc_reindex_data, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=conv2d_nhwc)

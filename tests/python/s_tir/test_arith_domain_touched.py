@@ -24,11 +24,10 @@ from tvm.script import tirx as T
 @T.prim_func(s_tir=True)
 def scalar_func(a: T.handle, b: T.handle):
     m = T.int32()
-    n = T.meta_var(100)
-    A = T.match_buffer(a, (n, m))
-    B = T.match_buffer(b, (n, m))
+    A = T.match_buffer(a, (100, m))
+    B = T.match_buffer(b, (100, m))
 
-    for i, j in T.grid(n, m):
+    for i, j in T.grid(100, m):
         A[i, j] = B[i - 1, j + 1] + A[i - 1, j - 1]
 
 

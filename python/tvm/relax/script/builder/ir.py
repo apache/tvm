@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name
-"""IRBuilder for Relax dialect"""
+"""IRBuilder for Relax language variant"""
 
 import builtins
 import functools
@@ -28,7 +28,7 @@ from tvm import DataType, relax
 from tvm.ir import IRModule, StringImm
 from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, TupleGetItem, Var, VarBinding, const
 from tvm.relax.dpl import PatternMatchingRewriter
-from tvm.relax.global_info import VDevice
+from tvm.relax.global_info import DummyGlobalInfo, VDevice
 
 ############################### Operators ###############################
 from tvm.relax.op import (
@@ -207,7 +207,10 @@ from tvm.runtime._tensor import (
     vulkan,
     webgpu,
 )
-from tvm.script.ir_builder.ir import decl_function, lookup_vdevice
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder.ir import decl_function
+from tvm.script.ir_builder.ir.ir import _class_global_infos
+from tvm.script.parser.protocol_registry import module_decorator as _module_decorator
 
 from . import _ffi_api, frame
 
@@ -218,7 +221,72 @@ py_tuple = tuple  # pylint: disable=used-before-assignment
 py_str = str  # pylint: disable=used-before-assignment
 
 
-################################ Device ################################
+############################### GlobalInfo ###############################
+
+
+def dummy_global_info() -> "DummyGlobalInfo":
+    """Create a dummy global info expression.
+
+    Returns
+    -------
+    res : DummyGlobalInfo
+        The result dummy global info.
+    """
+    return DummyGlobalInfo()  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def vdevice(target=None, vdevice_id: int = 0, memory_scope: py_str = "global") -> "VDevice":
+    """Create a virtual device global info.
+    Parameters
+    ----------
+    target
+        The target.
+    vdevice_id: int
+        The virtual device index.
+    memory_scope: py_str
+        The memory scope, default is "global"
+
+    Returns
+    -------
+    res : VDevice
+        The result virtual device.
+    """
+    return VDevice(target, vdevice_id, memory_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def lookup_vdevice(target_kind: py_str | None = None, device_index: int = -1) -> "VDevice":
+    """Retrieve a virtual device from the globalinfo vdevice list.
+
+    Parameters
+    ----------
+    target_kind: str
+        The target device kind, for example 'llvm' or 'cuda'. Use 'vdevice'
+        to index the complete virtual-device list.
+    device_index: int
+        The zero-based index among devices of the selected target kind, or
+        among all devices when target_kind is 'vdevice'.
+
+    Returns
+    -------
+    res : VDevice
+        The result virtual device.
+    """
+    if IRBuilder.is_in_scope():
+        return _ffi_api.LookupVDevice(target_kind, device_index)
+    infos = _class_global_infos()
+    if not infos:
+        raise ValueError("The GlobalInfos in the IRModule is not defined.")
+    vdevices = infos["vdevice"]
+    if device_index < 0 or device_index >= len(vdevices):
+        raise ValueError("The target VDevice in the GlobalInfos was not found.")
+    if not all(isinstance(value, VDevice) for value in vdevices):
+        raise TypeError("The vdevice global infos must contain VDevice values.")
+    if target_kind == "vdevice":
+        return vdevices[device_index]
+    matches = [value for value in vdevices if value.target.kind.name == target_kind]
+    if device_index >= len(matches):
+        raise ValueError("The target VDevice in the GlobalInfos was not found.")
+    return matches[device_index]
 
 
 def to_vdevice(data: Expr, dst_vdevice: py_str | VDevice) -> Expr:
@@ -229,7 +297,7 @@ def to_vdevice(data: Expr, dst_vdevice: py_str | VDevice) -> Expr:
     data : Expr
         The tensor to be copied.
 
-    dst_device : Union[py_str, VDevice]
+    dst_vdevice : Union[py_str, VDevice]
         The destination device where the data is copied to.
 
     Returns
@@ -252,6 +320,7 @@ def to_vdevice(data: Expr, dst_vdevice: py_str | VDevice) -> Expr:
 
 def function(is_pure: bool = True, is_private: bool = False) -> frame.FunctionFrame:
     """Start a function frame.
+
     Parameters
     ----------
     is_pure: bool
@@ -272,6 +341,7 @@ def function(is_pure: bool = True, is_private: bool = False) -> frame.FunctionFr
 
 def arg(name: py_str, ty: Type) -> Var:
     """Add a parameter to the last function frame.
+
     Parameters
     ----------
     name: str
@@ -290,6 +360,7 @@ def arg(name: py_str, ty: Type) -> Var:
 
 def func_name(name: py_str) -> None:
     """Specify the name of the last function frame.
+
     Parameters
     ----------
     name: str
@@ -300,6 +371,7 @@ def func_name(name: py_str) -> None:
 
 def func_attr(attrs: dict[py_str, tvm_Object]) -> None:
     """Specify the attrs of the last function frame.
+
     Parameters
     ----------
     attrs: Dict[str, Object]
@@ -310,6 +382,7 @@ def func_attr(attrs: dict[py_str, tvm_Object]) -> None:
 
 def func_ret_type(ret_ty: Type) -> None:
     """Specify the return type of the last function frame.
+
     Parameters
     ----------
     ret_ty: Type
@@ -325,6 +398,7 @@ def func_ret_ty(ret_ty: Type) -> None:
 
 def func_ret_value(value: Expr) -> None:
     """Specify the return value of the last function frame.
+
     Parameters
     ----------
     value: Expr
@@ -368,11 +442,41 @@ def rewriter(rewriter_mod: IRModule | type) -> PatternMatchingRewriter:
         A rewriter object, which can be applied either to a Relax
         function or to an entire IRModule.
 
+    Notes
+    -----
+    Class members are parsed together after the class body completes. Their
+    annotations use the decorator's original definition scope, which is released
+    after parsing. An existing IRModule is used directly.
+
     """
     if not isinstance(rewriter_mod, IRModule):
-        rewriter_mod = tvm.script.ir_module(rewriter_mod)
+        from tvm.script.parser.entry import parse
+        from tvm.script.parser.inspect_source import capture_definition_scope
+
+        if not inspect.isclass(rewriter_mod):
+            raise TypeError(f"Expect a class, but got: {rewriter_mod}")
+        frame = inspect.currentframe().f_back
+        try:
+            definition_scope = capture_definition_scope(frame)
+            definition_source = (frame.f_code.co_filename, frame.f_lineno)
+        finally:
+            del frame
+        try:
+            module = parse(
+                rewriter_mod,
+                definition_scope=definition_scope,
+                _definition_source=definition_source,
+            )
+        finally:
+            del definition_scope
+        module.__name__ = rewriter_mod.__name__
+        rewriter_mod = module
 
     return PatternMatchingRewriter.from_module(rewriter_mod)
+
+
+# Member decorators defer to the same shared module construction boundary.
+_module_decorator("R.rewriter")(rewriter)
 
 
 ############################# BindingBlock ##############################
@@ -380,6 +484,7 @@ def rewriter(rewriter_mod: IRModule | type) -> PatternMatchingRewriter:
 
 def dataflow() -> frame.BindingBlockFrame:
     """Start a dataflow binding block frame.
+
     Returns
     -------
     frame: frame.BindingBlockFrame
@@ -390,6 +495,7 @@ def dataflow() -> frame.BindingBlockFrame:
 
 def output(*vars: tuple[Var]) -> None:
     """Expose the dataflow block output variables as global ones.
+
     Parameters
     ----------
     vars: Tuple[Var]
@@ -649,6 +755,7 @@ def emit_with_ty(
 
 def SeqExpr() -> frame.SeqExprFrame:  # pylint: disable=invalid-name
     """Create a SeqExpr frame.
+
     Returns
     -------
     res : frame.SeqExprFrame
@@ -684,6 +791,7 @@ def If(condition: Expr) -> frame.IfFrame:  # pylint: disable=invalid-name
 
 def Then() -> frame.ThenFrame:  # pylint: disable=invalid-name
     """Create a then frame.
+
     Returns
     -------
     res : frame.ThenFrame
@@ -694,6 +802,7 @@ def Then() -> frame.ThenFrame:  # pylint: disable=invalid-name
 
 def Else() -> frame.ElseFrame:  # pylint: disable=invalid-name
     """Create an else frame.
+
     Returns
     -------
     res : frame.ElseFrame
@@ -846,6 +955,7 @@ __all__ = [
     "device",
     "divide",
     "dtype",
+    "dummy_global_info",
     "dynamic_strided_slice",
     "einsum",
     "emit",
@@ -902,6 +1012,7 @@ __all__ = [
     "logical_not",
     "logical_or",
     "logical_xor",
+    "lookup_vdevice",
     "make_closure",
     "matmul",
     "max",
@@ -978,6 +1089,7 @@ __all__ = [
     "tuple",
     "unique",
     "variance",
+    "vdevice",
     "vision",
     "vm",
     "vpi",

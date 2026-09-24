@@ -247,7 +247,7 @@ try:
         T.bitwise_or(A[0:5] > T.Broadcast(T.float32(0), 5), B[0:5] > T.Broadcast(T.float32(0), 5))
         T.bitwise_and(A[0:5] < T.Broadcast(T.float32(0), 5), T.Broadcast(T.bool(1), 5))
         T.bitwise_or(A[0:5] > T.Broadcast(T.float32(0), 5), T.Broadcast(T.bool(1), 5))
-except tvm.error.DiagnosticError:
+except TypeError:
     slice_op_test = None
     slice_op_test_ref = None
 

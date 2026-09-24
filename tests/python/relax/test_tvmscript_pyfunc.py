@@ -37,7 +37,7 @@ from tvm.script import relax as R
 from tvm.script import tirx as T
 
 
-@I.ir_module(s_tir=True)
+@R.py_module(s_tir=True)
 class TestPyFuncModule(BasePyModule):
     """Test module with Python functions using @I.pyfunc decorator."""
 
@@ -78,9 +78,9 @@ class TestTVMScriptPyFunc:
     def test_pyfunc_decorator_creates_pyfuncs_attribute(self):
         module = TestPyFuncModule
 
-        assert hasattr(module, "pyfuncs"), "Module should have pyfuncs attribute"
+        assert hasattr(module, "__pyfuncs__"), "Module should have pyfuncs attribute"
 
-        pyfuncs = module.pyfuncs
+        pyfuncs = module.__pyfuncs__
         assert isinstance(pyfuncs, dict), "pyfuncs should be a dictionary"
 
         expected_functions = ["pytorch_processor", "pytorch_adder", "pytorch_complex_ops"]
@@ -90,7 +90,7 @@ class TestTVMScriptPyFunc:
     def test_pyfunc_functions_are_callable(self):
         """Test that Python functions in pyfuncs are callable."""
         module = TestPyFuncModule
-        pyfuncs = module.pyfuncs
+        pyfuncs = module.__pyfuncs__
 
         # Test pytorch_processor
         processor_func = pyfuncs["pytorch_processor"]
@@ -107,7 +107,7 @@ class TestTVMScriptPyFunc:
     def test_pyfunc_functions_execute_correctly(self):
         """Test that Python functions execute correctly."""
         module = TestPyFuncModule
-        pyfuncs = module.pyfuncs
+        pyfuncs = module.__pyfuncs__
 
         # Create test data
         x = torch.tensor([1.0, -2.0, 3.0, -4.0, 5.0], dtype=torch.float32)
@@ -171,7 +171,7 @@ class TestTVMScriptPyFunc:
             assert module._base_py_module_inherited, "Inheritance flag should be True"
         else:
             # Alternative: check if the module supports Python functions
-            assert hasattr(module, "pyfuncs"), "Module should support Python functions"
+            assert hasattr(module, "__pyfuncs__"), "Module should support Python functions"
 
         # Check if original class is preserved (this might not be set in all implementations)
         if hasattr(module, "_original_class"):
@@ -252,7 +252,7 @@ class TestTVMScriptPyFunc:
     def test_pyfunc_decorator_preserves_function_signatures(self):
         """Test that @I.pyfunc decorator preserves function signatures."""
         module = TestPyFuncModule
-        pyfuncs = module.pyfuncs
+        pyfuncs = module.__pyfuncs__
 
         # Check function signatures
         import inspect

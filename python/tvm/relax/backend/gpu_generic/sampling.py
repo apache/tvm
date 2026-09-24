@@ -174,7 +174,7 @@ def gpu_multinomial_from_uniform(
 
             local_sum[()] = T.Cast(dtype, init_value)
             for i in T.unroll(thread_elem):
-                if mask_local is not None:
+                if T.constexpr(mask_local is not None):
                     if mask_local[i]:
                         local_sum[()] = reduce_op(local_sum[()], data_local[i])
                 else:

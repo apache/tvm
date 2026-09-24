@@ -335,7 +335,7 @@ def LazyGetInput() -> tvm.ir.transform.Pass:
             ...
 
         @R.function
-        def after(fget_param: R.Callable([R.Prim('int64'), R.Any], R.Any)):
+        def after(fget_param: R.Callable([T.int64, R.Any], R.Any)):
             A_untyped = fget_param(0, R.str('A'))
             A = R.match_cast(A_untyped, R.Tensor([16,32], "float32")
             ...
@@ -373,7 +373,7 @@ def LazySetOutput() -> tvm.ir.transform.Pass:
             return (A, B)
 
         @R.function
-        def after(args, fset_param: R.Callable([R.Prim('int64'), R.Any])):
+        def after(args, fset_param: R.Callable([T.int64, R.Any])):
             ...
             fset_param(0, A)
             ...

@@ -1264,17 +1264,19 @@ def test_dataflow_inside_branch():
         def main(
             x: R.Tensor([1024, 1024], "float16"),
             w: R.Tensor([1024, 1024], "float16"),
-            transpose_weights: R.Prim("bool"),
+            transpose_weights: T.bool,
         ):
             if transpose_weights:
                 with R.dataflow():
                     w_t = R.permute_dims(w)
-                    out = R.matmul(x, w_t)
-                    R.output(out)
+                    out_then = R.matmul(x, w_t)
+                    R.output(out_then)
+                out = out_then
             else:
                 with R.dataflow():
-                    out = R.matmul(x, w)
-                    R.output(out)
+                    out_else = R.matmul(x, w)
+                    R.output(out_else)
+                out = out_else
             return out
 
     @I.ir_module(s_tir=True)
@@ -1283,7 +1285,7 @@ def test_dataflow_inside_branch():
         def main(
             x: R.Tensor([1024, 1024], "float16"),
             w: R.Tensor([1024, 1024], "float16"),
-            transpose_weights: R.Prim("bool"),
+            transpose_weights: T.bool,
         ):
             cls = Expected
             if transpose_weights:

@@ -37,39 +37,21 @@ namespace ir_builder {
  * Furthermore, the information stored in each stack frame can be useful for context-dependent
  * IR construction.
  *
- * \example
- *
- * The `T::MatchBuffer` below annotates a PrimFunc parameter with BufferType:
- *
- * \code {.cpp}
- *
- * using T = tvm::script::ir_builder::tirx;
- * With <PrimFuncFrame> _(...);
- * Buffer buffer = T::MatchBuffer(...);
- *
- * \endcode
- *
- * The `T::MatchBuffer` below instead generates `s_tir::MatchBufferRegion` in a TIR block:
- *
- * \code {.cpp}
- *
- * using T = tvm::script::ir_builder::tirx;
- * With <PrimFuncFrame> _(...);
- * {
- *   With<SBlockFrame> _2(...);
- *   Buffer buffer = T::MatchBuffer(...);
- * }
- *
- * \endcode
+ * Frames capture construction context and nested scopes. Language variant builders define
+ * concrete frame subclasses and decide how their contents contribute to the result.
  */
 class IRBuilderFrameNode : public ffi::Object {
  public:
+  /*! \brief Capture the source-call context when this frame is constructed. */
+  IRBuilderFrameNode();
   /*! \brief A list of callbacks used when exiting the frame. */
   std::vector<ffi::TypedFunction<void()>> callbacks;
+  /*! \brief Source context retained until this frame constructs its result. */
+  mutable Span source_span;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<IRBuilderFrameNode>();
+    refl::ObjectDef<IRBuilderFrameNode>().def_ro("source_span", &IRBuilderFrameNode::source_span);
     // `callbacks` is not registered as it's not visited.
   }
 
@@ -129,28 +111,29 @@ class IRBuilderFrame : public ffi::ObjectRef {
   }
 };
 
+/*! \brief Resolve one symbol in a native function frame's retained map. */
+TVM_DLL tvm::Var ResolveTypeVar(ffi::Map<ffi::String, tvm::Var>* symbols, const ffi::String& name,
+                                ffi::Optional<PrimType> dtype, ffi::Optional<tvm::Var> value,
+                                Span span);
+
 ////////////////////////////// IRBuilder //////////////////////////////
 
 /*!
- * \brief A dialect-agnostic IRBuilder that constructs any IR of TVM.
+ * \brief A language variant agnostic IRBuilder that constructs any IR of TVM.
  * An idiomatic use of this class is to put this inside the RAII with-scope,
- * call dialect-specific methods accordingly. Upon exiting the scope.
+ * call language variant specific methods accordingly. Upon exiting the scope.
  *
  * \code
  *
- * PrimFunc ConstructPrimFunc() {
- *   using tvm::script::ir_builder::IRBuilder;
- *   using T = tvm::script::ir_builder::tirx;
+ * IRModule ConstructModule() {
+ *   using namespace tvm::script::ir_builder;
  *   IRBuilder builder;
- *   // Step 1. Place IRBuilder inside the with-scope.
  *   {
- *     With<IRBuilder> _(builder);
- *     // Step 2. Call dialect-specific methods.
- *     With<T::PrimFuncFrame> _2(...);
- *     T::MatchBuffer(...);
+ *     With<IRBuilder> scope(builder);
+ *     With<ir::IRModuleFrame> module(ir::IRModule());
+ *     // Add function declarations and definitions with the chosen language variant builder.
  *   }
- *   // Step 3. Return the constructed PrimFunc.
- *   return builder->Get<PrimFunc>();
+ *   return builder->Get<IRModule>();
  * }
  *
  * \endcode
@@ -183,7 +166,7 @@ class IRBuilderNode : public ffi::Object {
   template <typename TFrame>
   inline ffi::Optional<TFrame> FindFrame() const;
   /*!
-   * \brief Get the frame on top of the stack `this->frames` if its type is `TFrame`.
+   * \brief Get the top frame if its type is `TFrame`.
    * \tparam TFrame The assumed type of the last frame on stack.
    * \return The frame if the stack is non-empty and the top of the stack is of type `TFrame`.
    * Otherwise std::nullopt.
@@ -202,9 +185,11 @@ class IRBuilderNode : public ffi::Object {
   /*! \brief Pop the innermost frontend source span. */
   void PopSourceSpan();
   /*! \brief Return the normalized active source span, including expansion history. */
-  Span GetCurrentSourceSpan() const;
-  /*! \brief Attach the active source span to an expression that has no span yet. */
+  Span GetCurrentSourceSpan(Span location = Span()) const;
+  /*! \brief Compose active source context onto a supported node or construction frame. */
   ffi::ObjectRef SetCurrentSourceSpan(ffi::ObjectRef obj) const;
+  /*! \brief Attach an explicit location composed with the active source-call context. */
+  ffi::ObjectRef SetSourceSpan(ffi::ObjectRef obj, Span span) const;
 };
 
 /*!
@@ -267,6 +252,13 @@ class IRBuilder : public ffi::ObjectRef {
 
 namespace details {
 
+/*! \brief Language variant extensible access to an object's mutable source span. */
+class SourceSpanAccessor {
+ public:
+  using FType = ObjectFunctor<Span*(const ffi::ObjectRef&)>;
+  static FType& vtable();
+};
+
 class Namer {
  public:
   using FType = ObjectFunctor<void(const ffi::ObjectRef&, ffi::String)>;
@@ -297,7 +289,7 @@ template <typename TFrame>
 inline ffi::Optional<TFrame> IRBuilderNode::GetLastFrame() const {
   using TFrameNode = typename TFrame::ContainerType;
   if (!frames.empty() && frames.back()->IsInstance<TFrameNode>()) {
-    return frames.back().as_or_throw<TFrame>();
+    return frames.back().template as_or_throw<TFrame>();
   }
   return std::nullopt;
 }

@@ -14,8 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F821
-
 import pytest
 
 import tvm
@@ -197,6 +195,7 @@ def test_bind_symbolic_vars_in_shape_expr():
 
     @R.function(private=True)
     def expected(A: R.Tensor(["M * 16"]), x: R.Shape(["M", 16])):
+        M = T.int64()
         B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([M * 32]))
         return B
 

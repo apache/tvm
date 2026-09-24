@@ -3163,7 +3163,7 @@ def relax_extern_func():
 
 
 def relax_match_cast_ty_proxy():
-    """TypeProxy subclasses may be used as expressions
+    """Default type constructors may be used as expressions
 
     This is a regression test.  The TVMScript parser allows Type
     to be specified using a default-constructible class
@@ -3188,16 +3188,9 @@ def relax_match_cast_ty_proxy():
         inner.__name__ = subclass.__name__
         return inner
 
-    # Not all subclasses of TypeProxy are default-constructible.
-    # This list is a subset of `TypeProxy.__subclasses__()`,
-    # excluding `PrimProxy` and `DTensorProxy`.
-    subclasses = [
-        tvm.script.parser.relax.entry.AnyProxy,
-        tvm.script.parser.relax.entry.TensorProxy,
-        tvm.script.parser.relax.entry.CallableProxy,
-        tvm.script.parser.relax.entry.TupleProxy,
-        tvm.script.parser.relax.entry.ShapeProxy,
-    ]
+    # Prim and DTensor require arguments; the remaining public type
+    # constructors also work as bare values in match_cast expressions.
+    subclasses = [R.Any, R.Tensor, R.Callable, R.Tuple, R.Shape]
 
     for subclass in subclasses:
         yield make_ir_generator(subclass)
@@ -3219,7 +3212,7 @@ def relax_float_symbolic_var():
     """Relax scalar variables may use any dtype."""
 
     @R.function
-    def func(value: R.Prim("float16")):
+    def func(value: T.float16):
         return value
 
     return func

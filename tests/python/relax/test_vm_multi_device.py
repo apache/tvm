@@ -44,8 +44,8 @@ def test_multi_cpu():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm", 0),
-                    I.vdevice("llvm", 1),
+                    R.vdevice("llvm", 0),
+                    R.vdevice("llvm", 1),
                 ]
             }
         )
@@ -87,9 +87,9 @@ def test_multi_gpu():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("cuda", 1),
-                    I.vdevice("cuda", 0),
-                    I.vdevice("cuda", 2),
+                    R.vdevice("cuda", 1),
+                    R.vdevice("cuda", 0),
+                    R.vdevice("cuda", 2),
                 ]
             }
         )
@@ -148,8 +148,8 @@ def test_multi_device():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("cuda", 0),
-                    I.vdevice("llvm"),
+                    R.vdevice("cuda", 0),
+                    R.vdevice("llvm"),
                 ]
             }
         )

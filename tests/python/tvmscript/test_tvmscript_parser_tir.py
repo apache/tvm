@@ -118,20 +118,23 @@ def main(A: T.Buffer(("n",), "float32"), n: T.int64):
     assert str(n.ty.dtype) == "int64"
 
 
-def test_tir_string_defined_symbol_does_not_take_dtype_from_body():
-    with pytest.raises(tvm.error.DiagnosticError):
-        tvm.script.from_source(
-            """
+def test_tir_string_defined_symbol_uses_prescanned_body_dtype():
+    func = tvm.script.from_source(
+        """
 @T.prim_func
 def main(A: T.Buffer(("n",), "float32")):
     n = T.int64()
     T.evaluate(n)
 """
-        )
+    )
+
+    n = func.params[0].ty.shape[0]
+    assert str(n.ty.dtype) == "int64"
+    assert func.body.value.same_as(n)
 
 
 def test_tir_direct_use_before_string_definition_is_undefined():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(NameError):
         tvm.script.from_source(
             """
 @T.prim_func
@@ -159,12 +162,12 @@ class Module:
     ],
 )
 def test_tir_direct_later_prim_param_is_undefined(source):
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(NameError):
         tvm.script.from_source(source)
 
 
 def test_tir_return_annotation_does_not_define_symbolic_var():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
         tvm.script.from_source(
             """
 @T.prim_func
@@ -225,7 +228,7 @@ def test_tir_func_private_attrs():
 
 
 def test_tir_func_private_manual_global_symbol_fail():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(tvm.error.InternalError):
 
         @T.prim_func(private=True, s_tir=True)
         def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
@@ -371,12 +374,14 @@ def test_tir_macro_in_class():
     def func_no_macro(a: T.handle):
         A = T.match_buffer(a, [128, 128])
         local_a = T.sblock_alloc_buffer([128, 128])
-        for i, j in T.grid(128, 128):
+        N, M = local_a.shape
+        for i, j in T.grid(N, M):
             with T.sblock("update"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 local_a[vi, vj] = A[vi, vj]
         local_b = T.sblock_alloc_buffer([128, 128])
-        for i, j in T.grid(128, 128):
+        N, M = local_b.shape
+        for i, j in T.grid(N, M):
             with T.sblock("update"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 local_b[vi, vj] = local_a[vi, vj]
@@ -426,7 +431,7 @@ def test_tir_dynamic_for_loop():
     @T.prim_func(private=True, s_tir=True)
     def starred(a: T.handle) -> None:
         A = T.match_buffer(a, [128, *dims], "int32")
-        for iters in T.grid(*A.shape):
+        for (*iters,) in T.grid(*A.shape):
             A[iters] = T.int32(1)
 
     @T.prim_func(private=True, s_tir=True)
@@ -690,7 +695,7 @@ def test_deterministic_branch():
     def create_func(predicate: bool):
         @T.prim_func(private=True, s_tir=True)
         def func() -> None:
-            if predicate:
+            if T.constexpr(predicate):
                 T.evaluate(0)
             else:
                 T.evaluate(1)

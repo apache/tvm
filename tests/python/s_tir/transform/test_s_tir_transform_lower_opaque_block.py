@@ -300,10 +300,11 @@ def compacted_symbolic_strided_buffer_func(a: T.handle) -> None:
 def transformed_symbolic_strided_buffer_func(a: T.handle):
     n = T.int32()
     A = T.match_buffer(a, (1, n, 10240))
+    padded_size = T.min((n + 63) // 64 * 64, 96)
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
         A_pad_shared_dyn = T.alloc_buffer(
-            (1, T.min((n + 63) // 64 * 64, 96), 64),
-            strides=(72 * T.min((n + 63) // 64 * 64, 96), 72, 1),
+            (1, padded_size, 64),
+            strides=(72 * padded_size, 72, 1),
             scope="shared.dyn",
             annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
         )

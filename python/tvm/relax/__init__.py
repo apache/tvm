@@ -113,3 +113,24 @@ from .binding_rewrite import DataflowBlockRewrite
 import tvm.script
 
 tvm.script.register_dialect("relax", "tvm.relax.script")
+
+
+def _check_script_module(module: "tvm.ir.IRModule") -> None:
+    # Delay builder imports until validation, keeping dialect/runtime bootstrap safe.
+    from .script.builder.parser_protocol import _check_module_well_formed
+
+    _check_module_well_formed(module)
+
+
+tvm.script.register_module_validator(_check_script_module, prepend=True)
+
+
+def _initialize_script_namespace() -> None:
+    from . import script
+
+    script._initialize()
+
+
+from tvm.script.parser import register_namespace_initializer as _register_namespace_initializer
+
+_register_namespace_initializer(_initialize_script_namespace, aliases=("R", "relax"))

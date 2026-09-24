@@ -39,6 +39,8 @@ extern "C" __global__ void add_kernel(float* x, float* y, float* output, int n_e
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_tir_call_source_kernel():
+    BLOCK_SIZE = 64
+
     @I.ir_module(s_tir=True)
     class Module:
         @T.prim_func(s_tir=True)
@@ -51,7 +53,6 @@ def test_tir_call_source_kernel():
             with T.sblock("root"):
                 T.reads(x[0:m], y[0:m])
                 T.writes(output[0:m])
-                BLOCK_SIZE = T.meta_var(64)
                 T.call_kernel(
                     add_cuda_source,
                     ((T.ceildiv(m, BLOCK_SIZE),), (BLOCK_SIZE,)),

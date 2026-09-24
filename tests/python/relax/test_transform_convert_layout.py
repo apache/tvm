@@ -1916,15 +1916,10 @@ def test_conv2d_symbolic_sub_indexed():
             "float32", ndim=4
         ):
             with R.dataflow():
-                N, C, H, W = T.int64(), I.meta_var(T.int64(16)), T.int64(), T.int64()
-                Nw, Cw, Hw, Ww = (
-                    I.meta_var(T.int64(4)),
-                    I.meta_var(T.int64(16)),
-                    T.int64(),
-                    T.int64(),
-                )
-                lv0 = R.match_cast(x, R.Tensor((N, C, H, W), "float32"))
-                lv1 = R.match_cast(w, R.Tensor((Nw, Cw, Hw, Ww), "float32"))
+                N, H, W = T.int64(), T.int64(), T.int64()
+                Hw, Ww = T.int64(), T.int64()
+                lv0 = R.match_cast(x, R.Tensor((N, 16, H, W), "float32"))
+                lv1 = R.match_cast(w, R.Tensor((4, 16, Hw, Ww), "float32"))
                 gv: R.Tensor(
                     (N, T.int64(4), H + T.int64(1) - Hw, W + T.int64(1) - Ww), "float32"
                 ) = R.nn.conv2d(lv0, lv1, out_dtype="float32")
@@ -1998,15 +1993,10 @@ def test_conv2d_matchcast_bias_sub_indexed():
             bias: R.Tensor("float32", ndim=4),
         ) -> R.Tensor(None, "float32", ndim=4):
             with R.dataflow():
-                N, C, H, W = T.int64(), I.meta_var(T.int64(16)), T.int64(), T.int64()
-                Nw, Cw, Hw, Ww = (
-                    I.meta_var(T.int64(4)),
-                    I.meta_var(T.int64(16)),
-                    T.int64(),
-                    T.int64(),
-                )
-                lv0 = R.match_cast(x, R.Tensor((N, C, H, W), "float32"))
-                lv1 = R.match_cast(w, R.Tensor((Nw, Cw, Hw, Ww), "float32"))
+                N, H, W = T.int64(), T.int64(), T.int64()
+                Hw, Ww = T.int64(), T.int64()
+                lv0 = R.match_cast(x, R.Tensor((N, 16, H, W), "float32"))
+                lv1 = R.match_cast(w, R.Tensor((4, 16, Hw, Ww), "float32"))
                 lv2: R.Tensor("float32", ndim=4) = R.nn.conv2d(lv0, lv1, out_dtype="float32")
                 Nb, Cb, Hb, Wb = T.int64(), T.int64(), T.int64(), T.int64()
                 lv_bias = R.match_cast(bias, R.Tensor((Nb, Cb, Hb, Wb), "float32"))
@@ -2022,13 +2012,8 @@ def test_conv2d_matchcast_bias_sub_indexed():
             w: R.Tensor(dtype="float32", ndim=4),
             bias: R.Tensor(dtype="float32", ndim=4),
         ) -> R.Tensor(dtype="float32", ndim=4):
-            N, C, H, W = T.int64(), I.meta_var(T.int64(16)), T.int64(), T.int64()
-            Nw, Cw, Hw, Ww = (
-                I.meta_var(T.int64(4)),
-                I.meta_var(T.int64(16)),
-                T.int64(),
-                T.int64(),
-            )
+            N, H, W = T.int64(), T.int64(), T.int64()
+            Hw, Ww = T.int64(), T.int64()
             Nb, Cb, Hb, Wb = T.int64(), T.int64(), T.int64(), T.int64()
             with R.dataflow():
                 lv0: R.Tensor((N, 16, H, W), dtype="float32") = R.match_cast(
@@ -2095,13 +2080,8 @@ def test_conv2d_matchcast_bias_sub_indexed():
             w: R.Tensor(dtype="float32", ndim=4),
             bias: R.Tensor(dtype="float32", ndim=4),
         ) -> R.Tensor(dtype="float32", ndim=4):
-            N, C, H, W = T.int64(), I.meta_var(T.int64(16)), T.int64(), T.int64()
-            Nw, Cw, Hw, Ww = (
-                I.meta_var(T.int64(4)),
-                I.meta_var(T.int64(16)),
-                T.int64(),
-                T.int64(),
-            )
+            N, H, W = T.int64(), T.int64(), T.int64()
+            Hw, Ww = T.int64(), T.int64()
             Nb, Cb, Hb, Wb = T.int64(), T.int64(), T.int64(), T.int64()
             with R.dataflow():
                 lv0: R.Tensor((N, 16, H, W), dtype="float32") = R.match_cast(
@@ -2170,15 +2150,10 @@ def test_conv2d_layout_incompatible_fallback():
             bias: R.Tensor("float32", ndim=4),
         ) -> R.Tensor(None, "float32", ndim=4):
             with R.dataflow():
-                N, C, H, W = T.int64(), I.meta_var(T.int64(15)), T.int64(), T.int64()
-                Nw, Cw, Hw, Ww = (
-                    I.meta_var(T.int64(4)),
-                    I.meta_var(T.int64(15)),
-                    T.int64(),
-                    T.int64(),
-                )
-                lv0 = R.match_cast(x, R.Tensor((N, C, H, W), "float32"))
-                lv1 = R.match_cast(w, R.Tensor((Nw, Cw, Hw, Ww), "float32"))
+                N, H, W = T.int64(), T.int64(), T.int64()
+                Hw, Ww = T.int64(), T.int64()
+                lv0 = R.match_cast(x, R.Tensor((N, 15, H, W), "float32"))
+                lv1 = R.match_cast(w, R.Tensor((4, 15, Hw, Ww), "float32"))
                 lv2: R.Tensor("float32", ndim=4) = R.nn.conv2d(lv0, lv1, out_dtype="float32")
                 Nb, Cb, Hb, Wb = T.int64(), T.int64(), T.int64(), T.int64()
                 lv_bias = R.match_cast(bias, R.Tensor((Nb, Cb, Hb, Wb), "float32"))
@@ -2194,13 +2169,8 @@ def test_conv2d_layout_incompatible_fallback():
             w: R.Tensor(dtype="float32", ndim=4),
             bias: R.Tensor(dtype="float32", ndim=4),
         ) -> R.Tensor(dtype="float32", ndim=4):
-            N, C, H, W = T.int64(), I.meta_var(T.int64(15)), T.int64(), T.int64()
-            Nw, Cw, Hw, Ww = (
-                I.meta_var(T.int64(4)),
-                I.meta_var(T.int64(15)),
-                T.int64(),
-                T.int64(),
-            )
+            N, H, W = T.int64(), T.int64(), T.int64()
+            Hw, Ww = T.int64(), T.int64()
             Nb, Cb, Hb, Wb = T.int64(), T.int64(), T.int64(), T.int64()
             with R.dataflow():
                 lv0: R.Tensor((N, 15, H, W), dtype="float32") = R.match_cast(

@@ -68,6 +68,9 @@ BufferVar BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
  */
 PrimFuncFrame PrimFunc(bool is_private, bool s_tir = false, bool persistent = false);
 
+/*! \brief Construct a bodyless function signature using the ordinary signature operations. */
+PrimFuncFrame DeclFunction(bool is_private = false, bool s_tir = false, bool persistent = false);
+
 /*!
  * \brief The PrimFunc variable arguments adding function.
  * \param name The name of the variable.
@@ -114,13 +117,16 @@ Type FuncRet(Type ret_type);
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
+ * \param layout The buffer layout.
+ * \param allocated_addr Addresses assigned to the buffer allocation.
  * \return The matched buffer.
  */
 BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
                       PrimType dtype = PrimType::Float(32), ffi::Optional<Expr> data = std::nullopt,
                       ffi::Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
                       ffi::String storage_scope = "global", int align = -1, int offset_factor = 0,
-                      ffi::Optional<Layout> layout = std::nullopt);
+                      ffi::Optional<Layout> layout = std::nullopt,
+                      ffi::Array<PrimExpr> allocated_addr = {});
 
 /*!
  * \brief The block declaration statement.
@@ -206,15 +212,14 @@ void BlockAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  * \param offset_factor The factor of elem_offset field.
  * \param layout The layout of the buffer.
  * \param allocated_addr The allocated address of the buffer. Might be multi-dimensional.
- * \return The allocated buffer or the AllocBufferFrame if the function is called under
- * T.prim_func(tirx=True).
+ * \return The buffer attached to its enclosing block or function allocation list.
  */
-ffi::Variant<BufferVar, AllocBufferFrame> SBlockAllocBuffer(
-    ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
-    ffi::Optional<Expr> data = std::nullopt, ffi::Array<PrimExpr> strides = {},
-    PrimExpr elem_offset = PrimExpr(), ffi::String storage_scope = "", int align = -1,
-    int offset_factor = 0, ffi::Optional<Layout> layout = std::nullopt,
-    ffi::Array<PrimExpr> allocated_addr = {});
+BufferVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
+                            ffi::Optional<Expr> data = std::nullopt,
+                            ffi::Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
+                            ffi::String storage_scope = "", int align = -1, int offset_factor = 0,
+                            ffi::Optional<Layout> layout = std::nullopt,
+                            ffi::Array<PrimExpr> allocated_addr = {});
 
 namespace axis {
 
@@ -394,8 +399,9 @@ WhileFrame While(PrimExpr condition);
 /*!
  * \brief Create a return statement.
  * \param value The value to return.
+ * \return The same statement that was added to the parent frame.
  */
-void Return(Expr value);
+tvm::tirx::Stmt Return(Expr value);
 
 /*!
  * \brief Create a break statement.
@@ -488,14 +494,16 @@ Var EnvThread(ffi::String thread_tag, PrimType dtype = PrimType::Int(32));
  * \param buffer The buffer.
  * \param value The value to be stored.
  * \param indices The indices location to be stored.
+ * \return The same statement that was added to the parent frame.
  */
-void BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices);
+tvm::tirx::Stmt BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices);
 
 /*!
  * \brief Evaluate the input expression.
  * \param value The input expression to evaluate.
+ * \return The same statement that was added to the parent frame.
  */
-void Evaluate(Expr value);
+tvm::tirx::Stmt Evaluate(Expr value);
 
 /*!
  * \brief Create a TIR var that represents a pointer

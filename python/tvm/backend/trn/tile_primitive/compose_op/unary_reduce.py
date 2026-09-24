@@ -112,7 +112,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
                             dst_1_indices = T.meta_var(inst_gen.generate_indices(unary_output))
                             dst_2_indices = T.meta_var(inst_gen.generate_indices(reduce_output))
                             if inst_gen.make_guard(unary_output):
-                                if isinstance(bias, TensorRegion):
+                                if T.constexpr(isinstance(bias, TensorRegion)):
                                     src_bias_indices = T.meta_var(inst_gen.generate_indices(bias))
                                     T.evaluate(T.nki.activation_reduce(dst2[tuple(dst_2_indices)], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[tuple(src_bias_indices)], scale))  # noqa: E501
                                 else:
@@ -138,7 +138,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
                                 src_1_indices = T.meta_var(inst_gen.generate_indices(unary_input))
                                 dst_1_indices = T.meta_var(inst_gen.generate_indices(unary_output))
                                 if inst_gen.make_guard(unary_output):
-                                    if isinstance(bias, TensorRegion):
+                                    if T.constexpr(isinstance(bias, TensorRegion)):
                                         src_bias_indices = T.meta_var(inst_gen.generate_indices(bias))  # noqa: E501
                                         T.evaluate(T.nki.activation_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[tuple(src_bias_indices)], scale))  # noqa: E501
                                     else:

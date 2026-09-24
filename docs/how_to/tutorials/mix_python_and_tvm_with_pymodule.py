@@ -71,7 +71,7 @@ RUN_EXAMPLE = HAS_TORCH and not IS_IN_CI
 ######################################################################
 # Step 1: Your First Hybrid Module
 # ----------------------------------
-# The core idea: decorate a class with ``@I.ir_module``, inherit from ``BasePyModule``, and use
+# The core idea: decorate a class with ``@R.py_module``, inherit from ``BasePyModule``, and use
 # three decorators for three kinds of functions:
 #
 # - ``@T.prim_func`` — low-level TIR kernel (JIT-compiled on instantiation)
@@ -83,7 +83,7 @@ RUN_EXAMPLE = HAS_TORCH and not IS_IN_CI
 
 if RUN_EXAMPLE:
 
-    @I.ir_module
+    @R.py_module
     class MyFirstModule(BasePyModule):
         @T.prim_func(s_tir=True)
         def add_tir(
@@ -129,7 +129,7 @@ if RUN_EXAMPLE:
 
 if RUN_EXAMPLE:
 
-    @I.ir_module
+    @R.py_module
     class DebugModule(BasePyModule):
         @T.prim_func(s_tir=True)
         def matmul_tir(var_A: T.handle, var_B: T.handle, var_C: T.handle):
@@ -207,7 +207,7 @@ if RUN_EXAMPLE:
         out_np = x_np + b_np
         out[:] = out_np
 
-    @I.ir_module
+    @R.py_module
     class PipelineModule(BasePyModule):
         @T.prim_func(s_tir=True)
         def matmul_tir(var_A: T.handle, var_B: T.handle, var_C: T.handle):
@@ -304,7 +304,7 @@ if RUN_EXAMPLE:
     w = torch.randn(4, 4)
     b = torch.randn(4)
 
-    py_result_early = converted_early.pyfuncs["main"](x, w, b)
+    py_result_early = converted_early.__pyfuncs__["main"](x, w, b)
     expected = F.relu(x @ w + b)
 
     print("Before optimization:")
@@ -320,7 +320,7 @@ if RUN_EXAMPLE:
     converter_late = RelaxToPyFuncConverter(optimized_mod)
     converted_late = converter_late.convert(["main"])
 
-    py_result_late = converted_late.pyfuncs["main"](x, w, b)
+    py_result_late = converted_late.__pyfuncs__["main"](x, w, b)
 
     print("\nAfter CanonicalizeBindings pass:")
     print("  Converted result:", py_result_late)
@@ -345,7 +345,7 @@ if RUN_EXAMPLE:
 
 if RUN_EXAMPLE:
 
-    @I.ir_module
+    @R.py_module
     class HybridVMModule(BasePyModule):
         @I.pyfunc
         def silu(self, x):
@@ -399,7 +399,7 @@ if RUN_EXAMPLE:
 
 if RUN_EXAMPLE:
 
-    @I.ir_module
+    @R.py_module
     class DynamicModule(BasePyModule):
         @T.prim_func(s_tir=True)
         def scale_tir(var_x: T.handle, var_out: T.handle):

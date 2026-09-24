@@ -27,7 +27,7 @@ from tvm.script import relax as R
 from tvm.script import tirx as T
 
 
-@I.ir_module
+@R.py_module
 class SimplePyFuncModule(BasePyModule):
     """Test simple Python functions with basic operations."""
 
@@ -72,7 +72,7 @@ class SimplePyFuncModule(BasePyModule):
         return R.add(x, y)
 
 
-@I.ir_module
+@R.py_module
 class ComplexPyFuncModule(BasePyModule):
     """Test complex Python logic with ML pipeline and error handling."""
 
@@ -164,7 +164,7 @@ class ComplexPyFuncModule(BasePyModule):
             Normalized[i] = Data[i] / 255.0
 
 
-@I.ir_module
+@R.py_module
 class EdgeCasePyFuncModule(BasePyModule):
     """Test edge cases and boundary conditions."""
 
@@ -218,7 +218,7 @@ class EdgeCasePyFuncModule(BasePyModule):
         Output[0] = Data[0]
 
 
-@I.ir_module
+@R.py_module
 class PerformancePyFuncModule(BasePyModule):
     """Test performance optimization patterns."""
 
@@ -281,7 +281,7 @@ class PerformancePyFuncModule(BasePyModule):
             C[i] = A[i] + B[i]
 
 
-@I.ir_module
+@R.py_module
 class IntegrationPyFuncModule(BasePyModule):
     """Test integration with external libraries and complex workflows."""
 
@@ -353,7 +353,7 @@ class IntegrationPyFuncModule(BasePyModule):
                 Output[i, j] = T.tanh(Data[i, j])
 
 
-@I.ir_module
+@R.py_module
 class ErrorHandlingPyFuncModule(BasePyModule):
     """Test comprehensive error handling and validation."""
 
@@ -434,9 +434,9 @@ def test_simple_pyfunc_module_creation():
 
     # Note: Python functions are stored in pyfuncs, not as direct attributes
     # We need to check if they exist in the IRModule's pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "add" in ir_mod.pyfuncs
-        assert "multiply" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "add" in ir_mod.__pyfuncs__
+        assert "multiply" in ir_mod.__pyfuncs__
 
     # Check that TIR functions exist
     assert hasattr(module, "add_tir")
@@ -456,9 +456,9 @@ def test_complex_pyfunc_module_creation():
     assert isinstance(module, BasePyModule)
 
     # Check Python functions in pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "ml_pipeline" in ir_mod.pyfuncs
-        assert "data_preprocessing" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "ml_pipeline" in ir_mod.__pyfuncs__
+        assert "data_preprocessing" in ir_mod.__pyfuncs__
 
     # Check TIR functions
     assert hasattr(module, "extract_features")
@@ -476,11 +476,11 @@ def test_edge_case_pyfunc_module_creation():
     assert isinstance(module, BasePyModule)
 
     # Check Python functions in pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "empty_func" in ir_mod.pyfuncs
-        assert "single_return" in ir_mod.pyfuncs
-        assert "nested_conditionals" in ir_mod.pyfuncs
-        assert "loop_with_break" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "empty_func" in ir_mod.__pyfuncs__
+        assert "single_return" in ir_mod.__pyfuncs__
+        assert "nested_conditionals" in ir_mod.__pyfuncs__
+        assert "loop_with_break" in ir_mod.__pyfuncs__
 
     # Check TIR function
     assert hasattr(module, "dummy_tir")
@@ -495,10 +495,10 @@ def test_performance_pyfunc_module_creation():
     assert isinstance(module, BasePyModule)
 
     # Check Python functions in pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "vectorized_operation" in ir_mod.pyfuncs
-        assert "batch_processing" in ir_mod.pyfuncs
-        assert "memory_efficient_transform" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "vectorized_operation" in ir_mod.__pyfuncs__
+        assert "batch_processing" in ir_mod.__pyfuncs__
+        assert "memory_efficient_transform" in ir_mod.__pyfuncs__
 
     # Check TIR function
     assert hasattr(module, "vectorized_add")
@@ -513,9 +513,9 @@ def test_integration_pyfunc_module_creation():
     assert isinstance(module, BasePyModule)
 
     # Check Python functions in pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "sklearn_integration" in ir_mod.pyfuncs
-        assert "multi_stage_pipeline" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "sklearn_integration" in ir_mod.__pyfuncs__
+        assert "multi_stage_pipeline" in ir_mod.__pyfuncs__
 
     # Check TIR function
     assert hasattr(module, "final_transform")
@@ -530,9 +530,9 @@ def test_error_handling_pyfunc_module_creation():
     assert isinstance(module, BasePyModule)
 
     # Check Python functions in pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "robust_data_processing" in ir_mod.pyfuncs
-        assert "graceful_degradation" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "robust_data_processing" in ir_mod.__pyfuncs__
+        assert "graceful_degradation" in ir_mod.__pyfuncs__
 
     # Check TIR function
     assert hasattr(module, "safe_transform")
@@ -564,13 +564,13 @@ def test_pyfunc_decorators():
     module = BasePyModule(ir_mod, device)
 
     # Check that the functions exist in pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "add" in ir_mod.pyfuncs
-        assert "multiply" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "add" in ir_mod.__pyfuncs__
+        assert "multiply" in ir_mod.__pyfuncs__
 
         # Get the actual function objects
-        add_func = ir_mod.pyfuncs["add"]
-        multiply_func = ir_mod.pyfuncs["multiply"]
+        add_func = ir_mod.__pyfuncs__["add"]
+        multiply_func = ir_mod.__pyfuncs__["multiply"]
 
         # Check that they are callable
         assert callable(add_func)
@@ -646,13 +646,13 @@ def test_python_function_complexity():
     module = BasePyModule(ir_mod, device)
 
     # Check that complex functions exist in pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "ml_pipeline" in ir_mod.pyfuncs
-        assert "data_preprocessing" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "ml_pipeline" in ir_mod.__pyfuncs__
+        assert "data_preprocessing" in ir_mod.__pyfuncs__
 
         # Get the actual function objects
-        ml_func = ir_mod.pyfuncs["ml_pipeline"]
-        preprocess_func = ir_mod.pyfuncs["data_preprocessing"]
+        ml_func = ir_mod.__pyfuncs__["ml_pipeline"]
+        preprocess_func = ir_mod.__pyfuncs__["data_preprocessing"]
 
         # These should be callable
         assert callable(ml_func)
@@ -696,8 +696,8 @@ def test_python_functions_in_irmodule():
     module = BasePyModule(ir_mod, device)
 
     # Check that pyfuncs attribute exists and contains our functions
-    if hasattr(ir_mod, "pyfuncs"):
-        pyfuncs = ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        pyfuncs = ir_mod.__pyfuncs__
         assert isinstance(pyfuncs, dict)
         assert "add" in pyfuncs
         assert "multiply" in pyfuncs
@@ -743,7 +743,7 @@ def test_call_py_func_with_base_py_module():
         assert "Mismatched type" in str(e) or "Expected" in str(e)
 
     # Test 3: Validation and error handling
-    @I.ir_module
+    @R.py_module
     class ValidationTestModule(BasePyModule):
         @R.function
         def test_invalid_call(x: R.Tensor((5,), "float32")) -> R.Tensor((5,), "float32"):
@@ -759,7 +759,7 @@ def test_call_py_func_with_base_py_module():
         module.call_py_func("non_existent_func", [x])
 
     # Test 4: Using call_py_func within Relax functions
-    @I.ir_module
+    @R.py_module
     class RelaxCallPyFuncModule(BasePyModule):
         @I.pyfunc
         def torch_relu(self, x):
