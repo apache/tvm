@@ -228,16 +228,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           AsDocBody(func->body, p->Attr("body"), f->get(), d);
         }
         // Step 5. Determine if we need to display the private annotation in the decorator
-        ExprDoc decorator = TIR(d, "prim_func");
+        ExprDoc decorator =
+            func->attrs->dict.count(tvm::attr::kSTir) ? STIR(d, "prim_func") : TIR(d, "prim_func");
         ffi::Array<ffi::String, void> kwargs_keys;
         ffi::Array<ExprDoc, void> kwargs_values;
         // mark private if there is no global symbol
         if (!func->attrs->dict.count(tvm::attr::kGlobalSymbol)) {
           kwargs_keys.push_back("private");
-          kwargs_values.push_back(LiteralDoc::Boolean(true, ffi::Optional<AccessPath>()));
-        }
-        if (func->attrs->dict.count(tvm::attr::kSTir)) {
-          kwargs_keys.push_back("s_tir");
           kwargs_values.push_back(LiteralDoc::Boolean(true, ffi::Optional<AccessPath>()));
         }
         if (func->attrs->dict.count(tirx::attr::kPersistentKernel)) {

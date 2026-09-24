@@ -20,6 +20,7 @@ import tvm.testing
 from tvm.ir import Range
 from tvm.relax import TensorType
 from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -77,7 +78,7 @@ class TestModule:
         }
     )
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tir_func(
         x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -125,13 +126,14 @@ from __future__ import annotations
 # from tvm.script import ir as I
 # from tvm.script import tirx as T
 # from tvm.tirx.layout import Axis
+# from tvm.script import s_tir as Ts
 # from tvm.script import relax as R
 
 @I.ir_module
 class Module:
     I.module_attrs({"device_num": 10})
     I.module_global_infos({"mesh": [R.device_mesh((2, 2), I.Range(0, 4)), R.device_mesh((1,), I.Range(4, 5))]})
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tir_func(x: T.Buffer((T.int64(128), T.int64(128)), "float32"), y: T.Buffer((T.int64(128), T.int64(128)), "float32")):
         T.func_attr({"tirx.noalias": True})
         # with T.sblock("root"):

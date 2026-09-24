@@ -20,6 +20,7 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.support import utils
 
@@ -29,7 +30,7 @@ def test_add():
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def test_fadd(
             A: T.Buffer((1024,), "float32"),
             B: T.Buffer((1024,), "float32"),
@@ -66,7 +67,7 @@ def test_reinterpret():
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def test_reinterpret(
             A: T.Buffer((1024,), "int32"),
             B: T.Buffer((1024,), "float32"),
@@ -101,7 +102,7 @@ def test_ceil():
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def test_ceil(
             A: T.Buffer((1024,), "float32"),
             B: T.Buffer((1024,), "float32"),
@@ -136,7 +137,7 @@ def test_floor():
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def test_floor(
             A: T.Buffer((1024,), "float32"),
             B: T.Buffer((1024,), "float32"),
@@ -171,7 +172,7 @@ def test_round():
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def test_round(
             A: T.Buffer((1024,), "float32"),
             B: T.Buffer((1024,), "float32"),
@@ -212,11 +213,11 @@ def test_round():
 def test_subroutine_call():
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer(1, dtype="float32")):
             Module.subroutine(A.data)
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def subroutine(A_data: T.handle("float32")):
             A = T.decl_buffer(1, dtype="float32", data=A_data)
             A[0] = 42.0
@@ -256,7 +257,7 @@ def test_workspace_allocation_cast():
 def test_local_alloc_buffer_uses_plain_c_pointer():
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((1,), "float32")):
             B = T.alloc_buffer((1,), "float32", scope="local")
             for i in range(1):

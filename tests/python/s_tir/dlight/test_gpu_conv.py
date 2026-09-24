@@ -19,13 +19,14 @@
 import tvm
 import tvm.testing
 from tvm.s_tir import dlight as dl
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
 
 def test_conv3d():
     # fmt: off
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         A: T.Buffer((14308, 3, 2, 14, 14), "float16"),
         W: T.Buffer((1280, 3, 2, 14, 14), "float16"),
@@ -43,7 +44,7 @@ def test_conv3d():
                     C[v_nn, v_ff, v_yy, v_xx, v_zz] = T.float16(0.0)
                 C[v_nn, v_ff, v_yy, v_xx, v_zz] += pad_A[v_nn, v_rc, v_yy * 2 + v_ry, v_xx * 14 + v_rx, v_zz * 14 + v_rz]* W[v_ff, v_rc, v_ry, v_rx, v_rz]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(A: T.Buffer((14308, 3, 2, 14, 14), "float16"), W: T.Buffer((1280, 3, 2, 14, 14), "float16"), C: T.Buffer((14308, 1280, 1, 1, 1), "float16")):
         T.func_attr({"tirx.is_scheduled": True})
         # with T.sblock("root"):

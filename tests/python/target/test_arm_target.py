@@ -24,6 +24,7 @@ import numpy as np
 import pytest
 
 import tvm
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import codegen
 from tvm.testing import env
@@ -57,7 +58,7 @@ def test_scalable_div(sve_device_vector_length):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
     dev = tvm.cpu(0)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def my_func(a: T.handle):
         A = T.match_buffer(a, (1,), "int32")
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
@@ -79,7 +80,7 @@ def test_scalable_buffer_load_store(sve_device_vector_length):
     num_elements = sve_device_vector_length // 32
     dev = tvm.cpu(0)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def my_func(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (num_elements,), "float32")
         B = T.match_buffer(b, (num_elements,), "float32")
@@ -106,7 +107,7 @@ def test_scalable_loop_bound(sve_device_vector_length):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
     dev = tvm.cpu(0)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def my_func(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (num_elements,), "float32")
         B = T.match_buffer(b, (num_elements,), "float32")
@@ -131,7 +132,7 @@ def test_scalable_broadcast(sve_device_vector_length):
     num_elements = sve_device_vector_length // 32
     dev = tvm.cpu(0)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def my_func(a: T.handle):
         A = T.match_buffer(a, (num_elements,), "float32")
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})

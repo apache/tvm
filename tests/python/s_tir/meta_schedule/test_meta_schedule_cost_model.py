@@ -36,6 +36,7 @@ from tvm.s_tir.meta_schedule.runner import RunnerResult
 from tvm.s_tir.meta_schedule.search_strategy import MeasureCandidate
 from tvm.s_tir.meta_schedule.tune_context import TuneContext
 from tvm.s_tir.schedule.schedule import Schedule
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 requires_xgboost = pytest.mark.skipif(
@@ -46,7 +47,7 @@ requires_xgboost = pytest.mark.skipif(
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 @tvm.script.ir_module
 class Matmul:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (1024, 1024), "float32")
@@ -62,7 +63,7 @@ class Matmul:
 
 @tvm.script.ir_module
 class FullModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):

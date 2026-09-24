@@ -20,6 +20,7 @@ import tvm.testing
 from tvm.ir import IRModule, assert_structural_equal
 from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -37,7 +38,7 @@ def test_rms_norm_with_casting():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(var_data: T.handle, weight: T.Buffer((4096,), "float16"), var_T_cast: T.handle):
             T.func_attr({"tirx.noalias": True})
             n = T.int32()
@@ -97,7 +98,7 @@ def test_rms_norm_with_casting():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(var_data: T.handle, weight: T.Buffer((4096,), "float16"), var_T_cast: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             n = T.int32()
@@ -169,7 +170,7 @@ def test_rms_norm_without_casting():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(var_data: T.handle, weight: T.Buffer((4096,), "float32"), var_T_cast: T.handle):
             T.func_attr({"tirx.noalias": True})
             n = T.int32()
@@ -215,7 +216,7 @@ def test_rms_norm_without_casting():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(var_data: T.handle, weight: T.Buffer((4096,), "float32"), var_T_cast: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             n = T.int32()

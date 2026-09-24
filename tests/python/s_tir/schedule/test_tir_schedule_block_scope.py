@@ -25,12 +25,13 @@ import tvm
 import tvm.testing
 from tvm import s_tir, tirx
 from tvm.s_tir.schedule import DepKind
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
@@ -45,7 +46,7 @@ def elementwise(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -60,7 +61,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def war_dependency(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))

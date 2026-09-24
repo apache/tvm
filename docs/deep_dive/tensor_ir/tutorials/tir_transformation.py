@@ -38,12 +38,13 @@ transformations of primitive tensor functions.
 
 import tvm
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 @I.ir_module
 class MyModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128, 128), "float32"),

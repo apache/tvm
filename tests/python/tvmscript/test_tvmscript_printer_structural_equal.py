@@ -22,6 +22,7 @@ from tvm_ffi.access_path import AccessPath
 import tvm
 from tvm.ir import assert_structural_equal
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -55,12 +56,12 @@ def test_prim_type_hidden_path_exact_message():
 
 
 def test_prim_func_buffer_param():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func1(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (128, 128))
         B = T.match_buffer(b, (128, 128))
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func2(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (128, 128))
         B = T.match_buffer(b, (128, 256))
@@ -93,13 +94,13 @@ def test_prim_func_buffer_param():
 def test_evaluate():
     @I.ir_module(s_tir=True)
     class module1:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func():
             T.evaluate(0)
 
     @I.ir_module(s_tir=True)
     class module2:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func():
             T.evaluate(1)
 
@@ -124,11 +125,11 @@ def test_evaluate():
 
 
 def test_allocate():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func1():
         a = T.alloc_buffer((128, 128), dtype="float32")
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func2():
         a = T.alloc_buffer((256, 128), dtype="float32")
 
@@ -159,13 +160,13 @@ def test_allocate():
 
 
 def test_for():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func1():
         for i, j in T.grid(128, 128):
             with T.sblock():
                 pass
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func2():
         for i, j, k in T.grid(128, 128, 128):
             with T.sblock():

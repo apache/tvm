@@ -20,13 +20,14 @@ from functools import reduce
 
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
 # pylint: disable=invalid-name, no-member
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [512, 512])
     B = T.match_buffer(b, [512, 512])

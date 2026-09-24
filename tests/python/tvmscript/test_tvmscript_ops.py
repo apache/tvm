@@ -20,11 +20,12 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def get_valid_counts(
     data: T.handle,
     valid_count: T.handle,
@@ -106,7 +107,7 @@ def test_get_valid_counts_script_func():
     _check_get_valid_counts_with_numpy(f, (1, 2500, 6), 0.0, 0, 1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def alloc_zero_dim_buffer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [], dtype="float32")
     B = T.match_buffer(b, [], dtype="float32")
@@ -118,7 +119,7 @@ def alloc_zero_dim_buffer(a: T.handle, b: T.handle) -> None:
     B[()] = C[()]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def alloc_zero_dim_buffer_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (), "float32")
     B = T.match_buffer(b, (), "float32")
@@ -169,7 +170,7 @@ def test_alloc_zero_dim_buffer_round_trip():
     _check_alloc_zero_dim_buffer(rt_mod_with_block)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def ceildiv_test(A: T.Buffer(16, "int32")):
     for i in range(16):
         A[i] = T.ceildiv(A[i], 4)
@@ -186,7 +187,7 @@ def test_ceildiv():
 
 try:
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def slice_op_test(
         A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32"), C: T.Buffer((10,), "uint32")
     ):
@@ -217,7 +218,7 @@ try:
         T.evaluate((A[0:5] < 0) and (1 > 0))
         T.evaluate((A[0:5] > 0) or (1 > 0))
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def slice_op_test_ref(
         A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32"), C: T.Buffer((10,), "uint32")
     ):

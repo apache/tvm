@@ -22,6 +22,7 @@ import pytest
 
 import tvm
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -40,7 +41,7 @@ def test_fp16_to_fp32():
 
         @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(
                 A: T.Buffer((elements, width), "float16"),
                 B: T.Buffer((elements, width), "float32"),

@@ -20,11 +20,12 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def ptx_ldmatrix(
     A: T.Buffer((16, 16), "float16"), B: T.Buffer((16, 16), "float16"), num: T.int32, trans: T.uint8
 ) -> None:

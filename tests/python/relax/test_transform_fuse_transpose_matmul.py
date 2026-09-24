@@ -23,6 +23,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -42,7 +43,7 @@ def test_transform_fuse_transpose_matmul():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def NT_matmul(
             x: T.Buffer((T.int64(128), T.int64(256)), "float32"),
             w: T.Buffer((T.int64(128), T.int64(256)), "float32"),
@@ -95,7 +96,7 @@ def test_transform_fuse_transpose_matmul_const():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def NT_matmul(
             x: T.Buffer((T.int64(128), T.int64(256)), "float32"),
             w: T.Buffer((T.int64(128), T.int64(256)), "float32"),

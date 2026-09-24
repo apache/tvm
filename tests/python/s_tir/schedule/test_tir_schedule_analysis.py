@@ -37,6 +37,7 @@ from tvm.s_tir.tensor_intrin.cuda import (
     WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
 )
 from tvm.s_tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.te import create_prim_func
 from tvm.tirx import (
@@ -157,7 +158,7 @@ def test_suggest_index_map_winograd():
 
 @tvm.script.ir_module
 class DenseTIRModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         placeholder: T.Buffer((1024, 1024), "uint8"),
         placeholder_1: T.Buffer((64, 256, 16, 4), "int8"),
@@ -181,7 +182,7 @@ class DenseTIRModule:
 
 @tvm.script.ir_module
 class Conv2dNCHWcTIRModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
         placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
@@ -265,7 +266,7 @@ def test_get_tensorize_loop_mapping_conv2d_nchwc_16x4():
 
 
 def test_get_tensorize_loop_mapping_matmul_mma():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def matmul_16x16x16xf16f16f16_desc(
         A: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
         B: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
@@ -401,7 +402,7 @@ def test_get_auto_tensorize_mapping_info_matmul(n, m, k, expected):
 
 
 def test_is_output_block():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def two_elementwise(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128), "float32")
         B = T.sblock_alloc_buffer((128, 128), "float32")
@@ -421,7 +422,7 @@ def test_is_output_block():
 
 
 def test_empty_grid():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def foo(out: T.Buffer((T.int64(1), T.int64(8), T.int64(8)), "int32")):
         act = T.sblock_alloc_buffer((1, 8, 8), "int32")
         for z2, y2, x2 in T.grid(1, 8, 8):

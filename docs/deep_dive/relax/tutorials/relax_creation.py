@@ -40,6 +40,7 @@ and relax NNModule API.
 from tvm import relax, topi
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -71,7 +72,7 @@ RelaxModule.show()
 
 @I.ir_module
 class RelaxModuleWithTIR:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def relu(x: T.handle, y: T.handle):
         n = T.int64()
         m = T.int64()
@@ -164,7 +165,7 @@ mod.show()
 # Tensor Expression(TE), TensorIR functions or other TVM packed functions.
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def tir_linear(x: T.handle, w: T.handle, b: T.handle, z: T.handle):
     M = T.int64()
     N = T.int64()

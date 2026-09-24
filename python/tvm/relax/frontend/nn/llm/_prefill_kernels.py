@@ -31,6 +31,7 @@ from typing import Any, Literal
 
 import tvm
 from tvm import tirx
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -68,7 +69,7 @@ def _attention_prefill_cpu(
     group_size = h_q // h_kv
 
     # pylint: disable=too-many-branches
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_prefill_paged_kv_cpu(
         var_q: T.handle, # [total_len, h_q, d]
         var_q_indptr: T.handle, # [batch_size + 1]
@@ -234,7 +235,7 @@ def _attention_prefill(
     init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, _, advance_tile_batch, paged_store_output_lse, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, tile_y, bdx, num_warps, group_size)
 
     # pylint: disable=too-many-branches
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_prefill_paged_kv(
         var_q: T.handle, # [total_len, h_q, d]
         var_q_indptr: T.handle, # [batch_size + 1]
@@ -396,7 +397,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
     _, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d, dtype, target)
     init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, tile_y, bdx, num_warps, group_size)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_sequence_prefill_kv(  # pylint: disable=too-many-branches
         var_q: T.handle, # [total_len, h_q, d]
         var_k: T.handle, # [total_len, h_kv, d]
@@ -563,7 +564,7 @@ def _attention_sequence_prefill_with_mask(
         pad = kv_len - valid_len
         return tirx.And(col < kv_len, col >= pad)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_sequence_prefill_kv_masked(  # pylint: disable=too-many-branches
         var_q: T.handle, # [batch_size, qo_len, h_q, d]
         var_k: T.handle, # [batch_size, kv_len, h_kv, d]
@@ -677,7 +678,7 @@ def _attention_sequence_prefill_with_mask(
 def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[str, Any]):
     group_size = h_q // h_kv
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_prefill_ragged_kv(  # pylint: disable=too-many-branches
         var_q: T.handle,  # [total_len, h_q, d_qk]
         var_q_indptr: T.handle,  # [batch_size + 1]
@@ -796,7 +797,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
     NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d_qk, dtype, target, d_v=d_v)
     init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, _, advance_tile_batch, paged_store_output_lse, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, d_v, bdx, num_warps, group_size)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_prefill_ragged_kv(  # pylint: disable=too-many-branches
         var_q: T.handle, # [total_len, h_q, d_qk]
         var_q_indptr: T.handle, # [batch_size + 1]
@@ -934,7 +935,7 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
         global_symbol += "_sliding_window"
 
     # pylint: disable=too-many-branches
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_prefill_paged_kv_mla(
         var_q: T.handle, # [total_len, h_q, d_qk]
         var_q_indptr: T.handle, # [batch_size + 1]

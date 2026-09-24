@@ -22,6 +22,7 @@ import tvm.testing
 from tvm.ir import IRModule, assert_structural_equal
 from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -38,7 +39,7 @@ def _check(mod_before: IRModule, mod_after: IRModule):
 def _make_scalar_argmin(length):
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(x: T.Buffer((T.int64(length),), "float32"), x_red: T.Buffer((), "int64")):
             T.func_attr({"tirx.noalias": True})
             x_red_temp_v0 = T.sblock_alloc_buffer((), "int64")
@@ -92,7 +93,7 @@ def test_softmax_1():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(p_lv44: T.handle, p_output0: T.handle):
             T.func_attr({"tirx.noalias": True})
             n, m = T.int64(), T.int64()
@@ -141,7 +142,7 @@ def test_softmax_1():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(p_lv44: T.handle, p_output0: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             n, m = T.int64(), T.int64()
@@ -195,7 +196,7 @@ def test_softmax_2():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((T.int64(1), T.int64(1), T.int64(32000)), "float32"), T_softmax_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(32000)), "float32")):
             # with T.sblock("root"):
             T_softmax_maxelem = T.sblock_alloc_buffer((T.int64(1), T.int64(1)))
@@ -234,7 +235,7 @@ def test_softmax_2():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((T.int64(1), T.int64(1), T.int64(32000)), "float32"), T_softmax_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(32000)), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
             # with T.sblock("root"):
@@ -281,7 +282,7 @@ def test_softmax_3():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(input: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32"), T_softmax_norm: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32")):
             # with T.sblock("root"):
             T_softmax_maxelem = T.sblock_alloc_buffer((T.int64(1), T.int64(4), T.int64(8192)))
@@ -320,7 +321,7 @@ def test_softmax_3():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(input: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32"), T_softmax_norm: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
             # with T.sblock("root"):
@@ -372,7 +373,7 @@ def test_layer_norm():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(p_lv6: T.handle, weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), p_output0: T.handle):
             T.func_attr({"tirx.noalias": True})
             n = T.int64()
@@ -409,7 +410,7 @@ def test_layer_norm():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(p_lv6: T.handle, weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), p_output0: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             n = T.int64()
@@ -450,7 +451,7 @@ def test_rms_norm():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle):
             T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             n = T.int64()
@@ -475,7 +476,7 @@ def test_rms_norm():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle):
             T.func_attr({"op_pattern": 4, "tirx.is_scheduled": True, "tirx.noalias": True})
             n = T.int64()
@@ -511,7 +512,7 @@ def test_group_norm():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((1, 2048), "float32"), B: T.Buffer((2048,), "float32"), C: T.Buffer((2048,), "float32"), T_reshape: T.Buffer((1, 2048), "float32")):
             T.func_attr({"tirx.noalias": True})
             T_reshape_1 = T.sblock_alloc_buffer((1, 32, 64))
@@ -565,7 +566,7 @@ def test_group_norm():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((1, 2048), "float32"), B: T.Buffer((2048,), "float32"), C: T.Buffer((2048,), "float32"), T_reshape: T.Buffer((1, 2048), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
@@ -602,7 +603,7 @@ def test_group_norm():
 def test_logsumexp():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def compute_lse(var_A: T.handle, var_blocked_lse: T.handle):
             T.func_attr({"tirx.noalias": True})
             batch_size = T.int64()
@@ -648,7 +649,7 @@ def test_logsumexp():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def compute_lse(var_A: T.handle, var_blocked_lse: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             batch_size, vocab_size = T.int64(), T.int64()

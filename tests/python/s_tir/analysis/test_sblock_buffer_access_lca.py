@@ -16,10 +16,11 @@
 # under the License.
 import tvm
 from tvm import s_tir
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def buffer_load_store_func(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     B = T.match_buffer(b, (128, 128), "float32")
@@ -44,7 +45,7 @@ def buffer_load_store_func(a: T.handle, b: T.handle) -> None:
                     )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def buffer_opaque_access(b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [16, 16], "float32")
     C = T.match_buffer(c, [16, 16], "float32")
@@ -67,13 +68,13 @@ def buffer_opaque_access(b: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def lca_is_func_root(a: T.handle) -> None:
     A = T.match_buffer(a, [0, 0], "float32")
     A[0, 0] = 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def match_buffer_func(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     B = T.match_buffer(b, (128, 128), "float32")
@@ -93,7 +94,7 @@ def match_buffer_func(a: T.handle, b: T.handle) -> None:
             T.evaluate(B1.data)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def global_buffer_with_blockidx(
     a: T.Buffer((1, 32), "int32"), b: T.Buffer((1, 32), "int32")
 ) -> None:

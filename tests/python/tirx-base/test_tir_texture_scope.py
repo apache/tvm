@@ -23,6 +23,7 @@ import tvm.testing
 from tvm import tirx
 from tvm.ir.module import IRModule
 from tvm.s_tir.backend.adreno import pipeline as adreno_pipeline
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.tirx.build import split_host_device_mods
 from tvm.tirx.compilation_pipeline import finalize_device_passes
@@ -31,7 +32,7 @@ from tvm.tirx.compilation_pipeline import finalize_device_passes
 def test_texture_scope():
     @tvm.script.ir_module
     class PlusOneMultTwo:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(a: T.handle, b: T.handle) -> None:
             T.func_attr({"tirx.noalias": True})
             A = T.match_buffer(a, (128, 128, 4), dtype="float32", scope="global.texture")

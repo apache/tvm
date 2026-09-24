@@ -23,6 +23,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -43,7 +44,7 @@ def test_e2m1_vector_conversions(promoted_dtype):
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((vector_length,), native_dtype),
             B: T.Buffer((vector_length,), native_dtype),
@@ -115,7 +116,7 @@ def test_e2m1_vector_conversions(promoted_dtype):
 def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storage):
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((n // num_elem_per_storage,), "uint32"),
             B: T.Buffer((n,), "float16"),
@@ -154,7 +155,7 @@ def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_stora
 def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storage):
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((n // num_elem_per_storage,), "uint32"),
             B: T.Buffer((n,), "float16"),
@@ -224,7 +225,7 @@ def test_e2m1_scalar_buffer_offset():
     """
     n = 128
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(A_raw: T.Buffer((n // 2,), "uint8"), B: T.Buffer((n,), "float16")):
         T.func_attr({"tir.noalias": True})
         A = T.decl_buffer((n,), "float4_e2m1fn", data=A_raw.data)

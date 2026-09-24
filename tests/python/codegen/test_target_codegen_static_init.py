@@ -20,6 +20,7 @@ import numpy as np
 
 import tvm
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -31,7 +32,7 @@ def test_static_init():
 
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def ramp(A: T.handle):
             T.func_attr({"global_symbol": "ramp"})
             n = T.int64()

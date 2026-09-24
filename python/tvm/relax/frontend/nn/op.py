@@ -28,6 +28,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import tirx as _tir
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 from ... import expr as rx
@@ -2796,7 +2797,7 @@ def sample_top_p_top_k_from_sorted_prob(
     def _cumsum_mask(cumsum_sorted, top_p, top_k, i, j):
         return _tir.all(cumsum_sorted[i, j] < top_p[i, 0], j + 1 < top_k[i, 0])
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def _get_renorm_prob(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
         batch, vocab_size = T.int64(), T.int64()
         cumsum_sorted = T.match_buffer(A, (batch, vocab_size), prob_dtype)
@@ -2814,7 +2815,7 @@ def sample_top_p_top_k_from_sorted_prob(
                     elif not _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, v_ax1 + 1):
                         renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, v_ax1 + 1]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def _get_index_from_sorted(
         A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle, F: T.handle
     ):
@@ -2902,7 +2903,7 @@ def renormalize_top_p_top_k_prob(prob, sorted_prob, top_p, top_k):
     def _cumsum_mask(cumsum_sorted, top_p, top_k, i, j):
         return _tir.all(cumsum_sorted[i, j] < top_p[i, 0], j + 1 < top_k[i, 0])
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def _get_renorm_cutoff(A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle):
         batch, vocab_size = T.int64(), T.int64()
         sorted_prob = T.match_buffer(A, (batch, vocab_size), prob_dtype)

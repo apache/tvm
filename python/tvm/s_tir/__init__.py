@@ -18,6 +18,10 @@
 # pylint: disable=invalid-name
 """S-TIR namespace for scheduable TensorIR"""
 
+import tvm.script
+
+tvm.script.register_dialect("s_tir", "tvm.s_tir.script")
+
 from ._tensor_intrin import TensorIntrin
 from .stmt import MatchBufferRegion, SBlock, SBlockRealize
 
@@ -56,3 +60,14 @@ def renew_defs(func):
         The new generated func.
     """
     return _ffi_api.RenewDefs(func)
+
+
+def _initialize_script_namespace():
+    from . import script
+
+    script._initialize()
+
+
+from tvm.script.parser import register_namespace_initializer as _register_namespace_initializer
+
+_register_namespace_initializer(_initialize_script_namespace, aliases=("Ts", "s_tir"))

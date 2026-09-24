@@ -28,6 +28,7 @@ import scipy
 import tvm
 import tvm.testing
 from tvm import te, tirx, topi
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.support import clang, utils
 
@@ -349,7 +350,7 @@ def test_clz(target, dtype):
 
 @tvm.script.ir_module
 class Module:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def test_tir_fma(A: T.handle, B: T.handle, C: T.handle, d: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "test_fma", "tirx.noalias": True})

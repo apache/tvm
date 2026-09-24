@@ -25,6 +25,7 @@ from tvm.ir.base import assert_structural_equal
 from tvm.relax.backend import DispatchSampling
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -46,7 +47,7 @@ def test_dispatch_multinomial_from_uniform_generic():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def get_sample_index(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
             batch, vocab_size = T.int64(), T.int64()
             prob = T.match_buffer(A, (batch, vocab_size))
@@ -85,7 +86,7 @@ def test_dispatch_multinomial_from_uniform_gpu():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def parallel_sampling_from_prob(var_prob: T.handle, var_uniform_samples: T.handle, var_row_indices: T.handle, var_sampled_token_ids: T.handle):
             T.func_attr({"tirx.is_scheduled": True})
             n, vocab_size = T.int64(), T.int64()

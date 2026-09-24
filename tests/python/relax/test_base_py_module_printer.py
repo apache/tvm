@@ -24,6 +24,7 @@ from tvm.ir import StringImm
 from tvm.relax.base_py_module import BasePyModule
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -47,7 +48,7 @@ class SimplePyFuncModule(BasePyModule):
         result = self.call_tir(self.multiply_tir, [x_tvm, y_tvm], out_ty=R.Tensor((5,), "float32"))
         return self._convert_tvm_to_pytorch(result)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def add_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
         x = T.match_buffer(var_x, (5,), "float32")
         y = T.match_buffer(var_y, (5,), "float32")
@@ -56,7 +57,7 @@ class SimplePyFuncModule(BasePyModule):
         for i in range(5):
             out[i] = x[i] + y[i]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def multiply_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
         x = T.match_buffer(var_x, (5,), "float32")
         y = T.match_buffer(var_y, (5,), "float32")
@@ -126,7 +127,7 @@ class ComplexPyFuncModule(BasePyModule):
         )
         return self._convert_tvm_to_pytorch(result)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def extract_features(data: T.handle, features: T.handle):
         T.func_attr({"tirx.noalias": True})
         Data = T.match_buffer(data, (10,), "float32")
@@ -135,7 +136,7 @@ class ComplexPyFuncModule(BasePyModule):
         for i in range(10):
             Features[i] = T.sqrt(Data[i])
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def ml_inference(features: T.handle, params: T.handle, output: T.handle):
         T.func_attr({"tirx.noalias": True})
         Features = T.match_buffer(features, (10,), "float32")
@@ -145,7 +146,7 @@ class ComplexPyFuncModule(BasePyModule):
         for i in range(5):
             Output[i] = Features[i] * Params[i] + Features[i + 5] * Params[i + 5]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def post_process(predictions: T.handle, final: T.handle):
         T.func_attr({"tirx.noalias": True})
         Predictions = T.match_buffer(predictions, (5,), "float32")
@@ -154,7 +155,7 @@ class ComplexPyFuncModule(BasePyModule):
         for i in range(5):
             Final[i] = T.max(Predictions[i], 0.0)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def normalize_data(data: T.handle, normalized: T.handle):
         T.func_attr({"tirx.noalias": True})
         Data = T.match_buffer(data, (10,), "float32")
@@ -210,7 +211,7 @@ class EdgeCasePyFuncModule(BasePyModule):
                 result.append(0)
         return result
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def dummy_tir(data: T.handle, output: T.handle):
         T.func_attr({"tirx.noalias": True})
         Data = T.match_buffer(data, (1,), "float32")
@@ -270,7 +271,7 @@ class PerformancePyFuncModule(BasePyModule):
             # Create new tensor if gradients are needed
             return large_tensor + 1.0
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def vectorized_add(a: T.handle, b: T.handle, c: T.handle):
         T.func_attr({"tirx.noalias": True})
         A = T.match_buffer(a, (10,), "float32")
@@ -342,7 +343,7 @@ class IntegrationPyFuncModule(BasePyModule):
 
         return final_result
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def final_transform(data: T.handle, output: T.handle):
         T.func_attr({"tirx.noalias": True})
         Data = T.match_buffer(data, (10, 10), "float32")
@@ -407,7 +408,7 @@ class ErrorHandlingPyFuncModule(BasePyModule):
                 # Return safe default
                 return self._get_safe_default()
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def safe_transform(data: T.handle, output: T.handle):
         T.func_attr({"tirx.noalias": True})
         Data = T.match_buffer(data, (5,), "float32")

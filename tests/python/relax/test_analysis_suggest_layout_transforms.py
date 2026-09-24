@@ -20,6 +20,7 @@ import pytest
 
 import tvm.testing
 from tvm import relax, s_tir, tirx
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -43,7 +44,7 @@ def apply_transformations(func, suggested_transfoms, print_transformation=False)
 
 
 def test_nested_blocks():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def nested_block(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         relu: T.Buffer((32, 64, 224, 224), "float32"),
@@ -68,7 +69,7 @@ def test_nested_blocks():
 
 
 def test_mismatch_transformations_and_num_params():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def elemwise(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         relu: T.Buffer((32, 64, 224, 224), "float32"),
@@ -92,7 +93,7 @@ def test_mismatch_transformations_and_num_params():
 
 
 def test_empty_write_transformations():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def elemwise(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         relu: T.Buffer((32, 64, 224, 224), "float32"),
@@ -111,7 +112,7 @@ def test_empty_write_transformations():
 
 
 def test_non_bijective_block_transform():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64), "float32"),
         output: T.Buffer((32, 64), "float32"),
@@ -130,7 +131,7 @@ def test_non_bijective_block_transform():
 
 
 def test_non_affine_access():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64), "float32"),
         output: T.Buffer((32 * 64, 10), "float32"),
@@ -149,7 +150,7 @@ def test_non_affine_access():
 
 
 def test_unsupported_write_spatial_layout():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((4, 4), "float32"),
         output: T.Buffer((16), "float32"),
@@ -168,7 +169,7 @@ def test_unsupported_write_spatial_layout():
 
 
 def test_unpacked_iter_used_in_read_access():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((8, 4), "float32"),
         output: T.Buffer((4, 8), "float32"),
@@ -180,7 +181,7 @@ def test_unpacked_iter_used_in_read_access():
                 T.writes(output[v_ax0, v_ax1])
                 output[v_ax0, v_ax1] = arg[v_ax1, v_ax2]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((8, 4), "float32"),
         output: T.Buffer((32), "float32"),
@@ -200,7 +201,7 @@ def test_unpacked_iter_used_in_read_access():
 
 
 def test_invalid_index_map():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def elemwise(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         relu: T.Buffer((32, 64, 224, 224), "float32"),
@@ -221,7 +222,7 @@ def test_invalid_index_map():
 
 
 def test_SRSR_block():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 224, 64, 224), "float32"),
         sum: T.Buffer((32, 64), "float32"),
@@ -235,7 +236,7 @@ def test_SRSR_block():
                     sum[v_ax0, v_ax1] = T.float32(0)
                 sum[v_ax0, v_ax1] = sum[v_ax0, v_ax1] + arg[v_ax0, v_k2, v_ax1, v_k3]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 16, 224, 4), "float32"),
         sum: T.Buffer((32, 16, 4), "float32"),
@@ -257,7 +258,7 @@ def test_SRSR_block():
 
 
 def test_op_elemwise_symbolic():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(arg: T.handle, relu: T.handle):
         N = T.int64()
         C = T.int64()
@@ -272,7 +273,7 @@ def test_op_elemwise_symbolic():
                 T.writes(Relu[v_i0, v_i1, v_i2, v_i3])
                 Relu[v_i0, v_i1, v_i2, v_i3] = T.max(Arg[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(arg: T.handle, relu: T.handle):
         N = T.int64()
         C = T.int64()
@@ -296,7 +297,7 @@ def test_op_elemwise_symbolic():
 
 
 def test_op_elemwise():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         relu: T.Buffer((32, 64, 224, 224), "float32"),
@@ -308,7 +309,7 @@ def test_op_elemwise():
                 T.writes(relu[v_i0, v_i1, v_i2, v_i3])
                 relu[v_i0, v_i1, v_i2, v_i3] = T.max(arg[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 224, 64), "float32"),
         relu: T.Buffer((32, 224, 224, 64), "float32"),
@@ -328,7 +329,7 @@ def test_op_elemwise():
 
 
 def test_op_pool_nchw_nhwc():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         pool_max: T.Buffer((32, 64, 111, 223), "float32"),
@@ -360,7 +361,7 @@ def test_op_pool_nchw_nhwc():
                     ],
                 )
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 224, 64), "float32"),
         pool_max: T.Buffer((32, 111, 223, 64), "float32"),
@@ -388,7 +389,7 @@ def test_op_pool_nchw_nhwc():
 
 
 def test_op_pool_nchw16c_nhwc():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer(
             (32, 4, 224, 224, 16),
@@ -414,7 +415,7 @@ def test_op_pool_nchw16c_nhwc():
                     arg[v_ax0, v_ax1, v_ax2 * 2 + v_rv0, v_ax3 + v_rv1, v_ax4],
                 )
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 224, 64), "float32"),
         pool_max: T.Buffer((32, 110, 220, 64), "float32"),
@@ -441,7 +442,7 @@ def test_op_pool_nchw16c_nhwc():
 
 
 def test_op_reduce():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         sum: T.Buffer((32, 64), "float32"),
@@ -455,7 +456,7 @@ def test_op_reduce():
                     sum[v_ax0, v_ax1] = T.float32(0)
                 sum[v_ax0, v_ax1] = sum[v_ax0, v_ax1] + arg[v_ax0, v_ax1, v_k2, v_k3]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 4, 224, 224, 16), "float32"),
         sum: T.Buffer((32, 4, 16), "float32"),
@@ -478,7 +479,7 @@ def test_op_reduce():
 
 def test_op_upsampling():
     # relax materializes the layout if H, W or D dimensions are moved or tiled.
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         resize: T.Buffer((32, 64, 202, 246), "float32"),
@@ -519,7 +520,7 @@ def test_op_upsampling():
                     ),
                 ]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         resize: T.Buffer((32, 202, 246, 64), "float32"),
@@ -569,7 +570,7 @@ def test_op_upsampling():
 
 
 def test_op_strided_slice():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         T_strided_slice_with_axes: T.Buffer((32, 64, 10, 8), "float32"),
@@ -593,7 +594,7 @@ def test_op_strided_slice():
                     v_ax3 * 7 + 4,
                 ]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 224, 16, 4), "float32"),
         T_strided_slice_with_axes: T.Buffer((32, 10, 8, 16, 4), "float32"),
@@ -616,7 +617,7 @@ def test_op_strided_slice():
 
 
 def test_op_binary_broadcast():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg0: T.Buffer((32, 64, 224, 224), "float32"),
         arg1: T.Buffer((64, 224, 224), "float32"),
@@ -636,7 +637,7 @@ def test_op_binary_broadcast():
                     arg0[v_ax0, v_ax1, v_ax2, v_ax3] + arg1[v_ax1, v_ax2, v_ax3]
                 )
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg0: T.Buffer((32, 224, 224, 16, 4), "float32"),
         arg1: T.Buffer((224, 224, 16, 4), "float32"),
@@ -659,7 +660,7 @@ def test_op_binary_broadcast():
 
 
 def test_op_transpose():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         T_transpose: T.Buffer((32, 224, 224, 64), "float32"),
@@ -671,7 +672,7 @@ def test_op_transpose():
                 T.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
                 T_transpose[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax3, v_ax1, v_ax2]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         T_transpose: T.Buffer((32, 224, 64, 224), "float32"),
@@ -691,7 +692,7 @@ def test_op_transpose():
 
 
 def test_op_pad():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         PadInput: T.Buffer((32, 64, 230, 230), "float32"),
@@ -707,7 +708,7 @@ def test_op_pad():
                     T.float32(2),
                 )
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 224, 16, 4), "float32"),
         PadInput: T.Buffer((32, 230, 230, 16, 4), "float32"),
@@ -731,7 +732,7 @@ def test_op_pad():
 
 
 def test_op_split():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         split0: T.Buffer((32, 32, 224, 224), "float32"),
@@ -750,7 +751,7 @@ def test_op_split():
                 T.writes(split1[v_ax0, v_ax1, v_ax2, v_ax3])
                 split1[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 224, 64), "float32"),
         split0: T.Buffer((32, 224, 224, 32), "float32"),
@@ -779,7 +780,7 @@ def test_op_split():
 
 @pytest.mark.skip("temp disable, due to minor sym regression")
 def test_op_split_tiling_split_dim():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         split0: T.Buffer((32, 32, 224, 224), "float32"),
@@ -798,7 +799,7 @@ def test_op_split_tiling_split_dim():
                 T.writes(split1[v_ax0, v_ax1, v_ax2, v_ax3])
                 split1[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 224, 16, 4), "float32"),
         split0: T.Buffer((32, 224, 224, 8, 4), "float32"),

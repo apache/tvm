@@ -24,12 +24,13 @@ import pytest
 import tvm.testing
 from tvm import tirx
 from tvm.s_tir.schedule.testing import verify_trace_roundtrip
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 257, 1470))
     B = T.match_buffer(b, (128, 257, 1470))
@@ -39,7 +40,7 @@ def elementwise(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def tiled_conv2d_with_padding(
     inputs: T.Buffer((1, 224, 224, 3), "float32"),
     weight: T.Buffer((7, 7, 3, 64), "float32"),
@@ -215,7 +216,7 @@ def test_sample_perfect_tile_after_copy():
 def test_sample_perfect_tile_on_dynamic_loops():
     """Currently dynamic loop is trivially tiled"""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def workload(a: T.handle) -> None:
         n = T.int32()
         A = T.match_buffer(a, (n, 1024))

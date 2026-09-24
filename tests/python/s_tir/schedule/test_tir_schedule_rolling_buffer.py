@@ -25,6 +25,7 @@ from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -64,7 +65,7 @@ def _tile_nd(s, tile, block_name):
 
 
 def test_1d_rolling_buffer():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(A: T.Buffer((4, 12), "int32"), C: T.Buffer((4, 8), "int32")):
         B = T.sblock_alloc_buffer((4, 10), "int32")
         for c in T.serial(4):
@@ -83,7 +84,7 @@ def test_1d_rolling_buffer():
                             C[cc, vi] = 0
                         C[cc, vi] = C[cc, vi] + B[cc, vi + vk]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(A: T.Buffer((4, 12), "int32"), C: T.Buffer((4, 8), "int32")):
         B = T.sblock_alloc_buffer([4, 6], dtype="int32")
         for c, i_0 in T.grid(4, 2):
@@ -117,7 +118,7 @@ def test_1d_rolling_buffer():
     check_rolling_buffer(sch, before, expected, check_run=True)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def cascade_2_max_pool2d(A: T.Buffer((1, 12, 12, 16), "int8"), C: T.Buffer((1, 8, 8, 16), "int8")):
     B = T.sblock_alloc_buffer([1, 10, 10, 16], dtype="int8")
     for i0, i1, i2, i3, i4, i5 in T.grid(1, 10, 10, 16, 3, 3):
@@ -134,7 +135,7 @@ def cascade_2_max_pool2d(A: T.Buffer((1, 12, 12, 16), "int8"), C: T.Buffer((1, 8
             C[ax0, ax1, ax2, ax3] = T.max(C[ax0, ax1, ax2, ax3], B[ax0, ax1 + rv0, ax2 + rv1, ax3])
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def cascade_3_max_pool2d_with_stride(
     A: T.Buffer((1, 24, 24, 16), "int8"), C: T.Buffer((1, 8, 8, 16), "int8")
 ):
@@ -167,7 +168,7 @@ def cascade_3_max_pool2d_with_stride(
 
 
 def test_cascade_max_pool2d_w_tiled():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(A: T.Buffer((1, 12, 12, 16), "int8"), C: T.Buffer((1, 8, 8, 16), "int8")):
         B = T.sblock_alloc_buffer([1, 10, 6, 16], dtype="int8")
         for i0_0, i1_0, i2_0, i3_0 in T.grid(1, 1, 2, 1):
@@ -208,7 +209,7 @@ def test_cascade_max_pool2d_w_tiled():
 
 
 def test_cascade_max_pool2d_h_tiled():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(A: T.Buffer((1, 12, 12, 16), "int8"), C: T.Buffer((1, 8, 8, 16), "int8")):
         B = T.sblock_alloc_buffer([1, 6, 10, 16], dtype="int8")
         for i0_0, i1_0, i2_0, i3_0 in T.grid(1, 2, 1, 1):
@@ -249,7 +250,7 @@ def test_cascade_max_pool2d_h_tiled():
 
 
 def test_cascade_max_pool2d_h_w_c_tiled():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(A: T.Buffer((1, 12, 12, 16), "int8"), C: T.Buffer((1, 8, 8, 16), "int8")):
         B = T.sblock_alloc_buffer([1, 6, 10, 16], dtype="int8")
         for i0_0, i1_0, i2_0, i3_0 in T.grid(1, 2, 2, 2):
@@ -291,7 +292,7 @@ def test_cascade_max_pool2d_h_w_c_tiled():
 
 
 def test_cascade_max_pool2d_non_perfect_tiled():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(A: T.Buffer((1, 12, 12, 16), "int8"), C: T.Buffer((1, 8, 8, 16), "int8")) -> None:
         B = T.sblock_alloc_buffer([1, 8, 10, 16], dtype="int8")
         for i0_0, i1_0, i2_0, i3_0 in T.grid(1, 2, 2, 1):
@@ -338,7 +339,7 @@ def test_cascade_max_pool2d_non_perfect_tiled():
 
 
 def test_cascade_3_max_pool2d_with_stride():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(A: T.Buffer((1, 24, 24, 16), "int8"), C: T.Buffer((1, 8, 8, 16), "int8")) -> None:
         B_0 = T.sblock_alloc_buffer([1, 13, 22, 16], dtype="int8")
         B_1 = T.sblock_alloc_buffer([1, 6, 10, 16], dtype="int8")
@@ -399,7 +400,7 @@ def test_cascade_3_max_pool2d_with_stride():
 
 
 def test_upscale():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(A: T.Buffer((1, 16, 16, 16), "int8"), C: T.Buffer((1, 24, 24, 16), "int8")) -> None:
         B = T.sblock_alloc_buffer([1, 14, 14, 16], dtype="int8")
         for i0_0, i1_0, i2_0, i3_0 in T.grid(1, 5, 5, 1):
@@ -434,7 +435,7 @@ def test_upscale():
                         C[ax0, ax1, ax2, ax3], B[ax0, ax1 // 2 + rv0, ax2 // 2 + rv1, ax3]
                     )
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(
         A: T.Buffer((1, 16, 16, 16), "int8"), C: T.Buffer((1, 24, 24, 16), "int8")
     ) -> None:
@@ -482,7 +483,7 @@ def test_upscale():
 
 
 def test_fail_rolling_buffer_multi_writers():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func_multi_writers(
         A: T.Buffer((1, 12, 12, 16), "int8"), C: T.Buffer((1, 12, 12, 16), "int8")
     ):
@@ -527,7 +528,7 @@ def test_fail_rolling_buffer_multi_writers():
 
 
 def test_fail_rolling_buffer_not_match():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func_non_overlap(
         A: T.Buffer((1, 12, 12, 16), "int8"), C: T.Buffer((1, 12, 12, 16), "int8")
     ):

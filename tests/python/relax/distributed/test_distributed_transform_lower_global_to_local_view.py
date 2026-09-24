@@ -21,6 +21,7 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm.ir import assert_structural_equal
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -34,7 +35,7 @@ def test_mlp():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def gelu(
             A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             T_multiply: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -76,7 +77,7 @@ def test_mlp():
                     T.writes(T_multiply[v_ax0, v_ax1])
                     T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * T_add[v_ax0, v_ax1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul(
             A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -123,7 +124,7 @@ def test_mlp():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def gelu1(
             A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
             T_multiply: T.Buffer((T.int64(128), T.int64(64)), "float32"),
@@ -165,7 +166,7 @@ def test_mlp():
                     T.writes(T_multiply[v_ax0, v_ax1])
                     T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * T_add[v_ax0, v_ax1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul1(
             A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             B: T.Buffer((T.int64(128), T.int64(64)), "float32"),
@@ -182,7 +183,7 @@ def test_mlp():
                         matmul_1[v_i0, v_i1] = T.float32(0)
                     matmul_1[v_i0, v_i1] = matmul_1[v_i0, v_i1] + A[v_i0, v_k] * B[v_k, v_i1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul2(
             A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
             B: T.Buffer((T.int64(64), T.int64(128)), "float32"),
@@ -239,7 +240,7 @@ def test_llama_attention():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def add(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
@@ -254,7 +255,7 @@ def test_llama_attention():
                     T.writes(T_add[v_ax0, v_ax1, v_ax2])
                     T_add[v_ax0, v_ax1, v_ax2] = A[v_ax0, v_ax1, v_ax2] + B[v_ax0, v_ax1, v_ax2]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def divide(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
@@ -271,7 +272,7 @@ def test_llama_attention():
                         A[v_ax0, v_ax1, v_ax2, v_ax3] / B[v_ax0, v_ax1, v_ax2, v_ax3]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
@@ -290,7 +291,7 @@ def test_llama_attention():
                         matmul[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_k, v_i2]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul1(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
@@ -312,7 +313,7 @@ def test_llama_attention():
                         + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul2(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
@@ -334,7 +335,7 @@ def test_llama_attention():
                         + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def maximum(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
@@ -351,7 +352,7 @@ def test_llama_attention():
                         A[v_ax0, v_ax1, v_ax2, v_ax3], B[v_ax0, v_ax1, v_ax2, v_ax3]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def minimum(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(1), T.int64(256), T.int64(256)), "float16"),
@@ -368,7 +369,7 @@ def test_llama_attention():
                         A[v_ax0, v_ax1, v_ax2, v_ax3], B[v_ax0, T.int64(0), v_ax2, v_ax3]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def reshape(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -393,7 +394,7 @@ def test_llama_attention():
                         (v_ax2 * T.int64(128) + v_ax3) % T.int64(4096),
                     ]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def reshape1(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_reshape: T.Buffer((T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -419,7 +420,7 @@ def test_llama_attention():
                         v_ax2 % T.int64(128),
                     ]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def reshape2(
             A: T.Buffer((T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -443,7 +444,7 @@ def test_llama_attention():
                         v_ax3 % T.int64(128),
                     ]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def reshape3(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
@@ -469,7 +470,7 @@ def test_llama_attention():
                         v_ax2 % T.int64(128),
                     ]
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def rms_norm(
             A: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(4096),), "float16"),
@@ -505,7 +506,7 @@ def test_llama_attention():
                         ),
                     )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def rotary_embedding(
             A: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
@@ -531,7 +532,7 @@ def test_llama_attention():
                         A[v_i0, v_i1, v_i2, v_i3 + T.int64(64)] * T.float16(-1),
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def softmax(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             T_softmax_norm: T.Buffer(
@@ -589,7 +590,7 @@ def test_llama_attention():
                         T_softmax_exp[v_i0, v_i1, v_i2, v_i3] / T_softmax_expsum[v_i0, v_i1, v_i2]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def transpose(
             A: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
             T_transpose: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
@@ -603,7 +604,7 @@ def test_llama_attention():
                     T.writes(T_transpose[v_ax0, v_ax1])
                     T_transpose[v_ax0, v_ax1] = A[v_ax1, v_ax0]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def transpose1(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_transpose: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
@@ -617,7 +618,7 @@ def test_llama_attention():
                     T.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_transpose[v_ax0, v_ax1, v_ax2, v_ax3] = A[v_ax0, v_ax2, v_ax1, v_ax3]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def transpose2(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
             T_transpose: T.Buffer((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
@@ -631,7 +632,7 @@ def test_llama_attention():
                     T.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_transpose[v_ax0, v_ax1, v_ax2, v_ax3] = A[v_ax0, v_ax1, v_ax3, v_ax2]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def transpose3(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
             T_transpose: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -852,7 +853,7 @@ def test_llama_attention():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def add(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
@@ -867,7 +868,7 @@ def test_llama_attention():
                     T.writes(T_add[v_ax0, v_ax1, v_ax2])
                     T_add[v_ax0, v_ax1, v_ax2] = A[v_ax0, v_ax1, v_ax2] + B[v_ax0, v_ax1, v_ax2]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def divide1(
             A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
@@ -884,7 +885,7 @@ def test_llama_attention():
                         A[v_ax0, v_ax1, v_ax2, v_ax3] / B[v_ax0, v_ax1, v_ax2, v_ax3]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul11(
             A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(16), T.int64(128), T.int64(256)), "float16"),
@@ -906,7 +907,7 @@ def test_llama_attention():
                         + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul21(
             A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
@@ -928,7 +929,7 @@ def test_llama_attention():
                         + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul3(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(4096), T.int64(2048)), "float16"),
@@ -947,7 +948,7 @@ def test_llama_attention():
                         matmul[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_k, v_i2]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul4(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(2048)), "float16"),
             B: T.Buffer((T.int64(2048), T.int64(4096)), "float16"),
@@ -966,7 +967,7 @@ def test_llama_attention():
                         matmul[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_k, v_i2]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def maximum1(
             A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
@@ -983,7 +984,7 @@ def test_llama_attention():
                         A[v_ax0, v_ax1, v_ax2, v_ax3], B[v_ax0, v_ax1, v_ax2, v_ax3]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def minimum1(
             A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(1), T.int64(256), T.int64(256)), "float16"),
@@ -1000,7 +1001,7 @@ def test_llama_attention():
                         A[v_ax0, v_ax1, v_ax2, v_ax3], B[v_ax0, T.int64(0), v_ax2, v_ax3]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def reshape11(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
             T_reshape: T.Buffer((T.int64(256), T.int64(16), T.int64(128)), "float16"),
@@ -1026,7 +1027,7 @@ def test_llama_attention():
                         v_ax2 % T.int64(128),
                     ]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def reshape21(
             A: T.Buffer((T.int64(256), T.int64(16), T.int64(128)), "float16"),
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
@@ -1050,7 +1051,7 @@ def test_llama_attention():
                         v_ax3 % T.int64(128),
                     ]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def reshape31(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(2048)), "float16"),
@@ -1076,7 +1077,7 @@ def test_llama_attention():
                         v_ax2 % T.int64(128),
                     ]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def reshape4(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(2048)), "float16"),
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
@@ -1101,7 +1102,7 @@ def test_llama_attention():
                         (v_ax2 * T.int64(128) + v_ax3) % T.int64(4096),
                     ]
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def rms_norm(
             A: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(4096),), "float16"),
@@ -1137,7 +1138,7 @@ def test_llama_attention():
                         ),
                     )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def rotary_embedding(
             A: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
@@ -1163,7 +1164,7 @@ def test_llama_attention():
                         A[v_i0, v_i1, v_i2, v_i3 + T.int64(64)] * T.float16(-1),
                     )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def rotary_embedding1(
             A: T.Buffer((T.int64(1), 256, T.int64(16), T.int64(128)), "float16"),
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
@@ -1189,7 +1190,7 @@ def test_llama_attention():
                         A[v_i0, v_i1, v_i2, v_i3 + T.int64(64)] * T.float16(-1),
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def softmax1(
             A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"),
             T_softmax_norm: T.Buffer(
@@ -1247,7 +1248,7 @@ def test_llama_attention():
                         T_softmax_exp[v_i0, v_i1, v_i2, v_i3] / T_softmax_expsum[v_i0, v_i1, v_i2]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def transpose11(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
             T_transpose: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
@@ -1261,7 +1262,7 @@ def test_llama_attention():
                     T.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_transpose[v_ax0, v_ax1, v_ax2, v_ax3] = A[v_ax0, v_ax2, v_ax1, v_ax3]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def transpose21(
             A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
             T_transpose: T.Buffer((T.int64(1), T.int64(16), T.int64(128), T.int64(256)), "float16"),
@@ -1275,7 +1276,7 @@ def test_llama_attention():
                     T.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_transpose[v_ax0, v_ax1, v_ax2, v_ax3] = A[v_ax0, v_ax1, v_ax3, v_ax2]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def transpose31(
             A: T.Buffer((T.int64(1), T.int64(16), T.int64(256), T.int64(128)), "float16"),
             T_transpose: T.Buffer((T.int64(1), T.int64(256), T.int64(16), T.int64(128)), "float16"),
@@ -1289,7 +1290,7 @@ def test_llama_attention():
                     T.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_transpose[v_ax0, v_ax1, v_ax2, v_ax3] = A[v_ax0, v_ax2, v_ax1, v_ax3]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def transpose4(
             A: T.Buffer((T.int64(2048), T.int64(4096)), "float16"),
             T_transpose: T.Buffer((T.int64(4096), T.int64(2048)), "float16"),
@@ -1303,7 +1304,7 @@ def test_llama_attention():
                     T.writes(T_transpose[v_ax0, v_ax1])
                     T_transpose[v_ax0, v_ax1] = A[v_ax1, v_ax0]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def transpose5(
             A: T.Buffer((T.int64(4096), T.int64(2048)), "float16"),
             T_transpose: T.Buffer((T.int64(2048), T.int64(4096)), "float16"),

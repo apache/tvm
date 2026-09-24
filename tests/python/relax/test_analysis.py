@@ -36,6 +36,7 @@ from tvm.relax.analysis import (
 )
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -381,7 +382,7 @@ def test_retain_impure_calls_unused_in_binding_block():
 def test_retain_calls_to_impure_builtin_ops():
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def my_tir(A: T.handle, B: T.handle, n: T.int64):
             T.evaluate(0)
 
@@ -554,7 +555,7 @@ def test_all_global_vars():
 
 
 def test_reshape_pattern_reshape():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reshape(
         rxplaceholder: T.Buffer((1, 2, 3, 4), "float32"),
         T_reshape: T.Buffer((8, 3), "float32"),
@@ -582,7 +583,7 @@ def test_reshape_pattern_reshape():
 
 
 def test_reshape_pattern_reshape_scheduled():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reshape_scheduled(
         rxplaceholder: T.Buffer((1, 2, 3, 4), "float32"),
         T_reshape: T.Buffer((8, 3), "float32"),
@@ -612,7 +613,7 @@ def test_reshape_pattern_reshape_scheduled():
 
 
 def test_reshape_pattern_zero_extent():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def transpose_zero(
         rxplaceholder: T.Buffer((3, 0, 4), "float32"),
         T_transpose: T.Buffer((0, 3, 4), "float32"),
@@ -628,7 +629,7 @@ def test_reshape_pattern_zero_extent():
 
 
 def test_reshape_pattern_expand_dims():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expand_dims(
         rxplaceholder: T.Buffer((2, 3, 4), "float32"),
         expand_dims: T.Buffer((2, 1, 1, 1, 3, 1, 4, 1), "float32"),
@@ -649,7 +650,7 @@ def test_reshape_pattern_expand_dims():
 
 
 def test_reshape_pattern_dyn_1():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reshape(var_A: T.handle, var_T_reshape: T.handle):
         n = T.int64()
         A = T.match_buffer(var_A, (n, T.int64(32), T.int64(128)), "float16")
@@ -677,7 +678,7 @@ def test_reshape_pattern_dyn_1():
 
 
 def test_reshape_pattern_dyn_2():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reshape(var_A: T.handle, var_T_reshape: T.handle):
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n), "int32")
@@ -693,7 +694,7 @@ def test_reshape_pattern_dyn_2():
 
 
 def test_reshape_pattern_dyn_3():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reshape(var_A: T.handle, var_T_reshape: T.handle):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True})
         n = T.int64()
@@ -712,7 +713,7 @@ def test_reshape_pattern_dyn_3():
 
 
 def test_reshape_pattern_dyn_4():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reshape(var_A: T.handle, var_T_reshape: T.handle):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True})
         n = T.int64()
@@ -741,7 +742,7 @@ def test_reshape_pattern_dyn_4():
 
 
 def test_reshape_pattern_dyn_5():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reshape(var_A: T.handle, var_T_reshape: T.handle):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True})
         n = T.int64()
@@ -771,7 +772,7 @@ def test_reshape_pattern_dyn_5():
 
 
 def test_reshape_pattern_with_raggedness():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reshape_raggedness(
         A: T.Buffer((100, 768), "float32"),
         src_indptr: T.Buffer((9,), "int32"),
@@ -793,7 +794,7 @@ def test_reshape_pattern_with_raggedness():
 
 
 def test_reshape_pattern_reject_seqstmt():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def identity_bias(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
         C = T.sblock_alloc_buffer((128, 128), "float32")
         for i0, i1 in T.grid(4, 4):
@@ -805,7 +806,7 @@ def test_reshape_pattern_reject_seqstmt():
                 vi0, vi1 = T.axis.remap("SS", [i0, i1])
                 B[vi0, vi1] = C[vi0, vi1] + T.float32(1)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def identity_identity(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
         C = T.sblock_alloc_buffer((128, 128), "float32")
         for i0, i1 in T.grid(4, 4):
@@ -822,7 +823,7 @@ def test_reshape_pattern_reject_seqstmt():
 
 
 def test_reshape_pattern_reject_reduction():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reduction(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4,), "float32")):
         for i0, i1 in T.grid(4, 4):
             with T.sblock("identity"):
@@ -835,7 +836,7 @@ def test_reshape_pattern_reject_reduction():
 
 
 def test_reshape_pattern_reject_reduction():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reduction(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4,), "float32")):
         for i0, i1 in T.grid(4, 4):
             with T.sblock("identity"):

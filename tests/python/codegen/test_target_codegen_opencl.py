@@ -22,6 +22,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -34,7 +35,7 @@ def test_opencl_ternary_expression():
     def check_if_then_else(n, dtype):
         @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(1, thread="threadIdx.x"):
@@ -64,7 +65,7 @@ def test_opencl_ternary_expression():
     def check_select(n, dtype):
         @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(1, thread="threadIdx.x"):
@@ -107,7 +108,7 @@ def test_opencl_inf_nan():
     def check_inf_nan(n, value, dtype):
         @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(1, thread="threadIdx.x"):
@@ -141,7 +142,7 @@ def test_opencl_max():
     def check_max(n, dtype):
         @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(1, thread="threadIdx.x"):
@@ -173,7 +174,7 @@ def test_opencl_erf():
     def check_erf(n, dtype):
         @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i0 in T.thread_binding(1, thread="threadIdx.x"):
@@ -199,7 +200,7 @@ def test_opencl_erf():
 def test_opencl_type_casting():
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(C: T.Buffer((32,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(8, thread="threadIdx.x"):
@@ -252,7 +253,7 @@ def test_opencl_ceil_log2(target):
 
         @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(C: T.Buffer((n,), "int32")):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(n, thread="threadIdx.x"):
@@ -298,7 +299,7 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):

@@ -20,6 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -42,7 +43,7 @@ def get_dense_mat_by_mask(val, mask):
     return ret.reshape(m, n_chunks * 4)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 8], dtype="float16")
@@ -90,7 +91,7 @@ def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 8], dtype="float16")
@@ -141,7 +142,7 @@ def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 16], dtype="float16")
@@ -193,7 +194,7 @@ def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def mma_sp_m16n8k32_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 16], dtype="float16")

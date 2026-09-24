@@ -26,6 +26,7 @@ from tvm import relax
 from tvm.relax.frontend import nn
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -65,7 +66,7 @@ def test_tir_triton_integration():
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle) -> None:
             T.func_attr({"global_symbol": "add"})
             m = T.int64()
@@ -103,7 +104,7 @@ def test_tir_triton_integration():
     # The thread extent is 256 because the kernel is compiled with num_warps=8.
     @I.ir_module(s_tir=True)
     class Parsed:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle):
             m = T.int64()
             x = T.match_buffer(x_handle, (m,))

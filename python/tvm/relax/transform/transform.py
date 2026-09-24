@@ -1147,7 +1147,7 @@ def LegalizeOps(
                 r = R.call_tir(multiply, (y, z), (2, 3), dtype="float32")
                 return r
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def add(
                 A: T.Buffer((2, 3), "float32"),
                 B: T.Buffer((2, 3), "float32"),
@@ -1161,7 +1161,7 @@ def LegalizeOps(
                         T.writes(T_add[v_ax0, v_ax1])
                         T_add[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def multiply(
                 A: T.Buffer((2, 3), "float32"),
                 B: T.Buffer((2, 3), "float32"),

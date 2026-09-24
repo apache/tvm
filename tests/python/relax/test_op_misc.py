@@ -21,6 +21,7 @@ import tvm
 import tvm.testing
 from tvm import relax as rx
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -29,7 +30,7 @@ def identity_packed(a):
     return tvm.runtime.tensor(a.numpy())
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def identity_tir(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [54, 96])
     B = T.match_buffer(b, [54, 96])

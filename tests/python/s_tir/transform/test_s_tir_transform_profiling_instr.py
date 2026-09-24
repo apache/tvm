@@ -22,6 +22,7 @@ import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.ir.module import IRModule
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 default_lwp_test_config = {
@@ -31,7 +32,7 @@ default_lwp_test_config = {
 }
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def input1(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (8, 8, 128), dtype="int32")
     B = T.match_buffer(b, (8, 8, 128), dtype="int32")
@@ -47,7 +48,7 @@ def input1(a: T.handle, b: T.handle, c: T.handle) -> None:
                 C[vi, vj, vk * 16 + vl] = B[vi, vj, vk * 16 + vl] * 2
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def input2(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (8, 8, 128), dtype="int32")
     B = T.match_buffer(b, (8, 8, 128), dtype="int32")
@@ -74,7 +75,7 @@ def input2(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
                     C[vi, vj, vk * 16 + vl] = C[vi, vj, vk * 16 + vl] * D[vi, vj, vk * 16 + vl]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def input3(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (8, 8, 128), dtype="int32")
     B = T.match_buffer(b, (8, 8, 128), dtype="int32")
@@ -105,7 +106,7 @@ def input3(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
                         C[vi, vj, vk * 16 + vl] = C[vi, vj, vk * 16 + vl] * D[vi, vj, vk * 16 + vl]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def test1_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (8, 8, 128), dtype="int32")
     B = T.match_buffer(b, (8, 8, 128), dtype="int32")
@@ -125,7 +126,7 @@ def test1_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.evaluate(T.end_profile_intrinsic(5, dtype="handle"))
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def test2_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (8, 8, 128), dtype="int32")
     B = T.match_buffer(b, (8, 8, 128), dtype="int32")
@@ -148,7 +149,7 @@ def test2_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
     T.evaluate(T.end_profile_intrinsic(1, dtype="handle"))
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def test3_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (8, 8, 128), dtype="int32")
     B = T.match_buffer(b, (8, 8, 128), dtype="int32")
@@ -175,7 +176,7 @@ def test3_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
     T.evaluate(T.end_profile_intrinsic(1, dtype="handle"))
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def test4_expected_output(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (8, 8, 128), dtype="int32")
     B = T.match_buffer(b, (8, 8, 128), dtype="int32")
@@ -214,7 +215,7 @@ def test4_expected_output(a: T.handle, b: T.handle, c: T.handle, d: T.handle) ->
         T.evaluate(T.end_profile_intrinsic(7, dtype="handle"))
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def test5_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (8, 8, 128), dtype="int32")
     B = T.match_buffer(b, (8, 8, 128), dtype="int32")
@@ -237,7 +238,7 @@ def test5_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
     T.evaluate(T.end_profile_intrinsic(1, dtype="handle"))
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def test6_expected_output(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (8, 8, 128), dtype="int32")
     B = T.match_buffer(b, (8, 8, 128), dtype="int32")

@@ -35,6 +35,7 @@ import tvm.testing
 from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -230,7 +231,7 @@ def _compile():
     init_dfunc(uid, num_workers, 0)
     sess.sync_worker_0()
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
         for i in T.thread_binding(T.int64(8), thread="threadIdx.y"):
             for j in T.thread_binding(T.int64(16), thread="threadIdx.x"):
@@ -305,7 +306,7 @@ def _kernel_compile(compile_mode):
 
         @I.ir_module(s_tir=True)
         class NvshmemQueryModule:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def query_pe(
                 my_pe_out: T.Buffer((1,), "int32"),
                 n_pes_out: T.Buffer((1,), "int32"),

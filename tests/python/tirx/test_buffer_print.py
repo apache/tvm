@@ -22,6 +22,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -198,7 +199,7 @@ def test_print():
         A_np, B_np = generate_random_data((M,), dtype), generate_random_data((M,), dtype)
         C_np = A_np + B_np
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
             A = T.match_buffer(A_ptr, (M,), dtype_str)
             B = T.match_buffer(B_ptr, (M,), dtype_str)
@@ -232,7 +233,7 @@ def test_print():
         A_np, B_np = generate_random_data((M, N), dtype), generate_random_data((M, N), dtype)
         C_np = A_np + B_np
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
             A = T.match_buffer(A_ptr, (M, N), dtype_str)
             B = T.match_buffer(B_ptr, (M, N), dtype_str)
@@ -270,7 +271,7 @@ def test_print():
         A_np, B_np = generate_random_data((M, N, K), dtype), generate_random_data((M, N, K), dtype)
         C_np = A_np + B_np
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
             A = T.match_buffer(A_ptr, (M, N, K), dtype_str)
             B = T.match_buffer(B_ptr, (M, N, K), dtype_str)
@@ -312,7 +313,7 @@ def test_print():
         A_np, B_np = generate_random_data((M,), dtype), generate_random_data((M,), dtype)
         C_np = A_np + B_np
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
             A = T.match_buffer(A_ptr, (M,), dtype_str)
             B = T.match_buffer(B_ptr, (M,), dtype_str)
@@ -347,7 +348,7 @@ def test_print():
         A_np, B_np = generate_random_data((M,), dtype), generate_random_data((M,), dtype)
         C_np = A_np + B_np
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
             A = T.match_buffer(A_ptr, (M,), dtype_str)
             B = T.match_buffer(B_ptr, (M,), dtype_str)

@@ -19,13 +19,14 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 def test_single_buffer():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_func(
             X: T.Buffer((224, 224), "float32"),
             W: T.Buffer((224, 224), "float32"),
@@ -58,7 +59,7 @@ def test_single_buffer():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_func_prepacked(
             X: T.Buffer((224, 224), "float32"),
             W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
@@ -70,7 +71,7 @@ def test_single_buffer():
                     vj = T.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = X[vi, vj] + W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_func_weight_prepack(
             W: T.Buffer((224, 224), "float32"),
             W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
@@ -105,7 +106,7 @@ def test_single_buffer():
 def test_multiple_buffers():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_func(
             X: T.Buffer((224, 224), "float32"),
             W1: T.Buffer((224, 224), "float32"),
@@ -151,7 +152,7 @@ def test_multiple_buffers():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_func_prepacked(
             X: T.Buffer((224, 224), "float32"),
             W1_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
@@ -168,7 +169,7 @@ def test_multiple_buffers():
                         + W2_rewrite[vi // 56, vj // 56, vi % 56, vj % 56]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_func_weight_prepack(
             W1: T.Buffer((224, 224), "float32"),
             W2: T.Buffer((224, 224), "float32"),
@@ -217,7 +218,7 @@ def test_multiple_buffers():
 def test_attr_inheritance():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_func(
             X: T.Buffer((224, 224), "float32"),
             W: T.Buffer((224, 224), "float32"),
@@ -250,7 +251,7 @@ def test_attr_inheritance():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_func_prepacked(
             X: T.Buffer((224, 224), "float32"),
             W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
@@ -263,7 +264,7 @@ def test_attr_inheritance():
                     vj = T.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = X[vi, vj] + W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_func_weight_prepack(
             W: T.Buffer((224, 224), "float32"),
             W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),

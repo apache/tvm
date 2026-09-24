@@ -26,12 +26,13 @@ import tvm
 import tvm.testing
 from tvm import s_tir, te, tirx
 from tvm.s_tir import meta_schedule as ms
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 N_FEATURES = 164
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul(
     A: T.Buffer((512, 512), "float32"),
     B: T.Buffer((512, 512), "float32"),
@@ -57,7 +58,7 @@ def matmul(
 # from tvm.script import tirx as T
 @tvm.script.ir_module
 class LayoutTransform:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(placeholder: T.Buffer((1, 16, 7, 7, 32), "float32"), placeholder_1: T.Buffer((25088,), "float32"), T_layout_trans: T.Buffer((1, 1, 7, 7, 512), "float32")) -> None:
         # function attr dict
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
@@ -417,7 +418,7 @@ def test_cpu_matmul():
 
 def test_cpu_fusion():
     # pylint: disable=all
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, [64, 32], dtype="float32")
         B = T.match_buffer(b, [64, 32], dtype="float32")
@@ -714,7 +715,7 @@ def test_cpu_fusion():
 
 
 def test_empty_feature():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def full(T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
             with T.sblock("T_full"):
@@ -1625,7 +1626,7 @@ def test_cpu_layout_transform():
     )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def negative_extent(A: T.Buffer((1,), "float32")):
     for j in range(0, -1):
         A[j] = A[j] + 1.0

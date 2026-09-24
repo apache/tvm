@@ -27,6 +27,7 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
 from tvm.s_tir.tensor_intrin.arm_cpu import DP4A_S8S8S32_INTRIN
 from tvm.s_tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN as AVX512_INTRIN
 from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -34,7 +35,7 @@ from tvm.target import Target
 def test_x86_conv2d_nchwc(
     intrin=VNNI_INTRIN, target={"kind": "llvm", "mcpu": "cascadelake", "num-cores": 4}
 ):
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def conv2d_nchwc(
         placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
         placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
@@ -72,7 +73,7 @@ def test_x86_conv2d_nchwc(
                 )
 
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def x86_conv2d_nchwc_0(placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"), placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"), conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with T.sblock("root"):
@@ -118,7 +119,7 @@ def test_x86_conv2d_nchwc(
                     T.writes(conv2d_NCHWc_int8[v0, v1, v2, v3, v4])
                     conv2d_NCHWc_int8[v0, v1, v2, v3, v4] = conv2d_NCHWc_int8_global[v0, v1, v2, v3, v4]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def x86_conv2d_nchwc_1(placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"), placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"), conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with T.sblock("root"):
@@ -164,7 +165,7 @@ def test_x86_conv2d_nchwc(
                     T.writes(conv2d_NCHWc_int8[v0, v1, v2, v3, v4])
                     conv2d_NCHWc_int8[v0, v1, v2, v3, v4] = conv2d_NCHWc_int8_global[v0, v1, v2, v3, v4]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def x86_conv2d_nchwc_2(placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"), placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"), conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with T.sblock("root"):
@@ -303,7 +304,7 @@ def _check_dp4a_dense(m, n, k, in_dtype, out_dtype, expected_mods, expected_deci
 
 
 def test_dp4a_dense():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def dp4a_dense_0(
         X: T.Buffer((128, 128), "int8"),
         W: T.Buffer((128, 128), "int8"),

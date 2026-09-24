@@ -27,6 +27,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -53,7 +54,7 @@ class Module:
         lv5: R.Tensor(dtype="float32") = alloc3
         return lv5
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def add(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
         T.func_attr({"global_symbol": "add"})
         with T.sblock("root"):

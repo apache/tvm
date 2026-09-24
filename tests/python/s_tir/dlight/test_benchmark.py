@@ -36,6 +36,7 @@ from tvm.s_tir.dlight.benchmark import (
 from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -45,7 +46,7 @@ from tvm.script import tirx as T
 # fmt: off
 @I.ir_module(check_well_formed=False, s_tir=True)
 class Module:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def full1(var_T_full: T.handle):
         T.func_attr({"op_pattern": 0, "tirx.noalias": True})
         n = T.int64()
@@ -58,7 +59,7 @@ class Module:
                 T.writes(T_full[v_ax0, v_ax1, v_ax2, v_ax3])
                 T_full[v_ax0, v_ax1, v_ax2, v_ax3] = T.float16(1.0)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def full2(var_T_full: T.handle):
         T.func_attr({"op_pattern": 0, "tirx.noalias": True})
         n = T.int64()
@@ -71,7 +72,7 @@ class Module:
                 T.writes(T_full[v_ax0, v_ax1, v_ax2, v_ax3])
                 T_full[v_ax0, v_ax1, v_ax2, v_ax3] = T.float16(1.0)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def matmul1(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})
         n = T.int64()
@@ -102,7 +103,7 @@ class Module:
             R.output(lv3)
         return lv3
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
     T.func_attr({"tirx.is_scheduled": True})
     m = T.int64()

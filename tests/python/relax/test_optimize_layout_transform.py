@@ -26,6 +26,7 @@ from tvm.ir.base import assert_structural_equal
 from tvm.relax.transform import DeadCodeElimination, FuseTIR, OptimizeLayoutTransform
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -44,7 +45,7 @@ def _run_pass_compare_output(Before, Expected):
 def test_optimize_transform_layout_pass_one_arg():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def relax_add_replacement(
             arg0: T.Buffer((4, 4), "float32"),
             arg1: T.Buffer((4, 4), "float32"),
@@ -98,7 +99,7 @@ def test_optimize_transform_layout_pass_one_arg():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def relax_add_replacement(
             arg0: T.Buffer((4, 4), "float32"),
             arg1: T.Buffer((4, 4), "float32"),
@@ -146,7 +147,7 @@ def test_optimize_transform_layout_pass_one_arg():
 def test_optimize_transform_layout_pass_two_args():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def relax_add_replacement(
             arg0: T.Buffer((4, 4), "float32"),
             arg1: T.Buffer((4, 4), "float32"),
@@ -213,7 +214,7 @@ def test_optimize_transform_layout_pass_two_args():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def relax_add_replacement(
             arg0: T.Buffer((4, 4), "float32"),
             arg1: T.Buffer((4, 4), "float32"),
@@ -271,7 +272,7 @@ def test_optimize_transform_layout_pass_two_args():
 def test_tranform_layout_tir_remove_pad_transform_layout():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def relax_relu_replacement(
             arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")
         ):
@@ -284,7 +285,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     T.writes(output[v_ax0])
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def remove_pad(var_input: T.handle, var_output: T.handle):
             T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
             p0 = T.int64()
@@ -344,7 +345,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def relax_relu_replacement(
             arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")
         ):
@@ -357,7 +358,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     T.writes(output[v_ax0])
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def remove_pad(var_input: T.handle, var_output: T.handle):
             T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
             p0 = T.int64()

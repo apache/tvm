@@ -22,6 +22,7 @@ import tvm
 import tvm.testing
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -75,7 +76,7 @@ def test_tir_matmul():
     compute block operating on the temporary transformed buffer.
     """
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         A: T.Buffer((16, 16), "float32"),
         B: T.Buffer((16, 16), "float32"),
@@ -91,7 +92,7 @@ def test_tir_matmul():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         A: T.Buffer((16, 16), "float32"),
         B: T.Buffer((16, 16), "float32"),
@@ -121,7 +122,7 @@ def test_tir_matmul():
 def test_rewritten_buffers_must_occur_within_block():
     """Buffers must occur within a Block"""
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         A: T.Buffer((16, 16), "float32"),
     ) -> None:
@@ -141,7 +142,7 @@ def test_extent_one():
     trivial variables resulted in an error in `IndexMap::Inverse`.
     """
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         A: T.Buffer((16, 1), "float32"),
     ) -> None:
@@ -151,7 +152,7 @@ def test_extent_one():
                 vi, vj = T.axis.remap("SS", [i, j])
                 T.evaluate(A[vi, vj])
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(A: T.Buffer((16, 1), "float32")):
         T.func_attr({"layout_free_buffers": [0]})
 
@@ -172,7 +173,7 @@ def test_extent_one():
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def tir_matmul(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -189,7 +190,7 @@ def tir_matmul(
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rewritten_tir_matmul(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -224,7 +225,7 @@ def test_layout_rewrite():
 # fmt: off
 @tvm.script.ir_module
 class Conv2dCacheRead:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(p0: T.Buffer((1, 56, 56, 64), "float32"), p1: T.Buffer((3, 3, 64, 64), "float32"), conv2d_nhwc: T.Buffer((1, 56, 56, 64), "float32")):
         T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True, "global_symbol": "main"})
         pad_temp = T.sblock_alloc_buffer([1, 58, 58, 64], dtype="float32")
@@ -301,7 +302,7 @@ class Conv2dCacheRead:
 
 @tvm.script.ir_module
 class Conv2dCacheReadRewritten:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(p0: T.Buffer((1, 56, 56, 64), "float32"), p1: T.Buffer((3, 3, 64, 64), "float32"), conv2d_nhwc: T.Buffer((1, 56, 56, 64), "float32")):
         T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True, "global_symbol": "main"})
         pad_temp = T.sblock_alloc_buffer([1, 58, 58, 64], dtype="float32")
@@ -386,7 +387,7 @@ class Conv2dCacheReadRewritten:
 
 @tvm.script.ir_module
 class Conv2dCacheReadMultipleRewritten:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(p0: T.Buffer((1, 56, 56, 64), "float32"), p1: T.Buffer((3, 3, 64, 64), "float32"), conv2d_nhwc: T.Buffer((1, 56, 56, 64), "float32")):
         T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True, "global_symbol": "main"})
         pad_temp = T.sblock_alloc_buffer([1, 58, 58, 64], dtype="float32")
@@ -498,7 +499,7 @@ def test_layout_rewrite_cache_read_multiple():
 
 
 def test_layout_rewrite_int64_index():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         p0: T.Buffer((T.int64(12), T.int64(197), T.int64(64)), "int8"),
         p1: T.Buffer((T.int64(12), T.int64(197), T.int64(64)), "int8"),
@@ -559,7 +560,7 @@ def test_layout_rewrite_int64_index():
                                 "int32", p1[v_b, v_j, v_k]
                             )
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         p0: T.Buffer((T.int64(12), T.int64(197), T.int64(64)), "int8"),
         p1: T.Buffer((T.int64(12), T.int64(197), T.int64(64)), "int8"),

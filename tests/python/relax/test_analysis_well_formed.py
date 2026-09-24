@@ -24,6 +24,7 @@ from tvm import relax as rx
 from tvm import tirx
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 m = tirx.Var("m", "int64")
@@ -704,7 +705,7 @@ def test_pass_dltensor_arg_to_tir():
         def main(A: R.Tensor) -> T.bool:
             return Module.is_bfloat16_dtype(A)
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def is_bfloat16_dtype(tensor: T.handle) -> T.bool:
             T.func_attr({"tirx.is_scheduled": True, "tirx.is_host_func": True})
 
@@ -738,7 +739,7 @@ def test_call_tir_with_matching_arguments():
             B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([16], "float16"))
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -762,7 +763,7 @@ def test_call_tir_with_interspersed_primitive_argument():
             B = R.call_tir(Module.add_scaled, (A, scale, C), out_ty=R.Tensor([16], "float16"))
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_scaled(
             A: T.Buffer([T.int64(16)], "float16"),
             scale: T.float32,
@@ -785,7 +786,7 @@ def test_call_tir_with_incorrect_primitive_argument_dtype():
             B = R.call_tir(Module.scale, (A, scale), out_ty=R.Tensor([16], "float16"))
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def scale(
             A: T.Buffer([T.int64(16)], "float16"),
             scale: T.float32,
@@ -811,7 +812,7 @@ def test_call_tir_shape_expr_is_not_a_primitive_argument():
             )
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def make_tensor(m: T.int64, n: T.int64, B: T.Buffer([T.int64(1)], "float32")):
             B[0] = T.Cast("float32", m + n)
 
@@ -833,7 +834,7 @@ def test_call_tir_input_ndim():
             B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([16], "float16"))
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -857,7 +858,7 @@ def test_call_tir_output_ndim():
             B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([4, 4], "float16"))
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -882,7 +883,7 @@ def test_call_tir_input_shape():
             B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([16], "float16"))
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -906,7 +907,7 @@ def test_call_tir_output_shape():
             B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([32], "float16"))
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -932,7 +933,7 @@ def test_call_tir_input_dtype():
             B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([16], "float16"))
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -958,7 +959,7 @@ def test_call_tir_output_dtype():
             B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([16], "float32"))
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -987,7 +988,7 @@ def test_call_tir_with_correct_dynamic_output_shape():
             B = R.call_tir(Module.reshape, A, out_ty=R.Tensor([2, 8], "float16"))
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def reshape(A: T.Buffer(16, "float16"), B_handle: T.handle):
             M = T.int64()
             N = T.int64()
@@ -1020,7 +1021,7 @@ def test_call_tir_with_incorrect_dynamic_output_shape():
             B = R.call_tir(Module.reshape, A, out_ty=R.Tensor([16, 16], "float16"))
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def reshape(A: T.Buffer(16, "float16"), B_handle: T.handle):
             M = T.int64()
             N = T.int64()
@@ -1055,7 +1056,7 @@ def test_call_tir_incorrect_dimensionality_of_output_shape():
             B = R.call_tir(Module.reshape, A, out_ty=R.Tensor([2, 4, 2], "float16"))
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def reshape(A: T.Buffer(16, "float16"), B_handle: T.handle):
             M = T.int64()
             N = T.int64()
@@ -1093,7 +1094,7 @@ def test_call_tir_output_shape_with_mixed_static_and_dynamic():
             B = R.call_tir(Module.reshape, A, out_ty=R.Tensor([8, 16, 2], "float16"))
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def reshape(A: T.Buffer(256, "float16"), B_handle: T.handle):
             M = T.int64()
             N = T.int64()
@@ -1125,7 +1126,7 @@ def test_call_tir_with_correct_inferred_dynamic_output_shape():
             B = R.call_tir(Module.flatten, A, out_ty=R.Tensor([32], "float16"))
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def flatten(A_handle: T.handle, B_handle: T.handle):
             M = T.int64()
             N = T.int64()
@@ -1163,7 +1164,7 @@ def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
             B = R.call_tir(Module.flatten, A, out_ty=R.Tensor([64], "float16"))
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def flatten(A_handle: T.handle, B_handle: T.handle):
             M = T.int64()
             N = T.int64()
@@ -1202,7 +1203,7 @@ def test_call_tir_with_dtensor_arguments():
             )
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def flatten(A_handle: T.handle, B_handle: T.handle):
             M = T.int64()
             N = T.int64()
@@ -1232,7 +1233,7 @@ def test_call_tir_inplace_with_correct_shapes():
             )
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_one(A: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -1257,7 +1258,7 @@ def test_call_tir_inplace_with_incorrect_shapes():
             )
             return B
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_one(A: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -1285,7 +1286,7 @@ def test_call_tir_inplace_with_some_allocated_outputs():
             )
             return out
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_one(
             A: T.Buffer(16, "float16"),
             B: T.Buffer(32, "float16"),

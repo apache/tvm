@@ -27,6 +27,7 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -44,7 +45,7 @@ def test_callback():
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def slice_A(
             A: T.Buffer((4, 4), "int32"),
             rank: T.int64,
@@ -55,7 +56,7 @@ def test_callback():
                     vi, vj = T.axis.remap("SS", [i, j])
                     A_sharded[vi, vj] = A[rank * 2 + vi, vj]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def slice_B(
             B: T.Buffer((2, 2), "float32"),
             rank: T.int64,

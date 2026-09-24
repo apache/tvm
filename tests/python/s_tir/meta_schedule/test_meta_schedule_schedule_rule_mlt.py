@@ -25,12 +25,13 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
     generate_design_space,
     print_sketches,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
 
 def test_cpu_matmul():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def cpu_matmul_0(
         A: T.Buffer((512, 512), "float32"),
         B: T.Buffer((512, 512), "float32"),
@@ -61,7 +62,7 @@ def test_cpu_matmul():
                     T.writes(C[v0, v1])
                     C[v0, v1] = C_global[v0, v1]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def cpu_matmul_1(
         A: T.Buffer((512, 512), "float32"),
         B: T.Buffer((512, 512), "float32"),
@@ -92,7 +93,7 @@ def test_cpu_matmul():
                     T.writes(C[v0, v1])
                     C[v0, v1] = C_global[v0, v1]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def cpu_matmul_2(
         A: T.Buffer((512, 512), "float32"),
         B: T.Buffer((512, 512), "float32"),
@@ -148,7 +149,7 @@ def test_cpu_matmul():
 
 
 def test_cpu_matmul_relu():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def cpu_matmul_relu_0(
         A: T.Buffer((512, 512), "float32"),
         B: T.Buffer((512, 512), "float32"),
@@ -179,7 +180,7 @@ def test_cpu_matmul_relu():
                 T.writes(compute[i0_4, i1_4])
                 compute[i0_4, i1_4] = T.max(C[i0_4, i1_4], T.float32(0))
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def cpu_matmul_relu_1(
         A: T.Buffer((512, 512), "float32"),
         B: T.Buffer((512, 512), "float32"),
@@ -210,7 +211,7 @@ def test_cpu_matmul_relu():
                     T.writes(compute[i0, i1])
                     compute[i0, i1] = T.max(C[i0, i1], T.float32(0))
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def cpu_matmul_relu_2(
         A: T.Buffer((512, 512), "float32"),
         B: T.Buffer((512, 512), "float32"),
@@ -272,7 +273,7 @@ def test_cpu_matmul_relu():
 
 
 def test_cuda_matmul():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def cuda_matmul_0(
         A: T.Buffer((512, 512), "float32"),
         B: T.Buffer((512, 512), "float32"),
@@ -378,7 +379,7 @@ def test_cuda_matmul():
 
 
 def test_cuda_matmul_relu():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def cuda_matmul_relu_0(
         A: T.Buffer((512, 512), "float32"),
         B: T.Buffer((512, 512), "float32"),
@@ -496,7 +497,7 @@ def test_cuda_matmul_relu():
 
 
 def test_cuda_sum_with_trivial_block_iter():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def sum_with_trivial_block_iter(
         A: T.Buffer((1, 64, 768), "float32"),
         B: T.Buffer((1, 64, 1), "float32"),
@@ -522,7 +523,7 @@ def test_cuda_sum_with_trivial_block_iter():
 
 
 def test_multi_level_tiling_hexagon():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def cpu_conv2d_nhwc(
         inputs: T.Buffer((1, 56, 56, 64), "float16"),
         weight: T.Buffer((3, 3, 64, 64), "float16"),
@@ -627,7 +628,7 @@ def test_multi_level_tiling_hexagon():
 
 
 def test_cache_read_specify_consumer():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def cache_read_specify_consumer_0(
         A: T.Buffer((512, 512), "float32"),
         B: T.Buffer((512, 512), "float32"),
@@ -737,7 +738,7 @@ def test_cache_read_specify_consumer():
 
 def test_max_pool_blocked():
     # fmt off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def pool_blocked_cache_read_write(
         X: T.Buffer((1, 2, 8, 8, 8, 8, 32), "uint8"),
         pool: T.Buffer((1, 2, 4, 4, 8, 8, 32), "uint8"),

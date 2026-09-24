@@ -21,6 +21,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.relax.transform import DeadCodeElimination
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -162,7 +163,7 @@ def check_if_func_exists(mod, func_name):
 def test_unused_relax_func():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_add(
             x: T.Buffer((16, 16), "float32"),
             y: T.Buffer((16, 16), "float32"),
@@ -199,7 +200,7 @@ provide_entry_func_name = tvm.testing.parameter(True, False)
 def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_add(
             x: T.Buffer((16, 16), "float32"),
             y: T.Buffer((16, 16), "float32"),
@@ -240,7 +241,7 @@ def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
 def test_tracking_through_externally_exposed_func(provide_entry_func_name):
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_add(
             x: T.Buffer((16, 16), "float32"),
             y: T.Buffer((16, 16), "float32"),
@@ -282,7 +283,7 @@ def test_unused_relax_func_symbolic_shape():
     # Test with relax function w/ symbolic shape.
     @tvm.script.ir_module(check_well_formed=False)
     class InputModule:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_matmul(
             x_handle: T.handle,
             y_handle: T.handle,
@@ -324,7 +325,7 @@ def test_unused_relax_func_symbolic_shape():
 def test_unused_prim_func():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def unused_func(
             x: T.Buffer((16, 16), "float32"),
             y: T.Buffer((16, 16), "float32"),
@@ -371,7 +372,7 @@ def test_preserve_indirectly_used_prim_func():
             )
             return gv0
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_add_tensors(
             x: T.Buffer((16, 16), "float32"),
             y: T.Buffer((16, 16), "float32"),
@@ -382,7 +383,7 @@ def test_preserve_indirectly_used_prim_func():
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = InputModule.tir_add_float32(x[vi, vj], y[vi, vj])
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_add_float32(x: T.float32, y: T.float32) -> T.float32:
             return x + y
 
@@ -396,7 +397,7 @@ def test_preserve_indirectly_used_prim_func():
 def test_multiple_unused_funcs():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def unused_func1(
             x: T.Buffer((16, 16), "float32"),
             y: T.Buffer((16, 16), "float32"),

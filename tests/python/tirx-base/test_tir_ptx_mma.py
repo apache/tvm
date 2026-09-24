@@ -20,11 +20,12 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m8n8k4_row_col_fp64pf64fp64(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [8, 4], dtype="float64")
@@ -90,7 +91,7 @@ def test_gemm_mma_m8n8k4_row_col_fp64pf64fp64():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m8n8k4_row_row_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 4], dtype="float16")
@@ -167,7 +168,7 @@ def test_gemm_mma_m8n8k4_row_row_fp16fp16fp16():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m8n8k4_row_row_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 4], dtype="float16")
@@ -251,7 +252,7 @@ def test_gemm_mma_m8n8k4_row_row_fp16fp16fp32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m8n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [8, 16], dtype="int8")
@@ -323,7 +324,7 @@ def test_gemm_mma_m8n8k16_row_col_s8s8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m8n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [8, 16], dtype="int8")
@@ -395,7 +396,7 @@ def test_gemm_mma_m8n8k16_row_col_s8u8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m8n8k32_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [8, 32], dtype="int4")
@@ -461,7 +462,7 @@ def test_gemm_mma_m8n8k32_row_col_s4s4s32():
     # TODO: add correctness checking here.
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m8n8k32_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [8, 32], dtype="int4")
@@ -527,7 +528,7 @@ def test_gemm_mma_m8n8k32_row_col_s4u4s32():
     # TODO: add correctness checking here.
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m16n8k8_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 8], dtype="float16")
@@ -601,7 +602,7 @@ def test_gemm_mma_m16n8k8_row_col_fp16fp16fp32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m16n8k16_row_col_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 16], dtype="float16")
@@ -678,7 +679,7 @@ def test_gemm_mma_m16n8k16_row_col_fp16fp16fp16():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m16n8k16_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 16], dtype="float16")
@@ -755,7 +756,7 @@ def test_gemm_mma_m16n8k16_row_col_fp16fp16fp32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m16n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 16], dtype="int8")
@@ -832,7 +833,7 @@ def test_gemm_mma_m16n8k16_row_col_s8s8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m16n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 16], dtype="int8")
@@ -909,7 +910,7 @@ def test_gemm_mma_m16n8k16_row_col_s8u8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m16n8k32_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 32], dtype="int8")
@@ -986,7 +987,7 @@ def test_gemm_mma_m16n8k32_row_col_s8s8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m16n8k32_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 32], dtype="int8")
@@ -1063,7 +1064,7 @@ def test_gemm_mma_m16n8k32_row_col_s8u8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m16n8k64_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 64], dtype="int4")
@@ -1134,7 +1135,7 @@ def test_gemm_mma_m16n8k64_row_col_s4s4s32():
     # TODO: add correctness checking here.
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m16n8k64_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 64], dtype="int4")
@@ -1205,7 +1206,7 @@ def test_gemm_mma_m16n8k64_row_col_s4u4s32():
     # TODO: add correctness checking here.
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_mma_m16n8k256_row_col_b1b1s32(a: T.handle, b: T.handle, c: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 256], dtype="int1")

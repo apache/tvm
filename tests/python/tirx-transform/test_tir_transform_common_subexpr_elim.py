@@ -18,6 +18,7 @@ import hashlib
 
 import tvm
 from tvm.ir.base import save_json
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -28,7 +29,7 @@ from tvm.script import tirx as T
 def test_basic():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, z3: T.int32):
             z1 = T.bind(1)
             z2 = T.bind(2)
@@ -41,7 +42,7 @@ def test_basic():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, z3: T.int32):
             z1 = T.bind(1)
             z2 = T.bind(2)
@@ -65,7 +66,7 @@ def test_basic():
 def test_if_single_branch():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             B: T.Buffer((50,), "int32"),
             i1: T.int32,
@@ -83,7 +84,7 @@ def test_if_single_branch():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             B: T.Buffer((50,), "int32"),
             i1: T.int32,
@@ -111,7 +112,7 @@ def test_if_single_branch():
 def test_if_both_branches():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             B: T.Buffer((50,), "int32"),
             i1: T.int32,
@@ -129,7 +130,7 @@ def test_if_both_branches():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             B: T.Buffer((50,), "int32"),
             i1: T.int32,
@@ -157,7 +158,7 @@ def test_if_both_branches():
 def test_cascade():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             B: T.Buffer((50,), "int32"),
             i1: T.int32,
@@ -173,7 +174,7 @@ def test_cascade():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             B: T.Buffer((50,), "int32"),
             i1: T.int32,
@@ -200,14 +201,14 @@ def test_cascade():
 def test_no_duplication():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(x: T.int32, y: T.int32, z: T.int32):
             a = T.bind(x + (y + z))
             T.evaluate(a)
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(x: T.int32, y: T.int32, z: T.int32):
             a = T.bind(x + (y + z))
             T.evaluate(a)
@@ -256,7 +257,7 @@ def test_deterministic():
 def test_for_loop():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
             for i in range(10):
                 B[i] = y + z
@@ -264,7 +265,7 @@ def test_for_loop():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
             for i in range(10):
                 cse_v1 = T.bind(y + z)
@@ -283,7 +284,7 @@ def test_for_loop():
 def test_for_hoist():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
             B[0] = y + z
             for i in range(10):
@@ -291,7 +292,7 @@ def test_for_hoist():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
             cse_v1 = T.bind(y + z)
             B[0] = cse_v1
@@ -310,14 +311,14 @@ def test_for_hoist():
 def test_cannot_lift_bufferload():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((50,), "int32"), B: T.Buffer((50,), "int32")):
             B[0] = A[0] + A[0]
             B[1] = A[0] + A[0]
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((50,), "int32"), B: T.Buffer((50,), "int32")):
             B[0] = A[0] + A[0]
             B[1] = A[0] + A[0]
@@ -334,7 +335,7 @@ def test_cannot_lift_bufferload():
 def test_nested_if():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             B: T.Buffer((50,), "int32"),
             c1: T.int32,
@@ -352,7 +353,7 @@ def test_nested_if():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             B: T.Buffer((50,), "int32"),
             c1: T.int32,
@@ -380,7 +381,7 @@ def test_nested_if():
 def test_multi_independent():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             B: T.Buffer((50,), "int32"),
             a: T.int32,
@@ -395,7 +396,7 @@ def test_multi_independent():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             B: T.Buffer((50,), "int32"),
             a: T.int32,
@@ -422,14 +423,14 @@ def test_multi_independent():
 def test_if_condition():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
             if y + z > 0:
                 B[0] = y + z
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
             cse_v1 = T.bind(y + z)
             if cse_v1 > 0:
@@ -446,14 +447,14 @@ def test_if_condition():
 def test_cannot_lift_call():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((50,), "int32"), x: T.int32):
             B[0] = T.call_extern("my_func", x, dtype="int32") + 1
             B[1] = T.call_extern("my_func", x, dtype="int32") + 1
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((50,), "int32"), x: T.int32):
             B[0] = T.call_extern("my_func", x, dtype="int32") + 1
             B[1] = T.call_extern("my_func", x, dtype="int32") + 1
@@ -471,7 +472,7 @@ def test_cannot_lift_call():
 def test_no_single_use_binding():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             B: T.Buffer((50,), "int32"),
             x: T.int32,
@@ -483,7 +484,7 @@ def test_no_single_use_binding():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             B: T.Buffer((50,), "int32"),
             x: T.int32,
@@ -506,14 +507,14 @@ def test_no_single_use_binding():
 def test_for_extent_lift():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
             for i in range(y + z):
                 B[i] = y + z
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
             cse_v1 = T.bind(y + z)
             for i in range(cse_v1):
@@ -531,7 +532,7 @@ def test_for_extent_lift():
 def test_loop_var_expr_stays_inside():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((50,), "int32"),
             B: T.Buffer((50,), "int32"),
@@ -541,7 +542,7 @@ def test_loop_var_expr_stays_inside():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((50,), "int32"),
             B: T.Buffer((50,), "int32"),
@@ -561,14 +562,14 @@ def test_loop_var_expr_stays_inside():
 def test_no_normalization_without_commoning():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(x: T.int32, y: T.int32, z: T.int32):
             a = T.bind(x + (y + z))
             T.evaluate(a)
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(x: T.int32, y: T.int32, z: T.int32):
             a = T.bind(x + (y + z))
             T.evaluate(a)
@@ -721,7 +722,7 @@ def test_let_floordiv_pattern():
 def test_no_lift_bool_predicate():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((50,), "int32"), n: T.int32, x: T.int32):
             for i in range(50):
                 if i < n:
@@ -742,7 +743,7 @@ def test_no_lift_bool_predicate():
 def test_no_lift_bool_logical():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((50,), "int32"), a: T.bool, b: T.bool, x: T.int32):
             if T.And(a, b):
                 B[0] = x
@@ -759,7 +760,7 @@ def test_no_lift_bool_logical():
 def test_shared_subtree_stays_ssa():
     @tvm.script.ir_module
     class Payload:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32):
             B[i1] = (i1 + i2) * 2
             B[i2] = (i1 + i2) * 3

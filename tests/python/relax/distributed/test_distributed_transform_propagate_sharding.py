@@ -22,6 +22,7 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm.ir import assert_structural_equal
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -87,7 +88,7 @@ def test_mlp_with_tuple():
             }
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def split1(var_A: T.handle, var_T_split: T.handle, var_T_split_1: T.handle):
             T.func_attr({"tirx.noalias": True})
             A = T.match_buffer(var_A, (128, 128), "float32")
@@ -132,7 +133,7 @@ def test_mlp_with_tuple():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def split1(
             A: T.Buffer((128, 128), "float32"),
             T_split: T.Buffer((64, 128), "float32"),
@@ -362,7 +363,7 @@ def test_decoder_layer():
             }
         )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def rms_norm(
             var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle
         ):
@@ -399,7 +400,7 @@ def test_decoder_layer():
                         ),
                     )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def rotary_embedding(
             var_A: T.handle,
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
@@ -563,7 +564,7 @@ def test_decoder_layer():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def rms_norm(
             A: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(4096),), "float16"),
@@ -599,7 +600,7 @@ def test_decoder_layer():
                         ),
                     )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def rotary_embedding(
             A: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
@@ -767,7 +768,7 @@ def test_decoder_layer_tir():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def add(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
@@ -785,7 +786,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_ax1, v_ax2] + B[T.int64(0), v_ax1, v_ax2]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def divide(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
@@ -803,7 +804,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_ax1, v_ax2, v_ax3] / B[T.int64(0), v_ax1, v_ax2, v_ax3]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
@@ -823,7 +824,7 @@ def test_decoder_layer_tir():
                         matmul[T.int64(0), v_i1, v_i2] + A[T.int64(0), v_i1, v_k] * B[v_k, v_i2]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul1(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
@@ -846,7 +847,7 @@ def test_decoder_layer_tir():
                         + A[T.int64(0), v_i1, v_i2, v_k] * B[T.int64(0), v_i1, v_k, v_i3]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul2(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
@@ -869,7 +870,7 @@ def test_decoder_layer_tir():
                         + A[T.int64(0), v_i1, v_i2, v_k] * B[T.int64(0), v_i1, v_k, v_i3]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def maximum(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
@@ -887,7 +888,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_ax1, v_ax2, v_ax3], B[T.int64(0), v_ax1, v_ax2, v_ax3]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def minimum(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(1), T.int64(256), T.int64(256)), "float16"),
@@ -907,7 +908,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_ax1, v_ax2, v_ax3], B[T.int64(0), T.int64(0), v_ax2, v_ax3]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def reshape(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -924,7 +925,7 @@ def test_decoder_layer_tir():
                         T.int64(0), v_ax1, v_ax2 * T.int64(128) + v_ax3
                     ]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def reshape1(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_reshape: T.Buffer((T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -938,7 +939,7 @@ def test_decoder_layer_tir():
                     T.writes(T_reshape[v_ax0, v_ax1, v_ax2])
                     T_reshape[v_ax0, v_ax1, v_ax2] = A[T.int64(0), v_ax0, v_ax1, v_ax2]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def reshape2(
             A: T.Buffer((T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -953,7 +954,7 @@ def test_decoder_layer_tir():
                     T.writes(T_reshape[T.int64(0), v_ax1, v_ax2, v_ax3])
                     T_reshape[T.int64(0), v_ax1, v_ax2, v_ax3] = A[v_ax1, v_ax2, v_ax3]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def reshape3(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
@@ -970,7 +971,7 @@ def test_decoder_layer_tir():
                         T.int64(0), v_ax1, v_ax2 // T.int64(128), v_ax2 % T.int64(128)
                     ]
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def rms_norm(
             A: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(4096),), "float16"),
@@ -1008,7 +1009,7 @@ def test_decoder_layer_tir():
                         ),
                     )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def rotary_embedding(
             A: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
@@ -1040,7 +1041,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_i1, v_i2, v_i3 + T.int64(64)] * T.float16(-1),
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def softmax(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             T_softmax_norm: T.Buffer(
@@ -1107,7 +1108,7 @@ def test_decoder_layer_tir():
                         / T_softmax_expsum[T.int64(0), v_i1, v_i2]
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def transpose(
             A: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
             T_transpose: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
@@ -1121,7 +1122,7 @@ def test_decoder_layer_tir():
                     T.writes(T_transpose[v_ax0, v_ax1])
                     T_transpose[v_ax0, v_ax1] = A[v_ax1, v_ax0]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def transpose1(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_transpose: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
@@ -1138,7 +1139,7 @@ def test_decoder_layer_tir():
                         T.int64(0), v_ax2, v_ax1, v_ax3
                     ]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def transpose2(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
             T_transpose: T.Buffer((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
@@ -1155,7 +1156,7 @@ def test_decoder_layer_tir():
                         T.int64(0), v_ax1, v_ax3, v_ax2
                     ]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def transpose3(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
             T_transpose: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -1553,7 +1554,7 @@ def test_decoder_layer_dynamic_shape():
             }
         )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def rms_norm(
             var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle
         ):
@@ -1590,7 +1591,7 @@ def test_decoder_layer_dynamic_shape():
                         ),
                     )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def rotary_embedding(
             var_A: T.handle,
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
@@ -1753,7 +1754,7 @@ def test_decoder_layer_dynamic_shape():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def rms_norm(
             var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle
         ):
@@ -1790,7 +1791,7 @@ def test_decoder_layer_dynamic_shape():
                         ),
                     )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def rotary_embedding(
             var_A: T.handle,
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),

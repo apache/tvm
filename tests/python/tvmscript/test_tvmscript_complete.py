@@ -18,10 +18,11 @@
 
 import tvm.testing
 from tvm.ir import Range
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -35,7 +36,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_original(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -57,7 +58,7 @@ def matmul_original(a: T.handle, b: T.handle, c: T.handle) -> None:
                     )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_with_root(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -88,7 +89,7 @@ def func_with_opaque_block(a: T.handle, b: T.handle, c: T.handle) -> None:
                 C[vi, vj] = B[vi, vj] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def func_with_part_access_region(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -198,7 +199,7 @@ def test_complete_part_region():
     _check_elementwise(func_with_part_access_region)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def func_with_bufferslice_indices(data: T.handle, index: T.handle) -> None:
     data_buf = T.match_buffer(data, (16, 16), "float32")
     index_buf = T.match_buffer(index, (1,), "int32")
@@ -210,7 +211,7 @@ def func_with_bufferslice_indices(data: T.handle, index: T.handle) -> None:
             out_buf[vi, vj] = data_buf[vi, index_buf[0]]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def expected_bufferslice_indices(data: T.handle, index: T.handle) -> None:
     index_buf = T.match_buffer(index, [1], dtype="int32", elem_offset=0, align=64, offset_factor=1)
     data_buf = T.match_buffer(data, [16, 16], elem_offset=0, align=64, offset_factor=1)
@@ -226,7 +227,7 @@ def expected_bufferslice_indices(data: T.handle, index: T.handle) -> None:
                 out_buf[vi, vj] = data_buf[vi, index_buf[0]]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def func_with_recursive_bufferslice_indices(data: T.handle, index: T.handle) -> None:
     data_buf = T.match_buffer(data, (16, 16), "float32")
     index_buf = T.match_buffer(index, (1,), "int32")
@@ -238,7 +239,7 @@ def func_with_recursive_bufferslice_indices(data: T.handle, index: T.handle) -> 
             out_buf[vi, vj] = data_buf[index_buf[index_buf[0]], index_buf[0]]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def expected_recursive_bufferslice_indices(data: T.handle, index: T.handle) -> None:
     index_buf = T.match_buffer(index, [1], dtype="int32", elem_offset=0, align=64, offset_factor=1)
     data_buf = T.match_buffer(data, [16, 16], elem_offset=0, align=64, offset_factor=1)
@@ -274,7 +275,7 @@ def test_complete_buffer_indices():
     )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def match_buffer_func(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 16))
     for i in range(0, 16):
@@ -287,7 +288,7 @@ def match_buffer_func(a: T.handle) -> None:
                         A1[()] = 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def expected_match_buffer_func(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 16))
     for i in range(0, 16):
@@ -313,7 +314,7 @@ def test_complete_match_buffer():
     )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def alloc_buffer_func(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [2, 2], dtype="float32")
     B = T.match_buffer(b, [2, 2], dtype="float32")
@@ -323,7 +324,7 @@ def alloc_buffer_func(a: T.handle, b: T.handle) -> None:
     B[(0, 0)] = C[(0, 0)]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def expect_alloc_buffer_func(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1)
     B = T.match_buffer(b, [2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1)

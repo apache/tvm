@@ -24,6 +24,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -137,7 +138,7 @@ def test_to_non_dataflow():
 def test_call_tir_rewrite():
     @tvm.script.ir_module
     class TestCallTIRRewrite:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(A_handle: T.handle, B_handle: T.handle):
             m = T.int64()
             n = T.int64()
@@ -181,7 +182,7 @@ def test_call_tir_rewrite():
 def test_call_tir_rewrite_with_interspersed_primitive_argument():
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def scale_add(
             A: T.Buffer((16,), "float32"),
             scale: T.float32,
@@ -404,7 +405,7 @@ def test_call_tir_inplace_simple():
     # simple case: one inplace argument
     @tvm.script.ir_module
     class Input:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def zeros(A: T.Buffer((2, 3), "int32")):
             # just overwrites A with 0s
             T.func_attr({"tirx.noalias": True})
@@ -423,7 +424,7 @@ def test_call_tir_inplace_simple():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def zeros(A: T.Buffer((2, 3), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -446,7 +447,7 @@ def test_call_tir_inplace_simple():
 def test_call_tir_inplace_multiple_args():
     @tvm.script.ir_module
     class Input:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def copy(
             A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32"), C: T.Buffer((2, 3), "int32")
         ):
@@ -475,7 +476,7 @@ def test_call_tir_inplace_multiple_args():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def copy(
             A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32"), C: T.Buffer((2, 3), "int32")
         ):
@@ -505,7 +506,7 @@ def test_call_tir_inplace_multiple_args():
 def test_call_tir_inplace_some_new():
     @tvm.script.ir_module
     class Input:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def copy(
             A: T.Buffer((2, 3), "int32"),
             B: T.Buffer((2, 3), "int32"),
@@ -545,7 +546,7 @@ def test_call_tir_inplace_some_new():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def copy(
             A: T.Buffer((2, 3), "int32"),
             B: T.Buffer((2, 3), "int32"),
@@ -593,7 +594,7 @@ def test_call_tir_inplace_repeated_input():
 
         @tvm.script.ir_module
         class Input:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def func(
                 A: T.Buffer((2, 3), "int32"),
                 B: T.Buffer((2, 3), "int32"),
@@ -623,7 +624,7 @@ def test_call_tir_inplace_all_new():
 
         @tvm.script.ir_module
         class Input:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def func(A: T.Buffer((2, 3), "int32")):
                 T.evaluate(0)
 
@@ -663,7 +664,7 @@ def test_inplace_mutation_with_tuple_argument_raises_error():
                 )
                 return gv1
 
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.prim_func(private=True)
             def multiply_by_two(A: T.Buffer((16,), "float32")):
                 for i in range(16):
                     A[i] = A[i] * T.float32(2)
@@ -694,7 +695,7 @@ def test_inplace_mutation_with_non_tensor_argument_raises_error():
                 )
                 return gv1
 
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.prim_func(private=True)
             def multiply_by_two(A: T.Buffer((16,), "float32")):
                 for i in range(16):
                     A[i] = A[i] * T.float32(2)
@@ -723,7 +724,7 @@ def test_inplace_mutation_with_incompatible_tensor_shape_raises_error():
                 )
                 return gv1
 
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.prim_func(private=True)
             def multiply_by_two(A: T.Buffer((16,), "float32")):
                 for i in range(16):
                     A[i] = A[i] * T.float32(2)
@@ -752,7 +753,7 @@ def test_inplace_mutation_with_incompatible_tensor_dtype_raises_error():
                 )
                 return gv1
 
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.prim_func(private=True)
             def multiply_by_two(A: T.Buffer((16,), "float32")):
                 for i in range(16):
                     A[i] = A[i] * T.float32(2)

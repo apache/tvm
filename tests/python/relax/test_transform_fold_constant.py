@@ -23,6 +23,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -61,7 +62,7 @@ def test_one_fold_addone():
     # put before after in a single module
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def addone(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")) -> None:
             for i, j in T.grid(16, 16):
                 with T.sblock("addone"):
@@ -91,7 +92,7 @@ def test_one_fold_transpose():
     # put before after in a single module
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func(A: T.Buffer((2, 3), "float32"), B: T.Buffer((3, 2), "float32")) -> None:
             for i, j in T.grid(3, 2):
                 with T.sblock("transpose"):
@@ -120,7 +121,7 @@ def test_one_fold_transpose():
 def test_two_hop_addone():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def addone(A: T.Buffer((2, 2), "float32"), B: T.Buffer((2, 2), "float32")) -> None:
             for i, j in T.grid(2, 2):
                 with T.sblock("addone"):
@@ -151,7 +152,7 @@ def test_two_hop_addone():
 def test_dataflow_fold():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def identity(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")) -> None:
             for i, j in T.grid(16, 16):
                 with T.sblock("identity"):
@@ -182,7 +183,7 @@ def test_fold_mixed_case():
     @tvm.script.ir_module
     class Module:
         # TIR function can handle different cases.
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def addone(a: T.handle, b: T.handle) -> None:
             n = T.int32()
             m = T.int32()
@@ -193,7 +194,7 @@ def test_fold_mixed_case():
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] + T.float32(1)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def sub(
             A: T.Buffer((16, 16), "float32"),
             B: T.Buffer((16, 16), "float32"),
@@ -248,7 +249,7 @@ def test_fold_mixed_case():
 def test_int32_fold():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def addone(A: T.Buffer((16, 16), "int32"), B: T.Buffer((16, 16), "int32")) -> None:
             for i, j in T.grid(16, 16):
                 with T.sblock("addone"):
@@ -448,7 +449,7 @@ def test_fold_shape_computation():
 def test_fold_tuple_output():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def split(
             A: T.Buffer((4, 4), "float32"),
             B: T.Buffer((2, 4), "float32"),
@@ -560,7 +561,7 @@ def test_fold_large_op_with_tensor_input():
 
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def addone(A: T.Buffer((2048,), "float32"), B: T.Buffer((2048,), "float32")) -> None:
             for i in range(2048):
                 with T.sblock("addone"):
@@ -590,7 +591,7 @@ def test_call_tir_with_primitive_args_not_folded():
 
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def shape_to_tensor(m: T.int64, out: T.Buffer((T.int64(1),), "int64")):
             for i in range(T.int64(1)):
                 with T.sblock("out"):

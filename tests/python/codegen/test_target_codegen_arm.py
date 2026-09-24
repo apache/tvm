@@ -18,6 +18,7 @@ import re
 
 import tvm
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -32,7 +33,7 @@ def test_popcount():
     def check_correct_assembly(type, elements, counts):
         @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(A: T.Buffer((elements,), type), B: T.Buffer((elements,), type)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.vectorized(elements):
@@ -68,7 +69,7 @@ def test_vmlal_s16():
     def check_correct_assembly(N):
         @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(var_A: T.handle, var_B: T.handle, C: T.Buffer((N,), "int32")):
                 T.func_attr({"tirx.noalias": True})
                 K = T.int32()
@@ -101,7 +102,7 @@ def test_vmlal_s16():
     def check_broadcast_correct_assembly(N):
         @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(var_A: T.handle, var_B: T.handle, C: T.Buffer((N,), "int32")):
                 T.func_attr({"tirx.noalias": True})
                 K = T.int32()

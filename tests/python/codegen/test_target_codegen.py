@@ -21,13 +21,14 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 def test_buffer_store_predicate_not_supported():
     target = "c"
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(b: T.handle):
         B = T.match_buffer(b, (8,), "float32")
         T.evaluate(
@@ -61,7 +62,7 @@ def test_buffer_store_predicate_not_supported_gpu(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (2, 3), "float32")
         B = T.match_buffer(b, (6,), "float32")
@@ -87,7 +88,7 @@ def test_buffer_store_predicate_not_supported_gpu(target):
 def test_buffer_load_predicate_not_supported():
     target = "c"
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (8,), "float32")
         B = T.match_buffer(b, (8,), "float32")
@@ -123,7 +124,7 @@ def test_buffer_load_predicate_not_supported_gpu(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (8,), "float32")
         B = T.match_buffer(b, (8,), "float32")
@@ -150,7 +151,7 @@ def test_buffer_load_predicate_not_supported_gpu(target):
     [("opencl", "__global "), ("metal", "device ")],
 )
 def test_decl_buffer_offset_preserves_storage_scope(target, qualifier):
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def kernel(A_ptr: T.handle("float32", "global")):
         T.func_attr(
             {
@@ -176,7 +177,7 @@ def test_codegen_loop_step(target):
     if target != "c" and not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def test_loop_step(
         A: T.Buffer((1024,), "float32"),
         B: T.Buffer((1024,), "float32"),

@@ -22,13 +22,14 @@ from tvm import relax
 from tvm.ir.instrument import PrintAfterAll, PrintBeforeAll
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=invalid-name,missing-function-docstring,no-value-for-parameter
 
 
 def test_tir_print_all_passes(capsys):
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(a: T.handle, b: T.handle) -> None:
         A = T.match_buffer(a, (128, 128, 128, 128))
         B = T.match_buffer(b, (128, 128, 128, 128))

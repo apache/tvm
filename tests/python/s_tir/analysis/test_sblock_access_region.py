@@ -20,10 +20,11 @@ import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.ir import Range
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def func() -> None:
     A = T.sblock_alloc_buffer((128, 128), "float32")
     B = T.sblock_alloc_buffer((128, 128), "float32")
@@ -45,7 +46,7 @@ def func() -> None:
         T.evaluate(D.data)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def masked_access_func() -> None:
     A = T.sblock_alloc_buffer((16,), "float32")
     B = T.sblock_alloc_buffer((16,), "float32")
@@ -55,7 +56,7 @@ def masked_access_func() -> None:
         T.masked_store(B, value, T.Ramp(8, 1, 4), mask)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def match_buffer_func() -> None:
     with T.sblock("root"):
         A = T.sblock_alloc_buffer((128, 128), "float32")
@@ -84,7 +85,7 @@ def match_buffer_func() -> None:
                 T.evaluate(B1.data)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def opaque_block_func() -> None:
     with T.sblock("root"):
         A = T.sblock_alloc_buffer((16, 16), "float32")
@@ -103,7 +104,7 @@ def opaque_block_func() -> None:
                         B[i, j] = A[i, j] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def opaque_access_func() -> None:
     A = T.sblock_alloc_buffer([1024])
     B = T.sblock_alloc_buffer([1024])
@@ -117,7 +118,7 @@ def opaque_access_func() -> None:
             )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def opaque_access_with_tvm_access_ptr_func() -> None:
     A = T.sblock_alloc_buffer([1024])
     B = T.sblock_alloc_buffer([1024])
@@ -130,7 +131,7 @@ def opaque_access_with_tvm_access_ptr_func() -> None:
         T.evaluate(C.access_ptr("rw"))
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def decl_buffer_alias_func(
     A: T.Buffer((16,), "float32"),
     B: T.Buffer((16,), "float32"),
@@ -142,7 +143,7 @@ def decl_buffer_alias_func(
         B[0] = A[0] + A_view[0]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def access_in_if_then_else_func() -> None:
     A = T.sblock_alloc_buffer([8])
     B = T.sblock_alloc_buffer([8])
@@ -153,7 +154,7 @@ def access_in_if_then_else_func() -> None:
             B[i] = T.if_then_else(i < 5, A[i], 0.0, dtype="float32")
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def access_in_branch_func() -> None:
     A = T.sblock_alloc_buffer([8])
     B = T.sblock_alloc_buffer([8])
@@ -167,7 +168,7 @@ def access_in_branch_func() -> None:
                 B[i] = A[i - 1]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm() -> None:
     A = T.sblock_alloc_buffer([16, 16], "float32")
     B = T.sblock_alloc_buffer([16, 16], "float32")
@@ -184,7 +185,7 @@ def gemm() -> None:
             C[vi, vj] += A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def decomposed_gemm() -> None:
     A = T.sblock_alloc_buffer([16, 16], "float32")
     B = T.sblock_alloc_buffer([16, 16], "float32")
@@ -207,7 +208,7 @@ def decomposed_gemm() -> None:
                 C[vi, vj] += A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def access_of_padding_pattern() -> None:
     X = T.sblock_alloc_buffer([28, 28])
     X_pad = T.sblock_alloc_buffer([32, 32])
@@ -404,7 +405,7 @@ def test_access_of_decompose_reduction():
 
 
 def test_buffer_access_with_let_binding():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(
         storage: T.Buffer((16, 16, 16), "float32"),
         seq_slot_ids: T.Buffer((16,), "int32"),
@@ -432,7 +433,7 @@ def test_buffer_access_with_let_binding():
 
 
 def test_buffer_access_with_nested_let_binding():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(
         A: T.Buffer((16, 16), "float32"),
         B: T.Buffer((16, 16), "float32"),

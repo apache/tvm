@@ -622,7 +622,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_merge(a: T.handle, b: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -650,7 +650,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_fuse(a: T.handle, b: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -698,7 +698,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_fuse(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -720,7 +720,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_fuse(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -788,7 +788,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_split(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -810,7 +810,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_split(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -875,7 +875,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_partition(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -969,7 +969,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_reorder(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -991,7 +991,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_reorder(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1022,7 +1022,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def matmul(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32"),
@@ -1047,7 +1047,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def matmul_after_reorder_block_iter_var(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32"),
@@ -1090,7 +1090,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_add_unit_loop(
                 A: T.Buffer((), "int32"),
                 B: T.Buffer((), "int32"),
@@ -1112,7 +1112,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_add_unit_loop(
                 A: T.Buffer((), "int32"),
                 B: T.Buffer((), "int32"),
@@ -1150,7 +1150,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_parallel(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1171,7 +1171,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_parallel(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1206,7 +1206,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_vectorize(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1227,7 +1227,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_vectorize(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1267,7 +1267,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_bind(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1289,7 +1289,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_bind(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1318,7 +1318,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_unroll(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1339,7 +1339,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_unroll(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1397,7 +1397,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_cache_read(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1419,7 +1419,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_cache_read(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1492,7 +1492,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_cache_write(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1514,7 +1514,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_cache_write(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1585,7 +1585,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_reindex_cache_read(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1607,7 +1607,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_reindex_cache_read(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1685,7 +1685,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_reindex_cache_write(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -1707,7 +1707,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_cache_write(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (64, 2, 128))
@@ -1777,7 +1777,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_cache_inplace(data_io: T.Buffer((64), "int32")):
                 for i0 in T.serial(1):
                     with T.sblock("A"):
@@ -1798,7 +1798,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def cache_inplace(data_io: T.Buffer(64, "int32")) -> None:
                 data_io_local = T.sblock_alloc_buffer([64], dtype="int32", scope="local")
                 for i0 in T.serial(1):
@@ -1861,7 +1861,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def resize(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (1, 3, 40, 40))
                 B = T.match_buffer(b, (1, 3, 80, 80))
@@ -1883,7 +1883,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def resize_cache_index(
                 A: T.Buffer((1, 3, 40, 40), "float32"), B: T.Buffer((1, 3, 80, 80), "float32")
             ) -> None:
@@ -1961,7 +1961,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_reindex(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32")
@@ -1983,7 +1983,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_reindex(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32")
@@ -2075,7 +2075,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_compute_at(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128), "float32")
                 B = T.sblock_alloc_buffer((128, 128), "float32")
@@ -2103,7 +2103,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_compute_at(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128), "float32")
                 B = T.sblock_alloc_buffer((128, 128), "float32")
@@ -2171,7 +2171,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_reverse_compute_at(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128), "float32")
                 B = T.sblock_alloc_buffer((128, 128), "float32")
@@ -2199,7 +2199,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128), "float32")
                 B = T.sblock_alloc_buffer((128, 128), "float32")
@@ -2247,7 +2247,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_inline(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.sblock_alloc_buffer((128, 128))
@@ -2273,7 +2273,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_inline(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 C = T.match_buffer(c, (128, 128))
@@ -2316,7 +2316,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_inline(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.sblock_alloc_buffer((128, 128))
@@ -2342,7 +2342,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_inline(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 C = T.match_buffer(c, (128, 128))
@@ -2449,7 +2449,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_decompose(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                 A = tirx.match_buffer(a, [128, 128])
                 B = tirx.match_buffer(b, [128, 128])
@@ -2474,7 +2474,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_decompose(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                 A = tirx.match_buffer(a, [128, 128])
                 B = tirx.match_buffer(b, [128, 128])
@@ -2573,7 +2573,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_rfactor(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128, 128))
                 B = T.match_buffer(b, (128,))
@@ -2597,7 +2597,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_rfactor(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, [128, 128, 128])
                 B = T.match_buffer(b, [128])
@@ -2673,7 +2673,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_storage_align(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.sblock_alloc_buffer((128, 128))
@@ -2699,7 +2699,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_storage_align(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.sblock_alloc_buffer((128, 128))
@@ -2748,7 +2748,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_set_scope(
                 A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
             ) -> None:
@@ -2775,7 +2775,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_set_scope(
                 A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
             ) -> None:
@@ -2827,7 +2827,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_set_dtype(
                 A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
             ) -> None:
@@ -2854,7 +2854,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_set_dtype(
                 A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
             ) -> None:
@@ -2906,7 +2906,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_blockize(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32")
@@ -2933,7 +2933,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_blockize(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32")
@@ -2985,7 +2985,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_tensorize(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32"),
@@ -3006,7 +3006,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
                 B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
@@ -3021,7 +3021,7 @@ class Schedule(Object):
                             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def mma_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
                 B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
@@ -3060,7 +3060,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_tensorize(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32"),
@@ -3144,7 +3144,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_annotate(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -3165,7 +3165,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_annotate(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -3198,7 +3198,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_unannotate(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -3220,7 +3220,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_unannotate(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
@@ -3393,7 +3393,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_transform_layout(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128), "float32")
                 B = T.sblock_alloc_buffer((128, 128), "float32")
@@ -3420,7 +3420,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def two_elementwise_transformed_intermediate_buffer(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128), "float32")
                 B = T.sblock_alloc_buffer((8, 8, 16, 16), "float32")
@@ -3503,7 +3503,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_transform_block_layout(
                 A: T.Buffer((16, 16), "float32"),
                 B: T.Buffer((16, 16), "float32")
@@ -3525,7 +3525,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_transform_block_layout(
                 A: T.Buffer((16, 16), "float32"),
                 B: T.Buffer((16, 16), "float32")
@@ -3582,7 +3582,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):
                 for i in range(140):
                     with T.sblock("block"):
@@ -3602,7 +3602,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):
                 for i in T.serial(140):
                     with T.sblock("block_pad_const"):
@@ -3651,7 +3651,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_pad_einsum(
                 A: T.Buffer((127, 127), "float32"),
                 B: T.Buffer((127, 127), "float32"),
@@ -3677,7 +3677,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(
                 A: T.Buffer((127, 127), "float32"),
                 B: T.Buffer((127, 127), "float32"),
@@ -3754,7 +3754,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_rolling_buffer(
                 A: T.Buffer((12, 12), "int8"), C: T.Buffer((8, 8), "int8")
             ) -> None:
@@ -3791,7 +3791,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_rolling_buffer(
                 A: T.Buffer((12, 12), "int8"),
                 C: T.Buffer((8, 8), "int8")
@@ -3893,7 +3893,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_annotate_buffer_access(
                 A: T.Buffer((128, 128), "float32"),
                 C: T.Buffer((128, 128), "float32")
@@ -3922,7 +3922,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_annotate_buffer_access(
                 A: T.Buffer((128, 128), "float32"),
                 C: T.Buffer((128, 128), "float32")

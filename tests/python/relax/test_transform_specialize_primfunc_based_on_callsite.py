@@ -22,6 +22,7 @@ from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -94,7 +95,7 @@ def test_single_arg_return():
             }
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def max_pool2d_opencl(
             gv: T.Buffer((T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"),
             pool_max: T.Buffer(
@@ -135,7 +136,7 @@ def test_single_arg_return():
                         ],
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def te_layout_transform(
             x: T.Buffer((T.int64(2), T.int64(4), T.int64(26), T.int64(26)), "float32"),
             te_layout_transform: T.Buffer(
@@ -156,7 +157,7 @@ def test_single_arg_return():
                         v_self, v_i0 // T.int64(4), v_i1, v_i2, v_i0 % T.int64(4)
                     ] = x[v_self, v_i0, v_i1, v_i2]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def te_layout_transform2(
             lv2: T.Buffer(
                 (T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)), "float32"
@@ -223,7 +224,7 @@ def test_multi_arg_return():
             }
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def conv2d_NCHWc_OIHWo_opencl(
             lv: T.Buffer((T.int64(2), T.int64(4), T.int64(28), T.int64(28), T.int64(4)), "float32"),
             lv1: T.Buffer((T.int64(1), T.int64(16), T.int64(3), T.int64(3), T.int64(4)), "float32"),
@@ -233,7 +234,7 @@ def test_multi_arg_return():
         ):
             conv2d_NCHWc_OIHWo[0, 0, 0, 0, 0] = T.float32(0.0)
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def fused_relu_concatenate_split(
             gv: T.Buffer((T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"),
             T_split_sections_intermediate: T.Buffer(
@@ -246,7 +247,7 @@ def test_multi_arg_return():
             T_split_sections_intermediate[0, 0, 0, 0, 0] = T.float32(0.0)
             T_split_sections_intermediate_1[0, 0, 0, 0, 0] = T.float32(0.0)
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def te_layout_transform(
             x: T.Buffer((T.int64(2), T.int64(16), T.int64(28), T.int64(28)), "float32"),
             te_layout_transform: T.Buffer(
@@ -255,7 +256,7 @@ def test_multi_arg_return():
         ):
             te_layout_transform[0, 0, 0, 0, 0] = T.float32(0.0)
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def te_layout_transform1(
             w: T.Buffer((T.int64(4), T.int64(16), T.int64(3), T.int64(3)), "float32"),
             te_layout_transform: T.Buffer(
@@ -264,7 +265,7 @@ def test_multi_arg_return():
         ):
             te_layout_transform[0, 0, 0, 0, 0] = T.float32(0.0)
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def te_layout_transform2(
             lv3: T.Buffer(
                 (T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"

@@ -21,6 +21,7 @@ import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.topi.math import cast
 
@@ -37,7 +38,7 @@ def test_matmul_t_buffer():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((1024, 1024), "float16"),
             B: T.Buffer((1024, 1024), "float16"),
@@ -82,7 +83,7 @@ def test_matmul_t_buffer():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((1024, 1024), "float16"),
             B: T.Buffer((1024, 1024), "float16"),
@@ -148,7 +149,7 @@ def test_matmul_decl_buffer():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((1024, 1024), "float16"),
             B: T.Buffer((1024, 1024), "float16"),
@@ -207,7 +208,7 @@ def test_simple_alloc_no_reuse():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
@@ -230,7 +231,7 @@ def test_simple_alloc_reuse():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
@@ -252,7 +253,7 @@ def test_async_copy():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
@@ -283,7 +284,7 @@ def test_decl_buffer_alias_extends_allocation_lifetime():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(C: T.Buffer((128,), "float32")):
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
@@ -313,7 +314,7 @@ def test_multi_thread_extent_blocks():
 
     @I.ir_module(check_well_formed=False)
     class Before:
-        @T.prim_func(s_tir=True, check_well_formed=False)
+        @Ts.prim_func(check_well_formed=False)
         def main(
             X: T.Buffer((128,), "float32"),
             Y: T.Buffer((128,), "float32"),

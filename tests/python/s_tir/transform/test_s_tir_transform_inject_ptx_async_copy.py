@@ -24,6 +24,7 @@ import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -58,7 +59,7 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
     num_iters = 128 // vector_size
     vector_size_expr = tvm.runtime.convert(vector_size)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def ptx_global_to_shared_copy(
         A: T.Buffer((32, 128), dtype), B: T.Buffer((32, 128), dtype)
     ) -> None:
@@ -86,7 +87,7 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
     return ptx_global_to_shared_copy
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def ptx_global_to_shared_copy_fp32x1(
     A: T.Buffer((32, 128), "float32"), B: T.Buffer((32, 128), "float32")
 ) -> None:
@@ -111,7 +112,7 @@ def ptx_global_to_shared_copy_fp32x1(
             B[tx, i] = A_shared[tx, i]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def ptx_global_to_shared_dyn_copy_fp16x8(
     A: T.Buffer((32, 128), "float16"),
     B: T.Buffer((32, 128), "float16"),
@@ -374,7 +375,7 @@ def postproc_if_missing_async_support():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def simple_compute(
         A: T.Buffer((16, 14), "float32"),
         B: T.Buffer((16, 14), "float32"),
@@ -436,7 +437,7 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def complex_compute(
         A: T.Buffer((2, 16, 16, 1280), "float16"),
         W: T.Buffer((1280, 3, 3, 1280), "float16"),
@@ -895,7 +896,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
 def test_multiplication_nodes_are_inlined():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((32, 128), "float16")):
             tx = T.launch_thread("threadIdx.x", T.int64(32))
             A_flattened = T.decl_buffer((4096,), "float16", data=A.data)
@@ -912,7 +913,7 @@ def test_multiplication_nodes_are_inlined():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((32, 128), "float16")):
             tx = T.launch_thread("threadIdx.x", T.int64(32))
             A_flattened = T.decl_buffer((4096,), "float16", data=A.data)

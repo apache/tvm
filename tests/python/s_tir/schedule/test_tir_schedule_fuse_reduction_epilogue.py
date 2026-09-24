@@ -26,12 +26,13 @@ from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_before(
     A: T.Buffer((16, 16), "int8"),
     B: T.Buffer((16, 16), "int8"),
@@ -51,7 +52,7 @@ def matmul_bias_before(
             D[vi, vj] = temp[vi, vj] + C[vi, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_expected(
     A: T.Buffer((16, 16), "int8"),
     B: T.Buffer((16, 16), "int8"),
@@ -69,7 +70,7 @@ def matmul_bias_expected(
             D[vi, vj] = D[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_fp32_before(
     A: T.Buffer((32, 32), "float32"),
     B: T.Buffer((32, 32), "float32"),
@@ -89,7 +90,7 @@ def matmul_bias_fp32_before(
             D[vi, vj] = temp[vi, vj] + C[vi, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_fp32_expected(
     A: T.Buffer((32, 32), "float32"),
     B: T.Buffer((32, 32), "float32"),
@@ -107,7 +108,7 @@ def matmul_bias_fp32_expected(
             D[vi, vj] = D[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_multiple_epilogue_before(
     A: T.Buffer((16, 16), "int8"),
     B: T.Buffer((16, 16), "int8"),
@@ -132,7 +133,7 @@ def matmul_bias_multiple_epilogue_before(
             E[vi, vj] = temp[vi, vj] + C[vi, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_multiple_epilogue_expected(
     A: T.Buffer((16, 16), "int8"),
     B: T.Buffer((16, 16), "int8"),
@@ -216,7 +217,7 @@ def test_fuse_reduction_epilogue_multiple_epilogue():
     assert mod is not None
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_invalid_multiple_use_before(
     A: T.Buffer((16, 16), "int8"),
     B: T.Buffer((16, 16), "int8"),
@@ -246,7 +247,7 @@ def test_fuse_reduction_epilogue_reject_multiple_use():
         sch.fuse_reduction_epilogue("multiply", "bad_epilogue")
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_invalid_scaling_before(
     A: T.Buffer((16, 16), "int8"),
     B: T.Buffer((16, 16), "int8"),

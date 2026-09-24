@@ -466,6 +466,10 @@ def func_attr(attrs: dict[str, Any]) -> None:
     attrs : Dict[str, Any]
         The annotations of the PrimFunc.
     """
+    if "s_tir" in attrs and (not bool(attrs["s_tir"]) or not _current_s_tir()):
+        raise ValueError(
+            "The s_tir attribute must match the function entry point; use Ts.prim_func"
+        )
     _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 

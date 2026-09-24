@@ -17,6 +17,7 @@
 import tvm
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,missing-class-docstring,missing-function-docstring
@@ -25,7 +26,7 @@ from tvm.script import tirx as T
 
 @I.ir_module(s_tir=True)
 class Module:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         A: T.Buffer((729, 729), "float32"),
         B: T.Buffer((729, 729), "float32"),

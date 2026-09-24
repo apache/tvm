@@ -377,7 +377,7 @@ def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tirx.Prim
         A = te.placeholder((128, 128), name="A")
         B = te.placeholder((128, 128), name="B")
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def before_split(a: T.handle, b: T.handle) -> None:
             A = T.match_buffer(a, (128, 128))
             B = T.match_buffer(b, (128, 128))
@@ -569,7 +569,7 @@ def create_prim_func(
 
     .. code-block:: python
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             A = T.match_buffer(a, (128, 128))
             B = T.match_buffer(b, (128, 128))

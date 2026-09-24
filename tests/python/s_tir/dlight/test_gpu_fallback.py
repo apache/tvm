@@ -23,6 +23,7 @@ from tvm import s_tir
 from tvm.ir import assert_structural_equal
 from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -30,7 +31,7 @@ from tvm.target import Target
 def test_fallback():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
@@ -47,7 +48,7 @@ def test_fallback():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
@@ -72,7 +73,7 @@ def test_fallback():
 def test_fallback_skips_zero_extent_spatial():
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((4, 0), "float32"), B: T.Buffer((4, 0), "float32")):
             for i, j in T.grid(4, 0):
                 with T.sblock("copy"):
@@ -89,7 +90,7 @@ def test_fallback_skips_zero_extent_spatial():
 def test_fallback_reduction():
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((1, 6144), "float32"), B: T.Buffer((1,), "float32")):
             for ax0, ax1 in T.grid(1, 6144):
                 with T.sblock("block"):
@@ -103,7 +104,7 @@ def test_fallback_reduction():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((1, 6144), "float32"), B: T.Buffer((1,), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
             for ax0_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
@@ -131,7 +132,7 @@ def test_fallback_reduction():
 
 
 def test_fallback_irregular_spatial():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def func(
         var_pages: T.handle,
         var_page_table_indptr: T.handle,
@@ -163,7 +164,7 @@ def test_fallback_irregular_spatial():
                 ]
 
     # fmt: off
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(var_pages: T.handle, var_page_table_indptr: T.handle, var_page_table_values: T.handle, var_values: T.handle, seq_id: T.int32):
         T.func_attr({"tirx.is_scheduled": True})
         nhead = T.int32()
@@ -205,7 +206,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
     class Before:
         # This function has no "target" attribute, and is scheduled
         # using the `Target.current`.
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def gpu_func(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
@@ -223,7 +224,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
         # This function is identical, except that it is explicitly
         # annotated with the "target" attribute, and is scheduled
         # based on the annotation's target.
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def cpu_func(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
@@ -241,7 +242,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def gpu_func(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
@@ -255,7 +256,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
                         T.writes(C[0, 0, v0])
                         C[0, 0, v0] = A[0, v0 // 128, 0, v0 % 128]
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def cpu_func(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
@@ -282,7 +283,7 @@ def test_schedule_error_propagates_from_rule():
     # ScheduleError indicates a broken rule and must propagate.
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((128,), "float32"), C: T.Buffer((128,), "float32")):
             for i in range(128):
                 with T.sblock("copy"):

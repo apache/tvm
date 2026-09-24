@@ -25,6 +25,7 @@ from tvm.relax.transform import LegalizeOps
 from tvm.relax.transform.legalize_ops.common import register_legalize
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -46,7 +47,7 @@ def test_customize_legalize():
             gv = R.call_tir(cls.add, (y, x), R.Tensor((4, 3, 2, 3), dtype="float32"))
             return gv
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def add(rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
@@ -75,7 +76,7 @@ def test_legalize_multiple_types_of_call():
             gv = R.multiply(x, R.const(2.0, "float32"))
             return gv
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def identity(rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"), T_id: T.Buffer((T.int64(3), T.int64(3)), "float32")):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
                 with T.sblock("T_add"):
@@ -100,7 +101,7 @@ def test_legalize_multiple_types_of_call():
             gv = R.call_tir(cls.multiply, (x,), R.Tensor((3, 3), dtype="float32"))
             return gv
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def identity(rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"), T_id: T.Buffer((T.int64(3), T.int64(3)), "float32")):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
                 with T.sblock("T_add"):
@@ -109,7 +110,7 @@ def test_legalize_multiple_types_of_call():
                     T.writes(T_id[v_ax0, v_ax1])
                     T_id[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def multiply(rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"), T_multiply: T.Buffer((T.int64(3), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
@@ -190,7 +191,7 @@ def test_legalize_scalar_data_type_preserve():
 
     @tvm.script.ir_module
     class Expected0:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def multiply(
             rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float16"),
             T_multiply: T.Buffer((T.int64(3), T.int64(3)), "float16"),
@@ -214,7 +215,7 @@ def test_legalize_scalar_data_type_preserve():
 
     @tvm.script.ir_module
     class Expected1:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def multiply(
             rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "uint8"),
             T_multiply: T.Buffer((T.int64(3), T.int64(3)), "uint8"),
@@ -236,7 +237,7 @@ def test_legalize_scalar_data_type_preserve():
 
     @tvm.script.ir_module
     class Expected2:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def equal(
             rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "bool"),
             T_equal: T.Buffer((T.int64(3), T.int64(3)), "bool"),
@@ -393,7 +394,7 @@ def test_legalize_with_vdevice():
             C = R.call_tir(cls.add, (A, B), out_ty=R.Tensor((32, 32), dtype="float32"))
             return C
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def add(
             A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
@@ -418,7 +419,7 @@ def test_legalize_with_vdevice():
             )
             return C
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def add_llvm(
             A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),

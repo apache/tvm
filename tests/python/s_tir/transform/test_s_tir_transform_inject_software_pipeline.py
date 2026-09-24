@@ -33,6 +33,7 @@ from tvm.s_tir.tensor_intrin.cuda import (
     MMA_store_16x16_f32_global_INTRIN,
     shared_16x16_to_ldmatrix_32x8_layout,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 from tvm.testing.tir import mma_schedule
@@ -54,7 +55,7 @@ def _check_error(func):
         tvm.s_tir.transform.InjectSoftwarePipeline()(mod)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def trivial_pipeline(A: T.Buffer((16, 1), "float32"), C: T.Buffer((16, 1), "float32")):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -74,7 +75,7 @@ def trivial_pipeline(A: T.Buffer((16, 1), "float32"), C: T.Buffer((16, 1), "floa
                     C[tx, i] = B[tx, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_trivial_pipeline(
     A: T.Buffer((16, 1), "float32"), C: T.Buffer((16, 1), "float32")
 ) -> None:
@@ -98,7 +99,7 @@ def transformed_trivial_pipeline(
 
 
 def gen_simple_compute(num_stages):
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def simple_compute(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
         for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
             for i in T.serial(
@@ -125,7 +126,7 @@ def gen_simple_compute(num_stages):
     return simple_compute
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_simple_compute(
     A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
 ) -> None:
@@ -156,7 +157,7 @@ def transformed_simple_compute(
                 C[tx, 15] = B[1, tx, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def dynamic_compute(a_handle: T.handle, c_handle: T.handle):
     k = T.int32()
     A = T.match_buffer(a_handle, (16, k), "float32")
@@ -184,7 +185,7 @@ def dynamic_compute(a_handle: T.handle, c_handle: T.handle):
                     C[tx, i] = B[tx, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_dynamic_compute(a_handle: T.handle, c_handle: T.handle):
     k = T.int32()
     A = T.match_buffer(a_handle, (16, k), "float32")
@@ -224,7 +225,7 @@ def transformed_dynamic_compute(a_handle: T.handle, c_handle: T.handle):
                     C[tx, k - 1] = B[(k + 1) % 2, tx, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def simple_compute_with_other_annotation(
     A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
 ):
@@ -252,7 +253,7 @@ def simple_compute_with_other_annotation(
                     C[tx, i] = B[tx, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_simple_compute_with_other_annotation(
     A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
 ) -> None:
@@ -287,7 +288,7 @@ def transformed_simple_compute_with_other_annotation(
                 C[tx, 15] = B[1, tx, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def three_stage_compute(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -317,7 +318,7 @@ def three_stage_compute(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), 
                     D[tx, i] = C[tx, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_three_stage_compute(
     A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")
 ) -> None:
@@ -371,7 +372,7 @@ def transformed_three_stage_compute(
                         D[tx, i + 14] = C[i, tx, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def dag_interleaving(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -415,7 +416,7 @@ def dag_interleaving(
                     C[tx, i] = AL[0, 0] * BL[0, 0]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_dag_interleaving(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -480,7 +481,7 @@ def transformed_dag_interleaving(
                 C[tx, 15] = AL[1, 0, 0] * BL[1, 0, 0]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def nested_pipeline_simple(
     A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ):
@@ -524,7 +525,7 @@ def nested_pipeline_simple(
                             C[tx, i, j] = B[tx, i, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_nested_pipeline_simple(
     A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ) -> None:
@@ -601,7 +602,7 @@ def transformed_nested_pipeline_simple(
                     C[tx, 15, 15] = B[1, tx, 15, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def nested_pipeline_prefetch_inner(
     A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ):
@@ -645,7 +646,7 @@ def nested_pipeline_prefetch_inner(
                             C[tx, i, j] = B[tx, i, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_nested_pipeline_prefetch_inner(
     A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ) -> None:
@@ -725,7 +726,7 @@ def transformed_nested_pipeline_prefetch_inner(
                     C[tx, 15, 15] = B[1, tx, 15, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def nested_pipeline_interleaving(
     A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ):
@@ -775,7 +776,7 @@ def nested_pipeline_interleaving(
                             C[tx, i, j] = B[tx, i, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_nested_pipeline_interleaving(
     A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ) -> None:
@@ -884,7 +885,7 @@ def transformed_nested_pipeline_interleaving(
                     C[tx, 15, 15] = B[1, tx, 15, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def nested_pipeline_double_buffer(
     A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ):
@@ -935,7 +936,7 @@ def nested_pipeline_double_buffer(
                             C[tx, i, j] = B[tx, i, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_nested_pipeline_double_buffer(
     A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
 ) -> None:
@@ -1048,7 +1049,7 @@ def transformed_nested_pipeline_double_buffer(
                     C[tx, 15, 15] = B[1, tx, 15, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def simple_compute_incorrect_reorder(
     A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")
 ):
@@ -1080,7 +1081,7 @@ def simple_compute_incorrect_reorder(
                     D[tx, i] = C[tx, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def simple_compute_conflicting_order(
     A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")
 ):
@@ -1112,7 +1113,7 @@ def simple_compute_conflicting_order(
                     D[tx, i] = C[tx, 0] + T.float32(1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def simple_compute_missing_annotation(
     A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
 ):
@@ -1192,7 +1193,7 @@ def test_simple_compute_async():
     sch.annotate(loop, ann_key="software_pipeline_async_stages", ann_val=[0])
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(sch.mod)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def ref(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
         for tx in T.thread_binding(16, thread="threadIdx.x"):
             with T.sblock():
@@ -1239,7 +1240,7 @@ def test_simple_compute_async():
     sch.annotate(loop, ann_key="software_pipeline_async_stages", ann_val=[0])
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(sch.mod)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def ref(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
         for tx in T.thread_binding(16, thread="threadIdx.x"):
             with T.sblock():
@@ -1291,7 +1292,7 @@ def test_simple_compute_async():
 
 
 def test_async_producer_interleaving():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def simple_compute(
         A: T.Buffer((16, 16), "float32"),
         B: T.Buffer((16, 16), "float32"),
@@ -1326,7 +1327,7 @@ def test_async_producer_interleaving():
     sch.annotate(loop, ann_key="software_pipeline_async_stages", ann_val=[0])
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(sch.mod)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def ref(
         A: T.Buffer((16, 16), "float32"),
         B: T.Buffer((16, 16), "float32"),
@@ -1406,7 +1407,7 @@ def test_three_stage_compute_two_stage_async():
 
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(sch.mod)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def ref(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")) -> None:
         for tx in T.thread_binding(16, thread="threadIdx.x"):
             with T.sblock():
@@ -1643,7 +1644,7 @@ def test_async_nested_pipeline_mma_gemm_ideal_annotation():
 
 
 def test_less_loop_than_num_stage():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(A: T.Buffer((2,), "float32"), E: T.Buffer((2,), "float32")):
         for i in T.serial(
             0,
@@ -1666,7 +1667,7 @@ def test_less_loop_than_num_stage():
                 with T.sblock():
                     E[i] = D[0] + T.float32(5)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def after(A: T.Buffer((2,), "float32"), E: T.Buffer((2,), "float32")):
         with T.sblock("root"):
             T.reads()
@@ -1718,7 +1719,7 @@ def test_less_loop_than_num_stage():
 
 
 def test_less_loop_than_num_stage_dynamic():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(a: T.handle, b: T.handle):
         K = T.int32()
         A = T.match_buffer(a, [K], "float32")
@@ -1744,7 +1745,7 @@ def test_less_loop_than_num_stage_dynamic():
                 with T.sblock():
                     E[i] = D[0] + T.float32(5)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def after(a: T.handle, b: T.handle):
         K = T.int32()
         A = T.match_buffer(a, [K], "float32")

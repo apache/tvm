@@ -21,6 +21,7 @@ import math
 from collections.abc import Callable
 
 import tvm
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
 
@@ -258,7 +259,7 @@ def gpu_multinomial_from_uniform(
 
             aggregate[()] += step_aggregate[()]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def parallel_sampling_from_prob(
         var_prob: T.handle,
         var_uniform_samples: T.handle,
@@ -317,7 +318,7 @@ def generic_get_sample_index(
 ):
     """Generate a generic get_sample_index kernel."""
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def _get_sample_index(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
         batch, vocab_size = T.int64(), T.int64()
         prob = T.match_buffer(A, (batch, vocab_size), prob_dtype)

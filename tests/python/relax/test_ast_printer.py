@@ -27,6 +27,7 @@ from tvm import tirx
 from tvm.relax.testing import dump_ast
 from tvm.relax.testing.ast_printer import ASTPrinter
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # Overload dump_ast to test both type and type annotations
@@ -439,7 +440,7 @@ def test_call_tir():
     # also from test_parser
     @tvm.script.ir_module
     class TestCallTIR:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def addone(A_handle: T.handle, B_handle: T.handle) -> None:
             m = T.int64()
             n = T.int64()

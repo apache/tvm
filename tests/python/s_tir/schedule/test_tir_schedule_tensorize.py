@@ -37,12 +37,13 @@ from tvm.s_tir.tensor_intrin.arm_cpu import (
 from tvm.s_tir.tensor_intrin.hexagon import VDMPY_i16i16i32_INTRIN, VRMPY_u8u8i32_INTRIN
 from tvm.s_tir.tensor_intrin.rocm import AMDGPU_SDOT4_INTRIN
 from tvm.s_tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN, VNNI_DOT_16x4_INTRIN
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), align=64, offset_factor=1)
     B = T.match_buffer(b, (16, 16), align=64, offset_factor=1)
@@ -57,7 +58,7 @@ def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
                 C[vii, vjj] = C[vii, vjj] + A[vii, vkk] * B[vjj, vkk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def mma_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), align=64, offset_factor=1)
     B = T.match_buffer(b, (16, 16), align=64, offset_factor=1)
@@ -81,7 +82,7 @@ def mma_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
         )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def dot_product_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (4,))
     B = T.match_buffer(b, (4,))
@@ -96,7 +97,7 @@ def dot_product_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
                 C[()] = C[()] + A[vi] * B[vi]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def dot_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (4,), offset_factor=1)
     B = T.match_buffer(b, (4,), offset_factor=1)
@@ -119,7 +120,7 @@ def dot_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
         )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def dot_product_intrin_annotated(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (4,), offset_factor=1)
     B = T.match_buffer(b, (4,), offset_factor=1)
@@ -143,7 +144,7 @@ def dot_product_intrin_annotated(a: T.handle, b: T.handle, c: T.handle) -> None:
         )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def outer_product_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 1), offset_factor=1)
     B = T.match_buffer(b, (16, 1), offset_factor=1)
@@ -162,7 +163,7 @@ def outer_product_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
                 C[vii, vjj] = C[vii, vjj] + A[vii, 0] * B[vjj, 0]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def outer_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 1), offset_factor=1)
     B = T.match_buffer(b, (16, 1), offset_factor=1)
@@ -189,7 +190,7 @@ def outer_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
         )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul(
     A: T.Buffer((128, 128), "float32"),
     B: T.Buffer((128, 128), "float32"),
@@ -203,7 +204,7 @@ def matmul(
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     B = T.match_buffer(b, [128, 128], elem_offset=0, align=64, offset_factor=1)
@@ -259,7 +260,7 @@ def tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
                 )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def batch_matmul(
     A: T.Buffer((16, 128, 128), "float32"),
     B: T.Buffer((16, 128, 128), "float32"),
@@ -276,7 +277,7 @@ def batch_matmul(
             C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def tensorized_batch_matmul_mma(
     A: T.Buffer((16, 128, 128), "float32"),
     B: T.Buffer((16, 128, 128), "float32"),
@@ -331,7 +332,7 @@ def tensorized_batch_matmul_mma(
                 )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def tensorized_batch_matmul_dot_product(
     A: T.Buffer((16, 128, 128), "float32"),
     B: T.Buffer((16, 128, 128), "float32"),
@@ -371,7 +372,7 @@ def tensorized_batch_matmul_dot_product(
             )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def tensorized_batch_matmul_outer_product(
     A: T.Buffer((16, 128, 128), "float32"),
     B: T.Buffer((16, 128, 128), "float32"),
@@ -405,7 +406,7 @@ def tensorized_batch_matmul_outer_product(
             )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def annotated_mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), align=64, offset_factor=1)
     B = T.match_buffer(b, (16, 16), align=64, offset_factor=1)
@@ -421,7 +422,7 @@ def annotated_mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
                 C[vii, vjj] = C[vii, vjj] + A[vii, vkk] * B[vjj, vkk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def annotated_matmul(
     A: T.Buffer((128, 128), "float32"),
     B: T.Buffer((128, 128), "float32"),
@@ -436,7 +437,7 @@ def annotated_matmul(
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def annotated_tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     B = T.match_buffer(b, [128, 128], elem_offset=0, align=64, offset_factor=1)
@@ -756,7 +757,7 @@ def test_tensor_intrin_look_up():
 
 def test_tensorize_matmul_mixed_dtype():
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def matmul_int64_shape(
         A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -775,7 +776,7 @@ def test_tensorize_matmul_mixed_dtype():
                     vk = T.axis.reduce(T.int64(128), k_0 * T.int64(16) + k_1)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tensorized_matmul_int64_shape(
         A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -849,7 +850,7 @@ def _tir_packed_int_to_int_to_float(storage_nbit: int):
 
     return f_convert
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def decode_i4s_to_f16_desc(compressed: T.handle, decompressed: T.handle) -> None:
     Compressed = T.match_buffer(
         compressed,
@@ -881,7 +882,7 @@ def decode_i4s_to_f16_desc(compressed: T.handle, decompressed: T.handle) -> None
                     dtype="float16",
                 )
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def decode_i4s_to_f16_impl(compressed: T.handle, decompressed: T.handle) -> None:
     Compressed = T.match_buffer(
         compressed,
@@ -915,7 +916,7 @@ s_tir.TensorIntrin.register("test_decode_i4s_to_f16_intrin", decode_i4s_to_f16_d
 
 def test_tensorize_arith_simplification():
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def decode_i4s_to_int32_to_f16():
         B_decode_local = T.sblock_alloc_buffer((16384, 16384), "float16", scope="local")
         B_local = T.sblock_alloc_buffer((16384, 2048), "int32", scope="local")
@@ -931,7 +932,7 @@ def test_tensorize_arith_simplification():
                                 T.writes(B_decode_local[v0, v1])
                                 B_decode_local[v0, v1] = T.Cast("float16", T.shift_right(T.shift_left(T.bitwise_and(T.shift_right(B_local[v0, v1 // 8], v1 % 8 * 4), 15), 28), 28))
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tensorized_decode_i4s_to_int32_to_f16():
         B_decode_local = T.sblock_alloc_buffer((16384, 16384), "float16", scope="local")
         B_local = T.sblock_alloc_buffer((16384, 2048), "int32", scope="local")

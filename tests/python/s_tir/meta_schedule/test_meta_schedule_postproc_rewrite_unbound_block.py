@@ -20,6 +20,7 @@
 import tvm
 from tvm import tirx
 from tvm.s_tir import meta_schedule as ms
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -47,7 +48,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 
 @tvm.script.ir_module
 class Before_cooperative_fetch:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(var_A: T.handle, var_B: T.handle) -> None:
         A = T.match_buffer(var_A, [512, 512], dtype="float32")
         B = T.match_buffer(var_B, [512, 512], dtype="float32")
@@ -59,7 +60,7 @@ class Before_cooperative_fetch:
 
 @tvm.script.ir_module
 class After_cooperative_fetch:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(var_A: T.handle, var_B: T.handle) -> None:
         A = T.match_buffer(var_A, [512, 512], dtype="float32")
         B = T.match_buffer(var_B, [512, 512], dtype="float32")
@@ -73,7 +74,7 @@ class After_cooperative_fetch:
 
 @tvm.script.ir_module
 class Before_norm_bmn:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(A: T.Buffer((1, 256, 256), "float32"), D: T.Buffer((1,), "float32")) -> None:
         C = T.sblock_alloc_buffer([1], dtype="float32")
         for i0, i1, i2 in T.grid(1, 256, 256):
@@ -90,7 +91,7 @@ class Before_norm_bmn:
 
 @tvm.script.ir_module
 class After_norm_bmn:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(A: T.Buffer((1, 256, 256), "float32"), D: T.Buffer((1,), "float32")) -> None:
         C = T.sblock_alloc_buffer([1], dtype="float32")
         for i0_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
@@ -111,7 +112,7 @@ class After_norm_bmn:
 
 @tvm.script.ir_module
 class Bert_fused_reshape_transpose_reshape:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         placeholder: T.Buffer((12, 64, 64), "float32"), T_reshape: T.Buffer((64, 768), "float32")
     ) -> None:
@@ -130,7 +131,7 @@ class Bert_fused_reshape_transpose_reshape:
 
 @tvm.script.ir_module
 class Bert_fused_reshape_transpose_reshape_large:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         placeholder: T.Buffer((12, 64, 64), "float32"), T_reshape: T.Buffer((64, 768), "float32")
     ) -> None:
@@ -149,7 +150,7 @@ class Bert_fused_reshape_transpose_reshape_large:
 
 @tvm.script.ir_module
 class Bert_fused_reshape_transpose_reshape_after_rub:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         placeholder: T.Buffer((12, 64, 64), "float32"), T_reshape: T.Buffer((64, 768), "float32")
     ) -> None:
@@ -183,7 +184,7 @@ class Bert_fused_reshape_transpose_reshape_after_rub:
 
 @tvm.script.ir_module
 class Bert_fused_reshape_transpose_reshape_after_rub_large:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         placeholder: T.Buffer((12, 64, 64), "float32"), T_reshape: T.Buffer((64, 768), "float32")
     ) -> None:
@@ -230,7 +231,7 @@ class Bert_fused_reshape_transpose_reshape_after_rub_large:
                         ]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def before_unrolled_loop(
     placeholder: T.Buffer((1, 56, 56, 64), "float32"),
 ) -> None:
@@ -255,7 +256,7 @@ def before_unrolled_loop(
                             inverse[vh, vw, p, co] = inverse[vh, vw, p, co] + bgemm[r_a, r_b, p, co]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def after_unrolled_loop(
     placeholder: T.Buffer((1, 56, 56, 64), "float32"),
 ) -> None:

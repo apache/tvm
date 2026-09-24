@@ -23,12 +23,13 @@ import tvm_ffi
 
 import tvm
 from tvm import s_tir
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
 class Transpose:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle) -> None:
         A = T.match_buffer(a, [1024, 1024])
         B = T.match_buffer(b, [1024, 1024])
@@ -51,7 +52,7 @@ class Transpose:
 
 @tvm.script.ir_module
 class GlobalToShared:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle) -> None:
         A = T.match_buffer(a, [1024, 1024])
         B = T.match_buffer(b, [1024, 1024])
@@ -75,7 +76,7 @@ class GlobalToShared:
 
 @tvm.script.ir_module
 class SharedToGlobal:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle) -> None:
         A = T.match_buffer(a, [1024, 1024])
         B = T.match_buffer(b, [1024, 1024])
@@ -99,7 +100,7 @@ class SharedToGlobal:
 
 @tvm.script.ir_module
 class GlobalToSharedWithLocalStage:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle) -> None:
         A = T.match_buffer(a, [1024, 1024])
         B = T.match_buffer(b, [1024, 1024])
@@ -125,7 +126,7 @@ class GlobalToSharedWithLocalStage:
 
 @tvm.script.ir_module
 class SharedToWmma:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main() -> None:
         with T.sblock("root"):
             T.sblock_attr({"warp_execution": True})
@@ -147,7 +148,7 @@ class SharedToWmma:
 
 @tvm.script.ir_module
 class WmmaToShared:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main() -> None:
         with T.sblock("root"):
             T.sblock_attr({"warp_execution": True})
@@ -169,7 +170,7 @@ class WmmaToShared:
 
 @tvm.script.ir_module
 class WmmaToGlobal:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(c: T.handle) -> None:
         C = T.match_buffer(c, [1024, 1024])
         with T.sblock("root"):
@@ -189,7 +190,7 @@ class WmmaToGlobal:
 
 @tvm.script.ir_module
 class WmmaToGlobalWithFusion:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, [1024])
         C = T.match_buffer(c, [1024, 1024])
@@ -212,7 +213,7 @@ class WmmaToGlobalWithFusion:
 
 @tvm.script.ir_module
 class MmaToGlobal:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(c: T.handle) -> None:
         C = T.match_buffer(c, [1024, 1024])
         with T.sblock("root"):
@@ -232,7 +233,7 @@ class MmaToGlobal:
 
 @tvm.script.ir_module
 class TransformedGlobalToShared:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle) -> None:
         A = T.match_buffer(a, [1024, 1024])
         B = T.match_buffer(b, [1024, 1024])
@@ -273,7 +274,7 @@ class TransformedGlobalToShared:
 
 @tvm.script.ir_module
 class TransformedSharedToGlobal:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle) -> None:
         A = T.match_buffer(a, [1024, 1024])
         B = T.match_buffer(b, [1024, 1024])
@@ -316,7 +317,7 @@ class TransformedSharedToGlobal:
 
 @tvm.script.ir_module
 class TransformedGlobalToSharedWithLocalStage:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (1024, 1024))
         B = T.match_buffer(b, (1024, 1024))
@@ -422,7 +423,7 @@ class TransformedGlobalToSharedWithLocalStage:
 
 @tvm.script.ir_module
 class TransformedSharedToWmma:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main() -> None:
         s0 = T.int32()
         s1 = T.int32()
@@ -503,7 +504,7 @@ class TransformedSharedToWmma:
 
 @tvm.script.ir_module
 class TransformedWmmaToShared:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main() -> None:
         s0 = T.int32()
         s1 = T.int32()
@@ -584,7 +585,7 @@ class TransformedWmmaToShared:
 
 @tvm.script.ir_module
 class TransformedWmmaToGlobal:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(C: T.Buffer((1024, 1024), "float32")):
         with T.sblock("root"):
             T.sblock_attr({"warp_execution": True})
@@ -781,7 +782,7 @@ class TransformedWmmaToGlobal:
 
 @tvm.script.ir_module
 class TransformedWmmaToGlobalWithFusion:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(A: T.Buffer((1024,), "float32"), C: T.Buffer((1024, 1024), "float32")) -> None:
         s0 = T.int32()
         s1 = T.int32()
@@ -1006,7 +1007,7 @@ class TransformedWmmaToGlobalWithFusion:
 
 @tvm.script.ir_module
 class TransformedMmaToGlobal:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(C: T.Buffer((1024, 1024), "float32")):
         with T.sblock("root"):
             T.sblock_attr({"warp_execution": True})

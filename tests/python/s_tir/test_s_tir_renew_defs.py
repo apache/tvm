@@ -18,6 +18,7 @@
 import tvm
 import tvm.testing
 from tvm.s_tir import SBlock
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.tirx.buffer import Buffer
 from tvm.tirx.function import PrimFunc
@@ -48,7 +49,7 @@ def _check_block_signature_remap(lhs: SBlock, rhs: SBlock):
 
 
 def test_simple():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     # Buffer A should be remapped
     def elementwise(A: T.Buffer((128, 128), "float32")):
         # Buffer B should be remapped
@@ -84,7 +85,7 @@ def test_simple():
 def test_match_buffer():
     # well-formed checker complains about multiple definitions for variable A0_s1,
     # likely stemming from strides=[s, s]
-    @T.prim_func(check_well_formed=False, s_tir=True)
+    @Ts.prim_func(check_well_formed=False)
     # A and B should be remapped
     def func_match_buffer(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")):
         with T.sblock("root"):
@@ -132,7 +133,7 @@ def test_match_buffer():
 
 
 def test_undefined_buffer():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def access_alloc():
         # Buffer A should be remapped
         A = T.alloc_buffer((128,), "float16")
@@ -155,7 +156,7 @@ def test_undefined_buffer():
 
 
 def test_symbolic_func():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def symbolic_func(a: T.handle, b: T.handle, n: T.int32):
         m = T.int32()
         A = T.match_buffer(a, (n, m))
@@ -170,7 +171,7 @@ def test_symbolic_func():
 
 
 def test_buffer_params():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle):
         m = T.int64()
         A = T.match_buffer(a, (m * 2,))
@@ -198,7 +199,7 @@ def test_compound_buffer_param_shape_var():
 
 
 def test_gather():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def take(
         A: T.Buffer((4096, 4096), "float16"),
         B: T.Buffer((1,), "int32"),

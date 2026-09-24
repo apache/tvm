@@ -22,6 +22,7 @@ import tvm
 from tvm import relax as rx
 from tvm import te, tirx
 from tvm.ir.base import assert_structural_equal
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -44,7 +45,7 @@ def test_emit_te_with_symbolic_arg():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def te_func(
             A: T.Buffer((T.int64(10),), "float32"),
             m: T.int64,
@@ -92,7 +93,7 @@ def test_symbolic_shape_in_prim_value():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def te_slice(
             A: T.Buffer([T.int64(16), T.int64(16)], "float32"),
             row_index: T.int64,

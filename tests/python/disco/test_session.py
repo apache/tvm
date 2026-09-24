@@ -36,6 +36,7 @@ from tvm.exec import disco_worker as _  # noqa: F401  # pylint: disable=unused-i
 from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 if di is None:
@@ -230,7 +231,7 @@ def test_vm_module(session_kind):
     # pylint: disable=invalid-name
     @I.ir_module(s_tir=True)
     class TestMod:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def transpose(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
             for i, j in T.grid(16, 8):
                 with T.sblock("transpose"):
@@ -274,14 +275,14 @@ def test_vm_multi_func(session_kind):
     # pylint: disable=invalid-name
     @I.ir_module(s_tir=True)
     class TestMod:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def t1(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
             for i, j in T.grid(16, 8):
                 with T.sblock("t1"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def t2(A: T.Buffer((16, 8), "float32"), B: T.Buffer((8, 16), "float32")):
             for i, j in T.grid(8, 16):
                 with T.sblock("t2"):

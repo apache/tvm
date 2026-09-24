@@ -24,6 +24,7 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
     print_sketches,
 )
 from tvm.s_tir.meta_schedule.testing.te_workload import create_te_workload
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -44,7 +45,7 @@ def _design_space(mod):
 def get_c2d_prim_func(stage: int):
     if stage == 0:
         # fmt: off
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def c2d(inputs: T.Buffer((1, 224, 224, 3), "float32"), weight: T.Buffer((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             with T.sblock("root"):
@@ -105,7 +106,7 @@ def get_c2d_prim_func(stage: int):
         # fmt: on
     else:
         # fmt: off
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def c2d(inputs: T.Buffer((1, 224, 224, 3), "float32"), weight: T.Buffer((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             with T.sblock("root"):
@@ -198,7 +199,7 @@ def test_cuda_c2d():
 def get_gmm_prim_func(stage: int):
     if stage == 0:
         # fmt: off
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def gmm(X: T.Buffer((1, 1024, 1024), "float32"), Y: T.Buffer((1, 1024, 1024), "float32"), Z: T.Buffer((1, 1024, 1024), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             with T.sblock("root"):
@@ -253,7 +254,7 @@ def get_gmm_prim_func(stage: int):
         # fmt: on
     else:
         # fmt: off
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def gmm(X: T.Buffer((1, 1024, 1024), "float32"), Y: T.Buffer((1, 1024, 1024), "float32"), Z: T.Buffer((1, 1024, 1024), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             with T.sblock("root"):

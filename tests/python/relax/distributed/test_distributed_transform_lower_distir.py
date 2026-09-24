@@ -21,6 +21,7 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm.ir import assert_structural_equal
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -34,7 +35,7 @@ def test_mlp():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def gelu1(
             A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
             T_multiply: T.Buffer((T.int64(128), T.int64(64)), "float32"),
@@ -76,7 +77,7 @@ def test_mlp():
                     T.writes(T_multiply[v_ax0, v_ax1])
                     T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * T_add[v_ax0, v_ax1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul1(
             A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             B: T.Buffer((T.int64(128), T.int64(64)), "float32"),
@@ -93,7 +94,7 @@ def test_mlp():
                         matmul_1[v_i0, v_i1] = T.float32(0)
                     matmul_1[v_i0, v_i1] = matmul_1[v_i0, v_i1] + A[v_i0, v_k] * B[v_k, v_i1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul2(
             A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
             B: T.Buffer((T.int64(64), T.int64(128)), "float32"),
@@ -193,7 +194,7 @@ def test_mlp_with_tuple():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def gelu1(
             A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
             T_multiply: T.Buffer((T.int64(128), T.int64(64)), "float32"),
@@ -235,7 +236,7 @@ def test_mlp_with_tuple():
                     T.writes(T_multiply[v_ax0, v_ax1])
                     T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * T_add[v_ax0, v_ax1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul11(
             A: T.Buffer((T.int64(64), T.int64(64)), "float32"),
             B: T.Buffer((T.int64(64), T.int64(128)), "float32"),
@@ -252,7 +253,7 @@ def test_mlp_with_tuple():
                         matmul[v_i0, v_i1] = T.float32(0)
                     matmul[v_i0, v_i1] = matmul[v_i0, v_i1] + A[v_i0, v_k] * B[v_k, v_i1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul2(
             A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             B: T.Buffer((T.int64(128), T.int64(64)), "float32"),
@@ -269,7 +270,7 @@ def test_mlp_with_tuple():
                         matmul[v_i0, v_i1] = T.float32(0)
                     matmul[v_i0, v_i1] = matmul[v_i0, v_i1] + A[v_i0, v_k] * B[v_k, v_i1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def split11(
             A: T.Buffer((128, 64), "float32"),
             T_split: T.Buffer((64, 64), "float32"),

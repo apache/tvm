@@ -20,6 +20,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -32,7 +33,7 @@ def test_large_uint_imm():
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((12,), "uint64")):
             T.func_attr({"tirx.noalias": True})
             for i0_0 in T.thread_binding(6, thread="blockIdx.x"):
@@ -66,7 +67,7 @@ def test_large_uint_imm():
 def test_add_pipeline():
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(var_A: T.handle, B: T.Buffer((), "float32"), var_D: T.handle):
             T.func_attr({"tirx.noalias": True})
             n = T.int32()

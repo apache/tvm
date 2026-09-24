@@ -32,6 +32,7 @@ from tvm.relax.testing import nn
 from tvm.relax.testing.vm import check_saved_func
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.support import cc, popen_pool, utils
 from tvm.testing import env
@@ -214,7 +215,7 @@ def test_vm_compile_e2e(exec_mode):
 def test_vm_compile_e2e_func_param_with_shape(exec_mode):
     @tvm.script.ir_module
     class TestVMCompileE2E2:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
             m = T.int32()
@@ -256,7 +257,7 @@ def test_vm_compile_e2e_func_param_with_shape(exec_mode):
 def test_call_tir_inplace_e2e_simple(exec_mode):
     @tvm.script.ir_module
     class TestCallTIRInplaceE2ESimple:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def copy(
             A: T.Buffer((2, 3), "int32"),
             B: T.Buffer((2, 3), "int32"),
@@ -315,7 +316,7 @@ def test_call_tir_inplace_e2e_rw(exec_mode):
     # read and write from the same tensor
     @tvm.script.ir_module
     class TestCallTIRInplaceE2ERW:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def inplace_add(A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32")):
             # sums A and B, storing the result in A
             T.func_attr({"tirx.noalias": True})
@@ -682,7 +683,7 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
             _ = cls.copy(x, y)
             return y
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def copy(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
             for i0, i1 in T.grid(2, 3):
                 with T.sblock("block"):
@@ -701,7 +702,7 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
 def test_sub_func_call(exec_mode):
     @tvm.script.ir_module
     class TestVMSubFunction:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
             m = T.int32()
@@ -882,7 +883,7 @@ def test_time_evaluator(exec_mode):
 
 @tvm.script.ir_module
 class TestVMSetInput:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def test_vm_mul(x: T.handle, y: T.handle, z: T.handle):
         T.func_attr({"global_symbol": "test_vm_mul"})
         m = T.int32()
@@ -933,7 +934,7 @@ def test_multi_systemlib(exec_mode):
     class ModA:
         I.module_attrs({"system_lib_prefix": "libA_"})
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_init(x_handle: T.handle):
             N = T.int64()
             x = T.match_buffer(x_handle, [N], "float32")
@@ -950,7 +951,7 @@ def test_multi_systemlib(exec_mode):
     class ModB:
         I.module_attrs({"system_lib_prefix": "libB_"})
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_init(x_handle: T.handle):
             N = T.int64()
             x = T.match_buffer(x_handle, [N], "float32")

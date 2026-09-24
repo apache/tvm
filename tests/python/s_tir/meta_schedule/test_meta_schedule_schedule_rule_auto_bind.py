@@ -21,11 +21,12 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def element_wise(var_A: T.handle, var_B: T.handle) -> None:
     A = T.match_buffer(var_A, [512, 512], dtype="float32")
     B = T.match_buffer(var_B, [512, 512], dtype="float32")
@@ -35,7 +36,7 @@ def element_wise(var_A: T.handle, var_B: T.handle) -> None:
             B[vi, vj] = A[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def reduction_loop_only(
     A: T.Buffer(2, "float32"),
     B: T.Buffer(2, "float32"),
@@ -51,7 +52,7 @@ def reduction_loop_only(
             C[()] = T.min(C[()], A[k0] / B[k0])
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def zero_dim_add(
     A: T.Buffer((), "float32"),
     B: T.Buffer((), "float32"),
@@ -63,7 +64,7 @@ def zero_dim_add(
 
 
 def test_cuda_element_wise():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def elementwise_0(
         A: T.Buffer((512, 512), "float32"),
         B: T.Buffer((512, 512), "float32"),
@@ -98,7 +99,7 @@ def test_cuda_element_wise():
 
 
 def test_cuda_reduction_loop_only():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reduction_loop_only_0(
         A: T.Buffer(2, "float32"),
         B: T.Buffer(2, "float32"),
@@ -131,7 +132,7 @@ def test_cuda_reduction_loop_only():
 
 
 def test_cuda_zero_dim_add():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def zero_dim_add_0(
         A: T.Buffer((), "float32"),
         B: T.Buffer((), "float32"),

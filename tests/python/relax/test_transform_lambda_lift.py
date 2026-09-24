@@ -26,6 +26,7 @@ from tvm.ir.base import assert_structural_equal
 from tvm.relax import transform
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -329,7 +330,7 @@ def test_multi_func():
 def test_no_local_func():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def sub(
             A: T.Buffer((16, 16), "float32"),
             B: T.Buffer((16, 16), "float32"),

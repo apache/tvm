@@ -25,12 +25,13 @@ from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128, 128], dtype="float32")
@@ -47,7 +48,7 @@ def transformed_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_matmul_with_let(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128, 128], dtype="float32")
@@ -65,7 +66,7 @@ def transformed_matmul_with_let(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = v_C
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_rfactor(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128, 128], dtype="float32")
@@ -94,7 +95,7 @@ def matmul_rfactor(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi_1, vj_1] = C[vi_1, vj_1] + C_rf[vi2_inner_inner_1, vi_1, vj_1]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_not_stage_pipeline(a: T.handle, b: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, [256, 256])
     B = T.match_buffer(b, [256, 256])
@@ -114,7 +115,7 @@ def matmul_not_stage_pipeline(a: T.handle, b: T.handle, d: T.handle) -> None:
             D[vi, vj] = C[vi, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_not_same_buffer_access(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -128,7 +129,7 @@ def matmul_not_same_buffer_access(a: T.handle, b: T.handle, c: T.handle) -> None
             C[vj, vi] = C[vj, vi] + A[vi, vk] * B[vk, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_loop_multiple_children(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -148,7 +149,7 @@ def matmul_loop_multiple_children(a: T.handle, b: T.handle, c: T.handle, d: T.ha
             D[di, dj] = D[di, dj] + B[di, dk] * A[dk, dj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def square_sum(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [16, 256, 256])
     C = T.match_buffer(c, [16])
@@ -161,7 +162,7 @@ def square_sum(a: T.handle, c: T.handle) -> None:
             C[b] = C[b] + A[b, i, j] * A[b, i, j]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def square_sum_rfactor(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [16, 256, 256])
     C = T.match_buffer(c, [16])
@@ -182,7 +183,7 @@ def square_sum_rfactor(a: T.handle, c: T.handle) -> None:
             C[b_1] = C[b_1] + C_rf[b_1, vi2_1]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_square_sum_square_root(a: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, [16, 256, 256])
     D = T.match_buffer(d, [16])
@@ -206,7 +207,7 @@ def transformed_square_sum_square_root(a: T.handle, d: T.handle) -> None:
             D[b_1] = T.sqrt(C[b_1], dtype="float32")
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def square_sum_square_root_rfactor(a: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, [16, 256, 256])
     D = T.match_buffer(d, [16])
@@ -235,7 +236,7 @@ def square_sum_square_root_rfactor(a: T.handle, d: T.handle) -> None:
             D[b_2] = T.sqrt(C[b_2], dtype="float32")
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_square_sum_square_root_factor_one_1(a: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, [16, 256, 256])
     D = T.match_buffer(d, [16])
@@ -255,7 +256,7 @@ def transformed_square_sum_square_root_factor_one_1(a: T.handle, d: T.handle) ->
             D[b_1] = T.sqrt(C[b_1], dtype="float32")
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def square_sum_square_root_factor_one_1_rfactor(
     A: T.Buffer((16, 256, 256), "float32"), D: T.Buffer((16,), "float32")
 ) -> None:
@@ -282,7 +283,7 @@ def square_sum_square_root_factor_one_1_rfactor(
             D[b_1] = T.sqrt(C[b_1], dtype="float32")
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_square_sum_square_root_factor_one_2(a: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, [16, 256, 256])
     D = T.match_buffer(d, [16])
@@ -302,7 +303,7 @@ def transformed_square_sum_square_root_factor_one_2(a: T.handle, d: T.handle) ->
             D[b_1] = T.sqrt(C[b_1], dtype="float32")
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def square_sum_square_root_factor_one_2_rfactor(
     A: T.Buffer((16, 256, 256), "float32"), D: T.Buffer((16,), "float32")
 ) -> None:
@@ -329,7 +330,7 @@ def square_sum_square_root_factor_one_2_rfactor(
             D[b_1] = T.sqrt(C[b_1], dtype="float32")
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def square_sum_with_annotation(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [16, 256, 256])
     C = T.match_buffer(c, [16])
@@ -343,7 +344,7 @@ def square_sum_with_annotation(a: T.handle, c: T.handle) -> None:
             C[b] = C[b] + A[b, i, j] * A[b, i, j]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def square_sum_with_annotation_rfactor(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [16, 256, 256])
     C = T.match_buffer(c, [16])
@@ -366,7 +367,7 @@ def square_sum_with_annotation_rfactor(a: T.handle, c: T.handle) -> None:
             C[b_1] = C[b_1] + C_rf[b_1, vi2_1]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def element_wise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -377,7 +378,7 @@ def element_wise(a: T.handle, b: T.handle) -> None:
             B[vi, vj] = A[vi, vj] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rowsum(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128,))
@@ -390,7 +391,7 @@ def rowsum(a: T.handle, b: T.handle) -> None:
             B[vi] = B[vi] + A[vi, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rowsum_not_quasi_affine(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128,))
@@ -404,7 +405,7 @@ def rowsum_not_quasi_affine(a: T.handle, b: T.handle) -> None:
             B[vi] = B[vi] + A[vi, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rowsum_not_dominant(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -417,7 +418,7 @@ def rowsum_not_dominant(a: T.handle, b: T.handle) -> None:
             B[vi, vk] = B[vi, vk] + A[vi, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rowsum_not_serial(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128,))
@@ -431,7 +432,7 @@ def rowsum_not_serial(a: T.handle, b: T.handle) -> None:
                 B[vi] = B[vi] + A[vi, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rowsum_wrong_reduce_pattern1(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128,))
@@ -444,7 +445,7 @@ def rowsum_wrong_reduce_pattern1(a: T.handle, b: T.handle) -> None:
             B[vi] = B[vi] + A[vi, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rowsum_wrong_reduce_pattern2(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128,))
@@ -457,7 +458,7 @@ def rowsum_wrong_reduce_pattern2(a: T.handle, b: T.handle) -> None:
             B[vi] = B[vi] - A[vi, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rowsum_init_not_bufferstore(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128,))
@@ -471,7 +472,7 @@ def rowsum_init_not_bufferstore(a: T.handle, b: T.handle) -> None:
             B[vi] = B[vi] + A[vi, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rowsum_transformed(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128,))
@@ -485,7 +486,7 @@ def rowsum_transformed(a: T.handle, b: T.handle) -> None:
             B[vi] = B[vi] + A[vi, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rowsum_zero_dim(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128])
     B = T.match_buffer(b, [])
@@ -498,7 +499,7 @@ def rowsum_zero_dim(a: T.handle, b: T.handle) -> None:
             B[()] = B[()] + A[k]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rowsum_zero_dim_rfactor(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128])
     B = T.match_buffer(b, [])
@@ -517,7 +518,7 @@ def rowsum_zero_dim_rfactor(a: T.handle, b: T.handle) -> None:
             B[()] = B[()] + B_rf[vi0_1]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rowsum_predicate(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
@@ -531,7 +532,7 @@ def rowsum_predicate(a: T.handle, b: T.handle) -> None:
             B[vi] = B[vi] + A[vi, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rowsum_predicate_rfactor(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
@@ -551,7 +552,7 @@ def rowsum_predicate_rfactor(a: T.handle, b: T.handle) -> None:
             B[vi] = B[vi] + B_rf[vi, vk_0]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def multiple_reduction_blocks(a: T.handle, f: T.handle) -> None:
     A = T.match_buffer(a, (16, 16, 16))
     C = T.sblock_alloc_buffer((16, 16))
@@ -592,7 +593,7 @@ def multiple_reduction_blocks(a: T.handle, f: T.handle) -> None:
                     F[fi, fj] = F[fi, fj] + A[fi, fj, fk] + E[fi, fj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def multiple_reduction_blocks_rfactor(a: T.handle, f: T.handle) -> None:
     A = T.match_buffer(a, [16, 16, 16])
     C = T.sblock_alloc_buffer([16, 16])
@@ -639,7 +640,7 @@ def multiple_reduction_blocks_rfactor(a: T.handle, f: T.handle) -> None:
                     F[fi, fj] = (F[fi, fj] + A[fi, fj, fk]) + E[fi, fj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rfactor_spatial_only(
     A: T.Buffer((1, 512, 7, 7), "float32"),
     B: T.Buffer((1, 512, 1, 1), "float32"),
@@ -661,7 +662,7 @@ def rfactor_spatial_only(
             )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rfactor_spatial_only_after(
     A: T.Buffer((1, 512, 7, 7), "float32"),
     B: T.Buffer((1, 512, 1, 1), "float32"),
@@ -689,7 +690,7 @@ def rfactor_spatial_only_after(
             B[ax0, ax1, ax2, ax3] = B[ax0, ax1, ax2, ax3] + B_rf[ax0, ax1, ax2, ax3, vi4]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_split(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -715,7 +716,7 @@ def argmax_split(
             argmax_v1[i] = v_argmax_v1
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmin_split_init_update_reordered(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -741,7 +742,7 @@ def argmin_split_init_update_reordered(
             argmin_v0[i] = v_argmin_v0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_split_different_shape(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -767,7 +768,7 @@ def argmax_split_different_shape(
             argmax_v1[i] = v_argmax_v1
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_split_different_indices(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -793,7 +794,7 @@ def argmax_split_different_indices(
             argmax_v1[i + 1] = v_argmax_v1
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_split_init_not_bufferstore(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -820,7 +821,7 @@ def argmax_split_init_not_bufferstore(
             argmax_v1[i] = v_argmax_v1
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_split_init_buffer_duplicate(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -846,7 +847,7 @@ def argmax_split_init_buffer_duplicate(
             argmax_v1[i] = v_argmax_v1
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_split_bind_fewer_than_init(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -869,7 +870,7 @@ def argmax_split_bind_fewer_than_init(
             argmax_v1[i] = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_split_bind_more_than_init(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -894,7 +895,7 @@ def argmax_split_bind_more_than_init(
             argmax_v1[i] = v_argmax_v1
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_split_let_body_neither_seqstmt_nor_bufferstore(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -919,7 +920,7 @@ def argmax_split_let_body_neither_seqstmt_nor_bufferstore(
             T.evaluate(0)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_split_init_update_inconsistent_bufferstore_number(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -946,7 +947,7 @@ def argmax_split_init_update_inconsistent_bufferstore_number(
             argmax_v1[i] = v_argmax_v1
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_split_body_seq_not_bufferstore(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -972,7 +973,7 @@ def argmax_split_body_seq_not_bufferstore(
             T.evaluate(0)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_split_body_bufferstore_value_not_var(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -999,7 +1000,7 @@ def argmax_split_body_bufferstore_value_not_var(
 
 
 # v_unbound is unbound
-@T.prim_func(check_well_formed=False, s_tir=True)
+@Ts.prim_func(check_well_formed=False)
 def argmax_split_body_bufferstore_value_unbound_var(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -1026,7 +1027,7 @@ def argmax_split_body_bufferstore_value_unbound_var(
             argmax_v1[i] = v_argmax_v1
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_split_one_let_var_used_multi_times(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "int32"),
@@ -1052,7 +1053,7 @@ def argmax_split_one_let_var_used_multi_times(
             argmax_v1[i] = v_argmax_v0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_split_body_one_buffer_updated_multi_times(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "int32"),
@@ -1078,7 +1079,7 @@ def argmax_split_body_one_buffer_updated_multi_times(
             argmax_v0[i] = v_argmax_v1
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_split_init_buffer_not_match(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -1105,7 +1106,7 @@ def argmax_split_init_buffer_not_match(
             argmax_v1[i] = v_argmax_v1
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_split_rfactor(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -1152,7 +1153,7 @@ def argmax_split_rfactor(
             argmax_v1[i] = v_argmax_v1
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmin_split_rfactor(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -1199,7 +1200,7 @@ def argmin_split_rfactor(
             argmin_v1[i] = v_argmin_v1
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_topi_rfactor(
     placeholder: T.Buffer((1, 32), "int32"), placeholder_red: T.Buffer(1, "int32")
 ) -> None:
@@ -1264,7 +1265,7 @@ def argmax_topi_rfactor(
             placeholder_red[ax0] = placeholder_red_temp_v0[ax0]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmin_topi_rfactor(
     placeholder: T.Buffer((1, 32), "int32"), placeholder_red: T.Buffer(1, "int32")
 ) -> None:
@@ -1329,7 +1330,7 @@ def argmin_topi_rfactor(
             placeholder_red[ax0] = placeholder_red_temp_v0[ax0]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_topi_select_last_rfactor(
     placeholder: T.Buffer((1, 32), "int32"), placeholder_red: T.Buffer(1, "int32")
 ) -> None:
@@ -1394,7 +1395,7 @@ def argmax_topi_select_last_rfactor(
             placeholder_red[ax0] = placeholder_red_temp_v0[ax0]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmin_topi_select_last_rfactor(
     placeholder: T.Buffer((1, 32), "int32"), placeholder_red: T.Buffer(1, "int32")
 ) -> None:
@@ -1881,7 +1882,7 @@ def test_reduction_rfactor_topi_argmin_select_last_index():
 
 def test_reduction_rfactor_int64():
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(
         A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -1900,7 +1901,7 @@ def test_reduction_rfactor_int64():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         C: T.Buffer((T.int64(128), T.int64(128)), "float32"),

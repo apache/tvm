@@ -30,6 +30,7 @@ import numpy as np
 import tvm
 from tvm import relax, tirx
 from tvm.relax import op as _op
+from tvm.script import s_tir as Ts
 
 from .tflite_flexbuffer import FlexBufferDecoder
 
@@ -8329,7 +8330,7 @@ def _build_tflite_rfft2d_primfunc(input_shape, output_pair_shape):
     output_complex_total = batch * height * out_width
     neg_two_pi = np.float32(-2.0 * math.pi)
 
-    @T.prim_func(private=True, s_tir=True, check_well_formed=False)
+    @Ts.prim_func(private=True, check_well_formed=False)
     def kernel(
         data: T.Buffer(input_shape, "float32"), output: T.Buffer(output_pair_shape, "float32")
     ):
@@ -8502,7 +8503,8 @@ def _build_tflite_rfft2d_fft_primfunc(input_shape, output_pair_shape):
     # this kernel.
     primfunc_source = (
         "from tvm.script.parser import tirx as T\n"
-        "@T.prim_func(private=True, s_tir=True, check_well_formed=False)\n"
+        "from tvm.script import s_tir as Ts\n"
+        "@Ts.prim_func(private=True, check_well_formed=False)\n"
         "def kernel(\n"
         f"    data: T.Buffer({tuple(int(x) for x in input_shape)}, 'float32'),\n"
         f"    output: T.Buffer({tuple(int(x) for x in output_pair_shape)}, 'float32'),\n"
@@ -8611,7 +8613,7 @@ def _build_stablehlo_rng_bit_generator_primfunc(algorithm, state_len, out_dtype,
 
     if algorithm == "threefry":
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def kernel(
             initial_state: T.Buffer((state_len,), "uint64"),
             output_state: T.Buffer((state_len,), "uint64"),
@@ -8661,7 +8663,7 @@ def _build_stablehlo_rng_bit_generator_primfunc(algorithm, state_len, out_dtype,
 
         return kernel
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def kernel(
         initial_state: T.Buffer((state_len,), "uint64"),
         output_state: T.Buffer((state_len,), "uint64"),

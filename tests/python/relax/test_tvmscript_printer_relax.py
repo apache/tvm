@@ -25,6 +25,7 @@ from tvm import IRModule, relax, tirx
 from tvm.runtime.script_printer import PrinterConfig, _script
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -702,7 +703,7 @@ T_1: R.Tensor((1, x, 3), dtype="float32") = R.sin(R_1)
 def test_module_cross_func_call():
     @I.ir_module(s_tir=True)
     class TestModule:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_func(
             x: T.Buffer((T.int64(128),), "float32"), y: T.Buffer((T.int64(128),), "float32")
         ):
@@ -721,11 +722,12 @@ def test_module_cross_func_call():
 # from tvm.script import ir as I
 # from tvm.script import tirx as T
 # from tvm.tirx.layout import Axis
+# from tvm.script import s_tir as Ts
 # from tvm.script import relax as R
 
 @I.ir_module
 class Module:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tir_func(x: T.Buffer((T.int64(128),), "float32"), y: T.Buffer((T.int64(128),), "float32")):
         T.evaluate(0)
 
@@ -745,11 +747,12 @@ class Module:
 # from tvm.script import ir as I
 # from tvm.script import tirx as T
 # from tvm.tirx.layout import Axis
+# from tvm.script import s_tir as Ts
 # from tvm.script import relax as R
 
 @I.ir_module
 class Module:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tir_func(x: T.Buffer((T.int64(128),), "float32"), y: T.Buffer((T.int64(128),), "float32")):
         T.evaluate(0)
 

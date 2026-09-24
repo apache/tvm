@@ -27,6 +27,7 @@ from tvm import IRModule, relax, tirx, topi
 from tvm.ir import Range
 from tvm.relax import Call, SeqExpr, VarBinding
 from tvm.relax.distributed import DeviceMesh
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -56,7 +57,7 @@ def test_call_tir_dtensor():
             }
         )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -119,7 +120,7 @@ def test_explicit_device_id():
             }
         )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -159,7 +160,7 @@ def test_constant():
             }
         )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),

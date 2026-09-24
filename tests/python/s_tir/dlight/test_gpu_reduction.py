@@ -21,6 +21,7 @@ import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -30,7 +31,7 @@ def test_decode_gemv_1():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func(W: T.Buffer((4096, 512), "uint32"), S: T.Buffer((4096, 128), "float16"), V: T.Buffer((1, 1, 4096), "float16"), C: T.Buffer((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with T.sblock("root"):
@@ -53,7 +54,7 @@ def test_decode_gemv_1():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func(W_handle: T.handle, S_handle: T.handle, V_handle: T.handle, C_handle: T.handle):
             T.func_attr({"global_symbol": "main", "tirx.is_scheduled": True, "tirx.noalias": True})
             W = T.match_buffer(W_handle, (4096, 512), "uint32")
@@ -105,7 +106,7 @@ def test_decode_gemv_2():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func(W: T.Buffer((512, 4096), "uint32"), S: T.Buffer((128, 4096), "float16"), V: T.Buffer((1, 1, 4096), "float16"), C: T.Buffer((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with T.sblock("root"):
@@ -128,7 +129,7 @@ def test_decode_gemv_2():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func(W: T.Buffer((512, 4096), "uint32"), S: T.Buffer((128, 4096), "float16"), V: T.Buffer((1, 1, 4096), "float16"), C: T.Buffer((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
@@ -168,7 +169,7 @@ def test_decode_gemv_3():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func(W: T.Buffer((512, 4096), "uint32"), S: T.Buffer((128, 4096), "float16"), V: T.Buffer((1, 1, 4096), "float16"), C: T.Buffer((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with T.sblock("root"):
@@ -190,7 +191,7 @@ def test_decode_gemv_3():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func(W_handle: T.handle, S_handle: T.handle, V_handle: T.handle, C_handle: T.handle):
             T.func_attr({"global_symbol": "main", "tirx.is_scheduled": True, "tirx.noalias": True})
             W = T.match_buffer(W_handle, (512, 4096), "uint32")
@@ -244,7 +245,7 @@ def test_decode_gemv_4():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func(W: T.Buffer((4096, 512), "uint32"), S: T.Buffer((4096, 128), "float16"), V: T.Buffer((1, 1, 4096), "float16"), C: T.Buffer((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with T.sblock("root"):
@@ -267,7 +268,7 @@ def test_decode_gemv_4():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func(W: T.Buffer((4096, 512), "uint32"), S: T.Buffer((4096, 128), "float16"), V: T.Buffer((1, 1, 4096), "float16"), C: T.Buffer((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
@@ -309,7 +310,7 @@ def test_decode_gemv_sigmoid():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func(W: T.Buffer((4096, 512), "uint32"), S: T.Buffer((4096, 128), "float16"), V: T.Buffer((1, 1, 4096), "float16"), D: T.Buffer((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with T.sblock("root"):
@@ -338,7 +339,7 @@ def test_decode_gemv_sigmoid():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func(W_handle: T.handle, S_handle: T.handle, V_handle: T.handle, D_handle: T.handle):
             T.func_attr({"global_symbol": "main", "tirx.is_scheduled": True, "tirx.noalias": True})
             W = T.match_buffer(W_handle, (4096, 512), "uint32")
@@ -398,7 +399,7 @@ def test_decode_gemv_1_fp32():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func(W: T.Buffer((4096, 512), "uint32"), S: T.Buffer((4096, 128), "float16"), V: T.Buffer((1, 1, 4096), "float16"), C: T.Buffer((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with T.sblock("root"):
@@ -427,7 +428,7 @@ def test_decode_gemv_1_fp32():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func(W_handle: T.handle, S_handle: T.handle, V_handle: T.handle, C_handle: T.handle):
             T.func_attr({"global_symbol": "main", "tirx.is_scheduled": True, "tirx.noalias": True})
             W = T.match_buffer(W_handle, (4096, 512), "uint32")
@@ -486,7 +487,7 @@ def test_reduction_no_spatial():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((1, 1, 4096), "float16"), B: T.Buffer((4096,), "float16"), rms_norm: T.Buffer((1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             Ared_temp = T.sblock_alloc_buffer((1, 1))
@@ -503,7 +504,7 @@ def test_reduction_no_spatial():
 
     @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A_handle: T.handle, B_handle: T.handle, rms_norm_handle: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             A = T.match_buffer(A_handle, (1, 1, 4096), "float16")
@@ -559,7 +560,7 @@ def test_spatial_inner_no_broadcasting():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(lv575: T.Buffer((1376, 4096), "uint32"), lv576: T.Buffer((344, 4096), "float16"), lv574: T.Buffer((1, 1, 11008), "float16"), lv570: T.Buffer((1, 1, 4096), "float16"), p_output0_intermediate: T.Buffer((1, 1, 4096), "float16")):
             T.func_attr({"tirx.noalias": True})
             p_output0_intermediate_1 = T.sblock_alloc_buffer((11008, 4096), "float16")
@@ -587,7 +588,7 @@ def test_spatial_inner_no_broadcasting():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(lv575: T.Buffer((1376, 4096), "uint32"), lv576: T.Buffer((344, 4096), "float16"), lv574: T.Buffer((1, 1, 11008), "float16"), lv570: T.Buffer((1, 1, 4096), "float16"), p_output0_intermediate: T.Buffer((1, 1, 4096), "float16")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             var_matmul_intermediate_local = T.sblock_alloc_buffer((1, 1, 4096), "float16", scope="local")
@@ -638,7 +639,7 @@ def test_spatial_inner_broadcasting():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256, 256), "float32")):
             T.func_attr({"tirx.noalias": True})
             temp_local = T.sblock_alloc_buffer((256,))
@@ -660,7 +661,7 @@ def test_spatial_inner_broadcasting():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256, 256), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             temp_local_shared = T.sblock_alloc_buffer((256,), scope="shared")
@@ -713,7 +714,7 @@ def test_reduction_inner_no_broadcasting():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256,), "float32")):
             T.func_attr({"tirx.noalias": True})
             temp_local = T.sblock_alloc_buffer((256,))
@@ -735,7 +736,7 @@ def test_reduction_inner_no_broadcasting():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256,), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
@@ -781,7 +782,7 @@ def test_reduction_inner_no_broadcasting2():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(lv9: T.Buffer((2560, 320), "uint32"), lv10: T.Buffer((2560, 80), "float16"), lv1: T.Buffer((1, 2560), "float16"), p_output0_intermediate: T.Buffer((1, 2560), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
@@ -810,7 +811,7 @@ def test_reduction_inner_no_broadcasting2():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(lv9: T.Buffer((2560, 320), "uint32"), lv10: T.Buffer((2560, 80), "float16"), lv1: T.Buffer((1, 2560), "float16"), p_output0_intermediate: T.Buffer((1, 2560), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
@@ -863,7 +864,7 @@ def test_reduction_inner_spatial_choose_perfect_factor():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(100)), "float16")):
             T.func_attr({"tirx.noalias": True})
             n = T.int64()
@@ -880,7 +881,7 @@ def test_reduction_inner_spatial_choose_perfect_factor():
                     matmul[v_i0, v_i1, v_i2, v_i3] = matmul[v_i0, v_i1, v_i2, v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(100)), "float16")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             n = T.int64()
@@ -930,7 +931,7 @@ def test_reduction_inner_spatial_non_affine_write_back_falls_back():
     # The partial innermost tile leaves three div/mod components in the write-back binding.
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((2, 4, 20), "float32"),
             W: T.Buffer((3,), "float32"),
@@ -947,7 +948,7 @@ def test_reduction_inner_spatial_non_affine_write_back_falls_back():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((2, 4, 20), "float32"),
             W: T.Buffer((3,), "float32"),
@@ -1002,7 +1003,7 @@ def test_reduction_inner_spatial_non_affine_without_mixed_access():
     # The failure depends on the spatial extents, not mixed spatial/reduction indexing.
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((2, 2, 3, 20), "float32"),
             C: T.Buffer((2, 2, 20), "float32"),
@@ -1030,7 +1031,7 @@ def test_reduction_inner_spatial_reordered_access_declines():
     # `_normalize` fuses the spatial loops in dominant-read order: n, x, y.
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((2, 16, 3, 20), "float32"),
             C: T.Buffer((2, 20, 16), "float32"),
@@ -1052,7 +1053,7 @@ def test_reduction_inner_spatial_affine_write_back_still_applies():
     # An exact innermost tile leaves only two div/mod components.
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((2, 4, 16), "float32"),
             W: T.Buffer((3,), "float32"),
@@ -1076,7 +1077,7 @@ def test_reduction_inner_spatial_uses_normalized_split_extent():
     # x // 2 normalizes the x extent from 8 to 4, which must also be used for tx.
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((2, 3, 3, 4), "float32"),
             C: T.Buffer((2, 3, 8), "float32"),
@@ -1101,7 +1102,7 @@ def test_repeat_transpose_gemv():
 
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def fused_relax_repeat_relax_permute_dims_relax_matmul1(p_lv716: T.handle, p_astype66: T.handle, var_matmul_intermediate: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
             T.func_attr({"tirx.noalias": True})
             kv_seq_len = T.int64()
@@ -1132,7 +1133,7 @@ def test_repeat_transpose_gemv():
                     var_matmul_intermediate[v_i0, v_i1, v_i2, v_i3] = var_matmul_intermediate[v_i0, v_i1, v_i2, v_i3] + astype66[v_i0, v_i1, v_i2, v_k] * var_T_transpose_intermediate[v_i0, v_i1, v_k, v_i3]
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def fused_relax_repeat_relax_permute_dims_relax_matmul1(p_lv716: T.handle, p_astype66: T.handle, var_matmul_intermediate: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             kv_seq_len = T.int64()
@@ -1183,7 +1184,7 @@ def test_repeat_transpose_gemv():
 def test_gemv_dyn_shape_epilogue():
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(
             var_A: T.handle,
             B: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
@@ -1214,7 +1215,7 @@ def test_gemv_dyn_shape_epilogue():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(var_A: T.handle, B: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), var_C: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             vocab_size = T.int64()
@@ -1267,7 +1268,7 @@ def test_gemv_output_one_element():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((T.int64(1), T.int64(2048)), "float16"), weight: T.Buffer((T.int64(1), T.int64(2048)), "float16"), out: T.Buffer((T.int64(1), T.int64(1)), "float16")):
             T.func_attr({"tirx.noalias": True})
             NT_matmul_intermediate = T.sblock_alloc_buffer((T.int64(1), T.int64(1)), "float16")
@@ -1285,7 +1286,7 @@ def test_gemv_output_one_element():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((T.int64(1), T.int64(2048)), "float16"), weight: T.Buffer((T.int64(1), T.int64(2048)), "float16"), out: T.Buffer((T.int64(1), T.int64(1)), "float16")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             NT_matmul_intermediate_shared = T.sblock_alloc_buffer((T.int64(1), T.int64(1)), "float16", scope="shared")
@@ -1329,7 +1330,7 @@ def test_no_reduction_loop_check():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul(lv43: T.Buffer((T.int64(1), T.int64(32), T.int64(1)), "float16"), lv44: T.Buffer((T.int64(1), T.int64(1), T.int64(1)), "float16"), matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1)), "float16")):
             T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             # with T.sblock("root"):

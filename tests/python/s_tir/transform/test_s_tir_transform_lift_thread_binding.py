@@ -17,12 +17,13 @@
 # ruff: noqa: E501, F401
 import tvm
 from tvm import s_tir, tirx
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 def test_lift_tx_beyond_local():
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(a: T.handle, b: T.handle, c: T.handle):
         n = T.int32()
         A = T.match_buffer(a, (32, 1, 128))
@@ -77,7 +78,7 @@ def test_lift_tx_beyond_local():
                     T.writes(C[ax0_ax1_fused // n, 0, ax0_ax1_fused % n])
                     C[ax0_ax1_fused // n, 0, ax0_ax1_fused % n] = D_local[ax0_ax1_fused // n, 0, ax0_ax1_fused % n] * T.float32(0.088397790055248615)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(A: T.Buffer((32, 1, 128), "float32"), b: T.handle, c: T.handle):
         n = T.int32()
         B = T.match_buffer(b, (32, n, 128))

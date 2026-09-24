@@ -20,6 +20,7 @@ import tvm
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -1145,7 +1146,7 @@ def test_handle_existence_of_call_tir():
                 R.output(Output)
             return Output
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def relu(
             Input: T.Buffer(T.int64(10), "float32"),
             Output: T.Buffer(T.int64(10), "float32"),
@@ -1197,7 +1198,7 @@ def test_handle_existence_of_call_tir():
             Output = composite_lambda(Input)
             return Output
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def relu(
             Input: T.Buffer(T.int64(10), "float32"),
             Output: T.Buffer(T.int64(10), "float32"),

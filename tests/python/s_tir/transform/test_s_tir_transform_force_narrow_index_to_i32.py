@@ -19,6 +19,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.s_tir import dlight as dl
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -29,7 +30,7 @@ def _narrow(func):
 
 
 def test_block():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(8)):
@@ -37,7 +38,7 @@ def test_block():
                     vi = T.axis.spatial(T.int64(128), i * T.int64(8) + j)
                     B[vi] = A[vi] + T.float32(1)
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int32(16)):
             for j in T.serial(0, T.int32(8)):
@@ -51,7 +52,7 @@ def test_block():
 def test_block_iters_used_only_in_regions():
     """Blockized blocks use their iterators only in access and match_buffer regions."""
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         A: T.Buffer((T.int64(16), T.int64(16)), "float32"),
         B: T.Buffer((T.int64(16), T.int64(16)), "float32"),
@@ -92,7 +93,7 @@ def test_block_iters_used_only_in_regions():
                         vi_i, vj_i = T.axis.remap("SS", [i_i, j_i])
                         B_tile[vi_i, vj_i] = A_tile[vi_i, vj_i] + T.float32(1)
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
         for i_o, j_o in T.grid(2, 2):
             with T.sblock("tile_o"):
@@ -114,7 +115,7 @@ def test_block_iters_used_only_in_regions():
 
 
 def test_fail_on_buffer_param():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def func(A: T.Buffer((128,), "int64"), B: T.Buffer((128,), "int64")):
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
@@ -127,7 +128,7 @@ def test_fail_on_buffer_param():
 
 
 def test_fail_on_block_alloc_buffer():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def func(A: T.Buffer((128,), "int32"), B: T.Buffer((128,), "int32")):
         C = T.sblock_alloc_buffer((128,), "int64")
         for i in T.serial(0, 16):
@@ -149,7 +150,7 @@ def test_fail_on_block_alloc_buffer():
 def test_metal_simdgroup_matmul_builds():
     """Narrowing a DLight-scheduled Metal matmul keeps its tensorized blocks consistent."""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         var_A: T.handle, B: T.Buffer((T.int64(256), T.int64(256)), "float16"), var_C: T.handle
     ):

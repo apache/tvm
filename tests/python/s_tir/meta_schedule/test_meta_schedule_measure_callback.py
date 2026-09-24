@@ -23,6 +23,7 @@ import tvm
 from tvm.ir.utils import derived_object
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.schedule import Schedule
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,
@@ -30,7 +31,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class Matmul:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main"})
         A = T.match_buffer(a, (1024, 1024), "float32")

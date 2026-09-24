@@ -26,6 +26,7 @@ import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tirx, topi
 from tvm.relax import DummyGlobalInfo, VDevice
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -125,7 +126,7 @@ def test_unexpected_tir_args():
 
         @tvm.script.ir_module
         class TestWellCallTIR:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def tir_addone(A: T.Buffer((16, 16), "int32"), B: T.Buffer((16, 16), "int32")) -> None:
                 T.func_attr({"global_symbol": "tir_addone"})
                 for i, j in T.grid(16, 16):
@@ -210,7 +211,7 @@ def test_incorrect_tensor_shape():
 def test_simple_module():
     @I.ir_module(s_tir=True)
     class TestModule:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -239,7 +240,7 @@ def test_simple_module():
 def test_emit_te_primfunc_attrs():
     @I.ir_module(s_tir=True)
     class TestModule:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def plus_one(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -301,7 +302,7 @@ def test_module_with_attr_and_global_info():
             }
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -351,7 +352,7 @@ def test_global_info_vdevice():
             }
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -1006,7 +1007,7 @@ def test_call_tir_with_tir_var():
             y = R.call_tir(cls.copy, (x, n), R.Tensor((n * 2,), dtype="float32"))
             return y
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def copy(var_x: T.handle, n: T.int64, var_y: T.handle):
             X = T.match_buffer(var_x, (n * 2,), dtype="float32")
             Y = T.match_buffer(var_y, (n * 2,), dtype="float32")
@@ -1023,7 +1024,7 @@ def test_call_tir_with_tir_var():
 def test_call_tir_with_grad():
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def identity_tir(a: T.handle, b: T.handle) -> None:
             A = T.match_buffer(a, [54, 96])
             B = T.match_buffer(b, [54, 96])
@@ -1051,7 +1052,7 @@ def test_call_tir_with_grad():
 def test_call_tir_inplace():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def copy(
             A: T.Buffer((2, 3), "int32"),
             B: T.Buffer((2, 3), "int32"),
@@ -1102,7 +1103,7 @@ def test_call_tir_inplace_with_tuple_var_raises_error():
                 )
                 return res
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def copy(
                 A: T.Buffer((2, 3), "int32"),
                 B: T.Buffer((2, 3), "int32"),
@@ -1155,7 +1156,7 @@ def test_inline_prim_func():
         class TestModule:
             @R.function
             def f(x: R.Tensor((128, 128), "float32"), y: R.Tensor((128, 128), "float32")):
-                @T.prim_func(s_tir=True)
+                @Ts.prim_func
                 def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
                     A = T.match_buffer(a, (128, 128))
                     B = T.match_buffer(b, (128, 128))
@@ -1897,7 +1898,7 @@ def test_class_normalize():
 def test_context_aware_parsing(monkeypatch):
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(
             X: T.Buffer([T.int64(2), T.int64(4)], "float32"),
             Y: T.Buffer((), "float32"),

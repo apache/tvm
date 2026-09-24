@@ -24,10 +24,11 @@ import pytest
 import tvm.testing
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm.script import from_source
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_matmul_no_syntax_sugar(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -45,7 +46,7 @@ def transformed_matmul_no_syntax_sugar(a: T.handle, b: T.handle, c: T.handle) ->
             C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def transformed_matmul_syntax_sugar(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -69,7 +70,7 @@ def test_reads_writes_syntax_sugar():
     )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def loop_no_syntax_sugar(a: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     for i in T.serial(0, 128):
@@ -81,7 +82,7 @@ def loop_no_syntax_sugar(a: T.handle) -> None:
                             A[i, j, k, x] = A[i, j, k, x] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def loop_syntax_sugar(a: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     for i in T.serial(128):
@@ -98,7 +99,7 @@ def test_loop_syntax_sugar():
 
 
 # match buffer - use kwargs
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_handle(
     a: T.handle,
     b: T.handle,
@@ -112,7 +113,7 @@ def elementwise_handle(
 
 
 # match buffer - use buffer with kwargs
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_buffer_kwargs(
     a: T.Buffer(shape=(128, 128, 128, 128), dtype="float32"),
     b: T.Buffer(shape=(128, 128, 128, 128), dtype="float32"),
@@ -124,7 +125,7 @@ def elementwise_buffer_kwargs(
 
 
 # match buffer - use buffer without kwargs
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_buffer_no_kwargs(
     a: T.Buffer((128, 128, 128, 128), "float32"),
     b: T.Buffer((128, 128, 128, 128), "float32"),
@@ -143,13 +144,13 @@ def test_match_buffer_syntax_sugar():
 
 
 def test_match_buffer_1d():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func_no_sugar(a: T.handle):
         A = T.match_buffer(a, shape=(16,))
         for i in T.serial(16):
             A[i] = 0.0
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func_with_sugar(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             A[i] = 0.0
@@ -158,7 +159,7 @@ def test_match_buffer_1d():
 
 
 # dynamic shape gemm
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm_dyn_shape(a: T.handle, b: T.handle, c: T.handle):
     N = T.int32()
     M = T.int32()
@@ -179,7 +180,7 @@ def test_dynamic_shape_gemm():
     assert_structural_equal_ignore_global_symbol(gemm_dyn_shape, gemm_dyn_shape_roundtrip)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def match_buffer_int64(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (T.int64(128), T.int64(128)), dtype="float32")
     B = T.sblock_alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
@@ -194,7 +195,7 @@ def match_buffer_int64(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def match_buffer_int64_after_roundtrip(
     A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     C: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -217,13 +218,13 @@ def test_match_buffer_int64():
 
 
 def test_match_buffer_region_has_implicit_shape_dtype():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def explicit_shape_dtype(A: T.Buffer((16, 64), "int32")):
         with T.sblock():
             B = T.match_buffer(A[8:16, 32:64], shape=(8, 32), dtype="int32")
             T.evaluate(0)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def implicit_shape_dtype(A: T.Buffer((16, 64), "int32")):
         with T.sblock():
             B = T.match_buffer(A[8:16, 32:64])
@@ -235,7 +236,7 @@ def test_match_buffer_region_has_implicit_shape_dtype():
 def test_match_buffer_input_requires_shape_arg():
     with pytest.raises(ValueError):
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func(a: T.handle):
             A = T.match_buffer(a, dtype="int32")
             T.evaluate(0)
@@ -249,20 +250,20 @@ def test_bind_bufferload_without_type_annotation():
     # Expr, and implements BufferSlice.dtype explicitly.
 
     # Failure occurred during parsing of the tvmscript.
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func_without_type_annotation(A: T.Buffer((1,), "int32")):
         x = A[0]
         T.evaluate(x)
 
 
 def test_bind_with_constant():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def constant_binds():
         x = T.meta_var(1)
         y = T.meta_var(42.0)
         T.evaluate(T.cast(x, "float32") + y)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def constant_binds_wrapped():
         x = T.meta_var(T.int32(1))
         y = T.meta_var(T.float32(42.0))
@@ -276,7 +277,7 @@ def test_func_call():
         thread_id = (i % 8) * 4 + (j % 8) // 2
         return thread_id, (j // 8) * 4 + (i // 8) * 2 + (j % 2)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mma_sync_m16n16k16_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
         B = T.match_buffer(b, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
@@ -303,7 +304,7 @@ def test_func_call():
                         A[indices_A[0], indices_A[1]] * B[indices_B[0], indices_B[1]]
                     )
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mma_sync_m16n16k16_desc_manual(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
         B = T.match_buffer(b, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
@@ -355,7 +356,7 @@ def test_func_call():
 
 
 def test_int64_loop():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def int64_grid(
         A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -365,7 +366,7 @@ def test_int64_loop():
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] + 1.0
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def int64_grid_expanded(
         A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -381,12 +382,12 @@ def test_int64_loop():
 
 
 def test_implicit_evaluate_assume():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def explicit(A: T.Buffer(1, "int32")):
         T.evaluate(T.assume(A[0] == 5))
         A[0] = 10
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def implicit(A: T.Buffer(1, "int32")):
         T.assume(A[0] == 5)
         A[0] = 10
@@ -395,11 +396,11 @@ def test_implicit_evaluate_assume():
 
 
 def test_implicit_evaluate_call_extern():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def explicit(A: T.Buffer(1, "int32")):
         T.evaluate(T.call_extern("extern_func", A.data, dtype="int32"))
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def implicit(A: T.Buffer(1, "int32")):
         T.call_extern("extern_func", A.data, dtype="int32")
 
@@ -414,13 +415,13 @@ def test_preserve_trivial_let_binding():
     builder API and the `j: T.let[T.dtype]` annotation produce the same LetStmt IR.
     """
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def explicit(i: T.int32):
         j = T.int32()
         T.bind(i, var=j)
         T.evaluate(j)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def implicit(i: T.int32):
         j: T.let[T.int32] = i
         T.evaluate(j)
@@ -431,13 +432,13 @@ def test_preserve_trivial_let_binding():
 def test_preserve_trivial_let_binding_of_value():
     """Same as test_preserve_trivial_let_binding but with a constant RHS."""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def explicit(i: T.int32):
         j = T.int32()
         T.bind(42, var=j)
         T.evaluate(j)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def implicit(i: T.int32):
         j: T.let[T.int32] = 42
         T.evaluate(j)
@@ -446,7 +447,7 @@ def test_preserve_trivial_let_binding_of_value():
 
 
 def test_preserve_parameter_name():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(i: T.int32):
         j = i
         T.evaluate(j)
@@ -462,7 +463,7 @@ def test_preserve_variable_name(mutable):
     # Bare bindings name the immutable Var; explicit declarations name scalar storage.
     annotation = ": T.int32" if mutable else ""
     func = from_source(
-        f"""@T.prim_func(s_tir=True)
+        f"""@Ts.prim_func
 def func():
     for i in T.serial(16):
         j{annotation} = i // 4
@@ -482,11 +483,11 @@ def func():
 def test_boolean_constant():
     """Python booleans should become T.Bool objects"""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def explicit():
         T.evaluate(T.bool(True))
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def implicit():
         T.evaluate(True)
 
@@ -501,12 +502,12 @@ def test_foldable_boolean_in_assert():
     distinguish between integer primitives and boolean primitives.
     """
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def explicit():
         assert T.bool(False), "Message"
         T.evaluate(0)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def implicit():
         assert 0 == 1, "Message"
         T.evaluate(0)
@@ -517,11 +518,11 @@ def test_foldable_boolean_in_assert():
 def test_return_statement():
     """A Python `return` statement creates a first-class Return node."""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def explicit():
         T.Return(T.int32(5))
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def implicit():
         return 5
 
@@ -531,7 +532,7 @@ def test_return_statement():
 def test_loop_jump_statement():
     """`break` and `continue` evaluates to TIR intrinsics"""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def explicit():
         for i in range(16):
             if i % 2 == 0:
@@ -539,7 +540,7 @@ def test_loop_jump_statement():
             if i < 15:
                 T.evaluate(T.break_loop())
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def implicit():
         for i in range(16):
             if i % 2 == 0:

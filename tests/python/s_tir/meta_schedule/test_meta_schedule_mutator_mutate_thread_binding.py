@@ -17,13 +17,14 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
 # pylint: disable=invalid-name, no-member
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def element_wise(var_A: T.handle, var_B: T.handle) -> None:
     A = T.match_buffer(var_A, [512, 512], dtype="float32")
     B = T.match_buffer(var_B, [512, 512], dtype="float32")

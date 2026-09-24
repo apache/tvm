@@ -19,6 +19,7 @@
 
 import math
 
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
 
@@ -173,7 +174,7 @@ def gpu_2d_continuous_cumsum(
                                     bx > 0, source[by, src_offset + bx - 1], 0
                                 )
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def cumsum(var_a: T.handle, var_out: T.handle):
         T.func_attr({"tirx.is_scheduled": True})  # prevent further scheduling
         m, n = T.int64(), T.int64()
@@ -252,7 +253,7 @@ def gpu_3d_axis_1_cumsum(
     out_dtype = out_dtype or in_dtype
     TX = T.int64(tx_len)
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def cumsum(var_a: T.handle, var_out: T.handle):
         T.func_attr({"tirx.is_scheduled": True})
         outer, scan, inner = T.int64(), T.int64(), T.int64()

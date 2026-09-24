@@ -21,6 +21,7 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target.codegen import llvm_version_major
 
@@ -39,14 +40,14 @@ sve_target = tvm.target.Target(
 def test_vectorize_loop(extent, target):
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16,), "float32")):
             for j in T.vectorized(0, extent):
                 A[j] = 1
 
     @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16,), "float32")):
             A[T.Ramp(0, 1, extent)] = T.Broadcast(1, extent)
 
@@ -58,7 +59,7 @@ def test_vectorize_loop(extent, target):
 def test_vectorize_vector():
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((4,), "float32x4"), n: T.int32):
             for i in range(n):
                 for j in T.vectorized(4):
@@ -77,7 +78,7 @@ def test_vectorize_vector():
 def test_vectorize_vector_scalable_error():
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "float32")):
             for j in T.vectorized(T.vscale() * 4):
                 A[T.ramp(j * 4, 1, 4)] = T.Broadcast(T.float32(1), 4)
@@ -91,7 +92,7 @@ def test_vectorize_vector_scalable_error():
 def test_vectorize_vector_scalable_error2():
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "float32xvscalex4")):
             for j in T.vectorized(4):
                 A[j] = T.Broadcast(T.float32(1), T.vscale() * 4)
@@ -104,7 +105,7 @@ def test_vectorize_vector_scalable_error2():
 def test_vectorize_vector_scalable_error3():
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "float32")):
             for j in T.vectorized(4):
                 A[T.ramp(j * T.vscale() * 4, 1, T.vscale() * 4)] = T.Broadcast(
@@ -120,7 +121,7 @@ def test_vectorize_vector_scalable_error3():
 def test_vectorize_vector_scalable_error4():
     @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((25,), "float32")):
             for j in T.vectorized(T.vscale() * 4):
                 A[T.ramp(j * T.vscale() * 4, 1, T.vscale() * 4)] = T.Broadcast(
@@ -139,7 +140,7 @@ def test_vectorize_with_if():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(a: T.handle, n: T.int32, x: T.int32):
             A = T.match_buffer(a, (25,), "float32")
             for i in T.vectorized(extent):
@@ -151,7 +152,7 @@ def test_vectorize_with_if():
 
     @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(a: T.handle, n: T.int32, x: T.int32):
             A = T.match_buffer(a, (25,), "float32")
             if x < n:
@@ -174,7 +175,7 @@ def test_vectorize_if_scalable_extent():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(a: T.handle, n: T.int32, x: T.int32):
             A = T.match_buffer(a, (25,), "float32")
             for i in T.vectorized(extent):
@@ -186,7 +187,7 @@ def test_vectorize_if_scalable_extent():
 
     @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(a: T.handle, n: T.int32, x: T.int32):
             A = T.match_buffer(a, (25,), "float32")
             if x < n:
@@ -214,7 +215,7 @@ def test_vectorize_if_scalable_extent():
 def test_vectorize_let(extent, target):
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "float32")):
             for i in T.vectorized(extent):
                 v: T.let = A[i] + T.float32(1)
@@ -222,7 +223,7 @@ def test_vectorize_let(extent, target):
 
     @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "float32")):
             v: T.let = A[T.Ramp(0, 1, extent)] + T.Broadcast(T.float32(1), extent)
             A[T.Ramp(0, 1, extent)] = v + T.Broadcast(T.float32(2), extent)
@@ -236,7 +237,7 @@ def test_vectorize_let(extent, target):
 def test_vectorize_with_le_cond(extent, target):
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16,), "float32"), n: T.int32):
             for i in T.vectorized(extent):
                 if i <= n:
@@ -253,7 +254,7 @@ def test_vectorize_with_le_cond(extent, target):
 def test_vectorize_with_ge_cond(extent, target):
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16,), "float32"), n: T.int32):
             for i in T.vectorized(extent):
                 if i >= n:
@@ -270,14 +271,14 @@ def test_vectorize_with_ge_cond(extent, target):
 def test_vectorize_if_then_else_scalarize(extent, target):
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "float32")):
             for i in T.vectorized(extent):
                 A[i] = T.if_then_else(i > 0, A[i] + T.float32(1), A[i])
 
     @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "float32")):
             for i_s in range(extent):
                 A[i_s] = T.if_then_else(i_s > 0, A[i_s] + T.float32(1), A[i_s])
@@ -291,7 +292,7 @@ def test_vectorize_if_then_else_scalarize(extent, target):
 def test_vectorize_if_then_else_vector(extent, target):
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "float32"), n: T.int32):
             for i in range(n):
                 for j in T.vectorized(extent):
@@ -299,7 +300,7 @@ def test_vectorize_if_then_else_vector(extent, target):
 
     @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "float32"), n: T.int32):
             for i in range(n):
                 A[T.Ramp(i * extent, 1, extent)] = T.if_then_else(
@@ -314,7 +315,7 @@ def test_vectorize_if_then_else_vector(extent, target):
 def test_vectorize_let_if_then_else():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             for i in T.vectorized(4):
                 if i < 2:
@@ -322,7 +323,7 @@ def test_vectorize_let_if_then_else():
 
     @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             for i_s in range(4):
                 if i_s < 2:
@@ -339,7 +340,7 @@ def test_vectorize_while_fail():
 
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((64,), "float32"),
             B: T.Buffer((64,), "float32"),
@@ -373,14 +374,14 @@ def test_vectorize_while_fail():
 def test_vectorize_with_reinterpret(extent, vec_str, target):
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16,), "int32"), B: T.Buffer((16,), "float32")):
             for i in T.vectorized(0, extent):
                 B[i] = T.reinterpret("float32", A[i])
 
     @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16,), "int32"), B: T.Buffer((16,), "float32")):
             B[T.Ramp(0, 1, extent)] = T.reinterpret(vec_str, A[T.Ramp(0, 1, extent)])
 
@@ -413,14 +414,14 @@ def test_vectorize_with_reinterpret(extent, vec_str, target):
 def test_vectorize_binary(op, extent, target):
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "float32"), B: T.Buffer((25,), "float32")):
             for j in T.vectorized(extent):
                 A[j] = op(T.float32(3), B[j])
 
     @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "float32"), B: T.Buffer((25,), "float32")):
             A[T.Ramp(0, 1, extent)] = op(T.Broadcast(T.float32(3), extent), B[T.Ramp(0, 1, extent)])
 
@@ -434,14 +435,14 @@ def test_vectorize_binary(op, extent, target):
 def test_vectorize_logical(op, extent, target):
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "bool"), B: T.Buffer((25,), "bool")):
             for j in T.vectorized(extent):
                 A[j] = op(T.bool(1), B[j])
 
     @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "bool"), B: T.Buffer((25,), "bool")):
             A[T.Ramp(0, 1, extent)] = op(T.Broadcast(T.bool(1), extent), B[T.Ramp(0, 1, extent)])
 
@@ -454,14 +455,14 @@ def test_vectorize_logical(op, extent, target):
 def test_vectorize_select(extent, target):
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "float32"), B: T.Buffer((25,), "float32")):
             for j in T.vectorized(extent):
                 A[j] = T.Select(T.bool(True), A[j], B[j])
 
     @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "float32"), B: T.Buffer((25,), "float32")):
             A[T.Ramp(0, 1, extent)] = T.Select(
                 T.Broadcast(T.bool(True), extent),
@@ -481,14 +482,14 @@ def test_vectorize_select(extent, target):
 def test_vectorize_cast(extent, vec_str, target):
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "int32"), B: T.Buffer((25,), "float32")):
             for j in T.vectorized(extent):
                 A[j] = T.Cast("int32", B[j])
 
     @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "int32"), B: T.Buffer((25,), "float32")):
             A[T.Ramp(0, 1, extent)] = T.Cast(vec_str, B[T.Ramp(0, 1, extent)])
 
@@ -500,7 +501,7 @@ def test_vectorize_cast(extent, vec_str, target):
 def test_illegal_extent():
     @I.ir_module(check_well_formed=False)
     class Mod:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "int32")):
             n = T.int32()
             for j in T.vectorized(n):
@@ -514,7 +515,7 @@ def test_illegal_extent():
 def test_illegal_vscale_in_non_sve_compilation():
     @I.ir_module
     class Mod:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16,), "float32")):
             for j in T.vectorized(0, 4 * T.vscale()):
                 A[j] = 13
@@ -526,7 +527,7 @@ def test_illegal_vscale_in_non_sve_compilation():
 
 
 def test_vectorize_and_predicate_all_buffer_loads_stores():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -536,7 +537,7 @@ def test_vectorize_and_predicate_all_buffer_loads_stores():
                 if i_0 * 4 + i_1 < 14:
                     B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + 1.0
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -571,7 +572,7 @@ def test_vectorize_and_predicate_all_buffer_loads_stores():
 def test_vectorize_and_predicate_some_buffer_loads_stores():
     # Currently revert to scalarizing the block if not all accesses
     # have been predicated, otherwise incorrect code is generated.
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -581,7 +582,7 @@ def test_vectorize_and_predicate_some_buffer_loads_stores():
                 if i_0 * 4 + i_1 < 14:
                     B[i_0 * 4 + i_1] = A[i_0] + 1.0
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -597,7 +598,7 @@ def test_vectorize_and_predicate_some_buffer_loads_stores():
 
 
 def test_vectorize_and_predicate_multiple_access_statements():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -608,7 +609,7 @@ def test_vectorize_and_predicate_multiple_access_statements():
                     A[i_0 * 4 + i_1] = 2.0
                     B[i_0 * 4 + i_1] = 1.0
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -646,7 +647,7 @@ def test_vectorize_nested_predicates_preserve_both_masks():
         {"kind": "llvm", "mtriple": "riscv64-unknown-linux-gnu", "mattr": ["+v"]}
     )
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         for i_0 in T.serial(4):
             for i_1 in T.vectorized(4):
@@ -670,7 +671,7 @@ def test_vectorize_nested_predicates_preserve_both_masks():
 
 
 def test_vectorize_and_predicate_invalid_conditions():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -684,7 +685,7 @@ def test_vectorize_and_predicate_invalid_conditions():
                 if i_0 * 4 + i_1 < i_0 * 4 + i_1:
                     A[i_0 * 4 + i_1] = 2.0
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -710,7 +711,7 @@ def test_vectorize_with_explicitly_disabled_buffer_level_predication():
     # Since the target has the VLA feature, buffer level predication is enabled
     # by default. However, it has been explicitly disabled by the pass context
     # option, so no buffer-level predicates should be added.
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -720,7 +721,7 @@ def test_vectorize_with_explicitly_disabled_buffer_level_predication():
                 if i_0 * 4 + i_1 < 14:
                     B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + 1.0
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -737,7 +738,7 @@ def test_vectorize_with_explicitly_disabled_buffer_level_predication():
 
 
 def test_vectorize_and_predicate_buffer_load_stores_with_sve_func_attr_target():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -747,7 +748,7 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_func_attr_target():
                 if i_0 * 4 + i_1 < 14:
                     B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + 1.0
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -779,7 +780,7 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_func_attr_target():
 
 
 def test_vectorize_and_predicate_buffer_load_stores_with_sve_attr_scope_target():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -790,7 +791,7 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_attr_scope_target()
                     if i_0 * 4 + i_1 < 14:
                         B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + 1.0
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -829,14 +830,14 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_attr_scope_target()
 def test_vectorize_llvm_pure_intrin(extent, vec_str, target):
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "float32"), B: T.Buffer((25,), "float32")):
             for j in T.vectorized(extent):
                 A[j] = T.call_llvm_pure_intrin("float32", "llvm.sqrt", B[j])
 
     @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "float32"), B: T.Buffer((25,), "float32")):
             A[T.Ramp(0, 1, extent)] = T.call_llvm_pure_intrin(
                 vec_str, "llvm.sqrt", B[T.Ramp(0, 1, extent)]
@@ -855,14 +856,14 @@ def test_vectorize_llvm_pure_intrin(extent, vec_str, target):
 def test_vectorize_llvm_pure_intrin_fail(extent, vec_str, target):
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "int32"), B: T.Buffer((25,), "float32")):
             for j in T.vectorized(extent):
                 A[j] = T.call_llvm_pure_intrin("int32", "llvm.lround", B[j])
 
     @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((25,), "int32"), B: T.Buffer((25,), "float32")):
             A[T.Ramp(0, 1, extent)] = T.call_llvm_pure_intrin(
                 vec_str, "llvm.lround", B[T.Ramp(0, 1, extent)]

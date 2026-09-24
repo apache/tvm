@@ -22,6 +22,7 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm.relax.transform import EliminateCommonSubexpr
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -399,7 +400,7 @@ def test_call_tir_tuple_arg():
             Sum = R.call_tir(cls.sum, [A, B], out_ty=R.Tensor([16, 16], "int32"))
             return (Prod, Sum)
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def product(
             A: T.Buffer([16, 16], "int32"),
             B: T.Buffer([16, 16], "int32"),
@@ -410,7 +411,7 @@ def test_call_tir_tuple_arg():
                     i, j = T.axis.remap("SS", iters)
                     C[i, j] = A[i, j] * B[i, j]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def sum(
             A: T.Buffer([16, 16], "int32"),
             B: T.Buffer([16, 16], "int32"),

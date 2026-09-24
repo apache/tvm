@@ -32,6 +32,7 @@ from tvm.relax.dpl.pattern import (
 from tvm.relax.transform import PatternCheckContext
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -700,7 +701,7 @@ def test_multiple_entries_multiple_calls_same_extern():
 def test_ignore_call_tir():
     @I.ir_module(s_tir=True)
     class Conv2dReLUCallTIR:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def relu(
             data: T.Buffer((1, 64, 56, 56), "float32"),
             out: T.Buffer((1, 64, 56, 56), "float32"),
@@ -728,7 +729,7 @@ def test_ignore_call_tir():
 
     @I.ir_module(s_tir=True)
     class Conv2dReLUCallTIR_partitioned:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def relu(
             data: T.Buffer((1, 64, 56, 56), "float32"),
             out: T.Buffer((1, 64, 56, 56), "float32"),

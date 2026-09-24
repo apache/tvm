@@ -24,6 +24,7 @@ import tvm.script
 import tvm.testing
 from tvm import relax
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 use_np_array = tvm.testing.parameter(False, True)
@@ -32,7 +33,7 @@ use_np_array = tvm.testing.parameter(False, True)
 def test_bind_params(use_np_array):
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
             A = T.match_buffer(x, (16, 16))

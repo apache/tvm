@@ -20,6 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.script.highlight import _format, cprint
 
@@ -27,7 +28,7 @@ from tvm.script.highlight import _format, cprint
 def test_highlight_script():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(  # type: ignore
             a: T.handle,
             b: T.handle,

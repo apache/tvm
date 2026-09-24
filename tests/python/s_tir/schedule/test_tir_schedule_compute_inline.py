@@ -26,12 +26,13 @@ from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.sblock_alloc_buffer((128, 128))
@@ -46,7 +47,7 @@ def elementwise(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_multi_producer_consumer(a: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.sblock_alloc_buffer((128, 128))
@@ -66,7 +67,7 @@ def elementwise_multi_producer_consumer(a: T.handle, c: T.handle, d: T.handle) -
             D[vi, vj] = B[vi, vj] + 2.0 + C[vi, vj]  # D has two producers
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_multi_consumer_inlined(a: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -81,7 +82,7 @@ def elementwise_multi_consumer_inlined(a: T.handle, c: T.handle, d: T.handle) ->
             D[vi, vj] = A[vi, vj] * 2.0 + 2.0 + C[vi, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_standalone(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.sblock_alloc_buffer((128, 128))
@@ -96,7 +97,7 @@ def elementwise_standalone(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = A[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_standalone_dce(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -106,7 +107,7 @@ def elementwise_standalone_dce(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = A[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_under_loop(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -122,7 +123,7 @@ def elementwise_under_loop(a: T.handle, c: T.handle) -> None:
                 C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_inlined(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -132,7 +133,7 @@ def elementwise_inlined(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def fail_multi_reader_writer(a: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.sblock_alloc_buffer((128, 128))
@@ -149,7 +150,7 @@ def fail_multi_reader_writer(a: T.handle, d: T.handle) -> None:
             D[vi, vj] = B[vi, vj] + C[vi, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_multi_reverse_loads(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.sblock_alloc_buffer((128, 128))
@@ -164,7 +165,7 @@ def elementwise_multi_reverse_loads(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = (B[vi, vj] + 1.0) * (B[vi, vj] * 2.0) + 3.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_multi_reverse_loads_inlined(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -174,7 +175,7 @@ def elementwise_multi_reverse_loads_inlined(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = (A[vi, vj] * 2.0 + 1.0) * (A[vi, vj] * 2.0 * 2.0) + 3.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_reverse_affine_load(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((8, 32, 8, 8), "float32")
 ) -> None:
@@ -192,7 +193,7 @@ def elementwise_reverse_affine_load(
             ]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_reverse_affine_load_inlined(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((8, 32, 8, 8), "float32")
 ) -> None:
@@ -207,7 +208,7 @@ def elementwise_reverse_affine_load_inlined(
             ] = A[vi, vj] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_reverse_affine_load_unit_iter(
     A: T.Buffer((128, 128), "float32"),
     B: T.Buffer((8, 16, 1), "float32"),
@@ -224,7 +225,7 @@ def elementwise_reverse_affine_load_unit_iter(
             D[vi, vj, vk, vl] = C[vj * 16 + vk, vl] + B[vj, vk, vi]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_reverse_affine_load_unit_iter_inlined(
     A: T.Buffer((128, 128), "float32"),
     B: T.Buffer((8, 16, 1), "float32"),
@@ -236,7 +237,7 @@ def elementwise_reverse_affine_load_unit_iter_inlined(
             D[0, vi // 16, vi % 16, vj] = A[vi, vj] * 2.0 + B[vi // 16, vi % 16, 0]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_reverse_affine_load_unit_iter_simplified(
     A: T.Buffer((128, 128), "float32"),
     B: T.Buffer((8, 16, 1), "float32"),
@@ -253,7 +254,7 @@ def elementwise_reverse_affine_load_unit_iter_simplified(
             D[0, vi, vj, vk] = C[vi * 16 + vj, vk] + B[vi, vj, 0]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_reverse_affine_load_unit_iter_simplified_inlined(
     A: T.Buffer((128, 128), "float32"),
     B: T.Buffer((8, 16, 1), "float32"),
@@ -265,7 +266,7 @@ def elementwise_reverse_affine_load_unit_iter_simplified_inlined(
             D[0, vi // 16, vi % 16, vj] = A[vi, vj] * 2.0 + B[vi // 16, vi % 16, 0]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_reverse_affine_chain(
     A: T.Buffer((128, 128), "float32"), D: T.Buffer((1, 8, 16, 128), "float32")
 ):
@@ -285,7 +286,7 @@ def elementwise_reverse_affine_chain(
             D[vi, vj, vk, vl] = C[vj, vk, vl]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_reverse_affine_chain_inlined(
     A: T.Buffer((128, 128), "float32"), D: T.Buffer((1, 8, 16, 128), "float32")
 ) -> None:
@@ -295,7 +296,7 @@ def elementwise_reverse_affine_chain_inlined(
             D[0, vi // 16, vi % 16, vj] = A[vi, vj] * 2.0 + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_multi_reverse_affine_load(
     A: T.Buffer((128, 128), "float32"),
     C: T.Buffer((8, 16, 128), "float32"),
@@ -311,7 +312,7 @@ def elementwise_multi_reverse_affine_load(
             C[vi, vj, vk] = B[vi * 16 + vj, vk] + B[vi * 16 + vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_multi_reverse_affine_load_inlined(
     A: T.Buffer((128, 128), "float32"),
     C: T.Buffer((8, 16, 128), "float32"),
@@ -322,7 +323,7 @@ def elementwise_multi_reverse_affine_load_inlined(
             C[vi // 16, vi % 16, vj] = A[vi, vj] * 2.0 + A[vi, vj] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_reverse_non_affine_load(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((8, 16, 128), "float32")
 ) -> None:
@@ -337,7 +338,7 @@ def elementwise_reverse_non_affine_load(
             C[vi, vj, vk] = B[vi * 16 + vj, vi * 16 + vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def opaque_access_load(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.sblock_alloc_buffer((128, 128))
@@ -355,7 +356,7 @@ def opaque_access_load(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def opaque_access_store(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.sblock_alloc_buffer((128, 128))
@@ -374,7 +375,7 @@ def opaque_access_store(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def buffer_matched(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.sblock_alloc_buffer((128, 128))
@@ -390,7 +391,7 @@ def buffer_matched(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = Bb[0, 0] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_predicate(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.sblock_alloc_buffer((128, 128))
@@ -406,7 +407,7 @@ def elementwise_predicate(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_predicate_inlined(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -417,7 +418,7 @@ def elementwise_predicate_inlined(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_multi_loads(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.sblock_alloc_buffer((128, 128))
@@ -432,7 +433,7 @@ def elementwise_multi_loads(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + B[vi, vj + 1] + B[vi, vj + 2]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_multi_loads_inlined(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -442,7 +443,7 @@ def elementwise_multi_loads_inlined(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = A[vi, vj] * 2.0 + A[vi, vj + 1] * 2.0 + A[vi, vj + 2] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def access_opaque_ptr_then_elemwise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [1024])
     B = T.match_buffer(b, [1024])
@@ -464,7 +465,7 @@ def access_opaque_ptr_then_elemwise(a: T.handle, b: T.handle) -> None:
             B[vi] = BB[vi] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def access_opaque_ptr_then_elemwise_inline(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [1024], dtype="float32")
     B = T.match_buffer(b, [1024], dtype="float32")
@@ -483,7 +484,7 @@ def access_opaque_ptr_then_elemwise_inline(a: T.handle, b: T.handle) -> None:
             B[vi] = A_cache[vi] * 2.0 + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_relu(var_A: T.handle, var_B: T.handle, var_compute: T.handle) -> None:
     A = T.match_buffer(var_A, [512, 512], dtype="float32")
     B = T.match_buffer(var_B, [512, 512], dtype="float32")
@@ -505,7 +506,7 @@ def matmul_relu(var_A: T.handle, var_B: T.handle, var_compute: T.handle) -> None
             compute[i0_1, i1_1] = T.max(C[i0_1, i1_1], T.float32(0))
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_output(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -520,7 +521,7 @@ def elementwise_output(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def inline_block_with_init(
     A: T.Buffer((1, 512, 7, 7), "float32"),
     B: T.Buffer((1, 512, 1, 1), "float32"),
@@ -557,7 +558,7 @@ def inline_block_with_init(
                 )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def exp_exp_opaque_access_with_tvm_access_ptr(
     lookup_table: T.Buffer((1024,), "int8"),
     x: T.Buffer((16,), "float16"),
@@ -582,7 +583,7 @@ def exp_exp_opaque_access_with_tvm_access_ptr(
             )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def exp_exp_opaque_access_with_tvm_access_ptr_inlined(
     lookup_table: T.Buffer((1024,), "int8"),
     x: T.Buffer((16,), "float16"),
@@ -602,7 +603,7 @@ def exp_exp_opaque_access_with_tvm_access_ptr_inlined(
             )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_overcomputed_producer(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
 ) -> None:
@@ -617,7 +618,7 @@ def elementwise_overcomputed_producer(
             C[cvi, cvj] = B[cvi, cvj] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_overcomputed_producer_reverse_inlined(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
 ) -> None:
@@ -628,7 +629,7 @@ def elementwise_overcomputed_producer_reverse_inlined(
             C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_overcomputed_producer_simplify_predicate(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
 ) -> None:
@@ -644,7 +645,7 @@ def elementwise_overcomputed_producer_simplify_predicate(
             C[cvi, cvj] = B[cvi, cvj] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_overcomputed_producer_simplify_predicate_reverse_inlined(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
 ) -> None:
@@ -656,7 +657,7 @@ def elementwise_overcomputed_producer_simplify_predicate_reverse_inlined(
             C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_overcomputed_producer_injective_load(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
 ) -> None:
@@ -671,7 +672,7 @@ def elementwise_overcomputed_producer_injective_load(
             C[cvi, cvj] = B[cvi // 16, cvj // 16, cvi % 16, cvj % 16] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_overcomputed_producer_injective_load_reverse_inlined(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
 ) -> None:
@@ -682,7 +683,7 @@ def elementwise_overcomputed_producer_injective_load_reverse_inlined(
             C[vm + vi * 16, vn + vj * 16] = A[vi * 16 + vm, vj * 16 + vn] * 2.0 + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_producer_not_cover_consumer(
     A: T.Buffer((128, 128), "float32"), D: T.Buffer((256, 128), "float32")
 ) -> None:
@@ -697,7 +698,7 @@ def elementwise_producer_not_cover_consumer(
             D[vi, vj] = T.if_then_else(vi >= 128, B[vi - 128, vj], T.float32(0), dtype="float32")
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_producer_is_reduction(
     A: T.Buffer((128, 128), "float32"), D: T.Buffer((128), "float32")
 ) -> None:
@@ -714,7 +715,7 @@ def elementwise_producer_is_reduction(
             D[vi] = B[vi] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_predicate_producer(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.sblock_alloc_buffer((127, 128))
@@ -730,7 +731,7 @@ def elementwise_predicate_producer(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_predicate_producer_inlined(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (127, 128))
@@ -746,7 +747,7 @@ def elementwise_predicate_producer_inlined(a: T.handle, c: T.handle) -> None:
 # fmt: off
 @tvm.script.ir_module
 class Conv2dInt8_TensorCore_with_predicate_before:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer(256, "int32"), p5: T.Buffer(256, "int32"), p6: T.Buffer(256, "int32"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")):
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -867,7 +868,7 @@ class Conv2dInt8_TensorCore_with_predicate_before:
 
 @tvm.script.ir_module
 class Conv2dInt8_TensorCore_with_predicate_after:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((256,), "int32"), p5: T.Buffer((256,), "int32"), p6: T.Buffer((256,), "int32"), p7: T.Buffer((), "int32"), p8: T.Buffer((1,), "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with T.sblock("root"):
@@ -1309,7 +1310,7 @@ def test_reverse_compute_inline_producer_is_reduction():
 
 def test_compute_inline_softmax():
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(p_lv44: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.noalias": True})
         n, m = T.int64(), T.int64()
@@ -1355,7 +1356,7 @@ def test_compute_inline_softmax():
                 T.writes(var_compute_intermediate[v_i0, v_i1, v_i2, v_i3])
                 var_compute_intermediate[v_i0, v_i1, v_i2, v_i3] = T.Cast("float16", var_T_softmax_norm_intermediate[v_i0, v_i1, v_i2, v_i3])
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def after(p_lv44: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.noalias": True})
         n, m = T.int64(), T.int64()
@@ -1403,7 +1404,7 @@ def test_compute_inline_softmax():
 
 def test_reverse_compute_inline_layer_norm():
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(p_lv6: T.handle, weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), p_output0: T.handle):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         n = T.int64()
@@ -1444,7 +1445,7 @@ def test_reverse_compute_inline_layer_norm():
                 T.writes(var_compute_intermediate[v_i0, v_i1, v_i2])
                 var_compute_intermediate[v_i0, v_i1, v_i2] = T.Cast("float16", var_T_layer_norm_intermediate[v_i0, v_i1, v_i2])
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def after(p_lv6: T.handle, weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), p_output0: T.handle):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         n = T.int64()
@@ -1486,7 +1487,7 @@ def test_reverse_compute_inline_layer_norm():
 
 
 def test_reverse_compute_inline_slicing_then_cachewrite():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(
         x: T.Buffer((1, 16, 7, 7), "float32"),
         T_strided_slice_with_axes: T.Buffer((1, 12, 7, 7), "float32"),
@@ -1503,7 +1504,7 @@ def test_reverse_compute_inline_slicing_then_cachewrite():
                     v_ax0, v_ax1, v_ax2, v_ax3
                 ]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def after(
         x: T.Buffer((1, 16, 7, 7), "float32"),
         T_strided_slice_with_axes: T.Buffer((1, 12, 7, 7), "float32"),
@@ -1530,7 +1531,7 @@ def test_reverse_compute_inline_slicing_then_cachewrite():
 
 
 def test_inline_with_reduction():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(
         T_softmax_norm: T.Buffer((T.int64(6), T.int64(1), T.int64(1)), "float32"),
         T_reshape_2: T.Buffer((T.int64(6), T.int64(1), T.int64(64)), "float32"),
@@ -1555,7 +1556,7 @@ def test_inline_with_reduction():
                 T.writes(T_transpose[T.int64(0), T.int64(0), v0, v1])
                 T_transpose[T.int64(0), T.int64(0), v0, v1] = T_batch_matmul_NN[v0, T.int64(0), v1]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def after(
         T_softmax_norm: T.Buffer((T.int64(6), T.int64(1), T.int64(1)), "float32"),
         T_reshape_2: T.Buffer((T.int64(6), T.int64(1), T.int64(64)), "float32"),

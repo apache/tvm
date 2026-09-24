@@ -57,12 +57,13 @@ import tvm_ffi
 
 import tvm
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 @I.ir_module
 class MyModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mm_relu(
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128, 128), "float32"),
@@ -105,7 +106,7 @@ class MyModule:
 
 @I.ir_module
 class ConciseModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mm_relu(
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128, 128), "float32"),
@@ -144,7 +145,7 @@ dtype = "float32"
 # IRModule in TVMScript
 @I.ir_module
 class ConciseModuleFromPython:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mm_relu(
         A: T.Buffer((M, K), dtype),
         B: T.Buffer((K, N), dtype),
@@ -179,7 +180,7 @@ print(tvm_ffi.structural_equal(ConciseModule, ConciseModuleFromPython))
 
 @I.ir_module
 class DynamicShapeModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mm_relu(a: T.handle, b: T.handle, c: T.handle):
         # Dynamic shape definition
         M = T.int32()

@@ -21,6 +21,7 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm.relax.transform import ToMixedPrecision
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -1065,7 +1066,7 @@ def test_call_tir_with_float16_args():
                 R.output(C)
             return C
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_identity(
             Input: T.Buffer(64, "float16"),
             Output: T.Buffer(64, "float16"),

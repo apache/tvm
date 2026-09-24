@@ -25,13 +25,14 @@ from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.tirx.expr import IntImm
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -41,7 +42,7 @@ def elementwise(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_dependent_loops(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -54,7 +55,7 @@ def elementwise_dependent_loops(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_symbolic(a: T.handle, b: T.handle, n: T.int32) -> None:
     A = T.match_buffer(a, (128, 128, n))
     B = T.match_buffer(b, (128, 128, n))
@@ -64,7 +65,7 @@ def elementwise_symbolic(a: T.handle, b: T.handle, n: T.int32) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_symbolic_fused(a: T.handle, b: T.handle, n: T.int32) -> None:
     A = T.match_buffer(a, (128, 128, n))
     B = T.match_buffer(b, (128, 128, n))
@@ -78,7 +79,7 @@ def elementwise_symbolic_fused(a: T.handle, b: T.handle, n: T.int32) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_symbolic_split(a: T.handle, b: T.handle, n: T.int32) -> None:
     A = T.match_buffer(a, (128, 128, n))
     B = T.match_buffer(b, (128, 128, n))
@@ -92,7 +93,7 @@ def elementwise_symbolic_split(a: T.handle, b: T.handle, n: T.int32) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_with_seq(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -108,7 +109,7 @@ def elementwise_with_seq(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = C[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_with_anno(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -121,7 +122,7 @@ def elementwise_with_anno(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_with_thread_binding(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -134,7 +135,7 @@ def elementwise_with_thread_binding(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_with_starting_point(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -147,7 +148,7 @@ def elementwise_with_starting_point(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_with_opaque_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -162,7 +163,7 @@ def elementwise_with_opaque_block(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_fused(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -176,7 +177,7 @@ def elementwise_fused(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_split_case0(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128, 128])
     B = T.match_buffer(b, [128, 128, 128])
@@ -190,7 +191,7 @@ def elementwise_split_case0(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_split_case1(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128, 128])
     B = T.match_buffer(b, [128, 128, 128])
@@ -204,7 +205,7 @@ def elementwise_split_case1(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_split_with_predicate(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128, 128])
     A = T.match_buffer(a, [128, 128, 128])
@@ -219,7 +220,7 @@ def elementwise_split_with_predicate(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_fuse_with_opaque_block(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128, 128])
     A = T.match_buffer(a, [128, 128, 128])
@@ -252,7 +253,7 @@ def elementwise_fuse_with_opaque_block(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_split_with_opaque_block(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128, 128])
     A = T.match_buffer(a, [128, 128, 128])
@@ -269,7 +270,7 @@ def elementwise_split_with_opaque_block(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def opaque_access(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16], "float32")
     B = T.match_buffer(b, [16, 16], "float32")
@@ -287,7 +288,7 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
             T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj, dtype="handle"))
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def opaque_access_fused(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16])
     B = T.match_buffer(b, [16, 16])
@@ -307,7 +308,7 @@ def opaque_access_fused(a: T.handle, b: T.handle) -> None:
             T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, ((vi * 16) + vj), dtype="handle"))
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def opaque_access_split(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (16, 16))
     B = T.match_buffer(b, (16, 16))
@@ -327,7 +328,7 @@ def opaque_access_split(a: T.handle, b: T.handle) -> None:
             T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, ((vi * 16) + vj), dtype="handle"))
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (127, 128))
     B = T.match_buffer(b, (127, 128))
@@ -339,7 +340,7 @@ def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
                 B[vi, vj] = A[vi, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_not_affine_fused(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [127, 128])
     B = T.match_buffer(b, [127, 128])
@@ -392,7 +393,7 @@ def test_split_with_inferred_factor():
 
 
 def test_split_with_dynamic_inferred_factor():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(a: T.handle, b: T.handle) -> None:
         N = T.int32()
         M = T.int32()
@@ -403,7 +404,7 @@ def test_split_with_dynamic_inferred_factor():
                 vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(a: T.handle, b: T.handle) -> None:
         N, M = T.int32(), T.int32()
         A = T.match_buffer(a, (N, 128, M))
@@ -569,7 +570,7 @@ def test_fuse_not_affine():
 
 
 def test_add_unit_loop_above_block():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def zero_dim(
         A: T.Buffer((), "int32"),
         B: T.Buffer((), "int32"),
@@ -579,7 +580,7 @@ def test_add_unit_loop_above_block():
             vi = T.axis.spatial(1, 0)
             C[()] = A[()] + B[()]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def zero_dim_added(
         A: T.Buffer((), "int32"),
         B: T.Buffer((), "int32"),
@@ -597,7 +598,7 @@ def test_add_unit_loop_above_block():
 
 
 def test_add_unit_loop_above_loop():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def zero_dim(
         A: T.Buffer((), "int32"),
         B: T.Buffer((), "int32"),
@@ -608,7 +609,7 @@ def test_add_unit_loop_above_loop():
                 vi = T.axis.spatial(1, 0)
                 C[()] = A[()] + B[()]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def zero_dim_added(
         A: T.Buffer((), "int32"),
         B: T.Buffer((), "int32"),
@@ -692,7 +693,7 @@ def test_split_int64_factors():
 
 
 def test_unsupported_target_scalable_split():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(a: T.handle):
         A = T.match_buffer(a, (128,), "float32")
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
@@ -710,7 +711,7 @@ def test_unsupported_target_scalable_split():
 
 
 def test_fused_symbolic_2D_tiling():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(a: T.handle, b: T.handle, M: T.int32, N: T.int32) -> None:
         A = T.match_buffer(a, (M, N))
         B = T.match_buffer(b, (M, N))
@@ -719,7 +720,7 @@ def test_fused_symbolic_2D_tiling():
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(a: T.handle, b: T.handle, M: T.int32, N: T.int32) -> None:
         A = T.match_buffer(a, (M, N))
         B = T.match_buffer(b, (M, N))

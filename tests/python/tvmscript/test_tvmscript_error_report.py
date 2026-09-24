@@ -27,6 +27,7 @@ import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.script import from_source
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -34,9 +35,7 @@ def check_error(func, rel_lineno, error_type):
     """Check the original exception class and its real source location."""
     source_code = inspect.getsource(func)
     indent = len(re.match(r"^\s*", source_code).group(0))
-    source_code = "@T.prim_func(s_tir=True)\n" + "\n".join(
-        line[indent:] for line in source_code.splitlines()
-    )
+    source_code = "@Ts.prim_func\n" + "\n".join(line[indent:] for line in source_code.splitlines())
     with pytest.raises(error_type) as caught:
         from_source(source_code)
     assert type(caught.value) is error_type
@@ -193,7 +192,7 @@ def test_duplicate_block_axes():
 
     # Python spelling does not rename or merge independently created native axes.
     for source in (duplicate_block_axes, duplicate_block_axes_remap):
-        parsed = T.prim_func(s_tir=True)(source)
+        parsed = Ts.prim_func(source)
         block = parsed.body.block.body.body.body.block
         assert len(block.iter_vars) == 2
         first, second = (axis.var for axis in block.iter_vars)
@@ -239,7 +238,7 @@ def test_invalid_match_buffer_region():
 
 
 def test_buffer_rebinding_preserves_distinct_allocations():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def rebound_buffer() -> None:
         A = T.sblock_alloc_buffer((128, 128), "float32")
         A = T.sblock_alloc_buffer((128, 128), "float32")
@@ -310,7 +309,7 @@ def test_duplicate_block_signature():
     check_error(duplicate_writes, 7, tvm.error.InternalError)
     check_error(duplicate_predicate, 6, tvm.error.InternalError)
     check_error(duplicate_init, 7, ValueError)
-    parsed = T.prim_func(s_tir=True)(duplicate_axes)
+    parsed = Ts.prim_func(duplicate_axes)
     axes = parsed.body.block.body.body.body.block.iter_vars
     assert len(axes) == 3
     assert not axes[0].var.same_as(axes[2].var)
@@ -432,7 +431,7 @@ def test_implicit_root_has_attrs():
     check_error(implicit_root_has_axes, 2, tvm.error.InternalError)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
@@ -443,7 +442,7 @@ def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_non_single_branch(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     C = T.sblock_alloc_buffer((128, 128, 128))
@@ -611,7 +610,7 @@ def test_multi_line_error_report():
     # four physical lines so its AST node spans lineno..end_lineno > lineno.
     source_code = "\n".join(
         [
-            "@T.prim_func(s_tir=True)",
+            "@Ts.prim_func",
             "def f() -> None:",
             "    for i, j in T.grid(16, 16):",
             "        vi, vj = T.axis.remap(",

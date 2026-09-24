@@ -21,6 +21,7 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -29,7 +30,7 @@ def test_rewrite_to_shuffle_0():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16,), "float32"), B: T.Buffer((4,), "float32")):
             A_local = T.alloc_buffer((16,), scope="local")
             for i in range(4):
@@ -39,7 +40,7 @@ def test_rewrite_to_shuffle_0():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((4,), "float32x4"), B: T.Buffer((4,), "float32")):
             A_local = T.alloc_buffer((4,), "float32x4", scope="local")
             for i in range(4):
@@ -61,7 +62,7 @@ def test_rewrite_to_shuffle_1():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((8,), "float32"), B: T.Buffer((1,), "float32")):
             A_local = T.alloc_buffer((8,), scope="local")
             A_local[T.ramp(0, 1, 4)] = A[T.ramp(0, 1, 4)]
@@ -79,7 +80,7 @@ def test_rewrite_to_shuffle_1():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((2,), "float32x4"), B: T.Buffer((1,), "float32")):
             A_local = T.alloc_buffer((2,), "float32x4", scope="local")
             A_local[0] = A[0]
@@ -104,7 +105,7 @@ def test_address_of():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
             for i in range(4):
                 T.evaluate(T.address_of(A[i * 4]))
@@ -112,7 +113,7 @@ def test_address_of():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16,), "float32"), B: T.Buffer((4,), "float32x4")):
             for i in range(4):
                 T.evaluate(T.address_of(A[i * 4]))
@@ -127,7 +128,7 @@ def test_scalar_read_without_write():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16,), "float32")):
             for i in range(4):
                 T.evaluate(A[i * 4])
@@ -135,7 +136,7 @@ def test_scalar_read_without_write():
     # Expected is the same as Before - no transformation
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16,), "float32")):
             for i in range(4):
                 T.evaluate(A[i * 4])
@@ -149,7 +150,7 @@ def test_decl_buffer_alias_chain_uses_flat_root_map():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16,), "float32")):
             A_view = T.decl_buffer((16,), "float32", data=A.data)
             A_view_2 = T.decl_buffer((16,), "float32", data=A_view.data)

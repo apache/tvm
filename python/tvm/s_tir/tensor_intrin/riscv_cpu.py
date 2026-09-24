@@ -23,6 +23,7 @@ import logging
 import tvm_ffi
 
 from tvm.runtime import DataType
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target.codegen import Target, llvm_get_vector_width, target_has_features
 
@@ -73,7 +74,7 @@ def rvv_vec_dot_product_kernels(
         }
     """
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def rvv_vec_dot_prod_desc(
         A: T.Buffer((n_elems,), data_dtype, offset_factor=1),
         B: T.Buffer((n_lanes, n_elems), weight_dtype, offset_factor=1),
@@ -105,7 +106,7 @@ def rvv_vec_dot_product_kernels(
         wide_dtype += str(DataType(data_dtype).bits * 2)
 
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def rvv_vec_dot_prod_impl(
         A: T.Buffer((n_elems,), data_dtype, offset_factor=1),
         B: T.Buffer((n_lanes, n_elems), weight_dtype, offset_factor=1),

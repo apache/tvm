@@ -27,6 +27,7 @@ import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -47,7 +48,7 @@ def _find_compute_scope(func):
 def test_no_op_when_global_symbol_is_absent(use_global_symbol):
     func_attr = {"target": tvm.target.Target("llvm", host="llvm")}
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before():
         T.func_attr(func_attr)
         T.evaluate(0)
@@ -74,7 +75,7 @@ def test_target_host_removed():
 
     @I.ir_module
     class before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"global_symbol": "main", "target": T.target("cuda", host=host)})
             T.evaluate(0)
@@ -95,13 +96,13 @@ def test_internal_subroutine_call():
 
     @I.ir_module
     class before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("llvm", host="llvm")})
             before.subroutine(A.data)
 
         # this test fails if it's made public
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def subroutine(A_data: T.handle("float32")):
             T.func_attr({"target": T.target("llvm")})
             T.evaluate(A_data)
@@ -128,12 +129,12 @@ def test_subroutine_call_to_externally_visible_subroutine():
 
     @I.ir_module
     class before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
             before.subroutine(A.data)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def subroutine(A_data: T.handle("float32")):
             T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm", host="llvm")})
             T.evaluate(A_data)
@@ -160,14 +161,14 @@ def test_zero_arg_function():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func_without_arg() -> T.int64:
             T.func_attr({"target": T.target("llvm", host="llvm")})
             return T.int64(42)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func_without_arg(
             self_handle: T.handle,
             args: T.handle,
@@ -201,7 +202,7 @@ def test_pointer_return():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(arg: T.handle) -> T.handle:
             T.func_attr({"target": T.target("llvm", host="llvm")})
             return arg
@@ -238,7 +239,7 @@ def test_int_parameter():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(arg: T.int32) -> T.int32:
             T.func_attr({"target": T.target("llvm", host="llvm")})
             if arg > 0:
@@ -248,7 +249,7 @@ def test_int_parameter():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             self_handle: T.handle,
             args: T.handle,
@@ -305,7 +306,7 @@ def test_bool_parameter():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(arg: T.bool) -> T.int32:
             T.func_attr({"target": T.target("llvm", host="llvm")})
             if arg:
@@ -315,7 +316,7 @@ def test_bool_parameter():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             self_handle: T.handle,
             args: T.handle,
@@ -372,7 +373,7 @@ def test_float_parameter():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(arg: T.float32) -> T.int32:
             T.func_attr({"target": T.target("llvm", host="llvm")})
             if arg > T.float32(0):
@@ -382,7 +383,7 @@ def test_float_parameter():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             self_handle: T.handle,
             args: T.handle,
@@ -449,7 +450,7 @@ def test_forward_reference_symbolic_variable():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(a: T.handle, b: T.handle):
             T.func_attr({"target": T.target("llvm", host="llvm")})
             batch_size = T.int64()
@@ -468,7 +469,7 @@ def test_buffer_alignment_attached_to_buffer_var():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16,), "float32", align=64)):
             T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
             T.evaluate(A[0])

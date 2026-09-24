@@ -19,6 +19,7 @@ import pytest
 
 import tvm
 from tvm import tirx
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target.codegen import llvm_version_major
 
@@ -49,7 +50,7 @@ def test_create_scalable_tir_intrin():
 
 @pytest.mark.skipif(llvm_version_major() < 13, reason="Stepvector intrinsic was added in LLVM 13.")
 def test_tvm_script_create_scalable_tir_intrin():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def my_func():
         T.call_llvm_intrin("int32xvscalex4", _STEPVECTOR_NAME)
 

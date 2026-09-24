@@ -23,12 +23,13 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 @I.ir_module(s_tir=True)
 class Module:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def add(
         arg0: T.Buffer((2, 2), "float32"),
         arg1: T.Buffer((2, 2), "float32"),

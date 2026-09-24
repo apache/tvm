@@ -61,6 +61,7 @@ from tvm import relax
 from tvm.relax.base_py_module import BasePyModule
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 IS_IN_CI = os.getenv("CI", "").lower() == "true"
@@ -85,7 +86,7 @@ if RUN_EXAMPLE:
 
     @R.py_module
     class MyFirstModule(BasePyModule):
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_tir(
             A: T.Buffer((4,), "float32"),
             B: T.Buffer((4,), "float32"),
@@ -131,7 +132,7 @@ if RUN_EXAMPLE:
 
     @R.py_module
     class DebugModule(BasePyModule):
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def matmul_tir(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             n = T.int32()
             A = T.match_buffer(var_A, (n, 4), "float32")
@@ -209,7 +210,7 @@ if RUN_EXAMPLE:
 
     @R.py_module
     class PipelineModule(BasePyModule):
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def matmul_tir(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             A = T.match_buffer(var_A, (2, 4), "float32")
             B = T.match_buffer(var_B, (4, 3), "float32")
@@ -273,7 +274,7 @@ if RUN_EXAMPLE:
     # A simple Relax module: matmul + bias + relu (a dense layer)
     @I.ir_module
     class DenseLayer:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def bias_add_tir(var_x: T.handle, var_b: T.handle, var_out: T.handle):
             x = T.match_buffer(var_x, (2, 4), "float32")
             b = T.match_buffer(var_b, (4,), "float32")
@@ -401,7 +402,7 @@ if RUN_EXAMPLE:
 
     @R.py_module
     class DynamicModule(BasePyModule):
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def scale_tir(var_x: T.handle, var_out: T.handle):
             n = T.int64()
             x = T.match_buffer(var_x, (n,), "float32")

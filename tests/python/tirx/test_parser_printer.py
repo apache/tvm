@@ -24,6 +24,7 @@ import tvm.script
 import tvm.testing
 from tvm.ir import PointerType, PrimType, TensorRegion, assert_structural_equal
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import TCol, TLane, laneid, warpid
@@ -2265,11 +2266,11 @@ def test_buffer_slice_region():
 def test_global_call_realizes_buffer_elements():
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def add(a: T.float32, b: T.float32) -> T.float32:
             return a + b
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((16,), "float32"),
             B: T.Buffer((16,), "float32"),

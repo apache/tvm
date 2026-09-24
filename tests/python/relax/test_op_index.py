@@ -25,6 +25,7 @@ from tvm.ir import Op
 from tvm.relax import VDevice
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -916,7 +917,7 @@ def test_legalize_dynamic_begin_end():
                 out_ty=R.Tensor((1, 16), "float32"),
             )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def strided_slice(
             A: T.Buffer((T.int64(16), T.int64(16))),
             index: T.int64,
@@ -947,7 +948,7 @@ def test_legalize_dynamic_begin_inf_end():
     # fmt: off
     @I.ir_module(s_tir=True)
     class expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def strided_slice(A: T.Buffer((T.int64(16), T.int64(16)), "float32"), index: T.int64, var_T_dynamic_strided_slice_with_axes: T.handle):
             T.func_attr({"tirx.noalias": True})
             T_dynamic_strided_slice_with_axes = T.match_buffer(var_T_dynamic_strided_slice_with_axes, (T.max(T.int64(16) - T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(0)), T.int64(16)))

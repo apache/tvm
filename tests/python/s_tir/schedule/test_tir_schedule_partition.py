@@ -25,13 +25,14 @@ from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.tirx.expr import IntImm
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -41,7 +42,7 @@ def elementwise(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_symbolic(a: T.handle, b: T.handle, n: T.int32) -> None:
     A = T.match_buffer(a, (128, 128, n))
     B = T.match_buffer(b, (128, 128, n))
@@ -51,7 +52,7 @@ def elementwise_symbolic(a: T.handle, b: T.handle, n: T.int32) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_with_anno(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -64,7 +65,7 @@ def elementwise_with_anno(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_with_thread_binding(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -77,7 +78,7 @@ def elementwise_with_thread_binding(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_with_opaque_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -92,7 +93,7 @@ def elementwise_with_opaque_block(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_partition_with_opaque_block(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128, 128])
     A = T.match_buffer(a, [128, 128, 128])
@@ -129,7 +130,7 @@ def elementwise_partition_with_opaque_block(a: T.handle, b: T.handle) -> None:
                                 B[vi, vj, vk] = A[vi, vj, vk] * T.float32(2)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_loop_partition_case0(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128, 128])
     B = T.match_buffer(b, [128, 128, 128])
@@ -207,7 +208,7 @@ def elementwise_loop_partition_case0(a: T.handle, b: T.handle) -> None:
                             B[vi, vj, vk] = A[vi, vj, vk] * T.float32(2)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_loop_partition_case1(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128, 128])
     B = T.match_buffer(b, [128, 128, 128])
@@ -273,7 +274,7 @@ def elementwise_loop_partition_case1(a: T.handle, b: T.handle) -> None:
                             B[vi, vj, vk] = A[vi, vj, vk] * T.float32(2)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def opaque_access(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16], "float32")
     B = T.match_buffer(b, [16, 16], "float32")
@@ -291,7 +292,7 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
             T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj, dtype="handle"))
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def opaque_access_loop_partition(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (16, 16))
     B = T.match_buffer(b, (16, 16))

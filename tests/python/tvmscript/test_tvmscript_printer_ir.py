@@ -43,10 +43,11 @@ def test_ir_module():
 # from tvm.script import ir as I
 # from tvm.script import tirx as T
 # from tvm.tirx.layout import Axis
+# from tvm.script import s_tir as Ts
 
 @I.ir_module
 class Module:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def foo():
         T.evaluate(0)""",
     )

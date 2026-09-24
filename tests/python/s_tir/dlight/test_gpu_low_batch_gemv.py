@@ -22,6 +22,7 @@ from unittest import mock
 import tvm.testing
 from tvm.s_tir import dlight as dl
 from tvm.s_tir.dlight.gpu import low_batch_gemv
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -29,7 +30,7 @@ from tvm.target import Target
 def test_batch_decode_gemv():
     # fmt: off
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(lv429: T.Buffer((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Buffer((T.int64(4096), T.int64(896)), "float16"), p_lv807: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.noalias": True, "tirx.HoistIfThenElseExprWithBlock": 1})
         batch_size = T.int64()
@@ -59,7 +60,7 @@ def test_batch_decode_gemv():
                     NT_matmul_intermediate[v_i0, v_i1, v_i2] = T.float16(0)
                 NT_matmul_intermediate[v_i0, v_i1, v_i2] = NT_matmul_intermediate[v_i0, v_i1, v_i2] + lv807[v_i0, v_i1, v_k] * dequantize_intermediate_intermediate[v_i2, v_k]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(lv429: T.Buffer((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Buffer((T.int64(4096), T.int64(896)), "float16"), p_lv807: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.HoistIfThenElseExprWithBlock": 1, "tirx.is_scheduled": True, "tirx.noalias": True})
         batch_size = T.int64()
@@ -157,7 +158,7 @@ def test_batch_gemv():
     K = 4096
 
     # fmt: off
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(var_A: T.handle, B: T.Buffer((T.int64(N), T.int64(K)), "float16"), var_NT_matmul: T.handle):
         T.func_attr({"tirx.noalias": True, "tirx.HoistIfThenElseExprWithBlock": 1})
         batch_size = T.int64()
@@ -173,7 +174,7 @@ def test_batch_gemv():
                     NT_matmul[v_i0, v_i1, v_i2] = T.float16(0)
                 NT_matmul[v_i0, v_i1, v_i2] = NT_matmul[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_i2, v_k]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(var_A: T.handle, B: T.Buffer((T.int64(4096), T.int64(4096)), "float16"), var_NT_matmul: T.handle):
         T.func_attr({"tirx.HoistIfThenElseExprWithBlock": 1, "tirx.is_scheduled": True, "tirx.noalias": True})
         batch_size = T.int64()
@@ -258,7 +259,7 @@ def test_batch_gemv():
 
 def test_reduction_symbolic_var():
     # fmt: off
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float32")):
         T.func_attr({"tirx.noalias": True})
         kv_seq_len = T.int64()
@@ -281,7 +282,7 @@ def test_reduction_symbolic_var():
 
 
 def test_small_spatial_axis():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def func(var_A: T.handle, B: T.Buffer((T.int64(8), T.int64(4096)), "float16"), var_C: T.handle):
         T.func_attr({"tirx.noalias": True})
         batch_size = T.int64()
@@ -297,7 +298,7 @@ def test_small_spatial_axis():
                 C[v_i0, v_i1] = C[v_i0, v_i1] + A[v_i0, v_k] * B[v_i1, v_k]
 
     # fmt: off
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(var_A: T.handle, B: T.Buffer((T.int64(8), T.int64(4096)), "float16"), var_C: T.handle):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         batch_size = T.int64()
@@ -388,7 +389,7 @@ def test_small_spatial_axis():
 
 def test_outer_reduction():
     # fmt: off
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         B0: T.Buffer((512, 6144), "uint32"),
         B1: T.Buffer((128, 6144), "float16"),
@@ -415,7 +416,7 @@ def test_outer_reduction():
                     C[v_i0, v_i1, v_i2] = T.float16(0)
                 C[v_i0, v_i1, v_i2] = C[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_k, v_i2]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(B0: T.Buffer((512, 6144), "uint32"), B1: T.Buffer((128, 6144), "float16"), var_A: T.handle, var_C: T.handle):
         T.func_attr({"tirx.is_scheduled": True})
         batch_size = T.int32()
@@ -534,7 +535,7 @@ def test_outer_reduction():
 
 def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
     # fmt: off
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(var_A: T.handle, B: T.Buffer((T.int64(128), T.int64(128)), "float16"), var_C: T.handle):
         T.func_attr({"tir.noalias": True})
         batch_size = T.int64()
@@ -560,7 +561,7 @@ def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
 
 
 def test_low_batch_gemv_rejects_non_einsum_buffer_access():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         var_A: T.handle,
         var_B: T.handle,
@@ -586,7 +587,7 @@ def test_low_batch_gemv_rejects_non_einsum_buffer_access():
 
 def test_low_batch_gemv_broadcast_epilogue():
     # fmt: off
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         var_A: T.handle,
         B: T.Buffer((T.int64(128), T.int64(128)), "float16"),

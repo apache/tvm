@@ -18,6 +18,7 @@ import tvm_ffi
 
 import tvm
 import tvm.script
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 from tvm.tirx.transform.transform import BindTarget
@@ -49,7 +50,7 @@ def test_bf16_simple_store_will_legalize():
     def get_before():
         @tvm.script.ir_module
         class Before:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Cptr: T.handle("bfloat16"),
@@ -67,7 +68,7 @@ def test_bf16_simple_store_will_legalize():
     def after_compute_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Cptr: T.handle("bfloat16"),
@@ -85,7 +86,7 @@ def test_bf16_simple_store_will_legalize():
     def after_storage_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(
                 Aptr: T.handle("uint16", storage_scope="shared"),
                 Cptr: T.handle("uint16"),
@@ -112,7 +113,7 @@ def test_bf16_masked_load_store_will_legalize():
     def get_before():
         @tvm.script.ir_module
         class Before:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(Aptr: T.handle("bfloat16"), Cptr: T.handle("bfloat16")):
                 T.func_attr({"global_symbol": "main"})
                 A = T.decl_buffer((16,), "bfloat16", data=Aptr)
@@ -201,7 +202,7 @@ def test_bf16_storage_compute_scope_will_legalize():
     def get_before():
         @tvm.script.ir_module
         class Before:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Bptr: T.handle("bfloat16", storage_scope="local"),
@@ -221,7 +222,7 @@ def test_bf16_storage_compute_scope_will_legalize():
     def after_compute_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Bptr: T.handle("bfloat16", storage_scope="local"),
@@ -241,7 +242,7 @@ def test_bf16_storage_compute_scope_will_legalize():
     def after_storage_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(
                 Aptr: T.handle("uint16", storage_scope="shared"),
                 Bptr: T.handle("uint16", storage_scope="local"),
@@ -270,7 +271,7 @@ def test_bf16_storage_compute_scope_wont_legalize():
     def get_before():
         @tvm.script.ir_module
         class Before:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Bptr: T.handle("bfloat16", storage_scope="local"),
@@ -290,7 +291,7 @@ def test_bf16_storage_compute_scope_wont_legalize():
     def after_compute_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Bptr: T.handle("bfloat16", storage_scope="local"),
@@ -310,7 +311,7 @@ def test_bf16_storage_compute_scope_wont_legalize():
     def after_storage_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Bptr: T.handle("bfloat16", storage_scope="local"),
@@ -339,7 +340,7 @@ def test_bf16_reduce_will_legalize():
     def get_before():
         @tvm.script.ir_module
         class Before:
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.prim_func(private=True)
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
             ):
@@ -368,7 +369,7 @@ def test_bf16_reduce_will_legalize():
     def after_compute_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.prim_func(private=True)
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
             ):
@@ -403,7 +404,7 @@ def test_bf16_reduce_will_legalize():
     def after_storage_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.prim_func(private=True)
             def main(
                 Aptr: T.handle("uint16", storage_scope="shared"),
             ):
@@ -447,7 +448,7 @@ def test_bf16_reduce_wont_legalize():
     def get_before():
         @tvm.script.ir_module
         class Before:
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.prim_func(private=True)
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
             ):
@@ -476,7 +477,7 @@ def test_bf16_reduce_wont_legalize():
     def after_compute_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.prim_func(private=True)
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
             ):
@@ -505,7 +506,7 @@ def test_bf16_reduce_wont_legalize():
     def after_storage_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.prim_func(private=True)
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
             ):

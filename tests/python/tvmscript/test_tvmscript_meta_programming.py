@@ -16,12 +16,13 @@
 # under the License.
 
 import tvm
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 def test_meta_programming_matmul():
     def matmul_generator(M: int, N: int, K: int, dtype: str):
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             A = T.match_buffer(a, [M, K], dtype=dtype)
             B = T.match_buffer(b, [N, K], dtype=dtype)
@@ -36,7 +37,7 @@ def test_meta_programming_matmul():
 
         return matmul
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def matmul_128_128_128_fp16(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, [128, 128], dtype="float16")
         B = T.match_buffer(b, [128, 128], dtype="float16")
@@ -55,7 +56,7 @@ def test_meta_programming_matmul():
 
 def test_meta_programming_uncaptured_var():
     def generate_erf(dtype):
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
             for i in range(1):
                 with T.sblock("C"):
@@ -63,13 +64,13 @@ def test_meta_programming_uncaptured_var():
 
         return main
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def fp32(A: T.Buffer((1,), "float32"), C: T.Buffer((1,), "float32")):
         for i in range(1):
             with T.sblock("C"):
                 C[i] = T.erf(A[i])
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def fp16(A: T.Buffer((1,), "float16"), C: T.Buffer((1,), "float16")):
         for i in range(1):
             with T.sblock("C"):

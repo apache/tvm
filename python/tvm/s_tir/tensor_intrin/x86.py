@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name,missing-function-docstring
 """Intrinsics for x86 tensorization."""
 
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 from .. import TensorIntrin
@@ -25,7 +26,7 @@ from .. import TensorIntrin
 # Equivalent to the ones in topi/x86/tensor_intrin.py
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def dot_product_16x4_u8i8i32_desc(
     A: T.Buffer((4,), "uint8", offset_factor=1),
     B: T.Buffer((16, 4), "int8", offset_factor=1),
@@ -41,7 +42,7 @@ def dot_product_16x4_u8i8i32_desc(
                     C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def dot_product_16x4_u8i8i32_vnni(
     A: T.Buffer((4,), "uint8", offset_factor=1),
     B: T.Buffer((16, 4), "int8", offset_factor=1),
@@ -67,7 +68,7 @@ def dot_product_16x4_u8i8i32_vnni(
         )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def dot_product_16x4_u8i8i32_avx512(
     A: T.Buffer((4,), "uint8", offset_factor=1),
     B: T.Buffer((16, 4), "int8", offset_factor=1),

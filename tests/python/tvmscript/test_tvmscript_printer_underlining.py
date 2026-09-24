@@ -20,6 +20,7 @@ import pytest
 from tvm_ffi.access_path import AccessPath
 
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.script.printer.doc import (
     ExprStmtDoc,
@@ -423,7 +424,7 @@ def test_longer_prefix_must_win():
 
 
 def test_underline_from_obj():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(a: T.int32, b: T.int32):
         T.evaluate(a)
         T.evaluate(b)
@@ -440,8 +441,9 @@ def test_underline_from_obj():
         """
         # from tvm.script import tirx as T
         # from tvm.tirx.layout import Axis
+        # from tvm.script import s_tir as Ts
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(a: T.int32, b: T.int32):
             T.evaluate(a)
                        ^
@@ -457,7 +459,7 @@ def test_underline_from_obj():
 
 
 def test_underline_from_multi_obj():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func():
         T.evaluate(-1)
         T.evaluate(1)
@@ -481,8 +483,9 @@ def test_underline_from_multi_obj():
         """
         # from tvm.script import tirx as T
         # from tvm.tirx.layout import Axis
+        # from tvm.script import s_tir as Ts
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             T.evaluate(-1)
             T.evaluate(1)
@@ -501,7 +504,7 @@ def test_underline_from_multi_obj():
 
 
 def test_underline_func():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func():
         T.evaluate(0)
 
@@ -515,9 +518,10 @@ def test_underline_func():
         """
         # from tvm.script import tirx as T
         # from tvm.tirx.layout import Axis
+        # from tvm.script import s_tir as Ts
 
-        @T.prim_func(s_tir=True)
-        ^^^^^^^^^^^^^^^^^^^^^^^^
+        @Ts.prim_func
+        ^^^^^^^^^^^^^
         def main():
         ^^^^^^^^^^^
             T.evaluate(0)
@@ -529,7 +533,7 @@ def test_underline_func():
 def test_underline_func_in_irmodule():
     @I.ir_module
     class irmodule:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func():
             T.evaluate(0)
 
@@ -544,11 +548,12 @@ def test_underline_func_in_irmodule():
         # from tvm.script import ir as I
         # from tvm.script import tirx as T
         # from tvm.tirx.layout import Axis
+        # from tvm.script import s_tir as Ts
 
         @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
-            ^^^^^^^^^^^^^^^^^^^^^^^^
+            @Ts.prim_func
+            ^^^^^^^^^^^^^
             def func():
             ^^^^^^^^^^^
                 T.evaluate(0)
@@ -560,7 +565,7 @@ def test_underline_func_in_irmodule():
 def test_underline_irmodule():
     @I.ir_module
     class irmodule:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func():
             T.evaluate(0)
 
@@ -575,13 +580,14 @@ def test_underline_irmodule():
         # from tvm.script import ir as I
         # from tvm.script import tirx as T
         # from tvm.tirx.layout import Axis
+        # from tvm.script import s_tir as Ts
 
         @I.ir_module
         ^^^^^^^^^^^^
         class Module:
         ^^^^^^^^^^^^^
-            @T.prim_func(s_tir=True)
-            ^^^^^^^^^^^^^^^^^^^^^^^^
+            @Ts.prim_func
+            ^^^^^^^^^^^^^
             def func():
             ^^^^^^^^^^^
                 T.evaluate(0)

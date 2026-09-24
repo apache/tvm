@@ -23,13 +23,14 @@ from tvm import relax
 from tvm.relax.transform import LazyTransformParams
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 def test_lazy_transform_params():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
@@ -66,7 +67,7 @@ def test_lazy_transform_params():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
@@ -110,7 +111,7 @@ def test_lazy_transform_params():
 def test_get_item_only():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
@@ -148,7 +149,7 @@ def test_get_item_only():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
@@ -193,7 +194,7 @@ def test_get_item_only():
 def test_extra_get_item_params():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
@@ -231,7 +232,7 @@ def test_extra_get_item_params():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
@@ -278,7 +279,7 @@ def test_extra_get_item_params():
 def test_extra_set_item_params():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
@@ -316,7 +317,7 @@ def test_extra_set_item_params():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
@@ -428,7 +429,7 @@ def test_lazy_transform_params_with_symbolic_vars():
             output = (transformed,)
             return output
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def slice_buffer(
             Input: T.Buffer((16, 16), "float32"),
             slice_index: T.int64,
@@ -463,7 +464,7 @@ def test_lazy_transform_params_with_symbolic_vars():
             output = R.tuple()
             return output
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def slice_buffer(
             Input: T.Buffer((16, 16), "float32"),
             slice_index: T.int64,
@@ -481,7 +482,7 @@ def test_lazy_transform_params_with_symbolic_vars():
 def test_param_shape_symbolic():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(var_w1: T.handle, var_out: T.handle):
             ic = T.int32()
             w1 = T.match_buffer(var_w1, (ic, 16, 3, 3), "float32")
@@ -521,7 +522,7 @@ def test_param_shape_symbolic():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(var_w1: T.handle, var_out: T.handle):
             ic = T.int32()
             w1 = T.match_buffer(var_w1, (ic, 16, 3, 3), "float32")
@@ -566,7 +567,7 @@ def test_param_shape_symbolic():
 def test_output_with_use_site():
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def copy(x: T.Buffer((), "float32"), y: T.Buffer((), "float32")):
             with T.sblock("block"):
                 T.reads(x[()])
@@ -588,7 +589,7 @@ def test_output_with_use_site():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def copy(x: T.Buffer((), "float32"), y: T.Buffer((), "float32")):
             with T.sblock("block"):
                 T.reads(x[()])

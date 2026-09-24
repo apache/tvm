@@ -22,10 +22,11 @@ import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.s_tir.schedule.testing import verify_trace_roundtrip
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul(
     A: T.Buffer((128, 128), "float32"),
     B: T.Buffer((128, 128), "float32"),
@@ -39,7 +40,7 @@ def matmul(
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_after_reorder_block_iter_var(
     A: T.Buffer((128, 128), "float32"),
     B: T.Buffer((128, 128), "float32"),

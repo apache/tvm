@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring,invalid-name,pointless-string-statement
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 """
@@ -23,7 +24,7 @@ e.g. reads/writes, match_buffer/alloc_buffer, serial/block etc.
 """
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
@@ -55,7 +56,7 @@ e.g. env_thread, launch_thread, thread_binding etc.
 """
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
     j1_0 = T.env_thread("threadIdx.x")
     j0_0 = T.env_thread("threadIdx.x")
@@ -86,7 +87,7 @@ This test case is added to test T.grid
 """
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def loop_split(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
@@ -107,7 +108,7 @@ This test case is added to test T.comm_reducer, T.reinterpret, T.tvm_thread_allr
 """
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def lowered_loop_split(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
@@ -153,7 +154,7 @@ This test case is added to test T.Buffer with slice as argument and T.exp
 """
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def different_access_indices(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128, 128], dtype="float32")
     B = T.match_buffer(b, [128, 128], dtype="float32")

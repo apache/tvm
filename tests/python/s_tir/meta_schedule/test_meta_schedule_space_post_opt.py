@@ -26,6 +26,7 @@ import tvm
 import tvm.testing
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.runner.config import EvaluatorConfig
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 from tvm.testing import env
@@ -34,7 +35,7 @@ logging.basicConfig()
 logging.getLogger("tvm.s_tir.meta_schedule").setLevel(logging.DEBUG)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])

@@ -219,8 +219,12 @@ void PrimFuncFrameNode::ExitWithScope() {
 void SBlockFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
 
-  // Allow s_tir::SBlock construction in raw IRBuilder context (no enclosing PrimFuncFrame)
-  // so test fixtures can construct blocks/block-realizes directly.
+  // Shared operations remain usable in S-TIR and raw builder contexts, but
+  // a TIRx function cannot contain an S-TIR block, even with validation disabled.
+  if (auto function = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
+    TVM_FFI_CHECK(function.value()->s_tir, ValueError)
+        << "S-TIR blocks require Ts.prim_func; T.prim_func only accepts TIRx";
+  }
 
   ffi::Array<tvm::tirx::BufferVar> tir_alloc_buffers;
   for (const tvm::tirx::BufferVar& buffer : alloc_buffers) {

@@ -20,6 +20,7 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -45,14 +46,14 @@ def _apply_substitute(mod):
 def test_basic_substitute():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(n: T.int32):
             for i in range(n):
                 T.evaluate(i)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             for i in range(16):
                 T.evaluate(i)
@@ -64,14 +65,14 @@ def test_basic_substitute():
 def test_substitute_allocate():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(n: T.int32):
             A = T.alloc_buffer((n,), "float32")
             T.evaluate(A.data)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             A = T.alloc_buffer((16,), "float32")
             T.evaluate(A.data)
@@ -83,7 +84,7 @@ def test_substitute_allocate():
 def test_substitute_buffer_load():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(n: T.int32):
             A = T.alloc_buffer((n,), "float32")
             for i in range(n):
@@ -91,7 +92,7 @@ def test_substitute_buffer_load():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             A = T.alloc_buffer((16,), "float32")
             for i in range(16):
@@ -104,14 +105,14 @@ def test_substitute_buffer_load():
 def test_substitute_decl_buffer():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(n: T.int32):
             A = T.alloc_buffer((n,), "float32")
             T.evaluate(A.data)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             A = T.alloc_buffer((16,), "float32")
             T.evaluate(A.data)

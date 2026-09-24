@@ -17,6 +17,7 @@
 import tvm
 import tvm.script
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 from tvm.tirx.transform.transform import BindTarget
@@ -27,7 +28,7 @@ from tvm.tirx.transform.transform import BindTarget
 def get_before(dtype: str):
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(Aptr: T.handle(dtype), Bptr: T.handle(dtype), Dptr: T.handle(dtype)):
             T.func_attr({"global_symbol": "main"})
             A = T.decl_buffer((100,), dtype, data=Aptr)
@@ -52,7 +53,7 @@ def cast_to_f8(f8_dtype: str, promote_dtype: str, v):
 def get_after_compute_legalize(dtype: str, promote_dtype: str):
     @tvm.script.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(Aptr: T.handle(dtype), Bptr: T.handle(dtype), Dptr: T.handle(dtype)):
             T.func_attr({"global_symbol": "main"})
             A = T.decl_buffer((100,), dtype, data=Aptr)
@@ -185,7 +186,7 @@ def cast_to_uint8(f8_dtype: str, promote_dtype: str, v):
 def get_after_storage_legalize(dtype: str, promote_dtype: str):
     @tvm.script.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(Aptr: T.handle("uint8"), Bptr: T.handle("uint8"), Dptr: T.handle("uint8")):
             T.func_attr({"global_symbol": "main"})
             A = T.decl_buffer((100,), "uint8", data=Aptr)
@@ -217,7 +218,7 @@ def test_fp8_compute_legalize(dtype, promote_dtype):
 
 
 def test_fp8_compute_legalize_preserves_opaque_buffer_access(dtype, promote_dtype):
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before():
         buffer = T.alloc_buffer((16,), dtype)
         T.evaluate(T.call_extern("void", "consume", buffer.data))

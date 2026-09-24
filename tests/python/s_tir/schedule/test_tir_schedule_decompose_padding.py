@@ -23,6 +23,7 @@ import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
@@ -46,7 +47,7 @@ def check_decompose_padding(origin, scheduled, expected, check_run=False):
 
 
 def test_int64_indices_batch_decompose_padding():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before_decompose(
         x: T.Buffer((T.int64(1), T.int64(128), T.int64(128)), "int32"),
         y: T.Buffer((T.int64(1), T.int64(140), T.int64(128)), "int32"),
@@ -56,7 +57,7 @@ def test_int64_indices_batch_decompose_padding():
                 vb, vi, vj = T.axis.remap("SSS", [b, i, j])
                 y[vb, vi, vj] = T.if_then_else(vi < T.int64(128), x[vb, vi, vj], 0)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def after_decompose(
         x: T.Buffer((T.int64(1), T.int64(128), T.int64(128)), "int32"),
         y: T.Buffer((T.int64(1), T.int64(140), T.int64(128)), "int32"),
@@ -89,14 +90,14 @@ def test_int64_indices_batch_decompose_padding():
 
 
 def test_1d_decompose_padding():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):
         for i in range(140):
             with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 y[vi] = T.if_then_else(vi >= 6 and vi < 134, x[vi - 6], 0, dtype="int32")
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def after_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):
         for i in T.serial(140):
             with T.sblock("block_pad_const"):
@@ -117,7 +118,7 @@ def test_1d_decompose_padding():
     check_decompose_padding(before_decompose, sch.mod["main"], after_decompose, check_run=False)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def sum_pool_2d(
     x: T.Buffer((1, 16, 225, 225), "int8"), tensor: T.Buffer((1, 16, 225, 225), "int8")
 ):
@@ -144,7 +145,7 @@ def sum_pool_2d(
 def test_decompose_hw_padding_direct():
     """Case 0. direct decompose"""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def pooling_decompose_0(
         x: T.Buffer((1, 16, 225, 225), "int8"), tensor: T.Buffer((1, 16, 225, 225), "int8")
     ):
@@ -175,7 +176,7 @@ def test_decompose_hw_padding_direct():
 def test_decompose_hw_padding_tiled():
     """Case 1. tiling and then decompose"""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def pooling_decompose_1(
         x: T.Buffer((1, 16, 225, 225), "int8"), tensor: T.Buffer((1, 16, 225, 225), "int8")
     ) -> None:
@@ -235,7 +236,7 @@ def test_decompose_hw_padding_tiled():
 def test_decompose_hw_padding_tiled_and_lift_pad():
     """Case 2. tiling and then decompose, lift const pad values to outer loop"""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def pooling_decompose_2(
         x: T.Buffer((1, 16, 225, 225), "int8"), tensor: T.Buffer((1, 16, 225, 225), "int8")
     ) -> None:
@@ -295,7 +296,7 @@ def test_decompose_hw_padding_tiled_and_lift_pad():
 def test_decompose_hw_padding_non_perfect_tiled():
     """Case 3. non-perfect tiling and then decompose"""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def pooling_decompose_3(
         x: T.Buffer((1, 16, 225, 225), "int8"), tensor: T.Buffer((1, 16, 225, 225), "int8")
     ) -> None:
@@ -359,7 +360,7 @@ def test_decompose_hw_padding_non_perfect_tiled():
 def test_decompose_wrt_single_child_subtree():
     """Test the case when the decompose position is under the single child subtree"""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def pad_op(
         x: T.Buffer((1, 16, 225, 225), "int8"),
         y: T.Buffer((1, 16, 231, 231), dtype="int8"),
@@ -374,7 +375,7 @@ def test_decompose_wrt_single_child_subtree():
                     dtype="int8",
                 )
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def pad_op_after(
         x: T.Buffer((1, 16, 225, 225), "int8"), y: T.Buffer((1, 16, 231, 231), "int8")
     ):
@@ -400,7 +401,7 @@ def test_decompose_wrt_single_child_subtree():
 def test_not_to_decompose_trivial_predicate():
     """Test the case when the padding condition is trivial"""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def trivial_pad(
         x: T.Buffer((1, 16, 225, 225), "int8"), y: T.Buffer([1, 16, 225, 225], dtype="int8")
     ):

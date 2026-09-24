@@ -106,7 +106,11 @@ The primary decorators are:
 
 - ``@I.ir_module``: marks a Python class as an ``IRModule``. Each method inside becomes a
   function in the module.
-- ``@T.prim_func``: marks a function as a TIR ``PrimFunc``.
+- ``@T.prim_func``: marks a TIRx ``PrimFunc``; S-TIR blocks are rejected.
+- ``@Ts.prim_func``: marks an S-TIR ``PrimFunc``. Import it with
+  ``from tvm.script import s_tir as Ts`` (the implementation is ``tvm.s_tir.script``).
+  Shared operations such as ``Ts.Buffer`` and ``Ts.serial`` also remain available
+  through ``T`` inside an S-TIR function.
 - ``@R.function``: marks a function as a ``relax.Function``.
 
 These can be composed:
@@ -115,7 +119,7 @@ These can be composed:
 
    @I.ir_module
    class MyModule:
-       @T.prim_func(s_tir=True)
+       @Ts.prim_func
        def add_kernel(A: T.Buffer((128,), "float32"),
                       B: T.Buffer((128,), "float32"),
                       C: T.Buffer((128,), "float32")):
@@ -601,7 +605,7 @@ Function definition
 Block and axes
 ~~~~~~~~~~~~~~
 
-Use ``@T.prim_func(s_tir=True)`` for functions with scheduled-TIR blocks and block axes.
+Use ``@Ts.prim_func`` for functions with scheduled-TIR blocks and block axes.
 
 .. code-block:: python
 

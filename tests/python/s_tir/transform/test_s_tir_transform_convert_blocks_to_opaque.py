@@ -21,6 +21,7 @@ import tvm
 import tvm.testing
 from tvm import s_tir, te, tirx
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -32,7 +33,7 @@ def _check(original, transformed):
     tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
@@ -53,7 +54,7 @@ def elementwise_func(a: T.handle, c: T.handle) -> None:
                     C[vi, vj] = B[vi, vj] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def substituted_elementwise_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
@@ -81,7 +82,7 @@ def test_elementwise():
 def test_error_if_predicate_uses_block_variables():
     @I.ir_module(check_well_formed=False, s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer(8, "int32")):
             for i in T.serial(8):
                 with T.sblock():

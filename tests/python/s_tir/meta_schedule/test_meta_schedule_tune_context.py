@@ -25,6 +25,7 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.s_tir.meta_schedule import TuneContext
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -33,7 +34,7 @@ from tvm.target import Target
 
 @tvm.script.ir_module
 class Matmul:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (1024, 1024), "float32")

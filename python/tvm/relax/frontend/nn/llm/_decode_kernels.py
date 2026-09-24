@@ -31,6 +31,7 @@ Contents:
 import math
 from typing import Any
 
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -56,7 +57,7 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
     if sliding_window:
         global_symbol += "_sliding_window"
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_decode_paged_kv(
         Q_handle: T.handle,
         pages_handle: T.handle,
@@ -211,7 +212,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
         global_symbol += "_sliding_window"
 
     # pylint: disable=too-many-branches
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_decode_paged_kv(
         Q_handle: T.handle,
         pages_handle: T.handle,
@@ -412,7 +413,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
 
 
 def _merge_state_inplace_cpu(v_dtype):
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def merge_state_inplace_cpu(
         v: T.handle,
         s: T.handle,
@@ -463,7 +464,7 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_sy
     gdy = num_heads // bdy
     check_thread_limits(target, bdx=bdx, bdy=bdy, bdz=1, gdz=1)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def merge_state_inplace(
         v: T.handle,
         s: T.handle,

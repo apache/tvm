@@ -22,6 +22,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -33,7 +34,7 @@ def test_cmp_load_store(target):
 
     @I.ir_module(s_tir=True)
     class GPUModule:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((32,), "float32"),
             B: T.Buffer((32,), "float32"),
@@ -58,7 +59,7 @@ def test_cmp_load_store(target):
 
     @I.ir_module(s_tir=True)
     class CPUModule:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((32,), "float32"),
             B: T.Buffer((32,), "float32"),

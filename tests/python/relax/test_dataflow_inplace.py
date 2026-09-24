@@ -31,6 +31,7 @@ from tvm.relax.testing.transform import (
     dataflow_single_inplace_call,
 )
 from tvm.relax.transform import DataflowUseInplaceCalls
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -173,7 +174,7 @@ def test_alias_call_tir():
     # call TIR can yield either a single tensor or a tuple
     @I.ir_module(s_tir=True)
     class AliasCallTir:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_id(x: T.handle, y: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_id"})
             m = T.int32()
@@ -186,7 +187,7 @@ def test_alias_call_tir():
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj]
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_id2(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_id"})
             m = T.int32()
@@ -378,7 +379,7 @@ def test_inplace_single_call():
     add_call = TestModule["main"].body.blocks[0].bindings[0].value
     new_add, new_mod = dataflow_single_inplace_call(TestModule, add_call, [0])
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected_add(
         A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
         B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
@@ -398,7 +399,7 @@ def test_inplace_single_call():
         arg == add_call.args[i]
     new_add.attrs.inplace_indices == [0]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected_silu(A: T.Buffer((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"tirx.noalias": True})
         compute = T.sblock_alloc_buffer((T.int64(2), T.int64(3)))
@@ -446,7 +447,7 @@ def test_insert_inplace_calls():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def add_inplace(
             A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
@@ -459,7 +460,7 @@ def test_insert_inplace_calls():
                     T.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[T.int64(0), v_ax1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def multiply_inplace(
             A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
@@ -472,7 +473,7 @@ def test_insert_inplace_calls():
                     T.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[T.int64(0), v_ax1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def subtract_inplace(
             A: T.Buffer((T.int64(1), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
@@ -564,7 +565,7 @@ def test_dynamic():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def add_inplace(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
             a, b = T.int64(), T.int64()
@@ -577,7 +578,7 @@ def test_dynamic():
                     T.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def subtract_inplace(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
             a, b = T.int64(), T.int64()

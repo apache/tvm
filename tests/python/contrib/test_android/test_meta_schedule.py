@@ -29,12 +29,13 @@ import tvm.testing
 import tvm.topi.testing
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.builder import LocalBuilder
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 from .infrastructure import get_android_gpu_target, get_rpc_runner
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])

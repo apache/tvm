@@ -28,12 +28,13 @@ from tvm import tirx
 from tvm.relax.analysis import get_var2val
 from tvm.relax.dpl import *
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
 class Module:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
         T.func_attr({"global_symbol": "tir_matmul"})
         A = T.match_buffer(x, (32, 32))
@@ -47,7 +48,7 @@ class Module:
                     C[i, j] = 0.0
                 C[i, j] += A[i, k] * B[j, k]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tir_relu(x: T.handle, y: T.handle):
         T.func_attr({"global_symbol": "tir_relu"})
         A = T.match_buffer(x, (32, 32))
@@ -57,7 +58,7 @@ class Module:
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tir_zeros(n: T.int64, x: T.handle):
         T.func_attr({"global_symbol": "tir_zeros"})
         A = T.match_buffer(x, [n])

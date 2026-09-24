@@ -31,6 +31,7 @@ from tvm.relax.frontend.torch import relax_dynamo
 from tvm.s_tir import meta_schedule as ms
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -51,7 +52,7 @@ def test_relax_dynamo():
     ### construct the database
     @tvm.script.ir_module
     class Input1_ir:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             inp_0: T.Buffer((T.int64(10), T.int64(100)), "float32"),
             param_0: T.Buffer((T.int64(100), T.int64(10)), "float32"),

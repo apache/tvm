@@ -29,6 +29,7 @@ from tvm.relax.dpl import is_op, wildcard
 from tvm.relax.testing import transform
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.support import utils
 from tvm.testing import env
@@ -388,7 +389,7 @@ def test_no_op_for_call_to_tir():
             _ = Before.shape_func(x)
             return x
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def shape_func(H: T.Buffer(T.int64(4), "int64")):
             H[T.int64(0)] = H[T.int64(0)] + T.int64(1)
 

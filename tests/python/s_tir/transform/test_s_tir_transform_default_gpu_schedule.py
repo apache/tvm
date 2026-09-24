@@ -19,6 +19,7 @@
 import tvm
 import tvm.testing
 from tvm.s_tir.transform import DefaultGPUSchedule
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -27,7 +28,7 @@ def test_broadcast_to_symbolic():
     # fmt: off
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def broadcast_to(
             rxplaceholder: T.Buffer((T.int64(3), T.int64(1)), "float32"),
             var_T_broadcast_to: T.handle,
@@ -46,7 +47,7 @@ def test_broadcast_to_symbolic():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def broadcast_to(rxplaceholder: T.Buffer((T.int64(3), T.int64(1)), "float32"), var_T_broadcast_to: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             x_0, x_1 = T.int64(), T.int64()
@@ -72,7 +73,7 @@ def test_matmul():
     # fmt: off
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def matmul(
             A: T.Buffer((32, 32), "float16"),
             B: T.Buffer((32, 32), "float16"),
@@ -89,7 +90,7 @@ def test_matmul():
                         C[v_i, v_j] = T.float16(0)
                     C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def matmul_gpu(
             A: T.Buffer((32, 32), "float16"),
             B: T.Buffer((32, 32), "float16"),
@@ -113,7 +114,7 @@ def test_matmul():
                         C[v_i, v_j] = T.float16(0)
                     C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def matmul_cpu(
             A: T.Buffer((32, 32), "float16"),
             B: T.Buffer((32, 32), "float16"),
@@ -134,7 +135,7 @@ def test_matmul():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def matmul(
             A: T.Buffer((32, 32), "float16"),
             B: T.Buffer((32, 32), "float16"),
@@ -159,7 +160,7 @@ def test_matmul():
                                 C[v_i, v_j] = T.float16(0)
                             C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def matmul_cpu(A: T.Buffer((32, 32), "float16"), B: T.Buffer((32, 32), "float16"), C: T.Buffer((32, 32), "float16")):
             T.func_attr({"global_symbol": "main", "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}), "tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
@@ -172,7 +173,7 @@ def test_matmul():
                         C[v_i, v_j] = T.float16(0)
                     C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def matmul_gpu(A: T.Buffer((32, 32), "float16"), B: T.Buffer((32, 32), "float16"), C: T.Buffer((32, 32), "float16")):
             T.func_attr({"global_symbol": "main", "target": T.target({"arch": "sm_86", "keys": ["cuda", "gpu"], "kind": "cuda", "max_num_threads": 1024, "tag": "", "thread_warp_size": 32}), "tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
@@ -201,7 +202,7 @@ def test_add():
     # fmt: off
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
@@ -213,7 +214,7 @@ def test_add():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(
             rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"),
             rxplaceholder_1: T.Buffer(
@@ -273,7 +274,7 @@ def test_full():
     # fmt: off
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def full(rxplaceholder: T.Buffer((), "int32"), T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -285,7 +286,7 @@ def test_full():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def full(
             rxplaceholder: T.Buffer((), "int32"),
             T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
@@ -321,7 +322,7 @@ def test_scheduled():
 
     @tvm.script.ir_module
     class Scheduled:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def full(
             rxplaceholder: T.Buffer((), "int32"),
             T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
@@ -357,7 +358,7 @@ def test_multiple():
     # fmt: off
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
@@ -367,7 +368,7 @@ def test_multiple():
                     T.writes(T_add[ax0, ax1, ax2, ax3])
                     T_add[ax0, ax1, ax2, ax3] = rxplaceholder[T.int64(0), ax2, ax3] + rxplaceholder_1[ax0, ax1, ax2, T.int64(0)]
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def full(rxplaceholder: T.Buffer((), "int32"), T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -379,7 +380,7 @@ def test_multiple():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(
             rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"),
             rxplaceholder_1: T.Buffer(
@@ -426,7 +427,7 @@ def test_multiple():
                             + rxplaceholder_1[ax0, ax1, ax2, T.int64(0)]
                         )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def full(
             rxplaceholder: T.Buffer((), "int32"),
             T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
@@ -460,7 +461,7 @@ def test_add_on_metal():
     # fmt: off
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
@@ -472,7 +473,7 @@ def test_add_on_metal():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             for i0_i1_i2_i3_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
@@ -498,7 +499,7 @@ def test_scalar_add():
     # fmt: off
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(rxplaceholder: T.Buffer((), "int64"), T_add: T.Buffer((), "int64")):
             T.func_attr({"tirx.noalias": True})
             with T.sblock("T_add"):
@@ -509,7 +510,7 @@ def test_scalar_add():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(rxplaceholder: T.Buffer((), "int64"), T_add: T.Buffer((), "int64")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
@@ -534,7 +535,7 @@ def test_sum():
     # fmt: off
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def sum(A: T.Buffer((T.int64(2), T.int64(2)), "float64"), A_red: T.Buffer((), "float64")):
             for k0, k1 in T.grid(T.int64(2), T.int64(2)):
                 with T.sblock("A_red"):
@@ -545,7 +546,7 @@ def test_sum():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def sum(A: T.Buffer((T.int64(2), T.int64(2)), "float64"), A_red: T.Buffer((), "float64")):
             T.func_attr({"tirx.is_scheduled": True})
             # with T.sblock("root"):
@@ -575,14 +576,14 @@ def test_scalar_block_no_loops():
     # fmt: off
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def scalar_add(a: T.Buffer((), "float32"), b: T.Buffer((), "float32"), c: T.Buffer((), "float32")):
             with T.sblock("scalar_add"):
                 c[()] = a[()] + b[()]
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def scalar_add(a: T.Buffer((), "float32"), b: T.Buffer((), "float32"), c: T.Buffer((), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
             # with T.sblock("root"):

@@ -19,6 +19,7 @@ import tvm
 import tvm.testing
 from tvm.relax.transform import LegalizeOps
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -36,7 +37,7 @@ def test_quantize_fp32_to_int8():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def quantize(
             A: T.Buffer((T.int64(2), T.int64(4)), "float32"),
             B: T.Buffer((T.int64(2),), "float32"),
@@ -90,7 +91,7 @@ def test_quantize_fp16_to_uint8():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def quantize(
             A: T.Buffer((T.int64(2), T.int64(4)), "float16"),
             B: T.Buffer((T.int64(2),), "float16"),
@@ -144,7 +145,7 @@ def test_quantize_fp32_to_int8_symbolic():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def quantize(var_A: T.handle, var_B: T.handle, var_C: T.handle, var_quantized: T.handle):
             T.func_attr({"tirx.noalias": True})
             n = T.int64()
@@ -195,7 +196,7 @@ def test_quantize_fp32_to_int8_scalar_param():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def quantize(
             A: T.Buffer((T.int64(2), T.int64(4)), "float32"),
             quantized: T.Buffer((T.int64(2), T.int64(4)), "int8"),
@@ -243,7 +244,7 @@ def test_quantize_fp32_to_int8_scalar_1d_param():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def quantize(
             A: T.Buffer((T.int64(2), T.int64(4)), "float32"),
             B: T.Buffer((T.int64(2),), "float32"),
@@ -294,7 +295,7 @@ def test_quantize_fp16_to_int8_scalar_param():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def quantize(
             A: T.Buffer((T.int64(2), T.int64(4)), "float16"),
             quantized: T.Buffer((T.int64(2), T.int64(4)), "int8"),
@@ -340,7 +341,7 @@ def test_dequantize_int8_to_fp32():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def dequantize(
             A: T.Buffer((T.int64(2), T.int64(4)), "int8"),
             B: T.Buffer((T.int64(2),), "float32"),
@@ -386,7 +387,7 @@ def test_dequantize_int8_to_fp32_scalar_param():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def dequantize(
             A: T.Buffer((T.int64(2), T.int64(4)), "int8"),
             dequantized: T.Buffer((T.int64(2), T.int64(4)), "float32"),
@@ -426,7 +427,7 @@ def test_dequantize_int8_to_fp32_symbolic():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def dequantize(
             var_A: T.handle, var_B: T.handle, var_C: T.handle, var_dequantized: T.handle
         ):
@@ -477,7 +478,7 @@ def test_dequantize_int8_to_fp16():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def dequantize(
             A: T.Buffer((T.int64(2), T.int64(4)), "int8"),
             B: T.Buffer((T.int64(2),), "float16"),
@@ -533,7 +534,7 @@ def test_dequantize_int8_to_fp16_scalar_param():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def dequantize(
             A: T.Buffer((T.int64(2), T.int64(4)), "int8"),
             dequantized: T.Buffer((T.int64(2), T.int64(4)), "float16"),

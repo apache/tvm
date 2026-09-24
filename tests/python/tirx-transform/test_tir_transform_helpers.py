@@ -20,13 +20,14 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 def test_annotate_entry_func_single_primfunc():
     @tvm.script.ir_module
     class MockModule:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def func1(A: T.Buffer((16,), "float32")):
             for i in T.serial(16):
                 if i == 5:
@@ -47,14 +48,14 @@ def test_annotate_entry_func_single_primfunc():
 # Test module
 @tvm.script.ir_module
 class MockModule:
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def func1(A: T.Buffer((16,), "float32")):
         for i in T.serial(16):
             if i == 5:
                 if i == 5:
                     A[i] = 0.0
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def func2(A: T.Buffer((32,), "float32")):
         for i in T.serial(32):
             if i == 15:
@@ -92,13 +93,13 @@ def test_bind_target_adds_attribute():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             T.evaluate(0)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             T.func_attr({"target": T.target("cuda")})
             T.evaluate(0)
@@ -112,14 +113,14 @@ def test_bind_target_with_host_to_exposed_function():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             T.func_attr({"global_symbol": "main"})
             T.evaluate(0)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             T.func_attr({"global_symbol": "main", "target": T.target("cuda", host="llvm")})
             T.evaluate(0)
@@ -140,13 +141,13 @@ def test_bind_target_with_host_to_internal_function():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main():
             T.evaluate(0)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main():
             T.func_attr({"target": T.target("cuda")})
             T.evaluate(0)
@@ -160,7 +161,7 @@ def test_bind_target_ignores_existing():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             T.func_attr({"target": T.target("nvptx")})
             T.evaluate(0)
@@ -176,14 +177,14 @@ def test_bind_target_updates_host():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             T.func_attr({"global_symbol": "func", "target": T.target("nvptx")})
             T.evaluate(0)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             T.func_attr(
                 {
@@ -204,22 +205,22 @@ def test_bind_target_multiple_functions():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func1():
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func2():
             T.evaluate(0)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func1():
             T.func_attr({"target": T.target("cuda")})
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func2():
             T.func_attr({"target": T.target("cuda")})
             T.evaluate(0)
@@ -233,11 +234,11 @@ def test_bind_target_with_device_host_call_same_func():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def add(a: T.int32, b: T.int32) -> T.int32:
             return a + b
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((128, 128), "int32"),
             B: T.Buffer((128, 128), "int32"),
@@ -251,17 +252,17 @@ def test_bind_target_with_device_host_call_same_func():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def add(a: T.int32, b: T.int32) -> T.int32:
             T.func_attr({"target": T.target("cuda")})
             return a + b
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def add_host(a: T.int32, b: T.int32) -> T.int32:
             T.func_attr({"target": T.target({"kind": "llvm", "opt-level": 0})})
             return a + b
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((128, 128), "int32"),
             B: T.Buffer((128, 128), "int32"),
@@ -384,7 +385,7 @@ def test_filter_removes_global_var_map():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func():
             T.evaluate(0)
 

@@ -25,6 +25,7 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import ir_builder as I_builder
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.testing import env
@@ -65,7 +66,7 @@ def test_vector_comparison(dtype):
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((1024,), dtype), B: T.Buffer((1024,), dtype)):
             for i_0 in T.thread_binding(8, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
@@ -134,7 +135,7 @@ def test_array_vectorize_add(dtype):
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((64,), vec_dtype), B: T.Buffer((64,), vec_dtype)):
             for i_0 in T.thread_binding(16, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(4, thread="threadIdx.x"):
@@ -168,7 +169,7 @@ def test_vulkan_bool_load():
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((1024,), "bool"), B: T.Buffer((1024,), "int32")):
             for i_0 in T.thread_binding(8, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(128, thread="threadIdx.x"):
@@ -280,7 +281,7 @@ def test_vulkan_while_if():
     n = 1
     dtype = "int32"
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def while_if_gpu(A: T.Buffer((1,), "int32"), B: T.Buffer((1,), "int32")):
         for bx in T.thread_binding(1, thread="blockIdx.x"):
             iterations = T.decl_buffer((1,), "int32", scope="local")
@@ -314,7 +315,7 @@ def test_vulkan_local_threadidx():
     target = tvm.target.Target(target)
     n = 32
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def local_threadidx_func(A: T.Buffer((32,), "int32"), B: T.Buffer((32,), "int32")):
         # First block with thread extent 16
         for _ in range(1):
@@ -354,7 +355,7 @@ def test_vectorized_index_ramp():
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
             A = T.match_buffer(var_A, (n,), "int32", offset_factor=1)
@@ -394,7 +395,7 @@ def test_vectorized_index_broadcast():
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
             A = T.match_buffer(var_A, (n,), "int32", offset_factor=1)
@@ -446,7 +447,7 @@ def test_negative_operand_divmod():
     offset = 16
     divisor = 5
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(A: T.Buffer((N, 2), "int32")):
         for i in T.thread_binding(N, thread="threadIdx.x"):
             with T.sblock("A"):
@@ -474,7 +475,7 @@ def test_cooperative_matrix(out_dtype):
     # fmt: off
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(X: T.Buffer((16, 32), "float16"), W: T.Buffer((32, 16), "float16"), compute: T.Buffer((16, 16), out_dtype)):
             T.func_attr({"tirx.noalias": True})
             X_shared = T.sblock_alloc_buffer((16, 32), "float16", scope="shared")
@@ -576,7 +577,7 @@ def test_codegen_decl_buffer():
 
     @I.ir_module(s_tir=True)
     class AllocationBacked:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def kernel():
             T.func_attr({"calling_conv": 2, "global_symbol": "kernel", "tirx.noalias": True})
             A = T.alloc_buffer((256,), dtype="float32", scope="local")
@@ -590,7 +591,7 @@ def test_codegen_decl_buffer():
 
     @I.ir_module(s_tir=True)
     class ParameterBacked:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((1,), "float32"), B: T.Buffer((1,), "float32")):
             A_buf = T.decl_buffer([1], dtype="float32", data=A.data)
             B_buf = T.decl_buffer([1], dtype="float32", data=B.data)
@@ -607,7 +608,7 @@ def test_codegen_static_shared_memory():
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
             A_shared = T.alloc_buffer((128,), dtype="float32", scope="shared")
 
@@ -642,7 +643,7 @@ def test_unary():
 
         @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(var_A: T.handle, var_B: T.handle):
                 m = T.int32()
                 A = T.match_buffer(var_A, (m,), "float32")
@@ -689,7 +690,7 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):

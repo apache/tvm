@@ -25,6 +25,7 @@ import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.s_tir import dlight as dl
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -211,7 +212,7 @@ def rnn_state_get(
     dtype: str,
 ):
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def _rnn_state_get(
         var_storage: T.handle,
         var_seq_slot_ids: T.handle,
@@ -246,7 +247,7 @@ def rnn_state_set(
     dtype: str,
 ):
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def _rnn_state_set(
         var_storage: T.handle,
         var_seq_slot_ids: T.handle,

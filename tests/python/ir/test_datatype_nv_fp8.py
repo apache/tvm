@@ -22,6 +22,7 @@ import tvm
 import tvm.testing
 import tvm.tirx as tirx
 from tvm import te
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 try:
@@ -41,7 +42,7 @@ except ImportError:
 
 
 def fp8_unary(dtype: str):
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(
         a: T.handle,
         b: T.handle,

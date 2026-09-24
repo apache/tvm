@@ -24,6 +24,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -38,7 +39,7 @@ def test_rewrite_cuda_graph():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
@@ -80,7 +81,7 @@ def test_rewrite_cuda_graph():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
@@ -150,7 +151,7 @@ def test_tuple():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
@@ -193,7 +194,7 @@ def test_tuple():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             T.func_attr({"global_symbol": "exp", "tirx.noalias": True})
             # with T.sblock("root"):
@@ -258,7 +259,7 @@ def test_vm_builtin():
     # fmt: off
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
@@ -294,7 +295,7 @@ def test_vm_builtin():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             T.func_attr({"global_symbol": "exp", "tirx.noalias": True})
             # with T.sblock("root"):
@@ -393,7 +394,7 @@ def test_capture_fixed_inputs():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def fused_conv2d_relu(
             data: T.Buffer((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
             weight1: T.Buffer((T.int64(16), T.int64(3), T.int64(3), T.int64(16)), "float16"),
@@ -456,7 +457,7 @@ def test_capture_fixed_inputs():
                         var_conv2d_nhwc_intermediate[v_i0, v_i1, v_i2, v_i3], T.float16(0)
                     )
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def layer_norm(
             A: T.Buffer((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
             B: T.Buffer((T.int64(16),), "float16"),
@@ -762,7 +763,7 @@ def test_static_args():
 def test_dynamic_capture():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_one(x_handle: T.handle, y_handle: T.handle):
             m = T.int64()
             x = T.match_buffer(x_handle, (m,), "float32")
@@ -800,7 +801,7 @@ def test_dynamic_capture():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_one(x_handle: T.handle, y_handle: T.handle):
             m = T.int64()
             x = T.match_buffer(x_handle, (m,))

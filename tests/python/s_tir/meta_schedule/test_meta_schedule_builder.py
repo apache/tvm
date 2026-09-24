@@ -33,6 +33,7 @@ from tvm.s_tir.meta_schedule.builder import (
     LocalBuilder,
     PyBuilder,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -41,7 +42,7 @@ from tvm.target import Target
 
 @script.ir_module
 class MatmulModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "matmul", "tirx.noalias": True})
         A = T.match_buffer(a, (1024, 1024), "float32")
@@ -57,7 +58,7 @@ class MatmulModule:
 
 @script.ir_module
 class MatmulReluModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def matmul_relu(  # pylint: disable=no-self-argument
         a: T.handle, b: T.handle, d: T.handle
     ) -> None:
@@ -80,7 +81,7 @@ class MatmulReluModule:
 
 @script.ir_module
 class BatchMatmulModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_matmul(  # pylint: disable=no-self-argument
         a: T.handle, b: T.handle, c: T.handle
     ) -> None:

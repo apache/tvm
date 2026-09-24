@@ -17,6 +17,7 @@
 import tvm
 import tvm.testing
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -45,7 +46,7 @@ def test_elementwise():
 
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             for i in T.serial(0, 16):
                 B_new = T.decl_buffer([1, 16], "float32")
@@ -56,7 +57,7 @@ def test_elementwise():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             A_1 = T.decl_buffer(256, dtype="float32", data=A.data)
             C_1 = T.decl_buffer(256, dtype="float32", data=C.data)
@@ -83,7 +84,7 @@ def test_elementwise_without_decl_buffer():
 
     @I.ir_module(check_well_formed=False, s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             for i in T.serial(0, 16):
                 B_new_buf = T.alloc_buffer((1, 16), "float32")
@@ -95,7 +96,7 @@ def test_elementwise_without_decl_buffer():
 
     @I.ir_module(check_well_formed=False, s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(input_A: T.Buffer((16, 16), "float32"), input_C: T.Buffer((16, 16), "float32")):
             A = T.decl_buffer(256, dtype="float32", data=input_A.data)
             C = T.decl_buffer(256, dtype="float32", data=input_C.data)
@@ -116,7 +117,7 @@ def test_gpu():
 
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             i0 = T.env_thread("blockIdx.x")
             i1 = T.env_thread("threadIdx.x")
@@ -133,7 +134,7 @@ def test_gpu():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             A_1 = T.decl_buffer(256, dtype="float32", data=A.data)
             C_1 = T.decl_buffer(256, dtype="float32", data=C.data)
@@ -160,7 +161,7 @@ def test_symbolic():
 
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
             A = T.match_buffer(a, (n, m), "float32")
             C = T.match_buffer(c, (n, m), "float32")
@@ -174,7 +175,7 @@ def test_symbolic():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
             A = T.match_buffer(a, (n, m), "float32")
             C = T.match_buffer(c, (n, m), "float32")
@@ -197,7 +198,7 @@ def test_fused_symbolic():
 
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(a: T.handle, b: T.handle, n: T.int32) -> None:
             A = T.match_buffer(a, (32, n, n), "float32")
             B = T.match_buffer(b, (32, n, n), "float32")
@@ -209,7 +210,7 @@ def test_fused_symbolic():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(a: T.handle, b: T.handle, n: T.int32) -> None:
             input_A = T.match_buffer(a, (32, n, n), "float32")
             input_B = T.match_buffer(b, (32, n, n), "float32")
@@ -228,7 +229,7 @@ def test_fused_symbolic_with_predicate():
 
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(a: T.handle, b: T.handle, n: T.int32) -> None:
             A = T.match_buffer(a, (32, n, n), "float32")
             B = T.match_buffer(b, (32, n, n), "float32")
@@ -246,7 +247,7 @@ def test_fused_symbolic_with_predicate():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(a: T.handle, b: T.handle, n: T.int32) -> None:
             input_A = T.match_buffer(a, (32, n, n), "float32")
             input_B = T.match_buffer(b, (32, n, n), "float32")
@@ -266,7 +267,7 @@ def test_multi_alloc():
 
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((4, 32), "float32"), D: T.Buffer((4, 32), "float32")):
             for i, j in T.grid(4, 32):
                 B = T.decl_buffer((4, 32), "float32", scope="global")
@@ -277,7 +278,7 @@ def test_multi_alloc():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((4, 32), "float32"), D: T.Buffer((4, 32), "float32")):
             A_1 = T.decl_buffer(128, "float32", data=A.data)
             D_1 = T.decl_buffer(128, "float32", data=D.data)
@@ -298,7 +299,7 @@ def test_strided():
 
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             for i0 in T.serial(4):
                 B = T.decl_buffer([4, 17], "float32")
@@ -310,7 +311,7 @@ def test_strided():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             A_1 = T.decl_buffer(256, dtype="float32", data=A.data)
             C_1 = T.decl_buffer(256, dtype="float32", data=C.data)
@@ -333,14 +334,14 @@ def test_boolean():
 
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer(10, "bool"), B: T.Buffer(10, "bool")) -> None:
             for i0 in T.serial(10):
                 B[i0] = A[i0]
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(input_A: T.Buffer(10, "bool"), input_B: T.Buffer(10, "bool")) -> None:
             A = T.decl_buffer(10, dtype="bool", data=input_A.data)
             B = T.decl_buffer(10, dtype="bool", data=input_B.data)
@@ -357,7 +358,7 @@ def test_flatten_inside_block():
 
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             A = T.sblock_alloc_buffer([32, 32])
             for i, j in T.grid(32, 32):
@@ -367,7 +368,7 @@ def test_flatten_inside_block():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             A = T.sblock_alloc_buffer([1024])
             for i, j in T.grid(32, 32):
@@ -383,7 +384,7 @@ def test_build_with_optional_pragma_unroll_explicit():
     def check(value):
         @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(A: T.Buffer((4, 5, 6), "int16"), B: T.Buffer((4, 5, 6), "int16")):
                 for ax0 in T.serial(4, annotations={"pragma_unroll_explicit": value}):
                     for ax1, ax2 in T.grid(5, 6):

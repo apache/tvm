@@ -21,6 +21,7 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -29,7 +30,7 @@ from tvm.target import Target
 
 @tvm.script.ir_module
 class Add:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main"})
@@ -57,7 +58,7 @@ class Add:
 
 
 def test_random_compute_location():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def add_0(
         A: T.Buffer((2048, 2048, 2048), "float32"),
         B: T.Buffer((2048, 2048, 2048), "float32"),

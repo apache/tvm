@@ -21,6 +21,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -31,7 +32,7 @@ def test_rocm_inf_nan():
     def check_inf_nan(n, value, dtype):
         @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
@@ -91,7 +92,7 @@ def test_rocm_vectorize_add():
 
         @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
@@ -120,7 +121,7 @@ def test_rocm_vectorize_add():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_rocm_warp_shuffle():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(
         A_handle: T.handle,
     ):
@@ -151,7 +152,7 @@ def test_rocm_warp_shuffle():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_rocm_vectorized_exp():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(
         A_handle: T.handle,
         B_handle: T.handle,
@@ -185,7 +186,7 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):

@@ -17,6 +17,7 @@
 # ruff: noqa: F401, F821
 import tvm
 from tvm import s_tir
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=no-self-argument
@@ -24,7 +25,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class WithInit:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle) -> None:
         A = T.match_buffer(a, [64, 64, 64])
         B = T.match_buffer(b, [64])
@@ -40,7 +41,7 @@ class WithInit:
 
 @tvm.script.ir_module
 class WithBranch:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle) -> None:
         A = T.match_buffer(a, [64, 64, 64])
         B = T.match_buffer(b, [64])
@@ -58,7 +59,7 @@ class WithBranch:
 
 @tvm.script.ir_module
 class InitWithMatchBuffer:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle) -> None:
         A = T.match_buffer(a, [64, 64, 64])
         B = T.match_buffer(b, [64])
@@ -76,7 +77,7 @@ class InitWithMatchBuffer:
 
 @tvm.script.ir_module
 class BranchWithMatchBuffer:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle) -> None:
         A = T.match_buffer(a, [64, 64, 64])
         B = T.match_buffer(b, [64])

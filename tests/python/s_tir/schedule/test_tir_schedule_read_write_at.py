@@ -43,12 +43,13 @@ from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks,not-callable
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def cuda_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=undefined-loop-variable
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
@@ -73,7 +74,7 @@ def cuda_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disab
                                             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def cuda_matmul_read_at_a(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [2048, 2048], dtype="float32")
     B = T.match_buffer(b, [2048, 2048], dtype="float32")
@@ -107,7 +108,7 @@ def cuda_matmul_read_at_a(a: T.handle, b: T.handle, c: T.handle) -> None:
                                             C[vi, vj] = C[vi, vj] + A_shared[vi, vk] * B[vk, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def cuda_matmul_read_at_ab(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [2048, 2048], dtype="float32")
     B = T.match_buffer(b, [2048, 2048], dtype="float32")
@@ -149,7 +150,7 @@ def cuda_matmul_read_at_ab(a: T.handle, b: T.handle, c: T.handle) -> None:
                                                 C[vi, vj] = T.float32(0)
                                             C[vi, vj] = C[vi, vj] + A_shared[vi, vk] * B_shared[vk, vj]
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def cuda_matmul_write_at_c(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [2048, 2048], dtype="float32")
     B = T.match_buffer(b, [2048, 2048], dtype="float32")

@@ -28,6 +28,7 @@ import tvm.topi.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -35,7 +36,7 @@ from tvm.script import tirx as T
 def test_basic(consume_params):
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ) -> None:
@@ -100,7 +101,7 @@ def test_basic(consume_params):
                 R.output(conv2)
             return conv2
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
@@ -171,7 +172,7 @@ def test_basic(consume_params):
                 R.output(conv2)
             return conv2
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
@@ -1433,7 +1434,7 @@ def test_symbolic_var_1():
 def test_symbolic_var_2():
     @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def zeros(var_T_full: T.handle):
             T.func_attr({"tirx.noalias": True})
             n = T.int64()
@@ -1457,7 +1458,7 @@ def test_symbolic_var_2():
 
     @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def zeros(var_T_full: T.handle):
             T.func_attr({"tirx.noalias": True})
             n = T.int64()
@@ -1517,7 +1518,7 @@ def test_symbolic_var_from_shape():
                 R.output(A_scale)
             return A_scale
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def slice(
             Input_2d: T.Buffer(shape=[16, 16], dtype="int32"),
             slice_index: T.int64,
@@ -1569,7 +1570,7 @@ def test_symbolic_var_from_shape():
                 R.output(output)
             return output
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def slice(
             Input_2d: T.Buffer(shape=[16, 16], dtype="int32"),
             slice_index: T.int64,

@@ -23,6 +23,7 @@ import math
 from typing import Any
 
 from tvm import s_tir, tirx
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -88,7 +89,7 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any]):
     group_size = h_q // h_kv
 
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_tree_attn(  # pylint: disable=too-many-branches,line-too-long
         var_q: T.handle,  # [total_len, h_q, d]
         var_q_indptr: T.handle,  # [batch_size + 1]
@@ -287,7 +288,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
     )
 
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_tree_attn(  # pylint: disable=too-many-branches
         var_q: T.handle, # [total_len, h_q, d]
         var_q_indptr: T.handle, # [batch_size + 1]
@@ -607,7 +608,7 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
 
     # pylint: disable=line-too-long,too-many-branches
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tree_attn_paged_kv_cpu(
         var_q: T.handle, # [total_len, h_q, d]
         var_q_indptr: T.handle, # [batch_size + 1]
@@ -804,7 +805,7 @@ def tree_attn_with_paged_kv_cache(
     sliding_window = False  # Sliding window is not supported in this kernel.
 
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tree_attn_paged_kv(
         var_q: T.handle,  # [total_len, h_q, d]
         var_q_indptr: T.handle,  # [batch_size + 1]

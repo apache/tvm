@@ -21,6 +21,7 @@ import tvm.testing
 from tvm import relax
 from tvm.relax.transform import LegalizeOps
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -40,7 +41,7 @@ def test_image_resize2d():
             gv = R.call_tir(Expected.resize2d, (x,), R.Tensor((2, 16, 16, 3), dtype="float32"))
             return gv
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def resize2d(rxplaceholder: T.Buffer((T.int64(2), T.int64(8), T.int64(8), T.int64(3)), "float32"), resize: T.Buffer((T.int64(2), T.int64(16), T.int64(16), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(16), T.int64(16), T.int64(3)):
@@ -79,7 +80,7 @@ def test_image_resize2d_symbolic():
             gv = R.call_tir(Expected.resize2d, (x,), R.Tensor((n, c, oh, ow, 16), dtype="float32"))
             return gv
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def resize2d(var_rxplaceholder: T.handle, var_resize: T.handle):
             T.func_attr({"tirx.noalias": True})
             c = T.int64()
@@ -118,7 +119,7 @@ def test_image_affine_grid():
             gv = R.call_tir(Expected.affine_grid, (theta,), R.Tensor((2, 2, 16, 16), dtype="float32"))
             return gv
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def affine_grid(var_theta: T.handle, var_compute: T.handle):
             T.func_attr({"tirx.noalias": True})
             theta = T.match_buffer(var_theta, (T.int64(2), T.int64(2), T.int64(3)))

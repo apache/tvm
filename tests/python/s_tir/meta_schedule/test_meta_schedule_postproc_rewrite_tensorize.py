@@ -19,12 +19,13 @@
 import tvm
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.tensor_intrin import cuda, rocm, x86
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
 class Conv2dNCHWcVNNIModuleTiled:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
         placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
@@ -144,7 +145,7 @@ class Conv2dNCHWcVNNIModuleTiled:
 
 @tvm.script.ir_module
 class Conv2dNCHWcVNNIModuleTensorized:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
         placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
@@ -246,7 +247,7 @@ class Conv2dNCHWcVNNIModuleTensorized:
 
 @tvm.script.ir_module
 class DenseDP4ATiled:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         X: T.Buffer((128, 128), "int8"),
         W: T.Buffer((128, 128), "int8"),
@@ -334,7 +335,7 @@ class DenseDP4ATiled:
 
 @tvm.script.ir_module
 class DenseDP4ATensorized:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         X: T.Buffer((128, 128), "int8"),
         W: T.Buffer((128, 128), "int8"),

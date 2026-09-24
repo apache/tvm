@@ -26,12 +26,13 @@ from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_clipping_before(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -54,7 +55,7 @@ def matmul_clipping_before(
             D[vi, vj] = T.min(T.max(temp[vi, vj], lower), upper)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_clipping_expected(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -82,7 +83,7 @@ def test_matmul_clipping():
     verify_trace_roundtrip(sch=sch, mod=matmul_clipping_before)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_clipping_before_per_iteration(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -153,7 +154,7 @@ def test_matmul_clipping_correctness_unified():
     np.testing.assert_allclose(D_original, D_fused, rtol=1e-5, atol=1e-6)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_clipping_multiple_epilogue_before(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -182,7 +183,7 @@ def matmul_clipping_multiple_epilogue_before(
             E[vi, vj] = temp[vi, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_clipping_multiple_epilogue_expected(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -244,7 +245,7 @@ def test_matmul_clipping_commutative_variants(pattern_func):
     lower = -5.0
     upper = 5.0
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def test_func(
         A: T.Buffer((8, 8), "float32"),
         B: T.Buffer((8, 8), "float32"),

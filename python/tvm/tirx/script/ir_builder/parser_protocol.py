@@ -244,11 +244,12 @@ def function_(
 ) -> _frame.PrimFuncFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.function_`.
 
-    Public private/s_tir/persistent options pass to the native function frame;
-    is_stir supplies the JIT spelling. The same frame supports declaration and body entry.
+    Private/persistent options pass to the native TIRx function frame.
+    Legacy s_tir/is_stir flags may only be false; S-TIR uses its own
+    Ts.prim_func entry. The same frame supports declaration and body entry.
     """
-    if is_stir is not None:
-        s_tir = is_stir
+    if s_tir or is_stir:
+        raise ValueError("T.prim_func only accepts TIRx; use Ts.prim_func for S-TIR")
     native = (
         _ffi_api.DeclFunction(private, s_tir, persistent)
         if decl

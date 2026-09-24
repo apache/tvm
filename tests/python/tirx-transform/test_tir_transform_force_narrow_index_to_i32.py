@@ -19,6 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -42,7 +43,7 @@ def _transform():
 
 
 def test_thread_axis1():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(A: T.Buffer((T.int64(64),), "float32"), B: T.Buffer((T.int64(64),), "float32")):
         blockIdx_x = T.env_thread("blockIdx.x")
         T.launch_thread(blockIdx_x, T.int64(2))
@@ -52,7 +53,7 @@ def test_thread_axis1():
             T.Cast("int64", blockIdx_x) * T.int64(32) + T.Cast("int64", threadIdx_x)
         ] + T.float32(1)
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(A: T.Buffer((64,), "float32"), B: T.Buffer((64,), "float32")):
         blockIdx_x = T.env_thread("blockIdx.x")
         T.launch_thread(blockIdx_x, 2)
@@ -66,7 +67,7 @@ def test_thread_axis1():
 
 
 def test_thread_axis2():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before(
         T_reshape: T.Buffer((1, 12, 384, 384), "float32"),
         placeholder_1: T.Buffer((T.int64(1), T.int64(12), T.int64(384), 384), "bool"),
@@ -124,7 +125,7 @@ def test_thread_axis2():
                             T_reshape[ax0, ax1, ax2, ax3],
                         )
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected(
         T_reshape: T.Buffer((1, 12, 384, 384), "float32"),
         placeholder_1: T.Buffer((1, 12, 384, 384), "bool"),
@@ -181,7 +182,7 @@ def test_thread_axis2():
 
 
 def test_block():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(8)):
@@ -189,7 +190,7 @@ def test_block():
                     vi = T.axis.spatial(T.int64(128), i * T.int64(8) + j)
                     B[vi] = A[vi] + T.float32(1)
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int32(16)):
             for j in T.serial(0, T.int32(8)):
@@ -203,7 +204,7 @@ def test_block():
 
 
 def test_reject_blocks():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(8)):
@@ -217,7 +218,7 @@ def test_reject_blocks():
 
 
 def test_i16_buffer():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(A: T.Buffer((128,), "int16"), B: T.Buffer((128,), "int16")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(16)):
@@ -225,7 +226,7 @@ def test_i16_buffer():
                     vi = T.axis.spatial(T.int64(128), i * 8 + j)
                     B[vi] = A[vi] + T.int16(1)
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(A: T.Buffer((128,), "int16"), B: T.Buffer((128,), "int16")):
         for i in T.serial(0, 16):
             for j in T.serial(0, 16):
@@ -239,7 +240,7 @@ def test_i16_buffer():
 
 
 def test_fail_on_buffer_param():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def func(A: T.Buffer((128,), "int64"), B: T.Buffer((128,), "int64")):
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
@@ -253,7 +254,7 @@ def test_fail_on_buffer_param():
 
 
 def test_fail_on_internal_buffer():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def func(A: T.Buffer((128,), "int32"), B: T.Buffer((128,), "int32")):
         C = T.sblock_alloc_buffer((128,), "int64")
         for i in T.serial(0, 16):
@@ -275,7 +276,7 @@ def test_fail_on_internal_buffer():
 def test_pod_params_and_select():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((T.int64(4),), "float32"), B: T.Buffer((T.int64(4),), "float32"), n: T.int64
         ):
@@ -284,7 +285,7 @@ def test_pod_params_and_select():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32"), n: T.int32):
             for i in range(4):
                 B[i] = T.Select(1 <= i, A[i + n], T.Cast("float32", i))
@@ -296,13 +297,13 @@ def test_pod_params_and_select():
 def test_if_then_else_index():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((T.int64(4),), "float32"), B: T.Buffer((1,), "float32"), n: T.int64):
             B[0] = A[T.if_then_else(n < T.int64(0), n + T.int64(1), n)]
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((4,), "float32"), B: T.Buffer((1,), "float32"), n: T.int32):
             B[0] = A[T.if_then_else(n < 0, n + 1, n)]
 
@@ -313,7 +314,7 @@ def test_if_then_else_index():
 def test_conditional_index_mixed_width_branches():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((T.int64(4),), "float32"), B: T.Buffer((4,), "float32"), n: T.int64):
             opaque_index: T.int64 = T.call_extern("opaque_index", n, dtype="int64")
             B[0] = A[T.if_then_else(n < T.int64(0), opaque_index, n)]
@@ -323,7 +324,7 @@ def test_conditional_index_mixed_width_branches():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32"), n: T.int32):
             opaque_index: T.int64 = T.call_extern("opaque_index", n, dtype="int64")
             B[0] = A[T.if_then_else(n < 0, opaque_index, T.Cast("int64", n))]
@@ -338,14 +339,14 @@ def test_conditional_index_mixed_width_branches():
 def test_clz():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((T.int64(4),), "int32")):
             for i in T.serial(T.int64(4)):
                 B[i] = T.clz(i)
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(B: T.Buffer((4,), "int32")):
             for i in range(4):
                 B[i] = T.clz(i) - 32 + 64
@@ -357,13 +358,13 @@ def test_clz():
 def test_right_shift_preserves_sign_extension_after_narrowing():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((T.int64(6),), "float32"), B: T.Buffer((1,), "float32"), n: T.int64):
             B[0] = A[T.shift_right(T.truncmod(n - T.int64(8), T.int64(6)), T.int64(63))]
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((6,), "float32"), B: T.Buffer((1,), "float32"), n: T.int32):
             B[0] = A[T.shift_right(T.truncmod(n - 8, 6), 31)]
 
@@ -377,7 +378,7 @@ def test_right_shift_preserves_sign_extension_after_narrowing():
 def test_right_shift_dynamic_and_vector_amounts():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((T.int64(6),), "float32"),
             B: T.Buffer((T.int64(5),), "float32"),
@@ -394,7 +395,7 @@ def test_right_shift_dynamic_and_vector_amounts():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((6,), "float32"),
             B: T.Buffer((5,), "float32"),
@@ -416,7 +417,7 @@ def test_right_shift_dynamic_and_vector_amounts():
 def test_left_shift_dynamic_and_vector_amounts_remain_valid():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((T.int64(1),), "float32"),
             B: T.Buffer((T.int64(5),), "float32"),
@@ -433,7 +434,7 @@ def test_left_shift_dynamic_and_vector_amounts_remain_valid():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((1,), "float32"),
             B: T.Buffer((5,), "float32"),
@@ -455,7 +456,7 @@ def test_left_shift_dynamic_and_vector_amounts_remain_valid():
 def test_let_binding():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(buf: T.handle):
             n = T.int64()
             Buf = T.match_buffer(buf, [n], "int32")
@@ -465,7 +466,7 @@ def test_let_binding():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(buf: T.handle):
             n = T.int32()
             Buf = T.match_buffer(buf, [n], "int32")

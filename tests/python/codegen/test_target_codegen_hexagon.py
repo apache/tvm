@@ -23,6 +23,7 @@ import tvm
 import tvm.contrib.hexagon as hexagon
 import tvm.testing
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -43,7 +44,7 @@ def test_basic():
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             C: T.Buffer((128,), "uint8"),
             A: T.Buffer((128,), "uint8"),
@@ -69,7 +70,7 @@ def test_llvm_target_features():
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_one(C: T.Buffer((128,), "int32"), A: T.Buffer((128,), "uint8")):
             T.func_attr({"tirx.noalias": True})
             for i in range(128):
@@ -102,7 +103,7 @@ def test_llvm_options():
 
     @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(compute: T.Buffer((10,), "int32")):
             T.func_attr({"tirx.noalias": True})
             for _ in range(10):

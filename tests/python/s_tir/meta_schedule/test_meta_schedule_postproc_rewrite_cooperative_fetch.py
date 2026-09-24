@@ -22,6 +22,7 @@ import tvm.testing
 from tvm import tirx
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing import te_workload
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 from tvm.te import create_prim_func
@@ -52,7 +53,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 
 @tvm.script.ir_module
 class AfterRewrite0:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(var_A: T.handle, var_B: T.handle, var_C: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -106,7 +107,7 @@ class AfterRewrite0:
 
 @tvm.script.ir_module
 class WarpExecutionAfterRewrite:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         A: T.Buffer((512, 512), "float32"),
         B: T.Buffer((512, 512), "float32"),
