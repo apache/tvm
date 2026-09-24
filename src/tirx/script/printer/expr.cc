@@ -371,7 +371,11 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     // Annotation spellings such as None for an empty tuple are not type values.
     return d->AddMetadata(call->ty);
   };
-  if (call->attrs.defined()) {
+  const auto* call_op = call->op.as<OpNode>();
+  const auto* dict_attrs = call->attrs.as<DictAttrsNode>();
+  bool has_cuda_lazy_args = call_op && call_op->name == "tirx.cuda.func_call" && dict_attrs &&
+                            dict_attrs->dict.size() == 1 && dict_attrs->dict.count("lazy_args");
+  if (call->attrs.defined() && !has_cuda_lazy_args) {
     ffi::Array<ExprDoc> call_args;
     int n_args = call->args.size();
     call_args.reserve(n_args);
@@ -472,6 +476,16 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
       ExprDoc src = LiteralDoc::Str(src_str->value, call_p->Attr("args")->ArrayItem(n_args - 1));
       kw_keys.push_back("source_code");
       kw_vals.push_back(src);
+      if (has_cuda_lazy_args) {
+        ffi::Array<ExprDoc> lazy_args;
+        auto indices_p = call_p->Attr("attrs")->Attr("__dict__")->MapItem("lazy_args");
+        int i = 0;
+        for (int64_t index : dict_attrs->dict.at("lazy_args").cast<ffi::Array<int64_t>>()) {
+          lazy_args.push_back(LiteralDoc::Int(index, indices_p->ArrayItem(i++)));
+        }
+        kw_keys.push_back("lazy_args");
+        kw_vals.push_back(TupleDoc(lazy_args));
+      }
       // If non-void return type, print return_type keyword.
       if (!call_prim_type || !call_prim_type.value().IsVoid()) {
         kw_keys.push_back("return_type");

@@ -28,10 +28,12 @@ contract asserted here: it polls relaxed, closes an acquiring wait with one
 caller's destination. The protocols exercised are the shapes real kernels use.
 """
 
+import numpy as np
 import pytest
 
 import tvm
 from tvm.script import tirx as T
+from tvm.support.popen_pool import PopenWorker
 
 
 def build(func):
@@ -97,6 +99,54 @@ def _wait_macro(source):
     return next(
         line for line in source.splitlines() if line.startswith("#define") and "wait_until" in line
     )
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("backoff_ns", [None, 40])
+def test_conditional_predicate_observes_loaded_value(backoff_ns):
+    """Statements needed by a lazy predicate must execute after the polling load."""
+
+    def run():
+        @T.prim_func
+        def kernel(state: T.Buffer((32,), "int32"), out: T.Buffer((32,), "int32")):
+            T.device_entry()
+            T.cta_id([1])
+            lane = T.thread_id([32])
+            observed = T.alloc_local((1,), "int32")
+            observed[0] = 999
+            if lane < 17:
+                T.cuda.wait_until(
+                    observed[0],
+                    state.ptr_to([lane]),
+                    lambda current: T.if_then_else(
+                        lane % 2 == 0,
+                        current // 2 == (lane + 17) // 2,
+                        T.bitwise_and(current, 255) == lane + 17,
+                    ),
+                    backoff_ns=backoff_ns,
+                )
+                out[lane] = observed[0]
+
+        target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+        with target:
+            executable = tvm.compile(
+                tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx"
+            )
+        state = tvm.runtime.tensor(np.arange(17, 49, dtype="int32"), device=tvm.cuda(0))
+        output = tvm.runtime.tensor(np.zeros(32, dtype="int32"), device=tvm.cuda(0))
+        executable(state, output)
+        expected = np.zeros(32, dtype="int32")
+        expected[:17] = np.arange(17, 34, dtype="int32")
+        np.testing.assert_array_equal(output.numpy(), expected)
+
+    # A stale false predicate spins forever. Isolate the CUDA context so a
+    # regression fails with a timeout and cannot leave a kernel running.
+    worker = PopenWorker()
+    try:
+        worker.send(run, timeout=60)
+        worker.recv()
+    finally:
+        worker.kill()
 
 
 # =============================================================================

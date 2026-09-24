@@ -2712,6 +2712,27 @@ def test_roundtrip_cuda_func_call_source_code():
     assert_structural_equal(func, from_source(code))
 
 
+def test_roundtrip_cuda_func_call_lazy_args():
+    """Preserve lazy argument positions, embedded source, and the return type."""
+    source = "\n#define choose_values(first, second) ((first) + (second))\n"
+
+    @T.prim_func
+    def func(A: T.Buffer((2,), "int32")):
+        T.device_entry()
+        A[0] = T.cuda.func_call(
+            "choose_values",
+            T.if_then_else(A[0] > 0, A[0], A[1]),
+            T.if_then_else(A[1] > 0, A[1], A[0]),
+            source_code=source,
+            return_type="int32",
+            lazy_args=(0, 1),
+        )
+
+    code = func.script()
+    assert from_source(code).script() == code
+    assert_structural_equal(func, from_source(code))
+
+
 def test_roundtrip_cp_async_bulk_tensor_g2s_cluster():
     """The TMA load composite [tensorMap, coords] operand must round-trip."""
 

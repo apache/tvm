@@ -1033,6 +1033,69 @@ __device__ void print(int32_t a) {
     test_print()
 
 
+@pytest.mark.parametrize("lazy_args", [(), (1,), (2,), (1, 2)])
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_cuda_func_call_lazy_args(lazy_args):
+    """Each marked argument observes updates at its own macro evaluation site."""
+    source = r"""
+#define evaluate_values(dst, first, second) do { \
+    (dst) = 3; \
+    int first_value = (first); \
+    (dst) = 7; \
+    (dst) = first_value + (first) + (second); \
+} while (0)
+"""
+
+    @T.prim_func
+    def main(out: T.Buffer((32,), "int32")):
+        T.device_entry()
+        T.cta_id([1])
+        lane = T.thread_id([32])
+        value = T.alloc_local((1,), "int32")
+        value[0] = 1
+        T.cuda.func_call(
+            "evaluate_values",
+            value[0],
+            T.if_then_else(
+                lane % 2 == 0,
+                T.if_then_else(lane % 4 == 0, value[0] * 2, value[0] * 4),
+                value[0] * 3,
+            ),
+            T.if_then_else(
+                lane % 2 == 0,
+                T.if_then_else(lane % 4 == 0, value[0] * 2, value[0] * 4),
+                value[0] * 3,
+            ),
+            source_code=source,
+            lazy_args=lazy_args,
+        )
+        out[lane] = value[0]
+
+    # Attributes must survive serialization and the normal lowering pipeline.
+    _, mod = _get_source(tvm.ir.load_json(tvm.ir.save_json(main)))
+    lanes = np.arange(32)
+    scale = np.where(lanes % 4 == 0, 2, np.where(lanes % 2 == 0, 4, 3))
+    expected = scale * ((3 + 7 if 1 in lazy_args else 1 + 1) + (7 if 2 in lazy_args else 1))
+
+    def run_and_check():
+        output = tvm.runtime.tensor(np.zeros(32, dtype="int32"), device=tvm.cuda())
+        mod(output)
+        np.testing.assert_array_equal(output.numpy(), expected)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.parametrize(
+    "lazy_args, error", [((-1,), ValueError), ((1,), ValueError), ((0.5,), TypeError)]
+)
+def test_cuda_func_call_invalid_lazy_args(lazy_args, error):
+    from tvm.backend.cuda.op import cuda_func_call
+
+    with pytest.raises(error, match="lazy_args"):
+        cuda_func_call("macro", 1, source_code="", lazy_args=lazy_args)
+
+
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_warp_shuffle_xor_sync():

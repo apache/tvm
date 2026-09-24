@@ -1033,9 +1033,42 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
   auto print_cuda_func_call = [&](const CallNode* op, std::ostream& os) {
     TVM_FFI_ICHECK_GE(op->args.size(), 2U);
     size_t num_args = op->args.size() - 2;
+    std::vector<bool> lazy_args(num_args, false);
+    if (const auto* attrs = op->attrs.as<DictAttrsNode>()) {
+      if (auto indices = attrs->dict.Get("lazy_args")) {
+        for (int64_t index : indices.value().cast<ffi::Array<int64_t>>()) {
+          TVM_FFI_ICHECK_GE(index, 0) << "cuda_func_call lazy_args index is out of range";
+          TVM_FFI_ICHECK_LT(static_cast<size_t>(index), num_args)
+              << "cuda_func_call lazy_args index is out of range";
+          lazy_args[index] = true;
+        }
+      }
+    }
     std::vector<std::string> args;
     for (size_t i = 1; i < num_args + 1; i++) {
-      args.push_back(this->PrintExpr(op->args[i]));
+      if (lazy_args[i - 1]) {
+        // PrintExpr can emit statements (e.g. for if_then_else). Keep them
+        // inside this argument so the macro controls their evaluation.
+        std::ostringstream outer_stream;
+        stream.swap(outer_stream);
+        int scope = BeginScope();
+        std::string value = PrintExpr(op->args[i]);
+        bool has_statements = !stream.str().empty();
+        if (has_statements) {
+          PrintIndent();
+          stream << "return " << value << ";\n";
+        }
+        EndScope(scope);
+        if (has_statements) {
+          PrintIndent();
+          stream << "}())";
+          value = "([&]() {\n" + stream.str();
+        }
+        stream.swap(outer_stream);
+        args.push_back(value);
+      } else {
+        args.push_back(this->PrintExpr(op->args[i]));
+      }
     }
     std::string source_code = op->args[num_args + 1].as<StringImmNode>()->value;
     std::string func_name = op->args[0].as<StringImmNode>()->value;

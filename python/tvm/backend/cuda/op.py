@@ -88,8 +88,8 @@ def cuda_iket_official_event(event_id, source_code="", payload=None):
     return call_intrin("uint32", "tirx.cuda.iket_official_event", event_id, source_code)
 
 
-def cuda_func_call(func_name, *args, source_code, return_type="void"):
-    """TVM intrinsic to call a CUDA function. Source code is provided as a string.
+def cuda_func_call(func_name, *args, source_code, return_type="void", lazy_args=()):
+    """TVM intrinsic to call a CUDA function or macro supplied as source code.
 
     Parameters
     ----------
@@ -104,8 +104,24 @@ def cuda_func_call(func_name, *args, source_code, return_type="void"):
 
     return_type: str
         The return type of the CUDA function.
+
+    lazy_args: Sequence[int]
+        Zero-based indices into ``args`` whose generated statements must remain
+        inside the argument expression. Use this for value arguments evaluated
+        conditionally or repeatedly by a macro. The macro determines when and
+        how often they run; an ordinary function still evaluates its arguments
+        before entering its body. Output arguments that require an lvalue should
+        not be marked lazy. The default preserves ordinary argument codegen.
     """
-    return call_intrin(return_type, "tirx.cuda.func_call", func_name, *args, source_code)
+    lazy_args = tuple(lazy_args)
+    if any(isinstance(i, bool) or not isinstance(i, int) for i in lazy_args):
+        raise TypeError("cuda_func_call lazy_args must contain integer argument indices")
+    if any(i < 0 or i >= len(args) for i in lazy_args):
+        raise ValueError("cuda_func_call lazy_args index is out of range")
+    attrs = {"lazy_args": tuple(sorted(set(lazy_args)))} if lazy_args else None
+    return call_intrin(
+        return_type, "tirx.cuda.func_call", func_name, *args, source_code, attrs=attrs
+    )
 
 
 def cuda_warp_reduce(value, op, width=32):
@@ -459,12 +475,12 @@ def cuda_wait_until(
     word: the checker judges every access to that address against the protocol
     the wait names, rather than as an ordinary pair of memory accesses.
 
-    ``dst`` is an initialized thread-local scalar; its current value is tested
-    first, so an already satisfied predicate performs no load. ``predicate`` is
-    a trace-time callable taking the current value, or the boolean expression
-    itself. It is re-evaluated on every iteration, so it may test ``dst``
-    against a loop-carried scalar such as a barrier's phase: the loop body only
-    loads, and nothing it does can move that scalar.
+    ``dst`` is a writable thread-local scalar. Each poll loads into ``dst``
+    before testing the predicate, so its initial value is not used.
+    ``predicate`` is a trace-time callable taking the current value, or the
+    boolean expression itself. It is re-evaluated on every iteration, so it may
+    test ``dst`` against a loop-carried scalar such as a barrier's phase: the
+    loop body only loads, and nothing it does can move that scalar.
 
     The wait always synchronizes with the contributions that made the
     predicate hold, so data those threads published elsewhere is visible when
@@ -492,9 +508,9 @@ def cuda_wait_until(
     only ``global``.
 
     ``backoff_ns`` puts a ``__nanosleep`` before each retry, as a contended
-    wait is ordinarily written. It goes before the load, so a predicate that
-    holds on entry still performs no load and no sleep, and a wait whose first
-    poll succeeds pays nothing. A kernel that spells the backoff itself writes
+    wait is ordinarily written. It goes before each retry's load, so a wait
+    whose first poll succeeds performs one load and no sleep before the
+    closing acquire. A kernel that spells the backoff itself writes
     ``ld`` once and then waits, which is the same instruction sequence.
 
     The backoff is the only thing a wait carries besides its own load, and it
