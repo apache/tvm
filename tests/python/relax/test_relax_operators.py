@@ -495,8 +495,9 @@ def test_py_func_registry_is_scoped_to_its_module():
 
     # __new__ skips __init__'s JIT compilation; only the registration matters here.
     module = BasePyModule.__new__(BasePyModule)
-    module.ir_mod = SimpleNamespace(pyfuncs={"registry_owned": lambda self, x: x})
+    module.ir_mod = SimpleNamespace(__pyfuncs__={"registry_owned": lambda self, x: x})
     module._register_python_functions()
+    assert get_func("registry_owned") is not None
     module_ref = weakref.ref(module)
 
     del module
