@@ -36,6 +36,7 @@ from .frame import IRModuleFrame
 from .ir import (
     decl_function,
     def_function,
+    dynamic,
     ir_module,
     lookup_name,
     meta_var,
@@ -62,6 +63,7 @@ __all__ = [
     "constexpr",
     "decl_function",
     "def_function",
+    "dynamic",
     "ir_module",
     "lookup_name",
     "meta_var",

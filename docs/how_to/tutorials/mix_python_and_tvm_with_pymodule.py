@@ -129,12 +129,12 @@ if RUN_EXAMPLE:
 # immediately — no recompilation needed.
 
 if RUN_EXAMPLE:
+    n = T.dynamic("n", "int32")
 
     @R.py_module
     class DebugModule(BasePyModule):
         @Ts.prim_func
         def matmul_tir(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            n = T.int32()
             A = T.match_buffer(var_A, (n, 4), "float32")
             B = T.match_buffer(var_B, (4, 3), "float32")
             C = T.match_buffer(var_C, (n, 3), "float32")
@@ -399,12 +399,12 @@ if RUN_EXAMPLE:
 # tensors at call time, so the same module handles different sizes without recompilation.
 
 if RUN_EXAMPLE:
+    n = T.dynamic("n", "int64")
 
     @R.py_module
     class DynamicModule(BasePyModule):
         @Ts.prim_func
         def scale_tir(var_x: T.handle, var_out: T.handle):
-            n = T.int64()
             x = T.match_buffer(var_x, (n,), "float32")
             out = T.match_buffer(var_out, (n,), "float32")
             for i in T.serial(n):
@@ -435,7 +435,7 @@ if RUN_EXAMPLE:
     print("add_relax(len=10):", out10)
 
     # Python → TIR with symbolic output shape
-    n = T.int64()
+    n = T.dynamic("n", "int64")
     x7 = torch.randn(7)
     scaled = mod.call_tir("scale_tir", [x7], relax.TensorType((n,), "float32"))
     print("scale_tir(len=7):", scaled)

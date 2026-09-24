@@ -49,7 +49,7 @@ ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifie
   if (f != nullptr) {
     auto walk_fn = [f, &func_var_mode](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
       if (auto prim_var = var.as<PrimVar>()) {
-        if (f->func_vars->count(prim_var.value().get())) {
+        if (f->prim_params->count(prim_var.value().get())) {
           func_var_mode = true;
         }
       }

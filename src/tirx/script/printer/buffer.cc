@@ -32,8 +32,8 @@ namespace printer {
 ffi::Map<ffi::String, ExprDoc> BufferAttrs(
     tirx::BufferVar buffer, const AccessPath& buffer_p, const Frame& frame, const IRDocsifier& d,
     BufferVarDefinition var_definitions, ffi::Optional<Expr> data = std::nullopt,
-    bool stringify_undefined_shape = false, std::unordered_set<tirx::Var> stringify_shape_vars = {},
-    std::unordered_set<tirx::Var> stringify_compound_shape_vars = {}) {
+    bool stringify_undefined_shape = false,
+    std::unordered_set<tirx::Var> stringify_shape_vars = {}) {
   using tvm::tirx::Var;
   using tvm::tirx::VarNode;
   ffi::Map<ffi::String, ExprDoc> kwargs;
@@ -64,16 +64,14 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
   }
   auto is_new_var = [&](const Expr& e) { return e->IsInstance<VarNode>() && !d->IsVarDefined(e); };
   // All expression-string annotation fields use the same Python-binding rule.
-  // Bare TypeVars are real annotation bindings; compound expressions involving
-  // them, or any expression referring to a later parameter, must be quoted.
+  // Dynamic symbols are real Python bindings; expressions referring to later
+  // scalar parameters must still be quoted.
   auto expression_doc = [&](const PrimExpr& e, const AccessPath& e_p,
                             bool was_undefined = false) -> ExprDoc {
     bool needs_quote = stringify_undefined_shape && was_undefined;
     auto walk_fn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-      needs_quote = needs_quote ||
-                    (stringify_undefined_shape &&
-                     (!d->IsVarDefined(var) || stringify_shape_vars.count(var))) ||
-                    (stringify_compound_shape_vars.count(var) && !e.same_as(var));
+      needs_quote = needs_quote || (stringify_undefined_shape &&
+                                    (!d->IsVarDefined(var) || stringify_shape_vars.count(var)));
       return ffi::WalkResult::Advance();
     };
     ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(e, walk_fn);
@@ -324,11 +322,10 @@ ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
 }
 
 ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
-                   const IRDocsifier& d, std::unordered_set<tirx::Var> stringify_shape_vars,
-                   std::unordered_set<tirx::Var> stringify_compound_shape_vars) {
+                   const IRDocsifier& d, std::unordered_set<tirx::Var> stringify_shape_vars) {
   ffi::Map<ffi::String, ExprDoc> attrs =
       BufferAttrs(buffer, p, frame, d, BufferVarDefinition::MatchBuffer, std::nullopt, true,
-                  std::move(stringify_shape_vars), std::move(stringify_compound_shape_vars));
+                  std::move(stringify_shape_vars));
   if (!attrs.count("dtype")) {
     attrs.Set("dtype", LiteralDoc::DataType(buffer->dtype->dtype, p->Attr("dtype")));
   }

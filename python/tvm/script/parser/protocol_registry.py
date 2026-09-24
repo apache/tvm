@@ -71,7 +71,7 @@ class ArgsPolicy(NamedTuple):
 
 
 ARGS_POLICIES: dict[str, ArgsPolicy] = {}
-TYPE_VAR_DECL: dict[str, object] = {}
+SCALAR_ANNOTATION_DTYPE: dict[str, object] = {}
 MUTABLE_CELL_DECL: dict[str, frozenset[str]] = {}
 RESULT_SPAN: dict[str, bool] = {}
 MODULE_DECORATOR: dict[str, bool] = {}
@@ -208,45 +208,18 @@ def handle_call_args_policy(
     return (policy, policy.positional_parameters) if policy is not None else None
 
 
-def register_type_var_decl(
+def register_scalar_annotation(
     namespace_path: str,
     constructor: _Callable,
     *,
     dtype: object = None,
 ) -> _Callable:
-    """Register symbolic declaration syntax and return the unchanged constructor.
+    """Register the dtype of a fixed scalar annotation without evaluating it.
 
-    Parameters
-    ----------
-    namespace_path : str
-        Canonical registered namespace alias and exported callable path, such
-        as ``"T.int32"``. A later registration at this path replaces its dtype.
-    constructor : Callable
-        Callable providing the eager construction operation. Registration
-        records its syntax path without invoking or wrapping this callable.
-    dtype : object, optional
-        Static scalar dtype forwarded to the language variant's symbol resolver.
-        None (the default) leaves the dtype unspecified for that resolver.
-
-    Returns
-    -------
-    Callable
-        The exact ``constructor`` object.
-
-    Notes
-    -----
-    Zero-argument calls denote declarations. Dictionary membership distinguishes
-    an unspecified dtype from an unregistered
-    constructor. The parser predeclares symbols needed by signatures while the
-    native function owns their identity. No constructor executes at registration.
-
-    .. code:: python
-
-        register_type_var_decl("T.int32", T.int32, dtype="int32")
-        # Source: n = T.int32()
-        # Builder: n = X.resolve_type_var_("n", dtype="int32")
+    Used by scalar function parameters and explicit PEP 695 symbol bounds.
+    This metadata does not give constructor calls special assignment semantics.
     """
-    TYPE_VAR_DECL[namespace_path] = dtype
+    SCALAR_ANNOTATION_DTYPE[namespace_path] = dtype
     return constructor
 
 

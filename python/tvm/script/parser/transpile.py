@@ -927,7 +927,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             return "ordinary"
         site = self.module.prescan.sites.get(target)
         kind = site.kind if site is not None else "ordinary"
-        if kind in ("symbol", "mutable", "module_alias"):
+        if kind in ("mutable", "module_alias"):
             return kind
         mutable = self.module.prescan.mutable_names.get(self.function.current_scope, ())
         return "mutable_update" if target.id in mutable else "ordinary"
@@ -962,28 +962,13 @@ class IRBuilderTranspiler(ast.NodeTransformer):
     ) -> list[ast.stmt]:
         # Declaration syntax has precedence; no previous/existence tracking.
         if isinstance(target, ast.Name):
-            site = self.module.prescan.sites.get(target)
             kind = self._binding_kind(target, frame_value=frame_value)
             keywords = {"name": ast.Constant(target.id)}
             if ty is not None:
                 keywords["ty"] = ty
             if frame_value:
                 keywords["frame_value"] = ast.Constant(True)
-            if kind == "symbol" and not frame_value:
-                # -------------------- Pattern --------------------
-                # Python source:
-                #     n = X.int64()
-                #
-                # Builder:
-                #     n = X.resolve_type_var_("n", dtype="int64")
-                # -------------------------------------------------
-                value = self._call_dialect(
-                    "resolve_type_var_",
-                    [ast.Constant(target.id)],
-                    target,
-                    **({"dtype": ast.Constant(site.dtype)} if site.dtype else {}),
-                )
-            elif kind == "mutable" and not frame_value:
+            if kind == "mutable" and not frame_value:
                 # -------------------- Pattern --------------------
                 # Python source:
                 #     x = X.local_scalar(initial)
@@ -1134,12 +1119,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         value_span = self.module.span(node.value) if ordinary else None
         if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
             target = node.targets[0]
-            site = self.module.prescan.sites.get(target)
-            value = (
-                ast.Constant(None)
-                if site and site.kind == "symbol"
-                else self._rewrite_assignment_value(node.value, ordinary=ordinary)
-            )
+            value = self._rewrite_assignment_value(node.value, ordinary=ordinary)
             return self._bind(target, value, node, value_span=value_span)
         if len(node.targets) == 1 and isinstance(node.targets[0], ast.Subscript):
             # -------------------- Pattern --------------------
@@ -1855,8 +1835,13 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             if not isinstance(parameter, getattr(ast, "TypeVar", ())):
                 self._raise_error(parameter, "Only scalar type parameters are supported")
             bound = getattr(parameter, "bound", None)
+            dtype = self.module.prescan.sites[parameter].dtype
             if bound is not None and not self._is_builtin(bound, int):
-                self._raise_error(parameter, "A symbolic type parameter bound must be int")
+                if protocol.SCALAR_ANNOTATION_DTYPE.get(self._resolve(bound)) is None:
+                    self._raise_error(
+                        parameter,
+                        "A symbolic type parameter bound must be int or a registered scalar dtype",
+                    )
             if getattr(parameter, "default_value", None) is not None:
                 self._raise_error(parameter, "A symbolic type parameter cannot have a default")
             alias = self.module.fresh("_symbol")
@@ -1865,13 +1850,16 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 self._assign(
                     alias,
                     self._call_dialect(
-                        "resolve_type_var_", [ast.Constant(parameter.name)], parameter
+                        "resolve_type_var_",
+                        [ast.Constant(parameter.name)],
+                        parameter,
+                        dtype=ast.Constant(dtype),
                     ),
                     parameter,
                 )
             )
         for item in facts:
-            if item.direct and item.dtype is not None and item.kind in ("symbol", "parameter"):
+            if item.direct and item.dtype is not None and item.kind == "parameter":
                 symbol = self._call_dialect(
                     "resolve_type_var_",
                     [ast.Constant(item.name)],
@@ -2273,10 +2261,20 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                         for item in ast.walk(statement)
                         if isinstance(item, ast.Name)
                     }
+                    # Prefix statements in source text execute in the outer
+                    # builder callable. Keep their values as Python closures;
+                    # only externally supplied bindings belong to its globals.
+                    prefix_names = {
+                        item.name
+                        for scope, bindings in self.module.prescan.bindings.items()
+                        if isinstance(scope, ast.Module)
+                        for item in bindings
+                    }
                     global_names = sorted(
                         name
                         for name, alias in definition_aliases.items()
                         if name == alias
+                        and name not in prefix_names
                         and name in referenced
                         and name not in self.module.prescan.namespaces
                         and name not in {parameter.arg for parameter in parameters}

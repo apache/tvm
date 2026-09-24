@@ -25,6 +25,7 @@ from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm.script.ir_builder.base import at as _at
 from tvm.script.ir_builder.base import source_span as _source_span
+from tvm.script.ir_builder import dynamic as dynamic
 from tvm.script.parser.protocol_registry import ARGS_POLICIES as _ARGS_POLICIES
 from tvm.script.parser.protocol_registry import args_policy as _args_policy
 from tvm.script.parser.protocol_registry import constexpr as constexpr
@@ -94,31 +95,6 @@ For = for_
 supports_mutable_declarations = True
 
 is_type_var = _ir.is_prim_var
-
-
-def type_var(name, *, dtype=None, span=None):
-    """Construct a fresh standalone primitive symbol.
-
-    Parameters
-    ----------
-    name : str
-        Name of the symbol.
-    dtype : str or PrimType, optional
-        Primitive type of the symbol; None selects "int64".
-    span : Span or source location, optional
-        Source location attached to the constructed IR; None leaves it unspecified.
-
-    Returns
-    -------
-    result : Var
-        The newly constructed primitive variable.
-
-    Notes
-    -----
-    This constructor creates a new symbol on each call. Use the language variant
-    resolver for symbols shared by name within a function signature.
-    """
-    return _ir.Var(name, "int64" if dtype is None else dtype, _source_span(span))
 
 
 @_result_span("T.Buffer")

@@ -48,7 +48,9 @@ from tvm.script.ir_builder.frame import IRModuleFrame
 from tvm.script.parser.protocol_registry import (
     mutable_cell_decl as _mutable_cell_decl,
 )
-from tvm.script.parser.protocol_registry import register_type_var_decl as _register_type_var_decl
+from tvm.script.parser.protocol_registry import (
+    register_scalar_annotation as _register_scalar_annotation,
+)
 from tvm.target import Target
 
 # pylint: disable=unused-import
@@ -2038,7 +2040,7 @@ def func_gen(name: str):
     """
     dtype = _ffi_name_to_dtype(name)
     constructor = DtypeConstructor(name, dtype)
-    _register_type_var_decl(f"T.{dtype}", constructor, dtype=dtype)
+    _register_scalar_annotation(f"T.{dtype}", constructor, dtype=dtype)
     _mutable_cell_decl(f"T.{dtype}", syntax="annotation")(constructor)
     return constructor
 
@@ -2227,29 +2229,29 @@ float4_e2m1fnx64 = func_gen("Float4E2M1FNx64")
 bfloat16 = func_gen("BFloat16")
 
 # Shorthand aliases
-f16 = _register_type_var_decl("T.f16", float16, dtype="float16")
+f16 = _register_scalar_annotation("T.f16", float16, dtype="float16")
 _mutable_cell_decl("T.f16", syntax="annotation")(f16)
-f32 = _register_type_var_decl("T.f32", float32, dtype="float32")
+f32 = _register_scalar_annotation("T.f32", float32, dtype="float32")
 _mutable_cell_decl("T.f32", syntax="annotation")(f32)
-f64 = _register_type_var_decl("T.f64", float64, dtype="float64")
+f64 = _register_scalar_annotation("T.f64", float64, dtype="float64")
 _mutable_cell_decl("T.f64", syntax="annotation")(f64)
-bf16 = _register_type_var_decl("T.bf16", bfloat16, dtype="bfloat16")
+bf16 = _register_scalar_annotation("T.bf16", bfloat16, dtype="bfloat16")
 _mutable_cell_decl("T.bf16", syntax="annotation")(bf16)
-i8 = _register_type_var_decl("T.i8", int8, dtype="int8")
+i8 = _register_scalar_annotation("T.i8", int8, dtype="int8")
 _mutable_cell_decl("T.i8", syntax="annotation")(i8)
-i16 = _register_type_var_decl("T.i16", int16, dtype="int16")
+i16 = _register_scalar_annotation("T.i16", int16, dtype="int16")
 _mutable_cell_decl("T.i16", syntax="annotation")(i16)
-i32 = _register_type_var_decl("T.i32", int32, dtype="int32")
+i32 = _register_scalar_annotation("T.i32", int32, dtype="int32")
 _mutable_cell_decl("T.i32", syntax="annotation")(i32)
-i64 = _register_type_var_decl("T.i64", int64, dtype="int64")
+i64 = _register_scalar_annotation("T.i64", int64, dtype="int64")
 _mutable_cell_decl("T.i64", syntax="annotation")(i64)
-u8 = _register_type_var_decl("T.u8", uint8, dtype="uint8")
+u8 = _register_scalar_annotation("T.u8", uint8, dtype="uint8")
 _mutable_cell_decl("T.u8", syntax="annotation")(u8)
-u16 = _register_type_var_decl("T.u16", uint16, dtype="uint16")
+u16 = _register_scalar_annotation("T.u16", uint16, dtype="uint16")
 _mutable_cell_decl("T.u16", syntax="annotation")(u16)
-u32 = _register_type_var_decl("T.u32", uint32, dtype="uint32")
+u32 = _register_scalar_annotation("T.u32", uint32, dtype="uint32")
 _mutable_cell_decl("T.u32", syntax="annotation")(u32)
-u64 = _register_type_var_decl("T.u64", uint64, dtype="uint64")
+u64 = _register_scalar_annotation("T.u64", uint64, dtype="uint64")
 _mutable_cell_decl("T.u64", syntax="annotation")(u64)
 # pylint: enable=invalid-name
 

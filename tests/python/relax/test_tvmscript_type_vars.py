@@ -16,14 +16,14 @@
 # under the License.
 
 import sys
-from typing import TypeVar
 
 import tvm
 import tvm.testing
+from tvm.script import ir as I
 from tvm.script import relax as R
 
-M = TypeVar("M")
-UNUSED_GENERIC = TypeVar("UNUSED_GENERIC", bound=int)
+M = I.dynamic("M")
+UNUSED_GENERIC = I.dynamic("UNUSED_GENERIC")
 
 
 def test_type_vars_roundtrip():
@@ -49,21 +49,45 @@ def func[M: int](x: R.Tensor((M, M * 2), "float32")):
         tvm.ir.assert_structural_equal(func, typed)
     else:
         assert "from __future__ import annotations" not in script
-        assert 'M = TypeVar("M")' in script
-        assert "M = T.int64()" in script
-        assert 'R.Tensor((M, "M * 2"), dtype="float32")' in script
+        assert 'M = I.dynamic("M", dtype="int64")' in script
+        assert "M = T.int64()" not in script
+        assert 'R.Tensor((M, M * 2), dtype="float32")' in script
 
     portable = func.script(extra_config={"relax.use_pep695": False})
     assert "from __future__ import annotations" not in portable
-    assert 'M = TypeVar("M")' in portable
-    assert 'R.Tensor((M, "M * 2"), dtype="float32")' in portable
-    assert "M = T.int64()" in portable
+    assert 'M = I.dynamic("M", dtype="int64")' in portable
+    assert 'R.Tensor((M, M * 2), dtype="float32")' in portable
+    assert "M = T.int64()" not in portable
     assert "UNUSED_GENERIC" not in script
     assert [param.name for param in func.params] == ["x"]
     assert not hasattr(func, "type_params")
     assert func.attrs.get("relax.type_vars") is None
     tvm.ir.assert_structural_equal(func, tvm.script.from_source(script))
     tvm.ir.assert_structural_equal(func, tvm.script.from_source(portable))
+
+
+def test_dynamic_module_symbol_identity():
+    shared = I.dynamic("n")
+    independent = I.dynamic("n")
+
+    @R.function(private=True)
+    def first(x: R.Tensor((shared,), "float32")):
+        return x
+
+    @R.function(private=True)
+    def second(x: R.Tensor((shared, independent), "float32")):
+        return x
+
+    mod = tvm.IRModule({"first": first, "second": second})
+    source = mod.script()
+    assert source.count('I.dynamic("n", dtype="int64")') == 2
+    restored = tvm.script.from_source(source, check_well_formed=False)
+    first_n = restored["first"].params[0].ty.shape.values[0]
+    second_shape = restored["second"].params[0].ty.shape.values
+    assert first_n.same_as(second_shape[0])
+    assert not first_n.same_as(second_shape[1])
+    assert str(second_shape[1].ty.dtype) == "int64"
+    tvm.ir.assert_structural_equal(mod, restored)
 
 
 if __name__ == "__main__":

@@ -61,7 +61,7 @@ def test_function_dependent_shape_escaped_source_spans():
     cast = tirx.Cast("int64", n)
     x = relax.Var("x", relax.TensorType([cast], "float32"))
     ret_ty = relax.TensorType(dtype="float32", ndim=1)
-    func = relax.Function([x], x, ret_ty=ret_ty).with_attr("global_symbol", "main")
+    func = relax.Function([x, n], x, ret_ty=ret_ty).with_attr("global_symbol", "main")
     cast_path = (
         AccessPath.root()
         .attr("params")
@@ -247,7 +247,7 @@ def test_shape_ty_2():
     _assert_print(
         obj,
         """
-a = T.int64()
+a = I.dynamic("a", dtype="int64")
 R.Shape([1, a, 3])""",
     )
 
@@ -260,7 +260,7 @@ def test_tensor_ty():
     _assert_print(
         obj,
         """
-a = T.int64()
+a = I.dynamic("a", dtype="int64")
 R.Tensor((1, a, 3), dtype="float32")
 """,
     )
@@ -302,7 +302,7 @@ def test_func_ty():
     )
     _assert_print(
         obj,
-        "a = T.int64()\n"
+        'a = I.dynamic("a", dtype="int64")\n'
         "R.Callable((T.float32, R.Any, R.Shape([1, a, 3]), T.int64), "
         'R.Tensor((1, 2, 3), dtype="float32"), True)',
     )
@@ -413,7 +413,7 @@ def test_var():
     _assert_print(
         obj,
         """
-x = T.int64()
+x = I.dynamic("x", dtype="int64")
 a: R.Tensor((1, x, 3), dtype="float32")
 a""",
     )
@@ -424,7 +424,7 @@ def test_dataflow_var():
     _assert_print(
         obj,
         """
-x = T.int64()
+x = I.dynamic("x", dtype="int64")
 a: R.Tensor((1, x, 3), dtype="float32")
 a""",
     )
@@ -441,11 +441,11 @@ def test_tuple():
     _assert_print(
         obj,
         """
-x = T.int64()
+x = I.dynamic("x", dtype="int64")
 a: R.Tensor((1, x, 3), dtype="float32")
-y = T.int64()
+y = I.dynamic("y", dtype="int64")
 b: R.Tensor((1, y, 3), dtype="float32")
-z = T.int64()
+z = I.dynamic("z", dtype="int64")
 c: R.Tensor((1, z, 3), dtype="float32")
 (a, b, c)
 """,
@@ -466,11 +466,11 @@ def test_tuple_get_item():
     _assert_print(
         obj,
         """
-x = T.int64()
+x = I.dynamic("x", dtype="int64")
 a: R.Tensor((1, x, 3), dtype="float32")
-y = T.int64()
+y = I.dynamic("y", dtype="int64")
 b: R.Tensor((1, y, 3), dtype="float32")
-z = T.int64()
+z = I.dynamic("z", dtype="int64")
 c: R.Tensor((1, z, 3), dtype="float32")
 (a, b, c)[0]
 """,
@@ -490,7 +490,7 @@ def test_call():
     _assert_print(
         o0,
         """
-x = T.int64()
+x = I.dynamic("x", dtype="int64")
 a: R.Tensor((1, x, 3), dtype="float32")
 R.call_tir(tir_func, (a, x), out_ty=R.Tensor((1, x, 3), dtype="float32"))
 """,
@@ -498,7 +498,7 @@ R.call_tir(tir_func, (a, x), out_ty=R.Tensor((1, x, 3), dtype="float32"))
     _assert_print(
         o1,
         """
-x = T.int64()
+x = I.dynamic("x", dtype="int64")
 a: R.Tensor((1, x, 3), dtype="float32")
 R.call_dps_packed("my_dps_func", (a,), out_ty=R.Tensor((1, x, 3), dtype="float32"))
 """,
@@ -520,7 +520,7 @@ def test_call_tir_with_grad():
         v1,
         """
 v0: R.Tensor((54, 96), dtype="float32")
-x = T.int64()
+x = I.dynamic("x", dtype="int64")
 R.call_tir_with_grad(tir_func, (v0,), out_ty=R.Tensor((54, 96), dtype="float32"), te_grad_name="grad_func", te_grad_kwargs={"k": 1.0, "x": x})
 """,
     )
@@ -545,7 +545,7 @@ def test_call_tir_inplace():
         """
 x: R.Tensor((32, 32), dtype="int32")
 y: R.Tensor((32, 32), dtype="int32")
-t = T.int64()
+t = I.dynamic("t", dtype="int64")
 R.call_tir_inplace(tir_func, (x, y, t), out_ty=[R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")], inplace_indices=[-1, 0])
         """,
     )
@@ -571,7 +571,7 @@ def test_seq_expr():
     _assert_print(
         obj,
         """
-x = T.int64()
+x = I.dynamic("x", dtype="int64")
 a: R.Tensor((1, x, 3), dtype="float32")
 with R.dataflow():
     b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
@@ -596,7 +596,7 @@ def test_binding_block():
     _assert_print(
         obj,
         """
-x = T.int64()
+x = I.dynamic("x", dtype="int64")
 a: R.Tensor((1, x, 3), dtype="float32")
 b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
 c: R.Tensor((1, x, 3), dtype="float32") = R.sin(b)
@@ -618,7 +618,7 @@ def test_dataflow_block():
     _assert_print(
         obj,
         """
-x = T.int64()
+x = I.dynamic("x", dtype="int64")
 a: R.Tensor((1, x, 3), dtype="float32")
 with R.dataflow():
     b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
@@ -640,7 +640,7 @@ def test_match_cast():
     _assert_print(
         obj,
         """
-x = T.int64()
+x = I.dynamic("x", dtype="int64")
 a: R.Tensor((1, x, 3), dtype="float32")
 b: R.Tensor((1, 5, 3), dtype="float32") = R.match_cast(a, R.Tensor((1, 5, 3), dtype="float32"))
 """,
@@ -655,7 +655,7 @@ def test_var_binding():
     _assert_print(
         obj,
         """
-x = T.int64()
+x = I.dynamic("x", dtype="int64")
 a: R.Tensor((1, x, 3), dtype="float32")
 b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
 """,
@@ -693,7 +693,7 @@ def test_builtin_keywords():
     _assert_print(
         obj,
         """
-x = T.int64()
+x = I.dynamic("x", dtype="int64")
 R_1: R.Tensor((1, x, 3), dtype="float32")
 T_1: R.Tensor((1, x, 3), dtype="float32") = R.sin(R_1)
 """,

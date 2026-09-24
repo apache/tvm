@@ -111,7 +111,9 @@ class Frame:
     def resolve_type_var(self, name, dtype=None, *, value=None, **kwargs):
         if name not in self.type_var_map:
             self.type_var_map[name] = (
-                value if value is not None else Value("symbol", (dtype,), name)
+                value
+                if value is not None
+                else Value("symbol", ("int64" if dtype is None else dtype,), name)
             )
         return self.type_var_map[name]
 
@@ -220,14 +222,15 @@ class Language:
         def Tensor(shape=None, dtype="float32", device=None, placement="S[0]"):
             return Value("tensor", (shape, dtype, device, placement))
 
-        def symbol(expr=None):
-            return Value("symbol", (expr,))
+        def dynamic(name, dtype="int64"):
+            return Value("symbol", (dtype,), name)
 
         def cell(value=None):
             return Value("cell", (value,))
 
         self.M.Tensor = Tensor
-        self.M.symbol = registry.register_type_var_decl("M.symbol", symbol, dtype="int64")
+        self.M.dynamic = dynamic
+        self.M.int32 = registry.register_scalar_annotation("M.int32", lambda: None, dtype="int32")
         self.M.cell = registry.mutable_cell_decl("M.cell")(cell)
 
     @contextmanager

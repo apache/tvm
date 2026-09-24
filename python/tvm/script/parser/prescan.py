@@ -393,7 +393,15 @@ class PrescanCollector(ast.NodeVisitor):
             # Builder:
             #     n = X.resolve_type_var_("n")
             # -------------------------------------------------
-            self._record_binding(parameter.name, parameter, "symbol", dtype="int64")
+            bound = getattr(parameter, "bound", None)
+            dtype = (
+                "int64"
+                if bound is None or (isinstance(bound, ast.Name) and bound.id == "int")
+                else protocol.SCALAR_ANNOTATION_DTYPE.get(
+                    resolve_namespace_key(bound, self.environment)
+                )
+            )
+            self._record_binding(parameter.name, parameter, "symbol", dtype=dtype)
         for arg in [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]:
             # -------------------- Pattern --------------------
             # Python source:
@@ -412,7 +420,7 @@ class PrescanCollector(ast.NodeVisitor):
                 annotation.func if isinstance(annotation, ast.Call) else annotation,
                 self.environment,
             )
-            dtype = protocol.TYPE_VAR_DECL.get(constructor)
+            dtype = protocol.SCALAR_ANNOTATION_DTYPE.get(constructor)
             self._record_binding(
                 arg.arg,
                 arg,
@@ -501,10 +509,7 @@ class PrescanCollector(ast.NodeVisitor):
     ) -> None:
         constructor = resolve_constructor(value, self.environment, self.bindings[self.scope])
         if isinstance(target, ast.Name):
-            dtype = protocol.TYPE_VAR_DECL.get(constructor)
-            if constructor in protocol.TYPE_VAR_DECL and not value.args and not value.keywords:
-                self._record_binding(target.id, target, "symbol", value, dtype)
-            elif getattr(self.builder, "supports_mutable_declarations", True) and (
+            if getattr(self.builder, "supports_mutable_declarations", True) and (
                 "call" in protocol.MUTABLE_CELL_DECL.get(constructor, ())
                 or (
                     annotation is not None

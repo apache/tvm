@@ -49,8 +49,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               continue;
             }
             PrimType var_ty(var_ty_node->dtype);
-            if (!runtime_params.count(var.get()) && var_ty.IsScalar() &&
-                var_ty.MatchesElementType(DLDataTypeCode::kDLInt, 64)) {
+            if (!runtime_params.count(var.get()) && var_ty.IsScalar()) {
               type_vars.insert(var.get());
             }
           }
@@ -71,8 +70,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             collect_type_vars(address);
           }
         }
-        auto type_var_docs = DefineTypeVarDocs(type_vars, ffi::GetRef<Frame>((*f).get()), d);
-        bool use_postponed_annotations = UsePEP695TypeVars(d) && !type_vars.empty();
+        auto type_var_docs = DefineTypeVarDocs(type_vars, d);
         int n_args = func->params.size();
         // Step 1. Handle `func->params`
         ffi::Array<AssignDoc> args;
@@ -120,14 +118,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               continue;
             }
             std::unordered_set<tirx::Var> stringify_shape_vars;
-            std::unordered_set<tirx::Var> stringify_compound_shape_vars;
             auto walk_fn = [&](const tirx::Var& shape_var) -> ffi::Expected<ffi::WalkResult> {
               bool is_type_var = type_vars.count(shape_var.get());
               if (!bound_signature_vars.count(shape_var) && !is_type_var) {
                 stringify_shape_vars.insert(shape_var);
-              }
-              if (!use_postponed_annotations && is_type_var) {
-                stringify_compound_shape_vars.insert(shape_var);
               }
               return ffi::WalkResult::Advance();
             };
@@ -143,8 +137,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             }
             IdDoc lhs = DefineBuffer(buffer, *f, d);
             ExprDoc annotation =
-                BufferAttn(buffer, var_p->Attr("ty"), *f, d, std::move(stringify_shape_vars),
-                           std::move(stringify_compound_shape_vars));
+                BufferAttn(buffer, var_p->Attr("ty"), *f, d, std::move(stringify_shape_vars));
             args.push_back(AssignDoc(lhs, std::nullopt, annotation));
             continue;
           }

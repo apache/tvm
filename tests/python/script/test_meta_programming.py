@@ -335,12 +335,10 @@ def _build_symbolic_functions(M):
     class Module:
         @M.function
         def first(x: M.Tensor(("n",), "float32")):
-            n = M.symbol()  # noqa: F841
             return x
 
         @M.function
         def second(x: M.Tensor(("n",), "float32")):
-            n = M.symbol()  # noqa: F841
             return x
 
     return Module
