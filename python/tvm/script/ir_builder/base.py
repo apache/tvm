@@ -251,7 +251,21 @@ def source_span(
 
 
 class AlreadyEmitted(Generic[_T]):
-    """Hold the exact emitted value; location handling preserves this receipt."""
+    """Hold the exact emitted value; location handling preserves this receipt.
+
+    Parameters
+    ----------
+    value : Any
+        Object already emitted by a language variant's builder. The receipt
+        retains this object without copying it. Binding or emitting the receipt
+        must not emit the object again.
+
+    Attributes
+    ----------
+    value : Any
+        The same emitted object, available for identity checks and source-span
+        attachment.
+    """
 
     __slots__ = ("value",)
 
@@ -264,6 +278,24 @@ def at(
 ) -> _T:
     """Attach source context to the same IR node, emission receipt, or frame.
 
+    Parameters
+    ----------
+    span : SpanEntry, Span, tuple or None
+        Source location to compose with the active construction context. A tuple
+        contains ``(source_name, line, end_line, column, end_column)``; its source
+        name may be a string or SourceName. None leaves the value unchanged.
+    value : Any
+        Native object, :class:`AlreadyEmitted` receipt, or list/tuple of native
+        objects to annotate. A receipt's contained object receives the span.
+
+    Returns
+    -------
+    Any
+        The exact ``value`` object, including its original receipt or container.
+        With no active builder, the value is returned without modification.
+
+    Notes
+    -----
     Native mutation annotates the statement held by the builder itself.  Keep
     the original Python facade as well, including callable objects and frames.
     Unsupported objects and ordinary Python values pass through unchanged.
@@ -279,7 +311,26 @@ def at(
 
 
 def require_defined(value, name):
-    """Report a source name whose designated region output was not produced."""
+    """Report a source name whose designated region output was not produced.
+
+    Parameters
+    ----------
+    value : Any
+        Candidate binding. Only the canonical ``MISSING`` singleton denotes an
+        absent value; explicit None is a defined value.
+    name : str
+        Source identifier to include in the missing-name diagnostic.
+
+    Returns
+    -------
+    Any
+        The exact ``value`` when it is defined.
+
+    Raises
+    ------
+    NameError
+        If ``value`` is ``MISSING``.
+    """
     if value is MISSING:
         raise NameError(f"name {name!r} is not defined")
     return value
@@ -291,7 +342,32 @@ def with_at_group_(
     *,
     attach_result: bool = True,
 ) -> _T:
-    """Evaluate once under a location, optionally attaching it to the same result."""
+    """Evaluate once under a location, optionally attaching it to the same result.
+
+    Parameters
+    ----------
+    location : SpanEntry, Span, tuple or None
+        Source context for the call. A tuple contains
+        ``(source_name, line, end_line, column, end_column)``. None, or the
+        absence of an active builder, leaves construction context unchanged.
+    thunk : Callable[[], Any]
+        Zero-argument callable evaluated exactly once inside that context.
+    attach_result : bool, optional
+        Attach the location to the returned object with :func:`at_`. Defaults
+        to True. False supplies construction context only, leaving explicit
+        result attachment to a later operation.
+
+    Returns
+    -------
+    Any
+        The exact result of ``thunk``, with its receipt or container preserved.
+
+    Notes
+    -----
+    The prior source context is restored even if the callable raises; its
+    exception propagates unchanged. Frames created during the call retain their
+    construction spans regardless of ``attach_result``.
+    """
     span = source_span(location)
     context = (
         IRBuilder.current().with_source_span(span)
@@ -402,7 +478,30 @@ def _return_annotation(annotation):
 
 
 def annotation_value_(name, value):
-    """Adapt a real definition-context symbol using the native function map."""
+    """Adapt a real definition-context symbol using the native function map.
+
+    Parameters
+    ----------
+    name : str
+        Source spelling used to resolve the symbol in the nearest active
+        function frame.
+    value : TypeVar, Var or Any
+        Captured definition-context value. An unconstrained ``typing.TypeVar``
+        resolves a symbolic variable; a primitive IR Var supplies its existing
+        value to the resolver. Other values pass through unchanged.
+
+    Returns
+    -------
+    Any
+        The function frame's resolved symbol, or the unchanged nonsymbolic value.
+
+    Raises
+    ------
+    TypeError
+        If a TypeVar has a bound or constraints.
+    ValueError
+        If a symbolic value requires resolution without an active function frame.
+    """
     if isinstance(value, TypeVar):
         if value.__bound__ is not None or value.__constraints__:
             raise TypeError("A symbolic TypeVar cannot have constraints or a bound")

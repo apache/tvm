@@ -33,14 +33,14 @@ from typing import Any
 
 from tvm import ir as _ir
 
-from ..base import MISSING, AlreadyEmitted, IRBuilderFrame, SpanEntry
+from .base import MISSING, AlreadyEmitted, IRBuilderFrame, SpanEntry
 
 _Span = SpanEntry | _ir.Span | tuple[_ir.SourceName, int, int, int, int] | None
 
 
-# ------------
+# --------------------------------------
 # Section: control flow
-# ------------
+# --------------------------------------
 #
 # ``with X.if_(cond):`` opens a conditional frame.
 # ``with X.then_():`` enters its true branch.
@@ -345,9 +345,9 @@ def continue_(*, span: _Span = None) -> AlreadyEmitted[Any]:
     raise NotImplementedError
 
 
-# ------------
+# --------------------------------------
 # Section: operator overloading
-# ------------
+# --------------------------------------
 #
 # ``X.if_then_else_(c, a, b)`` selects an expression.
 # ``X.and_(a, b)`` constructs conjunction.
@@ -702,9 +702,9 @@ def ne_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
     raise NotImplementedError
 
 
-# ------------
+# --------------------------------------
 # Section: context lookup and resolution
-# ------------
+# --------------------------------------
 #
 # ``X.resolve_global_info_(key)`` resolves module metadata.
 # ``X.resolve_type_var_("n")`` resolves a symbolic dimension.
@@ -862,14 +862,14 @@ def module_member_(name: str, value: Any) -> Any:
     return value
 
 
-# ------------
+# --------------------------------------
 # Section: special protocol
-# ------------
+# --------------------------------------
 #
 # Syntax markers live in tvm.script.parser.protocol_registry.
 # ``constexpr(value)`` selects host evaluation in marked control flow.
 # ``args_policy(path, fields)`` marks expression-string or global-info arguments.
-# ``register_type_var_decl(path, dtype)`` marks symbolic declarations.
+# ``register_type_var_decl(path, constructor, dtype=...)`` marks symbolic declarations.
 # ``mutable_cell_decl(path)`` marks mutable storage declarations.
 # ``result_span(path)`` permits attaching a call's result span without a call context.
 # ``module_decorator(path)`` marks module declaration decorators.
@@ -894,9 +894,11 @@ def function_(*, decl: bool = False, span: _Span = None, **options: Any) -> IRBu
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
     options : Any
-        Language variant options: TIRx private, s_tir and persistent default to False. Relax
-        is_pure defaults to True, is_private/local to False; local=True requires a
-        declared reference when building its body.
+        Language variant options: TIRx ``private``, ``s_tir`` and ``persistent``
+        default to False. Relax ``pure`` defaults to True and ``private``/``local``
+        to False; ``local=True`` requires a declared reference when building its
+        body. See :func:`tvm.script.ir_builder.tirx.function_` and
+        :func:`tvm.script.ir_builder.relax.function_` for their concrete options.
 
     Returns
     -------
@@ -1074,9 +1076,9 @@ def check_well_formed_(module: _ir.IRModule) -> None:
         validator(module)
 
 
-# ------------
+# --------------------------------------
 # Section: binding
-# ------------
+# --------------------------------------
 #
 # ``a = X.bind_(value, name="a")`` binds a source name.
 # ``X.decl_mutable_cell_(value, ty=ty)`` declares mutable storage.
@@ -1283,9 +1285,9 @@ def unpack(value: Any) -> Any:
     raise NotImplementedError
 
 
-# ------------
+# --------------------------------------
 # Section: statement
-# ------------
+# --------------------------------------
 #
 # ``X.emit_(value)`` emits an expression statement.
 # ``X.return_(value)`` emits a function return.

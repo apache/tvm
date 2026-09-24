@@ -22,6 +22,7 @@ The registry permits out-of-tree language variants to expose the same public spe
 """
 
 import importlib
+import importlib.machinery
 import importlib.util
 import sys
 from collections.abc import Callable
@@ -32,9 +33,14 @@ _DIALECT_REGISTRY: dict[str, str] = {}
 # Callbacks own concrete eligibility; this list retains no source or construction state.
 _MODULE_VALIDATORS: list[Callable[[Any], None]] = []
 
-# Subpackages of `tvm.script` whose per-language variant children are redirected to a
-# canonical package under `tvm.<language variant>.script`. An empty suffix names
-# the public language variant namespace itself.
+# Preserve former implementation imports as aliases of the canonical builders.
+_BUILDER_ALIASES = {
+    "tvm.tirx.script.builder": "tvm.script.ir_builder.tirx",
+    "tvm.relax.script.builder": "tvm.script.ir_builder.relax",
+}
+
+# An empty suffix names the public language variant namespace itself.
+# Builder redirection applies only when no real package owns that name.
 _REDIRECTED_SUBPACKAGES = {
     "tvm.script.parser": "",
     "tvm.script.ir_builder": "builder",
@@ -79,8 +85,10 @@ def register_dialect(name: str, module_path: str) -> None:
     Writes ``name -> module_path`` into ``_DIALECT_REGISTRY``.  After
     registration, ``tvm.script.<name>`` resolves to ``module_path`` via
     ``__getattr__``, and ``tvm.script.parser.<name>`` / ``tvm.script.ir_builder.<name>``
-    resolve to the same script namespace and ``module_path + ".builder"``
-    respectively. Deep builder imports are handled by
+    resolve to the same script namespace and the corresponding real builder
+    package, respectively. When no real builder package exists, external language
+    variants resolve through ``module_path + ".builder"``. Deep aliases, including
+    the former in-tree ``tvm.<variant>.script.builder`` paths, are handled by
     ``_DialectRedirectFinder`` on ``sys.meta_path``.
 
     This function is idempotent — re-registering the same name with the same
@@ -101,7 +109,9 @@ def register_dialect(name: str, module_path: str) -> None:
     module_path : str
         The full dotted module path of the language variant's script package, e.g.
         ``"tvm.tirx.script"``. That package exposes its public construction
-        entry points directly and its imperative APIs in a ``builder`` submodule.
+        entry points directly. Out-of-tree language variants provide imperative
+        APIs in a ``builder`` submodule; in-tree builders live in
+        ``tvm.script.ir_builder.<name>``.
     """
     _DIALECT_REGISTRY[name] = module_path
 
@@ -111,6 +121,9 @@ def _redirect_target(fullname: str) -> str | None:
 
     Returns ``None`` if ``fullname`` is not a redirected name.
     """
+    for legacy, canonical in _BUILDER_ALIASES.items():
+        if fullname == legacy or fullname.startswith(legacy + "."):
+            return canonical + fullname[len(legacy) :]
     if fullname.startswith("tvm.script."):
         # tvm.script.<language variant>[.subpath]
         rest = fullname[len("tvm.script.") :]
@@ -153,6 +166,14 @@ class _DialectRedirectFinder:
 
     @classmethod
     def find_spec(cls, fullname, path, target=None):
+        # A real builder package owns its canonical name. Only missing packages
+        # use the out-of-tree language variant registry fallback.
+        prefix = "tvm.script.ir_builder."
+        if fullname.startswith(prefix):
+            package_name = prefix + fullname[len(prefix) :].partition(".")[0]
+            parent_path = sys.modules["tvm.script.ir_builder"].__path__
+            if importlib.machinery.PathFinder.find_spec(package_name, parent_path) is not None:
+                return None
         redirected = _redirect_target(fullname)
         if redirected is None:
             return None
@@ -196,7 +217,9 @@ class _AliasLoader:
 # Install the redirect finder once. Re-importing tvm.script (e.g. during a
 # pytest reload) must not stack duplicates.
 if not any(isinstance(f, _DialectRedirectFinder) for f in sys.meta_path):
-    sys.meta_path.append(_DialectRedirectFinder())
+    # Handle deep aliases before PathFinder can execute a canonical source file
+    # again under its alias package's __path__.
+    sys.meta_path.insert(0, _DialectRedirectFinder())
 
 
 def __getattr__(name: str) -> Any:

@@ -24,9 +24,9 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import ir as I
+from tvm.script import ir_builder as I_builder
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import ir as I_builder
 from tvm.script.ir_builder import tirx as T_builder
 from tvm.testing import env
 

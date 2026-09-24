@@ -41,8 +41,10 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register Metal-owned Python semantics."""
+    from tvm.script.ir_builder.tirx import (
+        ir as builder_ir,  # pylint: disable=import-outside-toplevel
+    )
     from tvm.target.detect_target import register_device_target_detector
-    from tvm.tirx.script.builder import ir as builder_ir  # pylint: disable=import-outside-toplevel
 
     runtime_dir = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent
     try:

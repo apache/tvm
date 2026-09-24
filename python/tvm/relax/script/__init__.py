@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Public canonical TVMScript dialect namespace."""
+"""Public canonical TVMScript language variant namespace."""
 
 from __future__ import annotations
 
@@ -45,10 +45,9 @@ def _initialize() -> None:
         return
     _initializing = True
     try:
+        from tvm.script.ir_builder import relax as builder
         from tvm.script.parser import entry, register_namespace
         from tvm.script.parser.protocol_registry import declaration_kind
-
-        from . import builder
 
         globals().update(
             (name, value) for name, value in vars(builder).items() if not name.startswith("_")
@@ -70,14 +69,14 @@ def _initialize() -> None:
 
 
 def __getattr__(name: str) -> _Any:
-    if name in ("builder", "tile"):
-        return _importlib.import_module(__name__ + "." + name)
+    if name == "builder":
+        return _importlib.import_module("tvm.script.ir_builder.relax")
     if name.startswith("_") and name != "__all__":
         raise AttributeError(name)
     _initialize()
     if name in globals():
         return globals()[name]
-    return getattr(_importlib.import_module(__name__ + ".builder"), name)
+    return getattr(_importlib.import_module("tvm.script.ir_builder.relax"), name)
 
 
 class _PyModuleFactory:

@@ -28,7 +28,7 @@ Tables retain static syntax facts only, never source functions, captures, frames
 or constructed results. Registration decorators return the same callable, except
 that ``args_policy`` preserves its existing builder-owned eager annotation adapter.
 Shared builder operations are documented in
-``tvm.script.ir_builder.ir.parser_protocol``; concrete language variants own registration
+``tvm.script.ir_builder.parser_protocol``; concrete language variants own registration
 and namespace initialization.
 """
 
@@ -81,6 +81,20 @@ DECLARATION_KIND: dict[str, Literal["function", "helper"]] = {}
 def constexpr(value: object) -> NoReturn:
     """Mark host control syntax or a JIT specialization annotation.
 
+    Parameters
+    ----------
+    value : object
+        Source expression to evaluate with ordinary Python semantics in a
+        supported control-flow position. The marker itself can also appear
+        as an annotation identifying a JIT specialization parameter.
+
+    Raises
+    ------
+    TypeError
+        If invoked directly instead of being recognized in parsed source.
+
+    Notes
+    -----
     The parser recognizes this marker through its fixed namespace path and
     removes it before execution. Host operators retain ordinary Python behavior.
     Direct invocation raises TypeError; no builder frame or IR is constructed.
@@ -113,12 +127,14 @@ def args_policy(
         Registered namespace alias followed by the exported member path.
     fields : Mapping[str, str]
         Parameter names mapped to ``expr_str`` or ``global_info``.
-    scalar_strings : bool
-        Whether bare strings in expression fields denote expressions.
-    dtype : object
-        Opaque dtype passed to the language variant's symbol resolver.
-    as_type : bool
+    scalar_strings : bool, optional
+        Whether bare strings in expression fields denote expressions. Defaults to True.
+    dtype : object, optional
+        Opaque dtype passed to the language variant's symbol resolver. None (the default)
+        leaves dtype selection to that resolver.
+    as_type : bool, optional
         Preserve the eager annotation-class surface, including Python type unions.
+        Defaults to False.
 
     Returns
     -------
@@ -200,9 +216,27 @@ def register_type_var_decl(
 ) -> _Callable:
     """Register symbolic declaration syntax and return the unchanged constructor.
 
-    ``namespace_path`` identifies the fixed exported callable. Zero-argument
-    calls denote declarations; ``dtype`` supplies static scalar type facts.
-    Dictionary membership distinguishes an unspecified dtype from an unregistered
+    Parameters
+    ----------
+    namespace_path : str
+        Canonical registered namespace alias and exported callable path, such
+        as ``"T.int32"``. A later registration at this path replaces its dtype.
+    constructor : Callable
+        Callable providing the eager construction operation. Registration
+        records its syntax path without invoking or wrapping this callable.
+    dtype : object, optional
+        Static scalar dtype forwarded to the language variant's symbol resolver.
+        None (the default) leaves the dtype unspecified for that resolver.
+
+    Returns
+    -------
+    Callable
+        The exact ``constructor`` object.
+
+    Notes
+    -----
+    Zero-argument calls denote declarations. Dictionary membership distinguishes
+    an unspecified dtype from an unregistered
     constructor. The parser predeclares symbols needed by signatures while the
     native function owns their identity. No constructor executes at registration.
 
@@ -221,9 +255,29 @@ def mutable_cell_decl(
 ) -> Callable[[_Callable], _Callable]:
     """Register persistent mutable storage syntax at a fixed namespace path.
 
-    ``syntax`` is ``call``, ``annotation`` or ``parameter``. Repeated registration
-    adds a syntax kind for the same path. The decorator returns its callable
-    unchanged. Explicit declarations take precedence over mutable target updates;
+    Parameters
+    ----------
+    namespace_path : str
+        Canonical registered namespace alias and exported constructor path.
+    syntax : str, optional
+        Declaration form: ``"call"`` (the default) for a constructor call,
+        ``"annotation"`` for an annotated local declaration, or ``"parameter"``
+        for a function parameter annotation. Repeated registration adds forms
+        for the same path without removing existing ones.
+
+    Returns
+    -------
+    Callable
+        Registration decorator that returns its constructor unchanged.
+
+    Raises
+    ------
+    ValueError
+        If ``syntax`` is not one of the three supported forms.
+
+    Notes
+    -----
+    Explicit declarations take precedence over mutable target updates;
     storage creation and updates stay outside ordinary ``bind_``.
 
     .. code:: python
@@ -247,10 +301,23 @@ def mutable_cell_decl(
 def result_span(namespace_path: str) -> Callable[[_Callable], _Callable]:
     """Declare that a call's complete IR effect is represented by its result.
 
+    Parameters
+    ----------
+    namespace_path : str
+        Canonical registered namespace alias and exported callable path whose
+        returned object carries the call's complete IR effect.
+
+    Returns
+    -------
+    Callable
+        Registration decorator that returns its callable unchanged.
+
+    Notes
+    -----
     The unchanged callable owns no unrelated emitted statements needing caller
     context. This permits result attachment instead of an opaque-call context;
-    argument instrumentation and ordinary binding/emission remain. D64 passes
-    assignment RHS locations separately to the language variant's ``bind_``.
+    argument instrumentation and ordinary binding/emission remain. Assignment
+    RHS locations pass separately to the language variant's ``bind_``.
 
     .. code:: python
 
@@ -271,6 +338,19 @@ def result_span(namespace_path: str) -> Callable[[_Callable], _Callable]:
 def module_decorator(namespace_path: str) -> Callable[[_Callable], _Callable]:
     """Mark a module entry point and return the same callable.
 
+    Parameters
+    ----------
+    namespace_path : str
+        Canonical registered namespace alias and exported module-decorator path,
+        such as ``"I.ir_module"``.
+
+    Returns
+    -------
+    Callable
+        Registration decorator that returns the module entry point unchanged.
+
+    Notes
+    -----
     Member function decorators use this fixed namespace syntax to defer parsing
     until the complete enclosing module is available. No source-function records,
     captured scopes or constructed module results are retained in the table.
@@ -294,9 +374,23 @@ def declaration_kind(
 ) -> Callable[[_Callable], _Callable]:
     """Classify a fixed namespace decorator's declaration syntax.
 
-    ``function`` constructs an IR function; ``helper`` keeps ordinary Python
-    helper semantics, including macro expansion or retained ``I.pyfunc``
-    callables. Unregistered decorators have neither kind.
+    Parameters
+    ----------
+    namespace_path : str
+        Canonical registered namespace alias and exported source-decorator path.
+    kind : {"function", "helper"}
+        ``"function"`` declares an IR function. ``"helper"`` retains ordinary
+        Python helper semantics, including macro expansion and ``I.pyfunc``.
+        A later registration at the same path replaces its declaration kind.
+
+    Returns
+    -------
+    Callable
+        Registration decorator that returns its source decorator unchanged.
+
+    Notes
+    -----
+    Unregistered decorators have neither declaration kind.
     Concrete namespaces register their entry points where they expose them::
 
         prim_func = declaration_kind("T.prim_func", "function")(make_decorator(builder))

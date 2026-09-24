@@ -40,12 +40,11 @@ from tvm.relax.op.distributed import (
 from tvm.relax.op.distributed import (
     redistribute as _redistribute,
 )
-from tvm.relax.script.builder.ir import py_str
 from tvm.relax.utils import convert_to_expr
 from tvm.runtime import _tensor
-from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder.ir import IRModuleFrame
-from tvm.script.ir_builder.ir.ir import lookup_global_info
+from tvm.script.ir_builder import IRBuilder, IRModuleFrame
+from tvm.script.ir_builder.ir import lookup_global_info
+from tvm.script.ir_builder.relax.ir import py_str
 
 from . import _ffi_api
 

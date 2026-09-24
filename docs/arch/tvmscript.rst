@@ -55,7 +55,7 @@ TVMScript separates source acquisition, syntax translation, IR construction, and
         │
         ▼  Frontend: recompose and execute callable
         │
-        ▼  IR builders (frame stack + dialect policy)
+        ▼  IR builders (frame stack + language variant policy)
         │
    TVM IR (IRModule, PrimFunc, relax.Function)
 
@@ -77,7 +77,7 @@ TVMScript separates source acquisition, syntax translation, IR construction, and
   and execution of the builder program.
 - **Syntax transpiler** (Python): rewrites Python AST nodes into calls on the selected
   construction namespace. It preserves source scopes, evaluation order, and locations.
-- **IR builders** (Python + C++): own typed values, symbol identity, dialect policy, and
+- **IR builders** (Python + C++): own typed values, symbol identity, language variant policy, and
   construction frames. Exiting a frame finalizes its IR and attaches it to its parent.
 - **Printer** (C++): converts IR to a ``Doc`` tree and formats it as Python syntax. The
   printer's Doc tree is separate from the Python AST used for parsing.
@@ -99,7 +99,7 @@ TVMScript uses three import aliases by convention:
    from tvm.target import Target
 
 These are public authoring APIs. ``Target`` configures compilation targets; it remains in
-``tvm.target``. Public dialect namespaces expose decorators and source constructors, so
+``tvm.target``. Public language variant namespaces expose decorators and source constructors, so
 scripted programs do not need direct imports from builder implementation packages.
 
 The primary decorators are:
@@ -149,7 +149,7 @@ A helper can construct expressions or statements in the caller's active builder 
 Unlike a function decorator, ``make_macro_decorator`` does not create an IR function for
 each helper. Its default return behavior is ordinary Python return from the generated
 helper program.
-``T.inline`` and the dialect macro decorators are supplied through the same frontend helper
+``T.inline`` and the language variant macro decorators are supplied through the same frontend helper
 mechanism.
 
 
@@ -170,7 +170,7 @@ Syntax and construction protocol
 A registered function decorator selects a construction namespace. The same Python syntax
 then lowers to operations supplied by that namespace: for example, unmarked ``if`` creates
 TIR control-flow frames in a primitive function and Relax control-flow frames in a Relax
-function. The transpiler emits these operations without implementing dialect IR semantics.
+function. The transpiler emits these operations without implementing language variant IR semantics.
 
 ``parser/protocol_registry.py`` owns callable syntax metadata and registration. Argument policies such
 as ``expr_str`` translate symbolic strings written directly in source expressions, while ``global_info``
@@ -180,7 +180,7 @@ the parser does not interpret expression strings found inside captured values.
 Registration keeps syntax facts in simple dictionaries keyed by canonical namespace paths.
 Known namespace aliases normalize to the registered path; ordinary captured callables,
 local aliases, methods and closures execute as Python without marker inference. The
-dictionaries retain no source functions or parse captures. Dialects own their namespace
+dictionaries retain no source functions or parse captures. Language variants own their namespace
 exports, entry points and aliases and register them with the generic parser.
 The registry selects a call's argument policy before traversal and reuses positional
 parameter names computed once at registration;
@@ -191,7 +191,7 @@ Assignments become binding operations, standalone expressions become emission op
 and loops and scopes become builder contexts. An ordinary assignment passes its evaluated
 RHS and a separate ``value_span`` to ``bind_``, without first stamping the returned value.
 The binding target has its own span. TIRx preserves returned Vars, including BufferVars,
-and ordinary metadata objects; other expressions follow the dialect's binding rules.
+and ordinary metadata objects; other expressions follow the language variant's binding rules.
 Construction still runs in the source context, and nested expressions retain their locations.
 Concrete binding, type checking, comparison construction, and frame finalization belong to
 the builders. Ordinary host calls and
@@ -234,7 +234,7 @@ The public entry points include ``tvm.script.parse`` and ``tvm.script.from_sourc
    it defines and calls a lexical body helper without an explicit frame argument. Re-entry
    uses the existing parameters instead of adding them again. Native frames own module
    references, results and function-local symbols.
-5. **Validate and return IR**: generated code calls the dialect's
+5. **Validate and return IR**: generated code calls the language variant's
    ``X.check_well_formed_`` for a completed function or the shared
    ``I.check_well_formed_`` for a completed module. Public parsing validates by default.
    Parsing owns execution and releases its temporary builder and captures afterward.
@@ -282,22 +282,22 @@ or emission receipt, allowing result attachment without a construction context. 
 helpers still require ``.ctx`` to locate internal effects. At an ordinary assignment boundary,
 ``.ctx(..., attach_result=False)`` preserves construction context while leaving the returned
 value's attribution to ``bind_`` through its separate ``value_span``.
-The parser-owned ``parser.protocol_registry`` module defines registration APIs, metadata and
-persistent registration state. Dialects apply these policies beside concrete definitions,
+The parser-owned :mod:`tvm.script.parser.protocol_registry` module defines registration APIs,
+metadata and persistent registration state. Language variants apply these policies beside definitions,
 constructor creation or necessary exposure sites, without namespace scans or bulk
-registration inventories. Dialect ``parser_protocol`` modules implement construction hooks. The shared
-``ir_builder.ir.parser_protocol`` documents the detailed builder-hook contract and links
-to the registry for special syntax policies. Dialect hooks retain typed signatures and
-document only their specific behavior. For example, dialects import ``args_policy``
-from ``tvm.script.parser.protocol_registry`` to register literal argument policies.
+registration inventories. Each language variant's ``parser_protocol`` module implements construction
+hooks. The shared :mod:`tvm.script.ir_builder.parser_protocol` documents the detailed hook contract
+and links to the registry for special syntax policies. Language variant hooks retain typed signatures
+and document only their specific behavior. For example, they use
+:func:`tvm.script.parser.protocol_registry.args_policy` to register literal argument policies.
 
 Ordinary assignments pass returned values to ``bind_``. TIRx Vars keep their exact identity,
 producer names and spans, including scope variables, block axes and explicit ``T.bind``
 results. This behavior belongs to the builder's value handling and requires no parser
 producer classification. Self-emitting builders return ``AlreadyEmitted[T]`` so
 source-location handling can annotate the emitted object without emitting it twice.
-Layout, meta_class and view results likewise follow dialect value handling for assignment
-and standalone statements. Unsupported host values still fail under the dialect's emission
+Layout, meta_class and view results likewise follow language variant value handling for assignment
+and standalone statements. Unsupported host values still fail under the language variant's emission
 rules. Expression-facing thread APIs return native Vars; IterVar remains native metadata.
 
 Simple comparison chains such as ``0 < i < 10`` lower to
@@ -311,14 +311,14 @@ the original variable sequence, while ``for i in T.serial(n)`` binds one Var. Ex
 tuple, list and starred targets unpack the native frame's stable ``vars`` field.
 
 Function decorators pass their construction namespace and options explicitly to parsing.
-Generated ``X.function_(**options)`` creates the frame; the dialect hook owns option defaults.
+Generated ``X.function_(**options)`` creates the frame; the language variant hook owns option defaults.
 Declaration creates stable references before function bodies; generated code reads the
 native ``global_var`` or ``local_var`` field directly, without a separate reservation pass.
 There is no function-registration record or copied source-function metadata. The root
 retains ``pyfunc`` behavior and original Python callables for module assembly.
 
-Completed modules use generic root coordination over dialect-owned validation hooks.
-Each dialect checks its members and cross-function requirements against the whole module,
+Completed modules use generic root coordination over validation hooks supplied by language variants.
+Each language variant checks its members and cross-function requirements against the whole module,
 including captured members. Shared GlobalInfo construction and lookup belong to ``tvm.ir``;
 existing Relax class exports and serialized type keys remain compatible.
 
@@ -331,7 +331,7 @@ mapping still requests that path, while ``None`` selects ordinary parsing.
 Explicit host control flow
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Mark compile-time Python selection with ``I.constexpr`` or the identical dialect alias:
+Mark compile-time Python selection with ``I.constexpr`` or the identical language variant alias:
 
 .. code-block:: python
 
@@ -345,7 +345,7 @@ Mark compile-time Python selection with ``I.constexpr`` or the identical dialect
 The marker applies to the controlling value. The generated program evaluates it once and
 executes only the selected Python branch in the existing builder scope. Branch bodies and
 result expressions still translate normally. Marked ``and`` and ``or`` decisions retain
-Python short-circuiting; unmarked conditionals and logical expressions call dialect IR
+Python short-circuiting; unmarked conditionals and logical expressions call language variant IR
 constructors. A Python boolean alone does not request compile-time branch selection.
 
 JIT supplies validated specialization bindings and optional-argument absence to builder
@@ -384,7 +384,7 @@ construction policy and finalization; the syntax transpiler does not maintain an
 TIR builder
 ~~~~~~~~~~~
 
-The TIR builder (``python/tvm/tirx/script/builder/``) implements the construction operations
+The TIR builder (``python/tvm/script/ir_builder/tirx/``) implements the construction operations
 behind public ``T`` syntax. Builder modules also support direct programmatic construction;
 public decorators and internal frame-opening operations have distinct roles. Key categories:
 
@@ -416,7 +416,7 @@ public decorators and internal frame-opening operations have distinct roles. Key
 Relax builder
 ~~~~~~~~~~~~~
 
-The Relax builder (``python/tvm/relax/script/builder/``) implements:
+The Relax builder (``python/tvm/script/ir_builder/relax/``) implements:
 
 **Function and dataflow**:
 
@@ -485,7 +485,7 @@ It maintains:
 - A frame stack for tracking the current scope (similar to the builder's frame stack).
 - A variable-to-name mapping to produce readable names.
 
-Each IR dialect registers its own converters:
+Each IR language variant registers its own converters:
 
 - ``src/tirx/script/printer/`` — converts PrimFunc, Buffer, SBlock, loops, expressions.
 - ``src/relax/script/printer/`` — converts relax.Function, bindings, types, operators.

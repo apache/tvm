@@ -19,9 +19,8 @@
 import functools
 
 from tvm.ir import TensorRegion
+from tvm.script.ir_builder.tirx import tirx as _builder
 from tvm.tirx import is_buffer_var
-
-from .builder import tirx as _builder
 
 
 def _get_arg(args, kwargs, index, name):

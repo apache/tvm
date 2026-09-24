@@ -160,7 +160,7 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
     )
     from tvm.backend.metal.script import MetalNamespace as BackendMetalNamespace
     from tvm.backend.trn.script import NKINamespace as BackendNKINamespace
-    from tvm.tirx.script.builder import ir as builder_ir
+    from tvm.script.ir_builder.tirx import ir as builder_ir
 
     assert isinstance(builder_ir.cuda, BackendCUDANamespace)
     assert isinstance(builder_ir.s_tir, BackendSTIRNamespace)
@@ -229,9 +229,9 @@ def test_backend_specific_wrappers_are_not_root_exports():
 
 
 def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
+    from tvm.script.ir_builder.tirx import ir as builder_ir
     from tvm.script.parser import tirx as parser
     from tvm.tirx.script import builder
-    from tvm.tirx.script.builder import ir as builder_ir
 
     backend_name = "unit_test_backend"
     backend_module_name = f"tvm.backend.{backend_name}"

@@ -79,13 +79,37 @@ from .parser_protocol import (
 If = if_
 For = for_
 
-# Syntax capability: mutable declaration policies apply only in this dialect.
+# Syntax capability: mutable declaration policies apply only in this language variant.
 supports_mutable_declarations = False
 
 
 @_args_policy("R.Tensor", {"shape": "expr_str", "vdevice": "global_info"}, scalar_strings=False)
 def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
-    """Construct a tensor type from concrete shape dimensions."""
+    """Construct a Relax tensor type.
+
+    Parameters
+    ----------
+    shape : Expr or sequence of Expr, optional
+        Tensor shape, or None when unknown. A string supplied without dtype
+        is shorthand for the dtype. Script dimension strings follow the
+        registered shape-expression argument policy.
+    dtype : str or PrimType, optional
+        Element type; None leaves the element type unknown.
+    vdevice : VDevice or str, optional
+        Concrete virtual device or a module metadata selector, such as "cuda:0".
+        None leaves the virtual device unspecified.
+    ndim : int, optional
+        Rank when shape is unknown; -1 means unknown rank. Do not supply
+        an explicit rank together with a known shape.
+    span : Span or source location, optional
+        Source location attached to the constructed IR; None leaves it unspecified.
+
+    Returns
+    -------
+    result : TensorType or Type
+        The tensor type. A string device selector evaluated before the module
+        builder opens returns a missing type for the generated declaration to resolve.
+    """
     if isinstance(shape, _python.str) and dtype is None:
         dtype, shape = shape, None
     if isinstance(vdevice, _python.str) and not _IRBuilder.is_in_scope():
@@ -100,7 +124,32 @@ def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
     "R.DTensor", {"shape": "expr_str", "device_mesh": "global_info"}, scalar_strings=False
 )
 def DTensor(shape=None, dtype=None, device_mesh=None, placement="", *, ndim=-1, span=None):
-    """Construct a distributed tensor type from concrete dimensions."""
+    """Construct a Relax distributed tensor type.
+
+    Parameters
+    ----------
+    shape : Expr or sequence of Expr, optional
+        Global tensor shape, or None when unknown; dimension strings in script
+        follow the registered shape-expression argument policy.
+    dtype : str or PrimType, optional
+        Element type; None leaves the element type unknown.
+    device_mesh : DeviceMesh or str, optional
+        Concrete mesh or module metadata selector. None creates an empty mesh
+        placeholder. A selector is resolved in the enclosing module builder.
+    placement : Placement or str, optional
+        Distribution placement. Text, including the default empty string, is
+        parsed with Placement.from_text.
+    ndim : int, optional
+        Global rank when shape is unknown; -1 means unknown rank.
+    span : Span or source location, optional
+        Source location attached to the constructed IR; None leaves it unspecified.
+
+    Returns
+    -------
+    result : DTensorType or Type
+        The distributed type. A string mesh selector evaluated before the
+        module builder opens returns a missing type for later resolution.
+    """
     if isinstance(device_mesh, _python.str) and not _IRBuilder.is_in_scope():
         return _ir.Type.missing()
     if device_mesh is None:
@@ -125,7 +174,24 @@ __tvm_value_if__ = True
 
 @_args_policy("R.Shape", {"values": "expr_str"}, dtype="int64")
 def Shape(values=None, ndim=-1, *, span=None):
-    """Construct a shape type from concrete dimensions."""
+    """Construct a Relax shape type.
+
+    Parameters
+    ----------
+    values : sequence of Expr, optional
+        Known dimensions, or None for an unknown shape value. Script dimension
+        strings use the registered int64 shape-expression policy.
+    ndim : int, optional
+        Number of dimensions when values is None; -1 leaves it unknown.
+        Do not supply an explicit count together with known values.
+    span : Span or source location, optional
+        Source location attached to the constructed IR; None leaves it unspecified.
+
+    Returns
+    -------
+    result : ShapeType
+        The constructed shape type.
+    """
     return _relax.ShapeType(values, ndim, _source_span(span))
 
 
@@ -142,7 +208,36 @@ def _type(value):
 
 
 def Callable(params=None, ret=None, purity=None, derive_func=None, *, span=None):
-    """Construct a concrete or opaque Relax function type."""
+    """Construct a concrete or opaque Relax function type.
+
+    Parameters
+    ----------
+    params : Type, callable, or sequence of annotations, optional
+        Parameter annotations. A single annotation is accepted; None creates
+        an opaque callable with an unspecified parameter list.
+    ret : Type or callable, optional
+        Return annotation. None means an empty tuple for a concrete callable
+        and an unspecified result for an opaque callable.
+    purity : bool, optional
+        Whether the callable is pure. None selects True for a concrete
+        parameter list and False for an opaque callable.
+    derive_func : str or EnvFunc, optional
+        Custom result-type derivation for an opaque callable. It is not
+        accepted when params supplies a concrete parameter list.
+    span : Span or source location, optional
+        Source location attached to the constructed IR; None leaves it unspecified.
+
+    Returns
+    -------
+    result : FuncType
+        The constructed function type.
+
+    Notes
+    -----
+    Annotations may be types, primitive expressions supplying their types, or
+    zero-argument factories returning either. Opaque result and derivation rules
+    follow :meth:`tvm.relax.FuncType.opaque_func`.
+    """
     if purity is None:
         purity = params is not None
     if params is None:
@@ -162,14 +257,39 @@ def Callable(params=None, ret=None, purity=None, derive_func=None, *, span=None)
 
 
 def Tuple(*fields, span=None):
-    """Construct a tuple type while preserving missing component types."""
+    """Construct a Relax tuple type.
+
+    Parameters
+    ----------
+    fields : Type or callable
+        Field annotations as positional arguments, or one list or tuple.
+        Each annotation is normalized to a type; None denotes an empty tuple.
+    span : Span or source location, optional
+        Source location attached to the constructed IR; None leaves it unspecified.
+
+    Returns
+    -------
+    result : TupleType
+        The tuple type with fields in the supplied order.
+    """
     if len(fields) == 1 and isinstance(fields[0], list | _python.tuple):
         fields = fields[0]
     return _ir.TupleType([_type(field) for field in fields], _source_span(span))
 
 
 def Object(*, span=None):
-    """Construct the unconstrained Relax value type."""
+    """Construct the unconstrained Relax value type.
+
+    Parameters
+    ----------
+    span : Span or source location, optional
+        Source location attached to the constructed IR; None leaves it unspecified.
+
+    Returns
+    -------
+    result : AnyType
+        A type accepting any Relax value.
+    """
     return _relax.AnyType(_source_span(span))
 
 
@@ -180,7 +300,27 @@ is_type_var = _ir.is_prim_var
 
 
 def type_var(name, *, dtype=None, span=None):
-    """Construct a fresh standalone primitive symbol."""
+    """Construct a fresh standalone primitive symbol.
+
+    Parameters
+    ----------
+    name : str
+        Name of the symbol.
+    dtype : str or PrimType, optional
+        Primitive type of the symbol; None selects "int64".
+    span : Span or source location, optional
+        Source location attached to the constructed IR; None leaves it unspecified.
+
+    Returns
+    -------
+    result : Var
+        The newly constructed primitive variable.
+
+    Notes
+    -----
+    This constructor creates a new symbol on each call. Use the language variant
+    resolver for symbols shared by name within a function signature.
+    """
     return _ir.Var(name, "int64" if dtype is None else dtype, _source_span(span))
 
 
@@ -214,7 +354,24 @@ def _value(value, ty=None):
 
 
 def match_cast(value, ty, *, span=None):
-    """Construct a match-cast descriptor for ``bind_`` to consume."""
+    """Construct a match-cast descriptor for the binding hook.
+
+    Parameters
+    ----------
+    value : Expr or Python value
+        Value to match against the asserted type. Numbers and Python tuples
+        are converted to Relax expressions; None is not accepted.
+    ty : Type or callable
+        Asserted type, or a zero-argument factory producing its annotation.
+    span : Span or source location, optional
+        Source location attached to the constructed IR; None leaves it unspecified.
+
+    Returns
+    -------
+    result : MatchCast
+        An unbound match-cast descriptor, consumed by the language variant
+        binding hook to emit and name the result.
+    """
     if value is None:
         raise ValueError("The match-cast value cannot be None")
     ty = _type(ty)
@@ -276,7 +433,25 @@ def _logical_pair(lhs, rhs, operation, primitive, python_operation):
 
 
 def logical_and(*values):
-    """Construct conjunction of concrete host, primitive, or tensor values."""
+    """Construct conjunction of host, primitive, or tensor values.
+
+    Parameters
+    ----------
+    values : Expr or Python value
+        One or more eagerly evaluated operands. Host pairs follow Python
+        logical operations; primitive pairs use primitive IR and tensor pairs
+        use the corresponding Relax operation.
+
+    Returns
+    -------
+    result : Expr or Python value
+        The conjunction reduced from left to right.
+
+    Notes
+    -----
+    All arguments are evaluated before this call; it does not provide Python
+    short-circuit evaluation of the argument expressions.
+    """
     if not values:
         raise TypeError("logical_and requires at least one operand")
     result = values[0]
@@ -286,7 +461,25 @@ def logical_and(*values):
 
 
 def logical_or(*values):
-    """Construct disjunction of concrete host, primitive, or tensor values."""
+    """Construct disjunction of host, primitive, or tensor values.
+
+    Parameters
+    ----------
+    values : Expr or Python value
+        One or more eagerly evaluated operands. Host pairs follow Python
+        logical operations; primitive pairs use primitive IR and tensor pairs
+        use the corresponding Relax operation.
+
+    Returns
+    -------
+    result : Expr or Python value
+        The disjunction reduced from left to right.
+
+    Notes
+    -----
+    All arguments are evaluated before this call; it does not provide Python
+    short-circuit evaluation of the argument expressions.
+    """
     if not values:
         raise TypeError("logical_or requires at least one operand")
     result = values[0]
@@ -296,7 +489,19 @@ def logical_or(*values):
 
 
 def logical_not(value):
-    """Negate a host or IR boolean without coercing IR to Python bool."""
+    """Negate a host, primitive, or tensor condition.
+
+    Parameters
+    ----------
+    value : Expr or Python value
+        Operand to negate. Primitive and tensor expressions use their IR
+        logical operation; host values use Python truth testing.
+
+    Returns
+    -------
+    result : Expr or bool
+        The logical negation without testing an IR expression as a Python bool.
+    """
     if _ir.is_prim_expr(value):
         return _tir.Not(value)
     if isinstance(value, _ir.Expr):
@@ -305,7 +510,27 @@ def logical_not(value):
 
 
 def select(condition, true_value, false_value):
-    """Construct elementwise selection or select already-built host values."""
+    """Select between already-constructed values.
+
+    Parameters
+    ----------
+    condition : Expr or Python value
+        Primitive condition, tensor condition, or host truth value.
+    true_value : Expr or Python value
+        Value selected when the condition is true.
+    false_value : Expr or Python value
+        Value selected when the condition is false.
+
+    Returns
+    -------
+    result : Expr or Python value
+        A primitive Select, Relax elementwise where, or the selected host value.
+
+    Notes
+    -----
+    Both value arguments are evaluated before this call. Host selection returns
+    the selected object; tensor selection converts Python numbers and tuples.
+    """
     if _ir.is_prim_expr(condition):
         return _tir.Select(condition, true_value, false_value)
     if isinstance(condition, _ir.Expr):

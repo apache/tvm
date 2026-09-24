@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package tvm.script.ir_builder.ir.frame"""
+"""Package tvm.script.ir_builder.frame"""
 
 from tvm_ffi import register_object as _register_object
 
-from ..base import IRBuilderFrame
+from .base import IRBuilderFrame
 
 
 @_register_object("script.ir_builder.IRModuleFrame")
