@@ -999,11 +999,9 @@ def test_min_max_float_imm_operand_cuda(op, const_side, const_nan, form):
     #   per-lane general path.
     n = 8
     const_val = float("nan") if const_nan else 0.0
-    # B's NaN gets its own payload, so a lane that must return B's NaN cannot
-    # pass by returning the constant NaN, and vice versa.
-    b_nan_bits = 0x7FC00033
+    # B carries a NaN lane so the (NaN B, finite constant) branch is exercised.
     b_np = CONST_OTHER.copy()
-    b_np.view("uint32")[0] = b_nan_bits
+    b_np[0] = np.float32("nan")
 
     @I.ir_module(s_tir=True)
     class Module:
@@ -1088,17 +1086,18 @@ def test_min_max_float_imm_operand_cuda(op, const_side, const_nan, form):
         cmp = lhs_np < rhs_np if op == "min" else lhs_np > rhs_np
         take_lhs = cmp | np.isnan(lhs_np)
         expected = np.where(take_lhs, lhs_np, rhs_np)
-        takes_const = take_lhs if const_side == "lhs" else ~take_lhs
-        if const_nan:
-            # A constant NaN is emitted as CUDART_NAN_F, whose bits differ from
-            # numpy's NaN: lanes that return it are checked for NaN, and for not
-            # being B's NaN.
-            assert np.isnan(got[takes_const]).all(), got
-            assert (got.view("uint32")[takes_const] != b_nan_bits).all(), got
-            exact = ~takes_const
-        else:
-            exact = np.ones(n, dtype=bool)
-        np.testing.assert_array_equal(got.view("uint32")[exact], expected.view("uint32")[exact])
+        # The contract is NaN propagation, not the NaN payload: a constant NaN is
+        # emitted as CUDART_NAN_F, and nvcc may lower the compare-select to a
+        # min/max instruction that returns the canonical NaN (seen on sm_89 for
+        # min(c, B) and max(B, c): 0x7FFFFFFF where B held 0x7FC00033). NaN lanes
+        # are checked with isnan; every finite lane, including the sign of zero,
+        # bitwise.
+        nan_lanes = np.isnan(expected)
+        assert np.isnan(got[nan_lanes]).all(), got
+        assert not np.isnan(got[~nan_lanes]).any(), got
+        np.testing.assert_array_equal(
+            got.view("uint32")[~nan_lanes], expected.view("uint32")[~nan_lanes]
+        )
 
     tvm.testing.run_with_gpu_lock(run_and_check)
 
