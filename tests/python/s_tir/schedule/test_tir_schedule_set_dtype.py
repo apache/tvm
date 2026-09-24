@@ -34,64 +34,64 @@ from tvm.script import tirx as T
 
 @Ts.prim_func
 def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    B = T.sblock_alloc_buffer((128, 128), dtype="float32")
+    B = Ts.sblock_alloc_buffer((128, 128), dtype="float32")
 
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
 @Ts.prim_func
 def element_wise_set_dtype(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
-    B = T.sblock_alloc_buffer((128, 128), "float16")
+    B = Ts.sblock_alloc_buffer((128, 128), "float16")
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.reads(A[vi, vj])
-            T.writes(B[vi, vj])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.reads(A[vi, vj])
+            Ts.writes(B[vi, vj])
             B[vi, vj] = T.cast(A[vi, vj] * 2.0, "float16")
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.reads(B[vi, vj])
-            T.writes(C[vi, vj])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.reads(B[vi, vj])
+            Ts.writes(C[vi, vj])
             C[vi, vj] = T.cast(B[vi, vj], "float32") + 1.0
 
 @Ts.prim_func
 def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    B = T.sblock_alloc_buffer((128, 128), dtype="float32")
+    B = Ts.sblock_alloc_buffer((128, 128), dtype="float32")
 
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B_subregion0 = T.match_buffer(B[vi, vj], [], offset_factor=1)
             B_subregion0[()] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B_subregion1 = T.match_buffer(B[vi, vj], [], offset_factor=1)
             C[vi, vj] = B_subregion1[()] + 1.0
 
 
 @Ts.prim_func
 def element_wise_subregion_match_set_dtype(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    B = T.sblock_alloc_buffer((128, 128), "float16")
+    B = Ts.sblock_alloc_buffer((128, 128), "float16")
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.reads(A[vi, vj])
-            T.writes(B[vi, vj])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.reads(A[vi, vj])
+            Ts.writes(B[vi, vj])
             B_subregion0 = T.match_buffer(B[vi, vj], (), "float16", offset_factor=1)
             B_subregion0[()] = T.cast(A[vi, vj] * 2.0, "float16")
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.reads(B[vi, vj])
-            T.writes(C[vi, vj])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.reads(B[vi, vj])
+            Ts.writes(C[vi, vj])
             B_subregion1 = T.match_buffer(B[vi, vj], (), "float16", offset_factor=1)
             C[vi, vj] = T.cast(B_subregion1[()], "float32") + 1.0
 

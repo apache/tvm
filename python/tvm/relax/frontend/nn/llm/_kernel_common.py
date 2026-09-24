@@ -40,6 +40,7 @@ from typing import Any
 import tvm
 from tvm import s_tir, tirx
 from tvm.runtime import DataType
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -47,11 +48,11 @@ from .position_embedding import switch_rope_freq_func
 
 
 def _var(dtype):
-    return T.sblock_alloc_buffer((1,), dtype, scope="local")
+    return Ts.sblock_alloc_buffer((1,), dtype, scope="local")
 
 
 def _var_cpu(dtype):
-    return T.sblock_alloc_buffer((1,), dtype)
+    return Ts.sblock_alloc_buffer((1,), dtype)
 
 
 def get_max_num_threads_per_block(target: Target) -> int:
@@ -175,32 +176,32 @@ def _alloc_softmax_state_buffers(tile_x, tile_z, bdx, num_warps):
 
     Returns ``(S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new)``.
     """
-    S_smem = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="shared")
-    S_local = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="local")
-    m_smem = T.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
-    m_prev_smem = T.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
-    d_smem = T.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
+    S_smem = Ts.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="shared")
+    S_local = Ts.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="local")
+    m_smem = Ts.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
+    m_prev_smem = Ts.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
+    d_smem = Ts.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
     md_shape = (math.ceil(tile_x / (bdx * num_warps)),)
-    m_new = T.sblock_alloc_buffer(md_shape, "float32", scope="local")
-    m_prev = T.sblock_alloc_buffer(md_shape, "float32", scope="local")
-    d_new = T.sblock_alloc_buffer(md_shape, "float32", scope="local")
+    m_new = Ts.sblock_alloc_buffer(md_shape, "float32", scope="local")
+    m_prev = Ts.sblock_alloc_buffer(md_shape, "float32", scope="local")
+    d_new = Ts.sblock_alloc_buffer(md_shape, "float32", scope="local")
     return S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new
 
 
 def _alloc_mha_qkvo_buffers(tile_x, tile_z, d_qk, d_v, dtype):
     """Allocate Q/K/V shared + O local buffers for standard MHA/GQA prefill kernels."""
-    Q_smem = T.sblock_alloc_buffer((tile_x, d_qk), dtype, scope="shared")
-    K_smem = T.sblock_alloc_buffer((tile_z, d_qk), dtype, scope="shared")
-    V_smem = T.sblock_alloc_buffer((tile_z, d_v), dtype, scope="shared")
-    O_local = T.sblock_alloc_buffer((tile_x, d_v), "float32", scope="local")
+    Q_smem = Ts.sblock_alloc_buffer((tile_x, d_qk), dtype, scope="shared")
+    K_smem = Ts.sblock_alloc_buffer((tile_z, d_qk), dtype, scope="shared")
+    V_smem = Ts.sblock_alloc_buffer((tile_z, d_v), dtype, scope="shared")
+    O_local = Ts.sblock_alloc_buffer((tile_x, d_v), "float32", scope="local")
     return Q_smem, K_smem, V_smem, O_local
 
 
 def _alloc_mla_qkvo_buffers(tile_x, tile_z, d_qk, d_latent, dtype):
     """Allocate Q + combined KV shared + O local for MLA prefill (V reuses the KV buffer)."""
-    Q_smem = T.sblock_alloc_buffer((tile_x, d_qk), dtype, scope="shared")
-    KV_smem = T.sblock_alloc_buffer((tile_z, d_qk), dtype, scope="shared")
-    O_local = T.sblock_alloc_buffer((tile_x, d_latent), "float32", scope="local")
+    Q_smem = Ts.sblock_alloc_buffer((tile_x, d_qk), dtype, scope="shared")
+    KV_smem = Ts.sblock_alloc_buffer((tile_z, d_qk), dtype, scope="shared")
+    O_local = Ts.sblock_alloc_buffer((tile_x, d_latent), "float32", scope="local")
     return Q_smem, KV_smem, O_local
 
 
@@ -229,8 +230,8 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                 m_smem[row] = -5e4
                 d_smem[row] = 1.0
         for li, lj in T.grid(tile_x, tile_o):
-            with T.sblock("O_init"):
-                i, j = T.axis.remap("SS", [li, lj])
+            with Ts.sblock("O_init"):
+                i, j = Ts.axis.remap("SS", [li, lj])
                 O_local[i, j] = 0.0
         T.tvm_storage_sync("shared")
 
@@ -238,17 +239,17 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
     def compute_s_gemm(
         Q_smem: T.Buffer, K_smem: T.Buffer, S_local: T.Buffer, S_smem: T.Buffer, sm_scale: T.float32,
     ):
-        with T.sblock():
+        with Ts.sblock():
             for li, lj, lk in T.grid(tile_x, tile_z, tile_y):
-                with T.sblock("S_gemm"):
-                    i, j, k = T.axis.remap("SSR", [li, lj, lk])
-                    with T.init():
+                with Ts.sblock("S_gemm"):
+                    i, j, k = Ts.axis.remap("SSR", [li, lj, lk])
+                    with Ts.init():
                         S_local[i, j] = 0.0
                     S_local[i, j] += T.cast(Q_smem[i, k], "float32") * T.cast(K_smem[j, k], "float32") * sm_scale * math.log2(math.exp(1))
         T.tvm_storage_sync("shared")
         for li, lj in T.grid(tile_x, tile_z):
-            with T.sblock("S_store"):
-                i, j = T.axis.remap("SS", [li, lj])
+            with Ts.sblock("S_store"):
+                i, j = Ts.axis.remap("SS", [li, lj])
                 S_smem[i, j] = S_local[i, j]
         T.tvm_storage_sync("shared")
 
@@ -263,7 +264,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
             if row < tile_x:
-                with T.sblock("update1"):
+                with Ts.sblock("update1"):
                     m_prev[i] = m_smem[row]
                     m_new[i] = m_smem[row]
                     row_: T.let[T.int32] = (LH_start + row) // group_size
@@ -274,7 +275,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         # Phase 2: exp-and-scale S_smem; masked-out entries use -inf
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
-            with T.sblock("update"):
+            with Ts.sblock("update"):
                 for j in T.serial(tile_z):
                     # predicate sits inside loop so sync stays outside conditional branches
                     if row < tile_x:
@@ -287,7 +288,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
             if row < tile_x:
-                with T.sblock("update"):
+                with Ts.sblock("update"):
                     for j in T.serial(tile_z):
                         d_new[i] += S_smem[row, j]
                     m_smem[row] = m_new[i]
@@ -300,11 +301,11 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         S_smem: T.Buffer, V_smem: T.Buffer, O_local: T.Buffer,
         m_prev_smem: T.Buffer, m_smem: T.Buffer,
     ):
-        with T.sblock():
+        with Ts.sblock():
             for li, lj, lk in T.grid(tile_x, tile_o, tile_z):
-                with T.sblock("O_gemm"):
-                    i, j, k = T.axis.remap("SSR", [li, lj, lk])
-                    with T.init():
+                with Ts.sblock("O_gemm"):
+                    i, j, k = Ts.axis.remap("SSR", [li, lj, lk])
+                    with Ts.init():
                         O_local[i, j] *= T.exp2(m_prev_smem[i] - m_smem[i])
                     O_local[i, j] += S_smem[i, k] * T.cast(V_smem[k, j], "float32")
 
@@ -319,15 +320,15 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         the ``by * group_size`` term drops to zero at compile time.
         """
         for li, lj in T.grid(tile_x, tile_o):
-            with T.sblock("O_store"):
-                i, j = T.axis.remap("SS", [li, lj])
+            with Ts.sblock("O_store"):
+                i, j = Ts.axis.remap("SS", [li, lj])
                 cur_L: T.let[T.int32] = q_indptr[b_idx] + (LH_start + i) // group_size
                 cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                 if cur_L < q_indptr[b_idx + 1]:
                     output[cur_L, cur_H_qo, j] = O_local[i, j] / d_smem[i]
         for li in T.grid(tile_x):
-            with T.sblock("lse_store"):
-                i = T.axis.remap("S", [li])
+            with Ts.sblock("lse_store"):
+                i = Ts.axis.remap("S", [li])
                 cur_L: T.let[T.int32] = q_indptr[b_idx] + (LH_start + i) // group_size
                 cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                 if cur_L < q_indptr[b_idx + 1]:
@@ -363,7 +364,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
             if row < tile_x:
-                with T.sblock("update1"):
+                with Ts.sblock("update1"):
                     m_prev[i] = m_smem[row]
                     m_new[i] = m_smem[row]
                     row_: T.let[T.int32] = (LH_start + row) // group_size
@@ -373,7 +374,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
-            with T.sblock("update"):
+            with Ts.sblock("update"):
                 for j in T.serial(tile_z):
                     if row < tile_x:
                         row_: T.let[T.int32] = (LH_start + row) // group_size
@@ -384,7 +385,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
             if row < tile_x:
-                with T.sblock("update"):
+                with Ts.sblock("update"):
                     for j in T.serial(tile_z):
                         d_new[i] += S_smem[row, j]
                     m_smem[row] = m_new[i]
@@ -406,7 +407,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
             if row < tile_x:
-                with T.sblock("update1"):
+                with Ts.sblock("update1"):
                     m_prev[i] = m_smem[row]
                     m_new[i] = m_smem[row]
                     row_: T.let[T.int32] = (LH_start + row) // group_size
@@ -419,7 +420,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
-            with T.sblock("update"):
+            with Ts.sblock("update"):
                 for j in T.serial(tile_z):
                     if row < tile_x:
                         row_: T.let[T.int32] = (LH_start + row) // group_size
@@ -433,7 +434,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
             if row < tile_x:
-                with T.sblock("update"):
+                with Ts.sblock("update"):
                     for j in T.serial(tile_z):
                         d_new[i] += S_smem[row, j]
                     m_smem[row] = m_new[i]

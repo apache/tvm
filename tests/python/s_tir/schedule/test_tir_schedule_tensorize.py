@@ -49,12 +49,12 @@ def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (16, 16), align=64, offset_factor=1)
     C = T.match_buffer(c, (16, 16), align=64, offset_factor=1)
 
-    with T.sblock("root"):
-        T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
-        T.writes(C[0 : 16, 0 : 16])
+    with Ts.sblock("root"):
+        Ts.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
+        Ts.writes(C[0 : 16, 0 : 16])
         for i, j, k in T.grid(16, 16, 16):
-            with T.sblock("update"):
-                vii, vjj, vkk = T.axis.remap("SSR", [i, j, k])
+            with Ts.sblock("update"):
+                vii, vjj, vkk = Ts.axis.remap("SSR", [i, j, k])
                 C[vii, vjj] = C[vii, vjj] + A[vii, vkk] * B[vjj, vkk]
 
 
@@ -64,9 +64,9 @@ def mma_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (16, 16), align=64, offset_factor=1)
     C = T.match_buffer(c, (16, 16), align=64, offset_factor=1)
 
-    with T.sblock("root"):
-        T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
-        T.writes(C[0 : 16, 0 : 16])
+    with Ts.sblock("root"):
+        Ts.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
+        Ts.writes(C[0 : 16, 0 : 16])
         T.evaluate(
             T.tvm_mma_sync(
                 C.data,
@@ -88,12 +88,12 @@ def dot_product_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (4,))
     C = T.match_buffer(c, ())
 
-    with T.sblock("root"):
-        T.reads(C[()], A[0 : 4], B[0 : 4])
-        T.writes(C[()])
+    with Ts.sblock("root"):
+        Ts.reads(C[()], A[0 : 4], B[0 : 4])
+        Ts.writes(C[()])
         for i in range(0, 4):
-            with T.sblock("update"):
-                vi = T.axis.remap("R", [i])
+            with Ts.sblock("update"):
+                vi = Ts.axis.remap("R", [i])
                 C[()] = C[()] + A[vi] * B[vi]
 
 
@@ -103,9 +103,9 @@ def dot_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (4,), offset_factor=1)
     C = T.match_buffer(c, (), offset_factor=1)
 
-    with T.sblock("root"):
-        T.reads(C[()], A[0 : 4], B[0 : 4])
-        T.writes(C[()])
+    with Ts.sblock("root"):
+        Ts.reads(C[()], A[0 : 4], B[0 : 4])
+        Ts.writes(C[()])
         T.evaluate(
             T.call_extern(
                 "vec4add",
@@ -126,10 +126,10 @@ def dot_product_intrin_annotated(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (4,), offset_factor=1)
     C = T.match_buffer(c, (), offset_factor=1)
 
-    with T.sblock("root"):
-        T.reads(C[()], A[0 : 4], B[0 : 4])
-        T.writes(C[()])
-        T.sblock_attr({"test_annotation": True})
+    with Ts.sblock("root"):
+        Ts.reads(C[()], A[0 : 4], B[0 : 4])
+        Ts.writes(C[()])
+        Ts.sblock_attr({"test_annotation": True})
         T.evaluate(
             T.call_extern(
                 "vec4add",
@@ -150,16 +150,16 @@ def outer_product_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (16, 1), offset_factor=1)
     C = T.match_buffer(c, (16, 16), offset_factor=1)
 
-    with T.sblock("root"):
-        T.reads(
+    with Ts.sblock("root"):
+        Ts.reads(
             C[0 : 16, 0 : 16],
             A[0 : 16, 0 : 1],
             B[0 : 16, 0 : 1],
         )
-        T.writes(C[0 : 16, 0 : 16])
+        Ts.writes(C[0 : 16, 0 : 16])
         for i, j in T.grid(16, 16):
-            with T.sblock("update"):
-                vii, vjj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("update"):
+                vii, vjj = Ts.axis.remap("SS", [i, j])
                 C[vii, vjj] = C[vii, vjj] + A[vii, 0] * B[vjj, 0]
 
 
@@ -169,13 +169,13 @@ def outer_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (16, 1), offset_factor=1)
     C = T.match_buffer(c, (16, 16), offset_factor=1)
 
-    with T.sblock("root"):
-        T.reads(
+    with Ts.sblock("root"):
+        Ts.reads(
             C[0 : 16, 0 : 16],
             A[0 : 16, 0 : 1],
             B[0 : 16, 0 : 1],
         )
-        T.writes(C[0 : 16, 0 : 16])
+        Ts.writes(C[0 : 16, 0 : 16])
         T.evaluate(
             T.call_extern(
                 "outer_product",
@@ -197,9 +197,9 @@ def matmul(
     C: T.Buffer((128, 128), "float32"),
 ) -> None:
     for i, j, k in T.grid(128, 128, 128):
-        with T.sblock("update"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("update"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 C[vi, vj] = T.float32(0)
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -212,21 +212,21 @@ def tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
     for i_outer, j_outer in T.grid(8, 8):
         for i_inner_init, j_inner_init in T.grid(16, 16):
-            with T.sblock("init"):
-                vi_init = T.axis.S(128, ((i_outer * 16) + i_inner_init))
-                vj_init = T.axis.S(128, ((j_outer * 16) + j_inner_init))
+            with Ts.sblock("init"):
+                vi_init = Ts.axis.S(128, ((i_outer * 16) + i_inner_init))
+                vj_init = Ts.axis.S(128, ((j_outer * 16) + j_inner_init))
                 C[vi_init, vj_init] = T.float32(0)
         for k_outer in T.grid(8):
-            with T.sblock("update"):
-                vi, vj, vk = T.axis.remap("SSR", [i_outer, j_outer, k_outer])
-                T.reads(
+            with Ts.sblock("update"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i_outer, j_outer, k_outer])
+                Ts.reads(
                     [
                         C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                         A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                         B[vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     ]
                 )
-                T.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+                Ts.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
                 A_elem_offset = T.int32()
                 B_elem_offset = T.int32()
                 C_elem_offset = T.int32()
@@ -267,13 +267,13 @@ def batch_matmul(
     C: T.Buffer((16, 128, 128), "float32"),
 ) -> None:
     for n, i, j in T.grid(16, 128, 128):
-        with T.sblock("init"):
-            vn, vi, vj = T.axis.remap("SSS", [n, i, j])
+        with Ts.sblock("init"):
+            vn, vi, vj = Ts.axis.remap("SSS", [n, i, j])
             C[vn, vi, vj] = T.float32(0)
 
     for n, i, j, k in T.grid(16, 128, 128, 128):
-        with T.sblock("update"):
-            vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
+        with Ts.sblock("update"):
+            vn, vi, vj, vk = Ts.axis.remap("SSSR", [n, i, j, k])
             C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
 
 
@@ -284,21 +284,21 @@ def tensorized_batch_matmul_mma(
     C: T.Buffer((16, 128, 128), "float32"),
 ) -> None:
     for n, i, j in T.grid(16, 128, 128):
-        with T.sblock("init"):
-            vn, vi, vj = T.axis.remap("SSS", [n, i, j])
-            T.reads()
-            T.writes(C[vn, vi, vj])
+        with Ts.sblock("init"):
+            vn, vi, vj = Ts.axis.remap("SSS", [n, i, j])
+            Ts.reads()
+            Ts.writes(C[vn, vi, vj])
             C[vn, vi, vj] = T.float32(0)
     for n in range(0, 16):
         for i, j, k in T.grid(8, 8, 8):
-            with T.sblock("update"):
-                vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
-                T.reads(
+            with Ts.sblock("update"):
+                vn, vi, vj, vk = Ts.axis.remap("SSSR", [n, i, j, k])
+                Ts.reads(
                     C[vn : vn + 1, vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                     A[vn : vn + 1, vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     B[vn : vn + 1, vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                 )
-                T.writes(C[vn : vn + 1, vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+                Ts.writes(C[vn : vn + 1, vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
                 A_elem_offset = T.int32()
                 B_elem_offset = T.int32()
                 C_elem_offset = T.int32()
@@ -339,18 +339,18 @@ def tensorized_batch_matmul_dot_product(
     C: T.Buffer((16, 128, 128), "float32"),
 ) -> None:
     for n, i, j in T.grid(16, 128, 128):
-        with T.sblock("init"):
-            vn, vi, vj = T.axis.remap("SSS", [n, i, j])
-            T.reads()
-            T.writes(C[vn, vi, vj])
+        with Ts.sblock("init"):
+            vn, vi, vj = Ts.axis.remap("SSS", [n, i, j])
+            Ts.reads()
+            Ts.writes(C[vn, vi, vj])
             C[vn, vi, vj] = T.float32(0)
     for n, i, j, k_0 in T.grid(16, 128, 128, 32):
-        with T.sblock("blockized_update"):
-            vn, vi, vj, vko = T.axis.remap("SSSR", [n, i, j, k_0])
-            T.reads(
+        with Ts.sblock("blockized_update"):
+            vn, vi, vj, vko = Ts.axis.remap("SSSR", [n, i, j, k_0])
+            Ts.reads(
                 C[vn, vi, vj], A[vn, vi, vko * 4 : vko * 4 + 4], B[vn, vj, vko * 4 : vko * 4 + 4]
             )
-            T.writes(C[vn, vi, vj])
+            Ts.writes(C[vn, vi, vj])
             A_1 = T.match_buffer(
                 A[vn, vi, vko * 4 : vko * 4 + 4], [4], dtype="float32", offset_factor=1
             )
@@ -379,20 +379,20 @@ def tensorized_batch_matmul_outer_product(
     C: T.Buffer((16, 128, 128), "float32"),
 ) -> None:
     for n, i, j in T.grid(16, 128, 128):
-        with T.sblock("init"):
-            vn, vi, vj = T.axis.remap("SSS", [n, i, j])
-            T.reads()
-            T.writes(C[vn, vi, vj])
+        with Ts.sblock("init"):
+            vn, vi, vj = Ts.axis.remap("SSS", [n, i, j])
+            Ts.reads()
+            Ts.writes(C[vn, vi, vj])
             C[vn, vi, vj] = T.float32(0)
     for n, i_0, j_0, k in T.grid(16, 8, 8, 128):
-        with T.sblock("blockized_update"):
-            vn, vio, vjo, vk = T.axis.remap("SSSR", [n, i_0, j_0, k])
-            T.reads(
+        with Ts.sblock("blockized_update"):
+            vn, vio, vjo, vk = Ts.axis.remap("SSSR", [n, i_0, j_0, k])
+            Ts.reads(
                 C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16],
                 A[vn, vio * 16 : vio * 16 + 16, vk],
                 B[vn, vjo * 16 : vjo * 16 + 16, vk],
             )
-            T.writes(C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+            Ts.writes(C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
             A_1 = T.match_buffer(A[vn, vio * 16 : vio * 16 + 16, vk], [16, 1], dtype="float32", offset_factor=1)
             B_1 = T.match_buffer(B[vn, vjo * 16 : vjo * 16 + 16, vk], [16, 1], dtype="float32", offset_factor=1
             )
@@ -412,13 +412,13 @@ def annotated_mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (16, 16), align=64, offset_factor=1)
     C = T.match_buffer(c, (16, 16), align=64, offset_factor=1)
 
-    with T.sblock("root"):
-        T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
-        T.writes(C[0 : 16, 0 : 16])
+    with Ts.sblock("root"):
+        Ts.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
+        Ts.writes(C[0 : 16, 0 : 16])
         for i, j, k in T.grid(16, 16, 16):
-            with T.sblock("update"):
-                T.sblock_attr({"test_annotation": True})
-                vii, vjj, vkk = T.axis.remap("SSR", [i, j, k])
+            with Ts.sblock("update"):
+                Ts.sblock_attr({"test_annotation": True})
+                vii, vjj, vkk = Ts.axis.remap("SSR", [i, j, k])
                 C[vii, vjj] = C[vii, vjj] + A[vii, vkk] * B[vjj, vkk]
 
 
@@ -429,10 +429,10 @@ def annotated_matmul(
     C: T.Buffer((128, 128), "float32"),
 ) -> None:
     for i, j, k in T.grid(128, 128, 128):
-        with T.sblock("update"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            T.sblock_attr({"test_annotation": True})
-            with T.init():
+        with Ts.sblock("update"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            Ts.sblock_attr({"test_annotation": True})
+            with Ts.init():
                 C[vi, vj] = T.float32(0)
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -445,22 +445,22 @@ def annotated_tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
     for i_outer, j_outer in T.grid(8, 8):
         for i_inner_init, j_inner_init in T.grid(16, 16):
-            with T.sblock("init"):
-                vi_init = T.axis.S(128, ((i_outer * 16) + i_inner_init))
-                vj_init = T.axis.S(128, ((j_outer * 16) + j_inner_init))
-                T.sblock_attr({"test_annotation": True})
+            with Ts.sblock("init"):
+                vi_init = Ts.axis.S(128, ((i_outer * 16) + i_inner_init))
+                vj_init = Ts.axis.S(128, ((j_outer * 16) + j_inner_init))
+                Ts.sblock_attr({"test_annotation": True})
                 C[vi_init, vj_init] = T.float32(0)
         for k_outer in T.grid(8):
-            with T.sblock("update"):
-                vi, vj, vk = T.axis.remap("SSR", [i_outer, j_outer, k_outer])
-                T.reads(
+            with Ts.sblock("update"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i_outer, j_outer, k_outer])
+                Ts.reads(
                     [
                         C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                         A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                         B[vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     ]
                 )
-                T.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+                Ts.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
                 A_elem_offset = T.int32()
                 B_elem_offset = T.int32()
                 C_elem_offset = T.int32()
@@ -765,15 +765,15 @@ def test_tensorize_matmul_mixed_dtype():
     ) -> None:
         for i_0, j_0 in T.grid(T.int64(8), T.int64(8)):
             for i_1_init, j_1_init in T.grid(T.int64(16), T.int64(16)):
-                with T.sblock("init"):
-                    vi = T.axis.spatial(T.int64(128), i_0 * T.int64(16) + i_1_init)
-                    vj = T.axis.spatial(T.int64(128), j_0 * T.int64(16) + j_1_init)
+                with Ts.sblock("init"):
+                    vi = Ts.axis.spatial(T.int64(128), i_0 * T.int64(16) + i_1_init)
+                    vj = Ts.axis.spatial(T.int64(128), j_0 * T.int64(16) + j_1_init)
                     C[vi, vj] = T.float32(0)
             for k_0, i_1, j_1, k_1 in T.grid(T.int64(8), T.int64(16), T.int64(16), T.int64(16)):
-                with T.sblock("update"):
-                    vi = T.axis.spatial(T.int64(128), i_0 * T.int64(16) + i_1)
-                    vj = T.axis.spatial(T.int64(128), j_0 * T.int64(16) + j_1)
-                    vk = T.axis.reduce(T.int64(128), k_0 * T.int64(16) + k_1)
+                with Ts.sblock("update"):
+                    vi = Ts.axis.spatial(T.int64(128), i_0 * T.int64(16) + i_1)
+                    vj = Ts.axis.spatial(T.int64(128), j_0 * T.int64(16) + j_1)
+                    vk = Ts.axis.reduce(T.int64(128), k_0 * T.int64(16) + k_1)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
     @Ts.prim_func
@@ -784,21 +784,21 @@ def test_tensorize_matmul_mixed_dtype():
     ) -> None:
         for i_outer, j_outer in T.grid(T.int64(8), T.int64(8)):
             for i_inner_init, j_inner_init in T.grid(T.int64(16), T.int64(16)):
-                with T.sblock("init"):
-                    vi = T.axis.spatial(T.int64(128), i_outer * T.int64(16) + i_inner_init)
-                    vj = T.axis.spatial(T.int64(128), j_outer * T.int64(16) + j_inner_init)
+                with Ts.sblock("init"):
+                    vi = Ts.axis.spatial(T.int64(128), i_outer * T.int64(16) + i_inner_init)
+                    vj = Ts.axis.spatial(T.int64(128), j_outer * T.int64(16) + j_inner_init)
                     C[vi, vj] = T.float32(0)
             for k_outer in T.grid(T.int64(8)):
-                with T.sblock("update"):
-                    vi, vj, vk = T.axis.remap("SSR", [i_outer, j_outer, k_outer])
-                    T.reads(
+                with Ts.sblock("update"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i_outer, j_outer, k_outer])
+                    Ts.reads(
                         [
                             C[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vj * T.int64(16) : vj * T.int64(16) + T.int64(16)],
                             A[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vk * T.int64(16) : vk * T.int64(16) + T.int64(16)],
                             B[vj * T.int64(16) : vj * T.int64(16) + T.int64(16), vk * T.int64(16) : vk * T.int64(16) + T.int64(16)],
                         ]
                     )
-                    T.writes(C[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vj * T.int64(16) : vj * T.int64(16) + T.int64(16)])
+                    Ts.writes(C[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vj * T.int64(16) : vj * T.int64(16) + T.int64(16)])
                     A_elem_offset = T.int64()
                     B_elem_offset = T.int64()
                     C_elem_offset = T.int64()
@@ -869,12 +869,12 @@ def decode_i4s_to_f16_desc(compressed: T.handle, decompressed: T.handle) -> None
         scope="local",
     )
 
-    with T.sblock("root"):
-        T.reads(Compressed[0:1])
-        T.writes(Decompressed[0:8])
+    with Ts.sblock("root"):
+        Ts.reads(Compressed[0:1])
+        Ts.writes(Decompressed[0:8])
         for i in T.grid(8):
-            with T.sblock("decode"):
-                vi = T.axis.remap("S", [i])
+            with Ts.sblock("decode"):
+                vi = Ts.axis.remap("S", [i])
                 Decompressed[vi] = _tir_packed_int_to_int_to_float(32)(
                     4,
                     Compressed[vi // 8],
@@ -901,9 +901,9 @@ def decode_i4s_to_f16_impl(compressed: T.handle, decompressed: T.handle) -> None
         scope="local",
     )
 
-    with T.sblock("root"):
-        T.reads(Compressed[0:1])
-        T.writes(Decompressed[0:8])
+    with Ts.sblock("root"):
+        Ts.reads(Compressed[0:1])
+        Ts.writes(Decompressed[0:8])
         T.call_extern(
             "handle",
             "test_decode_i4s_to_f16",
@@ -918,34 +918,34 @@ def test_tensorize_arith_simplification():
     # fmt: off
     @Ts.prim_func
     def decode_i4s_to_int32_to_f16():
-        B_decode_local = T.sblock_alloc_buffer((16384, 16384), "float16", scope="local")
-        B_local = T.sblock_alloc_buffer((16384, 2048), "int32", scope="local")
+        B_decode_local = Ts.sblock_alloc_buffer((16384, 16384), "float16", scope="local")
+        B_local = Ts.sblock_alloc_buffer((16384, 2048), "int32", scope="local")
         for ax0_0 in T.thread_binding(8192, thread="blockIdx.x"):
             for ax0_1 in T.thread_binding(2, thread="threadIdx.y"):
                 for ax1_0 in range(32):
                     for ax1_1 in T.thread_binding(64, thread="threadIdx.x"):
                         for ax0, ax1 in T.grid(1, 8):
-                            with T.sblock("B_decode_local"):
-                                v0 = T.axis.spatial(16384, ax0_0 * 2 + ax0_1 + ax0)
-                                v1 = T.axis.spatial(16384, ax1_0 * 512 + ax1_1 * 8 + ax1)
-                                T.reads(B_local[v0, v1 // 8])
-                                T.writes(B_decode_local[v0, v1])
+                            with Ts.sblock("B_decode_local"):
+                                v0 = Ts.axis.spatial(16384, ax0_0 * 2 + ax0_1 + ax0)
+                                v1 = Ts.axis.spatial(16384, ax1_0 * 512 + ax1_1 * 8 + ax1)
+                                Ts.reads(B_local[v0, v1 // 8])
+                                Ts.writes(B_decode_local[v0, v1])
                                 B_decode_local[v0, v1] = T.Cast("float16", T.shift_right(T.shift_left(T.bitwise_and(T.shift_right(B_local[v0, v1 // 8], v1 % 8 * 4), 15), 28), 28))
 
     @Ts.prim_func
     def tensorized_decode_i4s_to_int32_to_f16():
-        B_decode_local = T.sblock_alloc_buffer((16384, 16384), "float16", scope="local")
-        B_local = T.sblock_alloc_buffer((16384, 2048), "int32", scope="local")
+        B_decode_local = Ts.sblock_alloc_buffer((16384, 16384), "float16", scope="local")
+        B_local = Ts.sblock_alloc_buffer((16384, 2048), "int32", scope="local")
         for ax0_0 in T.thread_binding(8192, thread="blockIdx.x"):
             for ax0_1 in T.thread_binding(2, thread="threadIdx.y"):
                 for ax1_0 in range(32):
                     for ax1_1 in T.thread_binding(64, thread="threadIdx.x"):
                         for ax0 in range(1):
-                            with T.sblock("B_decode_local_o"):
-                                v0_o = T.axis.spatial(16384, ax0_0 * 2 + ax0_1 + ax0)
-                                v1_o = T.axis.spatial(2048, ax1_0 * 64 + ax1_1)
-                                T.reads(B_local[v0_o, v1_o])
-                                T.writes(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8])
+                            with Ts.sblock("B_decode_local_o"):
+                                v0_o = Ts.axis.spatial(16384, ax0_0 * 2 + ax0_1 + ax0)
+                                v1_o = Ts.axis.spatial(2048, ax1_0 * 64 + ax1_1)
+                                Ts.reads(B_local[v0_o, v1_o])
+                                Ts.writes(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8])
                                 Compressed = T.match_buffer(B_local[v0_o, v1_o], (1,), "int32", scope="local")
                                 Decompressed = T.match_buffer(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8], (8,), "float16", scope="local")
                                 T.call_extern("handle", "test_decode_i4s_to_f16", Compressed.data, Decompressed.data, 8)

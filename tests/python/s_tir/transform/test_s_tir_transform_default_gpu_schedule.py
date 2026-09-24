@@ -37,12 +37,12 @@ def test_broadcast_to_symbolic():
             x_0 = T.int64()
             x_1 = T.int64()
             T_broadcast_to = T.match_buffer(var_T_broadcast_to, (x_0, x_1))
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(x_0, x_1):
-                with T.sblock("T_broadcast_to"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(rxplaceholder[v_ax0, T.int64(0)])
-                    T.writes(T_broadcast_to[v_ax0, v_ax1])
+                with Ts.sblock("T_broadcast_to"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(rxplaceholder[v_ax0, T.int64(0)])
+                    Ts.writes(T_broadcast_to[v_ax0, v_ax1])
                     T_broadcast_to[v_ax0, v_ax1] = rxplaceholder[v_ax0, T.int64(0)]
 
     @tvm.script.ir_module
@@ -55,10 +55,10 @@ def test_broadcast_to_symbolic():
             for ax0_ax1_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
                 for ax0_ax1_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
                     for ax0_ax1_fused_0 in range((x_0 * x_1 + T.int64(262143)) // T.int64(262144)):
-                        with T.sblock("T_broadcast_to"):
-                            v_ax0 = T.axis.spatial(x_0, (ax0_ax1_fused_0 * T.int64(262144) + ax0_ax1_fused_1 * T.int64(1024) + ax0_ax1_fused_2) // x_1)
-                            v_ax1 = T.axis.spatial(x_1, (ax0_ax1_fused_0 * T.int64(262144) + ax0_ax1_fused_1 * T.int64(1024) + ax0_ax1_fused_2) % x_1)
-                            T.where((ax0_ax1_fused_0 * T.int64(256) + ax0_ax1_fused_1) * T.int64(1024) + ax0_ax1_fused_2 < x_0 * x_1)
+                        with Ts.sblock("T_broadcast_to"):
+                            v_ax0 = Ts.axis.spatial(x_0, (ax0_ax1_fused_0 * T.int64(262144) + ax0_ax1_fused_1 * T.int64(1024) + ax0_ax1_fused_2) // x_1)
+                            v_ax1 = Ts.axis.spatial(x_1, (ax0_ax1_fused_0 * T.int64(262144) + ax0_ax1_fused_1 * T.int64(1024) + ax0_ax1_fused_2) % x_1)
+                            Ts.where((ax0_ax1_fused_0 * T.int64(256) + ax0_ax1_fused_1) * T.int64(1024) + ax0_ax1_fused_2 < x_0 * x_1)
                             T_broadcast_to[v_ax0, v_ax1] = rxplaceholder[v_ax0, T.int64(0)]
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
@@ -80,13 +80,13 @@ def test_matmul():
             C: T.Buffer((32, 32), "float16"),
         ):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i, j, k in T.grid(32, 32, 32):
-                with T.sblock("C"):
-                    v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
-                    T.reads(A[v_i, v_k], B[v_k, v_j])
-                    T.writes(C[v_i, v_j])
-                    with T.init():
+                with Ts.sblock("C"):
+                    v_i, v_j, v_k = Ts.axis.remap("SSR", [i, j, k])
+                    Ts.reads(A[v_i, v_k], B[v_k, v_j])
+                    Ts.writes(C[v_i, v_j])
+                    with Ts.init():
                         C[v_i, v_j] = T.float16(0)
                     C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
 
@@ -104,13 +104,13 @@ def test_matmul():
                                              "tag": "",
                                              "thread_warp_size": 32}),
                          "tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i, j, k in T.grid(32, 32, 32):
-                with T.sblock("C"):
-                    v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
-                    T.reads(A[v_i, v_k], B[v_k, v_j])
-                    T.writes(C[v_i, v_j])
-                    with T.init():
+                with Ts.sblock("C"):
+                    v_i, v_j, v_k = Ts.axis.remap("SSR", [i, j, k])
+                    Ts.reads(A[v_i, v_k], B[v_k, v_j])
+                    Ts.writes(C[v_i, v_j])
+                    with Ts.init():
                         C[v_i, v_j] = T.float16(0)
                     C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
 
@@ -123,13 +123,13 @@ def test_matmul():
             T.func_attr({"global_symbol": "main",
                          "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}),
                         "tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i, j, k in T.grid(32, 32, 32):
-                with T.sblock("C"):
-                    v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
-                    T.reads(A[v_i, v_k], B[v_k, v_j])
-                    T.writes(C[v_i, v_j])
-                    with T.init():
+                with Ts.sblock("C"):
+                    v_i, v_j, v_k = Ts.axis.remap("SSR", [i, j, k])
+                    Ts.reads(A[v_i, v_k], B[v_k, v_j])
+                    Ts.writes(C[v_i, v_j])
+                    with Ts.init():
                         C[v_i, v_j] = T.float16(0)
                     C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
 
@@ -142,51 +142,51 @@ def test_matmul():
             C: T.Buffer((32, 32), "float16"),
         ):
             T.func_attr({"tirx.is_scheduled": True, "global_symbol": "main", "tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i_j_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
                     for k in range(32):
-                        with T.sblock("C"):
-                            v_i = T.axis.spatial(
+                        with Ts.sblock("C"):
+                            v_i = Ts.axis.spatial(
                                 32, (i_j_fused_0 * 1024 + i_j_fused_1) // 32
                             )
-                            v_j = T.axis.spatial(
+                            v_j = Ts.axis.spatial(
                                 32, (i_j_fused_0 * 1024 + i_j_fused_1) % 32
                             )
-                            v_k = T.axis.reduce(32, k)
-                            T.reads(A[v_i, v_k], B[v_k, v_j])
-                            T.writes(C[v_i, v_j])
-                            with T.init():
+                            v_k = Ts.axis.reduce(32, k)
+                            Ts.reads(A[v_i, v_k], B[v_k, v_j])
+                            Ts.writes(C[v_i, v_j])
+                            with Ts.init():
                                 C[v_i, v_j] = T.float16(0)
                             C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
 
         @Ts.prim_func
         def matmul_cpu(A: T.Buffer((32, 32), "float16"), B: T.Buffer((32, 32), "float16"), C: T.Buffer((32, 32), "float16")):
             T.func_attr({"global_symbol": "main", "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}), "tirx.is_scheduled": True, "tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i, j, k in T.grid(32, 32, 32):
-                with T.sblock("C"):
-                    v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
-                    T.reads(A[v_i, v_k], B[v_k, v_j])
-                    T.writes(C[v_i, v_j])
-                    with T.init():
+                with Ts.sblock("C"):
+                    v_i, v_j, v_k = Ts.axis.remap("SSR", [i, j, k])
+                    Ts.reads(A[v_i, v_k], B[v_k, v_j])
+                    Ts.writes(C[v_i, v_j])
+                    with Ts.init():
                         C[v_i, v_j] = T.float16(0)
                     C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
 
         @Ts.prim_func
         def matmul_gpu(A: T.Buffer((32, 32), "float16"), B: T.Buffer((32, 32), "float16"), C: T.Buffer((32, 32), "float16")):
             T.func_attr({"global_symbol": "main", "target": T.target({"arch": "sm_86", "keys": ["cuda", "gpu"], "kind": "cuda", "max_num_threads": 1024, "tag": "", "thread_warp_size": 32}), "tirx.is_scheduled": True, "tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i_j_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
                     for k in range(32):
-                        with T.sblock("C"):
-                            v_i = T.axis.spatial(32, (i_j_fused_0 * 1024 + i_j_fused_1) // 32)
-                            v_j = T.axis.spatial(32, (i_j_fused_0 * 1024 + i_j_fused_1) % 32)
-                            v_k = T.axis.reduce(32, k)
-                            T.reads(A[v_i, v_k], B[v_k, v_j])
-                            T.writes(C[v_i, v_j])
-                            with T.init():
+                        with Ts.sblock("C"):
+                            v_i = Ts.axis.spatial(32, (i_j_fused_0 * 1024 + i_j_fused_1) // 32)
+                            v_j = Ts.axis.spatial(32, (i_j_fused_0 * 1024 + i_j_fused_1) % 32)
+                            v_k = Ts.axis.reduce(32, k)
+                            Ts.reads(A[v_i, v_k], B[v_k, v_j])
+                            Ts.writes(C[v_i, v_j])
+                            with Ts.init():
                                 C[v_i, v_j] = T.float16(0)
                             C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
     # fmt: on
@@ -206,10 +206,10 @@ def test_add():
         def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
-                with T.sblock("T_add"):
-                    ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                    T.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
-                    T.writes(T_add[ax0, ax1, ax2, ax3])
+                with Ts.sblock("T_add"):
+                    ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                    Ts.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
+                    Ts.writes(T_add[ax0, ax1, ax2, ax3])
                     T_add[ax0, ax1, ax2, ax3] = rxplaceholder[T.int64(0), ax2, ax3] + rxplaceholder_1[ax0, ax1, ax2, T.int64(0)]
 
     @tvm.script.ir_module
@@ -223,39 +223,39 @@ def test_add():
             T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32"),
         ):
             T.func_attr({"tirx.is_scheduled": True,  "tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0_i1_i2_i3_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_i2_i3_fused_1 in T.thread_binding(
                     T.int64(72), thread="threadIdx.x"
                 ):
-                    with T.sblock("T_add"):
-                        ax0 = T.axis.spatial(
+                    with Ts.sblock("T_add"):
+                        ax0 = Ts.axis.spatial(
                             T.int64(4),
                             (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1)
                             // T.int64(18),
                         )
-                        ax1 = T.axis.spatial(
+                        ax1 = Ts.axis.spatial(
                             T.int64(3),
                             (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1)
                             % T.int64(18)
                             // T.int64(6),
                         )
-                        ax2 = T.axis.spatial(
+                        ax2 = Ts.axis.spatial(
                             T.int64(2),
                             (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1)
                             % T.int64(6)
                             // T.int64(3),
                         )
-                        ax3 = T.axis.spatial(
+                        ax3 = Ts.axis.spatial(
                             T.int64(3),
                             (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1)
                             % T.int64(3),
                         )
-                        T.reads(
+                        Ts.reads(
                             rxplaceholder[T.int64(0), ax2, ax3],
                             rxplaceholder_1[ax0, ax1, ax2, T.int64(0)],
                         )
-                        T.writes(T_add[ax0, ax1, ax2, ax3])
+                        Ts.writes(T_add[ax0, ax1, ax2, ax3])
                         T_add[ax0, ax1, ax2, ax3] = (
                             rxplaceholder[T.int64(0), ax2, ax3]
                             + rxplaceholder_1[ax0, ax1, ax2, T.int64(0)]
@@ -278,10 +278,10 @@ def test_full():
         def full(rxplaceholder: T.Buffer((), "int32"), T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.sblock("T_full"):
-                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(rxplaceholder[()])
-                    T.writes(T_full[ax0, ax1])
+                with Ts.sblock("T_full"):
+                    ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(rxplaceholder[()])
+                    Ts.writes(T_full[ax0, ax1])
                     T_full[ax0, ax1] = rxplaceholder[()]
 
     @tvm.script.ir_module
@@ -292,20 +292,20 @@ def test_full():
             T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
         ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(6), thread="threadIdx.x"):
-                    with T.sblock("T_full"):
-                        ax0 = T.axis.spatial(
+                    with Ts.sblock("T_full"):
+                        ax0 = Ts.axis.spatial(
                             T.int64(2),
                             (i0_i1_fused_0 * T.int64(6) + i0_i1_fused_1) // T.int64(3),
                         )
-                        ax1 = T.axis.spatial(
+                        ax1 = Ts.axis.spatial(
                             T.int64(3),
                             (i0_i1_fused_0 * T.int64(6) + i0_i1_fused_1) % T.int64(3),
                         )
-                        T.reads(rxplaceholder[()])
-                        T.writes(T_full[ax0, ax1])
+                        Ts.reads(rxplaceholder[()])
+                        Ts.writes(T_full[ax0, ax1])
                         T_full[ax0, ax1] = rxplaceholder[()]
 
     # fmt: on
@@ -328,20 +328,20 @@ def test_scheduled():
             T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
         ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(6), thread="threadIdx.x"):
-                    with T.sblock("T_full"):
-                        ax0 = T.axis.spatial(
+                    with Ts.sblock("T_full"):
+                        ax0 = Ts.axis.spatial(
                             T.int64(2),
                             (i0_i1_fused_0 * T.int64(6) + i0_i1_fused_1) // T.int64(3),
                         )
-                        ax1 = T.axis.spatial(
+                        ax1 = Ts.axis.spatial(
                             T.int64(3),
                             (i0_i1_fused_0 * T.int64(6) + i0_i1_fused_1) % T.int64(3),
                         )
-                        T.reads(rxplaceholder[()])
-                        T.writes(T_full[ax0, ax1])
+                        Ts.reads(rxplaceholder[()])
+                        Ts.writes(T_full[ax0, ax1])
                         T_full[ax0, ax1] = rxplaceholder[()]
 
     # fmt: on
@@ -362,20 +362,20 @@ def test_multiple():
         def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
-                with T.sblock("T_add"):
-                    ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                    T.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
-                    T.writes(T_add[ax0, ax1, ax2, ax3])
+                with Ts.sblock("T_add"):
+                    ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                    Ts.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
+                    Ts.writes(T_add[ax0, ax1, ax2, ax3])
                     T_add[ax0, ax1, ax2, ax3] = rxplaceholder[T.int64(0), ax2, ax3] + rxplaceholder_1[ax0, ax1, ax2, T.int64(0)]
 
         @Ts.prim_func
         def full(rxplaceholder: T.Buffer((), "int32"), T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.sblock("T_full"):
-                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(rxplaceholder[()])
-                    T.writes(T_full[ax0, ax1])
+                with Ts.sblock("T_full"):
+                    ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(rxplaceholder[()])
+                    Ts.writes(T_full[ax0, ax1])
                     T_full[ax0, ax1] = rxplaceholder[()]
 
     @tvm.script.ir_module
@@ -389,39 +389,39 @@ def test_multiple():
             T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32"),
         ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0_i1_i2_i3_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_i2_i3_fused_1 in T.thread_binding(
                     T.int64(72), thread="threadIdx.x"
                 ):
-                    with T.sblock("T_add"):
-                        ax0 = T.axis.spatial(
+                    with Ts.sblock("T_add"):
+                        ax0 = Ts.axis.spatial(
                             T.int64(4),
                             (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1)
                             // T.int64(18),
                         )
-                        ax1 = T.axis.spatial(
+                        ax1 = Ts.axis.spatial(
                             T.int64(3),
                             (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1)
                             % T.int64(18)
                             // T.int64(6),
                         )
-                        ax2 = T.axis.spatial(
+                        ax2 = Ts.axis.spatial(
                             T.int64(2),
                             (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1)
                             % T.int64(6)
                             // T.int64(3),
                         )
-                        ax3 = T.axis.spatial(
+                        ax3 = Ts.axis.spatial(
                             T.int64(3),
                             (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1)
                             % T.int64(3),
                         )
-                        T.reads(
+                        Ts.reads(
                             rxplaceholder[T.int64(0), ax2, ax3],
                             rxplaceholder_1[ax0, ax1, ax2, T.int64(0)],
                         )
-                        T.writes(T_add[ax0, ax1, ax2, ax3])
+                        Ts.writes(T_add[ax0, ax1, ax2, ax3])
                         T_add[ax0, ax1, ax2, ax3] = (
                             rxplaceholder[T.int64(0), ax2, ax3]
                             + rxplaceholder_1[ax0, ax1, ax2, T.int64(0)]
@@ -433,20 +433,20 @@ def test_multiple():
             T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
         ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(6), thread="threadIdx.x"):
-                    with T.sblock("T_full"):
-                        ax0 = T.axis.spatial(
+                    with Ts.sblock("T_full"):
+                        ax0 = Ts.axis.spatial(
                             T.int64(2),
                             (i0_i1_fused_0 * T.int64(6) + i0_i1_fused_1) // T.int64(3),
                         )
-                        ax1 = T.axis.spatial(
+                        ax1 = Ts.axis.spatial(
                             T.int64(3),
                             (i0_i1_fused_0 * T.int64(6) + i0_i1_fused_1) % T.int64(3),
                         )
-                        T.reads(rxplaceholder[()])
-                        T.writes(T_full[ax0, ax1])
+                        Ts.reads(rxplaceholder[()])
+                        Ts.writes(T_full[ax0, ax1])
                         T_full[ax0, ax1] = rxplaceholder[()]
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
@@ -465,10 +465,10 @@ def test_add_on_metal():
         def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
-                with T.sblock("T_add"):
-                    ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                    T.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
-                    T.writes(T_add[ax0, ax1, ax2, ax3])
+                with Ts.sblock("T_add"):
+                    ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                    Ts.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
+                    Ts.writes(T_add[ax0, ax1, ax2, ax3])
                     T_add[ax0, ax1, ax2, ax3] = rxplaceholder[T.int64(0), ax2, ax3] + rxplaceholder_1[ax0, ax1, ax2, T.int64(0)]
 
     @tvm.script.ir_module
@@ -478,13 +478,13 @@ def test_add_on_metal():
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             for i0_i1_i2_i3_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_i2_i3_fused_1 in T.thread_binding(T.int64(72), thread="threadIdx.x"):
-                    with T.sblock("T_add"):
-                        ax0 = T.axis.spatial(T.int64(4), (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1) // T.int64(18))
-                        ax1 = T.axis.spatial(T.int64(3), (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1) % T.int64(18) // T.int64(6))
-                        ax2 = T.axis.spatial(T.int64(2), (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1) % T.int64(6) // T.int64(3))
-                        ax3 = T.axis.spatial(T.int64(3), (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1) % T.int64(3))
-                        T.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
-                        T.writes(T_add[ax0, ax1, ax2, ax3])
+                    with Ts.sblock("T_add"):
+                        ax0 = Ts.axis.spatial(T.int64(4), (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1) // T.int64(18))
+                        ax1 = Ts.axis.spatial(T.int64(3), (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1) % T.int64(18) // T.int64(6))
+                        ax2 = Ts.axis.spatial(T.int64(2), (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1) % T.int64(6) // T.int64(3))
+                        ax3 = Ts.axis.spatial(T.int64(3), (i0_i1_i2_i3_fused_0 * T.int64(72) + i0_i1_i2_i3_fused_1) % T.int64(3))
+                        Ts.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
+                        Ts.writes(T_add[ax0, ax1, ax2, ax3])
                         T_add[ax0, ax1, ax2, ax3] = rxplaceholder[T.int64(0), ax2, ax3] + rxplaceholder_1[ax0, ax1, ax2, T.int64(0)]
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
@@ -502,10 +502,10 @@ def test_scalar_add():
         @Ts.prim_func
         def add(rxplaceholder: T.Buffer((), "int64"), T_add: T.Buffer((), "int64")):
             T.func_attr({"tirx.noalias": True})
-            with T.sblock("T_add"):
-                vi = T.axis.spatial(1, T.int64(0))
-                T.reads(rxplaceholder[()])
-                T.writes(T_add[()])
+            with Ts.sblock("T_add"):
+                vi = Ts.axis.spatial(1, T.int64(0))
+                Ts.reads(rxplaceholder[()])
+                Ts.writes(T_add[()])
                 T_add[()] = rxplaceholder[()] + T.int64(1)
 
     @tvm.script.ir_module
@@ -513,13 +513,13 @@ def test_scalar_add():
         @Ts.prim_func
         def add(rxplaceholder: T.Buffer((), "int64"), T_add: T.Buffer((), "int64")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for u_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
-                    with T.sblock("T_add"):
-                        vi = T.axis.spatial(1, T.int64(0))
-                        T.reads(rxplaceholder[()])
-                        T.writes(T_add[()])
+                    with Ts.sblock("T_add"):
+                        vi = Ts.axis.spatial(1, T.int64(0))
+                        Ts.reads(rxplaceholder[()])
+                        Ts.writes(T_add[()])
                         T_add[()] = rxplaceholder[()] + T.int64(1)
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
@@ -538,9 +538,9 @@ def test_sum():
         @Ts.prim_func
         def sum(A: T.Buffer((T.int64(2), T.int64(2)), "float64"), A_red: T.Buffer((), "float64")):
             for k0, k1 in T.grid(T.int64(2), T.int64(2)):
-                with T.sblock("A_red"):
-                    v_k0, v_k1 = T.axis.remap("RR", [k0, k1])
-                    with T.init():
+                with Ts.sblock("A_red"):
+                    v_k0, v_k1 = Ts.axis.remap("RR", [k0, k1])
+                    with Ts.init():
                         A_red[()] = T.float64(0)
                     A_red[()] = A_red[()] + A[v_k0, v_k1]
 
@@ -549,15 +549,15 @@ def test_sum():
         @Ts.prim_func
         def sum(A: T.Buffer((T.int64(2), T.int64(2)), "float64"), A_red: T.Buffer((), "float64")):
             T.func_attr({"tirx.is_scheduled": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for u_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
                     for k0, k1 in T.grid(T.int64(2), T.int64(2)):
-                        with T.sblock("A_red"):
-                            v_k0, v_k1 = T.axis.remap("RR", [k0, k1])
-                            T.reads(A[v_k0, v_k1])
-                            T.writes(A_red[()])
-                            with T.init():
+                        with Ts.sblock("A_red"):
+                            v_k0, v_k1 = Ts.axis.remap("RR", [k0, k1])
+                            Ts.reads(A[v_k0, v_k1])
+                            Ts.writes(A_red[()])
+                            with Ts.init():
                                 A_red[()] = T.float64(0)
                             A_red[()] = A_red[()] + A[v_k0, v_k1]
     # fmt: on
@@ -578,7 +578,7 @@ def test_scalar_block_no_loops():
     class Before:
         @Ts.prim_func
         def scalar_add(a: T.Buffer((), "float32"), b: T.Buffer((), "float32"), c: T.Buffer((), "float32")):
-            with T.sblock("scalar_add"):
+            with Ts.sblock("scalar_add"):
                 c[()] = a[()] + b[()]
 
     @tvm.script.ir_module
@@ -586,13 +586,13 @@ def test_scalar_block_no_loops():
         @Ts.prim_func
         def scalar_add(a: T.Buffer((), "float32"), b: T.Buffer((), "float32"), c: T.Buffer((), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for u_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
-                    with T.sblock("scalar_add"):
-                        vu = T.axis.spatial(1, 0)
-                        T.reads()
-                        T.writes()
+                    with Ts.sblock("scalar_add"):
+                        vu = Ts.axis.spatial(1, 0)
+                        Ts.reads()
+                        Ts.writes()
                         c[()] = a[()] + b[()]
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long

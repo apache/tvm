@@ -38,7 +38,7 @@ from tvm.script.parser import tirx as T
 
 
 def test_liveness_analysis():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class BasicLiveness:
         @R.function
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -68,7 +68,7 @@ def test_liveness_analysis():
 
 
 def test_alias_analysis_basic():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class BasicAliasAnalysis:
         @R.function
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -94,7 +94,7 @@ def test_alias_analysis_basic():
 
 
 def test_alias_analysis_tuple():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class AliasesWithTuples:
         @R.function
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -137,7 +137,7 @@ def test_alias_analysis_tuple():
 
 
 def test_alias_split():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class AliasSplit:
         @R.function
         def main(x: R.Tensor((60,), "int32")) -> R.Tensor((15,), "int32"):
@@ -172,7 +172,7 @@ def test_alias_split():
 
 def test_alias_call_tir():
     # call TIR can yield either a single tensor or a tuple
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class AliasCallTir:
         @Ts.prim_func
         def tir_id(x: T.handle, y: T.handle) -> None:
@@ -183,8 +183,8 @@ def test_alias_call_tir():
             B = T.match_buffer(y, (m, n), "int32")
 
             for i, j in T.grid(m, n):
-                with T.sblock("id"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("id"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj]
 
         @Ts.prim_func
@@ -197,8 +197,8 @@ def test_alias_call_tir():
             C = T.match_buffer(z, (m, n), "int32")
 
             for i, j in T.grid(m, n):
-                with T.sblock("id"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("id"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj]
                     C[vi, vj] = A[vi, vj]
 
@@ -245,7 +245,7 @@ def test_alias_call_tir():
 
 
 def test_mystery_calls():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class AliasChaosCalls:
         @R.function
         def identity(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -293,7 +293,7 @@ def test_mystery_calls():
 
 
 def test_alias_external_value():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class AliasExternalValue:
         @R.function
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -327,7 +327,7 @@ def test_alias_external_value():
 
 
 def test_inplace_simple_case():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class InplaceBasic:
         @R.function
         def main(x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")) -> R.Tensor(
@@ -366,7 +366,7 @@ def test_inplace_simple_case():
 
 
 def test_inplace_single_call():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class TestModule:
         @R.function
         def main(
@@ -386,10 +386,10 @@ def test_inplace_single_call():
     ):
         T.func_attr({"tirx.noalias": True})
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-            with T.sblock("T_add"):
-                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
-                T.writes(A[v_ax0, v_ax1])
+            with Ts.sblock("T_add"):
+                v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                Ts.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                Ts.writes(A[v_ax0, v_ax1])
                 A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
     tvm.ir.assert_structural_equal(new_mod["add_inplace"], expected_add)
@@ -402,18 +402,18 @@ def test_inplace_single_call():
     @Ts.prim_func(private=True)
     def expected_silu(A: T.Buffer((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"tirx.noalias": True})
-        compute = T.sblock_alloc_buffer((T.int64(2), T.int64(3)))
+        compute = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3)))
         for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-            with T.sblock("compute"):
-                v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                T.reads(A[v_i0, v_i1])
-                T.writes(compute[v_i0, v_i1])
+            with Ts.sblock("compute"):
+                v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                Ts.reads(A[v_i0, v_i1])
+                Ts.writes(compute[v_i0, v_i1])
                 compute[v_i0, v_i1] = T.sigmoid(A[v_i0, v_i1])
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-            with T.sblock("T_multiply"):
-                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                T.reads(A[v_ax0, v_ax1], compute[v_ax0, v_ax1])
-                T.writes(A[v_ax0, v_ax1])
+            with Ts.sblock("T_multiply"):
+                v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                Ts.reads(A[v_ax0, v_ax1], compute[v_ax0, v_ax1])
+                Ts.writes(A[v_ax0, v_ax1])
                 A[v_ax0, v_ax1] = A[v_ax0, v_ax1] * compute[v_ax0, v_ax1]
 
     silu_call = TestModule["main"].body.blocks[0].bindings[1].value
@@ -428,7 +428,7 @@ def test_inplace_single_call():
 
 
 def test_insert_inplace_calls():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class EndToEndTest:
         @R.function
         def main(
@@ -445,7 +445,7 @@ def test_insert_inplace_calls():
                 R.output(m)
             return m
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def add_inplace(
@@ -454,10 +454,10 @@ def test_insert_inplace_calls():
         ):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-                with T.sblock("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1], B[T.int64(0), v_ax1])
-                    T.writes(A[v_ax0, v_ax1])
+                with Ts.sblock("T_add"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(A[v_ax0, v_ax1], B[T.int64(0), v_ax1])
+                    Ts.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[T.int64(0), v_ax1]
 
         @Ts.prim_func(private=True)
@@ -467,10 +467,10 @@ def test_insert_inplace_calls():
         ):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-                with T.sblock("T_multiply"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1], B[T.int64(0), v_ax1])
-                    T.writes(A[v_ax0, v_ax1])
+                with Ts.sblock("T_multiply"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(A[v_ax0, v_ax1], B[T.int64(0), v_ax1])
+                    Ts.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[T.int64(0), v_ax1]
 
         @Ts.prim_func(private=True)
@@ -480,10 +480,10 @@ def test_insert_inplace_calls():
         ):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(1), T.int64(3)):
-                with T.sblock("T_subtract"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
-                    T.writes(B[v_ax0, v_ax1])
+                with Ts.sblock("T_subtract"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                    Ts.writes(B[v_ax0, v_ax1])
                     B[v_ax0, v_ax1] = A[v_ax0, v_ax1] - B[v_ax0, v_ax1]
 
         @R.function
@@ -545,7 +545,7 @@ def test_insert_inplace_calls():
 
 
 def test_dynamic():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class DynamicTestCase:
         @R.function
         def main(
@@ -563,7 +563,7 @@ def test_dynamic():
     transform_pass = DataflowUseInplaceCalls()
     new_mod = transform_pass(DynamicTestCase)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def add_inplace(var_A: T.handle, var_B: T.handle):
@@ -572,10 +572,10 @@ def test_dynamic():
             A = T.match_buffer(var_A, (a, b))
             B = T.match_buffer(var_B, (a, b))
             for ax0, ax1 in T.grid(a, b):
-                with T.sblock("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
-                    T.writes(A[v_ax0, v_ax1])
+                with Ts.sblock("T_add"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                    Ts.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
         @Ts.prim_func(private=True)
@@ -585,10 +585,10 @@ def test_dynamic():
             A = T.match_buffer(var_A, (a, b))
             B = T.match_buffer(var_B, (a, b))
             for ax0, ax1 in T.grid(a, b):
-                with T.sblock("T_subtract"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
-                    T.writes(B[v_ax0, v_ax1])
+                with Ts.sblock("T_subtract"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                    Ts.writes(B[v_ax0, v_ax1])
                     B[v_ax0, v_ax1] = A[v_ax0, v_ax1] - B[v_ax0, v_ax1]
 
         @R.function
@@ -629,7 +629,7 @@ def test_dynamic():
 
 def test_dynamic_mismatch():
     # cannot statically prove the shapes to be equal so the module should be unchanged
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class DynamicMistmatchTestCase:
         @R.function
         def main(

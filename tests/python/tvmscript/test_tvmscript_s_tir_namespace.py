@@ -20,9 +20,11 @@ import os
 import subprocess
 import sys
 
+import numpy as np
 import pytest
 
 import tvm
+import tvm.testing
 from tvm.script import ir as I
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
@@ -35,7 +37,7 @@ def test_shared_operations_and_aliases():
     def shared(A: S.Buffer(("n",), "float32")):
         for i in T.serial(A.shape[0]):
             with S.sblock("copy"):
-                v = T.axis.spatial(A.shape[0], i)
+                v = Ts.axis.spatial(A.shape[0], i)
                 A[v] = S.float32(1)
 
     assert shared.attrs["s_tir"]
@@ -74,20 +76,81 @@ def test_mixed_module_roundtrip():
     assert "import s_tir" not in direct_script
 
 
-@pytest.mark.parametrize("option", ["s_tir=True", "is_stir=True"])
-def test_tirx_rejects_legacy_mode(option):
-    with pytest.raises(ValueError, match="Ts.prim_func"):
-        tvm.script.from_source(
-            f"@T.prim_func({option}, check_well_formed=False)\ndef main():\n    T.evaluate(0)\n"
-        )
+@pytest.mark.skipif(not tvm.runtime.enabled("llvm"), reason="LLVM is not enabled")
+def test_tirx_construction_roundtrip_and_execution_are_independent(monkeypatch):
+    def reject_s_tir_analysis(*args, **kwargs):
+        pytest.fail("TIRx construction and compilation must not invoke S-TIR verification")
+
+    monkeypatch.setattr(tvm.s_tir.analysis, "verify_well_formed", reject_s_tir_analysis)
+
+    @I.ir_module
+    class Direct:
+        @T.prim_func
+        def main(A: T.Buffer((4,), "int32")):
+            for i in T.serial(4):
+                A[i] = A[i] + 3
+
+    restored = tvm.script.from_source(Direct.script())
+    tvm.ir.assert_structural_equal(Direct, restored)
+    assert "s_tir" not in restored["main"].attrs
+    executable = tvm.compile(restored, target="llvm")
+    data = tvm.runtime.tensor(np.arange(4, dtype="int32"))
+    executable["main"](data)
+    np.testing.assert_array_equal(data.numpy(), np.arange(4, dtype="int32") + 3)
+
+
+@pytest.mark.parametrize("option", ["s_tir", "is_stir"])
+def test_raw_tirx_builder_rejects_legacy_mode(option):
+    from tvm.tirx.script import builder
+
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        builder.prim_func(**{option: True})
+
+
+def test_jit_rejects_legacy_mode():
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        T.jit(**{"is_stir": True})
 
 
 @pytest.mark.parametrize("namespace", ["T", "Ts"])
-def test_tirx_rejects_s_tir_blocks(namespace):
+@pytest.mark.parametrize("option", ["s_tir", "is_stir"])
+def test_legacy_mode_is_not_a_function_option(namespace, option):
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        tvm.script.from_source(
+            f"@{namespace}.prim_func({option}=True, check_well_formed=False)\n"
+            "def main():\n    T.evaluate(0)\n"
+        )
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "sblock",
+        "init",
+        "where",
+        "reads",
+        "writes",
+        "sblock_attr",
+        "sblock_alloc_buffer",
+        "axis",
+        "block_name_suffix_context",
+    ],
+)
+def test_s_tir_operations_have_an_independent_namespace(operation):
+    from tvm.s_tir.script import builder as s_tir_builder
+    from tvm.tirx.script import builder as tirx_builder
+
+    assert hasattr(Ts, operation)
+    assert hasattr(s_tir_builder, operation)
+    assert not hasattr(T, operation)
+    assert not hasattr(tirx_builder, operation)
+
+
+def test_tirx_rejects_s_tir_blocks():
     with pytest.raises(ValueError, match="Ts.prim_func"):
         tvm.script.from_source(
             "@T.prim_func(check_well_formed=False)\n"
-            f"def main():\n    with {namespace}.sblock('bad'):\n        T.evaluate(0)\n"
+            "def main():\n    with Ts.sblock('bad'):\n        T.evaluate(0)\n"
         )
 
 
@@ -98,6 +161,18 @@ def test_tirx_cannot_change_dialect_with_attribute(value):
             "@T.prim_func(check_well_formed=False)\n"
             f"def main():\n    T.func_attr({{'s_tir': {value}}})\n    T.evaluate(0)\n"
         )
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_tirx_cannot_change_dialect_from_exit_callback(value):
+    from tvm.script.ir_builder import IRBuilder
+    from tvm.tirx.script import builder
+
+    with pytest.raises(ValueError, match="Ts.prim_func"):
+        with IRBuilder():
+            with builder.prim_func() as frame:
+                frame.add_callback(lambda: builder.func_attr({"s_tir": value}))
+                builder.evaluate(0)
 
 
 def test_s_tir_options_and_helpers():

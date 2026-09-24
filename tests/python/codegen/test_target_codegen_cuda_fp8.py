@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401, F821, F841
+# ruff: noqa: F401, F841
 
 from itertools import product
 
@@ -23,11 +23,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import DataType, DataTypeCode, IRModule, relax, te, tirx, topi
-from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -50,9 +46,9 @@ def test_fp8_conversions(input):
     dtype, nv_dtype = input
 
     def _create_mod(dtype):
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @Ts.prim_func
+            @T.prim_func
             def main(
                 A: T.Buffer((64,), dtype),
                 B: T.Buffer((64,), dtype),
@@ -61,13 +57,11 @@ def test_fp8_conversions(input):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(2, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(32, thread="threadIdx.x"):
-                        with T.sblock("C"):
-                            v_i = T.axis.spatial(64, i_0 * 32 + i_1)
-                            T.reads(A[v_i], B[v_i])
-                            T.writes(C[v_i])
-                            C[v_i] = T.Cast(
-                                dtype, T.Cast("float16", A[v_i]) + T.Cast("float16", B[v_i])
-                            )
+                        C[i_0 * 32 + i_1] = T.Cast(
+                            dtype,
+                            T.Cast("float16", A[i_0 * 32 + i_1])
+                            + T.Cast("float16", B[i_0 * 32 + i_1]),
+                        )
 
         return Module
 
@@ -102,9 +96,9 @@ def test_fp8_packing(dtype):
     native_dtype, packed_dtype = (f"{dtype}x{vector_length}", "uint32")
 
     def _create_mod(native_dtype, packed_dtype, length):
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @Ts.prim_func
+            @T.prim_func
             def main(
                 A: T.Buffer((length,), native_dtype),
                 R: T.Buffer((length,), packed_dtype),
@@ -113,18 +107,10 @@ def test_fp8_packing(dtype):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(2, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(32, thread="threadIdx.x"):
-                        with T.sblock("R"):
-                            v_i = T.axis.spatial(length, i_0 * 32 + i_1)
-                            T.reads(A[v_i])
-                            T.writes(R[v_i])
-                            R[v_i] = T.reinterpret(packed_dtype, A[v_i])
+                        R[i_0 * 32 + i_1] = T.reinterpret(packed_dtype, A[i_0 * 32 + i_1])
                 for i_0 in T.thread_binding(2, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(32, thread="threadIdx.x"):
-                        with T.sblock("B"):
-                            v_i = T.axis.spatial(length, i_0 * 32 + i_1)
-                            T.reads(R[v_i])
-                            T.writes(B[v_i])
-                            B[v_i] = T.reinterpret(native_dtype, R[v_i])
+                        B[i_0 * 32 + i_1] = T.reinterpret(native_dtype, R[i_0 * 32 + i_1])
 
         return Module
 
@@ -167,9 +153,9 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
     vector_length = 64
 
     def _create_mod(native_dtype, promoted_dtype):
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @Ts.prim_func
+            @T.prim_func
             def main(
                 A: T.Buffer((64,), native_dtype),
                 B: T.Buffer((64,), native_dtype),
@@ -178,14 +164,11 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(2, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(32, thread="threadIdx.x"):
-                        with T.sblock("C"):
-                            v_i = T.axis.spatial(64, i_0 * 32 + i_1)
-                            T.reads(A[v_i], B[v_i])
-                            T.writes(C[v_i])
-                            C[v_i] = T.Cast(
-                                native_dtype,
-                                T.Cast(promoted_dtype, A[v_i]) + T.Cast(promoted_dtype, B[v_i]),
-                            )
+                        C[i_0 * 32 + i_1] = T.Cast(
+                            native_dtype,
+                            T.Cast(promoted_dtype, A[i_0 * 32 + i_1])
+                            + T.Cast(promoted_dtype, B[i_0 * 32 + i_1]),
+                        )
 
         return Module
 
@@ -229,14 +212,13 @@ def test_half_broadcast(bcast_length):
     dtype = "float16"
 
     def _create_mod(bcast_length, dtype):
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @Ts.prim_func
+            @T.prim_func
             def main(a: T.Buffer((), dtype), vec: T.Buffer((bcast_length,), dtype)):
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(1, thread="threadIdx.x"):
-                        with T.sblock("broadcast"):
-                            vec[0:bcast_length] = T.broadcast(a[()], bcast_length)
+                        vec[0:bcast_length] = T.broadcast(a[()], bcast_length)
 
         return Module
 
@@ -266,7 +248,7 @@ def test_half_misaligned_vector_load(vector_length):
     vec_dtype = dtype + "x" + str(vector_length)
     length = 256
 
-    @Ts.prim_func
+    @T.prim_func
     def vector_load(
         A: T.Buffer((length,), dtype), B: T.Buffer((length // vector_length,), vec_dtype)
     ):
@@ -303,9 +285,9 @@ def test_half4_vector_add():
     vector_length = 4
     vec_dtype = dtype + "x" + str(vector_length)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @Ts.prim_func
+        @T.prim_func
         def main(
             A: T.Buffer((64,), "float16x4"),
             B: T.Buffer((64,), "float16x4"),
@@ -314,11 +296,7 @@ def test_half4_vector_add():
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(2, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
-                    with T.sblock("C"):
-                        v_i = T.axis.spatial(64, i_0 * 32 + i_1)
-                        T.reads(A[v_i], B[v_i])
-                        T.writes(C[v_i])
-                        C[v_i] = A[v_i] + B[v_i]
+                    C[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + B[i_0 * 32 + i_1]
 
     target = "cuda"
     fadd = tvm.compile(Module, target=target)
@@ -339,309 +317,6 @@ def test_half4_vector_add():
 
 class BaseFP8E4M3QuantScaleOnly:
     @classmethod
-    def create_quantize_func(
-        cls,
-        weight_shape,
-        model_dtype,
-        quantize_dtype,
-        storage_dtype,
-        group_size,
-        num_elem_per_storage,
-        max_int_value,
-        axis,
-        output_transpose,
-    ) -> IRModule:
-        if DataType(quantize_dtype).type_code == DataTypeCode.Float8E4M3FN:
-            quantize_func = cls.quantize_fp8x4_e4m3
-        else:
-            assert NotImplementedError()
-
-        bb = relax.BlockBuilder()  # pylint: disable=invalid-name
-        weight_var = relax.Var("weight", relax.TensorType(weight_shape, model_dtype))
-        compute_scale, compute_quantize, compute_transpose = quantize_func(
-            weight_shape,
-            model_dtype,
-            quantize_dtype,
-            storage_dtype,
-            group_size,
-            num_elem_per_storage,
-            max_int_value,
-            axis,
-            output_transpose,
-        )
-        with bb.function(name="main", params=[weight_var]):
-            with bb.dataflow():
-                lv_scale = bb.emit_te(compute_scale, weight_var)
-                lv_quantized_weight = compute_quantize(bb, (weight_var, lv_scale))
-                if compute_transpose:
-                    lv_output = bb.emit_te(compute_transpose, lv_quantized_weight, lv_scale)
-                    lv_quantized_weight = lv_output[0]
-                    lv_scale = lv_output[1]
-                tuple_output = bb.emit((lv_quantized_weight, lv_scale))
-                gv = bb.emit_output(tuple_output)
-            bb.emit_func_output(gv)
-        return bb.finalize()
-
-    @classmethod
-    def create_dequantize_func(
-        cls,
-        packed_weight_shape,
-        scale_shape,
-        dequantized_shape,
-        model_dtype,
-        quantize_dtype,
-        storage_dtype,
-        group_size,
-        num_elem_per_storage,
-        axis,
-    ) -> IRModule:
-        if DataType(quantize_dtype).type_code == DataTypeCode.Float8E4M3FN:
-            dequantize_func = cls.dequantize_fp8x4_e4m3
-        else:
-            assert NotImplementedError()
-
-        bb = relax.BlockBuilder()  # pylint: disable=invalid-name
-        packed_weight_var = relax.Var(
-            "weight", relax.TensorType(packed_weight_shape, storage_dtype)
-        )
-        scale_var = relax.Var("scale", relax.TensorType(scale_shape, model_dtype))
-        compute_dequantize = dequantize_func(
-            packed_weight_shape,
-            scale_shape,
-            dequantized_shape,
-            model_dtype,
-            quantize_dtype,
-            storage_dtype,
-            group_size,
-            num_elem_per_storage,
-            axis,
-        )
-        with bb.function(name="main", params=[packed_weight_var, scale_var]):
-            with bb.dataflow():
-                lv = compute_dequantize(bb, (packed_weight_var, scale_var))
-                gv = bb.emit_output(lv)
-            bb.emit_func_output(gv)
-        return bb.finalize()
-
-    @classmethod
-    def quantize_fp8x4_e4m3(  # pylint: disable=too-many-locals
-        cls,
-        weight_shape: list[tirx.Expr],
-        model_dtype,
-        quantize_dtype,
-        storage_dtype,
-        group_size,
-        num_elem_per_storage,
-        max_int_value,
-        axis: int = -1,
-        output_transpose: bool = False,
-    ) -> tuple[te.Tensor, te.Tensor]:
-        """Group quantization for weight tensor, defined in tensor expression."""
-        max_int = tirx.const(max_int_value, model_dtype)
-        shape = weight_shape  # pylint: disable=invalid-name
-        axis = axis if axis >= 0 else len(shape) + axis
-        k = shape[axis]
-        quantize_dtype = DataType(quantize_dtype)
-        # compute scale per group
-        r = te.reduce_axis((0, group_size), name="r")  # pylint: disable=invalid-name
-        num_group = tirx.ceildiv(k, group_size)
-        # (4096, 4096) -> quantize axis = 0, group size = 32 -> (128, 4096)
-        # for channel quant group_size = 4096 -> (1, 4096)
-        scale_shape = (*shape[:axis], num_group, *shape[axis + 1 :])
-
-        def compute_scale(weight: te.Tensor):
-            min_scaling_factor = tirx.const(1.0 / (max_int_value * 512.0), model_dtype)
-            max_abs = te.compute(
-                shape=scale_shape,
-                fcompute=lambda *idx: te.max(
-                    tirx.if_then_else(
-                        idx[axis] * group_size + r < k,
-                        te.abs(weight(*idx[:axis], idx[axis] * group_size + r, *idx[axis + 1 :])),
-                        te.min_value(model_dtype),
-                    ),
-                    axis=r,
-                ),
-                name="max_abs_value",
-            )
-            scale = te.compute(
-                scale_shape,
-                lambda *idx: te.max(
-                    max_abs(*idx).astype(model_dtype) / max_int, min_scaling_factor
-                ),
-                name="scale",
-            )
-            return scale
-
-        def compute_quantize_weight(bb: relax.BlockBuilder, args: relax.expr.Expr):
-            # compute scaled weight
-            packed_shape = (weight_shape[0], weight_shape[1] // num_elem_per_storage)
-            quant = cls.quant_and_pack_fp8x4_e4m3_sm90(
-                weight_shape,
-                packed_shape,
-                scale_shape,
-                group_size,
-                axis,
-                model_dtype,
-                storage_dtype,
-                quantize_dtype,
-            )
-            # quant.show()
-
-            global_var = bb.add_func(quant, "quantized_weight")
-            lv_quantized_weight = bb.emit(
-                relax.call_tir(global_var, args, relax.TensorType(packed_shape, storage_dtype))
-            )
-            return lv_quantized_weight
-
-        compute_transpose = None
-        if output_transpose:
-
-            def compute_transpose(quantized_weight: te.Tensor, scale: te.Tensor):
-                if len(quantized_weight.shape) != 2 or len(scale.shape) != 2:
-                    raise ValueError(
-                        "Does not support transpose output quantized weight with ndim != 2"
-                    )
-
-                quantized_weight = topi.transpose(quantized_weight)
-                scale = topi.transpose(scale)
-                return quantized_weight, scale
-
-        return compute_scale, compute_quantize_weight, compute_transpose
-
-    @classmethod
-    def dequantize_fp8x4_e4m3(  # pylint: disable=too-many-locals
-        cls,
-        packed_weight_shape: list[tirx.Expr],
-        scale_shape,
-        dequant_shape,
-        model_dtype,
-        quantize_dtype,
-        storage_dtype,
-        group_size,
-        num_elem_per_storage,
-        axis: int = -1,
-    ) -> tuple[te.Tensor, te.Tensor]:
-        """Group quantization for weight tensor, defined in tensor expression."""
-        axis = axis if axis >= 0 else len(shape) + axis
-
-        def compute_dequantize_weight(bb: relax.BlockBuilder, args: relax.expr.Expr):
-            dequant = cls.dequant_fp8x4_e4m3_sm90(
-                packed_weight_shape,
-                scale_shape,
-                dequant_shape,
-                group_size,
-                axis,
-                model_dtype,
-                storage_dtype,
-                quantize_dtype,
-            )
-
-            global_var = bb.add_func(dequant, "dequantize_weight")
-            lv_dequantized_weight = bb.emit(
-                relax.call_tir(global_var, args, relax.TensorType(dequant_shape, model_dtype))
-            )
-            return lv_dequantized_weight
-
-        return compute_dequantize_weight
-
-    @classmethod
-    def quant_and_pack_fp8x4_e4m3_sm90(
-        cls,
-        weight_shape,
-        packed_shape,
-        scale_shape,
-        group_size,
-        axis,
-        model_dtype,
-        storage_dtype,
-        quantized_dtype,
-    ):
-        vector_length = 4
-        vec_quantized_dtype = f"{quantized_dtype}x{vector_length}"
-        vec_model_dtype = f"{model_dtype}x{vector_length}"
-        num_elem_per_storage = vector_length
-        # TODO(csullivan) assert on storage dtype / quantize type bytes == vector length
-        assert group_size % vector_length == 0, (
-            f"Number of elements in a group must be divisible by fp8 vector length {vector_length}"
-        )
-
-        @Ts.prim_func(private=True)
-        def quant_pack(
-            A: T.Buffer(weight_shape, model_dtype),
-            scale: T.Buffer(scale_shape, model_dtype),
-            compute: T.Buffer(
-                packed_shape,
-                storage_dtype,
-            ),
-        ):
-            # with T.sblock("root"):
-            # test = T.sblock_alloc_buffer(1, dtype=vec_model_dtype, scope="local")
-            for i0, i1 in T.grid(
-                T.int64(weight_shape[0]), T.int64(weight_shape[1] // vector_length)
-            ):
-                with T.sblock("compute"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(
-                        A[v_i0, v_i1 : v_i1 + vector_length],
-                        scale[v_i0, v_i1 * T.int64(vector_length) // T.int64(group_size)],
-                    )
-                    T.writes(compute[v_i0, v_i1 * vector_length])
-                    compute[v_i0, v_i1] = T.reinterpret(
-                        storage_dtype,
-                        T.Cast(
-                            vec_quantized_dtype,
-                            A[v_i0, T.ramp(v_i1 * vector_length, 1, vector_length)]
-                            / scale[v_i0, v_i1 * T.int64(vector_length) // T.int64(group_size)],
-                        ),
-                    )
-
-        return quant_pack
-
-    @classmethod
-    def dequant_fp8x4_e4m3_sm90(
-        cls,
-        packed_weight_shape,
-        scale_shape,
-        out_shape,
-        group_size,
-        axis,
-        model_dtype,
-        storage_dtype,
-        quantized_dtype,
-    ):
-        vector_length = 4
-        vec_quantized_dtype = f"{quantized_dtype}x{vector_length}"
-        vec_model_dtype = f"{model_dtype}x{vector_length}"
-        num_elem_per_storage = vector_length
-
-        @Ts.prim_func
-        def dequant(
-            packed_weight: T.Buffer(packed_weight_shape, storage_dtype),
-            scale: T.Buffer(scale_shape, model_dtype),
-            dequantize: T.Buffer(out_shape, model_dtype),
-        ):
-            T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
-            for i0, i1 in T.grid(T.int64(packed_weight_shape[0]), T.int64(packed_weight_shape[1])):
-                with T.sblock("dequantize"):
-                    v_i0 = T.axis.spatial(T.int64(packed_weight_shape[0]), i0)
-                    v_i1 = T.axis.spatial(T.int64(packed_weight_shape[1]), i1)
-                    T.reads(
-                        packed_weight[v_i0, v_i1],
-                        scale[v_i0, v_i1 * T.int64(vector_length) // T.int64(group_size)],
-                    )
-
-                    dequantize[v_i0, T.ramp(v_i1 * vector_length, 1, vector_length)] = T.Cast(
-                        vec_model_dtype,
-                        T.reinterpret(vec_quantized_dtype, packed_weight[v_i0, v_i1]),
-                    ) * T.Broadcast(
-                        scale[v_i0, v_i1 * T.int64(vector_length) // T.int64(group_size)],
-                        vector_length,
-                    )
-
-        return dequant
-
-    @classmethod
     def compile_quant_and_dequant_by_scale(
         cls,
         weight_shape,
@@ -657,63 +332,67 @@ class BaseFP8E4M3QuantScaleOnly:
         target_str,
         dev,
     ):
-        quant_mod = cls.create_quantize_func(
-            weight_shape,
-            model_dtype,
-            quantize_dtype,
-            storage_dtype,
-            group_size,
-            num_el_per_storage,
-            max_int_value,
-            axis,
-            output_transpose=False,
-        )
-        # quant_mod.show()
+        assert axis == 1 and num_el_per_storage == 4
+        rows, columns = weight_shape
+        groups = scales_shape[1]
+        packed_columns = quant_weight_shape[1]
+        vec_model_dtype = f"{model_dtype}x4"
+        vec_quantized_dtype = f"{quantize_dtype}x4"
 
-        target = tvm.target.Target(target_str)
-        with target:
-            quant_mod = dl.ApplyDefaultSchedule(
-                dl.gpu.Reduction(),
-                dl.gpu.GeneralReduction(),
-                dl.gpu.Fallback(),
-            )(quant_mod)
-        ex_1 = tvm.compile(quant_mod, target=target)
-        vm_1 = relax.VirtualMachine(ex_1, dev)
+        @T.prim_func
+        def quantize(
+            A: T.Buffer(weight_shape, model_dtype),
+            packed: T.Buffer(quant_weight_shape, storage_dtype),
+            scale: T.Buffer(scales_shape, model_dtype),
+        ):
+            for row in T.thread_binding(rows, thread="blockIdx.x"):
+                for group in T.thread_binding(groups, thread="threadIdx.x"):
+                    maximum = T.alloc_buffer((1,), model_dtype, scope="local")
+                    maximum[0] = T.Cast(model_dtype, 0)
+                    for k in range(group_size):
+                        if group * group_size + k < columns:
+                            maximum[0] = T.max(maximum[0], T.abs(A[row, group * group_size + k]))
+                    scale[row, group] = T.max(
+                        maximum[0] / T.Cast(model_dtype, max_int_value),
+                        T.Cast(model_dtype, 1.0 / (max_int_value * 512.0)),
+                    )
+                    for k in range(group_size // 4):
+                        packed[row, group * (group_size // 4) + k] = T.reinterpret(
+                            storage_dtype,
+                            T.Cast(
+                                vec_quantized_dtype,
+                                A[row, T.ramp(group * group_size + k * 4, 1, 4)]
+                                / scale[row, group],
+                            ),
+                        )
 
-        dequant_mod = cls.create_dequantize_func(
-            quant_weight_shape,
-            scales_shape,
-            weight_shape,
-            model_dtype,
-            quantize_dtype,
-            storage_dtype,
-            group_size,
-            num_el_per_storage,
-            axis,
-        )
-        # dequant_mod.show()
+        @T.prim_func
+        def dequantize(
+            packed: T.Buffer(quant_weight_shape, storage_dtype),
+            scale: T.Buffer(scales_shape, model_dtype),
+            output: T.Buffer(weight_shape, model_dtype),
+        ):
+            for row in T.thread_binding(rows, thread="blockIdx.x"):
+                for k in T.thread_binding(packed_columns, thread="threadIdx.x"):
+                    output[row, T.ramp(k * 4, 1, 4)] = T.Cast(
+                        vec_model_dtype, T.reinterpret(vec_quantized_dtype, packed[row, k])
+                    ) * T.Broadcast(scale[row, k * 4 // group_size], 4)
 
-        with target:
-            dequant_mod = dl.ApplyDefaultSchedule(
-                dl.gpu.Reduction(),
-                dl.gpu.GeneralReduction(),
-                dl.gpu.Fallback(),
-            )(dequant_mod)
-        dequant_mod.show()
+        quant_func = tvm.compile(quantize, target=target_str)
+        dequant_func = tvm.compile(dequantize, target=target_str)
 
-        ex_2 = tvm.compile(dequant_mod, target=target)
-        vm_2 = relax.VirtualMachine(ex_2, dev)
+        def quant(weight):
+            packed = tvm.runtime.empty(quant_weight_shape, storage_dtype, dev)
+            scales = tvm.runtime.empty(scales_shape, model_dtype, dev)
+            quant_func(weight, packed, scales)
+            return packed, scales
 
-        def print_cuda(target, mod, name=None):
-            if name:
-                mod = mod[name]
-            f = tvm.tirx.build(mod, target=target)
-            cuda_src = f.imports[0].inspect_source()
-            print(cuda_src)
+        def dequant(packed, scales):
+            output = tvm.runtime.empty(weight_shape, model_dtype, dev)
+            dequant_func(packed, scales, output)
+            return output
 
-        print_cuda(target, dequant_mod, name="dequant")
-
-        return vm_1["main"], vm_2["main"]
+        return quant, dequant
 
 
 class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
@@ -817,9 +496,9 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("dtype", ["float8_e5m2", "float8_e4m3fn", "float8_e8m0fnu"])
 def test_const(dtype):
-    @Ts.prim_func
+    @T.prim_func
     def func(A: T.Buffer((4,), dtype)) -> None:
-        A_local = T.sblock_alloc_buffer((4,), dtype=dtype, scope="local")
+        A_local = T.alloc_buffer((4,), dtype=dtype, scope="local")
         for tx in T.thread_binding(0, 4, "threadIdx.x"):
             for i in T.vectorized(4):
                 A_local[i] = T.float32(1.0).astype(dtype)
@@ -834,7 +513,7 @@ def test_const(dtype):
 @pytest.mark.parametrize("dtype", ["float8_e5m2", "float8_e4m3fn"])
 @pytest.mark.parametrize("vec_len", [2, 4, 8, 16])
 def test_copy(dtype, vec_len):
-    @Ts.prim_func
+    @T.prim_func
     def func(
         A: T.Buffer(
             (
@@ -872,88 +551,39 @@ def test_moe_gemv_shfl_down_illegal_instr():
     global reduce_size
     global spatial_size
 
-    @I.ir_module(s_tir=True)
-    class SingleBatchMoE_float8_e4m3:
-        @Ts.prim_func(private=True)
-        def moe_dequantize_gemv(
-            x_handle: T.handle,
-            w: T.Buffer((num_experts, spatial_size, reduce_size), "float8_e4m3fn"),
-            scale: T.Buffer((1,), "float16"),
-            indptr: T.Buffer((1, 2), "int32"),
-            o: T.Buffer((2, spatial_size), "float16"),
-        ):
-            T.func_attr({"op_pattern": 4, "tirx.noalias": True})
-            num_seq = T.int64()
-            x = T.match_buffer(x_handle, (num_seq, reduce_size), "float16")
-            for expert_id in T.thread_binding(2, thread="blockIdx.y"):
-                with T.sblock("gemv_o"):
-                    e = T.axis.spatial(2, expert_id)
-                    T.reads(
-                        w[indptr[0, e], 0:spatial_size, 0:reduce_size],
-                        indptr[0, e],
-                        scale[0],
-                        x[e, 0:reduce_size],
-                    )
-                    T.writes(o[e, 0:spatial_size])
-                    y = T.sblock_alloc_buffer((spatial_size, reduce_size), "float16")
-                    for i1, i2 in T.grid(spatial_size, reduce_size):
-                        with T.sblock("dequantize"):
-                            i, j = T.axis.remap("SS", [i1, i2])
-                            T.reads(w[indptr[0, e], i, j], indptr[0, e], scale[0])
-                            T.writes(y[i, j])
-                            y[i, j] = T.Cast("float16", w[indptr[0, e], i, j]) * scale[0]
-                    for i1, i2 in T.grid(spatial_size, reduce_size):
-                        with T.sblock("gemv"):
-                            i, j = T.axis.remap("SR", [i1, i2])
-                            T.reads(x[e, j], y[i, j])
-                            T.writes(o[e, i])
-                            with T.init():
-                                o[e, i] = T.float16(0)
-                            o[e, i] = o[e, i] + x[e, j] * y[i, j]
+    @T.prim_func
+    def moe_dequantize_gemv(
+        x: T.Buffer((1, reduce_size), "float16"),
+        indptr: T.Buffer((1, 2), "int32"),
+        w: T.Buffer((num_experts, spatial_size, reduce_size), "float8_e4m3fn"),
+        scale: T.Buffer((1,), "float32"),
+        output: T.Buffer((2, spatial_size), "float16"),
+    ):
+        for expert in T.thread_binding(2, thread="blockIdx.y"):
+            for block in T.thread_binding(spatial_size // 4, thread="blockIdx.x"):
+                for spatial in T.thread_binding(4, thread="threadIdx.y"):
+                    for reduction in T.thread_binding(64, thread="threadIdx.x"):
+                        partial = T.alloc_buffer((1,), "float16", scope="local")
+                        reduced = T.alloc_buffer((1,), "float16", scope="local")
+                        partial[0] = T.float16(0)
+                        for k in range(reduce_size // 64):
+                            partial[0] = partial[0] + x[0, k * 64 + reduction] * (
+                                T.Cast(
+                                    "float16",
+                                    w[indptr[0, expert], block * 4 + spatial, k * 64 + reduction],
+                                )
+                                * T.Cast("float16", scale[0])
+                            )
+                        with T.attr(
+                            T.comm_reducer(lambda x, y: x + y, [T.float16(0)]), "reduce_scope", 0
+                        ):
+                            T.tvm_thread_allreduce(
+                                T.uint32(1), partial[0], True, reduced[0], reduction
+                            )
+                        if reduction == 0:
+                            output[expert, block * 4 + spatial] = reduced[0]
 
-        @R.function
-        def main(
-            x: R.Tensor(("num_seq", reduce_size), dtype="float16"),
-            indptr: R.Tensor((1, 2), dtype="int32"),
-            weight: R.Tensor((num_experts, spatial_size, reduce_size), dtype="float8_e4m3fn"),
-            scale: R.Tensor((1,), dtype="float32"),
-        ) -> R.Tensor((2, spatial_size), dtype="float16"):
-            num_seq = T.int64()
-            R.func_attr({"num_input": 2})
-            cls = SingleBatchMoE_float8_e4m3
-            with R.dataflow():
-                astype: R.Tensor((1,), dtype="float16") = R.astype(scale, dtype="float16")
-                lv = R.call_tir(
-                    cls.moe_dequantize_gemv,
-                    (x, weight, astype, indptr),
-                    out_ty=R.Tensor((2, spatial_size), dtype="float16"),
-                )
-                gv: R.Tensor((2, spatial_size), dtype="float16") = lv
-                R.output(gv)
-            return gv
-
-    def _pipeline(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
-        seq = tvm.transform.Sequential(
-            [
-                tvm.relax.transform.LegalizeOps(),
-                dl.ApplyDefaultSchedule(
-                    dl.gpu.Matmul(),
-                    dl.gpu.GEMV(),
-                    dl.gpu.Reduction(),
-                    dl.gpu.GeneralReduction(),
-                    dl.gpu.Fallback(),
-                ),
-            ]
-        )
-        mod = seq(mod)
-        return mod
-
-    mod = SingleBatchMoE_float8_e4m3
-
-    target = tvm.target.Target("cuda")
-    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": False}) and target:
-        mod = _pipeline(mod)
-        rt_mod = tvm.compile(mod, target=target)
+    rt_mod = tvm.compile(moe_dequantize_gemv, target="cuda")
 
     x_data = np.zeros((1, reduce_size), dtype=np.float16)
     indptr_data = np.zeros((1, 2), dtype=np.int32)
@@ -966,10 +596,10 @@ def test_moe_gemv_shfl_down_illegal_instr():
         indptr = tvm.runtime.tensor(indptr_data, device=dev)
         weight = tvm.runtime.tensor(weight_data, device=dev)
         scale = tvm.runtime.tensor(scale_data, device=dev)
-        vm = relax.VirtualMachine(rt_mod, dev)
-        # Ensure this runs without failure. Utilizing dlight thread extents TS, TR = 4, 64
-        # in GEMV scheduling will yield: CUDA: an illegal instruction was encountered.
-        vm["main"](x, indptr, weight, scale)
+        output = tvm.runtime.empty((2, spatial_size), "float16", dev)
+        # Exercise shuffle reduction with spatial/reduction thread extents 4 and 64.
+        rt_mod(x, indptr, weight, scale, output)
+        tvm.testing.assert_allclose(output.numpy(), np.zeros((2, spatial_size)))
         dev.sync()
 
     tvm.testing.run_with_gpu_lock(run_and_check)
@@ -983,9 +613,9 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
     def _create_mod(vec_length, dtype):
         num_threads = 128 // vec_length
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @Ts.prim_func
+            @T.prim_func
             def main(
                 A: T.Buffer((128,), "float8_e4m3fn"),
                 B: T.Buffer((128,), dtype),
@@ -993,9 +623,9 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
             ) -> None:
                 for i_0 in T.thread_binding(num_threads, thread="threadIdx.x"):
                     for i_1 in T.vectorized(vec_length):
-                        with T.sblock("compute"):
-                            vi = T.axis.spatial(128, i_0 * vec_length + i_1)
-                            C[vi] = (A[vi].astype(dtype) * B[vi]) + T.bfloat16(3.0)
+                        C[i_0 * vec_length + i_1] = A[i_0 * vec_length + i_1].astype(dtype) * B[
+                            i_0 * vec_length + i_1
+                        ] + T.bfloat16(3.0)
 
         return Module
 

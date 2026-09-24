@@ -20,7 +20,6 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.support import utils
 
@@ -28,9 +27,9 @@ from tvm.support import utils
 def test_add():
     nn = 1024
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @Ts.prim_func
+        @T.prim_func
         def test_fadd(
             A: T.Buffer((1024,), "float32"),
             B: T.Buffer((1024,), "float32"),
@@ -38,11 +37,7 @@ def test_add():
         ):
             T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
-                with T.sblock("C"):
-                    v_i0 = T.axis.spatial(1024, i0)
-                    T.reads(A[v_i0], B[v_i0])
-                    T.writes(C[v_i0])
-                    C[v_i0] = A[v_i0] + B[v_i0]
+                C[i0] = A[i0] + B[i0]
 
     def check_c():
         mhost = tvm.compile(Module, target="c")
@@ -65,20 +60,16 @@ def test_add():
 def test_reinterpret():
     nn = 1024
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @Ts.prim_func
+        @T.prim_func
         def test_reinterpret(
             A: T.Buffer((1024,), "int32"),
             B: T.Buffer((1024,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
-                with T.sblock("B"):
-                    v_i0 = T.axis.spatial(1024, i0)
-                    T.reads(A[v_i0])
-                    T.writes(B[v_i0])
-                    B[v_i0] = T.reinterpret("float32", A[v_i0] + 2)
+                B[i0] = T.reinterpret("float32", A[i0] + 2)
 
     def check_c():
         mhost = tvm.compile(Module, target="c")
@@ -100,20 +91,16 @@ def test_reinterpret():
 def test_ceil():
     nn = 1024
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @Ts.prim_func
+        @T.prim_func
         def test_ceil(
             A: T.Buffer((1024,), "float32"),
             B: T.Buffer((1024,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
-                with T.sblock("B"):
-                    v_i0 = T.axis.spatial(1024, i0)
-                    T.reads(A[v_i0])
-                    T.writes(B[v_i0])
-                    B[v_i0] = T.ceil(A[v_i0])
+                B[i0] = T.ceil(A[i0])
 
     def check_c():
         mhost = tvm.compile(Module, target="c")
@@ -135,20 +122,16 @@ def test_ceil():
 def test_floor():
     nn = 1024
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @Ts.prim_func
+        @T.prim_func
         def test_floor(
             A: T.Buffer((1024,), "float32"),
             B: T.Buffer((1024,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
-                with T.sblock("B"):
-                    v_i0 = T.axis.spatial(1024, i0)
-                    T.reads(A[v_i0])
-                    T.writes(B[v_i0])
-                    B[v_i0] = T.floor(A[v_i0])
+                B[i0] = T.floor(A[i0])
 
     def check_c():
         mhost = tvm.compile(Module, target="c")
@@ -170,20 +153,16 @@ def test_floor():
 def test_round():
     nn = 1024
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @Ts.prim_func
+        @T.prim_func
         def test_round(
             A: T.Buffer((1024,), "float32"),
             B: T.Buffer((1024,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
-                with T.sblock("B"):
-                    v_i0 = T.axis.spatial(1024, i0)
-                    T.reads(A[v_i0])
-                    T.writes(B[v_i0])
-                    B[v_i0] = T.round(A[v_i0])
+                B[i0] = T.round(A[i0])
 
     def check_c():
         mhost = tvm.compile(Module, target="c")
@@ -211,13 +190,13 @@ def test_round():
 
 
 def test_subroutine_call():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @Ts.prim_func
+        @T.prim_func
         def main(A: T.Buffer(1, dtype="float32")):
             Module.subroutine(A.data)
 
-        @Ts.prim_func(private=True)
+        @T.prim_func(private=True)
         def subroutine(A_data: T.handle("float32")):
             A = T.decl_buffer(1, dtype="float32", data=A_data)
             A[0] = 42.0
@@ -255,18 +234,14 @@ def test_workspace_allocation_cast():
 
 
 def test_local_alloc_buffer_uses_plain_c_pointer():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @Ts.prim_func
+        @T.prim_func
         def main(A: T.Buffer((1,), "float32")):
             B = T.alloc_buffer((1,), "float32", scope="local")
             for i in range(1):
-                with T.sblock("copy"):
-                    vi = T.axis.spatial(1, i)
-                    T.reads(A[vi])
-                    T.writes(B[vi], A[vi])
-                    B[vi] = A[vi] + T.float32(1)
-                    A[vi] = B[vi]
+                B[i] = A[i] + T.float32(1)
+                A[i] = B[i]
 
     built = tvm.tirx.build(Module, target="c")
     assert "local float*" not in built.inspect_source()

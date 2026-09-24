@@ -35,15 +35,15 @@ from tvm.script import tirx as T
 @Ts.prim_func
 def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
-    B = T.sblock_alloc_buffer((128, 128))
+    B = Ts.sblock_alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -52,8 +52,8 @@ def elementwise_inlined(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
 
@@ -367,16 +367,16 @@ def _test_apply_annotation_trace_from_json(annotation: str):
     @Ts.prim_func
     def elementwise_expected(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128))
-        B = T.sblock_alloc_buffer((128, 128))
+        B = Ts.sblock_alloc_buffer((128, 128))
         C = T.match_buffer(c, (128, 128))
         for i, j in T.grid(128, 128):
-            with T.sblock("B"):
-                T.sblock_attr({"meta_schedule.auto_tensorize": annotation})
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("B"):
+                Ts.sblock_attr({"meta_schedule.auto_tensorize": annotation})
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
         for i, j in T.grid(128, 128):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("C"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 C[vi, vj] = B[vi, vj] + 1.0
 
     assert_structural_equal_ignore_global_symbol(elementwise_expected, sch.mod["main"])

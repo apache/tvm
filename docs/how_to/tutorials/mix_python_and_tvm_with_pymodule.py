@@ -139,9 +139,9 @@ if RUN_EXAMPLE:
             B = T.match_buffer(var_B, (4, 3), "float32")
             C = T.match_buffer(var_C, (n, 3), "float32")
             for i, j, k in T.grid(n, 3, 4):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -216,9 +216,9 @@ if RUN_EXAMPLE:
             B = T.match_buffer(var_B, (4, 3), "float32")
             C = T.match_buffer(var_C, (2, 3), "float32")
             for i, j, k in T.grid(2, 3, 4):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 

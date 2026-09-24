@@ -45,12 +45,12 @@ def test_quantize_fp32_to_int8():
             quantized: T.Buffer((T.int64(2), T.int64(4)), "int8"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
-                with T.sblock("quantized"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1], B[v_i0], C[v_i0])
-                    T.writes(quantized[v_i0, v_i1])
+                with Ts.sblock("quantized"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1], B[v_i0], C[v_i0])
+                    Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
                         "int8",
                         T.max(
@@ -99,12 +99,12 @@ def test_quantize_fp16_to_uint8():
             quantized: T.Buffer((T.int64(2), T.int64(4)), "uint8"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
-                with T.sblock("quantized"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1], B[v_i0], C[v_i0])
-                    T.writes(quantized[v_i0, v_i1])
+                with Ts.sblock("quantized"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1], B[v_i0], C[v_i0])
+                    Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
                         "uint8",
                         T.max(
@@ -153,12 +153,12 @@ def test_quantize_fp32_to_int8_symbolic():
             B = T.match_buffer(var_B, (n,))
             C = T.match_buffer(var_C, (n,), "int8")
             quantized = T.match_buffer(var_quantized, (T.int64(4), n), "int8")
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(4), n):
-                with T.sblock("quantized"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1], B[v_i1], C[v_i1])
-                    T.writes(quantized[v_i0, v_i1])
+                with Ts.sblock("quantized"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1], B[v_i1], C[v_i1])
+                    Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
                         "int8",
                         T.max(
@@ -202,12 +202,12 @@ def test_quantize_fp32_to_int8_scalar_param():
             quantized: T.Buffer((T.int64(2), T.int64(4)), "int8"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
-                with T.sblock("quantized"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1])
-                    T.writes(quantized[v_i0, v_i1])
+                with Ts.sblock("quantized"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1])
+                    Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
                         "int8",
                         T.max(
@@ -252,12 +252,12 @@ def test_quantize_fp32_to_int8_scalar_1d_param():
             quantized: T.Buffer((T.int64(2), T.int64(4)), "int8"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
-                with T.sblock("quantized"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1], B[v_i0], C[v_i0])
-                    T.writes(quantized[v_i0, v_i1])
+                with Ts.sblock("quantized"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1], B[v_i0], C[v_i0])
+                    Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
                         "int8",
                         T.max(
@@ -301,12 +301,12 @@ def test_quantize_fp16_to_int8_scalar_param():
             quantized: T.Buffer((T.int64(2), T.int64(4)), "int8"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
-                with T.sblock("quantized"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1])
-                    T.writes(quantized[v_i0, v_i1])
+                with Ts.sblock("quantized"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1])
+                    Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
                         "int8",
                         T.max(
@@ -349,12 +349,12 @@ def test_dequantize_int8_to_fp32():
             dequantized: T.Buffer((T.int64(2), T.int64(4)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
-                with T.sblock("dequantized"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1], C[v_i0], B[v_i0])
-                    T.writes(dequantized[v_i0, v_i1])
+                with Ts.sblock("dequantized"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1], C[v_i0], B[v_i0])
+                    Ts.writes(dequantized[v_i0, v_i1])
                     dequantized[v_i0, v_i1] = (
                         T.Cast("float32", T.Cast("int32", A[v_i0, v_i1]) - T.Cast("int32", C[v_i0]))
                         * B[v_i0]
@@ -393,12 +393,12 @@ def test_dequantize_int8_to_fp32_scalar_param():
             dequantized: T.Buffer((T.int64(2), T.int64(4)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
-                with T.sblock("dequantized"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1])
-                    T.writes(dequantized[v_i0, v_i1])
+                with Ts.sblock("dequantized"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1])
+                    Ts.writes(dequantized[v_i0, v_i1])
                     dequantized[v_i0, v_i1] = T.Cast(
                         "float32", T.Cast("int32", A[v_i0, v_i1]) - 1
                     ) * T.float32(2)
@@ -437,12 +437,12 @@ def test_dequantize_int8_to_fp32_symbolic():
             B = T.match_buffer(var_B, (n,))
             C = T.match_buffer(var_C, (n,), "int8")
             dequantized = T.match_buffer(var_dequantized, (T.int64(2), n))
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), n):
-                with T.sblock("dequantized"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1], C[v_i1], B[v_i1])
-                    T.writes(dequantized[v_i0, v_i1])
+                with Ts.sblock("dequantized"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1], C[v_i1], B[v_i1])
+                    Ts.writes(dequantized[v_i0, v_i1])
                     dequantized[v_i0, v_i1] = (
                         T.Cast("float32", T.Cast("int32", A[v_i0, v_i1]) - T.Cast("int32", C[v_i1]))
                         * B[v_i1]
@@ -486,12 +486,12 @@ def test_dequantize_int8_to_fp16():
             dequantized: T.Buffer((T.int64(2), T.int64(4)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
-                with T.sblock("dequantized"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1], C[v_i0], B[v_i0])
-                    T.writes(dequantized[v_i0, v_i1])
+                with Ts.sblock("dequantized"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1], C[v_i0], B[v_i0])
+                    Ts.writes(dequantized[v_i0, v_i1])
                     dequantized[v_i0, v_i1] = T.Cast(
                         "float16",
                         T.max(
@@ -540,12 +540,12 @@ def test_dequantize_int8_to_fp16_scalar_param():
             dequantized: T.Buffer((T.int64(2), T.int64(4)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
-                with T.sblock("dequantized"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1])
-                    T.writes(dequantized[v_i0, v_i1])
+                with Ts.sblock("dequantized"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1])
+                    Ts.writes(dequantized[v_i0, v_i1])
                     dequantized[v_i0, v_i1] = T.Cast(
                         "float16",
                         T.max(

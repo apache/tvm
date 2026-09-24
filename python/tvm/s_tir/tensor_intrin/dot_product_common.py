@@ -35,12 +35,12 @@ def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
         B: T.Buffer((4,), dtype_b, offset_factor=1, align=4, scope="shared"),
         C: T.Buffer((1,), dtype_c, offset_factor=1, align=4, scope="local"),
     ) -> None:
-        with T.sblock("root"):
-            T.reads(C[0], A[0:4], B[0:4])
-            T.writes(C[0])
+        with Ts.sblock("root"):
+            Ts.reads(C[0], A[0:4], B[0:4])
+            Ts.writes(C[0])
             for i in range(0, 4):
-                with T.sblock("update"):
-                    vi = T.axis.remap("R", [i])
+                with Ts.sblock("update"):
+                    vi = Ts.axis.remap("R", [i])
                     C[0] = C[0] + T.cast(A[vi], dtype_c) * T.cast(B[vi], dtype_c)
 
     @Ts.prim_func
@@ -49,9 +49,9 @@ def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
         B: T.Buffer((4,), dtype_b, offset_factor=1, align=4, scope="shared"),
         C: T.Buffer((1,), dtype_c, offset_factor=1, align=4, scope="local"),
     ) -> None:
-        with T.sblock("root"):
-            T.reads(C[0], A[0:4], B[0:4])
-            T.writes(C[0])
+        with Ts.sblock("root"):
+            Ts.reads(C[0], A[0:4], B[0:4])
+            Ts.writes(C[0])
 
             C[0] += T.call_pure_extern(
                 "__dp4a",

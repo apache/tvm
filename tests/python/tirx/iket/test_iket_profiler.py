@@ -459,17 +459,27 @@ def test_injected_child_auto_enable_remains_fail_closed(monkeypatch, missing_env
 )
 def test_tirx_pipelines_immediately_lower_iket(module_name, factory_name):
     factory = getattr(importlib.import_module(module_name), factory_name)
-    source = inspect.getsource(factory)
-    assert re.search(
-        r"tirx\.transform\.SplitHostDevice\(\),\s+cuda_transforms\.LowerIket\(\)", source
-    )
+    visited = []
+
+    @tvm.instrument.pass_instrument
+    class RecordPasses:
+        def run_before_pass(self, mod, info):
+            visited.append(("before", info.name))
+
+        def run_after_pass(self, mod, info):
+            visited.append(("after", info.name))
+
+    pipeline, _, _ = factory()
+    with tvm.transform.PassContext(instruments=[RecordPasses()]):
+        pipeline(tvm.IRModule())
+
+    split = visited.index(("after", tvm.tirx.transform.SplitHostDevice().info.name))
+    assert visited[split + 1] == ("before", cuda_transforms.LowerIket().info.name)
 
 
 @pytest.mark.parametrize(
     ("module_name", "factory_name"),
     [
-        ("tvm.s_tir.pipeline", "default_s_tir_pipeline"),
-        ("tvm.s_tir.backend.adreno.pipeline", "default_tir_pipeline"),
         ("tvm.backend.trn.pipeline", "trn_pipeline"),
     ],
 )

@@ -40,12 +40,12 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j in T.grid(128, 128):
-        with T.sblock("init"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("init"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = 0.0
         for k in range(0, 128):
-            with T.sblock("update"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with Ts.sblock("update"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
@@ -53,17 +53,17 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 def matmul_relu(a: T.handle, b: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (1024, 1024))
     B = T.match_buffer(b, (1024, 1024))
-    C = T.sblock_alloc_buffer((1024, 1024))
+    C = Ts.sblock_alloc_buffer((1024, 1024))
     D = T.match_buffer(d, (1024, 1024))
     for i, j, k in T.grid(1024, 1024, 1024):
-        with T.sblock("matmul"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("matmul"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
     for i, j in T.grid(1024, 1024):
-        with T.sblock("relu"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("relu"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
@@ -71,19 +71,19 @@ def matmul_relu(a: T.handle, b: T.handle, d: T.handle) -> None:
 def matmul_relu_ann1(a: T.handle, b: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (1024, 1024))
     B = T.match_buffer(b, (1024, 1024))
-    C = T.sblock_alloc_buffer((1024, 1024))
+    C = Ts.sblock_alloc_buffer((1024, 1024))
     D = T.match_buffer(d, (1024, 1024))
     for i in T.serial(0, 1024, annotations={"test1": "aaa", "test4": {"arr": [0, 0], "key": 3}}):
         for j in T.serial(0, 1024, annotations={"test2": 612, "test3": ["aa", 1]}):
             for k in T.serial(0, 1024):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    with Ts.init():
                         C[vi, vj] = 0.0
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
     for i, j in T.grid(1024, 1024):
-        with T.sblock("relu"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("relu"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
@@ -91,19 +91,19 @@ def matmul_relu_ann1(a: T.handle, b: T.handle, d: T.handle) -> None:
 def matmul_relu_ann2(a: T.handle, b: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (1024, 1024))
     B = T.match_buffer(b, (1024, 1024))
-    C = T.sblock_alloc_buffer((1024, 1024))
+    C = Ts.sblock_alloc_buffer((1024, 1024))
     D = T.match_buffer(d, (1024, 1024))
     for i, j, k in T.grid(1024, 1024, 1024):
-        with T.sblock("matmul"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("matmul"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 C[vi, vj] = 0.0
-            T.sblock_attr({"test1": "aaa", "test4": {"arr": [0, 0], "key": 3}})
+            Ts.sblock_attr({"test1": "aaa", "test4": {"arr": [0, 0], "key": 3}})
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
     for i, j in T.grid(1024, 1024):
-        with T.sblock("relu"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.sblock_attr({"test2": 0.22, "test3": ["aa", 1]})
+        with Ts.sblock("relu"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.sblock_attr({"test2": 0.22, "test3": ["aa", 1]})
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
@@ -115,8 +115,8 @@ class ModuleWithMultipleFuncs:
         B: T.Buffer(128, "float32"),
     ) -> None:
         for i in range(128):
-            with T.sblock("init"):
-                vi = T.axis.remap("S", [i])
+            with Ts.sblock("init"):
+                vi = Ts.axis.remap("S", [i])
                 B[vi] = A[vi]
 
     @Ts.prim_func
@@ -125,8 +125,8 @@ class ModuleWithMultipleFuncs:
         B: T.Buffer(128, "float32"),
     ) -> None:
         for i in range(128):
-            with T.sblock("init"):
-                vi = T.axis.remap("S", [i])
+            with Ts.sblock("init"):
+                vi = Ts.axis.remap("S", [i])
                 B[vi] = A[vi]
 
 
@@ -135,17 +135,17 @@ def tuple_reduction(data: T.Buffer((4, 32), "float32"), T_add: T.Buffer((4,), "f
     # function attr dict
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     # body
-    with T.sblock("root"):
-        T.reads()
-        T.writes()
-        data_red_temp_v0 = T.sblock_alloc_buffer([4], dtype="float32")
-        data_red_temp_v1 = T.sblock_alloc_buffer([4], dtype="float32")
+    with Ts.sblock("root"):
+        Ts.reads()
+        Ts.writes()
+        data_red_temp_v0 = Ts.sblock_alloc_buffer([4], dtype="float32")
+        data_red_temp_v1 = Ts.sblock_alloc_buffer([4], dtype="float32")
         for i0, i1 in T.grid(4, 32):
-            with T.sblock("data_red_temp"):
-                ax0, k1 = T.axis.remap("SR", [i0, i1])
-                T.reads(data[ax0, k1])
-                T.writes(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
-                with T.init():
+            with Ts.sblock("data_red_temp"):
+                ax0, k1 = Ts.axis.remap("SR", [i0, i1])
+                Ts.reads(data[ax0, k1])
+                Ts.writes(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
+                with Ts.init():
                     data_red_temp_v0[ax0] = T.float32(0)
                     data_red_temp_v1[ax0] = T.float32(0)
                 v_data_red_temp_v0: T.let[T.float32] = data_red_temp_v0[ax0] + data[ax0, k1]
@@ -155,10 +155,10 @@ def tuple_reduction(data: T.Buffer((4, 32), "float32"), T_add: T.Buffer((4,), "f
                 data_red_temp_v0[ax0] = v_data_red_temp_v0
                 data_red_temp_v1[ax0] = v_data_red_temp_v1
         for i0 in range(4):
-            with T.sblock("T_add"):
-                ax0 = T.axis.remap("S", [i0])
-                T.reads(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
-                T.writes(T_add[ax0])
+            with Ts.sblock("T_add"):
+                ax0 = Ts.axis.remap("S", [i0])
+                Ts.reads(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
+                Ts.writes(T_add[ax0])
                 T_add[ax0] = data_red_temp_v0[ax0] + data_red_temp_v1[ax0]
 
 
@@ -395,12 +395,12 @@ def test_get_output_blocks_nested():
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128, 128), "float32"),
     ) -> None:
-        with T.sblock("blockized_B"):
-            vio = T.axis.spatial(1, 0)
-            vjo = T.axis.spatial(1, 0)
+        with Ts.sblock("blockized_B"):
+            vio = Ts.axis.spatial(1, 0)
+            vjo = Ts.axis.spatial(1, 0)
             for i, j in T.grid(128, 128):
-                with T.sblock("B"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("B"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] * 2.0
 
     sch = tvm.s_tir.Schedule(mod=blockized, debug_mask="all")

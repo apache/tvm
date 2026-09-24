@@ -51,19 +51,19 @@ class MyModule:
         C: T.Buffer((128, 128), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
-        with T.sblock("root"):
-            T.reads()
-            T.writes()
-            Y = T.sblock_alloc_buffer((128, 128))
+        with Ts.sblock("root"):
+            Ts.reads()
+            Ts.writes()
+            Y = Ts.sblock_alloc_buffer((128, 128))
             for i, j, k in T.grid(128, 128, 128):
-                with T.sblock("Y"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+                with Ts.sblock("Y"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    with Ts.init():
                         Y[vi, vj] = T.float32(0)
                     Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
             for i, j in T.grid(128, 128):
-                with T.sblock("C"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("C"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
 
 

@@ -43,7 +43,7 @@ def _run_pass_compare_output(Before, Expected):
 
 
 def test_optimize_transform_layout_pass_one_arg():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
         def relax_add_replacement(
@@ -52,12 +52,12 @@ def test_optimize_transform_layout_pass_one_arg():
             output: T.Buffer((4, 4), "float32"),
         ):
             T.func_attr({"operator_name": "relax.add"})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(4, 4):
-                with T.sblock("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
-                    T.writes(output[v_ax0, v_ax1])
+                with Ts.sblock("T_add"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
+                    Ts.writes(output[v_ax0, v_ax1])
                     output[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] + arg1[v_ax0, v_ax1]
 
         @R.function
@@ -97,7 +97,7 @@ def test_optimize_transform_layout_pass_one_arg():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def relax_add_replacement(
@@ -106,12 +106,12 @@ def test_optimize_transform_layout_pass_one_arg():
             output: T.Buffer((4, 4), "float32"),
         ):
             T.func_attr({"operator_name": "relax.add"})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(4, 4):
-                with T.sblock("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
-                    T.writes(output[v_ax0, v_ax1])
+                with Ts.sblock("T_add"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
+                    Ts.writes(output[v_ax0, v_ax1])
                     output[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] + arg1[v_ax0, v_ax1]
 
         @R.function
@@ -145,7 +145,7 @@ def test_optimize_transform_layout_pass_one_arg():
 
 
 def test_optimize_transform_layout_pass_two_args():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
         def relax_add_replacement(
@@ -154,12 +154,12 @@ def test_optimize_transform_layout_pass_two_args():
             output: T.Buffer((4, 4), "float32"),
         ):
             T.func_attr({"operator_name": "relax.add"})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(4, 4):
-                with T.sblock("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
-                    T.writes(output[v_ax0, v_ax1])
+                with Ts.sblock("T_add"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
+                    Ts.writes(output[v_ax0, v_ax1])
                     output[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] + arg1[v_ax0, v_ax1]
 
         @R.function
@@ -212,7 +212,7 @@ def test_optimize_transform_layout_pass_two_args():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def relax_add_replacement(
@@ -221,12 +221,12 @@ def test_optimize_transform_layout_pass_two_args():
             output: T.Buffer((4, 4), "float32"),
         ):
             T.func_attr({"operator_name": "relax.add"})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(4, 4):
-                with T.sblock("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
-                    T.writes(output[v_ax0, v_ax1])
+                with Ts.sblock("T_add"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
+                    Ts.writes(output[v_ax0, v_ax1])
                     output[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] + arg1[v_ax0, v_ax1]
 
         @R.function
@@ -270,19 +270,19 @@ def test_optimize_transform_layout_pass_two_args():
 
 
 def test_tranform_layout_tir_remove_pad_transform_layout():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
         def relax_relu_replacement(
             arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")
         ):
             T.func_attr({"operator_name": "relax.relu"})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0 in range(16):
-                with T.sblock("T_add"):
-                    v_ax0 = T.axis.spatial(16, ax0)
-                    T.reads(arg0[v_ax0])
-                    T.writes(output[v_ax0])
+                with Ts.sblock("T_add"):
+                    v_ax0 = Ts.axis.spatial(16, ax0)
+                    Ts.reads(arg0[v_ax0])
+                    Ts.writes(output[v_ax0])
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
         @Ts.prim_func(private=True)
@@ -292,12 +292,12 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
             input = T.match_buffer(var_input, (p0,))
             i0 = T.int64()
             output = T.match_buffer(var_output, (i0,))
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0 in range(i0):
-                with T.sblock("output"):
-                    v_ax0 = T.axis.spatial(i0, ax0)
-                    T.reads(input[v_ax0])
-                    T.writes(output[v_ax0])
+                with Ts.sblock("output"):
+                    v_ax0 = Ts.axis.spatial(i0, ax0)
+                    Ts.reads(input[v_ax0])
+                    Ts.writes(output[v_ax0])
                     output[v_ax0] = input[v_ax0]
 
         @R.function
@@ -343,19 +343,19 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def relax_relu_replacement(
             arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")
         ):
             T.func_attr({"operator_name": "relax.relu"})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0 in range(16):
-                with T.sblock("T_add"):
-                    v_ax0 = T.axis.spatial(16, ax0)
-                    T.reads(arg0[v_ax0])
-                    T.writes(output[v_ax0])
+                with Ts.sblock("T_add"):
+                    v_ax0 = Ts.axis.spatial(16, ax0)
+                    Ts.reads(arg0[v_ax0])
+                    Ts.writes(output[v_ax0])
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
         @Ts.prim_func(private=True)
@@ -365,12 +365,12 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
             input = T.match_buffer(var_input, (p0,))
             i0 = T.int64()
             output = T.match_buffer(var_output, (i0,))
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0 in range(i0):
-                with T.sblock("output"):
-                    v_ax0 = T.axis.spatial(i0, ax0)
-                    T.reads(input[v_ax0])
-                    T.writes(output[v_ax0])
+                with Ts.sblock("output"):
+                    v_ax0 = Ts.axis.spatial(i0, ax0)
+                    Ts.reads(input[v_ax0])
+                    Ts.writes(output[v_ax0])
                     output[v_ax0] = input[v_ax0]
 
         @R.function

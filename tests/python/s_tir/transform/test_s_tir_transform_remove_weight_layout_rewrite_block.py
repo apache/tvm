@@ -42,22 +42,22 @@ def test_matmul():
         C: T.Buffer((16, 16), "float32"),
     ) -> None:
         T.func_attr({"layout_free_buffers": [1]})
-        B_ = T.sblock_alloc_buffer([16, 4, 4], dtype="float32")
+        B_ = Ts.sblock_alloc_buffer([16, 4, 4], dtype="float32")
         for i0_o, i1_o in T.grid(16, 16):
-            with T.sblock("layout_rewrite"):
-                i0, i1 = T.axis.remap("SS", [i0_o, i1_o])
-                T.reads(B[i0, i1])
-                T.writes(B_[i1, i0 // 4, i0 % 4])
-                T.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
+            with Ts.sblock("layout_rewrite"):
+                i0, i1 = Ts.axis.remap("SS", [i0_o, i1_o])
+                Ts.reads(B[i0, i1])
+                Ts.writes(B_[i1, i0 // 4, i0 % 4])
+                Ts.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
                 B_[i1, i0 // 4, i0 % 4] = B[i0, i1]
         for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
-            with T.sblock("matmul"):
-                vi = T.axis.spatial(16, i0 * 4 + i1)
-                vj = T.axis.spatial(16, j)
-                vk = T.axis.reduce(16, k0 * 4 + k1)
-                T.reads(A[vi, vk], B_[vj, vk // 4, vk % 4])
-                T.writes(C[vi, vj])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi = Ts.axis.spatial(16, i0 * 4 + i1)
+                vj = Ts.axis.spatial(16, j)
+                vk = Ts.axis.reduce(16, k0 * 4 + k1)
+                Ts.reads(A[vi, vk], B_[vj, vk // 4, vk % 4])
+                Ts.writes(C[vi, vj])
+                with Ts.init():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B_[vj, vk // 4, vk % 4]
 
@@ -69,20 +69,20 @@ def test_matmul():
     ) -> None:
         T.func_attr({"layout_free_buffers": [1]})
         for i0_o, i1_o in T.grid(16, 16):
-            with T.sblock("layout_rewrite"):
-                i0, i1 = T.axis.remap("SS", [i0_o, i1_o])
-                T.reads()
-                T.writes()
-                T.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
+            with Ts.sblock("layout_rewrite"):
+                i0, i1 = Ts.axis.remap("SS", [i0_o, i1_o])
+                Ts.reads()
+                Ts.writes()
+                Ts.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
                 T.evaluate(0)
         for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
-            with T.sblock("matmul"):
-                vi = T.axis.spatial(16, i0 * 4 + i1)
-                vj = T.axis.spatial(16, j)
-                vk = T.axis.reduce(16, k0 * 4 + k1)
-                T.reads(A[vi, vk], B[vj, vk // 4, vk % 4])
-                T.writes(C[vi, vj])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi = Ts.axis.spatial(16, i0 * 4 + i1)
+                vj = Ts.axis.spatial(16, j)
+                vk = Ts.axis.reduce(16, k0 * 4 + k1)
+                Ts.reads(A[vi, vk], B[vj, vk // 4, vk % 4])
+                Ts.writes(C[vi, vj])
+                with Ts.init():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk // 4, vk % 4]
 

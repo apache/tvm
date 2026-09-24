@@ -45,10 +45,10 @@ def test_image_resize2d():
         def resize2d(rxplaceholder: T.Buffer((T.int64(2), T.int64(8), T.int64(8), T.int64(3)), "float32"), resize: T.Buffer((T.int64(2), T.int64(16), T.int64(16), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(16), T.int64(16), T.int64(3)):
-                with T.sblock("resize"):
-                    i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                    T.reads(rxplaceholder[i0_1, T.int64(0):T.int64(8), T.int64(0):T.int64(8), i3_1])
-                    T.writes(resize[i0_1, i1_1, i2_1, i3_1])
+                with Ts.sblock("resize"):
+                    i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                    Ts.reads(rxplaceholder[i0_1, T.int64(0):T.int64(8), T.int64(0):T.int64(8), i3_1])
+                    Ts.writes(resize[i0_1, i1_1, i2_1, i3_1])
                     resize[i0_1, i1_1, i2_1, i3_1] = rxplaceholder[i0_1, T.max(T.min(T.Cast("int64", T.round(T.float32(0.5) * T.Cast("float32", i1_1))), T.int64(7)), T.int64(0)), T.max(T.min(T.Cast("int64", T.round(T.float32(0.5) * T.Cast("float32", i2_1))), T.int64(7)), T.int64(0)), i3_1]
     # fmt: on
 
@@ -92,10 +92,10 @@ def test_image_resize2d_symbolic():
             rxplaceholder = T.match_buffer(var_rxplaceholder, [n, c, h, w, T.int64(16)], dtype="float32")
             resize = T.match_buffer(var_resize, [n, c, oh, ow, T.int64(16)], dtype="float32")
             for i0, i1, i2, i3, i4 in T.grid(n, c, oh, ow, T.int64(16)):
-                with T.sblock("resize"):
-                    i0_1, i1_1, i2_1, i3_1, i4_1 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                    T.reads(rxplaceholder[i0_1, i1_1, T.int64(0) : T.max(h, T.int64(1)), T.int64(0) : T.max(w, T.int64(1)), i4_1])
-                    T.writes(resize[i0_1, i1_1, i2_1, i3_1, i4_1])
+                with Ts.sblock("resize"):
+                    i0_1, i1_1, i2_1, i3_1, i4_1 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                    Ts.reads(rxplaceholder[i0_1, i1_1, T.int64(0) : T.max(h, T.int64(1)), T.int64(0) : T.max(w, T.int64(1)), i4_1])
+                    Ts.writes(resize[i0_1, i1_1, i2_1, i3_1, i4_1])
                     resize[i0_1, i1_1, i2_1, i3_1, i4_1] = rxplaceholder[i0_1, i1_1, T.max(T.min(T.Cast("int64", T.round(T.Cast("float32", h) / T.Cast("float32", oh) * T.Cast("float32", i2_1), dtype="float32")), h - T.int64(1)), T.int64(0)), T.max(T.min(T.Cast("int64", T.round(T.Cast("float32", w) / T.Cast("float32", ow) * T.Cast("float32", i3_1), dtype="float32")), w - T.int64(1)), T.int64(0)), i4_1]
     # fmt: on
 
@@ -124,14 +124,14 @@ def test_image_affine_grid():
             T.func_attr({"tirx.noalias": True})
             theta = T.match_buffer(var_theta, (T.int64(2), T.int64(2), T.int64(3)))
             compute = T.match_buffer(var_compute, (T.int64(2), T.int64(2), T.int64(16), T.int64(16)))
-            with T.sblock("root"):
-                T.reads()
-                T.writes()
+            with Ts.sblock("root"):
+                Ts.reads()
+                Ts.writes()
                 for n, dim, i0, i1 in T.grid(T.int64(2), T.int64(2), T.int64(16), T.int64(16)):
-                    with T.sblock("compute"):
-                        v_n, v_dim, v_i0, v_i1 = T.axis.remap("SSSS", [n, dim, i0, i1])
-                        T.reads(theta[v_n, v_dim, T.int64(0):T.int64(3)])
-                        T.writes(compute[v_n, v_dim, v_i0, v_i1])
+                    with Ts.sblock("compute"):
+                        v_n, v_dim, v_i0, v_i1 = Ts.axis.remap("SSSS", [n, dim, i0, i1])
+                        Ts.reads(theta[v_n, v_dim, T.int64(0):T.int64(3)])
+                        Ts.writes(compute[v_n, v_dim, v_i0, v_i1])
                         compute[v_n, v_dim, v_i0, v_i1] = theta[v_n, v_dim, T.int64(2)] + theta[v_n, v_dim, T.int64(1)] * (T.float32(-1.0) + T.Cast("float32", v_i0) * T.float32(0.13333332666666667)) + theta[v_n, v_dim, T.int64(0)] * (T.float32(-1.0) + T.Cast("float32", v_i1) * T.float32(0.13333332666666667))
     # fmt: on
 

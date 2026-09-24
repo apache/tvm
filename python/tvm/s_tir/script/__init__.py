@@ -40,7 +40,22 @@ def _initialize():
             for name in shared.__all__
             if name not in ("builder", "jit")
         )
-        globals()["function_"] = builder.function_
+        for name in (
+            "function_",
+            "arg",
+            "bind_",
+            "check_well_formed_",
+            "sblock",
+            "init",
+            "where",
+            "reads",
+            "writes",
+            "sblock_attr",
+            "sblock_alloc_buffer",
+            "axis",
+            "block_name_suffix_context",
+        ):
+            globals()[name] = getattr(builder, name)
         # The operations are shared, but syntax is keyed by the registered namespace.
         for table in (
             protocol_registry.ARGS_POLICIES,

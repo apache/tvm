@@ -43,7 +43,7 @@ def test_emit_te_with_symbolic_arg():
 
     after = bb.get()
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def te_func(
@@ -53,9 +53,9 @@ def test_emit_te_with_symbolic_arg():
         ):
             T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(10)):
-                with T.sblock("B"):
-                    v_i = T.axis.spatial(T.int64(10), i)
-                    T.writes(B[v_i])
+                with Ts.sblock("B"):
+                    v_i = Ts.axis.spatial(T.int64(10), i)
+                    Ts.writes(B[v_i])
                     B[v_i] = A[v_i + m]
 
         @R.function
@@ -91,7 +91,7 @@ def test_symbolic_shape_in_prim_value():
 
         return bb.get()
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def te_slice(
@@ -102,8 +102,8 @@ def test_symbolic_shape_in_prim_value():
             T.func_attr({"tirx.noalias": True})
 
             for i in T.serial(T.int64(0), A.shape[1]):
-                with T.sblock("slice"):
-                    vi = T.axis.remap("S", [i])
+                with Ts.sblock("slice"):
+                    vi = Ts.axis.remap("S", [i])
                     Output[vi] = A[row_index, vi]
 
         @R.function

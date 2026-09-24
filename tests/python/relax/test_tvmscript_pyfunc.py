@@ -38,7 +38,7 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@R.py_module(s_tir=True)
+@R.py_module
 class TestPyFuncModule(BasePyModule):
     """Test module with Python functions using @I.pyfunc decorator."""
 
@@ -70,8 +70,8 @@ class TestPyFuncModule(BasePyModule):
         B = T.match_buffer(var_B, (n,), "float32")
 
         for i in T.grid(n):
-            with T.sblock("copy"):
-                vi = T.axis.remap("S", [i])
+            with Ts.sblock("copy"):
+                vi = Ts.axis.remap("S", [i])
                 B[vi] = A[vi]
 
 

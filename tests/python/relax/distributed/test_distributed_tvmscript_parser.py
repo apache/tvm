@@ -45,7 +45,7 @@ def _check(
 
 
 def test_call_tir_dtensor():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class TestModule:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -64,8 +64,8 @@ def test_call_tir_dtensor():
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
-                with T.sblock():
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock():
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     y[vi, vj] = x[vi, vj] + 1.0
 
         @R.function
@@ -103,7 +103,7 @@ def test_call_tir_dtensor():
 
 
 def test_explicit_device_id():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class TestModule:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -127,8 +127,8 @@ def test_explicit_device_id():
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
-                with T.sblock():
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock():
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     y[vi, vj] = x[vi, vj] + 1.0
 
         @R.function
@@ -148,7 +148,7 @@ def test_explicit_device_id():
 
 
 def test_constant():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class TestModule:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -167,8 +167,8 @@ def test_constant():
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
-                with T.sblock():
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock():
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     y[vi, vj] = x[vi, vj] + 1.0
 
         @R.function

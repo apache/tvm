@@ -22,7 +22,6 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -32,53 +31,35 @@ def test_cmp_load_store(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class GPUModule:
-        @Ts.prim_func
+        @T.prim_func
         def main(
             A: T.Buffer((32,), "float32"),
             B: T.Buffer((32,), "float32"),
             D: T.Buffer((32,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            C = T.sblock_alloc_buffer((32,), "bool")
-            for i0_0 in T.thread_binding(8, thread="blockIdx.x"):
-                for i0_1 in T.thread_binding(4, thread="blockIdx.x"):
-                    with T.sblock("C"):
-                        v_i0 = T.axis.spatial(32, i0_0 * 4 + i0_1)
-                        T.reads(B[v_i0], A[v_i0])
-                        T.writes(C[v_i0])
-                        C[v_i0] = B[v_i0] < A[v_i0]
-            for i0_0 in T.thread_binding(8, thread="blockIdx.x"):
-                for i0_1 in T.thread_binding(4, thread="blockIdx.x"):
-                    with T.sblock("D"):
-                        v_i0 = T.axis.spatial(32, i0_0 * 4 + i0_1)
-                        T.reads(C[v_i0], A[v_i0])
-                        T.writes(D[v_i0])
-                        D[v_i0] = T.Cast("float32", C[v_i0] and T.float32(1.0) < A[v_i0])
+            for bx in T.thread_binding(8, thread="blockIdx.x"):
+                for tx in T.thread_binding(4, thread="threadIdx.x"):
+                    C = T.alloc_buffer((1,), "bool", scope="local")
+                    C[0] = B[bx * 4 + tx] < A[bx * 4 + tx]
+                    D[bx * 4 + tx] = T.Cast("float32", C[0] and T.float32(1.0) < A[bx * 4 + tx])
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class CPUModule:
-        @Ts.prim_func
+        @T.prim_func
         def main(
             A: T.Buffer((32,), "float32"),
             B: T.Buffer((32,), "float32"),
             D: T.Buffer((32,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            C = T.sblock_alloc_buffer((32,), "bool")
+            C = T.alloc_buffer((32,), "bool")
             for i0 in range(32):
-                with T.sblock("C"):
-                    v_i0 = T.axis.spatial(32, i0)
-                    T.reads(B[v_i0], A[v_i0])
-                    T.writes(C[v_i0])
-                    C[v_i0] = B[v_i0] < A[v_i0]
+                C[i0] = B[i0] < A[i0]
             for i0 in range(32):
-                with T.sblock("D"):
-                    v_i0 = T.axis.spatial(32, i0)
-                    T.reads(C[v_i0], A[v_i0])
-                    T.writes(D[v_i0])
-                    D[v_i0] = T.Cast("float32", C[v_i0] and T.float32(1.0) < A[v_i0])
+                D[i0] = T.Cast("float32", C[i0] and T.float32(1.0) < A[i0])
 
     arr_size = 32
     is_gpu = tvm.target.Target(target).kind.name != "llvm"

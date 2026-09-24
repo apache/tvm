@@ -68,10 +68,10 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
         tx = T.env_thread("threadIdx.x")
         T.launch_thread(bx, 1)
         T.launch_thread(tx, 32)
-        with T.sblock():
-            A_shared = T.sblock_alloc_buffer([32, 128], dtype, scope="shared")
-            T.reads(A[0:32, 0:128])
-            T.writes(B[0:32, 0:128])
+        with Ts.sblock():
+            A_shared = Ts.sblock_alloc_buffer([32, 128], dtype, scope="shared")
+            Ts.reads(A[0:32, 0:128])
+            Ts.writes(B[0:32, 0:128])
 
             T.attr("default", "async_scope", 1)
             for i in T.serial(num_iters):
@@ -96,10 +96,10 @@ def ptx_global_to_shared_copy_fp32x1(
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    with T.sblock():
-        A_shared = T.sblock_alloc_buffer([32, 128], "float32", scope="shared")
-        T.reads(A[0:32, 0:128])
-        T.writes(B[0:32, 0:128])
+    with Ts.sblock():
+        A_shared = Ts.sblock_alloc_buffer([32, 128], "float32", scope="shared")
+        Ts.reads(A[0:32, 0:128])
+        Ts.writes(B[0:32, 0:128])
 
         T.attr("default", "async_scope", 1)
         for i in T.serial(128):
@@ -123,11 +123,11 @@ def ptx_global_to_shared_dyn_copy_fp16x8(
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    with T.sblock():
-        A_shared = T.sblock_alloc_buffer([32, 128], "float16", scope="shared.dyn")
-        B_shared = T.sblock_alloc_buffer([32, 128], "float16", scope="shared.dyn")
-        T.reads(A[0:32, 0:128], B[0:32, 0:128])
-        T.writes(C[0:32, 0:128])
+    with Ts.sblock():
+        A_shared = Ts.sblock_alloc_buffer([32, 128], "float16", scope="shared.dyn")
+        B_shared = Ts.sblock_alloc_buffer([32, 128], "float16", scope="shared.dyn")
+        Ts.reads(A[0:32, 0:128], B[0:32, 0:128])
+        Ts.writes(C[0:32, 0:128])
 
         T.attr("default", "async_scope", 1)
         for i in T.serial(16):
@@ -391,26 +391,26 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
                     "software_pipeline_async_stages": [0],
                 },
             ):
-                with T.sblock("compute"):
-                    T.reads(A[tx, i])
-                    T.writes(C[tx, i])
-                    A_shared = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                    B_shared = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                    with T.sblock():
-                        T.reads(A[tx, i])
-                        T.writes(A_shared[tx, 0])
+                with Ts.sblock("compute"):
+                    Ts.reads(A[tx, i])
+                    Ts.writes(C[tx, i])
+                    A_shared = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                    B_shared = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                    with Ts.sblock():
+                        Ts.reads(A[tx, i])
+                        Ts.writes(A_shared[tx, 0])
                         A_shared[tx, 0] = T.if_then_else(
                             1 <= i and i < 15, A[tx, i - 1], T.float32(0), dtype="float32"
                         )
-                    with T.sblock():
-                        T.reads(B[tx, i])
-                        T.writes(B_shared[tx, 0])
+                    with Ts.sblock():
+                        Ts.reads(B[tx, i])
+                        Ts.writes(B_shared[tx, 0])
                         B_shared[tx, 0] = T.if_then_else(
                             1 <= i and i < 15, B[tx, i - 1], T.float32(0), dtype="float32"
                         )
-                    with T.sblock():
-                        T.reads(A_shared[tx, 0], B_shared[tx, 0])
-                        T.writes(C[tx, i])
+                    with Ts.sblock():
+                        Ts.reads(A_shared[tx, 0], B_shared[tx, 0])
+                        Ts.writes(C[tx, i])
                         C[tx, i] = A_shared[tx, 0] + B_shared[tx, 0]
 
     mod = tvm.IRModule.from_expr(simple_compute)
@@ -444,20 +444,20 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
         Conv: T.Buffer((512, 1280), "float16"),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        # with T.sblock("root"):
-        data_im2col_reindex_shared_dyn = T.sblock_alloc_buffer(
+        # with Ts.sblock("root"):
+        data_im2col_reindex_shared_dyn = Ts.sblock_alloc_buffer(
             (512, 11520), "float16", scope="shared.dyn"
         )
-        data_im2col_reindex_shared_dyn_wmma_matrix_a = T.sblock_alloc_buffer(
+        data_im2col_reindex_shared_dyn_wmma_matrix_a = Ts.sblock_alloc_buffer(
             (512, 11520), "float16", scope="wmma.matrix_a"
         )
-        weight_flatten_reindex_shared_dyn = T.sblock_alloc_buffer(
+        weight_flatten_reindex_shared_dyn = Ts.sblock_alloc_buffer(
             (1280, 11520), "float16", scope="shared.dyn"
         )
-        weight_flatten_reindex_shared_dyn_wmma_matrix_b = T.sblock_alloc_buffer(
+        weight_flatten_reindex_shared_dyn_wmma_matrix_b = Ts.sblock_alloc_buffer(
             (1280, 11520), "float16", scope="wmma.matrix_b"
         )
-        Conv_reindex_wmma_accumulator = T.sblock_alloc_buffer(
+        Conv_reindex_wmma_accumulator = Ts.sblock_alloc_buffer(
             (512, 1280), "float16", scope="wmma.accumulator"
         )
         for x_0_0 in T.thread_binding(8, thread="blockIdx.y"):
@@ -465,11 +465,11 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                 for x_0_1 in T.thread_binding(2, thread="threadIdx.y"):
                     for y_0_1 in T.thread_binding(2, thread="threadIdx.z"):
                         for x_0_2_init, y_0_2_init in T.grid(2, 2):
-                            with T.sblock("Conv_init_o"):
-                                v_x_o = T.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + x_0_2_init)
-                                v_y_o = T.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + y_0_2_init)
-                                T.reads()
-                                T.writes(
+                            with Ts.sblock("Conv_init_o"):
+                                v_x_o = Ts.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + x_0_2_init)
+                                v_y_o = Ts.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + y_0_2_init)
+                                Ts.reads()
+                                Ts.writes(
                                     Conv_reindex_wmma_accumulator[
                                         v_x_o * 16 : v_x_o * 16 + 16, v_y_o * 16 : v_y_o * 16 + 16
                                     ]
@@ -511,8 +511,8 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                         for ax0_ax1_0_fused_3 in T.thread_binding(
                                             32, thread="threadIdx.x"
                                         ):
-                                            with T.sblock("data_im2col_reindex_shared.dyn_o"):
-                                                v0 = T.axis.spatial(
+                                            with Ts.sblock("data_im2col_reindex_shared.dyn_o"):
+                                                v0 = Ts.axis.spatial(
                                                     512,
                                                     x_0_0 * 64
                                                     + (
@@ -523,7 +523,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                     )
                                                     // 8,
                                                 )
-                                                v1_o = T.axis.spatial(
+                                                v1_o = Ts.axis.spatial(
                                                     1440,
                                                     k_0_0 * 8
                                                     + (
@@ -534,7 +534,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                     )
                                                     % 8,
                                                 )
-                                                T.reads(
+                                                Ts.reads(
                                                     A[
                                                         v0 // 256,
                                                         v1_o // 480 + v0 % 256 // 16 - 1,
@@ -542,15 +542,17 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                         v1_o % 160 * 8 : v1_o % 160 * 8 + 8,
                                                     ]
                                                 )
-                                                T.writes(
+                                                Ts.writes(
                                                     data_im2col_reindex_shared_dyn[
                                                         v0, v1_o * 8 : v1_o * 8 + 8
                                                     ]
                                                 )
                                                 for ax1_1 in T.vectorized(8):
-                                                    with T.sblock("data_im2col_reindex_shared.dyn"):
-                                                        v1_i = T.axis.spatial(8, ax1_1)
-                                                        T.reads(
+                                                    with Ts.sblock(
+                                                        "data_im2col_reindex_shared.dyn"
+                                                    ):
+                                                        v1_i = Ts.axis.spatial(8, ax1_1)
+                                                        Ts.reads(
                                                             A[
                                                                 v0 // 256,
                                                                 v1_o // 480 + v0 % 256 // 16 - 1,
@@ -558,12 +560,12 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                                 v1_o % 160 * 8 + v1_i,
                                                             ]
                                                         )
-                                                        T.writes(
+                                                        Ts.writes(
                                                             data_im2col_reindex_shared_dyn[
                                                                 v0, v1_o * 8 + v1_i
                                                             ]
                                                         )
-                                                        T.sblock_attr(
+                                                        Ts.sblock_attr(
                                                             {"buffer_dim_align": [[0, 0, 32, 8]]}
                                                         )
                                                         data_im2col_reindex_shared_dyn[
@@ -590,8 +592,8 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             32, thread="threadIdx.x"
                                         ):
                                             for ax1_1 in T.vectorized(8):
-                                                with T.sblock("weight_flatten_reindex_shared.dyn"):
-                                                    v0 = T.axis.spatial(
+                                                with Ts.sblock("weight_flatten_reindex_shared.dyn"):
+                                                    v0 = Ts.axis.spatial(
                                                         1280,
                                                         y_0_0 * 64
                                                         + (
@@ -602,7 +604,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                         )
                                                         // 8,
                                                     )
-                                                    v1 = T.axis.spatial(
+                                                    v1 = Ts.axis.spatial(
                                                         11520,
                                                         k_0_0 * 64
                                                         + (
@@ -615,7 +617,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                         * 8
                                                         + ax1_1,
                                                     )
-                                                    T.reads(
+                                                    Ts.reads(
                                                         W[
                                                             v0,
                                                             v1 // 3840,
@@ -623,10 +625,10 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                             v1 % 1280,
                                                         ]
                                                     )
-                                                    T.writes(
+                                                    Ts.writes(
                                                         weight_flatten_reindex_shared_dyn[v0, v1]
                                                     )
-                                                    T.sblock_attr(
+                                                    Ts.sblock_attr(
                                                         {"buffer_dim_align": [[0, 0, 32, 8]]}
                                                     )
                                                     weight_flatten_reindex_shared_dyn[v0, v1] = W[
@@ -637,16 +639,18 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                     ]
                             for k_0_1 in range(4):
                                 for ax0_0, ax1_0 in T.grid(2, 1):
-                                    with T.sblock("data_im2col_reindex_shared.dyn_wmma.matrix_a_o"):
-                                        v0_o = T.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + ax0_0)
-                                        v1_o = T.axis.spatial(720, k_0_0 * 4 + k_0_1 + ax1_0)
-                                        T.reads(
+                                    with Ts.sblock(
+                                        "data_im2col_reindex_shared.dyn_wmma.matrix_a_o"
+                                    ):
+                                        v0_o = Ts.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + ax0_0)
+                                        v1_o = Ts.axis.spatial(720, k_0_0 * 4 + k_0_1 + ax1_0)
+                                        Ts.reads(
                                             data_im2col_reindex_shared_dyn[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
                                             ]
                                         )
-                                        T.writes(
+                                        Ts.writes(
                                             data_im2col_reindex_shared_dyn_wmma_matrix_a[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
@@ -696,18 +700,18 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             "row_major",
                                         )
                                 for ax0_0, ax1_0 in T.grid(2, 1):
-                                    with T.sblock(
+                                    with Ts.sblock(
                                         "weight_flatten_reindex_shared.dyn_wmma.matrix_b_o"
                                     ):
-                                        v0_o = T.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + ax0_0)
-                                        v1_o = T.axis.spatial(720, k_0_0 * 4 + k_0_1 + ax1_0)
-                                        T.reads(
+                                        v0_o = Ts.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + ax0_0)
+                                        v1_o = Ts.axis.spatial(720, k_0_0 * 4 + k_0_1 + ax1_0)
+                                        Ts.reads(
                                             weight_flatten_reindex_shared_dyn[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
                                             ]
                                         )
-                                        T.writes(
+                                        Ts.writes(
                                             weight_flatten_reindex_shared_dyn_wmma_matrix_b[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
@@ -757,11 +761,11 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             "col_major",
                                         )
                                 for x_0_2, y_0_2 in T.grid(2, 2):
-                                    with T.sblock("Conv_update_o"):
-                                        v_x_o = T.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + x_0_2)
-                                        v_y_o = T.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + y_0_2)
-                                        v_k_o = T.axis.reduce(720, k_0_0 * 4 + k_0_1)
-                                        T.reads(
+                                    with Ts.sblock("Conv_update_o"):
+                                        v_x_o = Ts.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + x_0_2)
+                                        v_y_o = Ts.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + y_0_2)
+                                        v_k_o = Ts.axis.reduce(720, k_0_0 * 4 + k_0_1)
+                                        Ts.reads(
                                             Conv_reindex_wmma_accumulator[
                                                 v_x_o * 16 : v_x_o * 16 + 16,
                                                 v_y_o * 16 : v_y_o * 16 + 16,
@@ -775,7 +779,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                 v_k_o * 16 : v_k_o * 16 + 16,
                                             ],
                                         )
-                                        T.writes(
+                                        Ts.writes(
                                             Conv_reindex_wmma_accumulator[
                                                 v_x_o * 16 : v_x_o * 16 + 16,
                                                 v_y_o * 16 : v_y_o * 16 + 16,
@@ -835,15 +839,15 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             + C.ty.elem_offset % C_s0 // 16,
                                         )
                         for ax0_0, ax1_0 in T.grid(2, 2):
-                            with T.sblock("Conv_reindex_wmma.accumulator_o"):
-                                v0_o = T.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + ax0_0)
-                                v1_o = T.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + ax1_0)
-                                T.reads(
+                            with Ts.sblock("Conv_reindex_wmma.accumulator_o"):
+                                v0_o = Ts.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + ax0_0)
+                                v1_o = Ts.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + ax1_0)
+                                Ts.reads(
                                     Conv_reindex_wmma_accumulator[
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ]
                                 )
-                                T.writes(
+                                Ts.writes(
                                     Conv[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16]
                                 )
                                 A_s0 = T.int32()
@@ -894,7 +898,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
 
 
 def test_multiplication_nodes_are_inlined():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @Ts.prim_func
         def main(A: T.Buffer((32, 128), "float16")):
@@ -911,7 +915,7 @@ def test_multiplication_nodes_are_inlined():
             T.ptx.cp.async_.commit_group()
             T.ptx.cp.async_.wait_group(0)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func
         def main(A: T.Buffer((32, 128), "float16")):

@@ -35,14 +35,14 @@ from tvm.script import tirx as T
 def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
-    B = T.sblock_alloc_buffer((128, 128), "float32")
+    B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -52,12 +52,12 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j in T.grid(128, 128):
-        with T.sblock("init"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("init"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = 0.0
         for k in range(0, 128):
-            with T.sblock("update"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with Ts.sblock("update"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
@@ -66,26 +66,26 @@ def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     B = T.match_buffer(b, (128, 128), "float32")
     for i in range(128):
-        with T.sblock("B"):
-            vi = T.axis.S(128, i)
-            T.reads([A[0:128, 0:128]])
-            T.writes([B[0:128, 0:128]])
+        with Ts.sblock("B"):
+            vi = Ts.axis.S(128, i)
+            Ts.reads([A[0:128, 0:128]])
+            Ts.writes([B[0:128, 0:128]])
             B[vi, 0] = A[vi, 0]
             if A[vi, 0] == 0.0:
-                with T.sblock("C"):
-                    T.reads([A[0:128, 0:128]])
-                    T.writes([B[0:128, 0:128]])
+                with Ts.sblock("C"):
+                    Ts.reads([A[0:128, 0:128]])
+                    Ts.writes([B[0:128, 0:128]])
                     for j in range(128):
-                        with T.sblock("D"):
-                            vj = T.axis.S(128, j)
+                        with Ts.sblock("D"):
+                            vj = Ts.axis.S(128, j)
                             B[vi, vj] = A[vi, vj] * 3.0
             else:
-                with T.sblock("E"):
-                    T.reads([A[0:128, 0:128]])
-                    T.writes([B[0:128, 0:128]])
+                with Ts.sblock("E"):
+                    Ts.reads([A[0:128, 0:128]])
+                    Ts.writes([B[0:128, 0:128]])
                     for j in range(128):
-                        with T.sblock("F"):
-                            vj = T.axis.S(128, j)
+                        with Ts.sblock("F"):
+                            vj = Ts.axis.S(128, j)
                             B[vi, vj] = A[vi, vj] * 2.0
 
 
@@ -95,12 +95,12 @@ def write_after_read(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
 
@@ -110,11 +110,11 @@ def loop_carried_dependency(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (128,))
     C = T.match_buffer(c, (128,))
     for i in range(0, 128):
-        with T.sblock("B"):
-            vi = T.axis.S(128, i)
+        with Ts.sblock("B"):
+            vi = Ts.axis.S(128, i)
             B[vi] = A[vi] * 2.0
-        with T.sblock("C"):
-            vi = T.axis.S(128, i)
+        with Ts.sblock("C"):
+            vi = Ts.axis.S(128, i)
             C[vi] = T.if_then_else(vi >= 1, B[vi - 1] + 1.0, 0.0, dtype="float32")
 
 
@@ -123,16 +123,16 @@ def concatenate_multi_producer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128,))
     B = T.match_buffer(b, (128,))
     for i in range(0, 64):
-        with T.sblock("A_0"):
-            vi = T.axis.S(64, i)
+        with Ts.sblock("A_0"):
+            vi = Ts.axis.S(64, i)
             A[vi] = vi + 1
     for i in range(0, 64):
-        with T.sblock("A_1"):
-            vi = T.axis.S(64, i + 64)
+        with Ts.sblock("A_1"):
+            vi = Ts.axis.S(64, i + 64)
             A[vi] = vi + 2
     for i in range(0, 128):
-        with T.sblock("B"):
-            vi = T.axis.S(128, i)
+        with Ts.sblock("B"):
+            vi = Ts.axis.S(128, i)
             B[vi] = A[vi] * 2.0
 
 
@@ -141,16 +141,16 @@ def concatenate_multi_producer_uncovered(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128,))
     B = T.match_buffer(b, (128,))
     for i in range(0, 63):
-        with T.sblock("A_0"):
-            vi = T.axis.S(63, i)
+        with Ts.sblock("A_0"):
+            vi = Ts.axis.S(63, i)
             A[vi] = vi + 1
     for i in range(0, 64):
-        with T.sblock("A_1"):
-            vi = T.axis.S(64, i + 64)
+        with Ts.sblock("A_1"):
+            vi = Ts.axis.S(64, i + 64)
             A[vi] = vi + 2
     for i in range(0, 128):
-        with T.sblock("B"):
-            vi = T.axis.S(128, i)
+        with Ts.sblock("B"):
+            vi = Ts.axis.S(128, i)
             B[vi] = A[vi] * 2.0
 
 
@@ -160,11 +160,11 @@ def lca_at_loop(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (128,))
     C = T.match_buffer(c, (128,))
     for i in range(0, 128):
-        with T.sblock("B"):
-            vi = T.axis.S(128, i)
+        with Ts.sblock("B"):
+            vi = Ts.axis.S(128, i)
             B[vi] = A[vi] * 2.0
-        with T.sblock("C"):
-            vi = T.axis.S(128, i)
+        with Ts.sblock("C"):
+            vi = Ts.axis.S(128, i)
             C[vi] = B[vi] + 1.0
 
 
@@ -173,20 +173,20 @@ def multi_producer_consumer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128,))
     B = T.match_buffer(b, (128,))
     for i in range(0, 64):
-        with T.sblock("A_0"):
-            vi = T.axis.S(64, i)
+        with Ts.sblock("A_0"):
+            vi = Ts.axis.S(64, i)
             A[vi] = vi + 1
     for i in range(0, 64):
-        with T.sblock("A_1"):
-            vi = T.axis.S(64, i + 64)
+        with Ts.sblock("A_1"):
+            vi = Ts.axis.S(64, i + 64)
             A[vi] = vi + 2
     for i in range(0, 64):
-        with T.sblock("B_0"):
-            vi = T.axis.S(64, i)
+        with Ts.sblock("B_0"):
+            vi = Ts.axis.S(64, i)
             B[vi] = A[vi] + 2.0
     for i in range(0, 64):
-        with T.sblock("B_1"):
-            vi = T.axis.S(64, i + 64)
+        with Ts.sblock("B_1"):
+            vi = Ts.axis.S(64, i + 64)
             B[vi] = A[vi] + 3.0
 
 
@@ -194,15 +194,15 @@ def multi_producer_consumer(a: T.handle, b: T.handle) -> None:
 def elementwise_affine_producer(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
-    B = T.sblock_alloc_buffer((128, 128), "float32")
+    B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j, k, l in T.grid(16, 2, 32, 16):
-        with T.sblock("B"):
-            vi = T.axis.S(128, i * 8 + j * 4 + k // 8)
-            vj = T.axis.S(128, k % 8 * 16 + l)
+        with Ts.sblock("B"):
+            vi = Ts.axis.S(128, i * 8 + j * 4 + k // 8)
+            vj = Ts.axis.S(128, k % 8 * 16 + l)
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -210,19 +210,19 @@ def elementwise_affine_producer(a: T.handle, c: T.handle) -> None:
 def elementwise_subblock(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
-    B = T.sblock_alloc_buffer((128, 128), "float32")
+    B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(32, 32):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.reads([A[vi * 4 : vi * 4 + 4, vj * 4 : vj * 4 + 4]])
-            T.writes([B[vi * 4 : vi * 4 + 4, vj * 4 : vj * 4 + 4]])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.reads([A[vi * 4 : vi * 4 + 4, vj * 4 : vj * 4 + 4]])
+            Ts.writes([B[vi * 4 : vi * 4 + 4, vj * 4 : vj * 4 + 4]])
             for ii, jj in T.grid(4, 4):
-                with T.sblock("B_sub"):
-                    vi_i, vj_i = T.axis.remap("SS", [ii, jj])
+                with Ts.sblock("B_sub"):
+                    vi_i, vj_i = Ts.axis.remap("SS", [ii, jj])
                     B[vi * 4 + vi_i, vj * 4 + vj_i] = A[vi * 4 + vi_i, vj * 4 + vj_i] * 2.0
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -230,19 +230,19 @@ def elementwise_subblock(a: T.handle, c: T.handle) -> None:
 def elementwise_subblock_uncovered(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
-    B = T.sblock_alloc_buffer((128, 128), "float32")
+    B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(32, 32):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.reads([A[vi * 4 : vi * 4 + 2, vj * 4 : vj * 4 + 2]])
-            T.writes([B[vi * 4 : vi * 4 + 2, vj * 4 : vj * 4 + 2]])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.reads([A[vi * 4 : vi * 4 + 2, vj * 4 : vj * 4 + 2]])
+            Ts.writes([B[vi * 4 : vi * 4 + 2, vj * 4 : vj * 4 + 2]])
             for ii, jj in T.grid(2, 2):
-                with T.sblock("B_sub"):
-                    vi_i, vj_i = T.axis.remap("SS", [ii, jj])
+                with Ts.sblock("B_sub"):
+                    vi_i, vj_i = Ts.axis.remap("SS", [ii, jj])
                     B[vi * 4 + vi_i, vj * 4 + vj_i] = A[vi * 4 + vi_i, vj * 4 + vj_i] * 2.0
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -250,15 +250,15 @@ def elementwise_subblock_uncovered(a: T.handle, c: T.handle) -> None:
 def bound_to_thread(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     C = T.match_buffer(c, [128, 128])
-    B = T.sblock_alloc_buffer([128, 128], scope="shared")
+    B = Ts.sblock_alloc_buffer([128, 128], scope="shared")
     for i in T.thread_binding(0, 128, thread="threadIdx.x"):
         for j in T.serial(0, 128):
-            with T.sblock("B"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("B"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
         for j in T.serial(0, 128):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("C"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 C[vj, vi] = B[vj, vi] + 1.0
 
 
@@ -266,18 +266,18 @@ def bound_to_thread(a: T.handle, c: T.handle) -> None:
 def equal_ranked_threads(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     C = T.match_buffer(c, [128, 128])
-    B = T.sblock_alloc_buffer([128, 128], scope="shared")
+    B = Ts.sblock_alloc_buffer([128, 128], scope="shared")
     for i_o in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i_i in T.thread_binding(0, 8, thread="threadIdx.y"):
             for j in T.serial(0, 128):
-                with T.sblock("B"):
-                    vi = T.axis.S(128, i_o * 8 + i_i)
-                    vj = T.axis.S(128, j)
+                with Ts.sblock("B"):
+                    vi = Ts.axis.S(128, i_o * 8 + i_i)
+                    vj = Ts.axis.S(128, j)
                     B[vi, vj] = A[vi, vj] * 2.0
             for j in T.serial(0, 128):
-                with T.sblock("C"):
-                    vi = T.axis.S(128, i_o * 8 + i_i)
-                    vj = T.axis.S(128, j)
+                with Ts.sblock("C"):
+                    vi = Ts.axis.S(128, i_o * 8 + i_i)
+                    vj = Ts.axis.S(128, j)
                     C[vj, vi] = B[vj, vi] + 1.0
 
 
@@ -285,16 +285,16 @@ def equal_ranked_threads(a: T.handle, c: T.handle) -> None:
 def warp_memory(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     C = T.match_buffer(c, [128, 128])
-    B = T.sblock_alloc_buffer([128, 4, 32], scope="warp")
+    B = Ts.sblock_alloc_buffer([128, 4, 32], scope="warp")
     for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
         for i_i in T.thread_binding(0, 32, thread="threadIdx.x"):
             for j in T.serial(0, 128):
-                with T.sblock("B"):
-                    warp_id, lane_id, vj = T.axis.remap("SSS", [i_o, i_i, j])
+                with Ts.sblock("B"):
+                    warp_id, lane_id, vj = Ts.axis.remap("SSS", [i_o, i_i, j])
                     B[vj, warp_id, lane_id] = A[warp_id * 32 + lane_id, vj] * 2.0
             for j in T.serial(0, 128):
-                with T.sblock("C"):
-                    warp_id, lane_id, vj = T.axis.remap("SSS", [i_o, i_i, j])
+                with Ts.sblock("C"):
+                    warp_id, lane_id, vj = Ts.axis.remap("SSS", [i_o, i_i, j])
                     C[warp_id * 32 + lane_id, vj] = B[vj, warp_id, lane_id] + 1.0
 
 
@@ -302,17 +302,17 @@ def warp_memory(a: T.handle, c: T.handle) -> None:
 def warp_memory_negative(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     C = T.match_buffer(c, [128, 128])
-    B = T.sblock_alloc_buffer([128, 4, 32], scope="warp")
+    B = Ts.sblock_alloc_buffer([128, 4, 32], scope="warp")
     for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
         for i_i in T.thread_binding(0, 32, thread="threadIdx.x"):
             for j in T.serial(0, 128):
-                with T.sblock("B"):
-                    warp_id, lane_id, vj = T.axis.remap("SSS", [i_o, i_i, j])
+                with Ts.sblock("B"):
+                    warp_id, lane_id, vj = Ts.axis.remap("SSS", [i_o, i_i, j])
                     B[vj, warp_id, lane_id] = A[warp_id * 32 + lane_id, vj] * 2.0
             for i_o_prime in T.thread_binding(0, 4, thread="threadIdx.y"):
                 for j in T.serial(0, 128):
-                    with T.sblock("C"):
-                        _warp_id, warp_id, lane_id, vj = T.axis.remap(
+                    with Ts.sblock("C"):
+                        _warp_id, warp_id, lane_id, vj = Ts.axis.remap(
                             "SSSS", [i_o, i_i, i_o_prime, j]
                         )
                         C[warp_id * 32 + lane_id, vj] = B[vj, warp_id, lane_id] + 1.0
@@ -322,14 +322,14 @@ def warp_memory_negative(a: T.handle, c: T.handle) -> None:
 def non_perfect_tiling_cache(a: T.handle, b: T.handle) -> None:
     X = T.match_buffer(a, [224, 224], dtype="float32")
     Y = T.match_buffer(b, [224, 224], dtype="float32")
-    cache = T.sblock_alloc_buffer([224, 224], dtype="float32")
+    cache = Ts.sblock_alloc_buffer([224, 224], dtype="float32")
     for hh_0, ww_0 in T.grid(28, 28):
         for ax0 in T.serial(0, 10):
             for ax1 in T.serial(0, 10):
-                with T.sblock("cache"):
-                    h = T.axis.spatial(224, hh_0 * 8 - 1 + ax0)
-                    w = T.axis.spatial(224, ww_0 * 8 - 1 + ax1)
-                    T.where(
+                with Ts.sblock("cache"):
+                    h = Ts.axis.spatial(224, hh_0 * 8 - 1 + ax0)
+                    w = Ts.axis.spatial(224, ww_0 * 8 - 1 + ax1)
+                    Ts.where(
                         1 <= hh_0 * 8 + ax0
                         and hh_0 * 8 + ax0 < 225
                         and 1 <= ww_0 * 8 + ax1
@@ -337,11 +337,11 @@ def non_perfect_tiling_cache(a: T.handle, b: T.handle) -> None:
                     )
                     cache[h, w] = X[h, w]
         for hh_1, ww_1, khh, kww in T.grid(8, 8, 3, 3):
-            with T.sblock("compute"):
-                h = T.axis.spatial(224, hh_0 * 8 + hh_1)
-                w = T.axis.spatial(224, ww_0 * 8 + ww_1)
-                kh, kw = T.axis.remap("RR", [khh, kww])
-                with T.init():
+            with Ts.sblock("compute"):
+                h = Ts.axis.spatial(224, hh_0 * 8 + hh_1)
+                w = Ts.axis.spatial(224, ww_0 * 8 + ww_1)
+                kh, kw = Ts.axis.remap("RR", [khh, kww])
+                with Ts.init():
                     Y[h, w] = 0.0
                 Y[h, w] = T.max(
                     Y[h, w],
@@ -360,12 +360,12 @@ def non_perfect_tiling_cache(a: T.handle, b: T.handle) -> None:
 @Ts.prim_func
 def uncovered_producer_region(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
     for i in range(120):
-        with T.sblock("producer"):
-            vi = T.axis.S((0, 120), i)
+        with Ts.sblock("producer"):
+            vi = Ts.axis.S((0, 120), i)
             A[vi] = 1.0
     for i in range(120):
-        with T.sblock("consumer"):
-            vi = T.axis.S((8, 128), i + 8)
+        with Ts.sblock("consumer"):
+            vi = Ts.axis.S((8, 128), i + 8)
             B[vi] = A[vi]
 
 
@@ -374,70 +374,70 @@ def matmul_relu_padding(A: T.Buffer((127, 127), "float16"), B: T.Buffer((127, 12
     # function attr dict
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     # body
-    # with T.sblock("root")
-    C = T.sblock_alloc_buffer([127, 127], dtype="float32")
-    A_reindex = T.sblock_alloc_buffer([128, 128], dtype="float16")
-    B_reindex = T.sblock_alloc_buffer([128, 128], dtype="float16")
-    C_reindex_shared = T.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
-    C_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer([128, 128], dtype="float32", scope="wmma.accumulator")
+    # with Ts.sblock("root")
+    C = Ts.sblock_alloc_buffer([127, 127], dtype="float32")
+    A_reindex = Ts.sblock_alloc_buffer([128, 128], dtype="float16")
+    B_reindex = Ts.sblock_alloc_buffer([128, 128], dtype="float16")
+    C_reindex_shared = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
+    C_reindex_shared_wmma_accumulator = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="wmma.accumulator")
     for ax0, ax1, ax2 in T.grid(128, 1, 128):
-        with T.sblock("A_reindex"):
-            v0, v1, v2 = T.axis.remap("SSS", [ax0, ax1, ax2])
-            T.reads(A[v0, v2])
-            T.writes(A_reindex[v0, v2])
+        with Ts.sblock("A_reindex"):
+            v0, v1, v2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
+            Ts.reads(A[v0, v2])
+            Ts.writes(A_reindex[v0, v2])
             A_reindex[v0, v2] = T.if_then_else(v0 < 127 and v2 < 127, A[v0, v2], T.float16(0), dtype="float16")
     for ax0, ax1, ax2 in T.grid(1, 128, 128):
-        with T.sblock("B_reindex"):
-            v0, v1, v2 = T.axis.remap("SSS", [ax0, ax1, ax2])
-            T.reads(B[v2, v1])
-            T.writes(B_reindex[v2, v1])
+        with Ts.sblock("B_reindex"):
+            v0, v1, v2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
+            Ts.reads(B[v2, v1])
+            Ts.writes(B_reindex[v2, v1])
             B_reindex[v2, v1] = T.if_then_else(v2 < 127 and v1 < 127, B[v2, v1], T.float16(0), dtype="float16")
     for ax0_0_0_ax1_0_0_fused in T.thread_binding(2, thread="blockIdx.y"):
         for ax0_0_1_ax1_0_1_fused in T.thread_binding(1, thread="blockIdx.x"):
             for ax0_0_2_ax1_0_2_fused in T.thread_binding(16, thread="threadIdx.y"):
                 for ax2_0_0, ax2_0_1, ax0_0_3, ax1_0_3, ax2_0_2, ax0_0_4, ax1_0_4 in T.grid(2, 2, 1, 2, 2, 1, 1):
-                    with T.sblock("C_o"):
-                        v0_o = T.axis.spatial(8, ax0_0_2_ax1_0_2_fused // 2 + ax0_0_3 + ax0_0_4)
-                        v1_o = T.axis.spatial(8, ax1_0_4 + ax0_0_0_ax1_0_0_fused * 4 + ax0_0_2_ax1_0_2_fused % 2 * 2 + ax1_0_3)
-                        v2_o = T.axis.reduce(8, ax2_0_0 * 4 + ax2_0_1 * 2 + ax2_0_2)
-                        T.reads(A_reindex[v0_o * 16 : v0_o * 16 + 16, v2_o * 16 : v2_o * 16 + 16], B_reindex[v2_o * 16 : v2_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
-                        T.writes(C_reindex_shared_wmma_accumulator[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
-                        T.sblock_attr({"meta_schedule.auto_tensorize":"wmma_sync_16x16x16_f16f16f32", "meta_schedule.auto_tensorize_init":"wmma_fill_16x16x16_f32", "warp_execution":1})
-                        with T.init():
+                    with Ts.sblock("C_o"):
+                        v0_o = Ts.axis.spatial(8, ax0_0_2_ax1_0_2_fused // 2 + ax0_0_3 + ax0_0_4)
+                        v1_o = Ts.axis.spatial(8, ax1_0_4 + ax0_0_0_ax1_0_0_fused * 4 + ax0_0_2_ax1_0_2_fused % 2 * 2 + ax1_0_3)
+                        v2_o = Ts.axis.reduce(8, ax2_0_0 * 4 + ax2_0_1 * 2 + ax2_0_2)
+                        Ts.reads(A_reindex[v0_o * 16 : v0_o * 16 + 16, v2_o * 16 : v2_o * 16 + 16], B_reindex[v2_o * 16 : v2_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                        Ts.writes(C_reindex_shared_wmma_accumulator[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                        Ts.sblock_attr({"meta_schedule.auto_tensorize":"wmma_sync_16x16x16_f16f16f32", "meta_schedule.auto_tensorize_init":"wmma_fill_16x16x16_f32", "warp_execution":1})
+                        with Ts.init():
                             for ax0_1, ax1_1 in T.grid(16, 16):
-                                with T.sblock("C_init"):
-                                    v0_i_init, v1_i_init = T.axis.remap("SS", [ax0_1, ax1_1])
-                                    T.reads()
-                                    T.writes(C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i_init, v1_o * 16 + v1_i_init])
+                                with Ts.sblock("C_init"):
+                                    v0_i_init, v1_i_init = Ts.axis.remap("SS", [ax0_1, ax1_1])
+                                    Ts.reads()
+                                    Ts.writes(C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i_init, v1_o * 16 + v1_i_init])
                                     C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i_init, v1_o * 16 + v1_i_init] = T.float32(0)
                         for ax0_1, ax1_1, ax2_1 in T.grid(16, 16, 16):
-                            with T.sblock("C"):
-                                v0_i, v1_i, v2_i = T.axis.remap("SSR", [ax0_1, ax1_1, ax2_1])
-                                T.reads(C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i], A_reindex[v0_o * 16 + v0_i, v2_o * 16 + v2_i], B_reindex[v2_o * 16 + v2_i, v1_o * 16 + v1_i])
-                                T.writes(C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
-                                T.sblock_attr({"meta_schedule.tiling_structure":"SSSRRSRS"})
+                            with Ts.sblock("C"):
+                                v0_i, v1_i, v2_i = Ts.axis.remap("SSR", [ax0_1, ax1_1, ax2_1])
+                                Ts.reads(C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i], A_reindex[v0_o * 16 + v0_i, v2_o * 16 + v2_i], B_reindex[v2_o * 16 + v2_i, v1_o * 16 + v1_i])
+                                Ts.writes(C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
+                                Ts.sblock_attr({"meta_schedule.tiling_structure":"SSSRRSRS"})
                                 C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i] = C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i] + T.cast(A_reindex[v0_o * 16 + v0_i, v2_o * 16 + v2_i], "float32") * T.cast(B_reindex[v2_o * 16 + v2_i, v1_o * 16 + v1_i], "float32")
                 for ax0, ax1 in T.grid(16, 32):
-                    with T.sblock("C_reindex_shared_wmma.accumulator"):
-                        v0 = T.axis.spatial(128, ax0_0_2_ax1_0_2_fused // 2 * 16 + ax0)
-                        v1 = T.axis.spatial(128, ax0_0_0_ax1_0_0_fused * 64 + ax0_0_2_ax1_0_2_fused % 2 * 32 + ax1)
-                        T.reads(C_reindex_shared_wmma_accumulator[v0, v1])
-                        T.writes(C_reindex_shared[v0, v1])
+                    with Ts.sblock("C_reindex_shared_wmma.accumulator"):
+                        v0 = Ts.axis.spatial(128, ax0_0_2_ax1_0_2_fused // 2 * 16 + ax0)
+                        v1 = Ts.axis.spatial(128, ax0_0_0_ax1_0_0_fused * 64 + ax0_0_2_ax1_0_2_fused % 2 * 32 + ax1)
+                        Ts.reads(C_reindex_shared_wmma_accumulator[v0, v1])
+                        Ts.writes(C_reindex_shared[v0, v1])
                         C_reindex_shared[v0, v1] = C_reindex_shared_wmma_accumulator[v0, v1]
             for ax0, ax1 in T.grid(128, 64):
-                with T.sblock("C_reindex_shared"):
-                    v0 = T.axis.spatial(128, ax0)
-                    v1 = T.axis.spatial(128, ax0_0_0_ax1_0_0_fused * 64 + ax1)
-                    T.where(ax0 < 127 and ax0_0_0_ax1_0_0_fused * 64 + ax1 < 127)
-                    T.reads(C_reindex_shared[v0, v1])
-                    T.writes(C[v0, v1])
-                    T.sblock_attr({"meta_schedule.cooperative_fetch":3})
+                with Ts.sblock("C_reindex_shared"):
+                    v0 = Ts.axis.spatial(128, ax0)
+                    v1 = Ts.axis.spatial(128, ax0_0_0_ax1_0_0_fused * 64 + ax1)
+                    Ts.where(ax0 < 127 and ax0_0_0_ax1_0_0_fused * 64 + ax1 < 127)
+                    Ts.reads(C_reindex_shared[v0, v1])
+                    Ts.writes(C[v0, v1])
+                    Ts.sblock_attr({"meta_schedule.cooperative_fetch":3})
                     C[v0, v1] = C_reindex_shared[v0, v1]
     for i0, i1 in T.grid(127, 127):
-        with T.sblock("compute"):
-            i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
-            T.reads(C[i0_1, i1_1])
-            T.writes(compute[i0_1, i1_1])
+        with Ts.sblock("compute"):
+            i0_1, i1_1 = Ts.axis.remap("SS", [i0, i1])
+            Ts.reads(C[i0_1, i1_1])
+            Ts.writes(compute[i0_1, i1_1])
             compute[i0_1, i1_1] = T.max(C[i0_1, i1_1], T.float32(0))
 
 
@@ -447,15 +447,15 @@ def splitted_square_sum_with_predicate(
 ) -> None:
     for i0_i1_i2_i3_0_fused, ax0, ax1, ax2, ax3 in T.grid(2, 1, 1, 1, 256):
         for ax4_ax5_fused_0, ax4_ax5_fused_1 in T.grid(1, 256):
-            with T.sblock("B"):
-                T.where(ax4_ax5_fused_0 * 256 + ax4_ax5_fused_1 < 49)
-                ax0_1, ax1_1, ax2_1 = T.axis.remap("SSS", [ax0, ax1, ax2])
-                ax3_1 = T.axis.spatial(512, i0_i1_i2_i3_0_fused * 256 + ax3)
-                rv0 = T.axis.reduce(7, (ax4_ax5_fused_0 * 256 + ax4_ax5_fused_1) // 7)
-                rv1 = T.axis.reduce(7, (ax4_ax5_fused_0 * 256 + ax4_ax5_fused_1) % 7)
-                T.reads(A[ax0_1, ax1_1 * 7 + rv0, ax2_1 * 7 + rv1, ax3_1])
-                T.writes(B[ax0_1, ax1_1, ax2_1, ax3_1])
-                with T.init():
+            with Ts.sblock("B"):
+                Ts.where(ax4_ax5_fused_0 * 256 + ax4_ax5_fused_1 < 49)
+                ax0_1, ax1_1, ax2_1 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
+                ax3_1 = Ts.axis.spatial(512, i0_i1_i2_i3_0_fused * 256 + ax3)
+                rv0 = Ts.axis.reduce(7, (ax4_ax5_fused_0 * 256 + ax4_ax5_fused_1) // 7)
+                rv1 = Ts.axis.reduce(7, (ax4_ax5_fused_0 * 256 + ax4_ax5_fused_1) % 7)
+                Ts.reads(A[ax0_1, ax1_1 * 7 + rv0, ax2_1 * 7 + rv1, ax3_1])
+                Ts.writes(B[ax0_1, ax1_1, ax2_1, ax3_1])
+                with Ts.init():
                     B[ax0_1, ax1_1, ax2_1, ax3_1] = T.float32(0)
                 B[ax0_1, ax1_1, ax2_1, ax3_1] += A[ax0_1, ax1_1 * 7 + rv0, ax2_1 * 7 + rv1, ax3_1]
 

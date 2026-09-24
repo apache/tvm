@@ -229,13 +229,13 @@ def test_vm_module(session_kind):
     sess = session_kind(num_workers=num_workers)
 
     # pylint: disable=invalid-name
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class TestMod:
         @Ts.prim_func
         def transpose(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
             for i, j in T.grid(16, 8):
-                with T.sblock("transpose"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("transpose"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
         @R.function
@@ -273,20 +273,20 @@ def test_vm_multi_func(session_kind):
     sess = session_kind(num_workers=num_workers)
 
     # pylint: disable=invalid-name
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class TestMod:
         @Ts.prim_func
         def t1(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
             for i, j in T.grid(16, 8):
-                with T.sblock("t1"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("t1"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
         @Ts.prim_func
         def t2(A: T.Buffer((16, 8), "float32"), B: T.Buffer((8, 16), "float32")):
             for i, j in T.grid(8, 16):
-                with T.sblock("t2"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("t2"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
         @R.function

@@ -59,16 +59,16 @@ def _kv_cache_transpose_append(num_key_value_heads, head_dim, dtype, page_size: 
         position_map = T.match_buffer(var_position_map, (ntoken,), "int32", elem_offset=position_map_elem_offset)
         for global_pos, h, f in T.grid(ntoken, num_key_value_heads, head_dim):
             if position_map[global_pos] != T.int32(-1):
-                with T.sblock("k_transpose_append"):
-                    vgpos, vh, vf = T.axis.remap("SSS", [global_pos, h, f])
-                    T.reads(position_map[vgpos], k_data[vgpos, vh, vf])
-                    T.writes(pages[position_map[vgpos] // page_size, 0, vh, position_map[vgpos] % page_size, vf])
+                with Ts.sblock("k_transpose_append"):
+                    vgpos, vh, vf = Ts.axis.remap("SSS", [global_pos, h, f])
+                    Ts.reads(position_map[vgpos], k_data[vgpos, vh, vf])
+                    Ts.writes(pages[position_map[vgpos] // page_size, 0, vh, position_map[vgpos] % page_size, vf])
                     position: T.int32 = position_map[vgpos]  # type: ignore
                     pages[T.floordiv(position, page_size), 0, vh, T.floormod(position, page_size), vf] = k_data[vgpos, vh, vf]
-                with T.sblock("v_transpose_append"):
-                    vgpos, vh, vf = T.axis.remap("SSS", [global_pos, h, f])
-                    T.reads(position_map[vgpos], v_data[vgpos, vh, vf])
-                    T.writes(pages[position_map[vgpos] // page_size, 1, vh, position_map[vgpos] % page_size, vf])
+                with Ts.sblock("v_transpose_append"):
+                    vgpos, vh, vf = Ts.axis.remap("SSS", [global_pos, h, f])
+                    Ts.reads(position_map[vgpos], v_data[vgpos, vh, vf])
+                    Ts.writes(pages[position_map[vgpos] // page_size, 1, vh, position_map[vgpos] % page_size, vf])
                     position: T.int32 = position_map[vgpos] # type: ignore[name-defined,no-redef]
                     pages[T.floordiv(position, page_size), 1, vh, T.floormod(position, page_size), vf] = v_data[vgpos, vh, vf]
 
@@ -94,10 +94,10 @@ def _kv_cache_transpose_append_mla(d_qk: int, dtype, page_size: int = 16):
         position_map = T.match_buffer(var_position_map, (ntoken,), "int32", elem_offset=position_map_elem_offset)
         for global_pos, f in T.grid(ntoken, d_qk):
             if position_map[global_pos] != T.int32(-1):
-                with T.sblock("k_transpose_append"):
-                    vgpos, vf = T.axis.remap("SS", [global_pos, f])
-                    T.reads(position_map[vgpos], kv_data[vgpos, vf])
-                    T.writes(pages[position_map[vgpos] // page_size, position_map[vgpos] % page_size, vf])
+                with Ts.sblock("k_transpose_append"):
+                    vgpos, vf = Ts.axis.remap("SS", [global_pos, f])
+                    Ts.reads(position_map[vgpos], kv_data[vgpos, vf])
+                    Ts.writes(pages[position_map[vgpos] // page_size, position_map[vgpos] % page_size, vf])
                     position: T.int32 = position_map[vgpos]  # type: ignore
                     pages[T.floordiv(position, page_size), T.floormod(position, page_size), vf] = kv_data[vgpos, vf]
 
@@ -126,10 +126,10 @@ def _kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dty
         k_data = T.match_buffer(var_k_data, (num_hidden_layers, seqlen, num_key_value_heads, head_dim), dtype)
         v_data = T.match_buffer(var_v_data, (num_hidden_layers, seqlen, num_key_value_heads, head_dim), dtype)
         for p, h, d in T.grid(seqlen, num_key_value_heads, head_dim):
-            with T.sblock("copy0"):
-                vp, vh, vd = T.axis.remap("SSS", [p, h, d])
-                T.reads(position_map[vp], pages[position_map[vp] // page_size, 0:2, vh, position_map[vp] % page_size, vd])
-                T.writes(k_data[layer_id, vp, vh, vd], v_data[layer_id, vp, vh, vd])
+            with Ts.sblock("copy0"):
+                vp, vh, vd = Ts.axis.remap("SSS", [p, h, d])
+                Ts.reads(position_map[vp], pages[position_map[vp] // page_size, 0:2, vh, position_map[vp] % page_size, vd])
+                Ts.writes(k_data[layer_id, vp, vh, vd], v_data[layer_id, vp, vh, vd])
                 position: T.int32 = position_map[vp] # type: ignore[name-defined]
                 k_data[layer_id, vp, vh, vd] = pages[T.floordiv(position, page_size), 0, vh, T.floormod(position, page_size), vd]
                 v_data[layer_id, vp, vh, vd] = pages[T.floordiv(position, page_size), 1, vh, T.floormod(position, page_size), vd]
@@ -157,10 +157,10 @@ def _kv_cache_debug_get_kv_mla(num_hidden_layers, d_qk, dtype):
         position_map = T.match_buffer(var_position_map, (seqlen,), "int32", elem_offset=position_map_elem_offset)
         compressed_kv_with_k_pe_data = T.match_buffer(var_compressed_kv_with_k_pe_data, (num_hidden_layers, seqlen, d_qk), dtype)
         for p, d in T.grid(seqlen, d_qk):
-            with T.sblock("copy0"):
-                vp, vd = T.axis.remap("SS", [p, d])
-                T.reads(position_map[vp], pages[position_map[vp] // page_size, position_map[vp] % page_size, vd])
-                T.writes(compressed_kv_with_k_pe_data[layer_id, vp, vd])
+            with Ts.sblock("copy0"):
+                vp, vd = Ts.axis.remap("SS", [p, d])
+                Ts.reads(position_map[vp], pages[position_map[vp] // page_size, position_map[vp] % page_size, vd])
+                Ts.writes(compressed_kv_with_k_pe_data[layer_id, vp, vd])
                 position: T.int32 = position_map[vp] # type: ignore[name-defined]
                 compressed_kv_with_k_pe_data[layer_id, vp, vd] = pages[T.floordiv(position, page_size), T.floormod(position, page_size), vd]
 
@@ -179,11 +179,11 @@ def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
 
         for b in T.thread_binding((copy_length * num_heads * head_dim + tx - 1) // tx, thread="blockIdx.x"):
             for t in T.thread_binding(tx, thread="threadIdx.x"):
-                with T.sblock("copy"):
-                    T.where(b * tx + t < copy_length * num_heads * head_dim)
-                    vh = T.axis.spatial(num_heads, T.Cast("int32", (b * tx + t) // (copy_length * head_dim)))
-                    vp = T.axis.spatial(copy_length, (b * tx + t) % (copy_length * head_dim) // head_dim)
-                    vd = T.axis.spatial(head_dim, T.Cast("int32", (b * tx + t) % head_dim))
+                with Ts.sblock("copy"):
+                    Ts.where(b * tx + t < copy_length * num_heads * head_dim)
+                    vh = Ts.axis.spatial(num_heads, T.Cast("int32", (b * tx + t) // (copy_length * head_dim)))
+                    vp = Ts.axis.spatial(copy_length, (b * tx + t) % (copy_length * head_dim) // head_dim)
+                    vd = Ts.axis.spatial(head_dim, T.Cast("int32", (b * tx + t) % head_dim))
                     pages[tgt_page_id, 0, vh, vp, vd] = pages[src_page_id, 0, vh, vp, vd]
                     pages[tgt_page_id, 1, vh, vp, vd] = pages[src_page_id, 1, vh, vp, vd]
 
@@ -202,10 +202,10 @@ def _copy_single_page_mla(page_size, head_dim, dtype, target: Target):
 
         for b in T.thread_binding((copy_length * head_dim + tx - 1) // tx, thread="blockIdx.x"):
             for t in T.thread_binding(tx, thread="threadIdx.x"):
-                with T.sblock("copy"):
-                    T.where(b * tx + t < copy_length * head_dim)
-                    vp = T.axis.spatial(copy_length, (b * tx + t) // head_dim)
-                    vd = T.axis.spatial(head_dim, T.Cast("int32", (b * tx + t) % head_dim))
+                with Ts.sblock("copy"):
+                    Ts.where(b * tx + t < copy_length * head_dim)
+                    vp = Ts.axis.spatial(copy_length, (b * tx + t) // head_dim)
+                    vd = Ts.axis.spatial(head_dim, T.Cast("int32", (b * tx + t) % head_dim))
                     pages[tgt_page_id, vp, vd] = pages[src_page_id, vp, vd]
 
     return copy_single_page_mla
@@ -222,11 +222,11 @@ def _copy_single_page_cpu(num_heads, page_size, head_dim, dtype):
 
         for b in T.serial((copy_length * num_heads * head_dim + tx - 1) // tx):
             for t in T.serial(tx):
-                with T.sblock("copy"):
-                    T.where(b * tx + t < copy_length * num_heads * head_dim)
-                    vh = T.axis.spatial(num_heads, T.Cast("int32", (b * tx + t) // (copy_length * head_dim)))
-                    vp = T.axis.spatial(copy_length, (b * tx + t) % (copy_length * head_dim) // head_dim)
-                    vd = T.axis.spatial(head_dim, T.Cast("int32", (b * tx + t) % head_dim))
+                with Ts.sblock("copy"):
+                    Ts.where(b * tx + t < copy_length * num_heads * head_dim)
+                    vh = Ts.axis.spatial(num_heads, T.Cast("int32", (b * tx + t) // (copy_length * head_dim)))
+                    vp = Ts.axis.spatial(copy_length, (b * tx + t) % (copy_length * head_dim) // head_dim)
+                    vd = Ts.axis.spatial(head_dim, T.Cast("int32", (b * tx + t) % head_dim))
                     pages[tgt_page_id, 0, vh, vp, vd] = pages[src_page_id, 0, vh, vp, vd]
                     pages[tgt_page_id, 1, vh, vp, vd] = pages[src_page_id, 1, vh, vp, vd]
 
@@ -248,7 +248,7 @@ def _compact_kv_copy(num_heads, head_dim, dtype, target: Target, page_size: int 
         copy_length_indptr = T.match_buffer(var_copy_length_indptr, (batch_size + 1,), "int32", elem_offset=copy_length_indptr_elem_offset)
         copy_src_dst_pos = T.match_buffer(var_copy_src_dst_pos, (2, total_copy_length), "int32", elem_offset=copy_src_dst_pos_elem_offset)
 
-        with T.sblock("root"):
+        with Ts.sblock("root"):
             for bhd_o in T.thread_binding((batch_size * num_heads * head_dim + tx - 1) // tx, thread="blockIdx.x"):
                 for bhd_i in T.thread_binding(tx, thread="threadIdx.x"):
                     b: T.int32 = (bhd_o * tx + bhd_i) // (num_heads * head_dim)
@@ -278,7 +278,7 @@ def _compact_kv_copy_cpu(num_heads, head_dim, dtype, page_size: int = 16):
         copy_length_indptr = T.match_buffer(var_copy_length_indptr, (batch_size + 1,), "int32", elem_offset=copy_length_indptr_elem_offset)
         copy_src_dst_pos = T.match_buffer(var_copy_src_dst_pos, (2, total_copy_length), "int32", elem_offset=copy_src_dst_pos_elem_offset)
 
-        with T.sblock("root"):
+        with Ts.sblock("root"):
             for bhd_o in T.serial((batch_size * num_heads * head_dim + tx - 1) // tx):
                 for bhd_i in T.serial(tx):
                     b: T.int32 = (bhd_o * tx + bhd_i) // (num_heads * head_dim)

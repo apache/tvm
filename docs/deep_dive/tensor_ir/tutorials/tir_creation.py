@@ -73,22 +73,22 @@ class MyModule:
         for i in range(128):
             for j in range(128):
                 for k in range(128):
-                    with T.sblock("Y"):
-                        vi = T.axis.spatial(128, i)
-                        vj = T.axis.spatial(128, j)
-                        vk = T.axis.reduce(128, k)
-                        T.reads(A[vi, vk], B[vk, vj])
-                        T.writes(Y[vi, vj])
-                        with T.init():
+                    with Ts.sblock("Y"):
+                        vi = Ts.axis.spatial(128, i)
+                        vj = Ts.axis.spatial(128, j)
+                        vk = Ts.axis.reduce(128, k)
+                        Ts.reads(A[vi, vk], B[vk, vj])
+                        Ts.writes(Y[vi, vj])
+                        with Ts.init():
                             Y[vi, vj] = T.float32(0)
                         Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i in range(128):
             for j in range(128):
-                with T.sblock("C"):
-                    vi = T.axis.spatial(128, i)
-                    vj = T.axis.spatial(128, j)
-                    T.reads(Y[vi, vj])
-                    T.writes(C[vi, vj])
+                with Ts.sblock("C"):
+                    vi = Ts.axis.spatial(128, i)
+                    vj = Ts.axis.spatial(128, j)
+                    Ts.reads(Y[vi, vj])
+                    Ts.writes(C[vi, vj])
                     C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
 
 
@@ -99,8 +99,8 @@ class MyModule:
 # streamline the code:
 #
 # - Utilize ``T.grid`` to condense nested loops;
-# - Employ ``T.axis.remap`` to abbreviate block iterator annotations;
-# - Exclude ``T.reads`` and ``T.writes`` for blocks whose content can
+# - Employ ``Ts.axis.remap`` to abbreviate block iterator annotations;
+# - Exclude ``Ts.reads`` and ``Ts.writes`` for blocks whose content can
 #   be inferred from the block body;
 
 
@@ -114,14 +114,14 @@ class ConciseModule:
     ):
         Y = T.alloc_buffer((128, 128), dtype="float32")
         for i, j, k in T.grid(128, 128, 128):
-            with T.sblock("Y"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("Y"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     Y[vi, vj] = T.float32(0)
                 Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(128, 128):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("C"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
 
 
@@ -153,14 +153,14 @@ class ConciseModuleFromPython:
     ):
         Y = T.alloc_buffer((M, N), dtype)
         for i, j, k in T.grid(M, N, K):
-            with T.sblock("Y"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("Y"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     Y[vi, vj] = T.cast(T.float32(0), dtype)
                 Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(M, N):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("C"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 C[vi, vj] = T.max(Y[vi, vj], T.cast(T.float32(0), dtype))
 
 
@@ -193,14 +193,14 @@ class DynamicShapeModule:
         C = T.match_buffer(c, [M, N], dtype)
         Y = T.alloc_buffer((M, N), dtype)
         for i, j, k in T.grid(M, N, K):
-            with T.sblock("Y"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("Y"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     Y[vi, vj] = T.cast(T.float32(0), dtype)
                 Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(M, N):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("C"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 C[vi, vj] = T.max(Y[vi, vj], T.cast(T.float32(0), dtype))
 
 

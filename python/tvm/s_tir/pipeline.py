@@ -25,7 +25,7 @@ from tvm.tirx import compilation_pipeline as tir_pipeline
 tir = tirx  # alias for backward compat
 
 
-def default_s_tir_pipeline():
+def default_s_tir_pipeline(*, prepare_only=False):
     """The default tirx pipeline used in tvm.tirx.build"""
 
     @tvm.transform.module_pass(opt_level=0)
@@ -90,7 +90,6 @@ def default_s_tir_pipeline():
                 s_tir.transform.VerifyVTCMLimit(),
                 s_tir.transform.LowerVtcmAlloc(),
                 tirx.transform.VerifyMemory(),
-                tirx.transform.AnnotateEntryFunc(),
             ]
         )
         passes.extend(
@@ -106,15 +105,17 @@ def default_s_tir_pipeline():
             passes.append(s_tir.transform.InjectPTXAsyncCopy())
         if bool(config.get("tirx.s_tir.ldg32", False)):
             passes.append(s_tir.transform.InjectPTXLDG32())
-        passes.extend(
-            [
-                s_tir.transform.MergeSharedMemoryAllocations(),
-                tirx.transform.SplitHostDevice(),
-                tirx.transform.MakePackedAPI(),
-                tirx.transform.FP8StorageLegalize(),
-                tirx.transform.BF16StorageLegalize(),
-            ]
-        )
+        passes.append(s_tir.transform.MergeSharedMemoryAllocations())
+        if not prepare_only:
+            passes.extend(
+                [
+                    tirx.transform.AnnotateEntryFunc(),
+                    tirx.transform.SplitHostDevice(),
+                    tirx.transform.MakePackedAPI(),
+                    tirx.transform.FP8StorageLegalize(),
+                    tirx.transform.BF16StorageLegalize(),
+                ]
+            )
         mod = tvm.ir.transform.Sequential(passes)(mod)
         return mod
 
@@ -141,3 +142,39 @@ def finalize_device_passes():  # pylint: disable=unused-argument
 
 
 tir_pipeline.PIPELINE_MAP["s_tir"] = default_s_tir_pipeline
+
+
+def _select_default_pipeline(mod, target):
+    """Select S-TIR lowering only for functions constructed in this dialect."""
+    scheduled = {
+        gv: func
+        for gv, func in mod.functions.items()
+        if isinstance(func, tirx.PrimFunc) and not func.is_tirx
+    }
+    if not scheduled:
+        return None
+    mixed = len(scheduled) != len(mod.functions)
+    name = "s_tir"
+    if target is not None and target.kind.name == "opencl" and "adreno" in target.keys:
+        name = "adreno"
+    s_pipeline = tir_pipeline.get_tir_pipeline(name, prepare_only=mixed)
+    if not mixed:
+        return s_pipeline
+
+    lower_s_tir, finalize_host, finalize_device = s_pipeline
+    lower_tirx, _, _ = tir_pipeline.get_tir_pipeline("tirx", prepare_only=True)
+
+    @tvm.transform.module_pass(opt_level=0)
+    def _lower_mixed(input_mod, _ctx):
+        s_funcs = {gv: func for gv, func in input_mod.functions.items() if gv in scheduled}
+        t_funcs = {gv: func for gv, func in input_mod.functions.items() if gv not in scheduled}
+        lowered = tvm.IRModule(attrs=input_mod.attrs, global_infos=input_mod.global_infos)
+        for funcs, lowering in ((s_funcs, lower_s_tir), (t_funcs, lower_tirx)):
+            group = tvm.IRModule(funcs, attrs=input_mod.attrs, global_infos=input_mod.global_infos)
+            lowered.update(lowering(group))
+        return tir_pipeline.finalize_tir_pipeline()(lowered)
+
+    return _lower_mixed, finalize_host, finalize_device
+
+
+tir_pipeline.register_default_tir_pipeline_selector(_select_default_pipeline)

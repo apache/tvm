@@ -38,8 +38,8 @@ def elementwise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
     for i, j, k, l in T.grid(128, 128, 128, 128):
-        with T.sblock("B"):
-            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+        with Ts.sblock("B"):
+            vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
@@ -48,9 +48,9 @@ def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
     for i, j, k, l in T.grid(128, 128, 128, 8):
-        with T.sblock("B"):
-            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
-            vl = T.axis.S(128, l * 16)
+        with Ts.sblock("B"):
+            vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
+            vl = Ts.axis.S(128, l * 16)
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
@@ -60,8 +60,8 @@ def elementwise_dependent_loop(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, (128, 128, 128, 128))
     for i in T.serial(0, 128):
         for j, k, l in T.grid(128, i, 128):
-            with T.sblock("B"):
-                vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+            with Ts.sblock("B"):
+                vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
                 B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
@@ -70,25 +70,25 @@ def elementwise_predicate(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
     for i, j, k, l in T.grid(128, 128, 128, 128):
-        with T.sblock("B"):
-            T.where(i * 2097152 + j * 16384 + k * 128 + l < 100)
-            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+        with Ts.sblock("B"):
+            Ts.where(i * 2097152 + j * 16384 + k * 128 + l < 100)
+            vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
 @Ts.prim_func
 def elementwise_non_single_branch(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
-    C = T.sblock_alloc_buffer((128, 128, 128))
+    C = Ts.sblock_alloc_buffer((128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
     for i, j in T.grid(128, 128):
         for k in T.serial(0, 128):
-            with T.sblock("C"):
-                vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+            with Ts.sblock("C"):
+                vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
                 C[vi, vj, vk] = A[vi, vj, vk] * 2.0
         for k in T.serial(0, 128):
-            with T.sblock("B"):
-                vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+            with Ts.sblock("B"):
+                vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
                 B[vi, vj, vk] = C[vi, vj, vk] * 2.0
 
 
@@ -97,13 +97,13 @@ def elementwise_with_loops_not_same_scope(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
     for i, j in T.grid(128, 128):
-        with T.sblock("A"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("A"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             for k in T.serial(0, 128):
-                with T.sblock("B"):
-                    vk = T.axis.S(128, k)
-                    T.reads([A[vi, vj, vk]])
-                    T.writes([B[vi, vj, vk]])
+                with Ts.sblock("B"):
+                    vk = Ts.axis.S(128, k)
+                    Ts.reads([A[vi, vj, vk]])
+                    Ts.writes([B[vi, vj, vk]])
                     B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
@@ -112,11 +112,11 @@ def elementwise_with_wrong_block_var_type(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
     for i, j, k in T.grid(128, 128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            vk = T.axis.scan(128, k)
-            T.reads([A[vi, vj, vk]])
-            T.writes([B[vi, vj, vk]])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            vk = Ts.axis.scan(128, k)
+            Ts.reads([A[vi, vj, vk]])
+            Ts.writes([B[vi, vj, vk]])
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
@@ -125,8 +125,8 @@ def elementwise_reordered(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
     for l, j, k, i in T.grid(128, 128, 128, 128):
-        with T.sblock("B"):
-            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+        with Ts.sblock("B"):
+            vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
@@ -135,8 +135,8 @@ def elementwise_reordered2(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
     for k, j, i, l in T.grid(128, 128, 128, 128):
-        with T.sblock("B"):
-            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+        with Ts.sblock("B"):
+            vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
@@ -145,9 +145,9 @@ def elementwise_reordered_with_predicate(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
     for l, j, k, i in T.grid(128, 128, 128, 128):
-        with T.sblock("B"):
-            T.where(i * 2097152 + j * 16384 + k * 128 + l < 100)
-            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+        with Ts.sblock("B"):
+            Ts.where(i * 2097152 + j * 16384 + k * 128 + l < 100)
+            vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
@@ -156,16 +156,16 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16], "float32")
     B = T.match_buffer(b, [16, 16], "float32")
     for i, j in T.grid(16, 16):
-        with T.sblock("A"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.reads([])
-            T.writes([A[0:16, 0:16]])
+        with Ts.sblock("A"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.reads([])
+            Ts.writes([A[0:16, 0:16]])
             A[vi, vj] = 1
     for i, j in T.grid(16, 16):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.reads([])
-            T.writes([B[0:16, 0:16]])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.reads([])
+            Ts.writes([B[0:16, 0:16]])
             T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj, dtype="handle"))
 
 
@@ -174,16 +174,16 @@ def opaque_access_reorder(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16], "float32")
     B = T.match_buffer(b, [16, 16], "float32")
     for j, i in T.grid(16, 16):
-        with T.sblock("A"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.reads([])
-            T.writes([A[0:16, 0:16]])
+        with Ts.sblock("A"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.reads([])
+            Ts.writes([A[0:16, 0:16]])
             A[vi, vj] = 1
     for j, i in T.grid(16, 16):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.reads([])
-            T.writes([B[0:16, 0:16]])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.reads([])
+            Ts.writes([B[0:16, 0:16]])
             T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj, dtype="handle"))
 
 
@@ -225,18 +225,18 @@ def test_reorder_overlapped_access():
     def overlapped_access(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         # example to write first axis multiple times
         for v0, v1, v2 in T.grid(6, 4, 4):
-            with T.sblock("block"):
-                i = T.axis.spatial(14, v0 * 2 + v1)
-                j = T.axis.spatial(4, v2)
+            with Ts.sblock("block"):
+                i = Ts.axis.spatial(14, v0 * 2 + v1)
+                j = Ts.axis.spatial(4, v2)
                 B[i, j] = A[i, j] + 1.0
 
     @Ts.prim_func
     def overlapped_access_reorder(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         # example to write first axis multiple times
         for v0, v2, v1 in T.grid(6, 4, 4):
-            with T.sblock("block"):
-                i = T.axis.spatial(14, v0 * 2 + v1)
-                j = T.axis.spatial(4, v2)
+            with Ts.sblock("block"):
+                i = Ts.axis.spatial(14, v0 * 2 + v1)
+                j = Ts.axis.spatial(4, v2)
                 B[i, j] = A[i, j] + 1.0
 
     sch = tvm.s_tir.Schedule(overlapped_access, debug_mask="all")
@@ -250,17 +250,17 @@ def test_reorder_with_partial_affineness():
     @Ts.prim_func
     def non_affine_func(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         for v0, v1, v2 in T.grid(6, 4, 4):
-            with T.sblock("block"):
-                i = T.axis.spatial(14, v0 * v0 + v1)
-                j = T.axis.spatial(4, v2)
+            with Ts.sblock("block"):
+                i = Ts.axis.spatial(14, v0 * v0 + v1)
+                j = Ts.axis.spatial(4, v2)
                 B[i, j] = A[i, j] + 1.0
 
     @Ts.prim_func
     def non_affine_func_reorder(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         for v0, v2, v1 in T.grid(6, 4, 4):
-            with T.sblock("block"):
-                i = T.axis.spatial(14, v0 * v0 + v1)
-                j = T.axis.spatial(4, v2)
+            with Ts.sblock("block"):
+                i = Ts.axis.spatial(14, v0 * v0 + v1)
+                j = Ts.axis.spatial(4, v2)
                 B[i, j] = A[i, j] + 1.0
 
     sch = tvm.s_tir.Schedule(non_affine_func, debug_mask="all")
@@ -278,17 +278,17 @@ def test_reorder_with_cascade_tiled_ops():
     def cascade_pool_ops(
         x: T.Buffer((1, 16, 112, 112), "float32"), y2: T.Buffer((1, 16, 108, 108), "float32")
     ) -> None:
-        y1 = T.sblock_alloc_buffer([1, 16, 110, 110], dtype="float32")
+        y1 = Ts.sblock_alloc_buffer([1, 16, 110, 110], dtype="float32")
         for n, c, h, w, kh, kw in T.grid(1, 16, 110, 110, 3, 3):
-            with T.sblock("pool_0"):
-                ax0, ax1, ax2, ax3, rv0, rv1 = T.axis.remap("SSSSRR", [n, c, h, w, kh, kw])
-                with T.init():
+            with Ts.sblock("pool_0"):
+                ax0, ax1, ax2, ax3, rv0, rv1 = Ts.axis.remap("SSSSRR", [n, c, h, w, kh, kw])
+                with Ts.init():
                     y1[ax0, ax1, ax2, ax3] = 0.0
                 y1[ax0, ax1, ax2, ax3] = y1[ax0, ax1, ax2, ax3] + x[ax0, ax1, ax2 + rv0, ax3 + rv1]
         for n, c, h, w, kh, kw in T.grid(1, 16, 108, 108, 3, 3):
-            with T.sblock("pool_1"):
-                ax0, ax1, ax2, ax3, rv0, rv1 = T.axis.remap("SSSSRR", [n, c, h, w, kh, kw])
-                with T.init():
+            with Ts.sblock("pool_1"):
+                ax0, ax1, ax2, ax3, rv0, rv1 = Ts.axis.remap("SSSSRR", [n, c, h, w, kh, kw])
+                with Ts.init():
                     y2[ax0, ax1, ax2, ax3] = 0.0
                 y2[ax0, ax1, ax2, ax3] = y2[ax0, ax1, ax2, ax3] + y1[ax0, ax1, ax2 + rv0, ax3 + rv1]
 
@@ -296,26 +296,26 @@ def test_reorder_with_cascade_tiled_ops():
     def cascade_pool_ops_tile_reordered(
         x: T.Buffer((1, 16, 112, 112), "float32"), y2: T.Buffer((1, 16, 108, 108), "float32")
     ) -> None:
-        y1 = T.sblock_alloc_buffer([1, 16, 110, 110], dtype="float32")
+        y1 = Ts.sblock_alloc_buffer([1, 16, 110, 110], dtype="float32")
         for n, c, h_o in T.grid(1, 16, 27):
             for w, h_i, kh, kw in T.grid(110, 6, 3, 3):
-                with T.sblock("pool_0"):
-                    ax0 = T.axis.spatial(1, 0)
-                    ax1 = T.axis.spatial(16, c)
-                    ax2 = T.axis.spatial(110, h_o * 4 + h_i)
-                    ax3, rv0, rv1 = T.axis.remap("SRR", [w, kh, kw])
-                    with T.init():
+                with Ts.sblock("pool_0"):
+                    ax0 = Ts.axis.spatial(1, 0)
+                    ax1 = Ts.axis.spatial(16, c)
+                    ax2 = Ts.axis.spatial(110, h_o * 4 + h_i)
+                    ax3, rv0, rv1 = Ts.axis.remap("SRR", [w, kh, kw])
+                    with Ts.init():
                         y1[ax0, ax1, ax2, ax3] = 0.0
                     y1[ax0, ax1, ax2, ax3] = (
                         y1[ax0, ax1, ax2, ax3] + x[ax0, ax1, ax2 + rv0, ax3 + rv1]
                     )
             for h_i, w, kh, kw in T.grid(4, 108, 3, 3):
-                with T.sblock("pool_1"):
-                    ax0 = T.axis.spatial(1, n)
-                    ax1 = T.axis.spatial(16, c)
-                    ax2 = T.axis.spatial(108, h_o * 4 + h_i)
-                    ax3, rv0, rv1 = T.axis.remap("SRR", [w, kh, kw])
-                    with T.init():
+                with Ts.sblock("pool_1"):
+                    ax0 = Ts.axis.spatial(1, n)
+                    ax1 = Ts.axis.spatial(16, c)
+                    ax2 = Ts.axis.spatial(108, h_o * 4 + h_i)
+                    ax3, rv0, rv1 = Ts.axis.remap("SRR", [w, kh, kw])
+                    with Ts.init():
                         y2[ax0, ax1, ax2, ax3] = 0.0
                     y2[ax0, ax1, ax2, ax3] = (
                         y2[ax0, ax1, ax2, ax3] + y1[ax0, ax1, ax2 + rv0, ax3 + rv1]

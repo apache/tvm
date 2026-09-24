@@ -61,34 +61,34 @@ def register_te_grads():
 
 def get_expected_1():
     # fmt: off
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_1: T.Buffer((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
-                with T.sblock("f_mul"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1], B[v_i0, v_i1])
-                    T.writes(f_mul_1[v_i0, v_i1])
+                with Ts.sblock("f_mul"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1], B[v_i0, v_i1])
+                    Ts.writes(f_mul_1[v_i0, v_i1])
                     f_mul_1[v_i0, v_i1] = A[v_i0, v_i1] * B[v_i0, v_i1]
 
         @Ts.prim_func(private=True)
         def f_mul_grad(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), C: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_grad_1: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_grad_2: T.Buffer((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
-                with T.sblock("f_mul_grad_1"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(C[v_i0, v_i1], A[v_i0, v_i1])
-                    T.writes(f_mul_grad_1[v_i0, v_i1])
+                with Ts.sblock("f_mul_grad_1"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(C[v_i0, v_i1], A[v_i0, v_i1])
+                    Ts.writes(f_mul_grad_1[v_i0, v_i1])
                     f_mul_grad_1[v_i0, v_i1] = C[v_i0, v_i1] * A[v_i0, v_i1]
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
-                with T.sblock("f_mul_grad_2"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(B[v_i0, v_i1], A[v_i0, v_i1])
-                    T.writes(f_mul_grad_2[v_i0, v_i1])
+                with Ts.sblock("f_mul_grad_2"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(B[v_i0, v_i1], A[v_i0, v_i1])
+                    Ts.writes(f_mul_grad_2[v_i0, v_i1])
                     f_mul_grad_2[v_i0, v_i1] = B[v_i0, v_i1] * A[v_i0, v_i1]
 
         @R.function
@@ -148,17 +148,17 @@ def test_emit_te(register_te_grads):
 
 def test_call_tir(register_te_grads):
     # fmt: off
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
         def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_1: T.Buffer((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
-                with T.sblock("f_mul"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1], B[v_i0, v_i1])
-                    T.writes(f_mul_1[v_i0, v_i1])
+                with Ts.sblock("f_mul"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1], B[v_i0, v_i1])
+                    Ts.writes(f_mul_1[v_i0, v_i1])
                     f_mul_1[v_i0, v_i1] = A[v_i0, v_i1] * B[v_i0, v_i1]
 
         @R.function
@@ -177,28 +177,28 @@ def test_call_tir(register_te_grads):
 
 def get_expected_2():
     # fmt: off
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul2: T.Buffer((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
-                with T.sblock("f_mul2"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1])
-                    T.writes(f_mul2[v_i0, v_i1])
+                with Ts.sblock("f_mul2"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1])
+                    Ts.writes(f_mul2[v_i0, v_i1])
                     f_mul2[v_i0, v_i1] = A[v_i0, v_i1] * T.float32(2)
 
         @Ts.prim_func(private=True)
         def f_mulk_grad(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mulk_grad_1: T.Buffer((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
-                with T.sblock("f_mulk_grad"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1])
-                    T.writes(f_mulk_grad_1[v_i0, v_i1])
+                with Ts.sblock("f_mulk_grad"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1])
+                    Ts.writes(f_mulk_grad_1[v_i0, v_i1])
                     f_mulk_grad_1[v_i0, v_i1] = A[v_i0, v_i1] * T.float32(2)
 
         @R.function
@@ -257,17 +257,17 @@ def test_emit_te_kwargs(register_te_grads):
 
 def test_call_tir_kwargs(register_te_grads):
     # fmt: off
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
         def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul2: T.Buffer((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
-                with T.sblock("f_mul2"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1])
-                    T.writes(f_mul2[v_i0, v_i1])
+                with Ts.sblock("f_mul2"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1])
+                    Ts.writes(f_mul2[v_i0, v_i1])
                     f_mul2[v_i0, v_i1] = A[v_i0, v_i1] * T.float32(2)
 
         @R.function
@@ -286,7 +286,7 @@ def test_call_tir_kwargs(register_te_grads):
 
 def get_expected_3():
     # fmt: off
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def f_mul(var_A: T.handle, var_B: T.handle, var_f_mul: T.handle):
@@ -295,12 +295,12 @@ def get_expected_3():
             A = T.match_buffer(var_A, (n, n))
             B = T.match_buffer(var_B, (n, n))
             f_mul_1 = T.match_buffer(var_f_mul, (n, n))
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(n, n):
-                with T.sblock("f_mul"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1], B[v_i0, v_i1])
-                    T.writes(f_mul_1[v_i0, v_i1])
+                with Ts.sblock("f_mul"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[v_i0, v_i1], B[v_i0, v_i1])
+                    Ts.writes(f_mul_1[v_i0, v_i1])
                     f_mul_1[v_i0, v_i1] = A[v_i0, v_i1] * B[v_i0, v_i1]
 
         @Ts.prim_func(private=True)
@@ -312,18 +312,18 @@ def get_expected_3():
             C = T.match_buffer(var_C, (n, n))
             f_mul_grad_1 = T.match_buffer(var_f_mul_grad_1, (n, n))
             f_mul_grad_2 = T.match_buffer(var_f_mul_grad_2, (n, n))
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1 in T.grid(n, n):
-                with T.sblock("f_mul_grad_1"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(C[v_i0, v_i1], A[v_i0, v_i1])
-                    T.writes(f_mul_grad_1[v_i0, v_i1])
+                with Ts.sblock("f_mul_grad_1"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(C[v_i0, v_i1], A[v_i0, v_i1])
+                    Ts.writes(f_mul_grad_1[v_i0, v_i1])
                     f_mul_grad_1[v_i0, v_i1] = C[v_i0, v_i1] * A[v_i0, v_i1]
             for i0, i1 in T.grid(n, n):
-                with T.sblock("f_mul_grad_2"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(B[v_i0, v_i1], A[v_i0, v_i1])
-                    T.writes(f_mul_grad_2[v_i0, v_i1])
+                with Ts.sblock("f_mul_grad_2"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(B[v_i0, v_i1], A[v_i0, v_i1])
+                    Ts.writes(f_mul_grad_2[v_i0, v_i1])
                     f_mul_grad_2[v_i0, v_i1] = B[v_i0, v_i1] * A[v_i0, v_i1]
 
         @R.function

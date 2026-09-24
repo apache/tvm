@@ -34,8 +34,8 @@ def test_tir_print_all_passes(capsys):
         A = T.match_buffer(a, (128, 128, 128, 128))
         B = T.match_buffer(b, (128, 128, 128, 128))
         for i, j, k, l in T.grid(128, 128, 128, 128):
-            with T.sblock("B"):
-                vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+            with Ts.sblock("B"):
+                vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
                 B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
     with tvm.transform.PassContext(opt_level=3, instruments=[PrintBeforeAll(), PrintAfterAll()]):
@@ -47,7 +47,7 @@ def test_tir_print_all_passes(capsys):
 
 
 def test_relax_print_all_passes(capsys):
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         @R.function
         def func(x: R.Tensor((16,), "float32"), y: R.Tensor((16,), "float32")):

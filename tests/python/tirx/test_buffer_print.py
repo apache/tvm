@@ -22,7 +22,6 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -46,7 +45,7 @@ def make_tvm_runner(func, input_data, initial_output, expected_output):
 
 
 def from_source(code):
-    return tvm.script.from_source(code, s_tir=True)
+    return tvm.script.from_source(code)
 
 
 def verify_result(C_tvm, C_np):
@@ -194,184 +193,115 @@ def test_print():
 
     def test_vector_add_1D(dtype, dtype_str):
         M = 6
-        M_BLK = 6
         dim_num = 1
         A_np, B_np = generate_random_data((M,), dtype), generate_random_data((M,), dtype)
         C_np = A_np + B_np
 
-        @Ts.prim_func
+        @T.prim_func
         def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
             A = T.match_buffer(A_ptr, (M,), dtype_str)
             B = T.match_buffer(B_ptr, (M,), dtype_str)
             C = T.match_buffer(C_ptr, (M,), dtype_str)
 
-            for i in T.grid(M):
-                with T.sblock("C"):
-                    vi = T.axis.spatial(M, i)
-                    C[vi] = A[vi] + B[vi]
+            for i in T.thread_binding(M, thread="threadIdx.x"):
+                C[i] = A[i] + B[i]
                 T.print_buffer(C.data, dtype_str, False, False, dim_num, (M,))
 
-        sch = tvm.s_tir.Schedule(add_func)
-        blk = sch.get_sblock("C")
-        i = sch.get_loops(blk)[0]
-
-        i0, i1 = sch.split(i, factors=[None, M_BLK])
-
-        sch.bind(i0, "blockIdx.x")
-        sch.bind(i1, "threadIdx.x")
-
         C_np_tmp = np.zeros((M,), dtype=dtype)
-        func = tvm.compile(sch.mod, target=target)
+        func = tvm.compile(add_func, target=target)
         verify_tir_code(add_func.script())
         verify_cuda_code_array(func, dim_num, dtype_str, M)
         return make_tvm_runner(func, [A_np, B_np], C_np_tmp, C_np)
 
     def test_vector_add_2D(dtype, dtype_str):
         M, N = 6, 6
-        M_BLK, N_BLK = 6, 6
         dim_num = 2
         A_np, B_np = generate_random_data((M, N), dtype), generate_random_data((M, N), dtype)
         C_np = A_np + B_np
 
-        @Ts.prim_func
+        @T.prim_func
         def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
             A = T.match_buffer(A_ptr, (M, N), dtype_str)
             B = T.match_buffer(B_ptr, (M, N), dtype_str)
             C = T.match_buffer(C_ptr, (M, N), dtype_str)
 
-            for i, j in T.grid(M, N):
-                with T.sblock("C"):
-                    vi = T.axis.spatial(M, i)
-                    vj = T.axis.spatial(N, j)
-                    C[vi, vj] = A[vi, vj] + B[vi, vj]
-                T.print_buffer(C.data, C.dtype, False, False, dim_num, (M, N))
-
-        sch = tvm.s_tir.Schedule(add_func)
-        blk = sch.get_sblock("C")
-        i, j = sch.get_loops(blk)
-
-        i0, i1 = sch.split(i, factors=[None, M_BLK])
-        j0, j1 = sch.split(j, factors=[None, N_BLK])
-
-        sch.bind(i0, "blockIdx.x")
-        sch.bind(j0, "blockIdx.y")
-        sch.bind(i1, "threadIdx.x")
-        sch.bind(j1, "threadIdx.y")
+            for i in T.thread_binding(M, thread="threadIdx.x"):
+                for j in T.thread_binding(N, thread="threadIdx.y"):
+                    C[i, j] = A[i, j] + B[i, j]
+                    T.print_buffer(C.data, C.dtype, False, False, dim_num, (M, N))
 
         C_np_tmp = np.zeros((M, N), dtype=dtype)
-        func = tvm.compile(sch.mod, target=target)
+        func = tvm.compile(add_func, target=target)
         verify_tir_code(add_func.script())
         verify_cuda_code_array(func, dim_num, dtype_str, M, N)
         return make_tvm_runner(func, [A_np, B_np], C_np_tmp, C_np)
 
     def test_vector_add_3D(dtype, dtype_str):
         M, N, K = 6, 6, 6
-        M_BLK, N_BLK, K_BLK = 6, 6, 6
         dim_num = 3
         A_np, B_np = generate_random_data((M, N, K), dtype), generate_random_data((M, N, K), dtype)
         C_np = A_np + B_np
 
-        @Ts.prim_func
+        @T.prim_func
         def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
             A = T.match_buffer(A_ptr, (M, N, K), dtype_str)
             B = T.match_buffer(B_ptr, (M, N, K), dtype_str)
             C = T.match_buffer(C_ptr, (M, N, K), dtype_str)
 
-            for i, j, k in T.grid(M, N, K):
-                with T.sblock("C"):
-                    vi = T.axis.spatial(M, i)
-                    vj = T.axis.spatial(N, j)
-                    vk = T.axis.spatial(K, k)
-                    C[vi, vj, vk] = A[vi, vj, vk] + B[vi, vj, vk]
-                T.print_buffer(C.data, C.dtype, False, False, dim_num, (M, N, K))
-
-        sch = tvm.s_tir.Schedule(add_func)
-        blk = sch.get_sblock("C")
-        i, j, k = sch.get_loops(blk)
-
-        i0, i1 = sch.split(i, factors=[None, M_BLK])
-        j0, j1 = sch.split(j, factors=[None, N_BLK])
-        k0, k1 = sch.split(k, factors=[None, K_BLK])
-
-        sch.bind(i0, "blockIdx.x")
-        sch.bind(j0, "blockIdx.y")
-        sch.bind(k0, "blockIdx.z")
-        sch.bind(i1, "threadIdx.x")
-        sch.bind(j1, "threadIdx.y")
-        sch.bind(k1, "threadIdx.z")
+            for i in T.thread_binding(M, thread="threadIdx.x"):
+                for j in T.thread_binding(N, thread="threadIdx.y"):
+                    for k in T.thread_binding(K, thread="threadIdx.z"):
+                        C[i, j, k] = A[i, j, k] + B[i, j, k]
+                        T.print_buffer(C.data, C.dtype, False, False, dim_num, (M, N, K))
 
         C_np_tmp = np.zeros((M, N, K), dtype=dtype)
-        func = tvm.compile(sch.mod, target=target)
+        func = tvm.compile(add_func, target=target)
         verify_tir_code(add_func.script())
         verify_cuda_code_array(func, dim_num, dtype_str, M, N, K)
         return make_tvm_runner(func, [A_np, B_np], C_np_tmp, C_np)
 
     def test_const_scalar(dtype, dtype_str):
         M = 6
-        M_BLK = 6
         dim_num = 1
         A_np, B_np = generate_random_data((M,), dtype), generate_random_data((M,), dtype)
         C_np = A_np + B_np
 
-        @Ts.prim_func
+        @T.prim_func
         def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
             A = T.match_buffer(A_ptr, (M,), dtype_str)
             B = T.match_buffer(B_ptr, (M,), dtype_str)
             C = T.match_buffer(C_ptr, (M,), dtype_str)
             Ten: T.let = T.IntImm(dtype_str, 10)
 
-            for i in T.grid(M):
-                with T.sblock("C"):
-                    vi = T.axis.spatial(M, i)
-                    C[vi] = A[vi] + B[vi]
+            for i in T.thread_binding(M, thread="threadIdx.x"):
+                C[i] = A[i] + B[i]
                 T.print_buffer(Ten, "int32", False, True, dim_num, ())
 
-        sch = tvm.s_tir.Schedule(add_func)
-        blk = sch.get_sblock("C")
-        i = sch.get_loops(blk)[0]
-
-        i0, i1 = sch.split(i, factors=[None, M_BLK])
-
-        sch.bind(i0, "blockIdx.x")
-        sch.bind(i1, "threadIdx.x")
-
         C_np_tmp = np.zeros((M,), dtype=dtype)
-        func = tvm.compile(sch.mod, target=target)
+        func = tvm.compile(add_func, target=target)
         verify_tir_code(add_func.script())
         verify_cuda_code_scalar(func, dtype_str, 10)
         return make_tvm_runner(func, [A_np, B_np], C_np_tmp, C_np)
 
     def test_string(dtype, dtype_str, test_string):
         M = 6
-        M_BLK = 6
         dim_num = 1
         A_np, B_np = generate_random_data((M,), dtype), generate_random_data((M,), dtype)
         C_np = A_np + B_np
 
-        @Ts.prim_func
+        @T.prim_func
         def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
             A = T.match_buffer(A_ptr, (M,), dtype_str)
             B = T.match_buffer(B_ptr, (M,), dtype_str)
             C = T.match_buffer(C_ptr, (M,), dtype_str)
             string_var = tvm.ir.StringImm(test_string)
 
-            for i in T.grid(M):
-                with T.sblock("C"):
-                    vi = T.axis.spatial(M, i)
-                    C[vi] = A[vi] + B[vi]
+            for i in T.thread_binding(M, thread="threadIdx.x"):
+                C[i] = A[i] + B[i]
                 T.print_buffer(string_var, "int8", True, False, dim_num, ())
 
-        sch = tvm.s_tir.Schedule(add_func)
-        blk = sch.get_sblock("C")
-        i = sch.get_loops(blk)[0]
-
-        i0, i1 = sch.split(i, factors=[None, M_BLK])
-
-        sch.bind(i0, "blockIdx.x")
-        sch.bind(i1, "threadIdx.x")
-
         C_np_tmp = np.zeros((M,), dtype=dtype)
-        func = tvm.compile(sch.mod, target=target)
+        func = tvm.compile(add_func, target=target)
         verify_tir_code(add_func.script())
         verify_cuda_code_string(func, "string_var", test_string)
         return make_tvm_runner(func, [A_np, B_np], C_np_tmp, C_np)

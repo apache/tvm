@@ -92,13 +92,13 @@ def test_prim_func_buffer_param():
 
 
 def test_evaluate():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class module1:
         @Ts.prim_func
         def func():
             T.evaluate(0)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class module2:
         @Ts.prim_func
         def func():
@@ -163,13 +163,13 @@ def test_for():
     @Ts.prim_func
     def func1():
         for i, j in T.grid(128, 128):
-            with T.sblock():
+            with Ts.sblock():
                 pass
 
     @Ts.prim_func
     def func2():
         for i, j, k in T.grid(128, 128, 128):
-            with T.sblock():
+            with Ts.sblock():
                 pass
 
     func1 = func1.with_attr("global_symbol", "main")

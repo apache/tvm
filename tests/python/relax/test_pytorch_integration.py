@@ -37,7 +37,7 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@R.py_module(s_tir=True)
+@R.py_module
 class PyTorchIntegrationModule(BasePyModule):
     """Test module for PyTorch integration with TVM."""
 
@@ -73,9 +73,9 @@ class PyTorchIntegrationModule(BasePyModule):
         C = T.match_buffer(var_C, (n, 20), "float32")
 
         for i, j, k in T.grid(n, 20, 16):
-            with T.sblock("block"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("block"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 

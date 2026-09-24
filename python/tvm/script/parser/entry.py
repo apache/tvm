@@ -372,14 +372,13 @@ def make_macro_decorator(
 
             import tvm
             from tvm.script import tirx as T
-            from tvm.script import s_tir as Ts
             x_value = 128
 
             @T.inline
             def capture(A, B):
                 B[()] = A[x_value]  # x_value resolved from enclosing scope
 
-            @Ts.prim_func
+            @T.prim_func
             def use(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
                 capture(A, B)       # Produces B[()] = A[128]
         """

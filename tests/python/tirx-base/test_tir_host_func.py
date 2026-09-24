@@ -15,18 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.script import ir as I
-from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,missing-class-docstring,missing-function-docstring
 # fmt: off
 
 
-@I.ir_module(s_tir=True)
+@I.ir_module
 class Module:
-    @Ts.prim_func
+    @T.prim_func
     def main(
         A: T.Buffer((729, 729), "float32"),
         B: T.Buffer((729, 729), "float32"),
@@ -39,15 +37,10 @@ class Module:
                 "tirx.noalias": True,
             }
         )
-        # with T.sblock("root"):
         for i, j, k in T.grid(729, 729, 729):
-            with T.sblock("C"):
-                v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
-                T.reads(A[v_i, v_k], B[v_k, v_j])
-                T.writes(C[v_i, v_j])
-                with T.init():
-                    C[v_i, v_j] = T.float32(0)
-                C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
+            if k == 0:
+                C[i, j] = T.float32(0)
+            C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,missing-class-docstring,missing-function-docstring
@@ -55,11 +48,7 @@ class Module:
 
 def test_host_func():
     """Test that host functions are not split."""
-    # te schedule copied from test_tir_transform_split_host_device.py
-
-    func = tvm.te.create_prim_func(
-        te_workload.matmul(729, 729, 729, in_dtype="float32", out_dtype="float32")
-    )
+    func = Module["main"].without_attr("target")
     mod = tvm.ir.IRModule({"main": func})
     target = tvm.target.Target("cuda")
     mod = tvm.tirx.transform.Apply(

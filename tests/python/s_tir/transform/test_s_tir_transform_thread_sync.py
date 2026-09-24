@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401, F821, F841
+# ruff: noqa: F821, F841
 import pytest
 
 import tvm
@@ -46,8 +46,8 @@ def test_sync_read_thread_id_independent_location():
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
         p0 = T.Buffer([2], dtype="float32", data=p0_arg.data)
-        result_local = T.sblock_alloc_buffer([1], dtype="float32", scope="local")
-        temp_shared = T.sblock_alloc_buffer([1], dtype="float32", scope="shared")
+        result_local = Ts.sblock_alloc_buffer([1], dtype="float32", scope="local")
+        temp_shared = Ts.sblock_alloc_buffer([1], dtype="float32", scope="shared")
         T.launch_thread(blockIdx_x, 8)
         T.launch_thread(threadIdx_x, 4)
         result_local[0] = T.float32(0)
@@ -60,6 +60,48 @@ def test_sync_read_thread_id_independent_location():
 
     mod = run_passes(func)
     assert "T.tvm_storage_sync" in str(mod)
+
+
+def test_sync_inside_condition():
+    @Ts.prim_func
+    def func1(A: T.Buffer((4, 4), "float32")) -> None:
+        A_shared = T.alloc_buffer((4, 4), "float32", scope="shared")
+        bx = T.launch_thread("blockIdx.x", 1)
+        tx = T.launch_thread("threadIdx.x", 32)
+        if A[0, 0] > 1.0:
+            for i, j in T.grid(4, 4):
+                A_shared[i, j] = A[i, j]
+            for i, j in T.grid(4, 4):
+                A[i, j] = A_shared[i, j] + 1.0
+
+    @Ts.prim_func
+    def func2(A: T.Buffer((4, 4), "float32")) -> None:
+        A_shared = T.alloc_buffer((4, 4), "float32", scope="shared")
+        bx = T.launch_thread("blockIdx.x", 1)
+        tx = T.launch_thread("threadIdx.x", 32)
+        if T.tvm_thread_invariant(A[0, 0] > 1.0):
+            for i, j in T.grid(4, 4):
+                A_shared[i, j] = A[i, j]
+            for i, j in T.grid(4, 4):
+                A[i, j] = A_shared[i, j] + 1.0
+
+    @Ts.prim_func
+    def func3(A: T.Buffer((4, 4), "float32")) -> None:
+        A_shared = T.alloc_buffer((4, 4), "float32", scope="shared")
+        bx = T.launch_thread("blockIdx.x", 1)
+        tx = T.launch_thread("threadIdx.x", 32)
+        while T.tvm_thread_invariant(A[0, 0] > 1.0):
+            for i, j in T.grid(4, 4):
+                A_shared[i, j] = A[i, j]
+            for i, j in T.grid(4, 4):
+                A[i, j] = A_shared[i, j] + 1.0
+
+    with pytest.raises(tvm.error.InternalError):
+        s_tir.transform.ThreadSync("shared")(tvm.IRModule.from_expr(func1))
+
+    for func in (func2, func3):
+        mod = s_tir.transform.ThreadSync("shared")(tvm.IRModule.from_expr(func))
+        assert "T.tvm_storage_sync" in mod.script()
 
 
 def test_sync_shared_dyn():

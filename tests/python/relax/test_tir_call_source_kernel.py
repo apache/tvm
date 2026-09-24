@@ -42,7 +42,7 @@ extern "C" __global__ void add_kernel(float* x, float* y, float* output, int n_e
 def test_tir_call_source_kernel():
     BLOCK_SIZE = 64
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         @Ts.prim_func
         def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle) -> None:
@@ -51,9 +51,9 @@ def test_tir_call_source_kernel():
             x = T.match_buffer(x_handle, (m,), "float32")
             y = T.match_buffer(y_handle, (m,), "float32")
             output = T.match_buffer(output_handle, (m,), "float32")
-            with T.sblock("root"):
-                T.reads(x[0:m], y[0:m])
-                T.writes(output[0:m])
+            with Ts.sblock("root"):
+                Ts.reads(x[0:m], y[0:m])
+                Ts.writes(output[0:m])
                 T.call_kernel(
                     add_cuda_source,
                     ((T.ceildiv(m, BLOCK_SIZE),), (BLOCK_SIZE,)),
@@ -72,7 +72,7 @@ def test_tir_call_source_kernel():
                 R.output(output)
             return output
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Parsed:
         @Ts.prim_func
         def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle):
@@ -80,9 +80,9 @@ def test_tir_call_source_kernel():
             x = T.match_buffer(x_handle, (m,))
             y = T.match_buffer(y_handle, (m,))
             output = T.match_buffer(output_handle, (m,))
-            with T.sblock("root"):
-                T.reads(x[0:m], y[0:m])
-                T.writes(output[0:m])
+            with Ts.sblock("root"):
+                Ts.reads(x[0:m], y[0:m])
+                Ts.writes(output[0:m])
                 T.call_packed(
                     "add_kernel",
                     x.data,

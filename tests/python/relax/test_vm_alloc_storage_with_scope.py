@@ -27,7 +27,7 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@I.ir_module(s_tir=True)
+@I.ir_module
 class Module:
     @Ts.prim_func
     def add(
@@ -38,11 +38,11 @@ class Module:
         T.func_attr({"operator_name": "relax.add"})
         for ax0 in range(2):
             for ax1 in range(2):
-                with T.sblock("T_add"):
-                    v_ax0 = T.axis.spatial(2, ax0)
-                    v_ax1 = T.axis.spatial(2, ax1)
-                    T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
-                    T.writes(output[v_ax0, v_ax1])
+                with Ts.sblock("T_add"):
+                    v_ax0 = Ts.axis.spatial(2, ax0)
+                    v_ax1 = Ts.axis.spatial(2, ax1)
+                    Ts.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
+                    Ts.writes(output[v_ax0, v_ax1])
                     output[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] + arg1[v_ax0, v_ax1]
 
     @R.function(pure=False)

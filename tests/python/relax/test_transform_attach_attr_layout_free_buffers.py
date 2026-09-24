@@ -29,7 +29,7 @@ from tvm.script.ir_builder import IRBuilder
 
 
 def test_param():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
         def matmul(
@@ -38,8 +38,8 @@ def test_param():
             C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -52,7 +52,7 @@ def test_param():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def matmul1(
@@ -62,8 +62,8 @@ def test_param():
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -83,7 +83,7 @@ def test_param():
 def test_const():
     const_value = np.ones((32, 32), dtype="float32")
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
         def matmul(
@@ -92,8 +92,8 @@ def test_const():
             C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -110,7 +110,7 @@ def test_const():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def matmul1(
@@ -120,8 +120,8 @@ def test_const():
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -143,7 +143,7 @@ def test_const():
 
 
 def test_multiple_same_func():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
         def matmul(
@@ -152,8 +152,8 @@ def test_multiple_same_func():
             C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -179,7 +179,7 @@ def test_multiple_same_func():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def matmul1(
@@ -189,8 +189,8 @@ def test_multiple_same_func():
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -221,7 +221,7 @@ def test_multiple_same_func():
 
 
 def test_multiple_same_func_with_different_free_buffers():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
         def matmul(
@@ -230,8 +230,8 @@ def test_multiple_same_func_with_different_free_buffers():
             C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -257,7 +257,7 @@ def test_multiple_same_func_with_different_free_buffers():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def matmul1(
@@ -267,8 +267,8 @@ def test_multiple_same_func_with_different_free_buffers():
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -280,8 +280,8 @@ def test_multiple_same_func_with_different_free_buffers():
         ):
             T.func_attr({"layout_free_buffers": [0]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 

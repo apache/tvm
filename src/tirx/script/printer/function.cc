@@ -213,7 +213,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         if (d->cfg->syntax_sugar && implicit_root_block) {
           s_tir::SBlock root_block = implicit_root_block.value();
           AccessPath root_block_p = p->Attr("body")->Attr("block");
-          (*f)->stmts.push_back(CommentDoc("with T.sblock(\"root\"):"));
+          (*f)->stmts.push_back(CommentDoc("with Ts.sblock(\"root\"):"));
           // Handle root block `alloc_buffer`
           for (int i = 0, n = root_block->alloc_buffers.size(); i < n; ++i) {
             tirx::BufferVar buffer = root_block->alloc_buffers[i];

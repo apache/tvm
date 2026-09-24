@@ -84,6 +84,11 @@ class PrimFunc(BaseFunc, Scriptable):
             span,
         )  # type: ignore
 
+    @property
+    def is_tirx(self):
+        """Whether this primitive function uses the TIRx dialect."""
+        return not bool(self.attrs.get("s_tir", False))
+
     def with_body(self, new_body, span=None):
         """Create a new PrimFunc with the same set signatures but a new body.
 

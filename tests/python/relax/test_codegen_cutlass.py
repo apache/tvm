@@ -1146,7 +1146,7 @@ def test_layer_norm(data_shape, dtype, axes):
 
 
 def test_attention_rewrite_fp16():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         @R.function
         def main(
@@ -1179,7 +1179,7 @@ def test_attention_rewrite_fp16():
                 R.output(lv14)
             return lv14
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def fused_relax_nn_attention_bias_cutlass1(
@@ -1265,7 +1265,7 @@ def split_transform_deploy_mod(mod):
 
 
 def test_fp16A_int4B_gemm():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         @Ts.prim_func
         def decode(
@@ -1274,12 +1274,12 @@ def test_fp16A_int4B_gemm():
             decode_1: T.Buffer((T.int64(64), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i, j in T.grid(T.int64(64), T.int64(128)):
-                with T.sblock("decode"):
-                    v_i, v_j = T.axis.remap("SS", [i, j])
-                    T.reads(A[v_i, v_j // T.int64(2)], B[v_j])
-                    T.writes(decode_1[v_i, v_j])
+                with Ts.sblock("decode"):
+                    v_i, v_j = Ts.axis.remap("SS", [i, j])
+                    Ts.reads(A[v_i, v_j // T.int64(2)], B[v_j])
+                    Ts.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = (
                         T.Cast(
                             "float16",
@@ -1307,31 +1307,31 @@ def test_fp16A_int4B_gemm():
             compute: T.Buffer((T.int64(128),), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
-            max_abs_value = T.sblock_alloc_buffer((T.int64(128),), "float16")
-            scale = T.sblock_alloc_buffer((T.int64(128),))
+            # with Ts.sblock("root"):
+            max_abs_value = Ts.sblock_alloc_buffer((T.int64(128),), "float16")
+            scale = Ts.sblock_alloc_buffer((T.int64(128),))
             for i, k in T.grid(T.int64(128), T.int64(64)):
-                with T.sblock("max_abs_value"):
-                    v_i, v_k = T.axis.remap("SR", [i, k])
-                    T.reads(A[v_i, v_k])
-                    T.writes(max_abs_value[v_i])
-                    with T.init():
+                with Ts.sblock("max_abs_value"):
+                    v_i, v_k = Ts.axis.remap("SR", [i, k])
+                    Ts.reads(A[v_i, v_k])
+                    Ts.writes(max_abs_value[v_i])
+                    with Ts.init():
                         max_abs_value[v_i] = T.float16(-65504)
                     max_abs_value[v_i] = T.max(max_abs_value[v_i], T.fabs(A[v_i, v_k]))
             for i in range(T.int64(128)):
-                with T.sblock("scale"):
-                    v_i = T.axis.spatial(T.int64(128), i)
-                    T.reads(max_abs_value[v_i])
-                    T.writes(scale[v_i])
+                with Ts.sblock("scale"):
+                    v_i = Ts.axis.spatial(T.int64(128), i)
+                    Ts.reads(max_abs_value[v_i])
+                    Ts.writes(scale[v_i])
                     scale[v_i] = T.max(
                         T.Cast("float32", max_abs_value[v_i]), T.float32(0.0001)
                     ) * T.float32(0.125)
             for j, i, k in T.grid(T.int64(64), T.int64(64), T.int64(2)):
-                with T.sblock("w_gathered"):
-                    v_j, v_i, v_k = T.axis.remap("SSR", [j, i, k])
-                    T.reads(A[v_i * T.int64(2) + v_k, v_j], scale[v_i * T.int64(2) + v_k])
-                    T.writes(w_gathered[v_j, v_i])
-                    with T.init():
+                with Ts.sblock("w_gathered"):
+                    v_j, v_i, v_k = Ts.axis.remap("SSR", [j, i, k])
+                    Ts.reads(A[v_i * T.int64(2) + v_k, v_j], scale[v_i * T.int64(2) + v_k])
+                    Ts.writes(w_gathered[v_j, v_i])
+                    with Ts.init():
                         w_gathered[v_j, v_i] = T.int8(0)
                     w_gathered[v_j, v_i] = T.bitwise_or(
                         w_gathered[v_j, v_i],
@@ -1362,10 +1362,10 @@ def test_fp16A_int4B_gemm():
                         ),
                     )
             for i0 in range(T.int64(128)):
-                with T.sblock("compute"):
-                    v_i0 = T.axis.spatial(T.int64(128), i0)
-                    T.reads(scale[v_i0])
-                    T.writes(compute[v_i0])
+                with Ts.sblock("compute"):
+                    v_i0 = Ts.axis.spatial(T.int64(128), i0)
+                    Ts.reads(scale[v_i0])
+                    Ts.writes(compute[v_i0])
                     compute[v_i0] = T.Cast("float16", scale[v_i0])
 
         @R.function
@@ -1522,7 +1522,7 @@ def test_fp16A_int4B_gemm():
 
 
 def test_fp16A_int8B_gemm():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         @Ts.prim_func
         def decode(
@@ -1531,12 +1531,12 @@ def test_fp16A_int8B_gemm():
             decode_1: T.Buffer((T.int64(64), T.int64(64)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i, j in T.grid(T.int64(64), T.int64(64)):
-                with T.sblock("decode"):
-                    v_i, v_j = T.axis.remap("SS", [i, j])
-                    T.reads(A[v_i, v_j], B[v_j])
-                    T.writes(decode_1[v_i, v_j])
+                with Ts.sblock("decode"):
+                    v_i, v_j = Ts.axis.remap("SS", [i, j])
+                    Ts.reads(A[v_i, v_j], B[v_j])
+                    Ts.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_j]
 
         @Ts.prim_func
@@ -1546,30 +1546,30 @@ def test_fp16A_int8B_gemm():
             compute: T.Buffer((T.int64(64),), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
-            max_abs_value = T.sblock_alloc_buffer((T.int64(64),), "float16")
-            scale = T.sblock_alloc_buffer((T.int64(64),))
+            # with Ts.sblock("root"):
+            max_abs_value = Ts.sblock_alloc_buffer((T.int64(64),), "float16")
+            scale = Ts.sblock_alloc_buffer((T.int64(64),))
             for i, k in T.grid(T.int64(64), T.int64(64)):
-                with T.sblock("max_abs_value"):
-                    v_i, v_k = T.axis.remap("SR", [i, k])
-                    T.reads(A[v_i, v_k])
-                    T.writes(max_abs_value[v_i])
-                    with T.init():
+                with Ts.sblock("max_abs_value"):
+                    v_i, v_k = Ts.axis.remap("SR", [i, k])
+                    Ts.reads(A[v_i, v_k])
+                    Ts.writes(max_abs_value[v_i])
+                    with Ts.init():
                         max_abs_value[v_i] = T.float16(-65504)
                     max_abs_value[v_i] = T.max(max_abs_value[v_i], T.fabs(A[v_i, v_k]))
             for i in range(T.int64(64)):
-                with T.sblock("scale"):
-                    v_i = T.axis.spatial(T.int64(64), i)
-                    T.reads(max_abs_value[v_i])
-                    T.writes(scale[v_i])
+                with Ts.sblock("scale"):
+                    v_i = Ts.axis.spatial(T.int64(64), i)
+                    Ts.reads(max_abs_value[v_i])
+                    Ts.writes(scale[v_i])
                     scale[v_i] = T.max(
                         T.Cast("float32", max_abs_value[v_i]), T.float32(0.0001)
                     ) * T.float32(0.0078125)
             for j, i in T.grid(T.int64(64), T.int64(64)):
-                with T.sblock("w_gathered"):
-                    v_j, v_i = T.axis.remap("SS", [j, i])
-                    T.reads(A[v_i, v_j], scale[v_i])
-                    T.writes(w_gathered[v_j, v_i])
+                with Ts.sblock("w_gathered"):
+                    v_j, v_i = Ts.axis.remap("SS", [j, i])
+                    Ts.reads(A[v_i, v_j], scale[v_i])
+                    Ts.writes(w_gathered[v_j, v_i])
                     w_gathered[v_j, v_i] = T.Cast(
                         "int8",
                         T.min(
@@ -1581,10 +1581,10 @@ def test_fp16A_int8B_gemm():
                         ),
                     )
             for i0 in range(T.int64(64)):
-                with T.sblock("compute"):
-                    v_i0 = T.axis.spatial(T.int64(64), i0)
-                    T.reads(scale[v_i0])
-                    T.writes(compute[v_i0])
+                with Ts.sblock("compute"):
+                    v_i0 = Ts.axis.spatial(T.int64(64), i0)
+                    Ts.reads(scale[v_i0])
+                    Ts.writes(compute[v_i0])
                     compute[v_i0] = T.Cast("float16", scale[v_i0])
 
         @R.function
@@ -1668,7 +1668,7 @@ def test_fp16A_int8B_gemm():
 
 
 def test_rms_norm():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         @Ts.prim_func
         def rms_norm(
@@ -1677,23 +1677,23 @@ def test_rms_norm():
             rms_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
-            Ared_temp = T.sblock_alloc_buffer((T.int64(1), T.int64(1)))
+            # with Ts.sblock("root"):
+            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1)))
             for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
-                with T.sblock("Ared_temp"):
-                    v_bsz, v_i, v_k = T.axis.remap("SSR", [bsz, i, k])
-                    T.reads(A[v_bsz, v_i, v_k])
-                    T.writes(Ared_temp[v_bsz, v_i])
-                    with T.init():
+                with Ts.sblock("Ared_temp"):
+                    v_bsz, v_i, v_k = Ts.axis.remap("SSR", [bsz, i, k])
+                    Ts.reads(A[v_bsz, v_i, v_k])
+                    Ts.writes(Ared_temp[v_bsz, v_i])
+                    with Ts.init():
                         Ared_temp[v_bsz, v_i] = T.float32(0)
                     Ared_temp[v_bsz, v_i] = Ared_temp[v_bsz, v_i] + T.Cast(
                         "float32", A[v_bsz, v_i, v_k]
                     ) * T.Cast("float32", A[v_bsz, v_i, v_k])
             for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
-                with T.sblock("rms_norm"):
-                    v_bsz, v_i, v_k = T.axis.remap("SSS", [bsz, i, k])
-                    T.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
-                    T.writes(rms_norm[v_bsz, v_i, v_k])
+                with Ts.sblock("rms_norm"):
+                    v_bsz, v_i, v_k = Ts.axis.remap("SSS", [bsz, i, k])
+                    Ts.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
+                    Ts.writes(rms_norm[v_bsz, v_i, v_k])
                     rms_norm[v_bsz, v_i, v_k] = T.Cast(
                         "float16",
                         T.Cast("float32", B[v_k])
@@ -1801,7 +1801,7 @@ def test_conv2d_cuda_graph():
 
 
 def test_fp16A_int8B_gemm_batched():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         @Ts.prim_func
         def decode(
@@ -1810,12 +1810,12 @@ def test_fp16A_int8B_gemm_batched():
             decode_1: T.Buffer((T.int64(64), T.int64(64)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i, j in T.grid(T.int64(64), T.int64(64)):
-                with T.sblock("decode"):
-                    v_i, v_j = T.axis.remap("SS", [i, j])
-                    T.reads(A[v_i, v_j], B[v_j])
-                    T.writes(decode_1[v_i, v_j])
+                with Ts.sblock("decode"):
+                    v_i, v_j = Ts.axis.remap("SS", [i, j])
+                    Ts.reads(A[v_i, v_j], B[v_j])
+                    Ts.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_j]
 
         @Ts.prim_func
@@ -1825,30 +1825,30 @@ def test_fp16A_int8B_gemm_batched():
             compute: T.Buffer((T.int64(64),), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
-            max_abs_value = T.sblock_alloc_buffer((T.int64(64),), "float16")
-            scale = T.sblock_alloc_buffer((T.int64(64),))
+            # with Ts.sblock("root"):
+            max_abs_value = Ts.sblock_alloc_buffer((T.int64(64),), "float16")
+            scale = Ts.sblock_alloc_buffer((T.int64(64),))
             for i, k in T.grid(T.int64(64), T.int64(64)):
-                with T.sblock("max_abs_value"):
-                    v_i, v_k = T.axis.remap("SR", [i, k])
-                    T.reads(A[v_i, v_k])
-                    T.writes(max_abs_value[v_i])
-                    with T.init():
+                with Ts.sblock("max_abs_value"):
+                    v_i, v_k = Ts.axis.remap("SR", [i, k])
+                    Ts.reads(A[v_i, v_k])
+                    Ts.writes(max_abs_value[v_i])
+                    with Ts.init():
                         max_abs_value[v_i] = T.float16(-65504)
                     max_abs_value[v_i] = T.max(max_abs_value[v_i], T.fabs(A[v_i, v_k]))
             for i in range(T.int64(64)):
-                with T.sblock("scale"):
-                    v_i = T.axis.spatial(T.int64(64), i)
-                    T.reads(max_abs_value[v_i])
-                    T.writes(scale[v_i])
+                with Ts.sblock("scale"):
+                    v_i = Ts.axis.spatial(T.int64(64), i)
+                    Ts.reads(max_abs_value[v_i])
+                    Ts.writes(scale[v_i])
                     scale[v_i] = T.max(
                         T.Cast("float32", max_abs_value[v_i]), T.float32(0.0001)
                     ) * T.float32(0.0078125)
             for j, i in T.grid(T.int64(64), T.int64(64)):
-                with T.sblock("w_gathered"):
-                    v_j, v_i = T.axis.remap("SS", [j, i])
-                    T.reads(A[v_i, v_j], scale[v_i])
-                    T.writes(w_gathered[v_j, v_i])
+                with Ts.sblock("w_gathered"):
+                    v_j, v_i = Ts.axis.remap("SS", [j, i])
+                    Ts.reads(A[v_i, v_j], scale[v_i])
+                    Ts.writes(w_gathered[v_j, v_i])
                     w_gathered[v_j, v_i] = T.Cast(
                         "int8",
                         T.min(
@@ -1860,10 +1860,10 @@ def test_fp16A_int8B_gemm_batched():
                         ),
                     )
             for i0 in range(T.int64(64)):
-                with T.sblock("compute"):
-                    v_i0 = T.axis.spatial(T.int64(64), i0)
-                    T.reads(scale[v_i0])
-                    T.writes(compute[v_i0])
+                with Ts.sblock("compute"):
+                    v_i0 = Ts.axis.spatial(T.int64(64), i0)
+                    Ts.reads(scale[v_i0])
+                    Ts.writes(compute[v_i0])
                     compute[v_i0] = T.Cast("float16", scale[v_i0])
 
         @R.function
@@ -1935,7 +1935,7 @@ def test_fp16A_int8B_gemm_batched():
 
 
 def test_fp16A_int8B_gemm_batched_finegrained():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         @Ts.prim_func
         def decode(
@@ -1945,10 +1945,10 @@ def test_fp16A_int8B_gemm_batched_finegrained():
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
-                with T.sblock("decode"):
-                    v_i, v_j = T.axis.remap("SS", [i, j])
-                    T.reads(A[v_i, v_j], B[v_i // T.int64(64), v_j])
-                    T.writes(decode_1[v_i, v_j])
+                with Ts.sblock("decode"):
+                    v_i, v_j = Ts.axis.remap("SS", [i, j])
+                    Ts.reads(A[v_i, v_j], B[v_i // T.int64(64), v_j])
+                    Ts.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_i // T.int64(64), v_j]
 
         @Ts.prim_func
@@ -1964,42 +1964,42 @@ def test_fp16A_int8B_gemm_batched_finegrained():
             ),
         ):
             T.func_attr({"tirx.noalias": True})
-            max_abs_value = T.sblock_alloc_buffer(
+            max_abs_value = Ts.sblock_alloc_buffer(
                 (
                     T.int64(2),
                     T.int64(128),
                 ),
                 "float16",
             )
-            scale = T.sblock_alloc_buffer(
+            scale = Ts.sblock_alloc_buffer(
                 (
                     T.int64(2),
                     T.int64(128),
                 )
             )
             for i, j, k in T.grid(T.int64(2), T.int64(128), T.int64(64)):
-                with T.sblock("max_abs_value"):
-                    v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
-                    T.reads(A[v_j, v_i * T.int64(64) + v_k])
-                    T.writes(max_abs_value[v_i, v_j])
-                    with T.init():
+                with Ts.sblock("max_abs_value"):
+                    v_i, v_j, v_k = Ts.axis.remap("SSR", [i, j, k])
+                    Ts.reads(A[v_j, v_i * T.int64(64) + v_k])
+                    Ts.writes(max_abs_value[v_i, v_j])
+                    with Ts.init():
                         max_abs_value[v_i, v_j] = T.float16(-65504)
                     max_abs_value[v_i, v_j] = T.max(
                         max_abs_value[v_i, v_j], T.fabs(A[v_j, v_i * T.int64(64) + v_k])
                     )
             for i, j in T.grid(T.int64(2), T.int64(128)):
-                with T.sblock("scale"):
-                    v_i, v_j = T.axis.remap("SS", [i, j])
-                    T.reads(max_abs_value[v_i, v_j])
-                    T.writes(scale[v_i, v_j])
+                with Ts.sblock("scale"):
+                    v_i, v_j = Ts.axis.remap("SS", [i, j])
+                    Ts.reads(max_abs_value[v_i, v_j])
+                    Ts.writes(scale[v_i, v_j])
                     scale[v_i, v_j] = T.max(
                         T.Cast("float32", max_abs_value[v_i, v_j]), T.float32(0.0001)
                     ) * T.float32(0.0078125)
             for j, i in T.grid(T.int64(128), T.int64(128)):
-                with T.sblock("w_gathered"):
-                    v_j, v_i = T.axis.remap("SS", [j, i])
-                    T.reads(A[v_i, v_j], scale[v_j // T.int64(64), v_i])
-                    T.writes(w_gathered[v_j, v_i])
+                with Ts.sblock("w_gathered"):
+                    v_j, v_i = Ts.axis.remap("SS", [j, i])
+                    Ts.reads(A[v_i, v_j], scale[v_j // T.int64(64), v_i])
+                    Ts.writes(w_gathered[v_j, v_i])
                     w_gathered[v_j, v_i] = T.Cast(
                         "int8",
                         T.min(
@@ -2013,10 +2013,10 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                         ),
                     )
             for i0, i1 in T.grid(T.int64(2), T.int64(128)):
-                with T.sblock("compute"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(scale[v_i0, v_i1])
-                    T.writes(compute[v_i0, v_i1])
+                with Ts.sblock("compute"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(scale[v_i0, v_i1])
+                    Ts.writes(compute[v_i0, v_i1])
                     compute[v_i0, v_i1] = T.Cast("float16", scale[v_i0, v_i1])
 
         @R.function
@@ -2093,7 +2093,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
 
 
 def test_attention_rewrite_multi_query():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         @R.function
         def main(
@@ -2213,7 +2213,7 @@ def _test_batched_var_len_attention(
 
 
 def test_batched_var_len_attention():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         I.module_global_infos(
             {
@@ -2266,7 +2266,7 @@ def test_batched_var_len_attention():
 
 
 def test_batched_var_len_multi_query_attention():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         I.module_global_infos(
             {
@@ -2361,7 +2361,7 @@ def test_sliding_window():
 
 
 def test_batched_var_len_sliding_window():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         I.module_global_infos(
             {

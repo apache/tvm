@@ -53,8 +53,8 @@ def test_int64_indices_batch_decompose_padding():
         y: T.Buffer((T.int64(1), T.int64(140), T.int64(128)), "int32"),
     ):
         for b, i, j in T.grid(T.int64(1), T.int64(140), T.int64(128)):
-            with T.sblock("block"):
-                vb, vi, vj = T.axis.remap("SSS", [b, i, j])
+            with Ts.sblock("block"):
+                vb, vi, vj = Ts.axis.remap("SSS", [b, i, j])
                 y[vb, vi, vj] = T.if_then_else(vi < T.int64(128), x[vb, vi, vj], 0)
 
     @Ts.prim_func
@@ -62,25 +62,25 @@ def test_int64_indices_batch_decompose_padding():
         x: T.Buffer((T.int64(1), T.int64(128), T.int64(128)), "int32"),
         y: T.Buffer((T.int64(1), T.int64(140), T.int64(128)), "int32"),
     ):
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for b, i in T.grid(T.int64(1), T.int64(140)):
             # Use T.serial(T.int64(0), T.int64(128)) so iter_var dom.min is int64
             # (matches schedule output; `range(T.int64(...))` would emit an int32 min).
             for j in T.serial(T.int64(0), T.int64(128)):
-                with T.sblock("block_pad_const"):
-                    vb = T.axis.spatial(T.int64(1), T.int64(0))
-                    vi, vj = T.axis.remap("SS", [i, j])
-                    T.reads()
-                    T.writes(y[vb, vi, vj])
+                with Ts.sblock("block_pad_const"):
+                    vb = Ts.axis.spatial(T.int64(1), T.int64(0))
+                    vi, vj = Ts.axis.remap("SS", [i, j])
+                    Ts.reads()
+                    Ts.writes(y[vb, vi, vj])
                     y[vb, vi, vj] = 0
             for j in T.serial(T.int64(0), T.int64(128)):
-                with T.sblock("block"):
-                    vb = T.axis.spatial(T.int64(1), T.int64(0))
-                    vi = T.axis.spatial(T.int64(128), i)
-                    vj = T.axis.spatial(T.int64(128), j)
-                    T.where(i < T.int64(128))
-                    T.reads(x[vb, vi, vj])
-                    T.writes(y[vb, vi, vj])
+                with Ts.sblock("block"):
+                    vb = Ts.axis.spatial(T.int64(1), T.int64(0))
+                    vi = Ts.axis.spatial(T.int64(128), i)
+                    vj = Ts.axis.spatial(T.int64(128), j)
+                    Ts.where(i < T.int64(128))
+                    Ts.reads(x[vb, vi, vj])
+                    Ts.writes(y[vb, vi, vj])
                     y[vb, vi, vj] = x[vb, vi, vj]
 
     sch = tvm.s_tir.Schedule(before_decompose, debug_mask="all")
@@ -93,23 +93,23 @@ def test_1d_decompose_padding():
     @Ts.prim_func
     def before_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):
         for i in range(140):
-            with T.sblock("block"):
-                vi = T.axis.remap("S", [i])
+            with Ts.sblock("block"):
+                vi = Ts.axis.remap("S", [i])
                 y[vi] = T.if_then_else(vi >= 6 and vi < 134, x[vi - 6], 0, dtype="int32")
 
     @Ts.prim_func
     def after_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):
         for i in T.serial(140):
-            with T.sblock("block_pad_const"):
-                vi = T.axis.spatial(140, i)
-                T.reads()
-                T.writes(y[vi])
+            with Ts.sblock("block_pad_const"):
+                vi = Ts.axis.spatial(140, i)
+                Ts.reads()
+                Ts.writes(y[vi])
                 y[vi] = 0
         for i in T.serial(128):
-            with T.sblock("block"):
-                vi = T.axis.spatial(128, i)
-                T.reads(x[vi])
-                T.writes(y[vi + 6])
+            with Ts.sblock("block"):
+                vi = Ts.axis.spatial(128, i)
+                Ts.reads(x[vi])
+                Ts.writes(y[vi + 6])
                 y[vi + 6] = x[vi]
 
     sch = tvm.s_tir.Schedule(before_decompose, debug_mask="all")
@@ -122,10 +122,10 @@ def test_1d_decompose_padding():
 def sum_pool_2d(
     x: T.Buffer((1, 16, 225, 225), "int8"), tensor: T.Buffer((1, 16, 225, 225), "int8")
 ):
-    pad_temp = T.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
+    pad_temp = Ts.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
     for i0, i1, i2, i3 in T.grid(1, 16, 231, 231):
-        with T.sblock("pad_temp"):
-            ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+        with Ts.sblock("pad_temp"):
+            ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
             pad_temp[ax0, ax1, ax2, ax3] = T.if_then_else(
                 3 <= ax2 and ax2 < 228 and 3 <= ax3 and ax3 < 228,
                 x[ax0, ax1, ax2 - 3, ax3 - 3],
@@ -133,9 +133,9 @@ def sum_pool_2d(
                 dtype="int8",
             )
     for i0, i1, i2, i3, i4, i5 in T.grid(1, 16, 225, 225, 7, 7):
-        with T.sblock("tensor"):
-            ax0, ax1, ax2, ax3, rv0, rv1 = T.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
-            with T.init():
+        with Ts.sblock("tensor"):
+            ax0, ax1, ax2, ax3, rv0, rv1 = Ts.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
+            with Ts.init():
                 tensor[ax0, ax1, ax2, ax3] = T.int8(0)
             tensor[ax0, ax1, ax2, ax3] = (
                 tensor[ax0, ax1, ax2, ax3] + pad_temp[ax0, ax1, ax2 + rv0, ax3 + rv1]
@@ -149,19 +149,19 @@ def test_decompose_hw_padding_direct():
     def pooling_decompose_0(
         x: T.Buffer((1, 16, 225, 225), "int8"), tensor: T.Buffer((1, 16, 225, 225), "int8")
     ):
-        pad_temp = T.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
+        pad_temp = Ts.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
         for i0, i1, i2, i3 in T.grid(1, 16, 231, 231):
-            with T.sblock("pad_temp_pad_const"):
-                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+            with Ts.sblock("pad_temp_pad_const"):
+                ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 pad_temp[ax0, ax1, ax2, ax3] = T.int8(0)
         for i0, i1, i2, i3 in T.grid(1, 16, 225, 225):
-            with T.sblock("pad_temp"):
-                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+            with Ts.sblock("pad_temp"):
+                ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 pad_temp[ax0, ax1, ax2 + 3, ax3 + 3] = x[ax0, ax1, ax2, ax3]
         for i0, i1, i2, i3, i4, i5 in T.grid(1, 16, 225, 225, 7, 7):
-            with T.sblock("tensor"):
-                ax0, ax1, ax2, ax3, rv0, rv1 = T.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
-                with T.init():
+            with Ts.sblock("tensor"):
+                ax0, ax1, ax2, ax3, rv0, rv1 = Ts.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
+                with Ts.init():
                     tensor[ax0, ax1, ax2, ax3] = T.int8(0)
                 tensor[ax0, ax1, ax2, ax3] = (
                     tensor[ax0, ax1, ax2, ax3] + pad_temp[ax0, ax1, ax2 + rv0, ax3 + rv1]
@@ -180,41 +180,41 @@ def test_decompose_hw_padding_tiled():
     def pooling_decompose_1(
         x: T.Buffer((1, 16, 225, 225), "int8"), tensor: T.Buffer((1, 16, 225, 225), "int8")
     ) -> None:
-        pad_temp = T.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
+        pad_temp = Ts.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
         for i0, i2_0, i3_0 in T.grid(1, 3, 3):
             for ax0, ax1, ax2 in T.grid(16, 81, 81):
-                with T.sblock("pad_temp_pad_const"):
-                    ax0_1 = T.axis.spatial(1, 0)
-                    ax1_1 = T.axis.spatial(16, ax0)
-                    ax2_1 = T.axis.spatial(231, i2_0 * 75 + ax1)
-                    ax3 = T.axis.spatial(231, i3_0 * 75 + ax2)
-                    T.reads()
-                    T.writes(pad_temp[ax0_1, ax1_1, ax2_1, ax3])
+                with Ts.sblock("pad_temp_pad_const"):
+                    ax0_1 = Ts.axis.spatial(1, 0)
+                    ax1_1 = Ts.axis.spatial(16, ax0)
+                    ax2_1 = Ts.axis.spatial(231, i2_0 * 75 + ax1)
+                    ax3 = Ts.axis.spatial(231, i3_0 * 75 + ax2)
+                    Ts.reads()
+                    Ts.writes(pad_temp[ax0_1, ax1_1, ax2_1, ax3])
                     pad_temp[ax0_1, ax1_1, ax2_1, ax3] = T.int8(0)
             for ax0, ax1, ax2 in T.grid(16, 81, 81):
-                with T.sblock("pad_temp"):
-                    ax0_2 = T.axis.spatial(1, 0)
-                    ax1_2 = T.axis.spatial(16, ax0)
-                    ax2_2 = T.axis.spatial(225, i2_0 * 75 + ax1 - 3)
-                    ax3 = T.axis.spatial(225, i3_0 * 75 + ax2 - 3)
-                    T.where(
+                with Ts.sblock("pad_temp"):
+                    ax0_2 = Ts.axis.spatial(1, 0)
+                    ax1_2 = Ts.axis.spatial(16, ax0)
+                    ax2_2 = Ts.axis.spatial(225, i2_0 * 75 + ax1 - 3)
+                    ax3 = Ts.axis.spatial(225, i3_0 * 75 + ax2 - 3)
+                    Ts.where(
                         3 <= i2_0 * 75 + ax1
                         and i2_0 * 75 + ax1 < 228
                         and 3 <= i3_0 * 75 + ax2
                         and i3_0 * 75 + ax2 < 228
                     )
-                    T.reads(x[ax0_2, ax1_2, ax2_2, ax3])
-                    T.writes(pad_temp[ax0_2, ax1_2, ax2_2 + 3, ax3 + 3])
+                    Ts.reads(x[ax0_2, ax1_2, ax2_2, ax3])
+                    Ts.writes(pad_temp[ax0_2, ax1_2, ax2_2 + 3, ax3 + 3])
                     pad_temp[ax0_2, ax1_2, ax2_2 + 3, ax3 + 3] = x[ax0_2, ax1_2, ax2_2, ax3]
             for i1, i2_1, i3_1, i4, i5 in T.grid(16, 75, 75, 7, 7):
-                with T.sblock("tensor"):
-                    ax0_3, ax1_3 = T.axis.remap("SS", [i0, i1])
-                    ax2_3 = T.axis.spatial(225, i2_0 * 75 + i2_1)
-                    ax3 = T.axis.spatial(225, i3_0 * 75 + i3_1)
-                    rv0, rv1 = T.axis.remap("RR", [i4, i5])
-                    T.reads(pad_temp[ax0_3, ax1_3, ax2_3 + rv0, ax3 + rv1])
-                    T.writes(tensor[ax0_3, ax1_3, ax2_3, ax3])
-                    with T.init():
+                with Ts.sblock("tensor"):
+                    ax0_3, ax1_3 = Ts.axis.remap("SS", [i0, i1])
+                    ax2_3 = Ts.axis.spatial(225, i2_0 * 75 + i2_1)
+                    ax3 = Ts.axis.spatial(225, i3_0 * 75 + i3_1)
+                    rv0, rv1 = Ts.axis.remap("RR", [i4, i5])
+                    Ts.reads(pad_temp[ax0_3, ax1_3, ax2_3 + rv0, ax3 + rv1])
+                    Ts.writes(tensor[ax0_3, ax1_3, ax2_3, ax3])
+                    with Ts.init():
                         tensor[ax0_3, ax1_3, ax2_3, ax3] = T.int8(0)
                     tensor[ax0_3, ax1_3, ax2_3, ax3] = (
                         tensor[ax0_3, ax1_3, ax2_3, ax3]
@@ -240,41 +240,41 @@ def test_decompose_hw_padding_tiled_and_lift_pad():
     def pooling_decompose_2(
         x: T.Buffer((1, 16, 225, 225), "int8"), tensor: T.Buffer((1, 16, 225, 225), "int8")
     ) -> None:
-        pad_temp = T.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
+        pad_temp = Ts.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
         for i0, i2_0, i3_0, ax0, ax1, ax2 in T.grid(1, 3, 3, 16, 81, 81):
-            with T.sblock("pad_temp_pad_const"):
-                ax0_1 = T.axis.spatial(1, 0)
-                ax1_1 = T.axis.spatial(16, ax0)
-                ax2_1 = T.axis.spatial(231, i2_0 * 75 + ax1)
-                ax3 = T.axis.spatial(231, i3_0 * 75 + ax2)
-                T.reads()
-                T.writes(pad_temp[ax0_1, ax1_1, ax2_1, ax3])
+            with Ts.sblock("pad_temp_pad_const"):
+                ax0_1 = Ts.axis.spatial(1, 0)
+                ax1_1 = Ts.axis.spatial(16, ax0)
+                ax2_1 = Ts.axis.spatial(231, i2_0 * 75 + ax1)
+                ax3 = Ts.axis.spatial(231, i3_0 * 75 + ax2)
+                Ts.reads()
+                Ts.writes(pad_temp[ax0_1, ax1_1, ax2_1, ax3])
                 pad_temp[ax0_1, ax1_1, ax2_1, ax3] = T.int8(0)
         for i0, i2_0, i3_0 in T.grid(1, 3, 3):
             for ax0, ax1, ax2 in T.grid(16, 81, 81):
-                with T.sblock("pad_temp"):
-                    ax0_2 = T.axis.spatial(1, 0)
-                    ax1_2 = T.axis.spatial(16, ax0)
-                    ax2_2 = T.axis.spatial(225, i2_0 * 75 + ax1 - 3)
-                    ax3 = T.axis.spatial(225, i3_0 * 75 + ax2 - 3)
-                    T.where(
+                with Ts.sblock("pad_temp"):
+                    ax0_2 = Ts.axis.spatial(1, 0)
+                    ax1_2 = Ts.axis.spatial(16, ax0)
+                    ax2_2 = Ts.axis.spatial(225, i2_0 * 75 + ax1 - 3)
+                    ax3 = Ts.axis.spatial(225, i3_0 * 75 + ax2 - 3)
+                    Ts.where(
                         3 <= i2_0 * 75 + ax1
                         and i2_0 * 75 + ax1 < 228
                         and 3 <= i3_0 * 75 + ax2
                         and i3_0 * 75 + ax2 < 228
                     )
-                    T.reads(x[ax0_2, ax1_2, ax2_2, ax3])
-                    T.writes(pad_temp[ax0_2, ax1_2, ax2_2 + 3, ax3 + 3])
+                    Ts.reads(x[ax0_2, ax1_2, ax2_2, ax3])
+                    Ts.writes(pad_temp[ax0_2, ax1_2, ax2_2 + 3, ax3 + 3])
                     pad_temp[ax0_2, ax1_2, ax2_2 + 3, ax3 + 3] = x[ax0_2, ax1_2, ax2_2, ax3]
             for i1, i2_1, i3_1, i4, i5 in T.grid(16, 75, 75, 7, 7):
-                with T.sblock("tensor"):
-                    ax0_3, ax1_3 = T.axis.remap("SS", [i0, i1])
-                    ax2_3 = T.axis.spatial(225, i2_0 * 75 + i2_1)
-                    ax3 = T.axis.spatial(225, i3_0 * 75 + i3_1)
-                    rv0, rv1 = T.axis.remap("RR", [i4, i5])
-                    T.reads(pad_temp[ax0_3, ax1_3, ax2_3 + rv0, ax3 + rv1])
-                    T.writes(tensor[ax0_3, ax1_3, ax2_3, ax3])
-                    with T.init():
+                with Ts.sblock("tensor"):
+                    ax0_3, ax1_3 = Ts.axis.remap("SS", [i0, i1])
+                    ax2_3 = Ts.axis.spatial(225, i2_0 * 75 + i2_1)
+                    ax3 = Ts.axis.spatial(225, i3_0 * 75 + i3_1)
+                    rv0, rv1 = Ts.axis.remap("RR", [i4, i5])
+                    Ts.reads(pad_temp[ax0_3, ax1_3, ax2_3 + rv0, ax3 + rv1])
+                    Ts.writes(tensor[ax0_3, ax1_3, ax2_3, ax3])
+                    with Ts.init():
                         tensor[ax0_3, ax1_3, ax2_3, ax3] = T.int8(0)
                     tensor[ax0_3, ax1_3, ax2_3, ax3] = (
                         tensor[ax0_3, ax1_3, ax2_3, ax3]
@@ -300,25 +300,25 @@ def test_decompose_hw_padding_non_perfect_tiled():
     def pooling_decompose_3(
         x: T.Buffer((1, 16, 225, 225), "int8"), tensor: T.Buffer((1, 16, 225, 225), "int8")
     ) -> None:
-        pad_temp = T.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
+        pad_temp = Ts.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
         for i0, i2_0, i3_0 in T.grid(1, 3, 3):
             for ax0, ax1, ax2 in T.grid(16, 86, 86):
-                with T.sblock("pad_temp_pad_const"):
-                    ax0_1 = T.axis.spatial(1, 0)
-                    ax1_1 = T.axis.spatial(16, ax0)
-                    ax2_1 = T.axis.spatial(231, i2_0 * 80 + ax1)
-                    ax3 = T.axis.spatial(231, i3_0 * 80 + ax2)
-                    T.where(i2_0 * 80 + ax1 < 231 and i3_0 * 80 + ax2 < 231)
-                    T.reads()
-                    T.writes(pad_temp[ax0_1, ax1_1, ax2_1, ax3])
+                with Ts.sblock("pad_temp_pad_const"):
+                    ax0_1 = Ts.axis.spatial(1, 0)
+                    ax1_1 = Ts.axis.spatial(16, ax0)
+                    ax2_1 = Ts.axis.spatial(231, i2_0 * 80 + ax1)
+                    ax3 = Ts.axis.spatial(231, i3_0 * 80 + ax2)
+                    Ts.where(i2_0 * 80 + ax1 < 231 and i3_0 * 80 + ax2 < 231)
+                    Ts.reads()
+                    Ts.writes(pad_temp[ax0_1, ax1_1, ax2_1, ax3])
                     pad_temp[ax0_1, ax1_1, ax2_1, ax3] = T.int8(0)
             for ax0, ax1, ax2 in T.grid(16, 86, 86):
-                with T.sblock("pad_temp"):
-                    ax0_2 = T.axis.spatial(1, 0)
-                    ax1_2 = T.axis.spatial(16, ax0)
-                    ax2_2 = T.axis.spatial(225, i2_0 * 80 + ax1 - 3)
-                    ax3 = T.axis.spatial(225, i3_0 * 80 + ax2 - 3)
-                    T.where(
+                with Ts.sblock("pad_temp"):
+                    ax0_2 = Ts.axis.spatial(1, 0)
+                    ax1_2 = Ts.axis.spatial(16, ax0)
+                    ax2_2 = Ts.axis.spatial(225, i2_0 * 80 + ax1 - 3)
+                    ax3 = Ts.axis.spatial(225, i3_0 * 80 + ax2 - 3)
+                    Ts.where(
                         3 <= i2_0 * 80 + ax1
                         and i2_0 * 80 + ax1 < 228
                         and 3 <= i3_0 * 80 + ax2
@@ -326,19 +326,19 @@ def test_decompose_hw_padding_non_perfect_tiled():
                         and i2_0 * 80 + ax1 < 231
                         and i3_0 * 80 + ax2 < 231
                     )
-                    T.reads(x[ax0_2, ax1_2, ax2_2, ax3])
-                    T.writes(pad_temp[ax0_2, ax1_2, ax2_2 + 3, ax3 + 3])
+                    Ts.reads(x[ax0_2, ax1_2, ax2_2, ax3])
+                    Ts.writes(pad_temp[ax0_2, ax1_2, ax2_2 + 3, ax3 + 3])
                     pad_temp[ax0_2, ax1_2, ax2_2 + 3, ax3 + 3] = x[ax0_2, ax1_2, ax2_2, ax3]
             for i1, i2_1, i3_1, i4, i5 in T.grid(16, 80, 80, 7, 7):
-                with T.sblock("tensor"):
-                    ax0_3, ax1_3 = T.axis.remap("SS", [i0, i1])
-                    ax2_3 = T.axis.spatial(225, i2_0 * 80 + i2_1)
-                    ax3 = T.axis.spatial(225, i3_0 * 80 + i3_1)
-                    rv0, rv1 = T.axis.remap("RR", [i4, i5])
-                    T.where(i2_0 * 80 + i2_1 < 225 and i3_0 * 80 + i3_1 < 225)
-                    T.reads(pad_temp[ax0_3, ax1_3, ax2_3 + rv0, ax3 + rv1])
-                    T.writes(tensor[ax0_3, ax1_3, ax2_3, ax3])
-                    with T.init():
+                with Ts.sblock("tensor"):
+                    ax0_3, ax1_3 = Ts.axis.remap("SS", [i0, i1])
+                    ax2_3 = Ts.axis.spatial(225, i2_0 * 80 + i2_1)
+                    ax3 = Ts.axis.spatial(225, i3_0 * 80 + i3_1)
+                    rv0, rv1 = Ts.axis.remap("RR", [i4, i5])
+                    Ts.where(i2_0 * 80 + i2_1 < 225 and i3_0 * 80 + i3_1 < 225)
+                    Ts.reads(pad_temp[ax0_3, ax1_3, ax2_3 + rv0, ax3 + rv1])
+                    Ts.writes(tensor[ax0_3, ax1_3, ax2_3, ax3])
+                    with Ts.init():
                         tensor[ax0_3, ax1_3, ax2_3, ax3] = T.int8(0)
                     tensor[ax0_3, ax1_3, ax2_3, ax3] = (
                         tensor[ax0_3, ax1_3, ax2_3, ax3]
@@ -366,8 +366,8 @@ def test_decompose_wrt_single_child_subtree():
         y: T.Buffer((1, 16, 231, 231), dtype="int8"),
     ):
         for i0, i1, i2, i3 in T.grid(1, 16, 231, 231):
-            with T.sblock("pad_temp"):
-                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+            with Ts.sblock("pad_temp"):
+                ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 y[ax0, ax1, ax2, ax3] = T.if_then_else(
                     3 <= ax2 and ax2 < 228 and 3 <= ax3 and ax3 < 228,
                     x[ax0, ax1, ax2 - 3, ax3 - 3],
@@ -381,14 +381,14 @@ def test_decompose_wrt_single_child_subtree():
     ):
         for i0, i1 in T.grid(1, 16):
             for i2, i3 in T.grid(231, 231):
-                with T.sblock("pad_temp_pad_const"):
-                    ax0 = T.axis.spatial(1, 0)
-                    ax1, ax2, ax3 = T.axis.remap("SSS", [i1, i2, i3])
+                with Ts.sblock("pad_temp_pad_const"):
+                    ax0 = Ts.axis.spatial(1, 0)
+                    ax1, ax2, ax3 = Ts.axis.remap("SSS", [i1, i2, i3])
                     y[ax0, ax1, ax2, ax3] = T.int8(0)
             for i2, i3 in T.grid(225, 225):
-                with T.sblock("pad_temp"):
-                    ax0 = T.axis.spatial(1, 0)
-                    ax1, ax2, ax3 = T.axis.remap("SSS", [i1, i2, i3])
+                with Ts.sblock("pad_temp"):
+                    ax0 = Ts.axis.spatial(1, 0)
+                    ax1, ax2, ax3 = Ts.axis.remap("SSS", [i1, i2, i3])
                     y[ax0, ax1, ax2 + 3, ax3 + 3] = x[ax0, ax1, ax2, ax3]
 
     sch = tvm.s_tir.Schedule(pad_op, debug_mask="all")
@@ -406,8 +406,8 @@ def test_not_to_decompose_trivial_predicate():
         x: T.Buffer((1, 16, 225, 225), "int8"), y: T.Buffer([1, 16, 225, 225], dtype="int8")
     ):
         for i0, i1, i2, i3 in T.grid(1, 16, 225, 225):
-            with T.sblock("pad_temp"):
-                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+            with Ts.sblock("pad_temp"):
+                ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 y[ax0, ax1, ax2, ax3] = T.if_then_else(
                     0 <= ax2 and ax2 < 225 and 0 <= ax3 and ax3 < 225,
                     x[ax0, ax1, ax2, ax3],

@@ -66,9 +66,9 @@ class Matmul:
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -82,14 +82,14 @@ class DuplicateMatmul:
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
@@ -99,20 +99,20 @@ class TrinityMatmul:
     def main(a: T.handle, d: T.handle) -> None:
         T.func_attr({"global_symbol": "main"})
         A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.sblock_alloc_buffer((1024, 1024), "float32")
-        C = T.sblock_alloc_buffer((1024, 1024), "float32")
+        B = Ts.sblock_alloc_buffer((1024, 1024), "float32")
+        C = Ts.sblock_alloc_buffer((1024, 1024), "float32")
         D = T.match_buffer(d, (1024, 1024), "float32")
         for i, j in T.grid(1024, 1024):
-            with T.sblock("A"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("A"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
         for i, j in T.grid(1024, 1024):
-            with T.sblock("B"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("B"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 C[vi, vj] = B[vi, vj] + 3.0
         for i, j in T.grid(1024, 1024):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("C"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 D[vi, vj] = C[vi, vj] * 5.0
 
 
@@ -126,20 +126,20 @@ class TrinityMatmulProcessedForReference:
         D = T.match_buffer(d, [1024, 1024], dtype="float32")
         # body
         # with tirx.block("root")
-        B = T.sblock_alloc_buffer([1024, 1024], dtype="float32")
+        B = Ts.sblock_alloc_buffer([1024, 1024], dtype="float32")
         for i0_0, i1_0, i0_1, i1_1 in T.grid(16, 64, 64, 16):
-            with T.sblock("A"):
-                vi = T.axis.S(1024, i0_0 * 64 + i0_1)
-                vj = T.axis.S(1024, i1_0 * 16 + i1_1)
-                T.reads([A[vi, vj]])
-                T.writes([B[vi, vj]])
+            with Ts.sblock("A"):
+                vi = Ts.axis.S(1024, i0_0 * 64 + i0_1)
+                vj = Ts.axis.S(1024, i1_0 * 16 + i1_1)
+                Ts.reads([A[vi, vj]])
+                Ts.writes([B[vi, vj]])
                 B[vi, vj] = A[vi, vj] * T.float32(2)
         for i0_0, i1_0, i0_1, i1_1 in T.grid(16, 64, 64, 16):
-            with T.sblock("C"):
-                vi = T.axis.S(1024, i0_0 * 64 + i0_1)
-                vj = T.axis.S(1024, i1_0 * 16 + i1_1)
-                T.reads([B[vi, vj]])
-                T.writes([D[vi, vj]])
+            with Ts.sblock("C"):
+                vi = Ts.axis.S(1024, i0_0 * 64 + i0_1)
+                vj = Ts.axis.S(1024, i1_0 * 16 + i1_1)
+                Ts.reads([B[vi, vj]])
+                Ts.writes([D[vi, vj]])
                 D[vi, vj] = (B[vi, vj] + T.float32(3)) * T.float32(5)
 
 

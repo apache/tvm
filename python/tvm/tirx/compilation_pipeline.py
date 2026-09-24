@@ -24,45 +24,11 @@ from tvm.backend.cuda import transforms as cuda_transforms
 
 
 def default_tir_pipeline():
-    """The default tirx pipeline used in tvm.tirx.build"""
-
-    @tvm.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
-        """The default lowering passes for TIR backend."""
-        pass_ctx = tvm.transform.PassContext.current()
-        config = pass_ctx.config
-        passes = [
-            tirx.transform.LowerInitBlock(),
-            tvm.s_tir.transform.UnifyThreadBinding(),
-            tirx.transform.StmtSimplify(),
-            tirx.transform.FlattenBuffer(),
-            tirx.transform.BF16ComputeLegalize(),
-            tirx.transform.NarrowDataType(32),
-            tirx.transform.VectorizeLoop(not bool(config.get("tir.disable_vectorize", False))),
-            tirx.transform.UnrollLoop(),
-            tirx.transform.StmtSimplify(),
-        ]
-        if not bool(config.get("tir.disable_cse_tir", False)):
-            passes.append(tirx.transform.CommonSubexprElim())
-        passes.extend(
-            [
-                tirx.transform.FP8ComputeLegalize(),
-                tirx.transform.VerifyMemory(),
-                tirx.transform.AnnotateEntryFunc(),
-                tirx.transform.SplitHostDevice(),
-                cuda_transforms.LowerIket(),
-                tirx.transform.MakePackedAPI(),
-                tirx.transform.FP8StorageLegalize(),
-                tirx.transform.BF16StorageLegalize(),
-            ]
-        )
-        mod = tvm.ir.transform.Sequential(passes)(mod)
-        return mod
-
-    return _pipeline, finalize_host_passes, finalize_device_passes
+    """The default pipeline for TIRx primitive functions."""
+    return tirx_pipeline()
 
 
-def tirx_pipeline():
+def tirx_pipeline(*, prepare_only=False):
     """The TIRX pipeline used in tvm.tirx.build"""
 
     @tvm.transform.module_pass(opt_level=0)
@@ -72,34 +38,43 @@ def tirx_pipeline():
         config = pass_ctx.config
         passes = [
             tirx.transform.LowerTIRx(),
-            tvm.s_tir.transform.UnifyThreadBinding(),
+            tirx.transform.UnifyThreadBinding(),
             tirx.transform.StmtSimplify(),
             tirx.transform.LowerTIRxOpaque(),
             tirx.transform.FlattenBuffer(),
             tirx.transform.BF16ComputeLegalize(),
             tirx.transform.NarrowDataType(32),
-            tirx.transform.VectorizeLoop(not bool(config.get("tir.disable_vectorize", False))),
+            tirx.transform.VectorizeLoop(not bool(config.get("tirx.disable_vectorize", False))),
             tirx.transform.UnrollLoop(),
             tirx.transform.StmtSimplify(),
         ]
-        if not bool(config.get("tir.disable_cse_tir", False)):
+        if not bool(config.get("tirx.disable_cse_tir", False)):
             passes.append(tirx.transform.CommonSubexprElim())
         passes.extend(
             [
                 tirx.transform.FP8ComputeLegalize(),
                 tirx.transform.VerifyMemory(),
-                tirx.transform.AnnotateEntryFunc(),
-                tirx.transform.SplitHostDevice(),
-                cuda_transforms.LowerIket(),
-                tirx.transform.MakePackedAPI(),
-                tirx.transform.FP8StorageLegalize(),
-                tirx.transform.BF16StorageLegalize(),
+                tirx.transform.LowerThreadAllreduce(),
             ]
         )
         mod = tvm.ir.transform.Sequential(passes)(mod)
-        return mod
+        return mod if prepare_only else finalize_tir_pipeline()(mod)
 
     return _pipeline, finalize_host_passes, finalize_device_passes
+
+
+def finalize_tir_pipeline():
+    """Lower module-wide calling conventions after all dialects are prepared."""
+    return tvm.ir.transform.Sequential(
+        [
+            tirx.transform.AnnotateEntryFunc(),
+            tirx.transform.SplitHostDevice(),
+            cuda_transforms.LowerIket(),
+            tirx.transform.MakePackedAPI(),
+            tirx.transform.FP8StorageLegalize(),
+            tirx.transform.BF16StorageLegalize(),
+        ]
+    )
 
 
 def finalize_host_passes():  # pylint: disable=unused-argument
@@ -145,9 +120,8 @@ def get_tir_pipeline(name: str | None = None, **kwargs) -> tvm.transform.Pass:
     name : Optional[str]
         Name of the pipeline
     """
-    if name == "default":
-        # for now, default to s_tir pipeline
-        name = "s_tir"
+    if name is None:
+        name = "default"
     if name not in PIPELINE_MAP:
         raise ValueError(
             f"Unknown pre-built pipeline {name},candidates are {list(PIPELINE_MAP.keys())}"
@@ -155,11 +129,23 @@ def get_tir_pipeline(name: str | None = None, **kwargs) -> tvm.transform.Pass:
     return PIPELINE_MAP[name](**kwargs)
 
 
+# Dialects register their own default selection without introducing imports here.
+_DEFAULT_PIPELINE_SELECTORS = []
+
+
+def register_default_tir_pipeline_selector(selector) -> None:
+    """Register a callback returning a pipeline tuple or None for (module, target)."""
+    _DEFAULT_PIPELINE_SELECTORS.append(selector)
+
+
 def get_default_tir_pipeline(
-    target: tvm.target.Target,  # pylint: disable=unused-argument
+    target: tvm.target.Target | None,
+    mod: tvm.ir.IRModule | None = None,
 ) -> tvm.transform.Pass:
-    """Get the default TIR pipeline for the given target."""
-    if target.kind.name == "opencl" and "adreno" in target.keys:
-        return get_tir_pipeline("adreno")
-    else:
-        return get_tir_pipeline("s_tir")
+    """Get the default pipeline for the input module and target."""
+    if mod is not None:
+        for selector in _DEFAULT_PIPELINE_SELECTORS:
+            pipeline = selector(mod, target)
+            if pipeline is not None:
+                return pipeline
+    return get_tir_pipeline("default")

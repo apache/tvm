@@ -852,7 +852,7 @@ def module_member_(name: str, value: Any) -> Any:
         # Source
         class Module:
             helper = existing_function
-        # Generated builder, inside I.ir_module()
+        # Generated builder, inside I.ir_module
         helper = I.module_member_("helper", existing_function)
     """
     from tvm.ir import BaseFunc

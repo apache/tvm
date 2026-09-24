@@ -49,12 +49,12 @@ def loop_split(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128], dtype="float32")
     for i, ko in T.grid(128, 4):
         for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
-            with T.sblock("B"):
-                vi = T.axis.S(128, i)
-                vk = T.axis.R(128, ko * 32 + ki)
-                T.reads([A[vi, vk]])
-                T.writes([B[vi]])
-                with T.init():
+            with Ts.sblock("B"):
+                vi = Ts.axis.S(128, i)
+                vk = Ts.axis.R(128, ko * 32 + ki)
+                Ts.reads([A[vi, vk]])
+                Ts.writes([B[vi]])
+                with Ts.init():
                     B[vi] = T.float32(0)
                 B[vi] = B[vi] + A[vi, vk]
 
@@ -63,24 +63,24 @@ def loop_split(a: T.handle, b: T.handle) -> None:
 def lowered_loop_split(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
-    reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
-    normal_reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    normal_reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
         for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
-            with T.sblock("B_in_thread_init"):
-                T.reads([])
-                T.writes([normal_reduce_temp0[0]])
+            with Ts.sblock("B_in_thread_init"):
+                Ts.reads([])
+                Ts.writes([normal_reduce_temp0[0]])
                 normal_reduce_temp0[0] = T.float32(0)
             for ko in T.serial(0, 4):
-                with T.sblock("B_normal_reduction"):
-                    vi = T.axis.S(128, i)
-                    vk = T.axis.R(128, ko * 32 + ki)
-                    T.reads([A[vi, vk]])
-                    T.writes([normal_reduce_temp0[0]])
+                with Ts.sblock("B_normal_reduction"):
+                    vi = Ts.axis.S(128, i)
+                    vk = Ts.axis.R(128, ko * 32 + ki)
+                    Ts.reads([A[vi, vk]])
+                    Ts.writes([normal_reduce_temp0[0]])
                     normal_reduce_temp0[0] = normal_reduce_temp0[0] + A[vi, vk]
-            with T.sblock("B_cross_thread_reduction"):
-                T.reads([normal_reduce_temp0[0]])
-                T.writes([reduce_temp0[0]])
+            with Ts.sblock("B_cross_thread_reduction"):
+                Ts.reads([normal_reduce_temp0[0]])
+                Ts.writes([reduce_temp0[0]])
                 T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
@@ -96,11 +96,11 @@ def lowered_loop_split(a: T.handle, b: T.handle) -> None:
                         dtype="handle",
                     )
                 )
-            with T.sblock("B_write_back"):
-                vi = T.axis.S(128, i)
-                T.where(ki == 0)
-                T.reads([reduce_temp0[0]])
-                T.writes([B[vi]])
+            with Ts.sblock("B_write_back"):
+                vi = Ts.axis.S(128, i)
+                Ts.where(ki == 0)
+                Ts.reads([reduce_temp0[0]])
+                Ts.writes([B[vi]])
                 B[vi] = reduce_temp0[0]
 
 
@@ -110,11 +110,11 @@ def no_normal_reduction(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128], dtype="float32")
     for i in T.serial(0, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
-            with T.sblock("B"):
-                vi, vk = T.axis.remap("SR", [i, k])
-                T.reads([A[vi, vk]])
-                T.writes([B[vi]])
-                with T.init():
+            with Ts.sblock("B"):
+                vi, vk = Ts.axis.remap("SR", [i, k])
+                Ts.reads([A[vi, vk]])
+                Ts.writes([B[vi]])
+                with Ts.init():
                     B[vi] = T.float32(0)
                 B[vi] = B[vi] + A[vi, vk]
 
@@ -124,13 +124,13 @@ def no_normal_reduction(a: T.handle, b: T.handle) -> None:
 def lowered_no_normal_reduction(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
-    reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
-            with T.sblock("B_cross_thread_reduction"):
-                vi, vk = T.axis.remap("SR", [i, k])
-                T.reads([A[vi, vk]])
-                T.writes([reduce_temp0[0]])
+            with Ts.sblock("B_cross_thread_reduction"):
+                vi, vk = Ts.axis.remap("SR", [i, k])
+                Ts.reads([A[vi, vk]])
+                Ts.writes([reduce_temp0[0]])
                 T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
@@ -141,11 +141,11 @@ def lowered_no_normal_reduction(a: T.handle, b: T.handle) -> None:
                         T.uint32(1), A[vi, vk], True, reduce_temp0[0], k, dtype="handle"
                     )
                 )
-            with T.sblock("B_write_back"):
-                vi = T.axis.spatial(128, i)
-                T.where(k == 0)
-                T.reads([reduce_temp0[0]])
-                T.writes([B[vi]])
+            with Ts.sblock("B_write_back"):
+                vi = Ts.axis.spatial(128, i)
+                Ts.where(k == 0)
+                Ts.reads([reduce_temp0[0]])
+                Ts.writes([B[vi]])
                 B[vi] = reduce_temp0[0]
 
 
@@ -156,12 +156,12 @@ def two_bound_loops(a: T.handle, b: T.handle) -> None:
     for i in T.serial(0, 128):
         for ko in T.thread_binding(0, 4, thread="threadIdx.x"):
             for ki in T.thread_binding(0, 32, thread="threadIdx.y"):
-                with T.sblock("B"):
-                    vi = T.axis.spatial(128, i)
-                    vk = T.axis.reduce(128, ko * 32 + ki)
-                    T.reads([A[vi, vk]])
-                    T.writes([B[vi]])
-                    with T.init():
+                with Ts.sblock("B"):
+                    vi = Ts.axis.spatial(128, i)
+                    vk = Ts.axis.reduce(128, ko * 32 + ki)
+                    Ts.reads([A[vi, vk]])
+                    Ts.writes([B[vi]])
+                    with Ts.init():
                         B[vi] = T.float32(0)
                     B[vi] = B[vi] + A[vi, vk]
 
@@ -171,15 +171,15 @@ def two_bound_loops(a: T.handle, b: T.handle) -> None:
 def lowered_two_bound_loops(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
-    reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
         for ko in T.thread_binding(0, 4, thread="threadIdx.x"):
             for ki in T.thread_binding(0, 32, thread="threadIdx.y"):
-                with T.sblock("B_cross_thread_reduction"):
-                    vi = T.axis.spatial(128, i)
-                    vk = T.axis.reduce(128, ko * 32 + ki)
-                    T.reads([A[vi, vk]])
-                    T.writes([reduce_temp0[0]])
+                with Ts.sblock("B_cross_thread_reduction"):
+                    vi = Ts.axis.spatial(128, i)
+                    vk = Ts.axis.reduce(128, ko * 32 + ki)
+                    Ts.reads([A[vi, vk]])
+                    Ts.writes([reduce_temp0[0]])
                     T.attr(
                         T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                         "reduce_scope",
@@ -190,11 +190,11 @@ def lowered_two_bound_loops(a: T.handle, b: T.handle) -> None:
                             T.uint32(1), A[vi, vk], True, reduce_temp0[0], ko, ki, dtype="handle"
                         )
                     )
-                with T.sblock("B_write_back"):
-                    vi = T.axis.spatial(128, i)
-                    T.where(ko == 0 and ki == 0)
-                    T.reads([reduce_temp0[0]])
-                    T.writes([B[vi]])
+                with Ts.sblock("B_write_back"):
+                    vi = Ts.axis.spatial(128, i)
+                    Ts.where(ko == 0 and ki == 0)
+                    Ts.reads([reduce_temp0[0]])
+                    Ts.writes([B[vi]])
                     B[vi] = reduce_temp0[0]
 
 
@@ -202,25 +202,25 @@ def lowered_two_bound_loops(a: T.handle, b: T.handle) -> None:
 def multiple_blocks_under_reduction_loop(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16, 16], dtype="float32")
     B = T.match_buffer(b, [16], dtype="float32")
-    B_rf_local = T.sblock_alloc_buffer([16, 16], dtype="float32", scope="local")
+    B_rf_local = Ts.sblock_alloc_buffer([16, 16], dtype="float32", scope="local")
     for i in T.thread_binding(0, 16, thread="blockIdx.x"):
         for k0o in T.thread_binding(0, 4, thread="threadIdx.x"):
             for k0i0, k1 in T.grid(4, 16):
-                with T.sblock("B_rf"):
-                    vk0 = T.axis.spatial(16, k0o * 4 + k0i0)
-                    vi, vk1 = T.axis.remap("SR", [i, k1])
-                    T.reads([A[vi, vk0, vk1]])
-                    T.writes([B_rf_local[vk0, vi]])
-                    with T.init():
+                with Ts.sblock("B_rf"):
+                    vk0 = Ts.axis.spatial(16, k0o * 4 + k0i0)
+                    vi, vk1 = Ts.axis.remap("SR", [i, k1])
+                    Ts.reads([A[vi, vk0, vk1]])
+                    Ts.writes([B_rf_local[vk0, vi]])
+                    with Ts.init():
                         B_rf_local[vk0, vi] = T.float32(0)
                     B_rf_local[vk0, vi] = B_rf_local[vk0, vi] + A[vi, vk0, vk1]
             for k0i1 in T.serial(0, 4):
-                with T.sblock("B"):
-                    vk0 = T.axis.reduce(16, k0o * 4 + k0i1)
-                    vi = T.axis.spatial(16, i)
-                    T.reads([B_rf_local[vk0, vi]])
-                    T.writes([B[vi]])
-                    with T.init():
+                with Ts.sblock("B"):
+                    vk0 = Ts.axis.reduce(16, k0o * 4 + k0i1)
+                    vi = Ts.axis.spatial(16, i)
+                    Ts.reads([B_rf_local[vk0, vi]])
+                    Ts.writes([B[vi]])
+                    with Ts.init():
                         B[vi] = T.float32(0)
                     B[vi] = B[vi] + B_rf_local[vk0, vi]
 
@@ -229,34 +229,34 @@ def multiple_blocks_under_reduction_loop(a: T.handle, b: T.handle) -> None:
 def lowered_multiple_blocks_under_reduction_loop(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16, 16], dtype="float32")
     B = T.match_buffer(b, [16], dtype="float32")
-    B_rf_local = T.sblock_alloc_buffer([16, 16], dtype="float32", scope="local")
-    reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
-    normal_reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    B_rf_local = Ts.sblock_alloc_buffer([16, 16], dtype="float32", scope="local")
+    reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    normal_reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.thread_binding(0, 16, thread="blockIdx.x"):
         for k0o in T.thread_binding(0, 4, thread="threadIdx.x"):
-            with T.sblock("B_in_thread_init"):
-                T.reads([])
-                T.writes([normal_reduce_temp0[0]])
+            with Ts.sblock("B_in_thread_init"):
+                Ts.reads([])
+                Ts.writes([normal_reduce_temp0[0]])
                 normal_reduce_temp0[0] = T.float32(0)
             for k0i0, k1 in T.grid(4, 16):
-                with T.sblock("B_rf"):
-                    vk0 = T.axis.spatial(16, k0o * 4 + k0i0)
-                    vi, vk1 = T.axis.remap("SR", [i, k1])
-                    T.reads([A[vi, vk0, vk1]])
-                    T.writes([B_rf_local[vk0, vi]])
-                    with T.init():
+                with Ts.sblock("B_rf"):
+                    vk0 = Ts.axis.spatial(16, k0o * 4 + k0i0)
+                    vi, vk1 = Ts.axis.remap("SR", [i, k1])
+                    Ts.reads([A[vi, vk0, vk1]])
+                    Ts.writes([B_rf_local[vk0, vi]])
+                    with Ts.init():
                         B_rf_local[vk0, vi] = T.float32(0)
                     B_rf_local[vk0, vi] = B_rf_local[vk0, vi] + A[vi, vk0, vk1]
             for k0i1 in T.serial(0, 4):
-                with T.sblock("B_normal_reduction"):
-                    vk0 = T.axis.reduce(16, k0o * 4 + k0i1)
-                    vi = T.axis.spatial(16, i)
-                    T.reads([B_rf_local[vk0, vi]])
-                    T.writes([normal_reduce_temp0[0]])
+                with Ts.sblock("B_normal_reduction"):
+                    vk0 = Ts.axis.reduce(16, k0o * 4 + k0i1)
+                    vi = Ts.axis.spatial(16, i)
+                    Ts.reads([B_rf_local[vk0, vi]])
+                    Ts.writes([normal_reduce_temp0[0]])
                     normal_reduce_temp0[0] = normal_reduce_temp0[0] + B_rf_local[vk0, vi]
-            with T.sblock("B_cross_thread_reduction"):
-                T.reads([normal_reduce_temp0[0]])
-                T.writes([reduce_temp0[0]])
+            with Ts.sblock("B_cross_thread_reduction"):
+                Ts.reads([normal_reduce_temp0[0]])
+                Ts.writes([reduce_temp0[0]])
                 T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
@@ -272,11 +272,11 @@ def lowered_multiple_blocks_under_reduction_loop(a: T.handle, b: T.handle) -> No
                         dtype="handle",
                     )
                 )
-            with T.sblock("B_write_back"):
-                vi = T.axis.spatial(16, i)
-                T.where(k0o == 0)
-                T.reads([reduce_temp0[0]])
-                T.writes([B[vi]])
+            with Ts.sblock("B_write_back"):
+                vi = Ts.axis.spatial(16, i)
+                Ts.where(k0o == 0)
+                Ts.reads([reduce_temp0[0]])
+                Ts.writes([B[vi]])
                 B[vi] = reduce_temp0[0]
 
 
@@ -286,13 +286,13 @@ def with_block_predicate(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128], dtype="float32")
     for i, ko in T.grid(128, 4):
         for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
-            with T.sblock("B"):
-                vi = T.axis.spatial(128, i)
-                vk = T.axis.reduce(120, ko * 32 + ki)
-                T.where(ko * 32 + ki < 120)
-                T.reads([A[vi, vk]])
-                T.writes([B[vi]])
-                with T.init():
+            with Ts.sblock("B"):
+                vi = Ts.axis.spatial(128, i)
+                vk = Ts.axis.reduce(120, ko * 32 + ki)
+                Ts.where(ko * 32 + ki < 120)
+                Ts.reads([A[vi, vk]])
+                Ts.writes([B[vi]])
+                with Ts.init():
                     B[vi] = T.float32(0)
                 B[vi] = B[vi] + A[vi, vk]
 
@@ -301,25 +301,25 @@ def with_block_predicate(a: T.handle, b: T.handle) -> None:
 def lowered_with_block_predicate(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 120], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
-    reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
-    normal_reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    normal_reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
         for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
-            with T.sblock("B_in_thread_init"):
-                T.reads([])
-                T.writes([normal_reduce_temp0[0]])
+            with Ts.sblock("B_in_thread_init"):
+                Ts.reads([])
+                Ts.writes([normal_reduce_temp0[0]])
                 normal_reduce_temp0[0] = T.float32(0)
             for ko in T.serial(0, 4):
-                with T.sblock("B_normal_reduction"):
-                    vi = T.axis.spatial(128, i)
-                    vk = T.axis.reduce(120, ko * 32 + ki)
-                    T.where(ko * 32 + ki < 120)
-                    T.reads([A[vi, vk]])
-                    T.writes([normal_reduce_temp0[0]])
+                with Ts.sblock("B_normal_reduction"):
+                    vi = Ts.axis.spatial(128, i)
+                    vk = Ts.axis.reduce(120, ko * 32 + ki)
+                    Ts.where(ko * 32 + ki < 120)
+                    Ts.reads([A[vi, vk]])
+                    Ts.writes([normal_reduce_temp0[0]])
                     normal_reduce_temp0[0] = normal_reduce_temp0[0] + A[vi, vk]
-            with T.sblock("B_cross_thread_reduction"):
-                T.reads([normal_reduce_temp0[0]])
-                T.writes([reduce_temp0[0]])
+            with Ts.sblock("B_cross_thread_reduction"):
+                Ts.reads([normal_reduce_temp0[0]])
+                Ts.writes([reduce_temp0[0]])
                 T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
@@ -335,11 +335,11 @@ def lowered_with_block_predicate(a: T.handle, b: T.handle) -> None:
                         dtype="handle",
                     )
                 )
-            with T.sblock("B_write_back"):
-                vi = T.axis.spatial(128, i)
-                T.where(ki == 0)
-                T.reads([reduce_temp0[0]])
-                T.writes([B[vi]])
+            with Ts.sblock("B_write_back"):
+                vi = Ts.axis.spatial(128, i)
+                Ts.where(ki == 0)
+                Ts.reads([reduce_temp0[0]])
+                Ts.writes([B[vi]])
                 B[vi] = reduce_temp0[0]
 
 
@@ -347,46 +347,46 @@ def lowered_with_block_predicate(a: T.handle, b: T.handle) -> None:
 def single_reduction_loop_with_block_predicate(
     A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
 ) -> None:
-    T_softmax_maxelem_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
-    T_softmax_expsum_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+    T_softmax_maxelem_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+    T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
     for i0 in T.serial(256):
         for ax0, ax1_0 in T.grid(1, 1):
             for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
-                with T.sblock("T_softmax_maxelem"):
-                    i0_1 = T.axis.spatial(256, i0 + ax0)
-                    k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
-                    T.where(ax1_0 * 512 + ax1_1 < 256)
-                    T.reads(A[i0_1, k])
-                    T.writes(T_softmax_maxelem_shared[i0_1])
-                    with T.init():
+                with Ts.sblock("T_softmax_maxelem"):
+                    i0_1 = Ts.axis.spatial(256, i0 + ax0)
+                    k = Ts.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                    Ts.where(ax1_0 * 512 + ax1_1 < 256)
+                    Ts.reads(A[i0_1, k])
+                    Ts.writes(T_softmax_maxelem_shared[i0_1])
+                    with Ts.init():
                         T_softmax_maxelem_shared[i0_1] = T.float32(-3.4028234663852886e38)
                     T_softmax_maxelem_shared[i0_1] = T.max(
                         T_softmax_maxelem_shared[i0_1], A[i0_1, k]
                     )
         for ax0, ax1_0 in T.grid(1, 1):
             for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
-                with T.sblock("T_softmax_expsum"):
-                    i0_2 = T.axis.spatial(256, i0 + ax0)
-                    k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
-                    T.where(ax1_0 * 512 + ax1_1 < 256)
-                    T.reads(A[i0_2, k], T_softmax_maxelem_shared[i0_2])
-                    T.writes(T_softmax_expsum_shared[i0_2])
-                    with T.init():
+                with Ts.sblock("T_softmax_expsum"):
+                    i0_2 = Ts.axis.spatial(256, i0 + ax0)
+                    k = Ts.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                    Ts.where(ax1_0 * 512 + ax1_1 < 256)
+                    Ts.reads(A[i0_2, k], T_softmax_maxelem_shared[i0_2])
+                    Ts.writes(T_softmax_expsum_shared[i0_2])
+                    with Ts.init():
                         T_softmax_expsum_shared[i0_2] = T.float32(0)
                     T_softmax_expsum_shared[i0_2] = T_softmax_expsum_shared[i0_2] + T.exp(
                         A[i0_2, k] - T_softmax_maxelem_shared[i0_2], dtype="float32"
                     )
         for i1_0 in T.serial(1):
             for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
-                with T.sblock("T_softmax_norm"):
-                    i0_3 = T.axis.spatial(256, i0)
-                    i1 = T.axis.spatial(256, i1_0 * 512 + i1_1)
-                    T.where(i1_0 * 512 + i1_1 < 256)
-                    T.reads(
+                with Ts.sblock("T_softmax_norm"):
+                    i0_3 = Ts.axis.spatial(256, i0)
+                    i1 = Ts.axis.spatial(256, i1_0 * 512 + i1_1)
+                    Ts.where(i1_0 * 512 + i1_1 < 256)
+                    Ts.reads(
                         A[i0_3, i1], T_softmax_maxelem_shared[i0_3], T_softmax_expsum_shared[i0_3]
                     )
-                    T.writes(T_softmax_norm[i0_3, i1])
-                    T.sblock_attr({"axis": 1})
+                    Ts.writes(T_softmax_norm[i0_3, i1])
+                    Ts.sblock_attr({"axis": 1})
                     T_softmax_norm[i0_3, i1] = (
                         T.exp(A[i0_3, i1] - T_softmax_maxelem_shared[i0_3], dtype="float32")
                         / T_softmax_expsum_shared[i0_3]
@@ -397,30 +397,30 @@ def single_reduction_loop_with_block_predicate(
 def lowered_single_reduction_loop_with_block_predicate(
     A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
 ) -> None:
-    T_softmax_maxelem_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
-    T_softmax_expsum_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
-    cross_thread_0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
-    in_thread_0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
-    cross_thread_1 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
-    in_thread_1 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    T_softmax_maxelem_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+    T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+    cross_thread_0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    in_thread_0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    cross_thread_1 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    in_thread_1 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i0 in T.serial(256):
         for ax0 in T.serial(1):
             for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
-                with T.sblock("T_softmax_maxelem_in_thread_init"):
-                    T.reads()
-                    T.writes(in_thread_0[0])
+                with Ts.sblock("T_softmax_maxelem_in_thread_init"):
+                    Ts.reads()
+                    Ts.writes(in_thread_0[0])
                     in_thread_0[0] = T.float32(-3.4028234663852886e38)
                 for ax1_0 in T.serial(1):
-                    with T.sblock("T_softmax_maxelem_in_thread"):
-                        T.where(ax1_0 * 512 + ax1_1 < 256)
-                        i0_1 = T.axis.spatial(256, i0 + ax0)
-                        k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
-                        T.reads(A[i0_1, k])
-                        T.writes(in_thread_0[0])
+                    with Ts.sblock("T_softmax_maxelem_in_thread"):
+                        Ts.where(ax1_0 * 512 + ax1_1 < 256)
+                        i0_1 = Ts.axis.spatial(256, i0 + ax0)
+                        k = Ts.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                        Ts.reads(A[i0_1, k])
+                        Ts.writes(in_thread_0[0])
                         in_thread_0[0] = T.max(in_thread_0[0], A[i0_1, k])
-                with T.sblock("T_softmax_maxelem_cross_thread"):
-                    T.reads(in_thread_0[0])
-                    T.writes(cross_thread_0[0])
+                with Ts.sblock("T_softmax_maxelem_cross_thread"):
+                    Ts.reads(in_thread_0[0])
+                    Ts.writes(cross_thread_0[0])
                     T.attr(
                         T.comm_reducer(
                             lambda x, y: T.max(x, y), [T.float32(-3.4028234663852886e38)]
@@ -438,31 +438,31 @@ def lowered_single_reduction_loop_with_block_predicate(
                             dtype="handle",
                         )
                     )
-                with T.sblock("T_softmax_maxelem_write_back"):
-                    i0_2 = T.axis.spatial(256, i0 + ax0)
-                    T.where(ax1_1 == 0)
-                    T.reads(cross_thread_0[0])
-                    T.writes(T_softmax_maxelem_shared[i0_2])
+                with Ts.sblock("T_softmax_maxelem_write_back"):
+                    i0_2 = Ts.axis.spatial(256, i0 + ax0)
+                    Ts.where(ax1_1 == 0)
+                    Ts.reads(cross_thread_0[0])
+                    Ts.writes(T_softmax_maxelem_shared[i0_2])
                     T_softmax_maxelem_shared[i0_2] = cross_thread_0[0]
         for ax0 in T.serial(1):
             for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
-                with T.sblock("T_softmax_expsum_in_thread_init"):
-                    T.reads()
-                    T.writes(in_thread_1[0])
+                with Ts.sblock("T_softmax_expsum_in_thread_init"):
+                    Ts.reads()
+                    Ts.writes(in_thread_1[0])
                     in_thread_1[0] = T.float32(0)
                 for ax1_0 in T.serial(1):
-                    with T.sblock("T_softmax_expsum_in_thread"):
-                        T.where(ax1_0 * 512 + ax1_1 < 256)
-                        i0_3 = T.axis.spatial(256, i0 + ax0)
-                        k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
-                        T.reads(A[i0_3, k], T_softmax_maxelem_shared[i0_3])
-                        T.writes(in_thread_1[0])
+                    with Ts.sblock("T_softmax_expsum_in_thread"):
+                        Ts.where(ax1_0 * 512 + ax1_1 < 256)
+                        i0_3 = Ts.axis.spatial(256, i0 + ax0)
+                        k = Ts.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                        Ts.reads(A[i0_3, k], T_softmax_maxelem_shared[i0_3])
+                        Ts.writes(in_thread_1[0])
                         in_thread_1[0] = in_thread_1[0] + T.exp(
                             A[i0_3, k] - T_softmax_maxelem_shared[i0_3], dtype="float32"
                         )
-                with T.sblock("T_softmax_expsum_cross_thread"):
-                    T.reads(in_thread_1[0])
-                    T.writes(cross_thread_1[0])
+                with Ts.sblock("T_softmax_expsum_cross_thread"):
+                    Ts.reads(in_thread_1[0])
+                    Ts.writes(cross_thread_1[0])
                     T.attr(
                         T.comm_reducer(lambda x_1, y_1: x_1 + y_1, [T.float32(0)]),
                         "reduce_scope",
@@ -478,23 +478,23 @@ def lowered_single_reduction_loop_with_block_predicate(
                             dtype="handle",
                         )
                     )
-                with T.sblock("T_softmax_expsum_write_back"):
-                    i0_4 = T.axis.spatial(256, i0 + ax0)
-                    T.where(ax1_1 == 0)
-                    T.reads(cross_thread_1[0])
-                    T.writes(T_softmax_expsum_shared[i0_4])
+                with Ts.sblock("T_softmax_expsum_write_back"):
+                    i0_4 = Ts.axis.spatial(256, i0 + ax0)
+                    Ts.where(ax1_1 == 0)
+                    Ts.reads(cross_thread_1[0])
+                    Ts.writes(T_softmax_expsum_shared[i0_4])
                     T_softmax_expsum_shared[i0_4] = cross_thread_1[0]
         for i1_0 in T.serial(1):
             for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
-                with T.sblock("T_softmax_norm"):
-                    i0_5 = T.axis.spatial(256, i0)
-                    i1 = T.axis.spatial(256, i1_0 * 512 + i1_1)
-                    T.where(i1_0 * 512 + i1_1 < 256)
-                    T.reads(
+                with Ts.sblock("T_softmax_norm"):
+                    i0_5 = Ts.axis.spatial(256, i0)
+                    i1 = Ts.axis.spatial(256, i1_0 * 512 + i1_1)
+                    Ts.where(i1_0 * 512 + i1_1 < 256)
+                    Ts.reads(
                         A[i0_5, i1], T_softmax_maxelem_shared[i0_5], T_softmax_expsum_shared[i0_5]
                     )
-                    T.writes(T_softmax_norm[i0_5, i1])
-                    T.sblock_attr({"axis": 1})
+                    Ts.writes(T_softmax_norm[i0_5, i1])
+                    Ts.sblock_attr({"axis": 1})
                     T_softmax_norm[i0_5, i1] = (
                         T.exp(A[i0_5, i1] - T_softmax_maxelem_shared[i0_5], dtype="float32")
                         / T_softmax_expsum_shared[i0_5]
@@ -507,9 +507,9 @@ def spatial_reduction_with_shared_prefetch(
     B: T.Buffer((128, 150528), "float32"),
     C: T.Buffer((128, 128), "float32"),
 ):
-    C_local = T.sblock_alloc_buffer((128, 128), scope="local")
-    A_shared = T.sblock_alloc_buffer((128, 150528), scope="shared")
-    B_shared = T.sblock_alloc_buffer((128, 150528), scope="shared")
+    C_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
+    A_shared = Ts.sblock_alloc_buffer((128, 150528), scope="shared")
+    B_shared = Ts.sblock_alloc_buffer((128, 150528), scope="shared")
     for ax0_0_ax1_0_fused in T.thread_binding(256, thread="blockIdx.x"):
         for ax0_1_ax1_1_fused in T.thread_binding(64, thread="threadIdx.y"):
             for ax2_1_1_fused in T.thread_binding(2, thread="threadIdx.x"):
@@ -518,8 +518,8 @@ def spatial_reduction_with_shared_prefetch(
                         for ax0_ax1_fused_1 in T.thread_binding(64, thread="threadIdx.y"):
                             for ax0_ax1_fused_2 in T.thread_binding(2, thread="threadIdx.x"):
                                 for ax0_ax1_fused_3 in T.serial(4):
-                                    with T.sblock("A_shared"):
-                                        v0 = T.axis.spatial(
+                                    with Ts.sblock("A_shared"):
+                                        v0 = Ts.axis.spatial(
                                             128,
                                             ax0_0_ax1_0_fused // 16 * 8
                                             + (
@@ -530,7 +530,7 @@ def spatial_reduction_with_shared_prefetch(
                                             )
                                             // 384,
                                         )
-                                        v1 = T.axis.spatial(
+                                        v1 = Ts.axis.spatial(
                                             150528,
                                             ax2_0 * 384
                                             + (
@@ -541,15 +541,15 @@ def spatial_reduction_with_shared_prefetch(
                                             )
                                             % 384,
                                         )
-                                        T.reads(A[v0, v1])
-                                        T.writes(A_shared[v0, v1])
+                                        Ts.reads(A[v0, v1])
+                                        Ts.writes(A_shared[v0, v1])
                                         A_shared[v0, v1] = A[v0, v1]
                     for ax0_ax1_fused_0 in range(6):
                         for ax0_ax1_fused_1 in T.thread_binding(64, thread="threadIdx.y"):
                             for ax0_ax1_fused_2 in T.thread_binding(2, thread="threadIdx.x"):
                                 for ax0_ax1_fused_3 in T.serial(4):
-                                    with T.sblock("B_shared"):
-                                        v0 = T.axis.spatial(
+                                    with Ts.sblock("B_shared"):
+                                        v0 = Ts.axis.spatial(
                                             128,
                                             ax0_0_ax1_0_fused % 16 * 8
                                             + (
@@ -560,7 +560,7 @@ def spatial_reduction_with_shared_prefetch(
                                             )
                                             // 384,
                                         )
-                                        v1 = T.axis.spatial(
+                                        v1 = Ts.axis.spatial(
                                             150528,
                                             ax2_0 * 384
                                             + (
@@ -571,28 +571,28 @@ def spatial_reduction_with_shared_prefetch(
                                             )
                                             % 384,
                                         )
-                                        T.reads(B[v0, v1])
-                                        T.writes(B_shared[v0, v1])
+                                        Ts.reads(B[v0, v1])
+                                        Ts.writes(B_shared[v0, v1])
                                         B_shared[v0, v1] = B[v0, v1]
                     for ax2_1_0 in range(192):
-                        with T.sblock("B"):
-                            v0 = T.axis.spatial(
+                        with Ts.sblock("B"):
+                            v0 = Ts.axis.spatial(
                                 128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8
                             )
-                            v1 = T.axis.spatial(
+                            v1 = Ts.axis.spatial(
                                 128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8
                             )
-                            v2 = T.axis.reduce(150528, ax2_0 * 384 + ax2_1_0 * 2 + ax2_1_1_fused)
-                            T.reads(A_shared[v0, v2], B_shared[v1, v2])
-                            T.writes(C_local[v0, v1])
-                            with T.init():
+                            v2 = Ts.axis.reduce(150528, ax2_0 * 384 + ax2_1_0 * 2 + ax2_1_1_fused)
+                            Ts.reads(A_shared[v0, v2], B_shared[v1, v2])
+                            Ts.writes(C_local[v0, v1])
+                            with Ts.init():
                                 C_local[v0, v1] = T.float32(0)
                             C_local[v0, v1] = C_local[v0, v1] + A_shared[v0, v2] * B_shared[v1, v2]
-            with T.sblock("C_local"):
-                v0 = T.axis.spatial(128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8)
-                v1 = T.axis.spatial(128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8)
-                T.reads(C_local[v0, v1])
-                T.writes(C[v0, v1])
+            with Ts.sblock("C_local"):
+                v0 = Ts.axis.spatial(128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8)
+                v1 = Ts.axis.spatial(128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8)
+                Ts.reads(C_local[v0, v1])
+                Ts.writes(C[v0, v1])
                 C[v0, v1] = C_local[v0, v1]
 
 
@@ -602,25 +602,25 @@ def lowered_spatial_reduction_with_shared_prefetch(
     B: T.Buffer((128, 150528), "float32"),
     C: T.Buffer((128, 128), "float32"),
 ):
-    C_local = T.sblock_alloc_buffer((128, 128), scope="local")
-    A_shared = T.sblock_alloc_buffer((128, 150528), scope="shared")
-    B_shared = T.sblock_alloc_buffer((128, 150528), scope="shared")
-    cross_thread_C_local = T.sblock_alloc_buffer((1,), strides=(1,), scope="local")
-    in_thread_C_local = T.sblock_alloc_buffer((1,), strides=(1,), scope="local")
+    C_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
+    A_shared = Ts.sblock_alloc_buffer((128, 150528), scope="shared")
+    B_shared = Ts.sblock_alloc_buffer((128, 150528), scope="shared")
+    cross_thread_C_local = Ts.sblock_alloc_buffer((1,), strides=(1,), scope="local")
+    in_thread_C_local = Ts.sblock_alloc_buffer((1,), strides=(1,), scope="local")
     for ax0_0_ax1_0_fused in T.thread_binding(256, thread="blockIdx.x"):
         for ax0_1_ax1_1_fused in T.thread_binding(64, thread="threadIdx.y"):
             for ax2_1_1_fused in T.thread_binding(2, thread="threadIdx.x"):
-                with T.sblock("B_in_thread_init"):
-                    T.reads()
-                    T.writes(in_thread_C_local[0])
+                with Ts.sblock("B_in_thread_init"):
+                    Ts.reads()
+                    Ts.writes(in_thread_C_local[0])
                     in_thread_C_local[0] = T.float32(0)
                 for ax2_0 in range(392):
                     for ax0_ax1_fused_0 in range(6):
                         for ax0_ax1_fused_1 in T.thread_binding(64, thread="threadIdx.y"):
                             for ax0_ax1_fused_2 in T.thread_binding(2, thread="threadIdx.x"):
                                 for ax0_ax1_fused_3 in range(4):
-                                    with T.sblock("A_shared"):
-                                        v0 = T.axis.spatial(
+                                    with Ts.sblock("A_shared"):
+                                        v0 = Ts.axis.spatial(
                                             128,
                                             ax0_0_ax1_0_fused // 16 * 8
                                             + (
@@ -631,7 +631,7 @@ def lowered_spatial_reduction_with_shared_prefetch(
                                             )
                                             // 384,
                                         )
-                                        v1 = T.axis.spatial(
+                                        v1 = Ts.axis.spatial(
                                             150528,
                                             ax2_0 * 384
                                             + (
@@ -642,15 +642,15 @@ def lowered_spatial_reduction_with_shared_prefetch(
                                             )
                                             % 384,
                                         )
-                                        T.reads(A[v0, v1])
-                                        T.writes(A_shared[v0, v1])
+                                        Ts.reads(A[v0, v1])
+                                        Ts.writes(A_shared[v0, v1])
                                         A_shared[v0, v1] = A[v0, v1]
                     for ax0_ax1_fused_0 in range(6):
                         for ax0_ax1_fused_1 in T.thread_binding(64, thread="threadIdx.y"):
                             for ax0_ax1_fused_2 in T.thread_binding(2, thread="threadIdx.x"):
                                 for ax0_ax1_fused_3 in range(4):
-                                    with T.sblock("B_shared"):
-                                        v0 = T.axis.spatial(
+                                    with Ts.sblock("B_shared"):
+                                        v0 = Ts.axis.spatial(
                                             128,
                                             ax0_0_ax1_0_fused % 16 * 8
                                             + (
@@ -661,7 +661,7 @@ def lowered_spatial_reduction_with_shared_prefetch(
                                             )
                                             // 384,
                                         )
-                                        v1 = T.axis.spatial(
+                                        v1 = Ts.axis.spatial(
                                             150528,
                                             ax2_0 * 384
                                             + (
@@ -672,26 +672,26 @@ def lowered_spatial_reduction_with_shared_prefetch(
                                             )
                                             % 384,
                                         )
-                                        T.reads(B[v0, v1])
-                                        T.writes(B_shared[v0, v1])
+                                        Ts.reads(B[v0, v1])
+                                        Ts.writes(B_shared[v0, v1])
                                         B_shared[v0, v1] = B[v0, v1]
                     for ax2_1_0 in range(192):
-                        with T.sblock("B_in_thread"):
-                            v0 = T.axis.spatial(
+                        with Ts.sblock("B_in_thread"):
+                            v0 = Ts.axis.spatial(
                                 128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8
                             )
-                            v1 = T.axis.spatial(
+                            v1 = Ts.axis.spatial(
                                 128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8
                             )
-                            v2 = T.axis.reduce(150528, ax2_0 * 384 + ax2_1_0 * 2 + ax2_1_1_fused)
-                            T.reads(A_shared[v0, v2], B_shared[v1, v2])
-                            T.writes(in_thread_C_local[0])
+                            v2 = Ts.axis.reduce(150528, ax2_0 * 384 + ax2_1_0 * 2 + ax2_1_1_fused)
+                            Ts.reads(A_shared[v0, v2], B_shared[v1, v2])
+                            Ts.writes(in_thread_C_local[0])
                             in_thread_C_local[0] = (
                                 in_thread_C_local[0] + A_shared[v0, v2] * B_shared[v1, v2]
                             )
-                with T.sblock("B_cross_thread"):
-                    T.reads(in_thread_C_local[0])
-                    T.writes(cross_thread_C_local[0])
+                with Ts.sblock("B_cross_thread"):
+                    Ts.reads(in_thread_C_local[0])
+                    Ts.writes(cross_thread_C_local[0])
                     T.attr(
                         T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                         "reduce_scope",
@@ -704,19 +704,19 @@ def lowered_spatial_reduction_with_shared_prefetch(
                         cross_thread_C_local[0],
                         ax2_1_1_fused,
                     )
-                with T.sblock("B_write_back"):
-                    v0 = T.axis.spatial(128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8)
-                    v1 = T.axis.spatial(128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8)
-                    T.reads(cross_thread_C_local[0])
-                    T.writes(C_local[v0, v1])
+                with Ts.sblock("B_write_back"):
+                    v0 = Ts.axis.spatial(128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8)
+                    v1 = Ts.axis.spatial(128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8)
+                    Ts.reads(cross_thread_C_local[0])
+                    Ts.writes(C_local[v0, v1])
                     C_local[v0, v1] = cross_thread_C_local[0]
             for tx in T.thread_binding(2, thread="threadIdx.x"):
-                with T.sblock("C_local"):
-                    v0 = T.axis.spatial(128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8)
-                    v1 = T.axis.spatial(128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8)
-                    T.where(tx == 0)
-                    T.reads(C_local[v0, v1])
-                    T.writes(C[v0, v1])
+                with Ts.sblock("C_local"):
+                    v0 = Ts.axis.spatial(128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8)
+                    v1 = Ts.axis.spatial(128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8)
+                    Ts.where(tx == 0)
+                    Ts.reads(C_local[v0, v1])
+                    Ts.writes(C[v0, v1])
                     C[v0, v1] = C_local[v0, v1]
 
 
@@ -726,13 +726,13 @@ def spatial_reduction_loop_predicate(A: T.Buffer((2, 32), "float32"), B: T.Buffe
         for i_1 in T.thread_binding(16, thread="threadIdx.y"):
             for k_0 in range(1):
                 for k_1 in T.thread_binding(64, thread="threadIdx.x"):
-                    with T.sblock("block"):
-                        vi = T.axis.spatial(2, i_0 * 16 + i_1)
-                        vk = T.axis.reduce(32, k_0 * 64 + k_1)
-                        T.where(i_0 * 16 + i_1 < 2 and k_0 * 64 + k_1 < 32)
-                        T.reads(A[vi, vk])
-                        T.writes(B[vi])
-                        with T.init():
+                    with Ts.sblock("block"):
+                        vi = Ts.axis.spatial(2, i_0 * 16 + i_1)
+                        vk = Ts.axis.reduce(32, k_0 * 64 + k_1)
+                        Ts.where(i_0 * 16 + i_1 < 2 and k_0 * 64 + k_1 < 32)
+                        Ts.reads(A[vi, vk])
+                        Ts.writes(B[vi])
+                        with Ts.init():
                             B[vi] = T.float32(0)
                         B[vi] = B[vi] + A[vi, vk]
 
@@ -741,26 +741,26 @@ def spatial_reduction_loop_predicate(A: T.Buffer((2, 32), "float32"), B: T.Buffe
 def lowered_reduction_spatial_loop_predicate(
     A: T.Buffer((2, 32), "float32"), B: T.Buffer((2,), "float32")
 ):
-    cross_thread_B = T.sblock_alloc_buffer((1,), strides=(1,), scope="local")
-    in_thread_B = T.sblock_alloc_buffer((1,), strides=(1,), scope="local")
+    cross_thread_B = Ts.sblock_alloc_buffer((1,), strides=(1,), scope="local")
+    in_thread_B = Ts.sblock_alloc_buffer((1,), strides=(1,), scope="local")
     for i_0 in range(1):
         for i_1 in T.thread_binding(16, thread="threadIdx.y"):
             for k_1 in T.thread_binding(64, thread="threadIdx.x"):
-                with T.sblock("block_in_thread_init"):
-                    T.reads()
-                    T.writes(in_thread_B[0])
+                with Ts.sblock("block_in_thread_init"):
+                    Ts.reads()
+                    Ts.writes(in_thread_B[0])
                     in_thread_B[0] = T.float32(0)
                 for k_0 in range(1):
-                    with T.sblock("block_in_thread"):
-                        vi = T.axis.spatial(2, i_0 * 16 + i_1)
-                        vk = T.axis.reduce(32, k_0 * 64 + k_1)
-                        T.where(i_0 * 16 + i_1 < 2 and k_0 * 64 + k_1 < 32)
-                        T.reads(A[vi, vk])
-                        T.writes(in_thread_B[0])
+                    with Ts.sblock("block_in_thread"):
+                        vi = Ts.axis.spatial(2, i_0 * 16 + i_1)
+                        vk = Ts.axis.reduce(32, k_0 * 64 + k_1)
+                        Ts.where(i_0 * 16 + i_1 < 2 and k_0 * 64 + k_1 < 32)
+                        Ts.reads(A[vi, vk])
+                        Ts.writes(in_thread_B[0])
                         in_thread_B[0] = in_thread_B[0] + A[vi, vk]
-                with T.sblock("block_cross_thread"):
-                    T.reads(in_thread_B[0])
-                    T.writes(cross_thread_B[0])
+                with Ts.sblock("block_cross_thread"):
+                    Ts.reads(in_thread_B[0])
+                    Ts.writes(cross_thread_B[0])
                     T.attr(
                         T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                         "reduce_scope",
@@ -770,11 +770,11 @@ def lowered_reduction_spatial_loop_predicate(
                         T.uint32(1), in_thread_B[0], T.bool(True), cross_thread_B[0], k_1
                     )
                 k_0 = T.int32()
-                with T.sblock("block_write_back"):
-                    vi = T.axis.spatial(2, i_0 * 16 + i_1)
-                    T.where(i_0 * 16 + i_1 < 2 and k_1 == 0)
-                    T.reads(cross_thread_B[0])
-                    T.writes(B[vi])
+                with Ts.sblock("block_write_back"):
+                    vi = Ts.axis.spatial(2, i_0 * 16 + i_1)
+                    Ts.where(i_0 * 16 + i_1 < 2 and k_1 == 0)
+                    Ts.reads(cross_thread_B[0])
+                    Ts.writes(B[vi])
                     B[vi] = cross_thread_B[0]
 
 
@@ -785,36 +785,36 @@ def single_reduction_loop_with_tensorize(
     output: T.Buffer((1, 16, 7, 7, 32), "int32"),
 ) -> None:
     # body
-    # with T.sblock("root")
+    # with Ts.sblock("root")
     for i1, i2, i3, i4, i5 in T.grid(16, 4, 98, 2, 32):
-        with T.sblock("compute_o"):
-            n = T.axis.spatial(1, 0)
-            oc_chunk = T.axis.spatial(16, i1)
-            oh = T.axis.spatial(7, (i2 * 6272 + i3 * 64 + i4 * 32 + i5) // 3584)
-            ow = T.axis.spatial(7, (i2 * 6272 + i3 * 64 + i4 * 32 + i5) % 3584 // 512)
-            kh = T.axis.reduce(1, 0)
-            kw = T.axis.reduce(1, 0)
-            ic_outer = T.axis.reduce(64, (i2 * 6272 + i3 * 64 + i4 * 32 + i5) % 512 // 8)
-            ic_f_inner = T.axis.reduce(8, (i2 * 6272 + i3 * 64 + i4 * 32 + i5) % 8)
-            T.reads(
+        with Ts.sblock("compute_o"):
+            n = Ts.axis.spatial(1, 0)
+            oc_chunk = Ts.axis.spatial(16, i1)
+            oh = Ts.axis.spatial(7, (i2 * 6272 + i3 * 64 + i4 * 32 + i5) // 3584)
+            ow = Ts.axis.spatial(7, (i2 * 6272 + i3 * 64 + i4 * 32 + i5) % 3584 // 512)
+            kh = Ts.axis.reduce(1, 0)
+            kw = Ts.axis.reduce(1, 0)
+            ic_outer = Ts.axis.reduce(64, (i2 * 6272 + i3 * 64 + i4 * 32 + i5) % 512 // 8)
+            ic_f_inner = Ts.axis.reduce(8, (i2 * 6272 + i3 * 64 + i4 * 32 + i5) % 8)
+            Ts.reads(
                 input_A[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4],
                 input_B[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:32, 0:4],
             )
-            T.writes(output[n, oc_chunk, oh, ow, 0:32])
-            with T.init():
+            Ts.writes(output[n, oc_chunk, oh, ow, 0:32])
+            with Ts.init():
                 for x in T.serial(32):
-                    with T.sblock("compute_init"):
-                        oc_block_i_init = T.axis.spatial(32, x)
-                        T.reads()
-                        T.writes(output[n, oc_chunk, oh, ow, oc_block_i_init])
+                    with Ts.sblock("compute_init"):
+                        oc_block_i_init = Ts.axis.spatial(32, x)
+                        Ts.reads()
+                        Ts.writes(output[n, oc_chunk, oh, ow, oc_block_i_init])
                         output[n, oc_chunk, oh, ow, oc_block_i_init] = 0
-            with T.sblock("compute_o"):
-                T.reads(
+            with Ts.sblock("compute_o"):
+                Ts.reads(
                     output[n, oc_chunk, oh, ow, 0:32],
                     input_A[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4],
                     input_B[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:32, 0:4],
                 )
-                T.writes(output[n, oc_chunk, oh, ow, 0:32])
+                Ts.writes(output[n, oc_chunk, oh, ow, 0:32])
                 A = T.match_buffer(
                     input_A[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4],
                     [4],
@@ -850,29 +850,29 @@ def nested_reduction_loop_with_inner_match_buffers(
     out: T.Buffer((4, 4), "int32"),
 ) -> None:
     # body
-    # with T.sblock("root")
+    # with Ts.sblock("root")
     for y in T.serial(4):
-        with T.sblock("C"):
-            yi = T.axis.spatial(4, y)
-            T.reads(in0[yi, 0:16], in1[yi, 0:16])
-            T.writes(out[yi, 0:4])
+        with Ts.sblock("C"):
+            yi = Ts.axis.spatial(4, y)
+            Ts.reads(in0[yi, 0:16], in1[yi, 0:16])
+            Ts.writes(out[yi, 0:4])
             for x in T.serial(4):
-                with T.sblock("C"):
-                    xr = T.axis.reduce(4, x)
-                    with T.init():
+                with Ts.sblock("C"):
+                    xr = Ts.axis.reduce(4, x)
+                    with Ts.init():
                         for i in T.serial(4):
-                            with T.sblock("C_init"):
-                                ii = T.axis.spatial(4, i)
-                                T.reads()
-                                T.writes(out[yi, ii])
+                            with Ts.sblock("C_init"):
+                                ii = Ts.axis.spatial(4, i)
+                                Ts.reads()
+                                Ts.writes(out[yi, ii])
                                 out[yi, ii] = 0
-                    with T.sblock("C"):
-                        T.reads(
+                    with Ts.sblock("C"):
+                        Ts.reads(
                             out[yi, xr],
                             in0[yi, yi * 4 + xr : yi * 4 + xr + 4],
                             in1[yi, yi * 4 + xr : yi * 4 + xr + 4],
                         )
-                        T.writes(out[yi, xr])
+                        Ts.writes(out[yi, xr])
                         A = T.match_buffer(
                             in0[yi, yi * 4 + xr : yi * 4 + xr + 4],
                             [4],
@@ -899,11 +899,11 @@ def reducer_max(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128], dtype="float32")
     for i in T.serial(0, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
-            with T.sblock("B"):
-                vi, vk = T.axis.remap("SR", [i, k])
-                T.reads([A[vi, vk]])
-                T.writes([B[vi]])
-                with T.init():
+            with Ts.sblock("B"):
+                vi, vk = Ts.axis.remap("SR", [i, k])
+                Ts.reads([A[vi, vk]])
+                Ts.writes([B[vi]])
+                with Ts.init():
                     B[vi] = T.min_value("float32")
                 B[vi] = T.max(B[vi], A[vi, vk])
 
@@ -913,13 +913,13 @@ def reducer_max(a: T.handle, b: T.handle) -> None:
 def lowered_reducer_max(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
-    reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
-            with T.sblock("B_cross_thread_reduction"):
-                vi, vk = T.axis.remap("SR", [i, k])
-                T.reads([A[vi, vk]])
-                T.writes([reduce_temp0[0]])
+            with Ts.sblock("B_cross_thread_reduction"):
+                vi, vk = Ts.axis.remap("SR", [i, k])
+                Ts.reads([A[vi, vk]])
+                Ts.writes([reduce_temp0[0]])
                 T.attr(
                     T.comm_reducer(lambda x, y: T.max(x, y), [T.min_value("float32")]),
                     "reduce_scope",
@@ -930,11 +930,11 @@ def lowered_reducer_max(a: T.handle, b: T.handle) -> None:
                         T.uint32(1), A[vi, vk], True, reduce_temp0[0], k, dtype="handle"
                     )
                 )
-            with T.sblock("B_write_back"):
-                vi = T.axis.spatial(128, i)
-                T.where(k == 0)
-                T.reads([reduce_temp0[0]])
-                T.writes([B[vi]])
+            with Ts.sblock("B_write_back"):
+                vi = Ts.axis.spatial(128, i)
+                Ts.where(k == 0)
+                Ts.reads([reduce_temp0[0]])
+                Ts.writes([B[vi]])
                 B[vi] = reduce_temp0[0]
 
 
@@ -943,11 +943,11 @@ def zero_rank_buffer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128], dtype="float32")
     B = T.match_buffer(b, [], dtype="float32")
     for k in T.thread_binding(0, 128, thread="threadIdx.x"):
-        with T.sblock("B"):
-            vk = T.axis.reduce(128, k)
-            T.reads([A[vk]])
-            T.writes([B[()]])
-            with T.init():
+        with Ts.sblock("B"):
+            vk = Ts.axis.reduce(128, k)
+            Ts.reads([A[vk]])
+            Ts.writes([B[()]])
+            with Ts.init():
                 B[()] = T.float32(0)
             B[()] = B[()] + A[vk]
 
@@ -957,12 +957,12 @@ def zero_rank_buffer(a: T.handle, b: T.handle) -> None:
 def lowered_zero_rank_buffer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128], dtype="float32")
     B = T.match_buffer(b, [], dtype="float32")
-    reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for k in T.thread_binding(0, 128, thread="threadIdx.x"):
-        with T.sblock("B_cross_thread_reduction"):
-            vk = T.axis.reduce(128, k)
-            T.reads([A[vk]])
-            T.writes([reduce_temp0[0]])
+        with Ts.sblock("B_cross_thread_reduction"):
+            vk = Ts.axis.reduce(128, k)
+            Ts.reads([A[vk]])
+            Ts.writes([reduce_temp0[0]])
             T.attr(
                 T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                 "reduce_scope",
@@ -971,10 +971,10 @@ def lowered_zero_rank_buffer(a: T.handle, b: T.handle) -> None:
             T.evaluate(
                 T.tvm_thread_allreduce(T.uint32(1), A[vk], True, reduce_temp0[0], k, dtype="handle")
             )
-        with T.sblock("B_write_back"):
-            T.reads([reduce_temp0[0]])
-            T.writes([B[()]])
-            T.where(k == 0)
+        with Ts.sblock("B_write_back"):
+            Ts.reads([reduce_temp0[0]])
+            Ts.writes([B[()]])
+            Ts.where(k == 0)
             B[()] = reduce_temp0[0]
 
 
@@ -982,14 +982,14 @@ def lowered_zero_rank_buffer(a: T.handle, b: T.handle) -> None:
 def multiple_bufferstore(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
-    C = T.sblock_alloc_buffer([], dtype="float32")
+    C = Ts.sblock_alloc_buffer([], dtype="float32")
     for i in T.serial(0, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
-            with T.sblock("B"):
-                vi, vk = T.axis.remap("SR", [i, k])
-                T.reads([A[vi, vk], B[vi], C[()]])
-                T.writes([B[vi], C[()]])
-                with T.init():
+            with Ts.sblock("B"):
+                vi, vk = Ts.axis.remap("SR", [i, k])
+                Ts.reads([A[vi, vk], B[vi], C[()]])
+                Ts.writes([B[vi], C[()]])
+                with Ts.init():
                     B[vi] = T.float32(0)
                 C[()] = A[vi, vk]
                 B[vi] = B[vi] + C[()]
@@ -1001,11 +1001,11 @@ def reduction_loop_not_deepest(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128], dtype="float32")
     for k in T.thread_binding(0, 128, thread="threadIdx.x"):
         for i in T.serial(0, 128):
-            with T.sblock("B"):
-                vi, vk = T.axis.remap("SR", [i, k])
-                T.reads([A[vi, vk]])
-                T.writes([B[vi]])
-                with T.init():
+            with Ts.sblock("B"):
+                vi, vk = Ts.axis.remap("SR", [i, k])
+                Ts.reads([A[vi, vk]])
+                Ts.writes([B[vi]])
+                with Ts.init():
                     B[vi] = T.float32(0)
                 B[vi] = B[vi] + A[vi, vk]
 
@@ -1016,11 +1016,11 @@ def reduction_loop_bound_to_blockidx(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128], dtype="float32")
     for i in T.serial(0, 128):
         for k in T.thread_binding(0, 128, thread="blockIdx.x"):
-            with T.sblock("B"):
-                vi, vk = T.axis.remap("SR", [i, k])
-                T.reads([A[vi, vk]])
-                T.writes([B[vi]])
-                with T.init():
+            with Ts.sblock("B"):
+                vi, vk = Ts.axis.remap("SR", [i, k])
+                Ts.reads([A[vi, vk]])
+                Ts.writes([B[vi]])
+                with Ts.init():
                     B[vi] = T.float32(0)
                 B[vi] = B[vi] + A[vi, vk]
 
@@ -1031,10 +1031,10 @@ def different_access_indices(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128], dtype="float32")
     for i, j in T.grid(128, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
-            with T.sblock("B"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                T.reads([A[vi, vj, vk]])
-                T.writes(
+            with Ts.sblock("B"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                Ts.reads([A[vi, vj, vk]])
+                Ts.writes(
                     [
                         B[
                             T.min(vj, vi) : T.min(vj, vi) + (T.max(vj, vi) + 1 - T.min(vj, vi)),
@@ -1042,7 +1042,7 @@ def different_access_indices(a: T.handle, b: T.handle) -> None:
                         ]
                     ]
                 )
-                with T.init():
+                with Ts.init():
                     B[vj, vi] = T.float32(0)
                 B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
 
@@ -1053,11 +1053,11 @@ def invalid_reducer(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128], dtype="float32")
     for i in T.serial(0, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
-            with T.sblock("B"):
-                vi, vk = T.axis.remap("SR", [i, k])
-                T.reads([A[vi, vk]])
-                T.writes([B[vi]])
-                with T.init():
+            with Ts.sblock("B"):
+                vi, vk = Ts.axis.remap("SR", [i, k])
+                Ts.reads([A[vi, vk]])
+                Ts.writes([B[vi]])
+                with Ts.init():
                     B[vi] = T.float32(0)
                 B[vi] = B[vi] - A[vi, vk]
 
@@ -1066,52 +1066,52 @@ def invalid_reducer(a: T.handle, b: T.handle) -> None:
 def softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
     A = T.match_buffer(var_A, [256, 256], dtype="float32")
     T_softmax_norm = T.match_buffer(var_T_softmax_norm, [256, 256], dtype="float32")
-    T_softmax_maxelem_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
-    T_softmax_expsum_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+    T_softmax_maxelem_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+    T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
     for i0 in T.thread_binding(0, 256, thread="blockIdx.x"):
         for ax0_0 in T.serial(0, 8):
             for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
-                with T.sblock("T_softmax_maxelem"):
-                    i0_1 = T.axis.spatial(256, i0)
-                    k = T.axis.reduce(256, ax0_0 * 32 + ax0_1)
-                    T.reads([A[i0_1, k]])
-                    T.writes([T_softmax_maxelem_shared[i0_1]])
-                    with T.init():
+                with Ts.sblock("T_softmax_maxelem"):
+                    i0_1 = Ts.axis.spatial(256, i0)
+                    k = Ts.axis.reduce(256, ax0_0 * 32 + ax0_1)
+                    Ts.reads([A[i0_1, k]])
+                    Ts.writes([T_softmax_maxelem_shared[i0_1]])
+                    with Ts.init():
                         T_softmax_maxelem_shared[i0_1] = T.min_value("float32")
                     T_softmax_maxelem_shared[i0_1] = T.max(
                         T_softmax_maxelem_shared[i0_1], A[i0_1, k]
                     )
         for ax0_0 in T.serial(0, 8):
             for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
-                with T.sblock("T_softmax_expsum"):
-                    i0_2 = T.axis.spatial(256, i0)
-                    k = T.axis.reduce(256, ax0_0 * 32 + ax0_1)
-                    T.reads(
+                with Ts.sblock("T_softmax_expsum"):
+                    i0_2 = Ts.axis.spatial(256, i0)
+                    k = Ts.axis.reduce(256, ax0_0 * 32 + ax0_1)
+                    Ts.reads(
                         [
                             A[i0_2, k],
                             T_softmax_maxelem_shared[i0_2],
                         ]
                     )
-                    T.writes([T_softmax_expsum_shared[i0_2]])
-                    with T.init():
+                    Ts.writes([T_softmax_expsum_shared[i0_2]])
+                    with Ts.init():
                         T_softmax_expsum_shared[i0_2] = T.float32(0)
                     T_softmax_expsum_shared[i0_2] = T_softmax_expsum_shared[i0_2] + T.exp(
                         A[i0_2, k] - T_softmax_maxelem_shared[i0_2], dtype="float32"
                     )
         for i1_0 in T.serial(0, 8):
             for i1_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
-                with T.sblock("T_softmax_norm"):
-                    i0_3 = T.axis.spatial(256, i0)
-                    i1 = T.axis.spatial(256, i1_0 * 32 + i1_1)
-                    T.reads(
+                with Ts.sblock("T_softmax_norm"):
+                    i0_3 = Ts.axis.spatial(256, i0)
+                    i1 = Ts.axis.spatial(256, i1_0 * 32 + i1_1)
+                    Ts.reads(
                         [
                             A[i0_3, i1],
                             T_softmax_maxelem_shared[i0_3],
                             T_softmax_expsum_shared[i0_3],
                         ]
                     )
-                    T.writes([T_softmax_norm[i0_3, i1]])
-                    T.sblock_attr({"axis": 1})
+                    Ts.writes([T_softmax_norm[i0_3, i1]])
+                    Ts.sblock_attr({"axis": 1})
                     T_softmax_norm[i0_3, i1] = (
                         T.exp(
                             A[i0_3, i1] - T_softmax_maxelem_shared[i0_3],
@@ -1125,28 +1125,28 @@ def softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
 def lowered_softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
     A = T.match_buffer(var_A, [256, 256], dtype="float32")
     T_softmax_norm = T.match_buffer(var_T_softmax_norm, [256, 256], dtype="float32")
-    T_softmax_maxelem_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
-    T_softmax_expsum_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
-    reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
-    normal_reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
-    reduce_temp1 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
-    normal_reduce_temp1 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    T_softmax_maxelem_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+    T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+    reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    normal_reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp1 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    normal_reduce_temp1 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i0 in T.thread_binding(0, 256, thread="blockIdx.x"):
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
-            with T.sblock("T_softmax_maxelem_normal_reduction_init"):
-                T.reads([])
-                T.writes([normal_reduce_temp0[0]])
+            with Ts.sblock("T_softmax_maxelem_normal_reduction_init"):
+                Ts.reads([])
+                Ts.writes([normal_reduce_temp0[0]])
                 normal_reduce_temp0[0] = T.min_value("float32")
             for ax0_0 in T.serial(0, 8):
-                with T.sblock("T_softmax_maxelem_normal_reduction"):
-                    i0_1 = T.axis.spatial(256, i0)
-                    k = T.axis.reduce(256, ax0_0 * 32 + ax0_1)
-                    T.reads([A[i0_1, k]])
-                    T.writes([normal_reduce_temp0[0]])
+                with Ts.sblock("T_softmax_maxelem_normal_reduction"):
+                    i0_1 = Ts.axis.spatial(256, i0)
+                    k = Ts.axis.reduce(256, ax0_0 * 32 + ax0_1)
+                    Ts.reads([A[i0_1, k]])
+                    Ts.writes([normal_reduce_temp0[0]])
                     normal_reduce_temp0[0] = T.max(normal_reduce_temp0[0], A[i0_1, k])
-            with T.sblock("T_softmax_maxelem_cross_thread_reduction"):
-                T.reads([normal_reduce_temp0[0]])
-                T.writes([reduce_temp0[0]])
+            with Ts.sblock("T_softmax_maxelem_cross_thread_reduction"):
+                Ts.reads([normal_reduce_temp0[0]])
+                Ts.writes([reduce_temp0[0]])
                 T.attr(
                     T.comm_reducer(lambda x, y: T.max(x, y), [T.min_value("float32")]),
                     "reduce_scope",
@@ -1162,34 +1162,34 @@ def lowered_softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
                         dtype="handle",
                     )
                 )
-            with T.sblock("T_softmax_maxelem_write_back"):
-                i0_2 = T.axis.spatial(256, i0)
-                T.where(ax0_1 == 0)
-                T.reads([reduce_temp0[0]])
-                T.writes([T_softmax_maxelem_shared[i0_2]])
+            with Ts.sblock("T_softmax_maxelem_write_back"):
+                i0_2 = Ts.axis.spatial(256, i0)
+                Ts.where(ax0_1 == 0)
+                Ts.reads([reduce_temp0[0]])
+                Ts.writes([T_softmax_maxelem_shared[i0_2]])
                 T_softmax_maxelem_shared[i0_2] = reduce_temp0[0]
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
-            with T.sblock("T_softmax_expsum_normal_reduction_init"):
-                T.reads([])
-                T.writes([normal_reduce_temp1[0]])
+            with Ts.sblock("T_softmax_expsum_normal_reduction_init"):
+                Ts.reads([])
+                Ts.writes([normal_reduce_temp1[0]])
                 normal_reduce_temp1[0] = T.float32(0)
             for ax0_0 in T.serial(0, 8):
-                with T.sblock("T_softmax_expsum_normal_reduction"):
-                    i0_3 = T.axis.spatial(256, i0)
-                    k = T.axis.reduce(256, ax0_0 * 32 + ax0_1)
-                    T.reads(
+                with Ts.sblock("T_softmax_expsum_normal_reduction"):
+                    i0_3 = Ts.axis.spatial(256, i0)
+                    k = Ts.axis.reduce(256, ax0_0 * 32 + ax0_1)
+                    Ts.reads(
                         [
                             A[i0_3, k],
                             T_softmax_maxelem_shared[i0_3],
                         ]
                     )
-                    T.writes([normal_reduce_temp1[0]])
+                    Ts.writes([normal_reduce_temp1[0]])
                     normal_reduce_temp1[0] = normal_reduce_temp1[0] + T.exp(
                         A[i0_3, k] - T_softmax_maxelem_shared[i0_3], dtype="float32"
                     )
-            with T.sblock("T_softmax_expsum_cross_thread_reduction"):
-                T.reads([normal_reduce_temp1[0]])
-                T.writes([reduce_temp1[0]])
+            with Ts.sblock("T_softmax_expsum_cross_thread_reduction"):
+                Ts.reads([normal_reduce_temp1[0]])
+                Ts.writes([reduce_temp1[0]])
                 T.attr(
                     T.comm_reducer(lambda x_1, y_1: x_1 + y_1, [T.float32(0)]),
                     "reduce_scope",
@@ -1205,26 +1205,26 @@ def lowered_softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
                         dtype="handle",
                     )
                 )
-            with T.sblock("T_softmax_expsum_write_back"):
-                i0_4 = T.axis.spatial(256, i0)
-                T.where(ax0_1 == 0)
-                T.reads([reduce_temp1[0]])
-                T.writes([T_softmax_expsum_shared[i0_4]])
+            with Ts.sblock("T_softmax_expsum_write_back"):
+                i0_4 = Ts.axis.spatial(256, i0)
+                Ts.where(ax0_1 == 0)
+                Ts.reads([reduce_temp1[0]])
+                Ts.writes([T_softmax_expsum_shared[i0_4]])
                 T_softmax_expsum_shared[i0_4] = reduce_temp1[0]
         for i1_0 in T.serial(0, 8):
             for i1_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
-                with T.sblock("T_softmax_norm"):
-                    i0_5 = T.axis.spatial(256, i0)
-                    i1 = T.axis.spatial(256, i1_0 * 32 + i1_1)
-                    T.reads(
+                with Ts.sblock("T_softmax_norm"):
+                    i0_5 = Ts.axis.spatial(256, i0)
+                    i1 = Ts.axis.spatial(256, i1_0 * 32 + i1_1)
+                    Ts.reads(
                         [
                             A[i0_5, i1],
                             T_softmax_maxelem_shared[i0_5],
                             T_softmax_expsum_shared[i0_5],
                         ]
                     )
-                    T.writes([T_softmax_norm[i0_5, i1]])
-                    T.sblock_attr({"axis": 1})
+                    Ts.writes([T_softmax_norm[i0_5, i1]])
+                    Ts.sblock_attr({"axis": 1})
                     T_softmax_norm[i0_5, i1] = (
                         T.exp(
                             A[i0_5, i1] - T_softmax_maxelem_shared[i0_5],
@@ -1243,12 +1243,12 @@ def argmax_split(
 ) -> None:
     for i0, i1_0 in T.grid(128, 4):
         for i1_1 in T.thread_binding(32, thread="threadIdx.x"):
-            with T.sblock("argmax"):
-                i = T.axis.spatial(128, i0)
-                k = T.axis.reduce(128, i1_0 * 32 + i1_1)
-                T.reads(idx[i, k], val[i, k])
-                T.writes(argmax_v0[i], argmax_v1[i])
-                with T.init():
+            with Ts.sblock("argmax"):
+                i = Ts.axis.spatial(128, i0)
+                k = Ts.axis.reduce(128, i1_0 * 32 + i1_1)
+                Ts.reads(idx[i, k], val[i, k])
+                Ts.writes(argmax_v0[i], argmax_v1[i])
+                with Ts.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.float32(-3.4028234663852886e38)
                 v_argmax_v0: T.let[T.int32] = T.Select(
@@ -1268,23 +1268,25 @@ def lowered_argmax_split(
     argmax_v0: T.Buffer((128,), "int32"),
     argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
-    cross_thread_argmax_v0 = T.sblock_alloc_buffer([1], dtype="int32", strides=[1], scope="local")
-    cross_thread_argmax_v1 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
-    in_thread_argmax_v0 = T.sblock_alloc_buffer([1], dtype="int32", strides=[1], scope="local")
-    in_thread_argmax_v1 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    cross_thread_argmax_v0 = Ts.sblock_alloc_buffer([1], dtype="int32", strides=[1], scope="local")
+    cross_thread_argmax_v1 = Ts.sblock_alloc_buffer(
+        [1], dtype="float32", strides=[1], scope="local"
+    )
+    in_thread_argmax_v0 = Ts.sblock_alloc_buffer([1], dtype="int32", strides=[1], scope="local")
+    in_thread_argmax_v1 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i0 in T.serial(128):
         for i1_1 in T.thread_binding(32, thread="threadIdx.x"):
-            with T.sblock("argmax_in_thread_init"):
-                T.reads()
-                T.writes(in_thread_argmax_v0[0], in_thread_argmax_v1[0])
+            with Ts.sblock("argmax_in_thread_init"):
+                Ts.reads()
+                Ts.writes(in_thread_argmax_v0[0], in_thread_argmax_v1[0])
                 in_thread_argmax_v0[0] = -1
                 in_thread_argmax_v1[0] = T.float32(-3.4028234663852886e38)
             for i1_0 in T.serial(4):
-                with T.sblock("argmax_in_thread"):
-                    i = T.axis.spatial(128, i0)
-                    k = T.axis.reduce(128, i1_0 * 32 + i1_1)
-                    T.reads(idx[i, k], val[i, k])
-                    T.writes(in_thread_argmax_v0[0], in_thread_argmax_v1[0])
+                with Ts.sblock("argmax_in_thread"):
+                    i = Ts.axis.spatial(128, i0)
+                    k = Ts.axis.reduce(128, i1_0 * 32 + i1_1)
+                    Ts.reads(idx[i, k], val[i, k])
+                    Ts.writes(in_thread_argmax_v0[0], in_thread_argmax_v1[0])
                     v_argmax_v0: T.let[T.int32] = T.Select(
                         in_thread_argmax_v1[0] >= val[i, k], in_thread_argmax_v0[0], idx[i, k]
                     )
@@ -1293,9 +1295,9 @@ def lowered_argmax_split(
                     )
                     in_thread_argmax_v0[0] = v_argmax_v0
                     in_thread_argmax_v1[0] = v_argmax_v1
-            with T.sblock("argmax_cross_thread"):
-                T.reads(in_thread_argmax_v0[0], in_thread_argmax_v1[0])
-                T.writes(cross_thread_argmax_v0[0], cross_thread_argmax_v1[0])
+            with Ts.sblock("argmax_cross_thread"):
+                Ts.reads(in_thread_argmax_v0[0], in_thread_argmax_v1[0])
+                Ts.writes(cross_thread_argmax_v0[0], cross_thread_argmax_v1[0])
                 T.attr(
                     T.comm_reducer(
                         lambda x0, x1, y0, y1: (
@@ -1319,11 +1321,11 @@ def lowered_argmax_split(
                         dtype="handle",
                     )
                 )
-            with T.sblock("argmax_write_back"):
-                i = T.axis.spatial(128, i0)
-                T.where(i1_1 == 0)
-                T.reads(cross_thread_argmax_v0[0], cross_thread_argmax_v1[0])
-                T.writes(argmax_v0[i], argmax_v1[i])
+            with Ts.sblock("argmax_write_back"):
+                i = Ts.axis.spatial(128, i0)
+                Ts.where(i1_1 == 0)
+                Ts.reads(cross_thread_argmax_v0[0], cross_thread_argmax_v1[0])
+                Ts.writes(argmax_v0[i], argmax_v1[i])
                 argmax_v0[i] = cross_thread_argmax_v0[0]
                 argmax_v1[i] = cross_thread_argmax_v1[0]
 
@@ -1337,12 +1339,12 @@ def argmin_split_init_update_reordered(
 ) -> None:
     for i0, i1_0 in T.grid(128, 4):
         for i1_1 in T.thread_binding(32, thread="threadIdx.x"):
-            with T.sblock("argmin"):
-                i = T.axis.spatial(128, i0)
-                k = T.axis.reduce(128, i1_0 * 32 + i1_1)
-                T.reads(idx[i, k], val[i, k])
-                T.writes(argmin_v0[i], argmin_v1[i])
-                with T.init():
+            with Ts.sblock("argmin"):
+                i = Ts.axis.spatial(128, i0)
+                k = Ts.axis.reduce(128, i1_0 * 32 + i1_1)
+                Ts.reads(idx[i, k], val[i, k])
+                Ts.writes(argmin_v0[i], argmin_v1[i])
+                with Ts.init():
                     argmin_v1[i] = T.float32(3.4028234663852886e38)
                     argmin_v0[i] = -1
                 v_argmin_v0: T.let[T.int32] = T.Select(
@@ -1362,23 +1364,25 @@ def lowered_argmin_split_init_update_reordered(
     argmin_v0: T.Buffer((128,), "int32"),
     argmin_v1: T.Buffer((128,), "float32"),
 ) -> None:
-    cross_thread_argmin_v0 = T.sblock_alloc_buffer([1], dtype="int32", strides=[1], scope="local")
-    cross_thread_argmin_v1 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
-    in_thread_argmin_v0 = T.sblock_alloc_buffer([1], dtype="int32", strides=[1], scope="local")
-    in_thread_argmin_v1 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    cross_thread_argmin_v0 = Ts.sblock_alloc_buffer([1], dtype="int32", strides=[1], scope="local")
+    cross_thread_argmin_v1 = Ts.sblock_alloc_buffer(
+        [1], dtype="float32", strides=[1], scope="local"
+    )
+    in_thread_argmin_v0 = Ts.sblock_alloc_buffer([1], dtype="int32", strides=[1], scope="local")
+    in_thread_argmin_v1 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i0 in T.serial(128):
         for i1_1 in T.thread_binding(32, thread="threadIdx.x"):
-            with T.sblock("argmin_in_thread_init"):
-                T.reads()
-                T.writes(in_thread_argmin_v0[0], in_thread_argmin_v1[0])
+            with Ts.sblock("argmin_in_thread_init"):
+                Ts.reads()
+                Ts.writes(in_thread_argmin_v0[0], in_thread_argmin_v1[0])
                 in_thread_argmin_v0[0] = -1
                 in_thread_argmin_v1[0] = T.float32(3.4028234663852886e38)
             for i1_0 in T.serial(4):
-                with T.sblock("argmin_in_thread"):
-                    i = T.axis.spatial(128, i0)
-                    k = T.axis.reduce(128, i1_0 * 32 + i1_1)
-                    T.reads(idx[i, k], val[i, k])
-                    T.writes(in_thread_argmin_v0[0], in_thread_argmin_v1[0])
+                with Ts.sblock("argmin_in_thread"):
+                    i = Ts.axis.spatial(128, i0)
+                    k = Ts.axis.reduce(128, i1_0 * 32 + i1_1)
+                    Ts.reads(idx[i, k], val[i, k])
+                    Ts.writes(in_thread_argmin_v0[0], in_thread_argmin_v1[0])
                     v_argmin_v0: T.let[T.int32] = T.Select(
                         in_thread_argmin_v1[0] <= val[i, k], in_thread_argmin_v0[0], idx[i, k]
                     )
@@ -1387,9 +1391,9 @@ def lowered_argmin_split_init_update_reordered(
                     )
                     in_thread_argmin_v1[0] = v_argmin_v1
                     in_thread_argmin_v0[0] = v_argmin_v0
-            with T.sblock("argmin_cross_thread"):
-                T.reads(in_thread_argmin_v0[0], in_thread_argmin_v1[0])
-                T.writes(cross_thread_argmin_v0[0], cross_thread_argmin_v1[0])
+            with Ts.sblock("argmin_cross_thread"):
+                Ts.reads(in_thread_argmin_v0[0], in_thread_argmin_v1[0])
+                Ts.writes(cross_thread_argmin_v0[0], cross_thread_argmin_v1[0])
                 T.attr(
                     T.comm_reducer(
                         lambda x0, x1, y0, y1: (
@@ -1413,11 +1417,11 @@ def lowered_argmin_split_init_update_reordered(
                         dtype="handle",
                     )
                 )
-            with T.sblock("argmin_write_back"):
-                i = T.axis.spatial(128, i0)
-                T.where(i1_1 == 0)
-                T.reads(cross_thread_argmin_v0[0], cross_thread_argmin_v1[0])
-                T.writes(argmin_v0[i], argmin_v1[i])
+            with Ts.sblock("argmin_write_back"):
+                i = Ts.axis.spatial(128, i0)
+                Ts.where(i1_1 == 0)
+                Ts.reads(cross_thread_argmin_v0[0], cross_thread_argmin_v1[0])
+                Ts.writes(argmin_v0[i], argmin_v1[i])
                 argmin_v0[i] = cross_thread_argmin_v0[0]
                 argmin_v1[i] = cross_thread_argmin_v1[0]
 
@@ -1429,17 +1433,17 @@ def layer_norm_tuple_sum(
     bias: T.Buffer(768, "float32"),
     T_layer_norm: T.Buffer((128, 768), "float32"),
 ) -> None:
-    data_red_temp_v0 = T.sblock_alloc_buffer([128], dtype="float32")
-    data_red_temp_v1 = T.sblock_alloc_buffer([128], dtype="float32")
+    data_red_temp_v0 = Ts.sblock_alloc_buffer([128], dtype="float32")
+    data_red_temp_v1 = Ts.sblock_alloc_buffer([128], dtype="float32")
     for i0_fused in T.thread_binding(128, thread="blockIdx.x"):
         for i1_0 in T.serial(24):
             for i1_1 in T.thread_binding(32, thread="threadIdx.x"):
-                with T.sblock("data_red_temp"):
-                    ax0 = T.axis.spatial(128, i0_fused)
-                    k1 = T.axis.reduce(768, i1_0 * 32 + i1_1)
-                    T.reads(data[ax0, k1])
-                    T.writes(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
-                    with T.init():
+                with Ts.sblock("data_red_temp"):
+                    ax0 = Ts.axis.spatial(128, i0_fused)
+                    k1 = Ts.axis.reduce(768, i1_0 * 32 + i1_1)
+                    Ts.reads(data[ax0, k1])
+                    Ts.writes(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
+                    with Ts.init():
                         data_red_temp_v0[ax0] = T.float32(0)
                         data_red_temp_v1[ax0] = T.float32(0)
                     v_data_red_temp_v0: T.let[T.float32] = data_red_temp_v0[ax0] + data[ax0, k1]
@@ -1450,17 +1454,17 @@ def layer_norm_tuple_sum(
                     data_red_temp_v1[ax0] = v_data_red_temp_v1
     for i0_i1_fused_0 in T.thread_binding(384, thread="blockIdx.x"):
         for i0_i1_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
-            with T.sblock("T_layer_norm"):
-                ax0 = T.axis.spatial(128, (i0_i1_fused_0 * 256 + i0_i1_fused_1) // 768)
-                ax1 = T.axis.spatial(768, (i0_i1_fused_0 * 256 + i0_i1_fused_1) % 768)
-                T.reads(
+            with Ts.sblock("T_layer_norm"):
+                ax0 = Ts.axis.spatial(128, (i0_i1_fused_0 * 256 + i0_i1_fused_1) // 768)
+                ax1 = Ts.axis.spatial(768, (i0_i1_fused_0 * 256 + i0_i1_fused_1) % 768)
+                Ts.reads(
                     data[ax0, ax1],
                     data_red_temp_v0[ax0],
                     data_red_temp_v1[ax0],
                     gamma[ax1],
                     bias[ax1],
                 )
-                T.writes(T_layer_norm[ax0, ax1])
+                Ts.writes(T_layer_norm[ax0, ax1])
                 T_layer_norm[ax0, ax1] = (
                     data[ax0, ax1] - data_red_temp_v0[ax0] * T.float32(0.0013020833333333333)
                 ) * T.rsqrt(
@@ -1480,34 +1484,34 @@ def lowered_layer_norm_tuple_sum(
     bias: T.Buffer(768, "float32"),
     T_layer_norm: T.Buffer((128, 768), "float32"),
 ) -> None:
-    # with T.sblock("root")
-    data_red_temp_v0 = T.sblock_alloc_buffer([128], dtype="float32")
-    data_red_temp_v1 = T.sblock_alloc_buffer([128], dtype="float32")
-    cross_thread_data_red_temp_v0 = T.sblock_alloc_buffer(
+    # with Ts.sblock("root")
+    data_red_temp_v0 = Ts.sblock_alloc_buffer([128], dtype="float32")
+    data_red_temp_v1 = Ts.sblock_alloc_buffer([128], dtype="float32")
+    cross_thread_data_red_temp_v0 = Ts.sblock_alloc_buffer(
         [1], dtype="float32", strides=[1], scope="local"
     )
-    cross_thread_data_red_temp_v1 = T.sblock_alloc_buffer(
+    cross_thread_data_red_temp_v1 = Ts.sblock_alloc_buffer(
         [1], dtype="float32", strides=[1], scope="local"
     )
-    in_thread_data_red_temp_v0 = T.sblock_alloc_buffer(
+    in_thread_data_red_temp_v0 = Ts.sblock_alloc_buffer(
         [1], dtype="float32", strides=[1], scope="local"
     )
-    in_thread_data_red_temp_v1 = T.sblock_alloc_buffer(
+    in_thread_data_red_temp_v1 = Ts.sblock_alloc_buffer(
         [1], dtype="float32", strides=[1], scope="local"
     )
     for i0_fused in T.thread_binding(128, thread="blockIdx.x"):
         for i1_1 in T.thread_binding(32, thread="threadIdx.x"):
-            with T.sblock("data_red_temp_in_thread_init"):
-                T.reads()
-                T.writes(in_thread_data_red_temp_v0[0], in_thread_data_red_temp_v1[0])
+            with Ts.sblock("data_red_temp_in_thread_init"):
+                Ts.reads()
+                Ts.writes(in_thread_data_red_temp_v0[0], in_thread_data_red_temp_v1[0])
                 in_thread_data_red_temp_v0[0] = T.float32(0)
                 in_thread_data_red_temp_v1[0] = T.float32(0)
             for i1_0 in T.serial(24):
-                with T.sblock("data_red_temp_in_thread"):
-                    ax0 = T.axis.spatial(128, i0_fused)
-                    k1 = T.axis.reduce(768, i1_0 * 32 + i1_1)
-                    T.reads(data[ax0, k1])
-                    T.writes(in_thread_data_red_temp_v0[0], in_thread_data_red_temp_v1[0])
+                with Ts.sblock("data_red_temp_in_thread"):
+                    ax0 = Ts.axis.spatial(128, i0_fused)
+                    k1 = Ts.axis.reduce(768, i1_0 * 32 + i1_1)
+                    Ts.reads(data[ax0, k1])
+                    Ts.writes(in_thread_data_red_temp_v0[0], in_thread_data_red_temp_v1[0])
                     v_data_red_temp_v0: T.let[T.float32] = (
                         in_thread_data_red_temp_v0[0] + data[ax0, k1]
                     )
@@ -1516,9 +1520,9 @@ def lowered_layer_norm_tuple_sum(
                     )
                     in_thread_data_red_temp_v0[0] = v_data_red_temp_v0
                     in_thread_data_red_temp_v1[0] = v_data_red_temp_v1
-            with T.sblock("data_red_temp_cross_thread"):
-                T.reads(in_thread_data_red_temp_v0[0], in_thread_data_red_temp_v1[0])
-                T.writes(cross_thread_data_red_temp_v0[0], cross_thread_data_red_temp_v1[0])
+            with Ts.sblock("data_red_temp_cross_thread"):
+                Ts.reads(in_thread_data_red_temp_v0[0], in_thread_data_red_temp_v1[0])
+                Ts.writes(cross_thread_data_red_temp_v0[0], cross_thread_data_red_temp_v1[0])
                 T.attr(
                     T.comm_reducer(
                         lambda x0, x1, y0, y1: (x0 + y0, x1 + y1), [T.float32(0), T.float32(0)]
@@ -1538,26 +1542,26 @@ def lowered_layer_norm_tuple_sum(
                         dtype="handle",
                     )
                 )
-            with T.sblock("data_red_temp_write_back"):
-                ax0 = T.axis.spatial(128, i0_fused)
-                T.where(i1_1 == 0)
-                T.reads(cross_thread_data_red_temp_v0[0], cross_thread_data_red_temp_v1[0])
-                T.writes(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
+            with Ts.sblock("data_red_temp_write_back"):
+                ax0 = Ts.axis.spatial(128, i0_fused)
+                Ts.where(i1_1 == 0)
+                Ts.reads(cross_thread_data_red_temp_v0[0], cross_thread_data_red_temp_v1[0])
+                Ts.writes(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
                 data_red_temp_v0[ax0] = cross_thread_data_red_temp_v0[0]
                 data_red_temp_v1[ax0] = cross_thread_data_red_temp_v1[0]
     for i0_i1_fused_0 in T.thread_binding(384, thread="blockIdx.x"):
         for i0_i1_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
-            with T.sblock("T_layer_norm"):
-                ax0 = T.axis.spatial(128, (i0_i1_fused_0 * 256 + i0_i1_fused_1) // 768)
-                ax1 = T.axis.spatial(768, (i0_i1_fused_0 * 256 + i0_i1_fused_1) % 768)
-                T.reads(
+            with Ts.sblock("T_layer_norm"):
+                ax0 = Ts.axis.spatial(128, (i0_i1_fused_0 * 256 + i0_i1_fused_1) // 768)
+                ax1 = Ts.axis.spatial(768, (i0_i1_fused_0 * 256 + i0_i1_fused_1) % 768)
+                Ts.reads(
                     data[ax0, ax1],
                     data_red_temp_v0[ax0],
                     data_red_temp_v1[ax0],
                     gamma[ax1],
                     bias[ax1],
                 )
-                T.writes(T_layer_norm[ax0, ax1])
+                Ts.writes(T_layer_norm[ax0, ax1])
                 T_layer_norm[ax0, ax1] = (
                     data[ax0, ax1] - data_red_temp_v0[ax0] * T.float32(0.0013020833333333333)
                 ) * T.rsqrt(
@@ -1572,34 +1576,34 @@ def lowered_layer_norm_tuple_sum(
 
 @Ts.prim_func
 def thread_broadcast_1(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256,), "float32")):
-    temp_local = T.sblock_alloc_buffer((256,), scope="local")
+    temp_local = Ts.sblock_alloc_buffer((256,), scope="local")
     for i in T.thread_binding(256, thread="blockIdx.x"):
         for k in T.thread_binding(256, thread="threadIdx.x"):
-            with T.sblock("sum"):
-                vi, vk = T.axis.remap("SR", [i, k])
-                T.reads(A[vi, vk])
-                T.writes(temp_local[vi])
-                with T.init():
+            with Ts.sblock("sum"):
+                vi, vk = Ts.axis.remap("SR", [i, k])
+                Ts.reads(A[vi, vk])
+                Ts.writes(temp_local[vi])
+                with Ts.init():
                     temp_local[vi] = T.float32(0)
                 temp_local[vi] = temp_local[vi] + A[vi, vk]
-        with T.sblock("add"):
-            vi = T.axis.spatial(256, i)
-            T.reads(temp_local[vi])
-            T.writes(B[vi])
+        with Ts.sblock("add"):
+            vi = Ts.axis.spatial(256, i)
+            Ts.reads(temp_local[vi])
+            Ts.writes(B[vi])
             B[vi] = temp_local[vi] + T.float32(1)
 
 
 # complains that k is defined outside of a block
 @Ts.prim_func(check_well_formed=False)
 def lowered_thread_broadcast_1(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256,), "float32")):
-    temp_local = T.sblock_alloc_buffer((256,), scope="local")
-    cross_thread_temp_local = T.sblock_alloc_buffer((1,), strides=(1,), scope="local")
+    temp_local = Ts.sblock_alloc_buffer((256,), scope="local")
+    cross_thread_temp_local = Ts.sblock_alloc_buffer((1,), strides=(1,), scope="local")
     for i in T.thread_binding(256, thread="blockIdx.x"):
         for k in T.thread_binding(256, thread="threadIdx.x"):
-            with T.sblock("sum_cross_thread"):
-                vi, vk = T.axis.remap("SR", [i, k])
-                T.reads(A[vi, vk])
-                T.writes(cross_thread_temp_local[0])
+            with Ts.sblock("sum_cross_thread"):
+                vi, vk = Ts.axis.remap("SR", [i, k])
+                Ts.reads(A[vi, vk])
+                Ts.writes(cross_thread_temp_local[0])
                 T.attr(
                     T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                     "reduce_scope",
@@ -1608,17 +1612,17 @@ def lowered_thread_broadcast_1(A: T.Buffer((256, 256), "float32"), B: T.Buffer((
                 T.tvm_thread_allreduce(
                     T.uint32(1), A[vi, vk], T.bool(True), cross_thread_temp_local[0], k
                 )
-            with T.sblock("sum_write_back"):
-                vi = T.axis.spatial(256, i)
-                T.reads(cross_thread_temp_local[0])
-                T.writes(temp_local[vi])
+            with Ts.sblock("sum_write_back"):
+                vi = Ts.axis.spatial(256, i)
+                Ts.reads(cross_thread_temp_local[0])
+                Ts.writes(temp_local[vi])
                 temp_local[vi] = cross_thread_temp_local[0]
         for tx in T.thread_binding(256, thread="threadIdx.x"):
-            with T.sblock("add"):
-                vi = T.axis.spatial(256, i)
-                T.where(tx == 0)
-                T.reads(temp_local[vi])
-                T.writes(B[vi])
+            with Ts.sblock("add"):
+                vi = Ts.axis.spatial(256, i)
+                Ts.where(tx == 0)
+                Ts.reads(temp_local[vi])
+                Ts.writes(B[vi])
                 B[vi] = temp_local[vi] + T.float32(1)
 
 
@@ -1629,45 +1633,45 @@ def thread_broadcast_2(lv1605: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.
     lv1606 = T.match_buffer(p_lv1606, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
     lv1582 = T.match_buffer(p_lv1582, (T.int64(1), T.int64(1), T.int64(1), n), "float16")
     var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), T.int64(1), n))
-    var_NT_matmul_intermediate_local = T.sblock_alloc_buffer((T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
-    var_NT_matmul_intermediate_rf_local = T.sblock_alloc_buffer((T.int64(256), T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
+    var_NT_matmul_intermediate_local = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
+    var_NT_matmul_intermediate_rf_local = Ts.sblock_alloc_buffer((T.int64(256), T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
     for ax0_ax1_fused in T.thread_binding(n * T.int64(32), thread="blockIdx.x"):
         for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-            with T.sblock("NT_matmul_rf_init"):
-                vax2_fused_1 = T.axis.spatial(T.int64(256), ax2_fused_1)
-                v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
-                v1 = T.axis.spatial(n, ax0_ax1_fused % n)
-                T.reads()
-                T.writes(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
+            with Ts.sblock("NT_matmul_rf_init"):
+                vax2_fused_1 = Ts.axis.spatial(T.int64(256), ax2_fused_1)
+                v0 = Ts.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                v1 = Ts.axis.spatial(n, ax0_ax1_fused % n)
+                Ts.reads()
+                Ts.writes(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
                 var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1] = T.float16(0)
             for ax2_fused_0 in range(T.int64(1)):
-                with T.sblock("NT_matmul_rf_update"):
-                    vax2_fused_1 = T.axis.spatial(T.int64(256), ax2_fused_1)
-                    v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
-                    v1 = T.axis.spatial(n, ax0_ax1_fused % n)
-                    vax2_fused_0 = T.axis.reduce(T.int64(1), ax2_fused_0)
-                    T.where(ax2_fused_0 * T.int64(256) + ax2_fused_1 < T.int64(128))
-                    T.reads(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1], lv1605[T.int64(0), v0, T.int64(0), vax2_fused_0 * T.int64(256) + vax2_fused_1], lv1606[T.int64(0), v0, v1, vax2_fused_0 * T.int64(256) + vax2_fused_1])
-                    T.writes(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
+                with Ts.sblock("NT_matmul_rf_update"):
+                    vax2_fused_1 = Ts.axis.spatial(T.int64(256), ax2_fused_1)
+                    v0 = Ts.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                    v1 = Ts.axis.spatial(n, ax0_ax1_fused % n)
+                    vax2_fused_0 = Ts.axis.reduce(T.int64(1), ax2_fused_0)
+                    Ts.where(ax2_fused_0 * T.int64(256) + ax2_fused_1 < T.int64(128))
+                    Ts.reads(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1], lv1605[T.int64(0), v0, T.int64(0), vax2_fused_0 * T.int64(256) + vax2_fused_1], lv1606[T.int64(0), v0, v1, vax2_fused_0 * T.int64(256) + vax2_fused_1])
+                    Ts.writes(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
                     var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1] = var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1] + lv1605[T.int64(0), v0, T.int64(0), vax2_fused_0 * T.int64(256) + vax2_fused_1] * lv1606[T.int64(0), v0, v1, vax2_fused_0 * T.int64(256) + vax2_fused_1]
         for ax1_ax2_fused in range(T.int64(1)):
             for ax0_fused in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                with T.sblock("NT_matmul"):
-                    vax2_fused_1 = T.axis.reduce(T.int64(256), ax0_fused)
-                    v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
-                    v1 = T.axis.spatial(n, ax0_ax1_fused % n)
-                    T.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n)
-                    T.reads(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
-                    T.writes(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1])
-                    with T.init():
+                with Ts.sblock("NT_matmul"):
+                    vax2_fused_1 = Ts.axis.reduce(T.int64(256), ax0_fused)
+                    v0 = Ts.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                    v1 = Ts.axis.spatial(n, ax0_ax1_fused % n)
+                    Ts.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n)
+                    Ts.reads(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
+                    Ts.writes(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1])
+                    with Ts.init():
                         var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] = T.float16(0)
                     var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] = var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] + var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1]
-        with T.sblock("compute"):
-            v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
-            v1 = T.axis.spatial(n, ax0_ax1_fused % n)
-            T.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n)
-            T.reads(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1], lv1582[T.int64(0), T.int64(0), T.int64(0), v1])
-            T.writes(var_compute_intermediate[T.int64(0), v0, T.int64(0), v1])
+        with Ts.sblock("compute"):
+            v0 = Ts.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+            v1 = Ts.axis.spatial(n, ax0_ax1_fused % n)
+            Ts.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n)
+            Ts.reads(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1], lv1582[T.int64(0), T.int64(0), T.int64(0), v1])
+            Ts.writes(var_compute_intermediate[T.int64(0), v0, T.int64(0), v1])
             var_compute_intermediate[T.int64(0), v0, T.int64(0), v1] = T.Cast("float32", T.min(T.max(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] * T.float16(0.088397790055248615), T.float16(-65504)), lv1582[T.int64(0), T.int64(0), T.int64(0), v1]))
 
 
@@ -1677,89 +1681,89 @@ def lowered_thread_broadcast_2(lv1605: T.Buffer((T.int64(1), T.int64(32), T.int6
     lv1606 = T.match_buffer(p_lv1606, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
     lv1582 = T.match_buffer(p_lv1582, (T.int64(1), T.int64(1), T.int64(1), n), "float16")
     var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), T.int64(1), n))
-    var_NT_matmul_intermediate_local = T.sblock_alloc_buffer((T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
-    var_NT_matmul_intermediate_rf_local = T.sblock_alloc_buffer((T.int64(256), T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
-    cross_thread_var_NT_matmul_intermediate_local = T.sblock_alloc_buffer((1,), "float16", strides=(1,), scope="local")
-    in_thread_var_NT_matmul_intermediate_local = T.sblock_alloc_buffer((1,), "float16", strides=(1,), scope="local")
+    var_NT_matmul_intermediate_local = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
+    var_NT_matmul_intermediate_rf_local = Ts.sblock_alloc_buffer((T.int64(256), T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
+    cross_thread_var_NT_matmul_intermediate_local = Ts.sblock_alloc_buffer((1,), "float16", strides=(1,), scope="local")
+    in_thread_var_NT_matmul_intermediate_local = Ts.sblock_alloc_buffer((1,), "float16", strides=(1,), scope="local")
     for ax0_ax1_fused in T.thread_binding(n * T.int64(32), thread="blockIdx.x"):
         for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-            with T.sblock("NT_matmul_rf_init"):
-                vax2_fused_1 = T.axis.spatial(T.int64(256), ax2_fused_1)
-                v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
-                v1 = T.axis.spatial(n, ax0_ax1_fused % n)
-                T.reads()
-                T.writes(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
+            with Ts.sblock("NT_matmul_rf_init"):
+                vax2_fused_1 = Ts.axis.spatial(T.int64(256), ax2_fused_1)
+                v0 = Ts.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                v1 = Ts.axis.spatial(n, ax0_ax1_fused % n)
+                Ts.reads()
+                Ts.writes(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
                 var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1] = T.float16(0)
             for ax2_fused_0 in range(T.int64(1)):
-                with T.sblock("NT_matmul_rf_update"):
-                    vax2_fused_1 = T.axis.spatial(T.int64(256), ax2_fused_1)
-                    v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
-                    v1 = T.axis.spatial(n, ax0_ax1_fused % n)
-                    vax2_fused_0 = T.axis.reduce(T.int64(1), ax2_fused_0)
-                    T.where(ax2_fused_0 * T.int64(256) + ax2_fused_1 < T.int64(128))
-                    T.reads(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1], lv1605[T.int64(0), v0, T.int64(0), vax2_fused_0 * T.int64(256) + vax2_fused_1], lv1606[T.int64(0), v0, v1, vax2_fused_0 * T.int64(256) + vax2_fused_1])
-                    T.writes(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
+                with Ts.sblock("NT_matmul_rf_update"):
+                    vax2_fused_1 = Ts.axis.spatial(T.int64(256), ax2_fused_1)
+                    v0 = Ts.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                    v1 = Ts.axis.spatial(n, ax0_ax1_fused % n)
+                    vax2_fused_0 = Ts.axis.reduce(T.int64(1), ax2_fused_0)
+                    Ts.where(ax2_fused_0 * T.int64(256) + ax2_fused_1 < T.int64(128))
+                    Ts.reads(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1], lv1605[T.int64(0), v0, T.int64(0), vax2_fused_0 * T.int64(256) + vax2_fused_1], lv1606[T.int64(0), v0, v1, vax2_fused_0 * T.int64(256) + vax2_fused_1])
+                    Ts.writes(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
                     var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1] = var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1] + lv1605[T.int64(0), v0, T.int64(0), vax2_fused_0 * T.int64(256) + vax2_fused_1] * lv1606[T.int64(0), v0, v1, vax2_fused_0 * T.int64(256) + vax2_fused_1]
         for ax1_ax2_fused in range(T.int64(1)):
             for ax0_fused in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                with T.sblock("NT_matmul_in_thread_init"):
-                    T.reads()
-                    T.writes(in_thread_var_NT_matmul_intermediate_local[0])
+                with Ts.sblock("NT_matmul_in_thread_init"):
+                    Ts.reads()
+                    Ts.writes(in_thread_var_NT_matmul_intermediate_local[0])
                     in_thread_var_NT_matmul_intermediate_local[0] = T.float16(0)
-                with T.sblock("NT_matmul_in_thread"):
-                    vax2_fused_1 = T.axis.reduce(T.int64(256), ax0_fused)
-                    v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
-                    v1 = T.axis.spatial(n, ax0_ax1_fused % n)
-                    T.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n)
-                    T.reads(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
-                    T.writes(in_thread_var_NT_matmul_intermediate_local[0])
+                with Ts.sblock("NT_matmul_in_thread"):
+                    vax2_fused_1 = Ts.axis.reduce(T.int64(256), ax0_fused)
+                    v0 = Ts.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                    v1 = Ts.axis.spatial(n, ax0_ax1_fused % n)
+                    Ts.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n)
+                    Ts.reads(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
+                    Ts.writes(in_thread_var_NT_matmul_intermediate_local[0])
                     in_thread_var_NT_matmul_intermediate_local[0] = in_thread_var_NT_matmul_intermediate_local[0] + var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1]
-                with T.sblock("NT_matmul_cross_thread"):
-                    T.reads(in_thread_var_NT_matmul_intermediate_local[0])
-                    T.writes(cross_thread_var_NT_matmul_intermediate_local[0])
+                with Ts.sblock("NT_matmul_cross_thread"):
+                    Ts.reads(in_thread_var_NT_matmul_intermediate_local[0])
+                    Ts.writes(cross_thread_var_NT_matmul_intermediate_local[0])
                     T.attr(T.comm_reducer(lambda x0, y0: x0 + y0, [T.float16(0)]), "reduce_scope", T.int32(0))
                     T.tvm_thread_allreduce(T.uint32(1), in_thread_var_NT_matmul_intermediate_local[0], T.bool(True), cross_thread_var_NT_matmul_intermediate_local[0], ax0_fused)
-                with T.sblock("NT_matmul_write_back"):
-                    v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
-                    v1 = T.axis.spatial(n, ax0_ax1_fused % n)
-                    T.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n)
-                    T.reads(cross_thread_var_NT_matmul_intermediate_local[0])
-                    T.writes(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1])
+                with Ts.sblock("NT_matmul_write_back"):
+                    v0 = Ts.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                    v1 = Ts.axis.spatial(n, ax0_ax1_fused % n)
+                    Ts.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n)
+                    Ts.reads(cross_thread_var_NT_matmul_intermediate_local[0])
+                    Ts.writes(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1])
                     var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] = cross_thread_var_NT_matmul_intermediate_local[0]
         for tx in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-            with T.sblock("compute"):
-                v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
-                v1 = T.axis.spatial(n, ax0_ax1_fused % n)
-                T.where(tx == T.int64(0) and (T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n))
-                T.reads(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1], lv1582[T.int64(0), T.int64(0), T.int64(0), v1])
-                T.writes(var_compute_intermediate[T.int64(0), v0, T.int64(0), v1])
+            with Ts.sblock("compute"):
+                v0 = Ts.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                v1 = Ts.axis.spatial(n, ax0_ax1_fused % n)
+                Ts.where(tx == T.int64(0) and (T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n))
+                Ts.reads(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1], lv1582[T.int64(0), T.int64(0), T.int64(0), v1])
+                Ts.writes(var_compute_intermediate[T.int64(0), v0, T.int64(0), v1])
                 var_compute_intermediate[T.int64(0), v0, T.int64(0), v1] = T.Cast("float32", T.min(T.max(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] * T.float16(0.088397790055248615), T.float16(-65504)), lv1582[T.int64(0), T.int64(0), T.int64(0), v1]))
 # fmt: on
 
 
 @Ts.prim_func
 def no_thread_broadcast(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256, 256), "float32")):
-    temp_1_local = T.sblock_alloc_buffer((256,), scope="local")
-    temp_2_local = T.sblock_alloc_buffer((1,), scope="local")
+    temp_1_local = Ts.sblock_alloc_buffer((256,), scope="local")
+    temp_2_local = Ts.sblock_alloc_buffer((1,), scope="local")
     for i in T.thread_binding(256, thread="blockIdx.x"):
         for k in T.thread_binding(256, thread="threadIdx.x"):
-            with T.sblock("sum"):
-                vi, vk = T.axis.remap("SR", [i, k])
-                T.reads(A[vi, vk])
-                T.writes(temp_1_local[vi])
-                with T.init():
+            with Ts.sblock("sum"):
+                vi, vk = Ts.axis.remap("SR", [i, k])
+                Ts.reads(A[vi, vk])
+                Ts.writes(temp_1_local[vi])
+                with Ts.init():
                     temp_1_local[vi] = T.float32(0)
                 temp_1_local[vi] = temp_1_local[vi] + A[vi, vk]
-        with T.sblock("add"):
-            vi = T.axis.spatial(256, i)
-            T.reads(temp_1_local[vi])
-            T.writes(temp_2_local[0])
+        with Ts.sblock("add"):
+            vi = Ts.axis.spatial(256, i)
+            Ts.reads(temp_1_local[vi])
+            Ts.writes(temp_2_local[0])
             temp_2_local[0] = temp_1_local[vi] + T.float32(1)
         for j in T.thread_binding(256, thread="threadIdx.x"):
-            with T.sblock("sum"):
-                vi, vj = T.axis.remap("SR", [i, j])
-                T.reads(temp_2_local[0])
-                T.writes(B[vi, vj])
+            with Ts.sblock("sum"):
+                vi, vj = Ts.axis.remap("SR", [i, j])
+                Ts.reads(temp_2_local[0])
+                Ts.writes(B[vi, vj])
                 B[vi, vj] = A[vi, vj] + temp_2_local[0]
 
 
@@ -1768,15 +1772,15 @@ def no_thread_broadcast(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256, 25
 def lowered_no_thread_broadcast(
     A: T.Buffer((256, 256), "float32"), B: T.Buffer((256, 256), "float32")
 ):
-    temp_1_local = T.sblock_alloc_buffer((256,), scope="local")
-    temp_2_local = T.sblock_alloc_buffer((1,), scope="local")
-    cross_thread_temp_1_local = T.sblock_alloc_buffer((1,), strides=(1,), scope="local")
+    temp_1_local = Ts.sblock_alloc_buffer((256,), scope="local")
+    temp_2_local = Ts.sblock_alloc_buffer((1,), scope="local")
+    cross_thread_temp_1_local = Ts.sblock_alloc_buffer((1,), strides=(1,), scope="local")
     for i in T.thread_binding(256, thread="blockIdx.x"):
         for k in T.thread_binding(256, thread="threadIdx.x"):
-            with T.sblock("sum_cross_thread"):
-                vi, vk = T.axis.remap("SR", [i, k])
-                T.reads(A[vi, vk])
-                T.writes(cross_thread_temp_1_local[0])
+            with Ts.sblock("sum_cross_thread"):
+                vi, vk = Ts.axis.remap("SR", [i, k])
+                Ts.reads(A[vi, vk])
+                Ts.writes(cross_thread_temp_1_local[0])
                 T.attr(
                     T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                     "reduce_scope",
@@ -1785,21 +1789,21 @@ def lowered_no_thread_broadcast(
                 T.tvm_thread_allreduce(
                     T.uint32(1), A[vi, vk], T.bool(True), cross_thread_temp_1_local[0], k
                 )
-            with T.sblock("sum_write_back"):
-                vi = T.axis.spatial(256, i)
-                T.reads(cross_thread_temp_1_local[0])
-                T.writes(temp_1_local[vi])
+            with Ts.sblock("sum_write_back"):
+                vi = Ts.axis.spatial(256, i)
+                Ts.reads(cross_thread_temp_1_local[0])
+                Ts.writes(temp_1_local[vi])
                 temp_1_local[vi] = cross_thread_temp_1_local[0]
-        with T.sblock("add"):
-            vi = T.axis.spatial(256, i)
-            T.reads(temp_1_local[vi])
-            T.writes(temp_2_local[0])
+        with Ts.sblock("add"):
+            vi = Ts.axis.spatial(256, i)
+            Ts.reads(temp_1_local[vi])
+            Ts.writes(temp_2_local[0])
             temp_2_local[0] = temp_1_local[vi] + T.float32(1)
         for j in T.thread_binding(256, thread="threadIdx.x"):
-            with T.sblock("sum"):
-                vi, vj = T.axis.remap("SR", [i, j])
-                T.reads(temp_2_local[0])
-                T.writes(B[vi, vj])
+            with Ts.sblock("sum"):
+                vi, vj = Ts.axis.remap("SR", [i, j])
+                Ts.reads(temp_2_local[0])
+                Ts.writes(B[vi, vj])
                 B[vi, vj] = A[vi, vj] + temp_2_local[0]
 
 

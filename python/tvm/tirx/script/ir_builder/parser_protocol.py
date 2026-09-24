@@ -236,24 +236,19 @@ def call_global_var_(function: _ir.GlobalVar, args: Sequence[Any]) -> _ir.Expr:
 def function_(
     *,
     private: bool = False,
-    s_tir: bool = False,
     persistent: bool = False,
-    is_stir: bool | None = None,
     decl: bool = False,
     span: _Span = None,
 ) -> _frame.PrimFuncFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.function_`.
 
     Private/persistent options pass to the native TIRx function frame.
-    Legacy s_tir/is_stir flags may only be false; S-TIR uses its own
-    Ts.prim_func entry. The same frame supports declaration and body entry.
+    The same frame supports declaration and body entry.
     """
-    if s_tir or is_stir:
-        raise ValueError("T.prim_func only accepts TIRx; use Ts.prim_func for S-TIR")
     native = (
-        _ffi_api.DeclFunction(private, s_tir, persistent)
+        _ffi_api.DeclFunction(private, persistent)
         if decl
-        else _native.prim_func(private=private, s_tir=s_tir, persistent=persistent)
+        else _native.prim_func(private=private, persistent=persistent)
     )
     return _base.at_(span, native)
 
@@ -268,22 +263,6 @@ def arg(name: str, annotation: Any, *, span: _Span = None) -> _ir.Var:
         annotation = resolve_type_var_(name, annotation, span=span)
     elif isinstance(annotation, _ir.Type):
         annotation = _ir.Var(name, annotation)
-    if _tir.is_buffer_var(annotation) and annotation.ty.layout is not None:
-        frames = _IRBuilder.current().frames
-        if _python.any(isinstance(frame, _frame.PrimFuncFrame) and frame.s_tir for frame in frames):
-            ty = annotation.ty
-            annotation = _native.buffer(
-                ty.shape,
-                ty.dtype,
-                strides=ty.strides,
-                elem_offset=ty.elem_offset,
-                scope=ty.storage_scope,
-                align=ty.data_alignment,
-                offset_factor=ty.offset_factor,
-                layout=None,
-                allocated_addr=list(ty.allocated_addr),
-                buffer_name=name,
-            )
     return _native.arg(name, _base.at_(span, annotation))
 
 
@@ -303,55 +282,22 @@ def func_ret_type(annotation: Any, *, span: _Span = None) -> None:
 
 
 def check_well_formed_(function: _tir.PrimFunc) -> None:
-    """Validate a completed TIRx function.
-
-    Parameters
-    ----------
-    function : tvm.tirx.PrimFunc
-        Completed function to validate, without changing its IR.
-
-    Raises
-    ------
-    ValueError
-        If the function fails language variant validation.
-
-    Notes
-    -----
-    See :func:`tvm.script.ir_builder.parser_protocol.check_well_formed_`
-    for the shared whole-module validation coordinator.
-
-    The completed native function owns semantic loop and IR validation.
-    Module-wide S-TIR and TIRx checks are supplied separately to the root coordinator.
-    """
-    from tvm import s_tir
-
-    message = (
-        "Program is not well-formed. If this is deliberate, set "
-        "check_well_formed=False in the top-level decorator."
-    )
+    """Validate a completed TIRx function."""
     try:
-        s_tir.analysis.verify_well_formed(_ir.IRModule.from_expr(function))
-        if not function.attrs.get("s_tir", False):
-            _tir.analysis.verify_tirx_well_formed(function)
+        _tir.analysis.verify_well_formed(function)
+        _tir.analysis.verify_tirx_well_formed(function)
     except Exception as error:
-        raise ValueError(f"{message}\n{error}") from error
+        raise ValueError(
+            "Program is not well-formed. If this is deliberate, set "
+            f"check_well_formed=False in the top-level decorator.\n{error}"
+        ) from error
 
 
 def _check_module_well_formed(module: _ir.IRModule) -> None:
-    """Own completed-module S-TIR checks and primitive-function eligibility."""
-    from tvm import s_tir
-
-    message = (
-        "Program is not well-formed. If this is deliberate, set "
-        "check_well_formed=False in the top-level decorator."
-    )
-    try:
-        s_tir.analysis.verify_well_formed(module)
-        for function in module.functions.values():
-            if isinstance(function, _tir.PrimFunc) and not function.attrs.get("s_tir", False):
-                _tir.analysis.verify_tirx_well_formed(function)
-    except Exception as error:
-        raise ValueError(f"{message}\n{error}") from error
+    """Validate completed functions belonging to the TIRx dialect."""
+    for function in module.functions.values():
+        if isinstance(function, _tir.PrimFunc) and function.is_tirx:
+            check_well_formed_(function)
 
 
 # --------------------------------------
@@ -395,8 +341,6 @@ def bind_(
     """
     name_span = span if name_span is None else name_span
     if frame_value:
-        if isinstance(value, _frame.SBlockFrame):
-            raise TypeError("A block does not introduce an as-target value")
         if isinstance(value, _python.list | _python.tuple | _ir.Array):
             for index, item in enumerate(value):
                 bind_(

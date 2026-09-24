@@ -28,17 +28,17 @@ from tvm.script import tirx as T
 
 
 def test_lazy_transform_params():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.sblock("layout_transform"):
-                    o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(w1[i, o, h, w])
-                    T.writes(out[o, i, h, w])
+                with Ts.sblock("layout_transform"):
+                    o, i, h, w = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    Ts.reads(w1[i, o, h, w])
+                    Ts.writes(out[o, i, h, w])
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function
@@ -65,18 +65,18 @@ def test_lazy_transform_params():
             ) = (lv, lv2)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.sblock("layout_transform"):
-                    o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(w1[i, o, h, w])
-                    T.writes(out[o, i, h, w])
+                with Ts.sblock("layout_transform"):
+                    o, i, h, w = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    Ts.reads(w1[i, o, h, w])
+                    Ts.writes(out[o, i, h, w])
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function(pure=False)
@@ -109,17 +109,17 @@ def test_lazy_transform_params():
 
 
 def test_get_item_only():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.sblock("layout_transform"):
-                    o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(w1[i, o, h, w])
-                    T.writes(out[o, i, h, w])
+                with Ts.sblock("layout_transform"):
+                    o, i, h, w = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    Ts.reads(w1[i, o, h, w])
+                    Ts.writes(out[o, i, h, w])
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function
@@ -147,18 +147,18 @@ def test_get_item_only():
             ) = (lv, lv3)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.sblock("layout_transform"):
-                    o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(w1[i, o, h, w])
-                    T.writes(out[o, i, h, w])
+                with Ts.sblock("layout_transform"):
+                    o, i, h, w = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    Ts.reads(w1[i, o, h, w])
+                    Ts.writes(out[o, i, h, w])
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function(pure=False)
@@ -192,17 +192,17 @@ def test_get_item_only():
 
 
 def test_extra_get_item_params():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.sblock("layout_transform"):
-                    o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(w1[i, o, h, w])
-                    T.writes(out[o, i, h, w])
+                with Ts.sblock("layout_transform"):
+                    o, i, h, w = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    Ts.reads(w1[i, o, h, w])
+                    Ts.writes(out[o, i, h, w])
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function
@@ -230,18 +230,18 @@ def test_extra_get_item_params():
             ) = (lv, lv3)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.sblock("layout_transform"):
-                    o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(w1[i, o, h, w])
-                    T.writes(out[o, i, h, w])
+                with Ts.sblock("layout_transform"):
+                    o, i, h, w = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    Ts.reads(w1[i, o, h, w])
+                    Ts.writes(out[o, i, h, w])
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function(pure=False)
@@ -277,17 +277,17 @@ def test_extra_get_item_params():
 
 
 def test_extra_set_item_params():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.sblock("layout_transform"):
-                    o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(w1[i, o, h, w])
-                    T.writes(out[o, i, h, w])
+                with Ts.sblock("layout_transform"):
+                    o, i, h, w = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    Ts.reads(w1[i, o, h, w])
+                    Ts.writes(out[o, i, h, w])
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function
@@ -315,18 +315,18 @@ def test_extra_set_item_params():
             ) = (lv, lv3)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.sblock("layout_transform"):
-                    o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(w1[i, o, h, w])
-                    T.writes(out[o, i, h, w])
+                with Ts.sblock("layout_transform"):
+                    o, i, h, w = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    Ts.reads(w1[i, o, h, w])
+                    Ts.writes(out[o, i, h, w])
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function(pure=False)
@@ -362,7 +362,7 @@ def test_extra_set_item_params():
 
 
 def test_extra_set_item_params_with_const_output():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main_transform_params(
@@ -375,7 +375,7 @@ def test_extra_set_item_params_with_const_output():
             )
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function(pure=False)
         def main_transform_params(setter: R.Any) -> R.Tuple:
@@ -403,7 +403,7 @@ def test_extra_set_item_params_with_const_output():
 
 
 def test_lazy_transform_params_with_symbolic_vars():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main_transform_params(
@@ -436,11 +436,11 @@ def test_lazy_transform_params_with_symbolic_vars():
             Output: T.Buffer(16, "float32"),
         ):
             for i in T.grid(16):
-                with T.sblock("slice_buffer"):
-                    vi = T.axis.remap("S", [i])
+                with Ts.sblock("slice_buffer"):
+                    vi = Ts.axis.remap("S", [i])
                     Output[vi] = Input[slice_index, vi]
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function(pure=False)
         def main_transform_params(slice_shape_expr: R.Shape(["slice_index"])):
@@ -471,8 +471,8 @@ def test_lazy_transform_params_with_symbolic_vars():
             Output: T.Buffer(16, "float32"),
         ):
             for i in T.grid(16):
-                with T.sblock("slice_buffer"):
-                    vi = T.axis.remap("S", [i])
+                with Ts.sblock("slice_buffer"):
+                    vi = Ts.axis.remap("S", [i])
                     Output[vi] = Input[slice_index, vi]
 
     after = LazyTransformParams()(Before)
@@ -480,7 +480,7 @@ def test_lazy_transform_params_with_symbolic_vars():
 
 
 def test_param_shape_symbolic():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(var_w1: T.handle, var_out: T.handle):
@@ -488,10 +488,10 @@ def test_param_shape_symbolic():
             w1 = T.match_buffer(var_w1, (ic, 16, 3, 3), "float32")
             out = T.match_buffer(var_out, (16, ic, 3, 3), "float32")
             for ax0, ax1, ax2, ax3 in T.grid(16, ic, 3, 3):
-                with T.sblock("layout_transform"):
-                    o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(w1[i, o, h, w])
-                    T.writes(out[o, i, h, w])
+                with Ts.sblock("layout_transform"):
+                    o, i, h, w = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    Ts.reads(w1[i, o, h, w])
+                    Ts.writes(out[o, i, h, w])
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function
@@ -520,7 +520,7 @@ def test_param_shape_symbolic():
             ) = (lv, lv2)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(var_w1: T.handle, var_out: T.handle):
@@ -528,10 +528,10 @@ def test_param_shape_symbolic():
             w1 = T.match_buffer(var_w1, (ic, 16, 3, 3), "float32")
             out = T.match_buffer(var_out, (16, ic, 3, 3), "float32")
             for ax0, ax1, ax2, ax3 in T.grid(16, ic, 3, 3):
-                with T.sblock("layout_transform"):
-                    o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(w1[i, o, h, w])
-                    T.writes(out[o, i, h, w])
+                with Ts.sblock("layout_transform"):
+                    o, i, h, w = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    Ts.reads(w1[i, o, h, w])
+                    Ts.writes(out[o, i, h, w])
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function(pure=False)
@@ -565,13 +565,13 @@ def test_param_shape_symbolic():
 
 
 def test_output_with_use_site():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         @Ts.prim_func
         def copy(x: T.Buffer((), "float32"), y: T.Buffer((), "float32")):
-            with T.sblock("block"):
-                T.reads(x[()])
-                T.writes(y[()])
+            with Ts.sblock("block"):
+                Ts.reads(x[()])
+                Ts.writes(y[()])
                 y[()] = x[()]
 
         @R.function
@@ -587,13 +587,13 @@ def test_output_with_use_site():
             gv: R.Tuple(R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")) = (y, z)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func
         def copy(x: T.Buffer((), "float32"), y: T.Buffer((), "float32")):
-            with T.sblock("block"):
-                T.reads(x[()])
-                T.writes(y[()])
+            with Ts.sblock("block"):
+                Ts.reads(x[()])
+                Ts.writes(y[()])
                 y[()] = x[()]
 
         @R.function(pure=False)
@@ -618,7 +618,7 @@ def test_output():
     target = "llvm"
     dev = tvm.cpu()
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class TransformModule:
         @R.function
         def transform_params(
@@ -675,7 +675,7 @@ def test_duplicate_outputs():
     parameter transformation, and should produce correct output.
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main_transform_params(
@@ -689,7 +689,7 @@ def test_duplicate_outputs():
             output = (transformed0, transformed1, transformed0)
             return output
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function(pure=False)
         def main_transform_params() -> R.Tuple:
@@ -717,7 +717,7 @@ def test_duplicate_outputs():
 
 
 def test_params_without_tuple():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
@@ -725,7 +725,7 @@ def test_params_without_tuple():
             D = R.add(C, B)
             return (D, B)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function(pure=False)
         def transform_params():
@@ -743,13 +743,13 @@ def test_params_without_tuple():
 
 
 def test_params_without_tuple_with_symbolic_var():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def transform_params(A: R.Any):
             return (A,)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function(pure=False)
         def transform_params():
@@ -763,7 +763,7 @@ def test_params_without_tuple_with_symbolic_var():
 
 
 def test_get_item_callback():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
@@ -771,7 +771,7 @@ def test_get_item_callback():
             D = R.add(C, B)
             return (D, B)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def transform_params(fget_param: R.Callable([T.int64, R.Any], R.Any)):
@@ -790,7 +790,7 @@ def test_get_item_callback():
 
 
 def test_get_item_callback_dynamic_shape():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def transform_params(
@@ -800,7 +800,7 @@ def test_get_item_callback_dynamic_shape():
             D = R.add(C, B)
             return (D, B)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def transform_params(
@@ -830,7 +830,7 @@ def test_set_output_callback():
     `VarBinding`.
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
@@ -838,7 +838,7 @@ def test_set_output_callback():
             D = R.add(C, B)
             return (D, C)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function(pure=False)
         def transform_params(
@@ -864,7 +864,7 @@ def test_set_output_callback_of_param():
     generated at the beginning of the function.
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
@@ -872,7 +872,7 @@ def test_set_output_callback_of_param():
             D = R.add(C, B)
             return (D, B)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function(pure=False)
         def transform_params(
@@ -897,7 +897,7 @@ def test_set_output_callback_num_input():
     parameters, before any model weights.
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
@@ -906,7 +906,7 @@ def test_set_output_callback_num_input():
             D = R.add(C, B)
             return (D, B)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function(pure=False)
         def transform_params(
@@ -933,7 +933,7 @@ def test_set_output_callback_with_duplicate_output():
     element, even if they reuse the same variable.
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
@@ -941,7 +941,7 @@ def test_set_output_callback_with_duplicate_output():
             D = R.add(C, B)
             return (D, D)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function(pure=False)
         def transform_params(
@@ -968,7 +968,7 @@ def test_set_output_callback_with_inline_const():
     `relax.VarBinding`.
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
@@ -976,7 +976,7 @@ def test_set_output_callback_with_inline_const():
             D = R.add(C, B)
             return (C, D, R.prim_value(42), R.const(17.5, "float16"))
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function(pure=False)
         def transform_params(
@@ -999,7 +999,7 @@ def test_set_output_callback_with_inline_const():
 def test_set_output_callback_with_non_tuple_output():
     """Non-tuple outputs produce a single call to fset_output"""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
@@ -1007,7 +1007,7 @@ def test_set_output_callback_with_non_tuple_output():
             D = R.add(C, B)
             return D
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function(pure=False)
         def transform_params(

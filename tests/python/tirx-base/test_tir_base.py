@@ -24,7 +24,6 @@ import tvm_ffi
 import tvm
 from tvm import tirx
 from tvm.ir.transform import PassContext
-from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -150,7 +149,7 @@ def test_return_stmt_functor_traversal_and_mutation():
 
 
 def test_control_flow_jump():
-    @Ts.prim_func
+    @T.prim_func
     def func(a: T.float32, b: T.float32):
         if True:
             return a
@@ -162,7 +161,7 @@ def test_control_flow_jump():
 
 
 def test_break_loop():
-    @Ts.prim_func
+    @T.prim_func
     def func(In: T.Buffer((2,), "int32"), Out: T.Buffer((2,), "int32")):
         Out[0] = 0
         Out[1] = 1
@@ -189,7 +188,7 @@ def test_break_loop():
 
 
 def test_continue_loop():
-    @Ts.prim_func
+    @T.prim_func
     def func(Out: T.Buffer((2,), "int32")):
         T.func_attr({"global_symbol": "main"})
         Out[0] = 0

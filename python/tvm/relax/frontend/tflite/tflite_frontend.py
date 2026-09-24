@@ -8342,8 +8342,8 @@ def _build_tflite_rfft2d_primfunc(input_shape, output_pair_shape):
         neg_two_pi_const = T.float32(neg_two_pi)
 
         for b_idx, out_y, out_x in T.grid(batch, height, out_width):
-            with T.sblock("rfft2d"):
-                v_b, v_oy, v_ox = T.axis.remap("SSS", [b_idx, out_y, out_x])
+            with Ts.sblock("rfft2d"):
+                v_b, v_oy, v_ox = Ts.axis.remap("SSS", [b_idx, out_y, out_x])
                 real_sum: T.float32 = T.float32(0)
                 imag_sum: T.float32 = T.float32(0)
                 input_base = v_b * height * width
@@ -8514,8 +8514,8 @@ def _build_tflite_rfft2d_fft_primfunc(input_shape, output_pair_shape):
         f"    scratch_real = T.decl_buffer(({input_total},), 'float32')\n"
         f"    scratch_imag = T.decl_buffer(({input_total},), 'float32')\n"
         f"    for b_idx in T.serial({batch}):\n"
-        f"        with T.sblock('rfft2d_fft'):\n"
-        f"            v_b = T.axis.remap('S', [b_idx])\n"
+        f"        with Ts.sblock('rfft2d_fft'):\n"
+        f"            v_b = Ts.axis.remap('S', [b_idx])\n"
         f"            # Initialize scratch from real input; imag = 0.\n"
         f"            for i in T.serial({height * width}):\n"
         f"                src = v_b * {height * width} + i\n"
@@ -8622,7 +8622,7 @@ def _build_stablehlo_rng_bit_generator_primfunc(algorithm, state_len, out_dtype,
             # A single opaque structured block keeps the imperative kernel as a
             # well-formed block-structured PrimFunc, as required by the Relax
             # pipeline (e.g. HasReshapePattern).
-            with T.sblock("rng_bit_generator"):
+            with Ts.sblock("rng_bit_generator"):
                 state_key = initial_state[0]
                 state_counter = initial_state[1]
                 key_0 = _u32(state_key & T.uint64(0xFFFFFFFF))
@@ -8669,7 +8669,7 @@ def _build_stablehlo_rng_bit_generator_primfunc(algorithm, state_len, out_dtype,
         output_state: T.Buffer((state_len,), "uint64"),
         output: T.Buffer(out_shape, out_dtype),
     ):
-        with T.sblock("rng_bit_generator"):
+        with Ts.sblock("rng_bit_generator"):
             state_key = initial_state[0]
             state_counter = initial_state[1]
             key_0 = _u32(state_key & T.uint64(0xFFFFFFFF))

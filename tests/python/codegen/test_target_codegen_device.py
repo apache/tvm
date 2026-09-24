@@ -20,7 +20,6 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -31,18 +30,14 @@ def test_large_uint_imm():
     value = (1 << 63) + 123
     value_const = tvm.tirx.const(value, "uint64")
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @Ts.prim_func
+        @T.prim_func
         def main(A: T.Buffer((12,), "uint64")):
             T.func_attr({"tirx.noalias": True})
             for i0_0 in T.thread_binding(6, thread="blockIdx.x"):
                 for i0_1 in T.thread_binding(2, thread="threadIdx.x"):
-                    with T.sblock("A"):
-                        v_i0 = T.axis.spatial(12, i0_0 * 2 + i0_1)
-                        T.reads()
-                        T.writes(A[v_i0])
-                        A[v_i0] = value_const + T.uint64(3)
+                    A[i0_0 * 2 + i0_1] = value_const + T.uint64(3)
 
     def check_target(target):
         target_kind = target["kind"] if isinstance(target, dict) else target
@@ -65,31 +60,23 @@ def test_large_uint_imm():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_add_pipeline():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @Ts.prim_func
+        @T.prim_func
         def main(var_A: T.handle, B: T.Buffer((), "float32"), var_D: T.handle):
             T.func_attr({"tirx.noalias": True})
             n = T.int32()
             A = T.match_buffer(var_A, (n,))
             D = T.match_buffer(var_D, (n,))
-            C = T.sblock_alloc_buffer((n,))
+            C = T.alloc_buffer((n,))
             for i0_0 in T.thread_binding((n + 255) // 256, thread="blockIdx.x"):
                 for i0_1 in T.thread_binding(256, thread="threadIdx.x"):
-                    with T.sblock("C"):
-                        v_i0 = T.axis.spatial(n, i0_0 * 256 + i0_1)
-                        T.where(i0_0 * 256 + i0_1 < n)
-                        T.reads(A[v_i0], B[()])
-                        T.writes(C[v_i0])
-                        C[v_i0] = A[v_i0] + B[()]
+                    if i0_0 * 256 + i0_1 < n:
+                        C[i0_0 * 256 + i0_1] = A[i0_0 * 256 + i0_1] + B[()]
             for i0_0 in T.thread_binding((n + 255) // 256, thread="blockIdx.x"):
                 for i0_1 in T.thread_binding(256, thread="threadIdx.x"):
-                    with T.sblock("D"):
-                        v_i0 = T.axis.spatial(n, i0_0 * 256 + i0_1)
-                        T.where(i0_0 * 256 + i0_1 < n)
-                        T.reads(C[v_i0])
-                        T.writes(D[v_i0])
-                        D[v_i0] = C[v_i0] + T.float32(1.0)
+                    if i0_0 * 256 + i0_1 < n:
+                        D[i0_0 * 256 + i0_1] = C[i0_0 * 256 + i0_1] + T.float32(1.0)
 
     def check_target(device, host):
         if not tvm.testing.device_enabled(device) or not tvm.testing.device_enabled(host):

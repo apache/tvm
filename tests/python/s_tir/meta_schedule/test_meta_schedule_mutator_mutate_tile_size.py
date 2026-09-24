@@ -33,9 +33,9 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [512, 512])
     C = T.match_buffer(c, [512, 512])
     for i, j, k in T.grid(512, 512, 512):  # type: ignore
-        with T.sblock("C"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])  # type: ignore
-            with T.init():
+        with Ts.sblock("C"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])  # type: ignore
+            with Ts.init():
                 C[vi, vj] = 0.0  # type: ignore
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 

@@ -44,9 +44,9 @@ class Matmul:
         B = T.match_buffer(b, (32, 32), "float32")
         C = T.match_buffer(c, (32, 32), "float32")
         for i, j, k in T.grid(32, 32, 32):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0 # type: ignore
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -60,9 +60,9 @@ class OtherBlock:
         B = T.match_buffer(b, (32, 32), "float32")
         C = T.match_buffer(c, (32, 32), "float32")
         for i, j, k in T.grid(32, 32, 32):
-            with T.sblock("other"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("other"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0 # type: ignore
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 

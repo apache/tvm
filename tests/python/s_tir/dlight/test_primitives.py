@@ -29,24 +29,24 @@ from tvm.testing import env
 @Ts.prim_func
 def main(p0: T.Buffer((), "int32"), T_stack: T.Buffer((T.int64(3),), "int32")):
     T.func_attr({"tirx.noalias": True})
-    # with T.sblock("root"):
-    compile_engine_const = T.sblock_alloc_buffer((), "int32")
-    compile_engine_const_1 = T.sblock_alloc_buffer((), "int32")
-    with T.sblock("compile_engine_const"):
-        vi = T.axis.spatial(1, T.int64(0))
-        T.reads()
-        T.writes(compile_engine_const[()])
+    # with Ts.sblock("root"):
+    compile_engine_const = Ts.sblock_alloc_buffer((), "int32")
+    compile_engine_const_1 = Ts.sblock_alloc_buffer((), "int32")
+    with Ts.sblock("compile_engine_const"):
+        vi = Ts.axis.spatial(1, T.int64(0))
+        Ts.reads()
+        Ts.writes(compile_engine_const[()])
         compile_engine_const[()] = 16
-    with T.sblock("compile_engine_const_1"):
-        vi = T.axis.spatial(1, T.int64(0))
-        T.reads()
-        T.writes(compile_engine_const_1[()])
+    with Ts.sblock("compile_engine_const_1"):
+        vi = Ts.axis.spatial(1, T.int64(0))
+        Ts.reads()
+        Ts.writes(compile_engine_const_1[()])
         compile_engine_const_1[()] = 20
     for ax0 in range(T.int64(3)):
-        with T.sblock("T_stack"):
-            v_ax0 = T.axis.spatial(T.int64(3), ax0)
-            T.reads(compile_engine_const[()], p0[()], compile_engine_const_1[()])
-            T.writes(T_stack[v_ax0])
+        with Ts.sblock("T_stack"):
+            v_ax0 = Ts.axis.spatial(T.int64(3), ax0)
+            Ts.reads(compile_engine_const[()], p0[()], compile_engine_const_1[()])
+            Ts.writes(T_stack[v_ax0])
             T_stack[v_ax0] = T.if_then_else(
                 v_ax0 == T.int64(2),
                 compile_engine_const[()],

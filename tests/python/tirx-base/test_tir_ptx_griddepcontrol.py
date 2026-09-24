@@ -20,24 +20,20 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@Ts.prim_func
+@T.prim_func
 def ptx_griddepcontrol(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float32")) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     bx = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    with T.sblock():
-        T.reads(A[0:32])
-        T.writes(B[0:32])
-        T.ptx.griddepcontrol.wait()
-        B[tx] = A[tx]
-        T.ptx.griddepcontrol.launch_dependents()
+    T.ptx.griddepcontrol.wait()
+    B[tx] = A[tx]
+    T.ptx.griddepcontrol.launch_dependents()
 
 
 @pytest.mark.gpu

@@ -32,7 +32,7 @@ def verify(input, expected):
 
 
 def test_maxpool2d_scope_folding():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         I.module_global_infos(
             {
@@ -50,15 +50,15 @@ def test_maxpool2d_scope_folding():
                 (T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)), "float32"
             ),
         ):
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3, ax4, rv0, rv1 in T.grid(
                 T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4), T.int64(2), T.int64(2)
             ):
-                with T.sblock("pool_max"):
-                    v_ax0, v_ax1, v_ax2, v_ax3, v_ax4, v_rv0, v_rv1 = T.axis.remap(
+                with Ts.sblock("pool_max"):
+                    v_ax0, v_ax1, v_ax2, v_ax3, v_ax4, v_rv0, v_rv1 = Ts.axis.remap(
                         "SSSSSRR", [ax0, ax1, ax2, ax3, ax4, rv0, rv1]
                     )
-                    T.reads(
+                    Ts.reads(
                         gv[
                             v_ax0,
                             v_ax1,
@@ -67,9 +67,9 @@ def test_maxpool2d_scope_folding():
                             v_ax4,
                         ]
                     )
-                    T.writes(pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
-                    T.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
-                    with T.init():
+                    Ts.writes(pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
+                    Ts.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
+                    with Ts.init():
                         pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.float32(
                             -340282346638528859811704183484516925440.0
                         )
@@ -91,12 +91,12 @@ def test_maxpool2d_scope_folding():
                 (T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"
             ),
         ):
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for self, i0, i1, i2 in T.grid(T.int64(2), T.int64(4), T.int64(26), T.int64(26)):
-                with T.sblock("te_layout_transform"):
-                    v_self, v_i0, v_i1, v_i2 = T.axis.remap("SSSS", [self, i0, i1, i2])
-                    T.reads(x[v_self, v_i0, v_i1, v_i2])
-                    T.writes(
+                with Ts.sblock("te_layout_transform"):
+                    v_self, v_i0, v_i1, v_i2 = Ts.axis.remap("SSSS", [self, i0, i1, i2])
+                    Ts.reads(x[v_self, v_i0, v_i1, v_i2])
+                    Ts.writes(
                         te_layout_transform[
                             v_self, v_i0 // T.int64(4), v_i1, v_i2, v_i0 % T.int64(4)
                         ]
@@ -114,14 +114,14 @@ def test_maxpool2d_scope_folding():
                 (T.int64(2), T.int64(4), T.int64(13), T.int64(13)), "float32"
             ),
         ):
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for self, i0, i1, i2, i3 in T.grid(
                 T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)
             ):
-                with T.sblock("te_layout_transform"):
-                    v_self, v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSSS", [self, i0, i1, i2, i3])
-                    T.reads(lv2[v_self, v_i0, v_i1, v_i2, v_i3])
-                    T.writes(te_layout_transform[v_self, v_i3, v_i1, v_i2])
+                with Ts.sblock("te_layout_transform"):
+                    v_self, v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSSS", [self, i0, i1, i2, i3])
+                    Ts.reads(lv2[v_self, v_i0, v_i1, v_i2, v_i3])
+                    Ts.writes(te_layout_transform[v_self, v_i3, v_i1, v_i2])
                     te_layout_transform[v_self, v_i3, v_i1, v_i2] = lv2[
                         v_self, v_i0, v_i1, v_i2, v_i3
                     ]
@@ -157,7 +157,7 @@ def test_maxpool2d_scope_folding():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         I.module_global_infos(
             {
@@ -175,15 +175,15 @@ def test_maxpool2d_scope_folding():
                 (T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)), "float32"
             ),
         ):
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3, ax4, rv0, rv1 in T.grid(
                 T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4), T.int64(2), T.int64(2)
             ):
-                with T.sblock("pool_max"):
-                    v_ax0, v_ax1, v_ax2, v_ax3, v_ax4, v_rv0, v_rv1 = T.axis.remap(
+                with Ts.sblock("pool_max"):
+                    v_ax0, v_ax1, v_ax2, v_ax3, v_ax4, v_rv0, v_rv1 = Ts.axis.remap(
                         "SSSSSRR", [ax0, ax1, ax2, ax3, ax4, rv0, rv1]
                     )
-                    T.reads(
+                    Ts.reads(
                         gv[
                             v_ax0,
                             v_ax1,
@@ -192,9 +192,9 @@ def test_maxpool2d_scope_folding():
                             v_ax4,
                         ]
                     )
-                    T.writes(pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
-                    T.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
-                    with T.init():
+                    Ts.writes(pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
+                    Ts.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
+                    with Ts.init():
                         pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.float32(
                             -340282346638528859811704183484516925440.0
                         )
@@ -216,12 +216,12 @@ def test_maxpool2d_scope_folding():
                 (T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"
             ),
         ):
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for self, i0, i1, i2 in T.grid(T.int64(2), T.int64(4), T.int64(26), T.int64(26)):
-                with T.sblock("te_layout_transform"):
-                    v_self, v_i0, v_i1, v_i2 = T.axis.remap("SSSS", [self, i0, i1, i2])
-                    T.reads(x[v_self, v_i0, v_i1, v_i2])
-                    T.writes(
+                with Ts.sblock("te_layout_transform"):
+                    v_self, v_i0, v_i1, v_i2 = Ts.axis.remap("SSSS", [self, i0, i1, i2])
+                    Ts.reads(x[v_self, v_i0, v_i1, v_i2])
+                    Ts.writes(
                         te_layout_transform[
                             v_self, v_i0 // T.int64(4), v_i1, v_i2, v_i0 % T.int64(4)
                         ]
@@ -239,14 +239,14 @@ def test_maxpool2d_scope_folding():
                 (T.int64(2), T.int64(4), T.int64(13), T.int64(13)), "float32"
             ),
         ):
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for self, i0, i1, i2, i3 in T.grid(
                 T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)
             ):
-                with T.sblock("te_layout_transform"):
-                    v_self, v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSSS", [self, i0, i1, i2, i3])
-                    T.reads(lv2[v_self, v_i0, v_i1, v_i2, v_i3])
-                    T.writes(te_layout_transform[v_self, v_i3, v_i1, v_i2])
+                with Ts.sblock("te_layout_transform"):
+                    v_self, v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSSS", [self, i0, i1, i2, i3])
+                    Ts.reads(lv2[v_self, v_i0, v_i1, v_i2, v_i3])
+                    Ts.writes(te_layout_transform[v_self, v_i3, v_i1, v_i2])
                     te_layout_transform[v_self, v_i3, v_i1, v_i2] = lv2[
                         v_self, v_i0, v_i1, v_i2, v_i3
                     ]

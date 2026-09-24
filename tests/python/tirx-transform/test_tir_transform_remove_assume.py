@@ -18,7 +18,6 @@
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -27,14 +26,14 @@ def test_remove_assume():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @T.prim_func
         def main(A: T.Buffer(1, "int32")):
             T.evaluate(T.assume(A[0] == 5))
             A[0] = 10
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @T.prim_func
         def main(A: T.Buffer(1, "int32")):
             A[0] = 10
 
@@ -47,7 +46,7 @@ def test_remove_assume_loop():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @T.prim_func
         def main(A: T.Buffer(16, "int32")):
             for i in T.serial(16):
                 T.evaluate(T.assume(A[i] == 0))
@@ -57,7 +56,7 @@ def test_remove_assume_loop():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @T.prim_func
         def main(A: T.Buffer(16, "int32")):
             for i in T.serial(16):
                 A[i] = 10

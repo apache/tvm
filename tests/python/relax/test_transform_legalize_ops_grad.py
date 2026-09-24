@@ -34,47 +34,47 @@ def test_nll_loss_backward():
             gv: R.Tensor((2, 3, 4, 5), "float32") = R.grad.nll_loss_backward(output_grad, predictions, targets, weights, reduction="mean", ignore_index=-1)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def nll_loss_backward(rxplaceholder: T.Buffer((), "float32"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_2: T.Buffer((T.int64(2), T.int64(4), T.int64(5)), "int64"), rxplaceholder_3: T.Buffer((T.int64(4),), "float32"), pred_grad: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
-            all_weights = T.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
-            T_broadcast_to = T.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
-            all_weights_red = T.sblock_alloc_buffer(())
-            T_divide = T.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
+            # with Ts.sblock("root"):
+            all_weights = Ts.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
+            T_broadcast_to = Ts.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
+            all_weights_red = Ts.sblock_alloc_buffer(())
+            T_divide = Ts.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
-                with T.sblock("all_weights"):
-                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
-                    T.reads(rxplaceholder_3[rxplaceholder_2[v_i0, v_i1, v_i2]], rxplaceholder_2[v_i0, v_i1, v_i2])
-                    T.writes(all_weights[v_i0, v_i1, v_i2])
+                with Ts.sblock("all_weights"):
+                    v_i0, v_i1, v_i2 = Ts.axis.remap("SSS", [i0, i1, i2])
+                    Ts.reads(rxplaceholder_3[rxplaceholder_2[v_i0, v_i1, v_i2]], rxplaceholder_2[v_i0, v_i1, v_i2])
+                    Ts.writes(all_weights[v_i0, v_i1, v_i2])
                     all_weights[v_i0, v_i1, v_i2] = rxplaceholder_3[rxplaceholder_2[v_i0, v_i1, v_i2]]
             for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
-                with T.sblock("T_broadcast_to"):
-                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
-                    T.reads(rxplaceholder[()])
-                    T.writes(T_broadcast_to[v_ax0, v_ax1, v_ax2])
+                with Ts.sblock("T_broadcast_to"):
+                    v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
+                    Ts.reads(rxplaceholder[()])
+                    Ts.writes(T_broadcast_to[v_ax0, v_ax1, v_ax2])
                     T_broadcast_to[v_ax0, v_ax1, v_ax2] = rxplaceholder[()]
             for k0, k1, k2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
-                with T.sblock("all_weights_red"):
-                    v_k0, v_k1, v_k2 = T.axis.remap("RRR", [k0, k1, k2])
-                    T.reads(all_weights[v_k0, v_k1, v_k2])
-                    T.writes(all_weights_red[()])
-                    with T.init():
+                with Ts.sblock("all_weights_red"):
+                    v_k0, v_k1, v_k2 = Ts.axis.remap("RRR", [k0, k1, k2])
+                    Ts.reads(all_weights[v_k0, v_k1, v_k2])
+                    Ts.writes(all_weights_red[()])
+                    with Ts.init():
                         all_weights_red[()] = T.float32(0)
                     all_weights_red[()] = all_weights_red[()] + all_weights[v_k0, v_k1, v_k2]
             for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
-                with T.sblock("T_divide"):
-                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
-                    T.reads(T_broadcast_to[v_ax0, v_ax1, v_ax2], all_weights_red[()])
-                    T.writes(T_divide[v_ax0, v_ax1, v_ax2])
+                with Ts.sblock("T_divide"):
+                    v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
+                    Ts.reads(T_broadcast_to[v_ax0, v_ax1, v_ax2], all_weights_red[()])
+                    Ts.writes(T_divide[v_ax0, v_ax1, v_ax2])
                     T_divide[v_ax0, v_ax1, v_ax2] = T_broadcast_to[v_ax0, v_ax1, v_ax2] / all_weights_red[()]
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
-                with T.sblock("pred_grad"):
-                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                    T.reads(rxplaceholder_2[v_i0, v_i2, v_i3], all_weights[v_i0, v_i2, v_i3], T_divide[v_i0, v_i2, v_i3])
-                    T.writes(pred_grad[v_i0, v_i1, v_i2, v_i3])
+                with Ts.sblock("pred_grad"):
+                    v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                    Ts.reads(rxplaceholder_2[v_i0, v_i2, v_i3], all_weights[v_i0, v_i2, v_i3], T_divide[v_i0, v_i2, v_i3])
+                    Ts.writes(pred_grad[v_i0, v_i1, v_i2, v_i3])
                     pred_grad[v_i0, v_i1, v_i2, v_i3] = T.Select(v_i1 == rxplaceholder_2[v_i0, v_i2, v_i3], all_weights[v_i0, v_i2, v_i3] * T.float32(-1) * T_divide[v_i0, v_i2, v_i3], T.float32(0))
 
         @R.function
@@ -90,61 +90,61 @@ def test_nll_loss_backward():
 
 def test_nll_loss_backward_no_weight():
     # fmt: off
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class NLLLossBackward:
         @R.function
         def main(output_grad: R.Tensor((), "float32"), predictions: R.Tensor((2, 3, 4, 5), "float32"), targets: R.Tensor((2, 4, 5), "int64")) -> R.Tensor((2, 3, 4, 5), "float32"):
             gv: R.Tensor((2, 3, 4, 5), "float32") = R.grad.nll_loss_backward(output_grad, predictions, targets, reduction="mean", ignore_index=-1)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def te_nll_loss_backward_no_weight(rxplaceholder: T.Buffer((), "float32"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_2: T.Buffer((T.int64(2), T.int64(4), T.int64(5)), "int64"), pred_grad: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
-            T_full = T.sblock_alloc_buffer((T.int64(3),))
-            all_weights = T.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
-            T_broadcast_to = T.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
-            all_weights_red = T.sblock_alloc_buffer(())
-            T_divide = T.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
+            # with Ts.sblock("root"):
+            T_full = Ts.sblock_alloc_buffer((T.int64(3),))
+            all_weights = Ts.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
+            T_broadcast_to = Ts.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
+            all_weights_red = Ts.sblock_alloc_buffer(())
+            T_divide = Ts.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
             for ax0 in range(T.int64(3)):
-                with T.sblock("T_full"):
-                    v_ax0 = T.axis.spatial(T.int64(3), ax0)
-                    T.reads()
-                    T.writes(T_full[v_ax0])
+                with Ts.sblock("T_full"):
+                    v_ax0 = Ts.axis.spatial(T.int64(3), ax0)
+                    Ts.reads()
+                    Ts.writes(T_full[v_ax0])
                     T_full[v_ax0] = T.float32(1)
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
-                with T.sblock("all_weights"):
-                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
-                    T.reads(T_full[rxplaceholder_2[v_i0, v_i1, v_i2]], rxplaceholder_2[v_i0, v_i1, v_i2])
-                    T.writes(all_weights[v_i0, v_i1, v_i2])
+                with Ts.sblock("all_weights"):
+                    v_i0, v_i1, v_i2 = Ts.axis.remap("SSS", [i0, i1, i2])
+                    Ts.reads(T_full[rxplaceholder_2[v_i0, v_i1, v_i2]], rxplaceholder_2[v_i0, v_i1, v_i2])
+                    Ts.writes(all_weights[v_i0, v_i1, v_i2])
                     all_weights[v_i0, v_i1, v_i2] = T_full[rxplaceholder_2[v_i0, v_i1, v_i2]]
             for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
-                with T.sblock("T_broadcast_to"):
-                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
-                    T.reads(rxplaceholder[()])
-                    T.writes(T_broadcast_to[v_ax0, v_ax1, v_ax2])
+                with Ts.sblock("T_broadcast_to"):
+                    v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
+                    Ts.reads(rxplaceholder[()])
+                    Ts.writes(T_broadcast_to[v_ax0, v_ax1, v_ax2])
                     T_broadcast_to[v_ax0, v_ax1, v_ax2] = rxplaceholder[()]
             for k0, k1, k2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
-                with T.sblock("all_weights_red"):
-                    v_k0, v_k1, v_k2 = T.axis.remap("RRR", [k0, k1, k2])
-                    T.reads(all_weights[v_k0, v_k1, v_k2])
-                    T.writes(all_weights_red[()])
-                    with T.init():
+                with Ts.sblock("all_weights_red"):
+                    v_k0, v_k1, v_k2 = Ts.axis.remap("RRR", [k0, k1, k2])
+                    Ts.reads(all_weights[v_k0, v_k1, v_k2])
+                    Ts.writes(all_weights_red[()])
+                    with Ts.init():
                         all_weights_red[()] = T.float32(0)
                     all_weights_red[()] = all_weights_red[()] + all_weights[v_k0, v_k1, v_k2]
             for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
-                with T.sblock("T_divide"):
-                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
-                    T.reads(T_broadcast_to[v_ax0, v_ax1, v_ax2], all_weights_red[()])
-                    T.writes(T_divide[v_ax0, v_ax1, v_ax2])
+                with Ts.sblock("T_divide"):
+                    v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
+                    Ts.reads(T_broadcast_to[v_ax0, v_ax1, v_ax2], all_weights_red[()])
+                    Ts.writes(T_divide[v_ax0, v_ax1, v_ax2])
                     T_divide[v_ax0, v_ax1, v_ax2] = T_broadcast_to[v_ax0, v_ax1, v_ax2] / all_weights_red[()]
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
-                with T.sblock("pred_grad"):
-                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                    T.reads(rxplaceholder_2[v_i0, v_i2, v_i3], all_weights[v_i0, v_i2, v_i3], T_divide[v_i0, v_i2, v_i3])
-                    T.writes(pred_grad[v_i0, v_i1, v_i2, v_i3])
+                with Ts.sblock("pred_grad"):
+                    v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                    Ts.reads(rxplaceholder_2[v_i0, v_i2, v_i3], all_weights[v_i0, v_i2, v_i3], T_divide[v_i0, v_i2, v_i3])
+                    Ts.writes(pred_grad[v_i0, v_i1, v_i2, v_i3])
                     pred_grad[v_i0, v_i1, v_i2, v_i3] = T.Select(v_i1 == rxplaceholder_2[v_i0, v_i2, v_i3], all_weights[v_i0, v_i2, v_i3] * T.float32(-1) * T_divide[v_i0, v_i2, v_i3], T.float32(0))
 
         @R.function
@@ -167,7 +167,7 @@ def test_nll_loss_backward_no_batch():
             gv: R.Tensor((4,), "float32") = R.grad.nll_loss_backward(output_grad, predictions, targets, weights, reduction="mean", ignore_index=-1)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(output_grad: R.Tensor((), dtype="float32"), predictions: R.Tensor((4,), dtype="float32"), targets: R.Tensor((), dtype="int64"), weights: R.Tensor((4,), dtype="float32")) -> R.Tensor((4,), dtype="float32"):
@@ -178,30 +178,30 @@ def test_nll_loss_backward_no_batch():
         @Ts.prim_func(private=True)
         def nll_loss_backward(rxplaceholder: T.Buffer((), "float32"), rxplaceholder_1: T.Buffer((T.int64(4),), "float32"), rxplaceholder_2: T.Buffer((), "int64"), rxplaceholder_3: T.Buffer((T.int64(4),), "float32"), pred_grad: T.Buffer((T.int64(4),), "float32")):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
-            all_weights = T.sblock_alloc_buffer(())
-            T_broadcast_to = T.sblock_alloc_buffer(())
-            T_divide = T.sblock_alloc_buffer(())
-            with T.sblock("all_weights"):
-                vi = T.axis.spatial(T.int64(1), T.int64(0))
-                T.reads(rxplaceholder_3[rxplaceholder_2[()]], rxplaceholder_2[()])
-                T.writes(all_weights[()])
+            # with Ts.sblock("root"):
+            all_weights = Ts.sblock_alloc_buffer(())
+            T_broadcast_to = Ts.sblock_alloc_buffer(())
+            T_divide = Ts.sblock_alloc_buffer(())
+            with Ts.sblock("all_weights"):
+                vi = Ts.axis.spatial(T.int64(1), T.int64(0))
+                Ts.reads(rxplaceholder_3[rxplaceholder_2[()]], rxplaceholder_2[()])
+                Ts.writes(all_weights[()])
                 all_weights[()] = rxplaceholder_3[rxplaceholder_2[()]]
-            with T.sblock("T_broadcast_to"):
-                vi = T.axis.spatial(T.int64(1), T.int64(0))
-                T.reads(rxplaceholder[()])
-                T.writes(T_broadcast_to[()])
+            with Ts.sblock("T_broadcast_to"):
+                vi = Ts.axis.spatial(T.int64(1), T.int64(0))
+                Ts.reads(rxplaceholder[()])
+                Ts.writes(T_broadcast_to[()])
                 T_broadcast_to[()] = rxplaceholder[()]
-            with T.sblock("T_divide"):
-                vi = T.axis.spatial(T.int64(1), T.int64(0))
-                T.reads(T_broadcast_to[()], all_weights[()])
-                T.writes(T_divide[()])
+            with Ts.sblock("T_divide"):
+                vi = Ts.axis.spatial(T.int64(1), T.int64(0))
+                Ts.reads(T_broadcast_to[()], all_weights[()])
+                Ts.writes(T_divide[()])
                 T_divide[()] = T_broadcast_to[()] / all_weights[()]
             for i in range(T.int64(4)):
-                with T.sblock("pred_grad"):
-                    v_i = T.axis.spatial(T.int64(4), i)
-                    T.reads(rxplaceholder_2[()], all_weights[()], T_divide[()])
-                    T.writes(pred_grad[v_i])
+                with Ts.sblock("pred_grad"):
+                    v_i = Ts.axis.spatial(T.int64(4), i)
+                    Ts.reads(rxplaceholder_2[()], all_weights[()], T_divide[()])
+                    Ts.writes(pred_grad[v_i])
                     pred_grad[v_i] = T.Select(v_i == rxplaceholder_2[()], all_weights[()] * T.float32(-1) * T_divide[()], T.float32(0))
     # fmt: on
 
@@ -218,27 +218,27 @@ def test_max_pool2d_backward():
             gv = R.grad.max_pool2d_backward(output_grad, data, (5, 5), (2, 2), (2, 1, 2, 1), (1, 1), True)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def max_pool2d_backward(A: T.Buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "float32"), B: T.Buffer((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32"), T_pool_grad: T.Buffer((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32")):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
-            pad_temp = T.sblock_alloc_buffer((T.int64(3), T.int64(2), T.int64(15), T.int64(13)))
-            maxpool_grad_argmax_v0 = T.sblock_alloc_buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "int64")
-            maxpool_grad_argmax_v1 = T.sblock_alloc_buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)))
+            # with Ts.sblock("root"):
+            pad_temp = Ts.sblock_alloc_buffer((T.int64(3), T.int64(2), T.int64(15), T.int64(13)))
+            maxpool_grad_argmax_v0 = Ts.sblock_alloc_buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "int64")
+            maxpool_grad_argmax_v1 = Ts.sblock_alloc_buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)))
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(3), T.int64(2), T.int64(15), T.int64(13)):
-                with T.sblock("pad_temp"):
-                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(B[v_ax0, v_ax1, v_ax2 - T.int64(2), v_ax3 - T.int64(1)])
-                    T.writes(pad_temp[v_ax0, v_ax1, v_ax2, v_ax3])
+                with Ts.sblock("pad_temp"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    Ts.reads(B[v_ax0, v_ax1, v_ax2 - T.int64(2), v_ax3 - T.int64(1)])
+                    Ts.writes(pad_temp[v_ax0, v_ax1, v_ax2, v_ax3])
                     pad_temp[v_ax0, v_ax1, v_ax2, v_ax3] = T.if_then_else(T.int64(2) <= v_ax2 and v_ax2 < T.int64(12) and T.int64(1) <= v_ax3 and v_ax3 < T.int64(11), B[v_ax0, v_ax1, v_ax2 - T.int64(2), v_ax3 - T.int64(1)], T.float32(-3.4028234663852886e+38))
             for ax0, ax1, ax2, ax3, dh, dw in T.grid(T.int64(3), T.int64(2), T.int64(6), T.int64(5), T.int64(5), T.int64(5)):
-                with T.sblock("maxpool_grad_argmax"):
-                    v_ax0, v_ax1, v_ax2, v_ax3, v_dh, v_dw = T.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, dh, dw])
-                    T.reads(pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw])
-                    T.writes(maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3], maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3])
-                    with T.init():
+                with Ts.sblock("maxpool_grad_argmax"):
+                    v_ax0, v_ax1, v_ax2, v_ax3, v_dh, v_dw = Ts.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, dh, dw])
+                    Ts.reads(pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw])
+                    Ts.writes(maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3], maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3])
+                    with Ts.init():
                         maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] = T.int64(-1)
                         maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] = T.float32(-3.4028234663852886e+38)
                     v_maxpool_grad_argmax_v0: T.let[T.int64] = T.Select(maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] > pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw] or (maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] == pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw] and maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] < v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(26) + v_dh * T.int64(13) + v_ax3 * T.int64(2) + v_dw), maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3], v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(26) + T.Cast("int64", v_dh) * T.int64(13) + v_ax3 * T.int64(2) + T.Cast("int64", v_dw))
@@ -246,11 +246,11 @@ def test_max_pool2d_backward():
                     maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] = v_maxpool_grad_argmax_v0
                     maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] = v_maxpool_grad_argmax_v1
             for ax0, ax1, ax2, ax3, wh, ww in T.grid(T.int64(3), T.int64(2), T.int64(10), T.int64(10), T.int64(3), T.int64(3)):
-                with T.sblock("T_pool_grad"):
-                    v_ax0, v_ax1, v_ax2, v_ax3, v_wh, v_ww = T.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, wh, ww])
-                    T.reads(maxpool_grad_argmax_v0[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww], A[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww])
-                    T.writes(T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3])
-                    with T.init():
+                with Ts.sblock("T_pool_grad"):
+                    v_ax0, v_ax1, v_ax2, v_ax3, v_wh, v_ww = Ts.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, wh, ww])
+                    Ts.reads(maxpool_grad_argmax_v0[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww], A[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww])
+                    Ts.writes(T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3])
+                    with Ts.init():
                         T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] = T.float32(0)
                     T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] = T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] + T.if_then_else(T.Select(v_ax2 < T.int64(3), T.int64(0), T.Div(v_ax2 - T.int64(3), T.int64(2)) + T.int64(1)) <= T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh and T.Select(v_ax3 < T.int64(4), T.int64(0), T.Div(v_ax3 - T.int64(4), T.int64(2)) + T.int64(1)) <= T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww and maxpool_grad_argmax_v0[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww] == v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(13) + v_ax3 + T.int64(27), A[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww], T.float32(0))
 
@@ -274,18 +274,18 @@ def test_avg_pool2d_backward():
             gv = R.grad.avg_pool2d_backward(output_grad, data, (5, 5), (2, 2), (2, 1, 2, 1), (1, 1), True)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def avg_pool2d_backward(output_grad: T.Buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "float32"), data: T.Buffer((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32"), T_pool_grad: T.Buffer((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32")):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3, wh, ww in T.grid(T.int64(3), T.int64(2), T.int64(10), T.int64(10), T.int64(3), T.int64(3)):
-                with T.sblock("T_pool_grad"):
-                    v_ax0, v_ax1, v_ax2, v_ax3, v_wh, v_ww = T.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, wh, ww])
-                    T.reads(output_grad[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww])
-                    T.writes(T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3])
-                    with T.init():
+                with Ts.sblock("T_pool_grad"):
+                    v_ax0, v_ax1, v_ax2, v_ax3, v_wh, v_ww = Ts.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, wh, ww])
+                    Ts.reads(output_grad[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww])
+                    Ts.writes(T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3])
+                    with Ts.init():
                         T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] = T.float32(0)
                     T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] = T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] + T.if_then_else(T.Select(v_ax2 < T.int64(3), T.int64(0), T.Div(v_ax2 - T.int64(3), T.int64(2)) + T.int64(1)) <= T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh and T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh < T.int64(6) and T.Select(v_ax3 < T.int64(4), T.int64(0), T.Div(v_ax3 - T.int64(4), T.int64(2)) + T.int64(1)) <= T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww and T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww < T.int64(5), output_grad[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww] / T.Cast("float32", T.max((T.min(T.Div(v_ax2 + T.int64(2), T.int64(2)) * T.int64(2) + T.int64(3) - T.Cast("int64", v_wh) * T.int64(2), T.int64(10)) - T.max(T.Div(v_ax2 + T.int64(2), T.int64(2)) - T.Cast("int64", v_wh) - T.int64(1), T.int64(0)) * T.int64(2)) * (T.min(T.Div(v_ax3 + T.int64(1), T.int64(2)) * T.int64(2) + T.int64(4) - T.Cast("int64", v_ww) * T.int64(2), T.int64(10)) - T.max(T.Div(v_ax3 + T.int64(1), T.int64(2)) * T.int64(2) - T.Cast("int64", v_ww) * T.int64(2) - T.int64(1), T.int64(0))), T.int64(1))), T.float32(0.0))
 
@@ -309,7 +309,7 @@ def test_take_backward():
             gv = R.grad.take_backward(output_grad, x, indices, axis=1)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def take_backward(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, out_buf: T.Buffer((T.int64(3), T.int64(4), T.int64(5)), "float32")):
@@ -317,7 +317,7 @@ def test_take_backward():
             rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(3), T.int64(2), T.int64(5)), offset_factor=1)
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (T.int64(3), T.int64(4), T.int64(5)), offset_factor=1)
             rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, (T.int64(2),), "int32", offset_factor=1)
-            with T.sblock("take_backward"):
+            with Ts.sblock("take_backward"):
                 T.attr(0, "pragma_scope", "seq")
                 for i in range(T.int64(60)):
                     out_buf[i // T.int64(5) // T.int64(4), i // T.int64(5) % T.int64(4), i % T.int64(5)] = T.float32(0)
@@ -346,7 +346,7 @@ def test_take_backward_symbolic():
             gv = R.grad.take_backward(output_grad, x, indices, axis=1)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def take_backward(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, var_take_backward: T.handle):
@@ -357,7 +357,7 @@ def test_take_backward_symbolic():
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (m, n), offset_factor=1)
             rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, (i,), "int32", offset_factor=1)
             out_buf = T.match_buffer(var_take_backward, (m, n))
-            with T.sblock("take_backward"):
+            with Ts.sblock("take_backward"):
                 T.attr(0, "pragma_scope", "seq")
                 for i_1 in range(m * n):
                     out_buf[i_1 // n, i_1 % n] = T.float32(0)

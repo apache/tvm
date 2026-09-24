@@ -66,7 +66,7 @@ def test_dtensor_type():
     )
 
 
-@I.ir_module(s_tir=True)
+@I.ir_module
 class TestModule:
     I.module_attrs({"device_num": 10})
     I.module_global_infos(
@@ -85,8 +85,8 @@ class TestModule:
     ):
         T.func_attr({"tirx.noalias": True})
         for i, j in T.grid(T.int64(128), T.int64(128)):
-            with T.sblock():
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock():
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 y[vi, vj] = x[vi, vj] + 1.0
 
     @R.function
@@ -136,12 +136,12 @@ class Module:
     @Ts.prim_func
     def tir_func(x: T.Buffer((T.int64(128), T.int64(128)), "float32"), y: T.Buffer((T.int64(128), T.int64(128)), "float32")):
         T.func_attr({"tirx.noalias": True})
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for i, j in T.grid(T.int64(128), T.int64(128)):
-            with T.sblock(""):
-                v, v_1 = T.axis.remap("SS", [i, j])
-                T.reads(x[v, v_1])
-                T.writes(y[v, v_1])
+            with Ts.sblock(""):
+                v, v_1 = Ts.axis.remap("SS", [i, j])
+                Ts.reads(x[v, v_1])
+                Ts.writes(y[v, v_1])
                 y[v, v_1] = x[v, v_1] + T.float32(1.0)
 
     @R.function

@@ -47,8 +47,8 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j, k in T.grid(128, 128, 128):
-        with T.sblock("update"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+        with Ts.sblock("update"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 

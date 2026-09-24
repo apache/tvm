@@ -186,7 +186,7 @@ def test_extern_func_with_ty_roundtrip():
 
 
 def test_nested_function():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class NestedFunction:
         @R.function
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -701,7 +701,7 @@ T_1: R.Tensor((1, x, 3), dtype="float32") = R.sin(R_1)
 
 
 def test_module_cross_func_call():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class TestModule:
         @Ts.prim_func
         def tir_func(
@@ -765,7 +765,7 @@ class Module:
 
 
 def test_assert_op():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class AssertOpMod:
         @R.function(pure=False)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -789,7 +789,7 @@ class Module:
 
 
 def test_print():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class PrintMod:
         @R.function(pure=False)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -813,7 +813,7 @@ class Module:
 
 
 def test_private_function():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class AddMod:
         @R.function(private=True)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):

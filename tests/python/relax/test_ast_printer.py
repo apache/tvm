@@ -448,8 +448,8 @@ def test_call_tir():
             B = T.match_buffer(B_handle, (m, n), "float32")
             T.func_attr({"global_symbol": "addone"})
             for i, j in T.grid(m, n):
-                with T.sblock("addone"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("addone"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] + T.int32(1)
 
         @R.function

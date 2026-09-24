@@ -365,26 +365,26 @@ def test_vm_builtin_reshape(exec_mode):
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_kill_object(exec_mode):
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class TestKillObject:
         @Ts.prim_func
         def full(T_full: T.Buffer((T.int64(4),), "float32")):
             T.func_attr({"global_symbol": "full", "tirx.noalias": True})
             for ax0 in range(T.int64(4)):
-                with T.sblock("T_full"):
-                    v_ax0 = T.axis.spatial(T.int64(4), ax0)
-                    T.reads()
-                    T.writes(T_full[v_ax0])
+                with Ts.sblock("T_full"):
+                    v_ax0 = Ts.axis.spatial(T.int64(4), ax0)
+                    Ts.reads()
+                    Ts.writes(T_full[v_ax0])
                     T_full[v_ax0] = T.float32(0)
 
         @Ts.prim_func
         def full1(T_full: T.Buffer((T.int64(4),), "float32")):
             T.func_attr({"global_symbol": "full1", "tirx.noalias": True})
             for ax0 in range(T.int64(4)):
-                with T.sblock("T_full"):
-                    v_ax0 = T.axis.spatial(T.int64(4), ax0)
-                    T.reads()
-                    T.writes(T_full[v_ax0])
+                with Ts.sblock("T_full"):
+                    v_ax0 = Ts.axis.spatial(T.int64(4), ax0)
+                    Ts.reads()
+                    Ts.writes(T_full[v_ax0])
                     T_full[v_ax0] = T.float32(1)
 
         # PrimFuncs called directly are treated as impure
@@ -426,7 +426,7 @@ def test_vm_kill_object(exec_mode):
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_preserve_trivial_bindings(exec_mode):
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class mod:
         @R.function(pure=False)
         def main():

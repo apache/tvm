@@ -43,7 +43,7 @@ def test_callback():
     callback to load the parameters.
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         @Ts.prim_func(private=True)
         def slice_A(
@@ -52,8 +52,8 @@ def test_callback():
             A_sharded: T.Buffer((2, 4), "int32"),
         ):
             for i, j in T.grid(2, 4):
-                with T.sblock("slice_A"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("slice_A"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     A_sharded[vi, vj] = A[rank * 2 + vi, vj]
 
         @Ts.prim_func(private=True)
@@ -63,8 +63,8 @@ def test_callback():
             B_sharded: T.Buffer((2, 1), "float32"),
         ):
             for i in range(2):
-                with T.sblock("slice_B"):
-                    vi = T.axis.spatial(2, i)
+                with Ts.sblock("slice_B"):
+                    vi = Ts.axis.spatial(2, i)
                     B_sharded[vi, 0] = B[vi, rank]
 
         @R.function

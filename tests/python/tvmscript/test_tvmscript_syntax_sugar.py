@@ -35,12 +35,12 @@ def transformed_matmul_no_syntax_sugar(a: T.handle, b: T.handle, c: T.handle) ->
     C = T.match_buffer(c, [128, 128])
 
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
-        with T.sblock("update"):
-            vi, vj = T.axis.remap("SS", [i0, i1])
-            vk = T.axis.R(128, i2_outer * 32 + i2_inner_outer * 4 + i2_inner_inner)
-            T.reads([C[vi, vj], A[vi, vk], B[vj, vk]])
-            T.writes([C[vi, vj], A[vi, vk]])
-            with T.init():
+        with Ts.sblock("update"):
+            vi, vj = Ts.axis.remap("SS", [i0, i1])
+            vk = Ts.axis.R(128, i2_outer * 32 + i2_inner_outer * 4 + i2_inner_inner)
+            Ts.reads([C[vi, vj], A[vi, vk], B[vj, vk]])
+            Ts.writes([C[vi, vj], A[vi, vk]])
+            with Ts.init():
                 C[vi, vj] = 0.0
             A[vi, vk] = A[vi, vk] + B[vj, vk]
             C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
@@ -53,12 +53,12 @@ def transformed_matmul_syntax_sugar(a: T.handle, b: T.handle, c: T.handle) -> No
     C = T.match_buffer(c, [128, 128])
 
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
-        with T.sblock("update"):
-            vi, vj = T.axis.remap("SS", [i0, i1])
-            vk = T.axis.R(128, i2_outer * 32 + i2_inner_outer * 4 + i2_inner_inner)
-            T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
-            T.writes(C[vi, vj], A[vi, vk])
-            with T.init():
+        with Ts.sblock("update"):
+            vi, vj = Ts.axis.remap("SS", [i0, i1])
+            vk = Ts.axis.R(128, i2_outer * 32 + i2_inner_outer * 4 + i2_inner_inner)
+            Ts.reads(C[vi, vj], A[vi, vk], B[vj, vk])
+            Ts.writes(C[vi, vj], A[vi, vk])
+            with Ts.init():
                 C[vi, vj] = 0.0
             A[vi, vk] = A[vi, vk] + B[vj, vk]
             C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
@@ -107,8 +107,8 @@ def elementwise_handle(
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
     for i, j, k, l in T.grid(128, 128, 128, 128):
-        with T.sblock("B"):
-            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+        with Ts.sblock("B"):
+            vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
@@ -119,8 +119,8 @@ def elementwise_buffer_kwargs(
     b: T.Buffer(shape=(128, 128, 128, 128), dtype="float32"),
 ) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 128):
-        with T.sblock("B"):
-            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+        with Ts.sblock("B"):
+            vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
             b[vi, vj, vk, vl] = a[vi, vj, vk, vl] * 2.0
 
 
@@ -131,8 +131,8 @@ def elementwise_buffer_no_kwargs(
     b: T.Buffer((128, 128, 128, 128), "float32"),
 ) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 128):
-        with T.sblock("B"):
-            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+        with Ts.sblock("B"):
+            vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
             b[vi, vj, vk, vl] = a[vi, vj, vk, vl] * 2.0
 
 
@@ -168,9 +168,9 @@ def gemm_dyn_shape(a: T.handle, b: T.handle, c: T.handle):
     B = T.match_buffer(b, (K, M), "float32")
     C = T.match_buffer(c, (N, M), "float32")
     for i, j, k in T.grid(N, M, K):
-        with T.sblock("gemm"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("gemm"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -183,15 +183,15 @@ def test_dynamic_shape_gemm():
 @Ts.prim_func
 def match_buffer_int64(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (T.int64(128), T.int64(128)), dtype="float32")
-    B = T.sblock_alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
+    B = Ts.sblock_alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
     C = T.match_buffer(c, (T.int64(128), T.int64(128)), dtype="float32")
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(T.int64(128), T.int64(128)):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -200,14 +200,14 @@ def match_buffer_int64_after_roundtrip(
     A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     C: T.Buffer((T.int64(128), T.int64(128)), "float32"),
 ) -> None:
-    B = T.sblock_alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
+    B = Ts.sblock_alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(T.int64(128), T.int64(128)):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -220,13 +220,13 @@ def test_match_buffer_int64():
 def test_match_buffer_region_has_implicit_shape_dtype():
     @Ts.prim_func
     def explicit_shape_dtype(A: T.Buffer((16, 64), "int32")):
-        with T.sblock():
+        with Ts.sblock():
             B = T.match_buffer(A[8:16, 32:64], shape=(8, 32), dtype="int32")
             T.evaluate(0)
 
     @Ts.prim_func
     def implicit_shape_dtype(A: T.Buffer((16, 64), "int32")):
-        with T.sblock():
+        with Ts.sblock():
             B = T.match_buffer(A[8:16, 32:64])
             T.evaluate(0)
 
@@ -283,22 +283,22 @@ def test_func_call():
         B = T.match_buffer(b, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
         C = T.match_buffer(c, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
 
-        with T.sblock("root"):
-            T.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
-            T.writes(C[0:32, 0:8])
+        with Ts.sblock("root"):
+            Ts.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
+            Ts.writes(C[0:32, 0:8])
             for i, j, k in T.grid(16, 16, 16):
-                with T.sblock("C"):
-                    i, j, k = T.axis.remap("SSR", [i, j, k])
+                with Ts.sblock("C"):
+                    i, j, k = Ts.axis.remap("SSR", [i, j, k])
                     indices_C = shared_16x16_to_ldmatrix_32x8_layout(i, j)
                     indices_A = shared_16x16_to_ldmatrix_32x8_layout(i, k)
                     indices_B = shared_16x16_to_ldmatrix_32x8_layout(k, j)
 
-                    T.reads(
+                    Ts.reads(
                         C[indices_C[0], indices_C[1]],
                         A[indices_A[0], indices_A[1]],
                         B[indices_B[0], indices_B[1]],
                     )
-                    T.writes(C[indices_C[0], indices_C[1]])
+                    Ts.writes(C[indices_C[0], indices_C[1]])
 
                     C[indices_C[0], indices_C[1]] += (
                         A[indices_A[0], indices_A[1]] * B[indices_B[0], indices_B[1]]
@@ -310,18 +310,18 @@ def test_func_call():
         B = T.match_buffer(b, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
         C = T.match_buffer(c, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
 
-        with T.sblock("root"):
-            T.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
-            T.writes(C[0:32, 0:8])
+        with Ts.sblock("root"):
+            Ts.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
+            Ts.writes(C[0:32, 0:8])
             for i, j, k in T.grid(16, 16, 16):
-                with T.sblock("C"):
-                    i, j, k = T.axis.remap("SSR", [i, j, k])
-                    T.reads(
+                with Ts.sblock("C"):
+                    i, j, k = Ts.axis.remap("SSR", [i, j, k])
+                    Ts.reads(
                         C[i % 8 * 4 + j % 8 // 2, j // 8 * 4 + i // 8 * 2 + j % 2],
                         A[i % 8 * 4 + k % 8 // 2, k // 8 * 4 + i // 8 * 2 + k % 2],
                         B[k % 8 * 4 + j % 8 // 2, j // 8 * 4 + k // 8 * 2 + j % 2],
                     )
-                    T.writes(C[i % 8 * 4 + j % 8 // 2, j // 8 * 4 + i // 8 * 2 + j % 2])
+                    Ts.writes(C[i % 8 * 4 + j % 8 // 2, j // 8 * 4 + i // 8 * 2 + j % 2])
                     C[i % 8 * 4 + j % 8 // 2, j // 8 * 4 + i // 8 * 2 + j % 2] = (
                         C[i % 8 * 4 + j % 8 // 2, j // 8 * 4 + i // 8 * 2 + j % 2]
                         + A[i % 8 * 4 + k % 8 // 2, k // 8 * 4 + i // 8 * 2 + k % 2]
@@ -362,8 +362,8 @@ def test_int64_loop():
         B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     ) -> None:
         for i, j in T.grid(T.int64(128), T.int64(128)):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("C"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] + 1.0
 
     @Ts.prim_func
@@ -373,9 +373,9 @@ def test_int64_loop():
     ) -> None:
         for i in range(T.int64(0), T.int64(128)):
             for j in range(T.int64(0), T.int64(128)):
-                with T.sblock("C"):
-                    vi = T.axis.spatial(T.int64(128), i)
-                    vj = T.axis.spatial(T.int64(128), j)
+                with Ts.sblock("C"):
+                    vi = Ts.axis.spatial(T.int64(128), i)
+                    vj = Ts.axis.spatial(T.int64(128), j)
                     B[vi, vj] = A[vi, vj] + 1.0
 
     assert_structural_equal_ignore_global_symbol(int64_grid, int64_grid_expanded)

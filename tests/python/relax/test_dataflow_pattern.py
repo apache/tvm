@@ -42,9 +42,9 @@ class Module:
         C = T.match_buffer(z, (32, 32))
 
         for i0, j0, k0 in T.grid(32, 32, 32):
-            with T.sblock():
-                i, j, k = T.axis.remap("SSR", [i0, j0, k0])
-                with T.init():
+            with Ts.sblock():
+                i, j, k = Ts.axis.remap("SSR", [i0, j0, k0])
+                with Ts.init():
                     C[i, j] = 0.0
                 C[i, j] += A[i, k] * B[j, k]
 
@@ -54,8 +54,8 @@ class Module:
         A = T.match_buffer(x, (32, 32))
         B = T.match_buffer(y, (32, 32))
         for i, j in T.grid(32, 32):
-            with T.sblock():
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock():
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
     @Ts.prim_func
@@ -63,8 +63,8 @@ class Module:
         T.func_attr({"global_symbol": "tir_zeros"})
         A = T.match_buffer(x, [n])
         for i in range(n):
-            with T.sblock():
-                vi = T.axis.remap("S", [i])
+            with Ts.sblock():
+                vi = Ts.axis.remap("S", [i])
                 A[vi] = 1.0
 
     @R.function

@@ -121,14 +121,14 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
     if read_width > lanes:
         return
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class TextureCopy:
         @Ts.prim_func
         def main(A: T.Buffer((M, N), dtype), B: T.Buffer((M, N), dtype)):
             T.func_attr({"global_symbol": "main"})
             for li, lj in T.grid(M, N):
-                with T.sblock("Copy"):
-                    i, j = T.axis.remap("SS", [li, lj])
+                with Ts.sblock("Copy"):
+                    i, j = Ts.axis.remap("SS", [li, lj])
                     B[i, j] = A[i, j]
 
     def schedule_texture_read(sch: s_tir.Schedule):

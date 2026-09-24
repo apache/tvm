@@ -899,14 +899,14 @@ def test_dynamic_strided_slice_infer_ty_arg_wrong_shape_info():
 def test_legalize_dynamic_begin_end():
     """relax.op.strided_slice FLegalize must support dynamic begin/end"""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class before:
         @R.function
         def main(A: R.Tensor((16, 16), "float32"), B: R.Shape(["index"])) -> R.Tensor((1, 16)):
             index = T.int64()
             return R.strided_slice(A, [0], [index], [index + 1], assume_inbound=True)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class expected:
         @R.function
         def main(A: R.Tensor((16, 16), "float32"), B: R.Shape(["index"])) -> R.Tensor((1, 16)):
@@ -925,8 +925,8 @@ def test_legalize_dynamic_begin_end():
         ):
             T.func_attr({"tirx.noalias": True})
             for (*iters,) in T.grid(*B.shape):
-                with T.sblock("T_dynamic_strided_slice"):
-                    i, j = T.axis.remap("SS", iters)
+                with Ts.sblock("T_dynamic_strided_slice"):
+                    i, j = Ts.axis.remap("SS", iters)
                     B[i, j] = A[i + index, j]
 
     after = tvm.relax.transform.LegalizeOps()(before)
@@ -936,7 +936,7 @@ def test_legalize_dynamic_begin_end():
 def test_legalize_dynamic_begin_inf_end():
     """relax.op.strided_slice FLegalize must support dynamic begin/end"""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class before:
         @R.function
         def main(A: R.Tensor((16, 16), "float32"), B: R.Shape(["index"])) -> R.Tensor((1, 16)):
@@ -946,18 +946,18 @@ def test_legalize_dynamic_begin_inf_end():
             )
 
     # fmt: off
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class expected:
         @Ts.prim_func(private=True)
         def strided_slice(A: T.Buffer((T.int64(16), T.int64(16)), "float32"), index: T.int64, var_T_dynamic_strided_slice_with_axes: T.handle):
             T.func_attr({"tirx.noalias": True})
             T_dynamic_strided_slice_with_axes = T.match_buffer(var_T_dynamic_strided_slice_with_axes, (T.max(T.int64(16) - T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(0)), T.int64(16)))
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(T.max(T.int64(16) - T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(0)), T.int64(16)):
-                with T.sblock("T_dynamic_strided_slice_with_axes"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0 : v_ax0 + T.int64(17), v_ax1])
-                    T.writes(T_dynamic_strided_slice_with_axes[v_ax0, v_ax1])
+                with Ts.sblock("T_dynamic_strided_slice_with_axes"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(A[v_ax0 : v_ax0 + T.int64(17), v_ax1])
+                    Ts.writes(T_dynamic_strided_slice_with_axes[v_ax0, v_ax1])
                     T_dynamic_strided_slice_with_axes[v_ax0, v_ax1] = A[T.min(T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(16)) + v_ax0, v_ax1]
 
         @R.function

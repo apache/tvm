@@ -29,9 +29,9 @@ def test_meta_programming_matmul():
             C = T.match_buffer(c, [M, N], dtype=dtype)
 
             for i, j, k in T.grid(M, N, K):
-                with T.sblock():
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+                with Ts.sblock():
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -44,9 +44,9 @@ def test_meta_programming_matmul():
         C = T.match_buffer(c, [128, 128], dtype="float16")
 
         for i, j, k in T.grid(128, 128, 128):
-            with T.sblock():
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock():
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -59,7 +59,7 @@ def test_meta_programming_uncaptured_var():
         @Ts.prim_func
         def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
             for i in range(1):
-                with T.sblock("C"):
+                with Ts.sblock("C"):
                     C[i] = T.erf(A[i])
 
         return main
@@ -67,13 +67,13 @@ def test_meta_programming_uncaptured_var():
     @Ts.prim_func
     def fp32(A: T.Buffer((1,), "float32"), C: T.Buffer((1,), "float32")):
         for i in range(1):
-            with T.sblock("C"):
+            with Ts.sblock("C"):
                 C[i] = T.erf(A[i])
 
     @Ts.prim_func
     def fp16(A: T.Buffer((1,), "float16"), C: T.Buffer((1,), "float16")):
         for i in range(1):
-            with T.sblock("C"):
+            with Ts.sblock("C"):
                 C[i] = T.erf(A[i])
 
     f1 = generate_erf("float32").with_attr("global_symbol", "main")

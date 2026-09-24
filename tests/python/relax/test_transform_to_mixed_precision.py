@@ -38,7 +38,7 @@ def _assert_test(input, expected=None, expected2=None):
 
 
 def test_conv2d():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -49,7 +49,7 @@ def test_conv2d():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -73,7 +73,7 @@ def test_conv2d():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -102,7 +102,7 @@ def test_conv2d():
 
 
 def test_conv2d_relu():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -114,7 +114,7 @@ def test_conv2d_relu():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -141,7 +141,7 @@ def test_conv2d_relu():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -171,7 +171,7 @@ def test_conv2d_relu():
 
 
 def test_unknown_dtype_is_not_rewritten():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(x: R.Tensor((2, 3), dtype=None)) -> R.Tensor((2, 3), dtype=None):
@@ -185,7 +185,7 @@ def test_unknown_dtype_is_not_rewritten():
 
 
 def test_relu_conv2d_relu():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -198,7 +198,7 @@ def test_relu_conv2d_relu():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -226,7 +226,7 @@ def test_relu_conv2d_relu():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -257,7 +257,7 @@ def test_relu_conv2d_relu():
 
 
 def test_conv2d_relu_conv2d():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -272,7 +272,7 @@ def test_conv2d_relu_conv2d():
                 R.output(gv3)
             return gv3
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -313,7 +313,7 @@ def test_conv2d_relu_conv2d():
                 R.output(gv3)
             return gv3
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -358,7 +358,7 @@ def test_conv2d_relu_conv2d():
 
 
 def test_gemm_add_silu():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -373,7 +373,7 @@ def test_gemm_add_silu():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -392,7 +392,7 @@ def test_gemm_add_silu():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -414,7 +414,7 @@ def test_gemm_add_silu():
 
 
 def test_tuple():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -433,7 +433,7 @@ def test_tuple():
                 R.output(gv7)
             return gv7
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -502,7 +502,7 @@ def test_tuple():
                 R.output(gv7)
             return gv7
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -574,7 +574,7 @@ def test_tuple():
 
 
 def test_concat_matmul():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -588,7 +588,7 @@ def test_concat_matmul():
                 R.output(lv14)
             return lv14
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -604,7 +604,7 @@ def test_concat_matmul():
                 R.output(lv14)
             return lv14
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -625,7 +625,7 @@ def test_concat_matmul():
 
 
 def test_conv2d_softmax():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -638,7 +638,7 @@ def test_conv2d_softmax():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -666,7 +666,7 @@ def test_conv2d_softmax():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -745,7 +745,7 @@ def test_conv2d_bias_conv2d():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -796,7 +796,7 @@ def test_conv2d_bias_conv2d():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -1055,7 +1055,7 @@ def test_convert_sig():
 
 
 def test_call_tir_with_float16_args():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main(A: R.Tensor([64], "float16")):
@@ -1072,8 +1072,8 @@ def test_call_tir_with_float16_args():
             Output: T.Buffer(64, "float16"),
         ):
             for i in range(64):
-                with T.sblock("copy"):
-                    vi = T.axis.remap("S", [i])
+                with Ts.sblock("copy"):
+                    vi = Ts.axis.remap("S", [i])
                     Output[vi] = Input[vi]
 
     Expected = Before
@@ -1083,7 +1083,7 @@ def test_call_tir_with_float16_args():
 
 
 def test_dynamic_strided_slice():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -1099,7 +1099,7 @@ def test_dynamic_strided_slice():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(

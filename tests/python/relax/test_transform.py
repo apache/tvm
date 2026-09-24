@@ -180,7 +180,7 @@ def test_call_tir_rewrite():
 
 
 def test_call_tir_rewrite_with_interspersed_primitive_argument():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         @Ts.prim_func
         def scale_add(
@@ -410,9 +410,9 @@ def test_call_tir_inplace_simple():
             # just overwrites A with 0s
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.sblock("T_zeros"):
-                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.writes(A[ax0, ax1])
+                with Ts.sblock("T_zeros"):
+                    ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.writes(A[ax0, ax1])
                     A[ax0, ax1] = T.int32(0)
 
         @R.function
@@ -428,9 +428,9 @@ def test_call_tir_inplace_simple():
         def zeros(A: T.Buffer((2, 3), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.sblock("T_zeros"):
-                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.writes(A[ax0, ax1])
+                with Ts.sblock("T_zeros"):
+                    ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.writes(A[ax0, ax1])
                     A[ax0, ax1] = T.int32(0)
 
         @R.function
@@ -454,10 +454,10 @@ def test_call_tir_inplace_multiple_args():
             # copies the contents of C into A and B
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.sblock("T_zeros"):
-                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(C[ax0, ax1])
-                    T.writes(A[ax0, ax1], B[ax0, ax1])
+                with Ts.sblock("T_zeros"):
+                    ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(C[ax0, ax1])
+                    Ts.writes(A[ax0, ax1], B[ax0, ax1])
                     A[ax0, ax1] = C[ax0, ax1]
                     B[ax0, ax1] = C[ax0, ax1]
 
@@ -483,10 +483,10 @@ def test_call_tir_inplace_multiple_args():
             # copies the contents of C into A and B
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.sblock("T_zeros"):
-                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(C[ax0, ax1])
-                    T.writes(A[ax0, ax1], B[ax0, ax1])
+                with Ts.sblock("T_zeros"):
+                    ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(C[ax0, ax1])
+                    Ts.writes(A[ax0, ax1], B[ax0, ax1])
                     A[ax0, ax1] = C[ax0, ax1]
                     B[ax0, ax1] = C[ax0, ax1]
 
@@ -517,10 +517,10 @@ def test_call_tir_inplace_some_new():
             # copies the contents of C into A, out1, and out2
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.sblock("T_zeros"):
-                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(C[ax0, ax1])
-                    T.writes(A[ax0, ax1], out1[ax0, ax1], out2[ax0, ax1])
+                with Ts.sblock("T_zeros"):
+                    ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(C[ax0, ax1])
+                    Ts.writes(A[ax0, ax1], out1[ax0, ax1], out2[ax0, ax1])
                     A[ax0, ax1] = C[ax0, ax1]
                     out1[ax0, ax1] = C[ax0, ax1]
                     out2[ax0, ax1] = C[ax0, ax1]
@@ -556,10 +556,10 @@ def test_call_tir_inplace_some_new():
         ):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.sblock("T_zeros"):
-                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(C[ax0, ax1])
-                    T.writes(A[ax0, ax1], out1[ax0, ax1], out2[ax0, ax1])
+                with Ts.sblock("T_zeros"):
+                    ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(C[ax0, ax1])
+                    Ts.writes(A[ax0, ax1], out1[ax0, ax1], out2[ax0, ax1])
                     A[ax0, ax1] = C[ax0, ax1]
                     out1[ax0, ax1] = C[ax0, ax1]
                     out2[ax0, ax1] = C[ax0, ax1]
@@ -651,7 +651,7 @@ def test_inplace_mutation_with_tuple_argument_raises_error():
     """
     with pytest.raises(ValueError):
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(A: R.Tensor((16,), dtype="float32")) -> R.Tensor((16,), dtype="float32"):
@@ -683,7 +683,7 @@ def test_inplace_mutation_with_non_tensor_argument_raises_error():
     """
     with pytest.raises(ValueError):
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(A: R.Any):
@@ -712,7 +712,7 @@ def test_inplace_mutation_with_incompatible_tensor_shape_raises_error():
     """
     with pytest.raises(ValueError):
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(A: R.Tensor([32], dtype="float32")):
@@ -741,7 +741,7 @@ def test_inplace_mutation_with_incompatible_tensor_dtype_raises_error():
     """
     with pytest.raises(ValueError):
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(A: R.Tensor([16], dtype="int32")):

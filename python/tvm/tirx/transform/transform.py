@@ -227,6 +227,28 @@ def StmtSimplify():
     return _ffi_api.StmtSimplify()  # type: ignore
 
 
+def LowerThreadAllreduce():
+    """Lower cross-thread reductions to target-specific communication.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass.
+    """
+    return _ffi_api.LowerThreadAllreduce()
+
+
+def UnifyThreadBinding():
+    """Unify loop and attribute bindings of each thread axis within a kernel.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass.
+    """
+    return _ffi_api.UnifyThreadBinding()
+
+
 def ConvertSSA():
     """Convert an IRModule to be SSA form.
 

@@ -27,7 +27,6 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -76,8 +75,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
       TVM_FFI_ICHECK(op->thread_binding.has_value());
       ffi::String thread_tag = op->thread_binding.value()->thread_tag;
       body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
-    } else if (is_one(extent) && op->annotations.empty() &&
-               !op->annotations.count(s_tir::attr::irregular_loop_mark)) {
+    } else if (is_one(extent) && op->annotations.empty()) {
       // Case 2. Unit loop elimination
       return body;
     } else {

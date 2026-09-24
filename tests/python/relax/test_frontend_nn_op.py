@@ -592,17 +592,17 @@ def test_tensor_expr_op():
             return tensor_expr_op_out
 
     # fmt: off
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def add_one(A: T.Buffer((T.int64(10), T.int64(10)), "float32"), T_add: T.Buffer((T.int64(10), T.int64(10)), "float32")):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(10), T.int64(10)):
-                with T.sblock("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1])
-                    T.writes(T_add[v_ax0, v_ax1])
+                with Ts.sblock("T_add"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(A[v_ax0, v_ax1])
+                    Ts.writes(T_add[v_ax0, v_ax1])
                     T_add[v_ax0, v_ax1] = A[v_ax0, v_ax1] + T.float32(1)
 
         @R.function
@@ -667,7 +667,7 @@ def test_tensor_ir_op():
             return tensor_expr_op_out
 
     # fmt: off
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def llama_fused_rope(var_qkv: T.handle, offset: T.int64, var_q: T.handle, var_k: T.handle, var_v: T.handle):
@@ -728,10 +728,10 @@ def test_tensor_ir_inplace_op():
         pos = T.match_buffer(var_pos, (seq_len,), "int32")
         embeddings = T.match_buffer(var_embeddings, (total_seq_len, hidden_size), dtype)
         for ax0, ax1 in T.grid(seq_len, hidden_size):
-            with T.sblock("T_take"):
-                v0, v1 = T.axis.remap("SS", [ax0, ax1])
-                T.reads(weight[pos[v0], v1], pos[v0])
-                T.writes(embeddings[v0, v1])
+            with Ts.sblock("T_take"):
+                v0, v1 = Ts.axis.remap("SS", [ax0, ax1])
+                Ts.reads(weight[pos[v0], v1], pos[v0])
+                Ts.writes(embeddings[v0, v1])
                 embeddings[v0 + offset, v1] = weight[pos[v0], v1]
 
     class Model(Module):
@@ -747,7 +747,7 @@ def test_tensor_ir_inplace_op():
             )
             return tensor_expr_op_out
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func
         def inplace_take(
@@ -761,10 +761,10 @@ def test_tensor_ir_inplace_op():
             pos = T.match_buffer(var_pos, (seq_len,), "int32")
             embeddings = T.match_buffer(var_embeddings, (total_seq_len, hidden_size), dtype)
             for ax0, ax1 in T.grid(seq_len, hidden_size):
-                with T.sblock("T_take"):
-                    v0, v1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(weight[pos[v0], v1], pos[v0])
-                    T.writes(embeddings[v0, v1])
+                with Ts.sblock("T_take"):
+                    v0, v1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(weight[pos[v0], v1], pos[v0])
+                    Ts.writes(embeddings[v0, v1])
                     embeddings[v0 + offset, v1] = weight[pos[v0], v1]
 
         @R.function
@@ -833,7 +833,7 @@ def test_tensor_ir_op_no_tir_var():
             )
             return tensor_expr_op_out
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def tir_func(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
@@ -866,7 +866,7 @@ def test_extern():
             return tensor_expr_op_out
 
     # fmt: off
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def _initialize_effect() -> R.Tuple(R.Any):
@@ -933,7 +933,7 @@ def test_multinomial_from_uniform():
             return z0
 
     # fmt: off
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def _initialize_effect() -> R.Tuple(R.Any):
@@ -1016,7 +1016,7 @@ def test_sample_top_p_top_k_from_sorted_prob():
             return z0
 
     # fmt: off
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def get_index_from_sorted(A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle, F: T.handle):
@@ -1028,12 +1028,12 @@ def test_sample_top_p_top_k_from_sorted_prob():
             usample = T.match_buffer(D, (out_batch, 1))
             sample_indices = T.match_buffer(E, (out_batch, 1), "int64")
             output_index = T.match_buffer(F, (out_batch, 1), "int64")
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(out_batch, vocab_size):
-                with T.sblock("T_get_index_from_sorted"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(usample[v_ax0, T.int64(0)], cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1 - T.int64(1):v_ax1 - T.int64(1) + T.int64(2)], sample_indices[v_ax0, T.int64(0)], renorm_prob[sample_indices[v_ax0, T.int64(0)], 0], indices[sample_indices[v_ax0, T.int64(0)], T.min(T.int64(0), v_ax1):T.min(T.int64(0), v_ax1) + (T.max(T.int64(0), v_ax1) + T.int64(1) - T.min(T.int64(0), v_ax1))])
-                    T.writes(output_index[v_ax0, 0])
+                with Ts.sblock("T_get_index_from_sorted"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(usample[v_ax0, T.int64(0)], cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1 - T.int64(1):v_ax1 - T.int64(1) + T.int64(2)], sample_indices[v_ax0, T.int64(0)], renorm_prob[sample_indices[v_ax0, T.int64(0)], 0], indices[sample_indices[v_ax0, T.int64(0)], T.min(T.int64(0), v_ax1):T.min(T.int64(0), v_ax1) + (T.max(T.int64(0), v_ax1) + T.int64(1) - T.min(T.int64(0), v_ax1))])
+                    Ts.writes(output_index[v_ax0, 0])
                     if usample[v_ax0, T.int64(0)] < cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1] / renorm_prob[sample_indices[v_ax0, T.int64(0)], 0] or v_ax1 + T.int64(1) == vocab_size:
                         if v_ax1 == T.int64(0):
                             output_index[v_ax0, 0] = indices[sample_indices[v_ax0, T.int64(0)], 0]
@@ -1048,12 +1048,12 @@ def test_sample_top_p_top_k_from_sorted_prob():
             top_p = T.match_buffer(B, (batch, 1))
             top_k = T.match_buffer(C, (batch, 1), "int64")
             renorm_prob = T.match_buffer(D, (batch, 1))
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(batch, vocab_size):
-                with T.sblock("T_get_renorm_prob"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(cumsum_sorted[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], top_p[v_ax0, 0], top_k[v_ax0, 0])
-                    T.writes(renorm_prob[v_ax0, 0])
+                with Ts.sblock("T_get_renorm_prob"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(cumsum_sorted[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], top_p[v_ax0, 0], top_k[v_ax0, 0])
+                    Ts.writes(renorm_prob[v_ax0, 0])
                     if not (cumsum_sorted[v_ax0, 0] < top_p[v_ax0, 0] and top_k[v_ax0, 0] > T.int64(1)):
                         renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, 0]
                     else:
@@ -1146,17 +1146,17 @@ def test_renormalize_top_p_top_k_prob():
             return z0
 
     # fmt: off
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def filter_with_top_p_top_k(A: T.Buffer((T.int64(2), T.int64(3)), "float32"), B: T.Buffer((T.int64(2), T.int64(1)), "float32"), filter_with_top_p_top_k: T.Buffer((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i, j in T.grid(T.int64(2), T.int64(3)):
-                with T.sblock("filter_with_top_p_top_k"):
-                    v_i, v_j = T.axis.remap("SS", [i, j])
-                    T.reads(B[v_i, T.int64(0)], A[v_i, v_j])
-                    T.writes(filter_with_top_p_top_k[v_i, v_j])
+                with Ts.sblock("filter_with_top_p_top_k"):
+                    v_i, v_j = Ts.axis.remap("SS", [i, j])
+                    Ts.reads(B[v_i, T.int64(0)], A[v_i, v_j])
+                    Ts.writes(filter_with_top_p_top_k[v_i, v_j])
                     filter_with_top_p_top_k[v_i, v_j] = T.Select(B[v_i, T.int64(0)] <= A[v_i, v_j], A[v_i, v_j], T.float32(0))
 
         @Ts.prim_func(private=True)
@@ -1167,12 +1167,12 @@ def test_renormalize_top_p_top_k_prob():
             top_p = T.match_buffer(C, (batch, 1))
             top_k = T.match_buffer(D, (batch, 1), "int64")
             cutoff = T.match_buffer(E, (batch, 1))
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(batch, vocab_size):
-                with T.sblock("T_get_renorm_prob"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(cumsum_sorted[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], top_p[v_ax0, 0], top_k[v_ax0, 0], sorted_prob[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))])
-                    T.writes(cutoff[v_ax0, 0])
+                with Ts.sblock("T_get_renorm_prob"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(cumsum_sorted[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], top_p[v_ax0, 0], top_k[v_ax0, 0], sorted_prob[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))])
+                    Ts.writes(cutoff[v_ax0, 0])
                     if T.Cast("int32", cumsum_sorted[v_ax0, 0] < top_p[v_ax0, 0] and top_k[v_ax0, 0] > T.int64(1)) == 0:
                         cutoff[v_ax0, 0] = sorted_prob[v_ax0, 0]
                     else:
@@ -1259,7 +1259,7 @@ def test_sort_argsort_topk():
             z2 = op.topk(x, k=2, axis=-1)
             return z0, z1, z2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def foo(x: R.Tensor(("seq_len", 64), dtype="float16")):

@@ -38,11 +38,11 @@ def func_1(A: T.Buffer((16,), "float32"), C: T.Buffer((1,), "float32")):
         0,
         16,
     ):
-        with T.sblock():
-            B = T.sblock_alloc_buffer((1,), dtype="float32")
-            with T.sblock():
+        with Ts.sblock():
+            B = Ts.sblock_alloc_buffer((1,), dtype="float32")
+            with Ts.sblock():
                 B[0] = A[i] * T.float32(2)
-            with T.sblock():
+            with Ts.sblock():
                 C[0] = C[0] + A[i] + B[0] + T.float32(1)
                 A[i] = B[0] + T.float32(1)
 
@@ -67,11 +67,11 @@ def func_2(
         0,
         16,
     ):
-        with T.sblock():
-            B = T.sblock_alloc_buffer((1,), dtype="float32")
-            with T.sblock():
+        with Ts.sblock():
+            B = Ts.sblock_alloc_buffer((1,), dtype="float32")
+            with Ts.sblock():
                 B[0] = A[i] * T.float32(2)
-            with T.sblock():
+            with Ts.sblock():
                 C[0] = C[0] + A[i] + B[0] + T.float32(1) + D[0]
                 A[i] = B[0] + T.float32(1) + D[1]
 
@@ -101,11 +101,11 @@ def func_3(
         0,
         16,
     ):
-        with T.sblock():
-            B = T.sblock_alloc_buffer((1,), dtype="float32")
-            with T.sblock():
+        with Ts.sblock():
+            B = Ts.sblock_alloc_buffer((1,), dtype="float32")
+            with Ts.sblock():
                 B[0] = A[i] * T.float32(2)
-            with T.sblock():
+            with Ts.sblock():
                 E[i] = A[i]
                 F[i] = E[i] + 1.0
                 C[0] = C[0] + A[i] + B[0] + T.float32(1) + D[0]
@@ -143,11 +143,11 @@ def func_4(
         0,
         16,
     ):
-        with T.sblock():
-            B = T.sblock_alloc_buffer((1,), dtype="float32")
-            with T.sblock():
+        with Ts.sblock():
+            B = Ts.sblock_alloc_buffer((1,), dtype="float32")
+            with Ts.sblock():
                 B[0] = A[i] * T.float32(2)
-            with T.sblock():
+            with Ts.sblock():
                 E[i] = A[i]
                 F[i] = E[i] + 1.0
                 C[0] = C[0] + A[i] + B[0] + T.float32(1) + D[0]

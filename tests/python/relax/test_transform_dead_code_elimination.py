@@ -63,7 +63,7 @@ def test_simple():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -125,7 +125,7 @@ def test_2block():
             gv3 = R.astype(gv2, dtype="float16")
             return gv3
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -170,8 +170,8 @@ def test_unused_relax_func():
             z: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.sblock("add"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("add"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function(private=True)
@@ -207,8 +207,8 @@ def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
             z: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.sblock("add"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("add"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function(private=True)
@@ -248,8 +248,8 @@ def test_tracking_through_externally_exposed_func(provide_entry_func_name):
             z: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.sblock("add"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("add"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function(private=True)
@@ -296,9 +296,9 @@ def test_unused_relax_func_symbolic_shape():
             y = T.match_buffer(y_handle, (n, k), "float32")
             z = T.match_buffer(z_handle, (m, k), "float32")
             for i, j, k in T.grid(m, k, n):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    with Ts.init():
                         z[vi, vj] = 0.0
                     z[vi, vj] = z[vi, vj] + x[vi, vk] * y[vk, vj]
 
@@ -333,8 +333,8 @@ def test_unused_prim_func():
         ) -> None:
             T.func_attr({"global_symbol": "tir_unused"})
             for i, j in T.grid(16, 16):
-                with T.sblock("add"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("add"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function
@@ -379,8 +379,8 @@ def test_preserve_indirectly_used_prim_func():
             z: T.Buffer((16, 16), "float32"),
         ):
             for i, j in T.grid(16, 16):
-                with T.sblock("add"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("add"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     z[vi, vj] = InputModule.tir_add_float32(x[vi, vj], y[vi, vj])
 
         @Ts.prim_func(private=True)
@@ -405,8 +405,8 @@ def test_multiple_unused_funcs():
         ) -> None:
             T.func_attr({"global_symbol": "tir_unused"})
             for i, j in T.grid(16, 16):
-                with T.sblock("add"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("add"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function(private=True)
@@ -587,7 +587,7 @@ def test_recursively_defined_lambda():
 
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor:
@@ -624,7 +624,7 @@ def test_recursively_defined_closure():
 
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor:

@@ -24,7 +24,6 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.support import cc, popen_pool, tar, utils
 
@@ -44,7 +43,7 @@ def test_cuda_multi_lib():
     class ModA:
         I.module_attrs({"system_lib_prefix": "modA_"})
 
-        @Ts.prim_func
+        @T.prim_func
         def my_inplace_update(x: T.Buffer((12), "float32")) -> None:
             T.func_attr({"global_symbol": "modA_my_inplace_update"})
             for bx in T.thread_binding(T.int64(1), thread="blockIdx.x"):
@@ -55,7 +54,7 @@ def test_cuda_multi_lib():
     class ModB:
         I.module_attrs({"system_lib_prefix": "modB_"})
 
-        @Ts.prim_func
+        @T.prim_func
         def my_inplace_update(x: T.Buffer((12), "float32")) -> None:
             T.func_attr({"global_symbol": "modB_my_inplace_update"})
             for bx in T.thread_binding(T.int64(1), thread="blockIdx.x"):

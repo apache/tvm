@@ -29,24 +29,24 @@ def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
     # body
-    with T.sblock("root"):
-        T.reads([])
-        T.writes([])
-        B = T.sblock_alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
+    with Ts.sblock("root"):
+        Ts.reads([])
+        Ts.writes([])
+        B = Ts.sblock_alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
-                with T.sblock("B"):
-                    vi = T.axis.S(128, i0)
-                    vj = T.axis.S(128, ax1)
-                    T.reads([A[vi, vj]])
-                    T.writes([B[vi, vj]])
-                    T.sblock_attr({"buffer_dim_align": [[0, 0, 128, 127]]})
+                with Ts.sblock("B"):
+                    vi = Ts.axis.S(128, i0)
+                    vj = Ts.axis.S(128, ax1)
+                    Ts.reads([A[vi, vj]])
+                    Ts.writes([B[vi, vj]])
+                    Ts.sblock_attr({"buffer_dim_align": [[0, 0, 128, 127]]})
                     B[vi, vj] = A[vi, vj] * T.float32(2)
             for i1 in T.serial(0, 128):
-                with T.sblock("C"):
-                    vi_1, vj_1 = T.axis.remap("SS", [i0, i1])
-                    T.reads([B[vi_1, vj_1]])
-                    T.writes([C[vi_1, vj_1]])
+                with Ts.sblock("C"):
+                    vi_1, vj_1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads([B[vi_1, vj_1]])
+                    Ts.writes([C[vi_1, vj_1]])
                     C[vi_1, vj_1] = B[vi_1, vj_1] + T.float32(1)
 
 
@@ -71,12 +71,12 @@ def element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
     for blockIdx_x in T.thread_binding(0, 128, "blockIdx.x"):
         for threadIdx_x in T.thread_binding(0, 4, "threadIdx.x"):
             for j0_1 in T.serial(0, 32):
-                with T.sblock(""):
+                with Ts.sblock(""):
                     B[blockIdx_x, threadIdx_x * 32 + j0_1] = (
                         A[blockIdx_x, threadIdx_x * 32 + j0_1] * 2.0
                     )
             for j1_1 in T.serial(0, 32):
-                with T.sblock(""):
+                with Ts.sblock(""):
                     C[blockIdx_x, threadIdx_x * 32 + j1_1] = (
                         B[blockIdx_x, threadIdx_x * 32 + j1_1] + 1.0
                     )
@@ -93,12 +93,12 @@ def loop_split(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128], dtype="float32")
     for i, ko in T.grid(128, 4):
         for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
-            with T.sblock("B"):
-                vi = T.axis.S(128, i)
-                vk = T.axis.R(128, ko * 32 + ki)
-                T.reads([B[vi], A[vi, vk]])
-                T.writes([B[vi]])
-                with T.init():
+            with Ts.sblock("B"):
+                vi = Ts.axis.S(128, i)
+                vk = Ts.axis.R(128, ko * 32 + ki)
+                Ts.reads([B[vi], A[vi, vk]])
+                Ts.writes([B[vi]])
+                with Ts.init():
                     B[vi] = T.float32(0)
                 B[vi] = B[vi] + A[vi, vk]
 
@@ -112,21 +112,21 @@ This test case is added to test T.comm_reducer, T.reinterpret, T.tvm_thread_allr
 def lowered_loop_split(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
-    reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
-    normal_reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    normal_reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
         for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
             normal_reduce_temp0[0] = T.float32(0)
             for ko in T.serial(0, 4):
-                with T.sblock("B_normal_reduction"):
-                    vi = T.axis.S(128, i)
-                    vk = T.axis.R(128, ko * 32 + ki)
-                    T.reads([A[vi, vk], normal_reduce_temp0[0]])
-                    T.writes([normal_reduce_temp0[0]])
+                with Ts.sblock("B_normal_reduction"):
+                    vi = Ts.axis.S(128, i)
+                    vk = Ts.axis.R(128, ko * 32 + ki)
+                    Ts.reads([A[vi, vk], normal_reduce_temp0[0]])
+                    Ts.writes([normal_reduce_temp0[0]])
                     normal_reduce_temp0[0] = normal_reduce_temp0[0] + A[vi, vk]
-            with T.sblock("B_cross_thread_reduction"):
-                T.reads([normal_reduce_temp0[0]])
-                T.writes([reduce_temp0[0]])
+            with Ts.sblock("B_cross_thread_reduction"):
+                Ts.reads([normal_reduce_temp0[0]])
+                Ts.writes([reduce_temp0[0]])
                 T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
@@ -142,10 +142,10 @@ def lowered_loop_split(a: T.handle, b: T.handle) -> None:
                         dtype="handle",
                     )
                 )
-            with T.sblock("B_write_back"):
-                vi = T.axis.S(128, i)
-                T.reads([reduce_temp0[0]])
-                T.writes([B[vi]])
+            with Ts.sblock("B_write_back"):
+                vi = Ts.axis.S(128, i)
+                Ts.reads([reduce_temp0[0]])
+                Ts.writes([B[vi]])
                 B[vi] = reduce_temp0[0]
 
 
@@ -160,10 +160,10 @@ def different_access_indices(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128], dtype="float32")
     for i, j in T.grid(128, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
-            with T.sblock("B"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                T.reads([B[vi, vj], A[vi, vj, vk]])
-                T.writes(
+            with Ts.sblock("B"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                Ts.reads([B[vi, vj], A[vi, vj, vk]])
+                Ts.writes(
                     [
                         B[
                             T.min(vj, vi) : T.min(vj, vi)  # type: ignore[misc]
@@ -173,7 +173,7 @@ def different_access_indices(a: T.handle, b: T.handle) -> None:
                         ]
                     ]
                 )
-                with T.init():
+                with Ts.init():
                     B[vj, vi] = T.exp(B[vj, vi], dtype="float32")
                 B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
 

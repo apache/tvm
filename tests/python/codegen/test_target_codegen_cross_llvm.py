@@ -27,15 +27,14 @@ import tvm
 import tvm.testing
 from tvm import rpc
 from tvm.script import ir as I
-from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.support import cc, utils
 from tvm.testing import env
 
 
-@I.ir_module(s_tir=True)
+@I.ir_module
 class AddModule:
-    @Ts.prim_func
+    @T.prim_func
     def main(
         A: T.Buffer((1024,), "float32"),
         B: T.Buffer((1024,), "float32"),
@@ -44,11 +43,7 @@ class AddModule:
         T.func_attr({"tirx.noalias": True})
         for i0_0 in T.parallel(256):
             for i0_1 in T.vectorized(4):
-                with T.sblock("C"):
-                    v_i0 = T.axis.spatial(1024, i0_0 * 4 + i0_1)
-                    T.reads(A[v_i0], B[v_i0])
-                    T.writes(C[v_i0])
-                    C[v_i0] = A[v_i0] + B[v_i0]
+                C[i0_0 * 4 + i0_1] = A[i0_0 * 4 + i0_1] + B[i0_0 * 4 + i0_1]
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")

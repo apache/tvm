@@ -34,9 +34,9 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128])
 
     for i, j, k in T.grid(128, 128, 128):
-        with T.sblock("update"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("update"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 C[vi, vj] = T.float32(0)
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -50,11 +50,11 @@ def test_multi_element_array_in_outmost_namespace():
 def test_different_dtype_assignment_to_var():
     @Ts.prim_func
     def test_case():
-        a = T.sblock_alloc_buffer((10, 10), dtype="int8")
+        a = Ts.sblock_alloc_buffer((10, 10), dtype="int8")
 
     @Ts.prim_func
     def func_ref():
-        a = T.sblock_alloc_buffer([10, 10], dtype="int8")
+        a = Ts.sblock_alloc_buffer([10, 10], dtype="int8")
         T.evaluate(0)
 
     tvm.ir.assert_structural_equal(
@@ -83,9 +83,9 @@ def test_tir_buffer_region_extent_correct_dtype():
     @Ts.prim_func
     def func(A: T.Buffer((T.int64(16), T.int64(1)), "float32")):
         for i in T.grid(T.int64(16)):
-            with T.sblock("block"):
-                vi = T.axis.remap("S", [i])
-                T.reads(A[vi, T.int64(0) : T.int64(1)])
+            with Ts.sblock("block"):
+                vi = Ts.axis.remap("S", [i])
+                Ts.reads(A[vi, T.int64(0) : T.int64(1)])
                 T.evaluate(0)
 
     assert func.body.block.body.body.block.reads[0].region[0].extent.ty.dtype == "int64"

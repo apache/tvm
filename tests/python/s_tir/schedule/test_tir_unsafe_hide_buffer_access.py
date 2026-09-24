@@ -37,10 +37,10 @@ def indirect_mem_access(a: T.handle, idx_a: T.handle, b: T.handle, idx_b: T.hand
     IB = T.match_buffer(idx_b, [10], dtype="int32")
 
     for i in range(10):
-        with T.sblock("B"):
-            vi = T.axis.spatial(10, i)
-            T.reads(A[IA[vi]], IA[vi])
-            T.writes(B[IB[vi]], IB[vi])
+        with Ts.sblock("B"):
+            vi = Ts.axis.spatial(10, i)
+            Ts.reads(A[IA[vi]], IA[vi])
+            Ts.writes(B[IB[vi]], IB[vi])
             B[IB[vi]] = A[IA[vi]]
 
 
@@ -52,10 +52,10 @@ def indirect_mem_access_hide_ia(a: T.handle, idx_a: T.handle, b: T.handle, idx_b
     IB = T.match_buffer(idx_b, [10], dtype="int32")
 
     for i in range(10):
-        with T.sblock("B"):
-            vi = T.axis.spatial(10, i)
-            T.reads(A[IA[vi]])
-            T.writes(B[IB[vi]], IB[vi])
+        with Ts.sblock("B"):
+            vi = Ts.axis.spatial(10, i)
+            Ts.reads(A[IA[vi]])
+            Ts.writes(B[IB[vi]], IB[vi])
             B[IB[vi]] = A[IA[vi]]
 
 
@@ -67,10 +67,10 @@ def indirect_mem_access_hide_ib(a: T.handle, idx_a: T.handle, b: T.handle, idx_b
     IB = T.match_buffer(idx_b, [10], dtype="int32")
 
     for i in range(10):
-        with T.sblock("B"):
-            vi = T.axis.spatial(10, i)
-            T.reads(A[IA[vi]], IA[vi])
-            T.writes(B[IB[vi]])
+        with Ts.sblock("B"):
+            vi = Ts.axis.spatial(10, i)
+            Ts.reads(A[IA[vi]], IA[vi])
+            Ts.writes(B[IB[vi]])
             B[IB[vi]] = A[IA[vi]]
 
 
