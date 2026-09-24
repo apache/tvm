@@ -1398,15 +1398,18 @@ def test_stop_lifting():
 
 
 def test_symbolic_var_1():
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(shape: R.Shape(["n"])):
+        def main(shape: R.Shape([n])):
             R.func_attr({"num_input": 1})
-            n = T.int64()
             with R.dataflow():
                 zeros = R.zeros((n, n), "float32")
             return shape
+
+    n = T.dynamic("n")
 
     @I.ir_module
     class Expected:
@@ -1418,9 +1421,8 @@ def test_symbolic_var_1():
             return R.tuple()
 
         @R.function
-        def main(shape: R.Shape(["n"])) -> R.Shape(["n"]):
+        def main(shape: R.Shape([n])) -> R.Shape([n]):
             R.func_attr({"num_input": 1})
-            n = T.int64()
             with R.dataflow():
                 zeros: R.Tensor((n, n), dtype="float32") = R.zeros(R.shape([n, n]), dtype="float32")
                 R.output()
@@ -1432,14 +1434,16 @@ def test_symbolic_var_1():
 
 
 def test_symbolic_var_2():
+    n_zeros = T.dynamic("n")
+    n_main = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @Ts.prim_func
         def zeros(var_T_full: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int64()
-            T_full = T.match_buffer(var_T_full, (n, n))
-            for ax0, ax1 in T.grid(n, n):
+            T_full = T.match_buffer(var_T_full, (n_zeros, n_zeros))
+            for ax0, ax1 in T.grid(n_zeros, n_zeros):
                 with Ts.sblock("T_full"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
                     Ts.reads()
@@ -1447,24 +1451,27 @@ def test_symbolic_var_2():
                     T_full[v_ax0, v_ax1] = T.float32(0)
 
         @R.function
-        def main(shape: R.Shape(["n"])) -> R.Shape(["n"]):
+        def main(shape: R.Shape([n_main])) -> R.Shape([n_main]):
             R.func_attr({"num_input": 1})
-            n = T.int64()
             cls = Before
             with R.dataflow():
-                zeros = R.call_tir(cls.zeros, R.tuple(), out_ty=R.Tensor((n, n), dtype="float32"))
+                zeros = R.call_tir(
+                    cls.zeros, R.tuple(), out_ty=R.Tensor((n_main, n_main), dtype="float32")
+                )
                 R.output()
             return shape
+
+    n_zeros = T.dynamic("n")
+    n_main = T.dynamic("n")
 
     @I.ir_module
     class Expected:
         @Ts.prim_func
         def zeros(var_T_full: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int64()
-            T_full = T.match_buffer(var_T_full, (n, n))
+            T_full = T.match_buffer(var_T_full, (n_zeros, n_zeros))
             # with Ts.sblock("root"):
-            for ax0, ax1 in T.grid(n, n):
+            for ax0, ax1 in T.grid(n_zeros, n_zeros):
                 with Ts.sblock("T_full"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
                     Ts.reads()
@@ -1477,12 +1484,13 @@ def test_symbolic_var_2():
             return R.tuple()
 
         @R.function
-        def main(shape: R.Shape(["n"])) -> R.Shape(["n"]):
+        def main(shape: R.Shape([n_main])) -> R.Shape([n_main]):
             R.func_attr({"num_input": 1})
-            n = T.int64()
             cls = Expected
             with R.dataflow():
-                zeros = R.call_tir(cls.zeros, R.tuple(), out_ty=R.Tensor((n, n), dtype="float32"))
+                zeros = R.call_tir(
+                    cls.zeros, R.tuple(), out_ty=R.Tensor((n_main, n_main), dtype="float32")
+                )
                 R.output()
             return shape
 
@@ -1492,16 +1500,17 @@ def test_symbolic_var_2():
 
 
 def test_symbolic_var_from_shape():
+    slice_index = T.dynamic("slice_index")
+
     @I.ir_module
     class Before:
         @R.function
         def main(
             A: R.Tensor([16, 16], "int32"),
             B: R.Tensor([16, 16], "int32"),
-            shape: R.Shape(["slice_index"]),
+            shape: R.Shape([slice_index]),
         ) -> R.Tensor([16], "int32"):
             R.func_attr({"num_input": 1})
-            slice_index = T.int64()
             cls = Before
             with R.dataflow():
                 B_slice = R.call_tir(
@@ -1530,21 +1539,23 @@ def test_symbolic_var_from_shape():
                     vj = Ts.axis.remap("S", [j])
                     Output_Slice[vj] = Input_2d[slice_index, vj]
 
+    slice_index_main = T.dynamic("slice_index")
+    slice_index_main_transform_params = T.dynamic("slice_index")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(
             A: R.Tensor([16, 16], "int32"),
-            shape: R.Shape(["slice_index"]),
+            shape: R.Shape([slice_index_main]),
             B_slice: R.Tensor([16], "int32"),
         ) -> R.Tensor([16], "int32"):
             R.func_attr({"num_input": 1})
-            slice_index = T.int64()
             cls = Expected
             with R.dataflow():
                 A_slice = R.call_tir(
                     cls.slice,
-                    [A, slice_index],
+                    [A, slice_index_main],
                     out_ty=R.Tensor([16], dtype="int32"),
                 )
                 A_scale = R.multiply(A_slice, B_slice)
@@ -1553,20 +1564,21 @@ def test_symbolic_var_from_shape():
 
         @R.function
         def main_transform_params(
-            params: R.Tuple(R.Tensor([16, 16], "int32"), R.Shape(["slice_index"])),
+            params: R.Tuple(
+                R.Tensor([16, 16], "int32"), R.Shape([slice_index_main_transform_params])
+            ),
         ):
             R.func_attr({"num_input": 0})
-            slice_index = T.int64()
             cls = Expected
             with R.dataflow():
                 B = params[0]
                 # extra_symbolic_vars = params[1]
                 B_slice = R.call_tir(
                     cls.slice,
-                    [B, slice_index],
+                    [B, slice_index_main_transform_params],
                     out_ty=R.Tensor([16], dtype="int32"),
                 )
-                output = (R.ShapeExpr([slice_index]), B_slice)
+                output = (R.ShapeExpr([slice_index_main_transform_params]), B_slice)
                 R.output(output)
             return output
 
@@ -1588,16 +1600,17 @@ def test_symbolic_var_from_shape():
 
 
 def test_symbolic_var_in_param_shape():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class Before:
         @R.function
         def main(
-            x: R.Tensor((1, 16, 224, "n"), "float32"),
-            w1: R.Tensor((16, "m", 3, 3), "float32"),
-            w2: R.Tensor((16, "m", 3, 3), "float32"),
-        ) -> R.Tensor((1, 16, 224, "n"), "float32"):
-            m = T.int64()
-            n = T.int64()
+            x: R.Tensor((1, 16, 224, n), "float32"),
+            w1: R.Tensor((16, m, 3, 3), "float32"),
+            w2: R.Tensor((16, m, 3, 3), "float32"),
+        ) -> R.Tensor((1, 16, 224, n), "float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 zeros = R.zeros((n, n), "float32")
@@ -1609,38 +1622,42 @@ def test_symbolic_var_in_param_shape():
                 R.output(conv2)
             return conv2
 
+    m_main_transform_params = T.dynamic("m")
+    n = T.dynamic("n")
+    m_main = T.dynamic("m")
+
     @I.ir_module
     class Expected:
         @R.function
         def main_transform_params(
             params: R.Tuple(
-                R.Tensor((16, "m", 3, 3), dtype="float32"),
-                R.Tensor((16, "m", 3, 3), dtype="float32"),
+                R.Tensor((16, m_main_transform_params, 3, 3), dtype="float32"),
+                R.Tensor((16, m_main_transform_params, 3, 3), dtype="float32"),
             ),
         ) -> R.Tuple(
-            R.Tensor((16, "m", 3, 3), dtype="float32"), R.Tensor((16, "m", 3, 3), dtype="float32")
+            R.Tensor((16, m_main_transform_params, 3, 3), dtype="float32"),
+            R.Tensor((16, m_main_transform_params, 3, 3), dtype="float32"),
         ):
             R.func_attr({"num_input": 0})
-            m = T.int64()
             with R.dataflow():
-                lv1: R.Tensor((16, m, 3, 3), dtype="float32") = params[0]
-                lv2: R.Tensor((16, m, 3, 3), dtype="float32") = R.add(lv1, R.const(1, "float32"))
-                lv: R.Tensor((16, m, 3, 3), dtype="float32") = params[1]
+                lv1: R.Tensor((16, m_main_transform_params, 3, 3), dtype="float32") = params[0]
+                lv2: R.Tensor((16, m_main_transform_params, 3, 3), dtype="float32") = R.add(
+                    lv1, R.const(1, "float32")
+                )
+                lv: R.Tensor((16, m_main_transform_params, 3, 3), dtype="float32") = params[1]
                 gv: R.Tuple(
-                    R.Tensor((16, m, 3, 3), dtype="float32"),
-                    R.Tensor((16, m, 3, 3), dtype="float32"),
+                    R.Tensor((16, m_main_transform_params, 3, 3), dtype="float32"),
+                    R.Tensor((16, m_main_transform_params, 3, 3), dtype="float32"),
                 ) = (lv, lv2)
                 R.output(gv)
             return gv
 
         @R.function
         def main(
-            x: R.Tensor((1, 16, 224, "n"), dtype="float32"),
-            transformed_param_0: R.Tensor((16, "m", 3, 3), dtype="float32"),
-            transformed_param_1: R.Tensor((16, "m", 3, 3), dtype="float32"),
-        ) -> R.Tensor((1, 16, 224, "n"), dtype="float32"):
-            n = T.int64()
-            m = T.int64()
+            x: R.Tensor((1, 16, 224, n), dtype="float32"),
+            transformed_param_0: R.Tensor((16, m_main, 3, 3), dtype="float32"),
+            transformed_param_1: R.Tensor((16, m_main, 3, 3), dtype="float32"),
+        ) -> R.Tensor((1, 16, 224, n), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 zeros: R.Tensor((n, n), dtype="float32") = R.zeros(R.shape([n, n]), dtype="float32")
@@ -1687,15 +1704,16 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
     not variable definitions.
     """
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class Before:
         @R.function
         def main(
-            x: R.Tensor(["m", "n"], "float32"),
-            weight: R.Tensor(["m * n"], "float32"),
-        ) -> R.Tensor(["m", "n"], "float32"):
-            m = T.int64()
-            n = T.int64()
+            x: R.Tensor([m, n], "float32"),
+            weight: R.Tensor([m * n], "float32"),
+        ) -> R.Tensor([m, n], "float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 weight = R.add(weight, R.const(1, "float32"))
@@ -1704,14 +1722,17 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
                 R.output(output)
             return output
 
+    k = T.dynamic("k")
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main_transform_params(params: R.Tuple(R.Tensor(("k",), dtype="float32"))) -> R.Tuple(
+        def main_transform_params(params: R.Tuple(R.Tensor((k,), dtype="float32"))) -> R.Tuple(
             R.Tensor(dtype="float32", ndim=1)
         ):
             R.func_attr({"num_input": 0})
-            k = T.int64()
             with R.dataflow():
                 lv: R.Tensor((k,), dtype="float32") = params[0]
                 gv: R.Tuple(R.Tensor((k,), dtype="float32")) = (lv,)
@@ -1720,11 +1741,9 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
 
         @R.function
         def main(
-            x: R.Tensor(("m", "n"), dtype="float32"),
+            x: R.Tensor((m, n), dtype="float32"),
             transformed_param_0: R.Tensor(dtype="float32", ndim=1),
-        ) -> R.Tensor(("m", "n"), dtype="float32"):
-            m = T.int64()
-            n = T.int64()
+        ) -> R.Tensor((m, n), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 lv: R.Tensor(dtype="float32", ndim=1) = transformed_param_0
@@ -1796,14 +1815,17 @@ def test_only_lift_when_variable_uses_constants():
 def test_lift_transform_is_idempotent(shared_transform):
     """Multiple applicates of LiftTransformParams are allowed"""
 
+    batch_size = T.dynamic("batch_size")
+    lora_rank = T.dynamic("lora_rank")
+
     @I.ir_module
     class Module:
         @R.function
         def main(
-            state: R.Tensor(["batch_size", 4096], "float16"),
+            state: R.Tensor([batch_size, 4096], "float16"),
             base_weights: R.Tensor([4096, 4096], "float16"),
-            lora_A: R.Tensor([4096, "lora_rank"], "float16"),
-            lora_B: R.Tensor(["lora_rank", 4096], "float16"),
+            lora_A: R.Tensor([4096, lora_rank], "float16"),
+            lora_B: R.Tensor([lora_rank, 4096], "float16"),
         ):
             R.func_attr({"num_input": 1})
             folded_weights = base_weights + R.matmul(lora_A, lora_B)
@@ -1825,14 +1847,18 @@ def test_lift_transform_when_one_already_exists():
     """If the module already contains `transform_params`, the
     functions are composed together"""
 
+    batch_size = T.dynamic("batch_size")
+    lora_rank_main = T.dynamic("lora_rank")
+    lora_rank_main_transform_params = T.dynamic("lora_rank")
+
     @I.ir_module
     class Module:
         @R.function
         def main(
-            state: R.Tensor(["batch_size", 4096], "float16"),
+            state: R.Tensor([batch_size, 4096], "float16"),
             base_weights: R.Tensor([4096, 4096], "float16"),
-            lora_A: R.Tensor([4096, "lora_rank"], "float16"),
-            lora_B: R.Tensor(["lora_rank", 4096], "float16"),
+            lora_A: R.Tensor([4096, lora_rank_main], "float16"),
+            lora_B: R.Tensor([lora_rank_main, 4096], "float16"),
         ):
             R.func_attr({"num_input": 1})
             folded_weights = base_weights + R.matmul(lora_A, lora_B)
@@ -1843,8 +1869,8 @@ def test_lift_transform_when_one_already_exists():
         def main_transform_params(
             model_params: R.Tuple(
                 R.Tensor([4096, 4096], "float16"),
-                R.Tensor([4096, "lora_rank"], "float16"),
-                R.Tensor(["lora_rank", 4096], "float16"),
+                R.Tensor([4096, lora_rank_main_transform_params], "float16"),
+                R.Tensor([lora_rank_main_transform_params, 4096], "float16"),
             ),
         ):
             R.func_attr({"num_input": 0})
@@ -1869,7 +1895,7 @@ def test_lift_transform_with_primitive_param_used_by_model_tensor():
         def main(
             x: R.Tensor(dtype="float32", ndim=1),
             extent: T.int64,
-            weight: R.Tensor(["extent"], "float32"),
+            weight: 'R.Tensor([extent], "float32")',
         ):
             R.func_attr({"num_input": 1})
             transformed = R.multiply(weight, weight)

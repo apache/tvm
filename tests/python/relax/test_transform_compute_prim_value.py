@@ -24,19 +24,21 @@ from tvm.script import tirx as T
 
 
 def test_prim_value_in_assert_condition():
+    N = T.dynamic("N")
+
     @I.ir_module
     class Before:
         @R.function(pure=False)
-        def main(A: R.Tensor(["N"])):
-            N = T.int64()
+        def main(A: R.Tensor([N])):
             _ = R.assert_op(N % 16 == 0)
             return A
+
+    N = T.dynamic("N")
 
     @I.ir_module
     class Expected:
         @R.function(pure=False)
-        def main(A: R.Tensor(["N"])):
-            N = T.int64()
+        def main(A: R.Tensor([N])):
             condition: T.bool = Expected.compute_symbolic_expr(R.prim_value(N))
             _ = R.assert_op(condition)
             return A
@@ -51,22 +53,24 @@ def test_prim_value_in_assert_condition():
 
 
 def test_prim_value_in_branch_condition():
+    N = T.dynamic("N")
+
     @I.ir_module
     class Before:
         @R.function(pure=False)
-        def main(A: R.Tensor(["N"])):
-            N = T.int64()
+        def main(A: R.Tensor([N])):
             if R.prim_value(N % 16 == 0):
                 out = R.call_packed("fast_vectorized_impl", A, ty_args=[A.ty])
             else:
                 out = R.call_packed("slow_non_vectorized_impl", A, ty_args=[A.ty])
             return out
 
+    N = T.dynamic("N")
+
     @I.ir_module
     class Expected:
         @R.function(pure=False)
-        def main(A: R.Tensor(["N"])):
-            N = T.int64()
+        def main(A: R.Tensor([N])):
             condition: T.bool = Expected.compute_symbolic_expr(R.prim_value(N))
             if condition:
                 out = R.call_packed("fast_vectorized_impl", A, ty_args=[A.ty])

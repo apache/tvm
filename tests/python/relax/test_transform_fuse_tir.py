@@ -705,12 +705,18 @@ def test_skip_call_dps_packed():
 
 
 def test_symbolic_shape_aware_fuse():
+    n_fused_add_exp_squeeze = T.dynamic("n")
+    m_fused_add_exp_squeeze = T.dynamic("m")
+    n_main = T.dynamic("n")
+    m_main = T.dynamic("m")
+
     @I.ir_module
     class Before:
         @R.function
         def fused_add_exp_squeeze(
-            x: R.Tensor(["n", "m"], "float32"), p0: R.Tensor([], "float32")
-        ) -> R.Tensor(["n", "m"], dtype="float32"):
+            x: R.Tensor([n_fused_add_exp_squeeze, m_fused_add_exp_squeeze], "float32"),
+            p0: R.Tensor([], "float32"),
+        ) -> R.Tensor([n_fused_add_exp_squeeze, m_fused_add_exp_squeeze], dtype="float32"):
             R.func_attr({"Primitive": True})
             with R.dataflow():
                 lv0 = R.emit_te(topi.add, x, p0)
@@ -720,7 +726,9 @@ def test_symbolic_shape_aware_fuse():
             return gv
 
         @R.function
-        def main(x: R.Tensor(["n", "m"], "float32")) -> R.Tensor(["n", "m"], dtype="float32"):
+        def main(x: R.Tensor([n_main, m_main], "float32")) -> R.Tensor(
+            [n_main, m_main], dtype="float32"
+        ):
             cls = Before
             with R.dataflow():
                 gv = cls.fused_add_exp_squeeze(x, R.const(1, "float32"))
@@ -730,10 +738,13 @@ def test_symbolic_shape_aware_fuse():
     def fused_add_exp_squeeze(x, p0):
         return topi.squeeze(topi.exp(topi.add(x, p0)))
 
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(["n", "m"], "float32")) -> R.Tensor(["n", "m"], dtype="float32"):
+        def main(x: R.Tensor([n, m], "float32")) -> R.Tensor([n, m], dtype="float32"):
             with R.dataflow():
                 gv = R.emit_te(fused_add_exp_squeeze, x, R.const(1, "float32"))
                 R.output(gv)
@@ -743,12 +754,13 @@ def test_symbolic_shape_aware_fuse():
 
 
 def test_fuse_of_dynamic_kernel_with_var_params_and_static_args():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
         def dynamic_tir_kernel(a: T.handle, b: T.handle):
-            m = T.int64()
-            n = T.int64()
             A = T.match_buffer(a, [m, n], "float32")
             B = T.match_buffer(b, [m, n], "float32")
 
@@ -811,12 +823,13 @@ def test_fuse_of_dynamic_kernel_with_expression_params_and_static_args():
     Here, the kernel requires arguments (m*n), and is provided
     """
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
         def dynamic_tir_kernel(a: T.handle, b: T.handle, c: T.handle, d: T.handle):
-            m = T.int64()
-            n = T.int64()
             A = T.match_buffer(a, [m * n], "float32")
             B = T.match_buffer(b, [m], "float32")
             C = T.match_buffer(c, [n], "float32")
@@ -899,14 +912,17 @@ def test_symbolic_shape_aware_fuse_with_allocation():
     def te_mean(x, axis):
         return topi.divide(topi.sum(x, axis, keepdims=True), 4096)
 
+    n_fused_mean_add_tir_sqrt_divide_multiply = T.dynamic("n")
+    n_main = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @R.function
         def fused_mean_add_tir_sqrt_divide_multiply(
-            x: R.Tensor((1, "n", 4096), dtype="float32"),
-            y: R.Tensor((1, "n", 4096), dtype="float32"),
+            x: R.Tensor((1, n_fused_mean_add_tir_sqrt_divide_multiply, 4096), dtype="float32"),
+            y: R.Tensor((1, n_fused_mean_add_tir_sqrt_divide_multiply, 4096), dtype="float32"),
             rms_norm_weight: R.Tensor((4096,), dtype="float32"),
-        ) -> R.Tensor((1, "n", 4096), dtype="float32"):
+        ) -> R.Tensor((1, n_fused_mean_add_tir_sqrt_divide_multiply, 4096), dtype="float32"):
             R.func_attr({"Primitive": True})
             with R.dataflow():
                 lv0 = R.emit_te(te_mean, x, axis=2)
@@ -919,10 +935,10 @@ def test_symbolic_shape_aware_fuse_with_allocation():
 
         @R.function
         def main(
-            x: R.Tensor((1, "n", 4096), dtype="float32"),
-            y: R.Tensor((1, "n", 4096), dtype="float32"),
+            x: R.Tensor((1, n_main, 4096), dtype="float32"),
+            y: R.Tensor((1, n_main, 4096), dtype="float32"),
             rms_norm_weight: R.Tensor((4096,), dtype="float32"),
-        ) -> R.Tensor((1, "n", 4096), dtype="float32"):
+        ) -> R.Tensor((1, n_main, 4096), dtype="float32"):
             cls = Before
             with R.dataflow():
                 gv = cls.fused_mean_add_tir_sqrt_divide_multiply(x, y, rms_norm_weight)
@@ -936,14 +952,16 @@ def test_symbolic_shape_aware_fuse_with_allocation():
         lv3 = topi.divide(y, lv2)
         return topi.multiply(rms_norm_weight, lv3)
 
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tensor((1, "n", 4096), dtype="float32"),
-            y: R.Tensor((1, "n", 4096), dtype="float32"),
+            x: R.Tensor((1, n, 4096), dtype="float32"),
+            y: R.Tensor((1, n, 4096), dtype="float32"),
             rms_norm_weight: R.Tensor((4096,), dtype="float32"),
-        ) -> R.Tensor((1, "n", 4096), dtype="float32"):
+        ) -> R.Tensor((1, n, 4096), dtype="float32"):
             with R.dataflow():
                 gv = R.emit_te(fused_mean_add_tir_sqrt_divide_multiply, x, y, rms_norm_weight)
                 R.output(gv)
@@ -953,6 +971,9 @@ def test_symbolic_shape_aware_fuse_with_allocation():
 
 
 def test_symbolic_var_in_call_tir_args():
+    m_fused = T.dynamic("m")
+    m_main = T.dynamic("m")
+
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
@@ -971,16 +992,15 @@ def test_symbolic_var_in_call_tir_args():
         def fused(
             x: R.Tensor((1, 1, 32, 128), dtype="float32"),
             y: R.Tensor((2048, 128), dtype="float32"),
-            len: R.Shape(["m"]),
+            len: R.Shape([m_fused]),
         ) -> R.Tensor((1, 1, 32, 128), dtype="float32"):
             R.func_attr({"Primitive": True})
-            m = T.int64()
             cls = Before
             with R.dataflow():
                 lv1 = R.emit_te(topi.add, x, x)
                 gv = R.call_tir(
                     cls.foo,
-                    [lv1, y, m],
+                    [lv1, y, m_fused],
                     out_ty=R.Tensor((1, 1, 32, 128), dtype="float32"),
                 )
                 R.output(gv)
@@ -990,13 +1010,15 @@ def test_symbolic_var_in_call_tir_args():
         def main(
             x: R.Tensor((1, 1, 32, 128), dtype="float32"),
             y: R.Tensor((2048, 128), dtype="float32"),
-            len: R.Shape(["m"]),
+            len: R.Shape([m_main]),
         ) -> R.Tensor((1, 1, 32, 128), dtype="float32"):
             cls = Before
             with R.dataflow():
                 gv = cls.fused(x, y, len)
                 R.output(gv)
             return gv
+
+    m = T.dynamic("m")
 
     @I.ir_module
     class Expected:
@@ -1024,9 +1046,8 @@ def test_symbolic_var_in_call_tir_args():
         def main(
             x: R.Tensor((1, 1, 32, 128), dtype="float32"),
             y: R.Tensor((2048, 128), dtype="float32"),
-            len: R.Shape(["m"]),
+            len: R.Shape([m]),
         ) -> R.Tensor((1, 1, 32, 128), dtype="float32"):
-            m = T.int64()
             cls = Expected
             with R.dataflow():
                 gv = R.call_tir(
@@ -1161,14 +1182,17 @@ def test_same_buffer_multiple_read():
 
 
 def test_tir_expression_in_shape():
+    n_fused_transpose_matmul = T.dynamic("n")
+    n_main = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @R.function
         def fused_transpose_matmul(
             x: R.Tensor((3, 4), dtype="float32"),
-            y: R.Tensor(("n - 1", 4), dtype="float32"),
-            tir_vars: R.Shape(["n"]),
-        ) -> R.Tensor(("n - 1", 3), dtype="float32"):
+            y: R.Tensor((n_fused_transpose_matmul - 1, 4), dtype="float32"),
+            tir_vars: R.Shape([n_fused_transpose_matmul]),
+        ) -> R.Tensor((n_fused_transpose_matmul - 1, 3), dtype="float32"):
             R.func_attr({"Primitive": True})
             with R.dataflow():
                 lv = R.emit_te(topi.transpose, x)
@@ -1179,14 +1203,16 @@ def test_tir_expression_in_shape():
         @R.function
         def main(
             x: R.Tensor((3, 4), dtype="float32"),
-            y: R.Tensor(("n - 1", 4), dtype="float32"),
-            tir_vars: R.Shape(["n"]),
-        ) -> R.Tensor(("n - 1", 3), dtype="float32"):
+            y: R.Tensor((n_main - 1, 4), dtype="float32"),
+            tir_vars: R.Shape([n_main]),
+        ) -> R.Tensor((n_main - 1, 3), dtype="float32"):
             cls = Module
             with R.dataflow():
                 lv = cls.fused_transpose_matmul(x, y, tir_vars)
                 R.output(lv)
             return lv
+
+    n = T.dynamic("n")
 
     @I.ir_module
     class Expected:
@@ -1218,10 +1244,9 @@ def test_tir_expression_in_shape():
         @R.function
         def main(
             x: R.Tensor((3, 4), dtype="float32"),
-            y: R.Tensor(("n - 1", 4), dtype="float32"),
-            tir_vars: R.Shape(["n"]),
-        ) -> R.Tensor(("n - 1", 3), dtype="float32"):
-            n = T.int64()
+            y: R.Tensor((n - 1, 4), dtype="float32"),
+            tir_vars: R.Shape([n]),
+        ) -> R.Tensor((n - 1, 3), dtype="float32"):
             cls = Expected
             with R.dataflow():
                 lv = R.call_tir(
@@ -1457,6 +1482,12 @@ def test_symbolic_var_in_buffer_shape():
     typically determined from the DLTensor's known shape.)
     """
 
+    sequence_length_foo = T.dynamic("sequence_length")
+    sequence_length_fused = T.dynamic("sequence_length")
+    m_fused = T.dynamic("m")
+    sequence_length_main = T.dynamic("sequence_length")
+    m_main = T.dynamic("m")
+
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
@@ -1466,51 +1497,55 @@ def test_symbolic_var_in_buffer_shape():
             m: T.int64,
             rotary_handle: T.handle,
         ):
-            sequence_length = T.int64()
-
             X = T.match_buffer(
-                X_handle, [T.int64(1), sequence_length, T.int64(32), T.int64(128)], "float32"
+                X_handle, [T.int64(1), sequence_length_foo, T.int64(32), T.int64(128)], "float32"
             )
             rotary = T.match_buffer(
-                rotary_handle, [T.int64(1), sequence_length, T.int64(32), T.int64(128)], "float32"
+                rotary_handle,
+                [T.int64(1), sequence_length_foo, T.int64(32), T.int64(128)],
+                "float32",
             )
 
-            for i0, i1, i2, i3 in T.grid(T.int64(1), sequence_length, T.int64(32), T.int64(128)):
+            for i0, i1, i2, i3 in T.grid(
+                T.int64(1), sequence_length_foo, T.int64(32), T.int64(128)
+            ):
                 with Ts.sblock("rotary"):
                     v0, v1, v2, v3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     rotary[v0, v1, v2, v3] = Y[m + v1 - 1, v3] * X[v0, v1, v2, v3]
 
         @R.function
         def fused(
-            x: R.Tensor((1, "sequence_length", 32, 128), dtype="float32"),
+            x: R.Tensor((1, sequence_length_fused, 32, 128), dtype="float32"),
             y: R.Tensor((2048, 128), dtype="float32"),
-            len: R.Shape(["m"]),
-        ) -> R.Tensor((1, "sequence_length", 32, 128), dtype="float32"):
+            len: R.Shape([m_fused]),
+        ) -> R.Tensor((1, sequence_length_fused, 32, 128), dtype="float32"):
             R.func_attr({"Primitive": True})
-            sequence_length = T.int64()
-            m = T.int64()
             cls = Before
             with R.dataflow():
                 lv1 = R.emit_te(topi.add, x, x)
                 gv = R.call_tir(
                     cls.foo,
-                    [lv1, y, m],
-                    out_ty=R.Tensor((1, sequence_length, 32, 128), dtype="float32"),
+                    [lv1, y, m_fused],
+                    out_ty=R.Tensor((1, sequence_length_fused, 32, 128), dtype="float32"),
                 )
                 R.output(gv)
             return gv
 
         @R.function
         def main(
-            x: R.Tensor((1, "sequence_length", 32, 128), dtype="float32"),
+            x: R.Tensor((1, sequence_length_main, 32, 128), dtype="float32"),
             y: R.Tensor((2048, 128), dtype="float32"),
-            len: R.Shape(["m"]),
-        ) -> R.Tensor((1, "sequence_length", 32, 128), dtype="float32"):
+            len: R.Shape([m_main]),
+        ) -> R.Tensor((1, sequence_length_main, 32, 128), dtype="float32"):
             cls = Before
             with R.dataflow():
                 gv = cls.fused(x, y, len)
                 R.output(gv)
             return gv
+
+    sequence_length_fused = T.dynamic("sequence_length")
+    sequence_length_main = T.dynamic("sequence_length")
+    m = T.dynamic("m")
 
     @I.ir_module
     class Expected:
@@ -1523,43 +1558,45 @@ def test_symbolic_var_in_buffer_shape():
         ):
             T.func_attr({"tirx.noalias": True})
 
-            sequence_length = T.int64()
-
             X = T.match_buffer(
-                X_handle, [T.int64(1), sequence_length, T.int64(32), T.int64(128)], "float32"
+                X_handle, [T.int64(1), sequence_length_fused, T.int64(32), T.int64(128)], "float32"
             )
             rotary = T.match_buffer(
-                rotary_handle, [T.int64(1), sequence_length, T.int64(32), T.int64(128)], "float32"
+                rotary_handle,
+                [T.int64(1), sequence_length_fused, T.int64(32), T.int64(128)],
+                "float32",
             )
 
-            T_add = Ts.sblock_alloc_buffer((T.int64(1), sequence_length, T.int64(32), T.int64(128)))
+            T_add = Ts.sblock_alloc_buffer(
+                (T.int64(1), sequence_length_fused, T.int64(32), T.int64(128))
+            )
             for ax0, ax1, ax2, ax3 in T.grid(
-                T.int64(1), sequence_length, T.int64(32), T.int64(128)
+                T.int64(1), sequence_length_fused, T.int64(32), T.int64(128)
             ):
                 with Ts.sblock("T_add"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T_add[v_ax0, v_ax1, v_ax2, v_ax3] = (
                         X[v_ax0, v_ax1, v_ax2, v_ax3] + X[v_ax0, v_ax1, v_ax2, v_ax3]
                     )
-            for i0, i1, i2, i3 in T.grid(T.int64(1), sequence_length, T.int64(32), T.int64(128)):
+            for i0, i1, i2, i3 in T.grid(
+                T.int64(1), sequence_length_fused, T.int64(32), T.int64(128)
+            ):
                 with Ts.sblock("rotary"):
                     v0, v1, v2, v3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     rotary[v0, v1, v2, v3] = Y[m + v1 - T.int64(1), v3] * T_add[v0, v1, v2, v3]
 
         @R.function
         def main(
-            x: R.Tensor((1, "sequence_length", 32, 128), dtype="float32"),
+            x: R.Tensor((1, sequence_length_main, 32, 128), dtype="float32"),
             y: R.Tensor((2048, 128), dtype="float32"),
-            len: R.Shape(["m"]),
-        ) -> R.Tensor((1, "sequence_length", 32, 128), dtype="float32"):
-            sequence_length = T.int64()
-            m = T.int64()
+            len: R.Shape([m]),
+        ) -> R.Tensor((1, sequence_length_main, 32, 128), dtype="float32"):
             cls = Expected
             with R.dataflow():
                 gv = R.call_tir(
                     cls.fused,
                     (x, y, m),
-                    out_ty=R.Tensor([1, sequence_length, 32, 128], "float32"),
+                    out_ty=R.Tensor([1, sequence_length_main, 32, 128], "float32"),
                 )
                 R.output(gv)
             return gv
@@ -1570,6 +1607,8 @@ def test_symbolic_var_in_buffer_shape():
 def test_symbolic_var_called_with_static_shape():
     """A dynamic PrimFunc may be called with a static shape"""
 
+    num_elements = T.dynamic("num_elements")
+
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
@@ -1577,8 +1616,6 @@ def test_symbolic_var_called_with_static_shape():
             X_handle: T.handle,
             Y: T.Buffer([T.int64(1)], "float32"),
         ):
-            num_elements = T.int64()
-
             X = T.match_buffer(X_handle, [num_elements], "float32")
 
             for i in range(num_elements):
@@ -1645,6 +1682,8 @@ def test_symbolic_var_called_with_static_shape():
 def test_symbolic_var_called_with_multiple_static_shapes():
     """A dynamic PrimFunc may be called with different shapes each time"""
 
+    num_elements = T.dynamic("num_elements")
+
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
@@ -1652,8 +1691,6 @@ def test_symbolic_var_called_with_multiple_static_shapes():
             X_handle: T.handle,
             Sum: T.Buffer([T.int64(1)], "float32"),
         ):
-            num_elements = T.int64()
-
             X = T.match_buffer(X_handle, [num_elements], "float32")
 
             for i in range(num_elements):

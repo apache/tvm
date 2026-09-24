@@ -394,6 +394,13 @@ def GmmCuda2(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "
                         Z[v0, v1, v2] = Z_local[v0, v1, v2]
 
 
+s0 = T.dynamic("s0", "int32")
+s0_1 = T.dynamic("s0_1", "int32")
+s0_2 = T.dynamic("s0_2", "int32")
+s1 = T.dynamic("s1", "int32")
+s1_1 = T.dynamic("s1_1", "int32")
+s1_2 = T.dynamic("s1_2", "int32")
+
 @Ts.prim_func
 def GMMCUDATensorCore(
     X: T.Buffer((1024, 1024), "float16"),
@@ -402,12 +409,6 @@ def GMMCUDATensorCore(
 ) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    s0 = T.int32()
-    s0_1 = T.int32()
-    s0_2 = T.int32()
-    s1 = T.int32()
-    s1_1 = T.int32()
-    s1_2 = T.int32()
     # body
     # with Ts.sblock("root")
     Z_wmma_accumulator = Ts.sblock_alloc_buffer([1024, 1024], dtype="float32", scope="wmma.accumulator")

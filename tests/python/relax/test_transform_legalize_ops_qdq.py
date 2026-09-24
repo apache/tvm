@@ -132,29 +132,33 @@ def test_quantize_fp16_to_uint8():
 
 
 def test_quantize_fp32_to_int8_symbolic():
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class Quantize:
         @R.function
         def main(
-            data: R.Tensor((4, "n"), "float32"),
-            scale: R.Tensor(("n",), "float32"),
-            zp: R.Tensor(("n",), "int8"),
-        ) -> R.Tensor((4, "n"), "int8"):
+            data: R.Tensor((4, n), "float32"),
+            scale: R.Tensor((n,), "float32"),
+            zp: R.Tensor((n,), "int8"),
+        ) -> R.Tensor((4, n), "int8"):
             out = R.quantize(data, scale, zp, axis=-1, out_dtype="int8")
             return out
+
+    n_quantize = T.dynamic("n")
+    n_main = T.dynamic("n")
 
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def quantize(var_A: T.handle, var_B: T.handle, var_C: T.handle, var_quantized: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int64()
-            A = T.match_buffer(var_A, (T.int64(4), n))
-            B = T.match_buffer(var_B, (n,))
-            C = T.match_buffer(var_C, (n,), "int8")
-            quantized = T.match_buffer(var_quantized, (T.int64(4), n), "int8")
+            A = T.match_buffer(var_A, (T.int64(4), n_quantize))
+            B = T.match_buffer(var_B, (n_quantize,))
+            C = T.match_buffer(var_C, (n_quantize,), "int8")
+            quantized = T.match_buffer(var_quantized, (T.int64(4), n_quantize), "int8")
             # with Ts.sblock("root"):
-            for i0, i1 in T.grid(T.int64(4), n):
+            for i0, i1 in T.grid(T.int64(4), n_quantize):
                 with Ts.sblock("quantized"):
                     v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(A[v_i0, v_i1], B[v_i1], C[v_i1])
@@ -172,12 +176,13 @@ def test_quantize_fp32_to_int8_symbolic():
 
         @R.function
         def main(
-            data: R.Tensor((4, "n"), dtype="float32"),
-            scale: R.Tensor(("n",), dtype="float32"),
-            zp: R.Tensor(("n",), dtype="int8"),
-        ) -> R.Tensor((4, "n"), dtype="int8"):
-            n = T.int64()
-            out = R.call_tir(Expected.quantize, (data, scale, zp), out_ty=R.Tensor((4, n), "int8"))
+            data: R.Tensor((4, n_main), dtype="float32"),
+            scale: R.Tensor((n_main,), dtype="float32"),
+            zp: R.Tensor((n_main,), dtype="int8"),
+        ) -> R.Tensor((4, n_main), dtype="int8"):
+            out = R.call_tir(
+                Expected.quantize, (data, scale, zp), out_ty=R.Tensor((4, n_main), "int8")
+            )
             return out
 
     mod = LegalizeOps()(Quantize)
@@ -414,16 +419,21 @@ def test_dequantize_int8_to_fp32_scalar_param():
 
 
 def test_dequantize_int8_to_fp32_symbolic():
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class Dequantize:
         @R.function
         def main(
-            data: R.Tensor((2, "n"), "int8"),
-            scale: R.Tensor(("n",), "float32"),
-            zp: R.Tensor(("n",), "int8"),
-        ) -> R.Tensor((2, "n"), "float32"):
+            data: R.Tensor((2, n), "int8"),
+            scale: R.Tensor((n,), "float32"),
+            zp: R.Tensor((n,), "int8"),
+        ) -> R.Tensor((2, n), "float32"):
             out = R.dequantize(data, scale, zp, axis=-1, out_dtype="float32")
             return out
+
+    n_dequantize = T.dynamic("n")
+    n_main = T.dynamic("n")
 
     @tvm.script.ir_module
     class Expected:
@@ -432,13 +442,12 @@ def test_dequantize_int8_to_fp32_symbolic():
             var_A: T.handle, var_B: T.handle, var_C: T.handle, var_dequantized: T.handle
         ):
             T.func_attr({"tirx.noalias": True})
-            n = T.int64()
-            A = T.match_buffer(var_A, (T.int64(2), n), "int8")
-            B = T.match_buffer(var_B, (n,))
-            C = T.match_buffer(var_C, (n,), "int8")
-            dequantized = T.match_buffer(var_dequantized, (T.int64(2), n))
+            A = T.match_buffer(var_A, (T.int64(2), n_dequantize), "int8")
+            B = T.match_buffer(var_B, (n_dequantize,))
+            C = T.match_buffer(var_C, (n_dequantize,), "int8")
+            dequantized = T.match_buffer(var_dequantized, (T.int64(2), n_dequantize))
             # with Ts.sblock("root"):
-            for i0, i1 in T.grid(T.int64(2), n):
+            for i0, i1 in T.grid(T.int64(2), n_dequantize):
                 with Ts.sblock("dequantized"):
                     v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(A[v_i0, v_i1], C[v_i1], B[v_i1])
@@ -450,13 +459,14 @@ def test_dequantize_int8_to_fp32_symbolic():
 
         @R.function
         def main(
-            data: R.Tensor((2, "n"), dtype="int8"),
-            scale: R.Tensor(("n",), dtype="float32"),
-            zp: R.Tensor(("n",), dtype="int8"),
-        ) -> R.Tensor((2, "n"), dtype="float32"):
-            n = T.int64()
+            data: R.Tensor((2, n_main), dtype="int8"),
+            scale: R.Tensor((n_main,), dtype="float32"),
+            zp: R.Tensor((n_main,), dtype="int8"),
+        ) -> R.Tensor((2, n_main), dtype="float32"):
             out = R.call_tir(
-                Expected.dequantize, (data, scale, zp), out_ty=R.Tensor((2, n), dtype="float32")
+                Expected.dequantize,
+                (data, scale, zp),
+                out_ty=R.Tensor((2, n_main), dtype="float32"),
             )
             return out
 

@@ -107,13 +107,14 @@ def matmul_expected(
 def test_pad_matmul():
     # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
+    n = T.dynamic("n", "int32")
+
     @Ts.prim_func
     def matmul_before(
         a: T.handle,
         b: T.handle,
         c: T.handle,
     ) -> None:
-        n = T.int32()
         A = T.match_buffer(a, (128, 128), "float32")
         B = T.match_buffer(b, (n, 128), "float32")
         C = T.match_buffer(c, (128, n), "float32")
@@ -124,13 +125,14 @@ def test_pad_matmul():
                     C[i, j] = T.float32(0)
                 C[i, j] = C[i, j] + A[i, k] * B[j, k]
 
+    n = T.dynamic("n", "int32")
+
     @Ts.prim_func
     def matmul_after(
         a: T.handle,
         b: T.handle,
         c: T.handle,
     ):
-        n = T.int32()
         A = T.match_buffer(a, (128, 128), "float32")
         B = T.match_buffer(b, (n, 128), "float32")
         C = T.match_buffer(c, (128, n), "float32")
@@ -161,6 +163,8 @@ def test_pad_matmul():
 
 
 def test_pad_matmul_2():
+    n = T.dynamic("n", "int32")
+
     @Ts.prim_func
     def before(
         a: T.handle,
@@ -169,7 +173,6 @@ def test_pad_matmul_2():
         d: T.handle,
     ):
         T.func_attr({"tirx.noalias": True})
-        n = T.int32()
         A = T.match_buffer(a, (1, n, 4096))
         B = T.match_buffer(b, (11008, 4096))
         M = T.match_buffer(m, (1, n, 11008))
@@ -188,10 +191,11 @@ def test_pad_matmul_2():
                 v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
                 D[v_ax0, v_ax1, v_ax2] = M[v_ax0, v_ax1, v_ax2] * C[v_ax0, v_ax1, v_ax2]
 
+    n = T.dynamic("n", "int32")
+
     @Ts.prim_func
     def after(a: T.handle, b: T.handle, m: T.handle, d: T.handle):
         T.func_attr({"tirx.noalias": True})
-        n = T.int32()
         A = T.match_buffer(a, (1, n, 4096))
         B = T.match_buffer(b, (11008, 4096))
         M = T.match_buffer(m, (1, n, 11008))
@@ -231,6 +235,8 @@ def test_pad_matmul_2():
 
 
 def test_pad_rms():
+    n = T.dynamic("n", "int32")
+
     @Ts.prim_func
     def before(
         a: T.handle,
@@ -238,7 +244,6 @@ def test_pad_rms():
         r: T.handle,
     ):
         T.func_attr({"tirx.noalias": True})
-        n = T.int32()
         A = T.match_buffer(a, (1, n, 4096))
         W = T.match_buffer(w, (4096,), "float32")
         Result = T.match_buffer(r, (1, n, 4096), "float32")
@@ -259,10 +264,11 @@ def test_pad_rms():
                     / T.sqrt(S[v_bsz, v_i] * T.float32(0.000244140625) + T.float32(1e-6))
                 )
 
+    n = T.dynamic("n", "int32")
+
     @Ts.prim_func
     def after(a: T.handle, w: T.handle, r: T.handle):
         T.func_attr({"tirx.noalias": True})
-        n = T.int32()
         A = T.match_buffer(a, (1, n, 4096))
         W = T.match_buffer(w, (4096,), "float32")
         Result = T.match_buffer(r, (1, n, 4096))

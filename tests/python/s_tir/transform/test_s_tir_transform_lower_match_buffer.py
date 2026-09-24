@@ -73,6 +73,10 @@ def intrin_test(data, elem_offset, stride_0, stride_1, shape_0, shape_1):
     return 0
 
 
+Bs_0 = T.dynamic("Bs_0", "int32")
+Bs_1 = T.dynamic("Bs_1", "int32")
+
+
 @Ts.prim_func
 def opaque_access(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (32, 64, 128))
@@ -99,8 +103,6 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
             )
     for i, j, k in T.grid(64, 2, 8):
         with Ts.sblock():
-            Bs_0 = T.int32()
-            Bs_1 = T.int32()
             Ts.reads([])
             Ts.writes(B[i, j * 32 : j * 32 + 32, k * 8 : k * 8 + 8])
             sub_B = T.match_buffer(
@@ -174,13 +176,15 @@ def transformed_opaque_buffer_data_projection(a: T.handle) -> None:
         T.evaluate(T.call_extern("consume", A.data, 4, dtype="int32"))
 
 
+As_0 = T.dynamic("As_0", "int32")
+As_1 = T.dynamic("As_1", "int32")
+
+
 @Ts.prim_func
 def high_dim_opaque_access(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 32, 64))
     for i, j, k in T.grid(16, 2, 4):
         with Ts.sblock():
-            As_0 = T.int32()
-            As_1 = T.int32()
             Ts.reads([])
             Ts.writes(A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16])
             sub_A = T.match_buffer(
@@ -220,13 +224,15 @@ def transformed_high_dim_opaque_access(a: T.handle) -> None:
             )
 
 
+As_0 = T.dynamic("As_0", "int32")
+As_1 = T.dynamic("As_1", "int32")
+
+
 @Ts.prim_func
 def high_dim_opaque_access_with_source_strides(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 32, 64), strides=[2576, 80, 1])
     for i, j, k in T.grid(16, 2, 4):
         with Ts.sblock():
-            As_0 = T.int32()
-            As_1 = T.int32()
             Ts.reads([])
             Ts.writes(A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16])
             sub_A = T.match_buffer(
@@ -266,6 +272,12 @@ def transformed_high_dim_opaque_access_with_source_strides(a: T.handle) -> None:
             )
 
 
+As_0 = T.dynamic("As_0", "int32")
+As_1 = T.dynamic("As_1", "int32")
+Ass_0 = T.dynamic("Ass_0", "int32")
+Ass_1 = T.dynamic("Ass_1", "int32")
+
+
 @Ts.prim_func
 def recursive_match(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (64, 64, 64))
@@ -279,8 +291,6 @@ def recursive_match(a: T.handle, b: T.handle) -> None:
                     B[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16],
                 ]
             )
-            As_0 = T.int32()
-            As_1 = T.int32()
             sub_A = T.match_buffer(
                 A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16],
                 (16, 16),
@@ -301,8 +311,6 @@ def recursive_match(a: T.handle, b: T.handle) -> None:
                             sub_B[jj * 4 : jj * 4 + 4, kk * 4 : kk * 4 + 4],
                         ]
                     )
-                    Ass_0 = T.int32()
-                    Ass_1 = T.int32()
                     sub_sub_A = T.match_buffer(
                         sub_A[jj * 4 : jj * 4 + 4, kk * 4 : kk * 4 + 4],
                         (4, 4),
@@ -372,6 +380,10 @@ def transformed_recursive_match(a: T.handle, b: T.handle) -> None:
                         B[i, j * 16 + jj * 4 + jjj, k * 16 + kk * 4 + kkk] = 1
 
 
+Bs_0 = T.dynamic("Bs_0", "int32")
+Bs_1 = T.dynamic("Bs_1", "int32")
+
+
 @Ts.prim_func
 def symbolic_match(a: T.handle, b: T.handle, n: T.int32, m: T.int32) -> None:
     A = T.match_buffer(a, (n * m, m))
@@ -380,8 +392,6 @@ def symbolic_match(a: T.handle, b: T.handle, n: T.int32, m: T.int32) -> None:
         with Ts.sblock():
             Ts.reads([])
             Ts.writes([A[i * m : i * m + n, 0:m], B[i * n : i * n + 2, 0 : m * 4]])
-            Bs_0 = T.int32()
-            Bs_1 = T.int32()
             sub_A = T.match_buffer(A[i * m : i * m + m, 0:m], (m, m), offset_factor=1)
             sub_B = T.match_buffer(
                 B[i * n : i * n + 2, 0 : m * 4], (2, m * 4), strides=[Bs_0, Bs_1], offset_factor=1
@@ -491,12 +501,14 @@ def fail_match_store(a: T.handle) -> None:
 
 
 # well-formed checker complains about redefinition of a stride variable
+stride = T.dynamic("stride", "int32")
+
+
 @Ts.prim_func(check_well_formed=False)
 def fail_buffer_bind(a: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     for i, j in T.grid(8, 2):
         with Ts.sblock():
-            stride = T.int32()
             sub_A = T.match_buffer(
                 A[i, j * 4 : j * 4 + 4], (1, 4), strides=[stride, stride], offset_factor=1
             )

@@ -1257,19 +1257,21 @@ def test_simplify_buffer_identity_well_formed():
 
 
 def test_buffer_shape_constraint():
+    n = T.dynamic("n")
+
     @I.ir_module(check_well_formed=False)
     class Before:
         @T.prim_func
         def main(a: T.handle):
-            n = T.int64()
             A = T.match_buffer(a, (n * 32,), "float32")
             A[T.min(T.int64(0), n)] = T.float32(0)
+
+    n = T.dynamic("n")
 
     @I.ir_module(check_well_formed=False)
     class Expected:
         @T.prim_func
         def main(a: T.handle):
-            n = T.int64()
             A = T.match_buffer(a, (n * 32,), "float32")
             A[T.int64(0)] = T.float32(0)
 
@@ -1278,19 +1280,21 @@ def test_buffer_shape_constraint():
 
 
 def test_buffer_shape_constraint_with_offset():
+    n = T.dynamic("n")
+
     @I.ir_module(check_well_formed=False)
     class Before:
         @T.prim_func
         def main(a: T.handle):
-            n = T.int64()
             A = T.match_buffer(a, (n * 32 + 1 - 2,), "float32")
             A[T.min(T.int64(1), n)] = T.float32(0)
+
+    n = T.dynamic("n")
 
     @I.ir_module(check_well_formed=False)
     class Expected:
         @T.prim_func
         def main(a: T.handle):
-            n = T.int64()
             A = T.match_buffer(a, (n * 32 + 1 - 2,), "float32")
             A[T.int64(1)] = T.float32(0)
 

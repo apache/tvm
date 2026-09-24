@@ -379,12 +379,14 @@ def test_crossthread_reduction1(target):
         pytest.skip(f"{target} not enabled")
 
     def sched(nthd):
+        n = T.dynamic("n", "int32")
+        m = T.dynamic("m", "int32")
+
         @I.ir_module
         class Module:
             @T.prim_func
             def main(var_A: T.handle, var_B: T.handle):
                 T.func_attr({"tirx.noalias": True})
-                n, m = T.int32(), T.int32()
                 A = T.match_buffer(var_A, (n, m))
                 B = T.match_buffer(var_B, (n,))
                 for i in T.thread_binding(n, thread="blockIdx.x"):
@@ -439,12 +441,15 @@ def test_crossthread_reduction2(target):
         pytest.skip(f"{target} not enabled")
 
     def sched(nthdx, nthdy):
+        n = T.dynamic("n", "int32")
+        k0 = T.dynamic("k0", "int32")
+        k1 = T.dynamic("k1", "int32")
+
         @I.ir_module
         class Module:
             @T.prim_func
             def main(var_A: T.handle, var_B: T.handle):
                 T.func_attr({"tirx.noalias": True})
-                n, k0, k1 = T.int32(), T.int32(), T.int32()
                 A = T.match_buffer(var_A, (n, k0, k1))
                 B = T.match_buffer(var_B, (n,))
                 for i in T.thread_binding(n, thread="blockIdx.x"):

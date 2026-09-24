@@ -763,55 +763,59 @@ def test_static_args():
 
 
 def test_dynamic_capture():
+    m_add_one = T.dynamic("m")
+    m_main = T.dynamic("m")
+
     @I.ir_module
     class Before:
         @Ts.prim_func
         def add_one(x_handle: T.handle, y_handle: T.handle):
-            m = T.int64()
-            x = T.match_buffer(x_handle, (m,), "float32")
-            y = T.match_buffer(y_handle, (m,), "float32")
+            x = T.match_buffer(x_handle, (m_add_one,), "float32")
+            y = T.match_buffer(y_handle, (m_add_one,), "float32")
             # Use T.serial with explicit int64 min so the inner sblock iter_var
             # dom is all-int64 (matches what Expected emits via Ts.axis.spatial(m, i)).
-            for i in T.serial(T.int64(0), m):
+            for i in T.serial(T.int64(0), m_add_one):
                 with Ts.sblock("add"):
                     vi = Ts.axis.remap("S", [i])
                     y[vi] = x[vi] + T.float32(1)
 
         @R.function
-        def main(x: R.Tensor(("m",), "float32")) -> R.Tensor(("m",), "float32"):
+        def main(x: R.Tensor((m_main,), "float32")) -> R.Tensor((m_main,), "float32"):
             R.func_attr(
                 {"relax.rewrite_cuda_graph.capture_symbolic_vars": ["m"], "relax.force_pure": True}
             )
-            m = T.int64()
             storage: R.Any = R.memory.alloc_storage(
                 R.shape([16]), 0, "global", "float32"
             )  # assume m is upper-bounded
-            alloc1: R.Tensor((m,), "float32") = R.memory.alloc_tensor(
-                storage, 0, R.shape([m]), "float32"
+            alloc1: R.Tensor((m_main,), "float32") = R.memory.alloc_tensor(
+                storage, 0, R.shape([m_main]), "float32"
             )
             _ = Before.add_one(x, alloc1)
             storage1: R.Any = R.memory.alloc_storage(R.shape([16]), 0, "global", "float32")
-            alloc2: R.Tensor((m,), "float32") = R.memory.alloc_tensor(
-                storage1, 0, R.shape([m]), "float32"
+            alloc2: R.Tensor((m_main,), "float32") = R.memory.alloc_tensor(
+                storage1, 0, R.shape([m_main]), "float32"
             )
             _ = Before.add_one(alloc1, alloc2)
-            alloc3: R.Tensor((m,), "float32") = R.builtin.alloc_tensor(
-                R.shape([m]), "float32", 0, "global"
+            alloc3: R.Tensor((m_main,), "float32") = R.builtin.alloc_tensor(
+                R.shape([m_main]), "float32", 0, "global"
             )
             _ = Before.add_one(alloc2, alloc3)
             return alloc3
+
+    m_add_one = T.dynamic("m")
+    m_main_cuda_graph_capture = T.dynamic("m")
+    m_main = T.dynamic("m")
 
     @I.ir_module
     class Expected:
         @Ts.prim_func
         def add_one(x_handle: T.handle, y_handle: T.handle):
-            m = T.int64()
-            x = T.match_buffer(x_handle, (m,))
-            y = T.match_buffer(y_handle, (m,))
+            x = T.match_buffer(x_handle, (m_add_one,))
+            y = T.match_buffer(y_handle, (m_add_one,))
             # with Ts.sblock("root"):
-            for i in T.serial(T.int64(0), m):
+            for i in T.serial(T.int64(0), m_add_one):
                 with Ts.sblock("add"):
-                    vi = Ts.axis.spatial(m, i)
+                    vi = Ts.axis.spatial(m_add_one, i)
                     Ts.reads(x[vi])
                     Ts.writes(y[vi])
                     y[vi] = x[vi] + T.float32(1)
@@ -830,11 +834,10 @@ def test_dynamic_capture():
 
         @R.function(private=True)
         def main_cuda_graph_capture(
-            alloc1: R.Tensor(("m",), dtype="float32"),
-            alloc2: R.Tensor(("m",), dtype="float32"),
-            shape_expr: R.Shape(["m"]),
+            alloc1: R.Tensor((m_main_cuda_graph_capture,), dtype="float32"),
+            alloc2: R.Tensor((m_main_cuda_graph_capture,), dtype="float32"),
+            shape_expr: R.Shape([m_main_cuda_graph_capture]),
         ):
-            m = T.int64()
             R.func_attr({"relax.force_pure": True})
             cls = Expected
             cls.add_one(alloc1, alloc2)
@@ -842,8 +845,7 @@ def test_dynamic_capture():
             return R.tuple()
 
         @R.function
-        def main(x: R.Tensor(("m",), dtype="float32")) -> R.Tensor(("m",), dtype="float32"):
-            m = T.int64()
+        def main(x: R.Tensor((m_main,), dtype="float32")) -> R.Tensor((m_main,), dtype="float32"):
             R.func_attr(
                 {"relax.force_pure": True, "relax.rewrite_cuda_graph.capture_symbolic_vars": ["m"]}
             )
@@ -854,26 +856,26 @@ def test_dynamic_capture():
                 ty_args=(R.Tuple(R.Any, R.Any),),
             )
             storage: R.Any = gv[0]
-            alloc1: R.Tensor((m,), dtype="float32") = R.memory.alloc_tensor(
-                storage, R.prim_value(0), R.shape([m]), R.dtype("float32")
+            alloc1: R.Tensor((m_main,), dtype="float32") = R.memory.alloc_tensor(
+                storage, R.prim_value(0), R.shape([m_main]), R.dtype("float32")
             )
             cls.add_one(x, alloc1)
             storage1: R.Any = gv[1]
-            alloc2: R.Tensor((m,), dtype="float32") = R.memory.alloc_tensor(
-                storage1, R.prim_value(0), R.shape([m]), R.dtype("float32")
+            alloc2: R.Tensor((m_main,), dtype="float32") = R.memory.alloc_tensor(
+                storage1, R.prim_value(0), R.shape([m_main]), R.dtype("float32")
             )
             R.call_builtin_with_ctx(
                 "vm.builtin.cuda_graph.run_or_capture",
                 (
                     cls.main_cuda_graph_capture,
-                    (alloc1, alloc2, R.shape([m])),
+                    (alloc1, alloc2, R.shape([m_main])),
                     R.prim_value(0),
-                    R.shape([m]),
+                    R.shape([m_main]),
                 ),
                 ty_args=(R.Tuple,),
             )
-            alloc3: R.Tensor((m,), dtype="float32") = R.builtin.alloc_tensor(
-                R.shape([m]), R.dtype("float32"), R.prim_value(0), R.str("global")
+            alloc3: R.Tensor((m_main,), dtype="float32") = R.builtin.alloc_tensor(
+                R.shape([m_main]), R.dtype("float32"), R.prim_value(0), R.str("global")
             )
             cls.add_one(alloc2, alloc3)
             return alloc3
@@ -1102,11 +1104,12 @@ def test_disable_capture_output():
 
 
 def test_static_input_with_symbolic_shape():
+    m = T.dynamic("m")
+
     @I.ir_module
     class Before:
         @R.function
-        def main(x: R.Tensor((8,), "float16"), w: R.Tensor(("m",))):
-            m = T.int64()
+        def main(x: R.Tensor((8,), "float16"), w: R.Tensor((m,))):
             R.func_attr({"relax.force_pure": True, "num_input": 1})
             storage1 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float16")
             alloc1 = R.memory.alloc_tensor(storage1, 0, R.shape([8]), "float16")
@@ -1119,6 +1122,9 @@ def test_static_input_with_symbolic_shape():
             _2 = R.call_packed("dummy", alloc2, w, alloc3, ty_args=(R.Tuple,))
             gv = (alloc3,)
             return gv
+
+    m_main_cuda_graph_capture = T.dynamic("m")
+    m_main = T.dynamic("m")
 
     @I.ir_module
     class Expected:
@@ -1137,21 +1143,19 @@ def test_static_input_with_symbolic_shape():
         @R.function(private=True)
         def main_cuda_graph_capture(
             alloc1: R.Tensor((8,), dtype="float16"),
-            w: R.Tensor(("m",)),
+            w: R.Tensor((m_main_cuda_graph_capture,)),
             alloc2: R.Tensor((8,), dtype="float16"),
-            shape_expr: R.Shape(["m"]),
+            shape_expr: R.Shape([m_main_cuda_graph_capture]),
         ) -> R.Tuple:
-            m = T.int64()
             R.func_attr({"relax.force_pure": True})
             R.call_packed("dummy", alloc1, w, alloc2, ty_args=(R.Tuple,))
             R.tuple()
             return R.tuple()
 
         @R.function
-        def main(x: R.Tensor((8,), dtype="float16"), w: R.Tensor(("m",))) -> R.Tuple(
+        def main(x: R.Tensor((8,), dtype="float16"), w: R.Tensor((m_main,))) -> R.Tuple(
             R.Tensor((8,), dtype="float16")
         ):
-            m = T.int64()
             R.func_attr({"num_input": 1, "relax.force_pure": True})
             cls = Expected
             gv: R.Tuple(R.Any, R.Any) = R.call_builtin_with_ctx(
@@ -1172,9 +1176,9 @@ def test_static_input_with_symbolic_shape():
                 "vm.builtin.cuda_graph.run_or_capture",
                 (
                     cls.main_cuda_graph_capture,
-                    (alloc1, w, alloc2, R.shape([m])),
+                    (alloc1, w, alloc2, R.shape([m_main])),
                     R.prim_value(0),
-                    R.shape([m]),
+                    R.shape([m_main]),
                 ),
                 ty_args=(R.Tuple,),
             )

@@ -110,10 +110,13 @@ def test_vm_compile_unlowered_operator_error(exec_mode):
 
 
 def test_match_check(exec_mode):
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @tvm.script.ir_module
     class TestMatchCheck:
         @R.function
-        def foo(x: R.Tensor(["n", "m"], "int32"), y: R.Any) -> R.Tensor(["m", "n"], dtype=None):
+        def foo(x: R.Tensor([n, m], "int32"), y: R.Any) -> R.Tensor([m, n], dtype=None):
             return y
 
     mod = TestMatchCheck
@@ -135,11 +138,13 @@ def test_match_check(exec_mode):
 
 
 def test_vm_compile_stage2(exec_mode):
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @tvm.script.ir_module
     class TestVMCompileStage2:
         @R.function
         def foo(x: R.Tensor(dtype="float32")) -> R.Shape:
-            n, m = T.int64(), T.int64()
             _ = R.match_cast(x, R.Tensor((n, m), "float32"))
             return R.shape([n * 2, m * 3])
 
@@ -189,12 +194,14 @@ def test_vm_compile_stage3(exec_mode):
 
 
 def test_vm_compile_e2e(exec_mode):
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @tvm.script.ir_module
     class TestVMCompileE2E:
         @R.function
         def foo(x: R.Tensor(dtype="float32")) -> R.Tensor:
             with R.dataflow():
-                n, m = T.int64(), T.int64()
                 _ = R.match_cast(x, R.Tensor((n, m), "float32"))
                 y = R.call_dps_packed("test.vm.tile", (x), R.Tensor((n, m * 2), dtype="float32"))
                 R.output(y)
@@ -213,32 +220,35 @@ def test_vm_compile_e2e(exec_mode):
 
 
 def test_vm_compile_e2e_func_param_with_shape(exec_mode):
+    m_tir_matmul = T.dynamic("m", "int32")
+    n_tir_matmul = T.dynamic("n", "int32")
+    k_tir_matmul = T.dynamic("k", "int32")
+    m_func = T.dynamic("m")
+    k_func = T.dynamic("k")
+    n_func = T.dynamic("n")
+
     @tvm.script.ir_module
     class TestVMCompileE2E2:
         @Ts.prim_func
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.int32()
-            n = T.int32()
-            k = T.int32()
-            A = T.match_buffer(x, (m, n))
-            B = T.match_buffer(y, (n, k))
-            C = T.match_buffer(z, (m, k))
+            A = T.match_buffer(x, (m_tir_matmul, n_tir_matmul))
+            B = T.match_buffer(y, (n_tir_matmul, k_tir_matmul))
+            C = T.match_buffer(z, (m_tir_matmul, k_tir_matmul))
 
-            for i, j, k in T.grid(m, k, n):
+            for i, j, k_tir_matmul_index in T.grid(m_tir_matmul, k_tir_matmul, n_tir_matmul):
                 with Ts.sblock("matmul"):
-                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k_tir_matmul_index])
                     with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
         @R.function
         def func(
-            x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")
+            x: R.Tensor((m_func, n_func), "float32"), w: R.Tensor((n_func, k_func), "float32")
         ) -> R.Tensor:
-            m, k = T.int64(), T.int64()
             cls = TestVMCompileE2E2
-            gv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((m, k), dtype="float32"))
+            gv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((m_func, k_func), dtype="float32"))
             return gv0
 
     mod = TestVMCompileE2E2
@@ -418,7 +428,7 @@ def test_vm_emit_te_concat(exec_mode):
 
 def test_vm_emit_te_dtype_change(exec_mode):
     bb = relax.BlockBuilder()
-    n = tirx.Var("n", "int64")
+    n = T.dynamic("n", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
 
     # convert a tensor with dtype of float32 to int16
@@ -447,7 +457,7 @@ def test_vm_emit_te_dtype_change(exec_mode):
 
 def test_vm_emit_te_floor_symbolic_shape(exec_mode):
     bb = relax.BlockBuilder()
-    n = tirx.Var("n", "int64")
+    n = T.dynamic("n", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
 
     def te_func(A):
@@ -530,7 +540,7 @@ def test_vm_emit_te_constant_param_gpu(exec_mode):
 
 def test_vm_relax_symbolic_shape(exec_mode):
     bb = relax.BlockBuilder()
-    n = tirx.Var("n", "int64")
+    n = T.dynamic("n", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
     y = relax.Var("y", R.Tensor([(n // 2) + 1], "float32"))
 
@@ -561,12 +571,13 @@ def test_vm_relax_symbolic_shape(exec_mode):
 
 
 def test_vm_relax_symbolic_shape_tuple(exec_mode):
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class mod:
         @R.function
-        def main(shape: R.Shape(["m", "n"])):
-            m = T.int64()
-            n = T.int64()
+        def main(shape: R.Shape([m, n])):
             return R.shape([2 * m, 3 * n])
 
     target = tvm.target.Target("llvm", host="llvm")
@@ -587,7 +598,7 @@ def test_vm_relax_symbolic_shape_tuple(exec_mode):
 def test_vm_relax_dyn_tir_shape(exec_mode):
     # case where TIR variables are unbound in generated PrimFunc
     bb = relax.BlockBuilder()
-    n = tirx.Var("n", "int64")
+    n = T.dynamic("n", "int64")
 
     def te_func(A):
         C = te.compute((n + 1), lambda i: A[i])
@@ -619,7 +630,7 @@ def test_vm_relax_dyn_tir_shape(exec_mode):
 
 def test_vm_tuple(exec_mode):
     bb = relax.BlockBuilder()
-    n = tirx.Var("n", "int64")
+    n = T.dynamic("n", "int64")
 
     with bb.function("rx_func"):
         x = nn.Placeholder((n,), dtype="float32", name="x")
@@ -700,21 +711,22 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
 
 
 def test_sub_func_call(exec_mode):
+    m = T.dynamic("m", "int32")
+    n = T.dynamic("n", "int32")
+    k = T.dynamic("k", "int32")
+
     @tvm.script.ir_module
     class TestVMSubFunction:
         @Ts.prim_func
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.int32()
-            n = T.int32()
-            k = T.int32()
             A = T.match_buffer(x, (m, n))
             B = T.match_buffer(y, (n, k))
             C = T.match_buffer(z, (m, k))
 
-            for i, j, k in T.grid(m, k, n):
+            for i, j, k_index in T.grid(m, k, n):
                 with Ts.sblock("matmul"):
-                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k_index])
                     with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
@@ -881,13 +893,15 @@ def test_time_evaluator(exec_mode):
     assert timing_res.results
 
 
+m = T.dynamic("m", "int32")
+n = T.dynamic("n", "int32")
+
+
 @tvm.script.ir_module
 class TestVMSetInput:
     @Ts.prim_func
     def test_vm_mul(x: T.handle, y: T.handle, z: T.handle):
         T.func_attr({"global_symbol": "test_vm_mul"})
-        m = T.int32()
-        n = T.int32()
         A = T.match_buffer(x, (m, n))
         B = T.match_buffer(y, (m, n))
         C = T.match_buffer(z, (m, n))
@@ -930,22 +944,26 @@ class TestVMSetInput:
 def test_multi_systemlib(exec_mode):
     pytest.importorskip("cloudpickle")  # needed by popen_pool.PopenWorker
 
+    N = T.dynamic("N")
+    m = T.dynamic("m")
+
     @tvm.script.ir_module
     class ModA:
         I.module_attrs({"system_lib_prefix": "libA_"})
 
         @Ts.prim_func
         def tir_init(x_handle: T.handle):
-            N = T.int64()
             x = T.match_buffer(x_handle, [N], "float32")
             for i in range(N):
                 x[i] = T.float32(0)
 
         @R.function
-        def main(s: R.Shape(["m"])) -> R.Tensor:
-            m = T.int64()
+        def main(s: R.Shape([m])) -> R.Tensor:
             gv0 = R.call_tir(ModA.tir_init, (), R.Tensor((m + 1,), dtype="float32"))
             return gv0
+
+    N = T.dynamic("N")
+    m = T.dynamic("m")
 
     @tvm.script.ir_module
     class ModB:
@@ -953,14 +971,12 @@ def test_multi_systemlib(exec_mode):
 
         @Ts.prim_func
         def tir_init(x_handle: T.handle):
-            N = T.int64()
             x = T.match_buffer(x_handle, [N], "float32")
             for i in range(N):
                 x[i] = T.float32(1)
 
         @R.function
-        def main(s: R.Shape(["m"])) -> R.Tensor:
-            m = T.int64()
+        def main(s: R.Shape([m])) -> R.Tensor:
             gv0 = R.call_tir(ModB.tir_init, (), R.Tensor((m,), dtype="float32"))
             return gv0
 

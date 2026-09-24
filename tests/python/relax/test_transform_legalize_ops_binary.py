@@ -123,39 +123,41 @@ def test_add_with_arg1_constant_scalar():
 
 def test_add_symbolic():
     # fmt: off
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @tvm.script.ir_module
     class Add:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
+        def main(x: R.Tensor((1, c, d), "float32"), y: R.Tensor((a, b, c, 1), "float32")) -> R.Tensor((a, b, c, d), "float32"):
             gv: R.Tensor((a, b, c, d), "float32") = R.add(x, y)
             return gv
+
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+    c_main = T.dynamic("c")
+    d_main = T.dynamic("d")
+    a_add = T.dynamic("a")
+    b_add = T.dynamic("b")
+    c_add = T.dynamic("c")
+    d_add = T.dynamic("d")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            gv = R.call_tir(Expected.add, (x, y), R.Tensor((a, b, c, d), dtype="float32"))
+        def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
+            gv = R.call_tir(Expected.add, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
             return gv
 
         @Ts.prim_func(private=True)
         def add(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_add: T.handle):
             T.func_attr({"tirx.noalias": True})
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
-            T_add = T.match_buffer(var_T_add, [a, b, c, d], dtype="float32")
-            for i0, i1, i2, i3 in T.grid(a, b, c, d):
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_add, d_add], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_add, b_add, c_add, T.int64(1)], dtype="float32")
+            T_add = T.match_buffer(var_T_add, [a_add, b_add, c_add, d_add], dtype="float32")
+            for i0, i1, i2, i3 in T.grid(a_add, b_add, c_add, d_add):
                 with Ts.sblock("T_add"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
@@ -300,39 +302,41 @@ def test_divide_with_arg1_constant_scalar():
 
 def test_divide_symbolic():
     # fmt: off
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @tvm.script.ir_module
     class Divide:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
+        def main(x: R.Tensor((1, c, d), "float32"), y: R.Tensor((a, b, c, 1), "float32")) -> R.Tensor((a, b, c, d), "float32"):
             gv: R.Tensor((a, b, c, d), "float32") = R.divide(x, y)
             return gv
+
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+    c_main = T.dynamic("c")
+    d_main = T.dynamic("d")
+    a_divide = T.dynamic("a")
+    b_divide = T.dynamic("b")
+    c_divide = T.dynamic("c")
+    d_divide = T.dynamic("d")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            gv = R.call_tir(Expected.divide, (x, y), R.Tensor((a, b, c, d), dtype="float32"))
+        def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
+            gv = R.call_tir(Expected.divide, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
             return gv
 
         @Ts.prim_func(private=True)
         def divide(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_divide: T.handle):
             T.func_attr({"tirx.noalias": True})
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
-            T_divide = T.match_buffer(var_T_divide, [a, b, c, d], dtype="float32")
-            for i0, i1, i2, i3 in T.grid(a, b, c, d):
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_divide, d_divide], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_divide, b_divide, c_divide, T.int64(1)], dtype="float32")
+            T_divide = T.match_buffer(var_T_divide, [a_divide, b_divide, c_divide, d_divide], dtype="float32")
+            for i0, i1, i2, i3 in T.grid(a_divide, b_divide, c_divide, d_divide):
                 with Ts.sblock("T_divide"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
@@ -477,39 +481,41 @@ def test_floor_divide_with_arg1_constant_scalar():
 
 def test_floor_divide_symbolic():
     # fmt: off
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @tvm.script.ir_module
     class FloorDivide:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
+        def main(x: R.Tensor((1, c, d), "float32"), y: R.Tensor((a, b, c, 1), "float32")) -> R.Tensor((a, b, c, d), "float32"):
             gv: R.Tensor((a, b, c, d), "float32") = R.floor_divide(x, y)
             return gv
+
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+    c_main = T.dynamic("c")
+    d_main = T.dynamic("d")
+    a_floor_divide = T.dynamic("a")
+    b_floor_divide = T.dynamic("b")
+    c_floor_divide = T.dynamic("c")
+    d_floor_divide = T.dynamic("d")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            gv = R.call_tir(Expected.floor_divide, (x, y), R.Tensor((a, b, c, d), dtype="float32"))
+        def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
+            gv = R.call_tir(Expected.floor_divide, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
             return gv
 
         @Ts.prim_func(private=True)
         def floor_divide(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_floor_divide: T.handle):
             T.func_attr({"tirx.noalias": True})
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
-            T_floor_divide = T.match_buffer(var_T_floor_divide, [a, b, c, d], dtype="float32")
-            for i0, i1, i2, i3 in T.grid(a, b, c, d):
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_floor_divide, d_floor_divide], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_floor_divide, b_floor_divide, c_floor_divide, T.int64(1)], dtype="float32")
+            T_floor_divide = T.match_buffer(var_T_floor_divide, [a_floor_divide, b_floor_divide, c_floor_divide, d_floor_divide], dtype="float32")
+            for i0, i1, i2, i3 in T.grid(a_floor_divide, b_floor_divide, c_floor_divide, d_floor_divide):
                 with Ts.sblock("T_floor_divide"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
@@ -592,39 +598,41 @@ def test_multiply():
 
 def test_multiply_symbolic():
     # fmt: off
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @tvm.script.ir_module
     class Multiply:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
+        def main(x: R.Tensor((1, c, d), "float32"), y: R.Tensor((a, b, c, 1), "float32")) -> R.Tensor((a, b, c, d), "float32"):
             gv: R.Tensor((a, b, c, d), "float32") = R.multiply(x, y)
             return gv
+
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+    c_main = T.dynamic("c")
+    d_main = T.dynamic("d")
+    a_multiply = T.dynamic("a")
+    b_multiply = T.dynamic("b")
+    c_multiply = T.dynamic("c")
+    d_multiply = T.dynamic("d")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            gv = R.call_tir(Expected.multiply, (x, y), R.Tensor((a, b, c, d), dtype="float32"))
+        def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
+            gv = R.call_tir(Expected.multiply, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
             return gv
 
         @Ts.prim_func(private=True)
         def multiply(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_multiply: T.handle):
             T.func_attr({"tirx.noalias": True})
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
-            T_multiply = T.match_buffer(var_T_multiply, [a, b, c, d], dtype="float32")
-            for i0, i1, i2, i3 in T.grid(a, b, c, d):
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_multiply, d_multiply], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_multiply, b_multiply, c_multiply, T.int64(1)], dtype="float32")
+            T_multiply = T.match_buffer(var_T_multiply, [a_multiply, b_multiply, c_multiply, d_multiply], dtype="float32")
+            for i0, i1, i2, i3 in T.grid(a_multiply, b_multiply, c_multiply, d_multiply):
                 with Ts.sblock("T_multiply"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
@@ -709,31 +717,37 @@ def test_power():
 
 def test_power_symbolic():
     # fmt: off
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @tvm.script.ir_module
     class Power:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
+        def main(x: R.Tensor((1, c, d), "float32"), y: R.Tensor((a, b, c, 1), "float32")) -> R.Tensor((a, b, c, d), "float32"):
             gv: R.Tensor((a, b, c, d), "float32") = R.power(x, y)
             return gv
+
+    c_power = T.dynamic("c")
+    d_power = T.dynamic("d")
+    a_power = T.dynamic("a")
+    b_power = T.dynamic("b")
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+    c_main = T.dynamic("c")
+    d_main = T.dynamic("d")
 
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def power(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_power: T.handle):
             T.func_attr({"tirx.noalias": True})
-            c = T.int64()
-            d = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), c, d))
-            a = T.int64()
-            b = T.int64()
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (a, b, c, T.int64(1)))
-            T_power = T.match_buffer(var_T_power, (a, b, c, d))
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), c_power, d_power))
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (a_power, b_power, c_power, T.int64(1)))
+            T_power = T.match_buffer(var_T_power, (a_power, b_power, c_power, d_power))
             # with Ts.sblock("root"):
-            for ax0, ax1, ax2, ax3 in T.grid(a, b, c, d):
+            for ax0, ax1, ax2, ax3 in T.grid(a_power, b_power, c_power, d_power):
                 with Ts.sblock("T_power"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     Ts.reads(rxplaceholder[T.int64(0), v_ax2, v_ax3], rxplaceholder_1[v_ax0, v_ax1, v_ax2, T.int64(0)])
@@ -741,12 +755,8 @@ def test_power_symbolic():
                     T_power[v_ax0, v_ax1, v_ax2, v_ax3] = T.pow(rxplaceholder[T.int64(0), v_ax2, v_ax3], rxplaceholder_1[v_ax0, v_ax1, v_ax2, T.int64(0)])
 
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), dtype="float32"), y: R.Tensor(("a", "b", "c", 1), dtype="float32")) -> R.Tensor(("a", "b", "c", "d"), dtype="float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            gv = R.call_tir(Expected.power, (x, y), out_ty=R.Tensor((a, b, c, d), dtype="float32"))
+        def main(x: R.Tensor((1, c_main, d_main), dtype="float32"), y: R.Tensor((a_main, b_main, c_main, 1), dtype="float32")) -> R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"):
+            gv = R.call_tir(Expected.power, (x, y), out_ty=R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
             return gv
     # fmt: on
 
@@ -827,30 +837,36 @@ def test_atan2():
 
 def test_atan2_symbolic():
     # fmt: off
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @tvm.script.ir_module
     class Atan2:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
+        def main(x: R.Tensor((1, c, d), "float32"), y: R.Tensor((a, b, c, 1), "float32")) -> R.Tensor((a, b, c, d), "float32"):
             gv: R.Tensor((a, b, c, d), "float32") = R.atan2(x, y)
             return gv
+
+    c_atan2 = T.dynamic("c")
+    d_atan2 = T.dynamic("d")
+    a_atan2 = T.dynamic("a")
+    b_atan2 = T.dynamic("b")
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+    c_main = T.dynamic("c")
+    d_main = T.dynamic("d")
 
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def atan2(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_atan2: T.handle):
             T.func_attr({"tirx.noalias": True})
-            c = T.int64()
-            d = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), c, d))
-            a = T.int64()
-            b = T.int64()
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (a, b, c, T.int64(1)))
-            T_atan2 = T.match_buffer(var_T_atan2, (a, b, c, d))
-            for ax0, ax1, ax2, ax3 in T.grid(a, b, c, d):
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), c_atan2, d_atan2))
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (a_atan2, b_atan2, c_atan2, T.int64(1)))
+            T_atan2 = T.match_buffer(var_T_atan2, (a_atan2, b_atan2, c_atan2, d_atan2))
+            for ax0, ax1, ax2, ax3 in T.grid(a_atan2, b_atan2, c_atan2, d_atan2):
                 with Ts.sblock("T_atan2"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     Ts.reads(rxplaceholder[T.int64(0), v_ax2, v_ax3], rxplaceholder_1[v_ax0, v_ax1, v_ax2, T.int64(0)])
@@ -858,12 +874,8 @@ def test_atan2_symbolic():
                     T_atan2[v_ax0, v_ax1, v_ax2, v_ax3] = T.atan2(rxplaceholder[T.int64(0), v_ax2, v_ax3], rxplaceholder_1[v_ax0, v_ax1, v_ax2, T.int64(0)])
 
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), dtype="float32"), y: R.Tensor(("a", "b", "c", 1), dtype="float32")) -> R.Tensor(("a", "b", "c", "d"), dtype="float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            gv = R.call_tir(Expected.atan2, (x, y), out_ty=R.Tensor((a, b, c, d), dtype="float32"))
+        def main(x: R.Tensor((1, c_main, d_main), dtype="float32"), y: R.Tensor((a_main, b_main, c_main, 1), dtype="float32")) -> R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"):
+            gv = R.call_tir(Expected.atan2, (x, y), out_ty=R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
             return gv
     # fmt: on
 
@@ -942,39 +954,41 @@ def test_subtract():
 
 def test_subtract_symbolic():
     # fmt: off
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @tvm.script.ir_module
     class Subtract:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
+        def main(x: R.Tensor((1, c, d), "float32"), y: R.Tensor((a, b, c, 1), "float32")) -> R.Tensor((a, b, c, d), "float32"):
             gv: R.Tensor((a, b, c, d), "float32") = R.subtract(x, y)
             return gv
+
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+    c_main = T.dynamic("c")
+    d_main = T.dynamic("d")
+    a_subtract = T.dynamic("a")
+    b_subtract = T.dynamic("b")
+    c_subtract = T.dynamic("c")
+    d_subtract = T.dynamic("d")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            gv = R.call_tir(Expected.subtract, (x, y), R.Tensor((a, b, c, d), dtype="float32"))
+        def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
+            gv = R.call_tir(Expected.subtract, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
             return gv
 
         @Ts.prim_func(private=True)
         def subtract(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_subtract: T.handle):
             T.func_attr({"tirx.noalias": True})
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
-            T_subtract = T.match_buffer(var_T_subtract, [a, b, c, d], dtype="float32")
-            for i0, i1, i2, i3 in T.grid(a, b, c, d):
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_subtract, d_subtract], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_subtract, b_subtract, c_subtract, T.int64(1)], dtype="float32")
+            T_subtract = T.match_buffer(var_T_subtract, [a_subtract, b_subtract, c_subtract, d_subtract], dtype="float32")
+            for i0, i1, i2, i3 in T.grid(a_subtract, b_subtract, c_subtract, d_subtract):
                 with Ts.sblock("T_subtract"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
@@ -1122,39 +1136,41 @@ def test_equal_with_arg1_constant_scalar():
 
 def test_equal_symbolic():
     # fmt: off
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @tvm.script.ir_module
     class Equal:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
+        def main(x: R.Tensor((1, c, d), "float32"), y: R.Tensor((a, b, c, 1), "float32")) -> R.Tensor((a, b, c, d), "bool"):
             gv: R.Tensor((a, b, c, d), "bool") = R.equal(x, y)
             return gv
+
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+    c_main = T.dynamic("c")
+    d_main = T.dynamic("d")
+    a_equal = T.dynamic("a")
+    b_equal = T.dynamic("b")
+    c_equal = T.dynamic("c")
+    d_equal = T.dynamic("d")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            gv = R.call_tir(Expected.equal, (x, y), R.Tensor((a, b, c, d), dtype="bool"))
+        def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "bool"):
+            gv = R.call_tir(Expected.equal, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="bool"))
             return gv
 
         @Ts.prim_func(private=True)
         def equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_equal: T.handle):
             T.func_attr({"tirx.noalias": True})
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
-            T_equal = T.match_buffer(var_T_equal, [a, b, c, d], dtype="bool")
-            for i0, i1, i2, i3 in T.grid(a, b, c, d):
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_equal, d_equal], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_equal, b_equal, c_equal, T.int64(1)], dtype="float32")
+            T_equal = T.match_buffer(var_T_equal, [a_equal, b_equal, c_equal, d_equal], dtype="bool")
+            for i0, i1, i2, i3 in T.grid(a_equal, b_equal, c_equal, d_equal):
                 with Ts.sblock("T_equal"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
@@ -1299,39 +1315,41 @@ def test_greater_with_arg1_constant_scalar():
 
 def test_greater_symbolic():
     # fmt: off
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @tvm.script.ir_module
     class Greater:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
+        def main(x: R.Tensor((1, c, d), "float32"), y: R.Tensor((a, b, c, 1), "float32")) -> R.Tensor((a, b, c, d), "bool"):
             gv: R.Tensor((a, b, c, d), "bool") = R.greater(x, y)
             return gv
+
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+    c_main = T.dynamic("c")
+    d_main = T.dynamic("d")
+    a_greater = T.dynamic("a")
+    b_greater = T.dynamic("b")
+    c_greater = T.dynamic("c")
+    d_greater = T.dynamic("d")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            gv = R.call_tir(Expected.greater, (x, y), R.Tensor((a, b, c, d), dtype="bool"))
+        def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "bool"):
+            gv = R.call_tir(Expected.greater, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="bool"))
             return gv
 
         @Ts.prim_func(private=True)
         def greater(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_greater: T.handle):
             T.func_attr({"tirx.noalias": True})
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
-            T_greater = T.match_buffer(var_T_greater, [a, b, c, d], dtype="bool")
-            for i0, i1, i2, i3 in T.grid(a, b, c, d):
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_greater, d_greater], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_greater, b_greater, c_greater, T.int64(1)], dtype="float32")
+            T_greater = T.match_buffer(var_T_greater, [a_greater, b_greater, c_greater, d_greater], dtype="bool")
+            for i0, i1, i2, i3 in T.grid(a_greater, b_greater, c_greater, d_greater):
                 with Ts.sblock("T_greater"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder_1[ax0, ax1, ax2, T.int64(0)], rxplaceholder[T.int64(0), ax2, ax3])
@@ -1414,39 +1432,41 @@ def test_greater_equal():
 
 def test_greater_equal_symbolic():
     # fmt: off
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @tvm.script.ir_module
     class GreaterEqual:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
+        def main(x: R.Tensor((1, c, d), "float32"), y: R.Tensor((a, b, c, 1), "float32")) -> R.Tensor((a, b, c, d), "bool"):
             gv: R.Tensor((a, b, c, d), "bool") = R.greater_equal(x, y)
             return gv
+
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+    c_main = T.dynamic("c")
+    d_main = T.dynamic("d")
+    a_greater_equal = T.dynamic("a")
+    b_greater_equal = T.dynamic("b")
+    c_greater_equal = T.dynamic("c")
+    d_greater_equal = T.dynamic("d")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            gv = R.call_tir(Expected.greater_equal, (x, y), R.Tensor((a, b, c, d), dtype="bool"))
+        def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "bool"):
+            gv = R.call_tir(Expected.greater_equal, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="bool"))
             return gv
 
         @Ts.prim_func(private=True)
         def greater_equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_greater_equal: T.handle):
             T.func_attr({"tirx.noalias": True})
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
-            T_greater_equal = T.match_buffer(var_T_greater_equal, [a, b, c, d], dtype="bool")
-            for i0, i1, i2, i3 in T.grid(a, b, c, d):
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_greater_equal, d_greater_equal], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_greater_equal, b_greater_equal, c_greater_equal, T.int64(1)], dtype="float32")
+            T_greater_equal = T.match_buffer(var_T_greater_equal, [a_greater_equal, b_greater_equal, c_greater_equal, d_greater_equal], dtype="bool")
+            for i0, i1, i2, i3 in T.grid(a_greater_equal, b_greater_equal, c_greater_equal, d_greater_equal):
                 with Ts.sblock("T_greater_equal"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder_1[ax0, ax1, ax2, T.int64(0)], rxplaceholder[T.int64(0), ax2, ax3])
@@ -1529,39 +1549,41 @@ def test_less():
 
 def test_less_symbolic():
     # fmt: off
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @tvm.script.ir_module
     class Less:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
+        def main(x: R.Tensor((1, c, d), "float32"), y: R.Tensor((a, b, c, 1), "float32")) -> R.Tensor((a, b, c, d), "bool"):
             gv: R.Tensor((a, b, c, d), "bool") = R.less(x, y)
             return gv
+
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+    c_main = T.dynamic("c")
+    d_main = T.dynamic("d")
+    a_less = T.dynamic("a")
+    b_less = T.dynamic("b")
+    c_less = T.dynamic("c")
+    d_less = T.dynamic("d")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            gv = R.call_tir(Expected.less, (x, y), R.Tensor((a, b, c, d), dtype="bool"))
+        def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "bool"):
+            gv = R.call_tir(Expected.less, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="bool"))
             return gv
 
         @Ts.prim_func(private=True)
         def less(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_less: T.handle):
             T.func_attr({"tirx.noalias": True})
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
-            T_less = T.match_buffer(var_T_less, [a, b, c, d], dtype="bool")
-            for i0, i1, i2, i3 in T.grid(a, b, c, d):
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_less, d_less], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_less, b_less, c_less, T.int64(1)], dtype="float32")
+            T_less = T.match_buffer(var_T_less, [a_less, b_less, c_less, d_less], dtype="bool")
+            for i0, i1, i2, i3 in T.grid(a_less, b_less, c_less, d_less):
                 with Ts.sblock("T_less"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
@@ -1706,39 +1728,41 @@ def test_less_equal_with_arg1_constant_scalar():
 
 def test_less_equal_symbolic():
     # fmt: off
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @tvm.script.ir_module
     class LessEqual:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
+        def main(x: R.Tensor((1, c, d), "float32"), y: R.Tensor((a, b, c, 1), "float32")) -> R.Tensor((a, b, c, d), "bool"):
             gv: R.Tensor((a, b, c, d), "bool") = R.less_equal(x, y)
             return gv
+
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+    c_main = T.dynamic("c")
+    d_main = T.dynamic("d")
+    a_less_equal = T.dynamic("a")
+    b_less_equal = T.dynamic("b")
+    c_less_equal = T.dynamic("c")
+    d_less_equal = T.dynamic("d")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            gv = R.call_tir(Expected.less_equal, (x, y), R.Tensor((a, b, c, d), dtype="bool"))
+        def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "bool"):
+            gv = R.call_tir(Expected.less_equal, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="bool"))
             return gv
 
         @Ts.prim_func(private=True)
         def less_equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_less_equal: T.handle):
             T.func_attr({"tirx.noalias": True})
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
-            T_less_equal = T.match_buffer(var_T_less_equal, [a, b, c, d], dtype="bool")
-            for i0, i1, i2, i3 in T.grid(a, b, c, d):
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_less_equal, d_less_equal], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_less_equal, b_less_equal, c_less_equal, T.int64(1)], dtype="float32")
+            T_less_equal = T.match_buffer(var_T_less_equal, [a_less_equal, b_less_equal, c_less_equal, d_less_equal], dtype="bool")
+            for i0, i1, i2, i3 in T.grid(a_less_equal, b_less_equal, c_less_equal, d_less_equal):
                 with Ts.sblock("T_less_equal"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
@@ -1821,39 +1845,41 @@ def test_not_equal():
 
 def test_not_equal_symbolic():
     # fmt: off
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @tvm.script.ir_module
     class NotEqual:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
+        def main(x: R.Tensor((1, c, d), "float32"), y: R.Tensor((a, b, c, 1), "float32")) -> R.Tensor((a, b, c, d), "bool"):
             gv: R.Tensor((a, b, c, d), "bool") = R.not_equal(x, y)
             return gv
+
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+    c_main = T.dynamic("c")
+    d_main = T.dynamic("d")
+    a_not_equal = T.dynamic("a")
+    b_not_equal = T.dynamic("b")
+    c_not_equal = T.dynamic("c")
+    d_not_equal = T.dynamic("d")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "bool"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            gv = R.call_tir(Expected.not_equal, (x, y), R.Tensor((a, b, c, d), dtype="bool"))
+        def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "bool"):
+            gv = R.call_tir(Expected.not_equal, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="bool"))
             return gv
 
         @Ts.prim_func(private=True)
         def not_equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_not_equal: T.handle):
             T.func_attr({"tirx.noalias": True})
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
-            T_not_equal = T.match_buffer(var_T_not_equal, [a, b, c, d], dtype="bool")
-            for i0, i1, i2, i3 in T.grid(a, b, c, d):
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_not_equal, d_not_equal], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_not_equal, b_not_equal, c_not_equal, T.int64(1)], dtype="float32")
+            T_not_equal = T.match_buffer(var_T_not_equal, [a_not_equal, b_not_equal, c_not_equal, d_not_equal], dtype="bool")
+            for i0, i1, i2, i3 in T.grid(a_not_equal, b_not_equal, c_not_equal, d_not_equal):
                 with Ts.sblock("T_not_equal"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
@@ -1999,39 +2025,41 @@ def test_maximum_with_arg1_constant_scalar():
 
 def test_maximum_symbolic():
     # fmt: off
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @tvm.script.ir_module
     class Maximum:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
+        def main(x: R.Tensor((1, c, d), "float32"), y: R.Tensor((a, b, c, 1), "float32")) -> R.Tensor((a, b, c, d), "float32"):
             gv: R.Tensor((a, b, c, d), "float32") = R.maximum(x, y)
             return gv
+
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+    c_main = T.dynamic("c")
+    d_main = T.dynamic("d")
+    a_maximum = T.dynamic("a")
+    b_maximum = T.dynamic("b")
+    c_maximum = T.dynamic("c")
+    d_maximum = T.dynamic("d")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            gv = R.call_tir(Expected.maximum, (x, y), R.Tensor((a, b, c, d), dtype="float32"))
+        def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
+            gv = R.call_tir(Expected.maximum, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
             return gv
 
         @Ts.prim_func(private=True)
         def maximum(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_maximum: T.handle):
             T.func_attr({"tirx.noalias": True})
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
-            T_maximum = T.match_buffer(var_T_maximum, [a, b, c, d], dtype="float32")
-            for i0, i1, i2, i3 in T.grid(a, b, c, d):
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_maximum, d_maximum], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_maximum, b_maximum, c_maximum, T.int64(1)], dtype="float32")
+            T_maximum = T.match_buffer(var_T_maximum, [a_maximum, b_maximum, c_maximum, d_maximum], dtype="float32")
+            for i0, i1, i2, i3 in T.grid(a_maximum, b_maximum, c_maximum, d_maximum):
                 with Ts.sblock("T_maximum"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])
@@ -2177,39 +2205,41 @@ def test_minimum_with_arg1_constant_scalar():
 
 def test_minimum_symbolic():
     # fmt: off
+    a = T.dynamic("a")
+    b = T.dynamic("b")
+    c = T.dynamic("c")
+    d = T.dynamic("d")
+
     @tvm.script.ir_module
     class Minimum:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
+        def main(x: R.Tensor((1, c, d), "float32"), y: R.Tensor((a, b, c, 1), "float32")) -> R.Tensor((a, b, c, d), "float32"):
             gv: R.Tensor((a, b, c, d), "float32") = R.minimum(x, y)
             return gv
+
+    a_main = T.dynamic("a")
+    b_main = T.dynamic("b")
+    c_main = T.dynamic("c")
+    d_main = T.dynamic("d")
+    a_minimum = T.dynamic("a")
+    b_minimum = T.dynamic("b")
+    c_minimum = T.dynamic("c")
+    d_minimum = T.dynamic("d")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            gv = R.call_tir(Expected.minimum, (x, y), R.Tensor((a, b, c, d), dtype="float32"))
+        def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
+            gv = R.call_tir(Expected.minimum, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
             return gv
 
         @Ts.prim_func(private=True)
         def minimum(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_minimum: T.handle):
             T.func_attr({"tirx.noalias": True})
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            d = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c, d], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a, b, c, T.int64(1)], dtype="float32")
-            T_minimum = T.match_buffer(var_T_minimum, [a, b, c, d], dtype="float32")
-            for i0, i1, i2, i3 in T.grid(a, b, c, d):
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_minimum, d_minimum], dtype="float32")
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_minimum, b_minimum, c_minimum, T.int64(1)], dtype="float32")
+            T_minimum = T.match_buffer(var_T_minimum, [a_minimum, b_minimum, c_minimum, d_minimum], dtype="float32")
+            for i0, i1, i2, i3 in T.grid(a_minimum, b_minimum, c_minimum, d_minimum):
                 with Ts.sblock("T_minimum"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[T.int64(0), ax2, ax3], rxplaceholder_1[ax0, ax1, ax2, T.int64(0)])

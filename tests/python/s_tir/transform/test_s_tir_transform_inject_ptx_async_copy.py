@@ -437,6 +437,27 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
+    C_s0_0 = T.dynamic("C_s0_0", "int32")
+    C_s1_0 = T.dynamic("C_s1_0", "int32")
+    A_s0_3 = T.dynamic("A_s0_3", "int32")
+    A_s1_3 = T.dynamic("A_s1_3", "int32")
+    C_s0_4 = T.dynamic("C_s0_4", "int32")
+    C_s1_4 = T.dynamic("C_s1_4", "int32")
+    A_s0_0 = T.dynamic("A_s0_0", "int32")
+    A_s1_0 = T.dynamic("A_s1_0", "int32")
+    C_s0_1 = T.dynamic("C_s0_1", "int32")
+    C_s1_1 = T.dynamic("C_s1_1", "int32")
+    A_s0_1 = T.dynamic("A_s0_1", "int32")
+    A_s1_1 = T.dynamic("A_s1_1", "int32")
+    C_s0_2 = T.dynamic("C_s0_2", "int32")
+    C_s1_2 = T.dynamic("C_s1_2", "int32")
+    A_s0_2 = T.dynamic("A_s0_2", "int32")
+    A_s1_2 = T.dynamic("A_s1_2", "int32")
+    B_s0 = T.dynamic("B_s0", "int32")
+    B_s1 = T.dynamic("B_s1", "int32")
+    C_s0_3 = T.dynamic("C_s0_3", "int32")
+    C_s1_3 = T.dynamic("C_s1_3", "int32")
+
     @Ts.prim_func
     def complex_compute(
         A: T.Buffer((2, 16, 16, 1280), "float16"),
@@ -474,15 +495,13 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                         v_x_o * 16 : v_x_o * 16 + 16, v_y_o * 16 : v_y_o * 16 + 16
                                     ]
                                 )
-                                C_s0 = T.int32()
-                                C_s1 = T.int32()
                                 C = T.match_buffer(
                                     Conv_reindex_wmma_accumulator[
                                         v_x_o * 16 : v_x_o * 16 + 16, v_y_o * 16 : v_y_o * 16 + 16
                                     ],
                                     (16, 16),
                                     "float16",
-                                    strides=(C_s0, C_s1),
+                                    strides=(C_s0_0, C_s1_0),
                                     scope="wmma.accumulator",
                                     offset_factor=16,
                                 )
@@ -491,8 +510,8 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     16,
                                     16,
                                     16,
-                                    C.ty.elem_offset // C_s0 // 16 * (C_s0 // 16)
-                                    + C.ty.elem_offset % C_s0 // 16,
+                                    C.ty.elem_offset // C_s0_0 // 16 * (C_s0_0 // 16)
+                                    + C.ty.elem_offset % C_s0_0 // 16,
                                     T.float32(0),
                                 )
                         for k_0_0 in T.serial(
@@ -656,8 +675,6 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                 v1_o * 16 : v1_o * 16 + 16,
                                             ]
                                         )
-                                        A_s0 = T.int32()
-                                        A_s1 = T.int32()
                                         A_1 = T.match_buffer(
                                             data_im2col_reindex_shared_dyn[
                                                 v0_o * 16 : v0_o * 16 + 16,
@@ -665,12 +682,10 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(A_s0, A_s1),
+                                            strides=(A_s0_0, A_s1_0),
                                             scope="shared.dyn",
                                             offset_factor=16,
                                         )
-                                        C_s0 = T.int32()
-                                        C_s1 = T.int32()
                                         C = T.match_buffer(
                                             data_im2col_reindex_shared_dyn_wmma_matrix_a[
                                                 v0_o * 16 : v0_o * 16 + 16,
@@ -678,7 +693,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(C_s0, C_s1),
+                                            strides=(C_s0_1, C_s1_1),
                                             scope="wmma.matrix_a",
                                             offset_factor=16,
                                         )
@@ -687,16 +702,16 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             16,
                                             16,
                                             16,
-                                            C.ty.elem_offset // C_s0 // 16 * (C_s0 // 16)
-                                            + C.ty.elem_offset % C_s0 // 16,
+                                            C.ty.elem_offset // C_s0_1 // 16 * (C_s0_1 // 16)
+                                            + C.ty.elem_offset % C_s0_1 // 16,
                                             T.tvm_access_ptr(
                                                 T.type_annotation("float16"),
                                                 A_1.data,
                                                 A_1.ty.elem_offset,
-                                                A_s0 * 16,
+                                                A_s0_0 * 16,
                                                 1,
                                             ),
-                                            A_s0,
+                                            A_s0_0,
                                             "row_major",
                                         )
                                 for ax0_0, ax1_0 in T.grid(2, 1):
@@ -717,8 +732,6 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                 v1_o * 16 : v1_o * 16 + 16,
                                             ]
                                         )
-                                        A_s0 = T.int32()
-                                        A_s1 = T.int32()
                                         A_1 = T.match_buffer(
                                             weight_flatten_reindex_shared_dyn[
                                                 v0_o * 16 : v0_o * 16 + 16,
@@ -726,12 +739,10 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(A_s0, A_s1),
+                                            strides=(A_s0_1, A_s1_1),
                                             scope="shared.dyn",
                                             offset_factor=16,
                                         )
-                                        C_s0 = T.int32()
-                                        C_s1 = T.int32()
                                         C = T.match_buffer(
                                             weight_flatten_reindex_shared_dyn_wmma_matrix_b[
                                                 v0_o * 16 : v0_o * 16 + 16,
@@ -739,7 +750,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(C_s0, C_s1),
+                                            strides=(C_s0_2, C_s1_2),
                                             scope="wmma.matrix_b",
                                             offset_factor=16,
                                         )
@@ -748,16 +759,16 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             16,
                                             16,
                                             16,
-                                            C.ty.elem_offset // C_s0 // 16 * (C_s0 // 16)
-                                            + C.ty.elem_offset % C_s0 // 16,
+                                            C.ty.elem_offset // C_s0_2 // 16 * (C_s0_2 // 16)
+                                            + C.ty.elem_offset % C_s0_2 // 16,
                                             T.tvm_access_ptr(
                                                 T.type_annotation("float16"),
                                                 A_1.data,
                                                 A_1.ty.elem_offset,
-                                                A_s0 * 16,
+                                                A_s0_1 * 16,
                                                 1,
                                             ),
-                                            A_s0,
+                                            A_s0_1,
                                             "col_major",
                                         )
                                 for x_0_2, y_0_2 in T.grid(2, 2):
@@ -785,8 +796,6 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                 v_y_o * 16 : v_y_o * 16 + 16,
                                             ]
                                         )
-                                        A_s0 = T.int32()
-                                        A_s1 = T.int32()
                                         A_1 = T.match_buffer(
                                             data_im2col_reindex_shared_dyn_wmma_matrix_a[
                                                 v_x_o * 16 : v_x_o * 16 + 16,
@@ -794,12 +803,10 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(A_s0, A_s1),
+                                            strides=(A_s0_2, A_s1_2),
                                             scope="wmma.matrix_a",
                                             offset_factor=16,
                                         )
-                                        B_s0 = T.int32()
-                                        B_s1 = T.int32()
                                         B = T.match_buffer(
                                             weight_flatten_reindex_shared_dyn_wmma_matrix_b[
                                                 v_y_o * 16 : v_y_o * 16 + 16,
@@ -811,8 +818,6 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             scope="wmma.matrix_b",
                                             offset_factor=16,
                                         )
-                                        C_s0 = T.int32()
-                                        C_s1 = T.int32()
                                         C = T.match_buffer(
                                             Conv_reindex_wmma_accumulator[
                                                 v_x_o * 16 : v_x_o * 16 + 16,
@@ -820,23 +825,23 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(C_s0, C_s1),
+                                            strides=(C_s0_3, C_s1_3),
                                             scope="wmma.accumulator",
                                             offset_factor=16,
                                         )
                                         T.tvm_mma_sync(
                                             C.data,
-                                            C.ty.elem_offset // C_s0 // 16 * (C_s0 // 16)
-                                            + C.ty.elem_offset % C_s0 // 16,
+                                            C.ty.elem_offset // C_s0_3 // 16 * (C_s0_3 // 16)
+                                            + C.ty.elem_offset % C_s0_3 // 16,
                                             A_1.data,
-                                            A_1.ty.elem_offset // A_s0 // 16 * (A_s0 // 16)
-                                            + A_1.ty.elem_offset % A_s0 // 16,
+                                            A_1.ty.elem_offset // A_s0_2 // 16 * (A_s0_2 // 16)
+                                            + A_1.ty.elem_offset % A_s0_2 // 16,
                                             B.data,
                                             B.ty.elem_offset // B_s0 // 16 * (B_s0 // 16)
                                             + B.ty.elem_offset % B_s0 // 16,
                                             C.data,
-                                            C.ty.elem_offset // C_s0 // 16 * (C_s0 // 16)
-                                            + C.ty.elem_offset % C_s0 // 16,
+                                            C.ty.elem_offset // C_s0_3 // 16 * (C_s0_3 // 16)
+                                            + C.ty.elem_offset % C_s0_3 // 16,
                                         )
                         for ax0_0, ax1_0 in T.grid(2, 2):
                             with Ts.sblock("Conv_reindex_wmma.accumulator_o"):
@@ -850,25 +855,21 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                 Ts.writes(
                                     Conv[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16]
                                 )
-                                A_s0 = T.int32()
-                                A_s1 = T.int32()
                                 A_1 = T.match_buffer(
                                     Conv_reindex_wmma_accumulator[
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ],
                                     (16, 16),
                                     "float16",
-                                    strides=(A_s0, A_s1),
+                                    strides=(A_s0_3, A_s1_3),
                                     scope="wmma.accumulator",
                                     offset_factor=16,
                                 )
-                                C_s0 = T.int32()
-                                C_s1 = T.int32()
                                 C = T.match_buffer(
                                     Conv[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16],
                                     (16, 16),
                                     "float16",
-                                    strides=(C_s0, C_s1),
+                                    strides=(C_s0_4, C_s1_4),
                                     offset_factor=16,
                                 )
                                 T.tvm_store_matrix_sync(
@@ -876,16 +877,16 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     16,
                                     16,
                                     16,
-                                    A_1.ty.elem_offset // A_s0 // 16 * (A_s0 // 16)
-                                    + A_1.ty.elem_offset % A_s0 // 16,
+                                    A_1.ty.elem_offset // A_s0_3 // 16 * (A_s0_3 // 16)
+                                    + A_1.ty.elem_offset % A_s0_3 // 16,
                                     T.tvm_access_ptr(
                                         T.type_annotation("float16"),
                                         C.data,
                                         C.ty.elem_offset,
-                                        C_s0 * 16,
+                                        C_s0_4 * 16,
                                         2,
                                     ),
-                                    C_s0,
+                                    C_s0_4,
                                     "row_major",
                                 )
 

@@ -1290,9 +1290,10 @@ class TestNonBoolCondition(BaseCompactTest):
 
 
 def test_loop_var_does_not_escape_compacted_buffer_extent():
+    n = T.dynamic("n")
+
     @Ts.prim_func(private=True)
     def before(a: T.handle):
-        n = T.int64()
         A = T.match_buffer(a, (n,), "int32")
         tmp = T.alloc_buffer((n,), "int32")
         for i in range(n):

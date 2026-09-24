@@ -286,17 +286,21 @@ def test_call_tir_kwargs(register_te_grads):
 
 def get_expected_3():
     # fmt: off
+    n_f_mul = T.dynamic("n")
+    n_f_mul_grad = T.dynamic("n")
+    n_main_adjoint = T.dynamic("n")
+    n_main = T.dynamic("n")
+
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def f_mul(var_A: T.handle, var_B: T.handle, var_f_mul: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int64()
-            A = T.match_buffer(var_A, (n, n))
-            B = T.match_buffer(var_B, (n, n))
-            f_mul_1 = T.match_buffer(var_f_mul, (n, n))
+            A = T.match_buffer(var_A, (n_f_mul, n_f_mul))
+            B = T.match_buffer(var_B, (n_f_mul, n_f_mul))
+            f_mul_1 = T.match_buffer(var_f_mul, (n_f_mul, n_f_mul))
             # with Ts.sblock("root"):
-            for i0, i1 in T.grid(n, n):
+            for i0, i1 in T.grid(n_f_mul, n_f_mul):
                 with Ts.sblock("f_mul"):
                     v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(A[v_i0, v_i1], B[v_i0, v_i1])
@@ -306,20 +310,19 @@ def get_expected_3():
         @Ts.prim_func(private=True)
         def f_mul_grad(var_A: T.handle, var_B: T.handle, var_C: T.handle, var_f_mul_grad_1: T.handle, var_f_mul_grad_2: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int64()
-            A = T.match_buffer(var_A, (n, n))
-            B = T.match_buffer(var_B, (n, n))
-            C = T.match_buffer(var_C, (n, n))
-            f_mul_grad_1 = T.match_buffer(var_f_mul_grad_1, (n, n))
-            f_mul_grad_2 = T.match_buffer(var_f_mul_grad_2, (n, n))
+            A = T.match_buffer(var_A, (n_f_mul_grad, n_f_mul_grad))
+            B = T.match_buffer(var_B, (n_f_mul_grad, n_f_mul_grad))
+            C = T.match_buffer(var_C, (n_f_mul_grad, n_f_mul_grad))
+            f_mul_grad_1 = T.match_buffer(var_f_mul_grad_1, (n_f_mul_grad, n_f_mul_grad))
+            f_mul_grad_2 = T.match_buffer(var_f_mul_grad_2, (n_f_mul_grad, n_f_mul_grad))
             # with Ts.sblock("root"):
-            for i0, i1 in T.grid(n, n):
+            for i0, i1 in T.grid(n_f_mul_grad, n_f_mul_grad):
                 with Ts.sblock("f_mul_grad_1"):
                     v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(C[v_i0, v_i1], A[v_i0, v_i1])
                     Ts.writes(f_mul_grad_1[v_i0, v_i1])
                     f_mul_grad_1[v_i0, v_i1] = C[v_i0, v_i1] * A[v_i0, v_i1]
-            for i0, i1 in T.grid(n, n):
+            for i0, i1 in T.grid(n_f_mul_grad, n_f_mul_grad):
                 with Ts.sblock("f_mul_grad_2"):
                     v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(B[v_i0, v_i1], A[v_i0, v_i1])
@@ -327,28 +330,26 @@ def get_expected_3():
                     f_mul_grad_2[v_i0, v_i1] = B[v_i0, v_i1] * A[v_i0, v_i1]
 
         @R.function
-        def main_adjoint(a: R.Tensor(("n", "n"), dtype="float32"), b: R.Tensor(("n", "n"), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tuple(R.Tensor(("n", "n"), dtype="float32"), R.Tensor(("n", "n"), dtype="float32"))):
-            n = T.int64()
+        def main_adjoint(a: R.Tensor((n_main_adjoint, n_main_adjoint), dtype="float32"), b: R.Tensor((n_main_adjoint, n_main_adjoint), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tuple(R.Tensor((n_main_adjoint, n_main_adjoint), dtype="float32"), R.Tensor((n_main_adjoint, n_main_adjoint), dtype="float32"))):
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir(cls.f_mul, (a, b), out_ty=R.Tensor((n, n), dtype="float32"))
+                lv = R.call_tir(cls.f_mul, (a, b), out_ty=R.Tensor((n_main_adjoint, n_main_adjoint), dtype="float32"))
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 gv_adjoint: R.Tensor((), dtype="float32") = R.ones(R.shape([]), dtype="float32")
-                lv_adjoint: R.Tensor((n, n), dtype="float32") = R.broadcast_to(gv_adjoint, R.shape([n, n]))
-                lv_1 = R.call_tir(cls.f_mul_grad, (lv_adjoint, a, b), out_ty=[R.Tensor((n, n), dtype="float32"), R.Tensor((n, n), dtype="float32")])
-                a_adjoint: R.Tensor((n, n), dtype="float32") = lv_1[0]
-                b_adjoint: R.Tensor((n, n), dtype="float32") = lv_1[1]
-                a_adjoint_out: R.Tensor((n, n), dtype="float32") = a_adjoint
-                b_adjoint_out: R.Tensor((n, n), dtype="float32") = b_adjoint
+                lv_adjoint: R.Tensor((n_main_adjoint, n_main_adjoint), dtype="float32") = R.broadcast_to(gv_adjoint, R.shape([n_main_adjoint, n_main_adjoint]))
+                lv_1 = R.call_tir(cls.f_mul_grad, (lv_adjoint, a, b), out_ty=[R.Tensor((n_main_adjoint, n_main_adjoint), dtype="float32"), R.Tensor((n_main_adjoint, n_main_adjoint), dtype="float32")])
+                a_adjoint: R.Tensor((n_main_adjoint, n_main_adjoint), dtype="float32") = lv_1[0]
+                b_adjoint: R.Tensor((n_main_adjoint, n_main_adjoint), dtype="float32") = lv_1[1]
+                a_adjoint_out: R.Tensor((n_main_adjoint, n_main_adjoint), dtype="float32") = a_adjoint
+                b_adjoint_out: R.Tensor((n_main_adjoint, n_main_adjoint), dtype="float32") = b_adjoint
                 R.output(gv, a_adjoint_out, b_adjoint_out)
             return (gv, (a_adjoint_out, b_adjoint_out))
 
         @R.function
-        def main(a: R.Tensor(("n", "n"), dtype="float32"), b: R.Tensor(("n", "n"), dtype="float32")) -> R.Tensor((), dtype="float32"):
-            n = T.int64()
+        def main(a: R.Tensor((n_main, n_main), dtype="float32"), b: R.Tensor((n_main, n_main), dtype="float32")) -> R.Tensor((), dtype="float32"):
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir_with_grad(cls.f_mul, (a, b), out_ty=R.Tensor((n, n), dtype="float32"), te_grad_name="f_mul_grad")
+                lv = R.call_tir_with_grad(cls.f_mul, (a, b), out_ty=R.Tensor((n_main, n_main), dtype="float32"), te_grad_name="f_mul_grad")
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 R.output(gv)
             return gv

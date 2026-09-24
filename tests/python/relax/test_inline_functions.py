@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401
 
 import pytest
 
@@ -175,22 +174,29 @@ def test_subroutine_with_symbolic_vars():
     caller's `tirx::Var` symbolic variables should remain.
     """
 
+    n_main = T.dynamic("n")
+    n_subroutine = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @R.function(private=True)
-        def main(A: R.Tensor(["n", 16], "int32")) -> R.Tensor(["n", 32], "int32"):
+        def main(A: R.Tensor([n_main, 16], "int32")) -> R.Tensor([n_main, 32], "int32"):
             B = A * A
             C = Before.subroutine(B)
             D = C + C
             return D
 
         @R.function(private=True)
-        def subroutine(B: R.Tensor(["n", 16], "int32")) -> R.Tensor(["n", 32], "int32"):
+        def subroutine(B: R.Tensor([n_subroutine, 16], "int32")) -> R.Tensor(
+            [n_subroutine, 32], "int32"
+        ):
             C = R.concat([B, B], axis=1)
             return C
 
+    n = T.dynamic("n")
+
     @R.function(private=True)
-    def expected(A: R.Tensor(["n", 16], "int32")) -> R.Tensor(["n", 32], "int32"):
+    def expected(A: R.Tensor([n, 16], "int32")) -> R.Tensor([n, 32], "int32"):
         B = A * A
         C = R.concat([B, B], axis=1)
         D = C + C
@@ -208,6 +214,8 @@ def test_subroutine_with_symbolic_vars_and_static_argument():
     should remain.
     """
 
+    n = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @R.function(private=True)
@@ -218,7 +226,7 @@ def test_subroutine_with_symbolic_vars_and_static_argument():
             return D
 
         @R.function(private=True)
-        def subroutine(B: R.Tensor(["n", 16], "int32")) -> R.Tensor(["n", 32], "int32"):
+        def subroutine(B: R.Tensor([n, 16], "int32")) -> R.Tensor([n, 32], "int32"):
             C = R.concat([B, B], axis=1)
             return C
 
@@ -274,6 +282,9 @@ def test_inline_multiple_instances_with_distinct_static_shapes():
     different value for the symbolic variables it uses.
     """
 
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @I.ir_module
     class Before:
         @R.function(private=True)
@@ -283,7 +294,7 @@ def test_inline_multiple_instances_with_distinct_static_shapes():
             return (A_out, B_out)
 
         @R.function(private=True)
-        def subroutine(Input: R.Tensor(["n", "m"])) -> R.Tensor(["n", "m"]):
+        def subroutine(Input: R.Tensor([n, m])) -> R.Tensor([n, m]):
             Output = Input + Input
             return Output
 

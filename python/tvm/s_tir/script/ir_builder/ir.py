@@ -212,9 +212,7 @@ def sblock_alloc_buffer(
         The allocated buffer.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    if strides is not None:
-        strides = [Var(s, "int64") if isinstance(s, str) else s for s in strides]
-    else:
+    if strides is None:
         strides = []
     if allocated_addr is None:
         allocated_addr = []

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
 
 import numpy as np
 import pytest
@@ -73,12 +72,14 @@ def test_dispatch_scanop_cuda():
     lowered to the packed func `"gpu_2d_continuous_cumsum"`.
     """
 
+    m = T.dynamic("m")
+
     @I.ir_module
     class Before:
         I.module_global_infos({"vdevice": [R.vdevice("cuda", 0)]})
 
         @R.function
-        def main(x: 'R.Tensor(("m", 3), "float32", "cuda")'):
+        def main(x: 'R.Tensor((m, 3), "float32", "cuda"))':
             with R.dataflow():
                 lv0 = R.cumsum(x, axis=1, exclusive=True)
                 lv1 = R.cumprod(lv0, axis=1)
@@ -89,7 +90,7 @@ def test_dispatch_scanop_cuda():
     target = tvm.target.Target("cuda", host="llvm")
 
     vdevices = [R.vdevice("cuda", 0)]
-    m = tirx.Var("m", "int64")
+    m = T.dynamic("m", "int64")
     x = relax.Var("x", R.Tensor((m, 3), "float32", vdevices[0]))
     bb = relax.BlockBuilder()
     with target:
@@ -119,13 +120,14 @@ def test_dispatch_scanop_cuda():
 
 
 def test_dispatch_sort():
+    m = T.dynamic("m")
+
     @I.ir_module
     class Before:
         I.module_global_infos({"vdevice": [R.vdevice("llvm", 0)]})
 
         @R.function
-        def foo(x: 'R.Tensor(("m", 3), "float32", "llvm")'):
-            m = T.int64()
+        def foo(x: 'R.Tensor((m, 3), "float32", "llvm"))':
             with R.dataflow():
                 lv = R.sort(x, axis=1, descending=False)
                 gv = lv
@@ -133,7 +135,7 @@ def test_dispatch_sort():
             return gv
 
     vdevices = [R.vdevice("llvm", 0)]
-    m = tirx.Var("m", "int64")
+    m = T.dynamic("m", "int64")
     x = relax.Var("x", R.Tensor((m, 3), "float32", vdevices[0]))
     bb = relax.BlockBuilder()
 
@@ -216,13 +218,14 @@ def test_dispatch_sort_cuda():
 
 
 def test_dispatch_argsort():
+    m = T.dynamic("m")
+
     @I.ir_module
     class Before:
         I.module_global_infos({"vdevice": [R.vdevice("llvm", 0)]})
 
         @R.function
-        def foo(x: 'R.Tensor(("m", 3), "float32", "llvm")'):
-            m = T.int64()
+        def foo(x: 'R.Tensor((m, 3), "float32", "llvm"))':
             with R.dataflow():
                 lv = R.argsort(x, axis=1, descending=False, dtype="int32")
                 gv = lv
@@ -230,7 +233,7 @@ def test_dispatch_argsort():
             return gv
 
     vdevices = [R.vdevice("llvm", 0)]
-    m = tirx.Var("m", "int64")
+    m = T.dynamic("m", "int64")
     x = relax.Var("x", R.Tensor((m, 3), "float32", vdevices[0]))
     bb = relax.BlockBuilder()
 
@@ -309,13 +312,14 @@ def test_dispatch_argsort_cuda():
 
 
 def test_dispatch_topk():
+    m = T.dynamic("m")
+
     @I.ir_module
     class Before:
         I.module_global_infos({"vdevice": [R.vdevice("llvm", 0)]})
 
         @R.function
-        def foo(x: 'R.Tensor(("m", 3), "float32", "llvm")'):
-            m = T.int64()
+        def foo(x: 'R.Tensor((m, 3), "float32", "llvm"))':
             with R.dataflow():
                 lv = R.topk(x, k=2, axis=1, largest=True)
                 gv = lv
@@ -323,7 +327,7 @@ def test_dispatch_topk():
             return gv
 
     vdevices = [R.vdevice("llvm", 0)]
-    m = tirx.Var("m", "int64")
+    m = T.dynamic("m", "int64")
     x = relax.Var("x", R.Tensor((m, 3), "float32", vdevices[0]))
     bb = relax.BlockBuilder()
 
@@ -418,10 +422,13 @@ def test_dispatch_sort_cuda_large_batch(size):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32")):
+        def main(x: R.Tensor((m, n), "float32")):
             with R.dataflow():
                 gv = R.sort(x, axis=-1, descending=False)
                 R.output(gv)
@@ -451,10 +458,13 @@ def test_dispatch_topk_cuda_large_batch():
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32")):
+        def main(x: R.Tensor((m, n), "float32")):
             with R.dataflow():
                 gv = R.topk(x, k=1, axis=-1, ret_type="values", largest=True)
                 R.output(gv)
@@ -515,10 +525,13 @@ def test_dispatch_cumsum_gpu(target, index_bits):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "int32")):
+        def main(x: R.Tensor((m, n), "int32")):
             with R.dataflow():
                 gv = R.cumsum(x, axis=-1, exclusive=False)
                 R.output(gv)
@@ -549,10 +562,13 @@ def test_dispatch_cumsum_index_width(target_kind, index_bits):
     """Respect the caller's index budget without restricting Metal's default."""
     from tvm.relax.backend.gpu_generic import gpu_2d_continuous_cumsum
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32")):
+        def main(x: R.Tensor((m, n), "float32")):
             gv = R.cumsum(x, axis=-1)
             return gv
 
@@ -588,10 +604,13 @@ def test_dispatch_cumprod_cuda_large_batch():
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32")):
+        def main(x: R.Tensor((m, n), "float32")):
             with R.dataflow():
                 gv = R.cumprod(x, axis=1)
                 R.output(gv)
@@ -691,12 +710,14 @@ def test_dispatch_cumsum_webgpu_axes_and_dtypes(
 def test_dispatch_cumsum_webgpu_symbolic_non_contiguous_axis():
     """The serial WebGPU fallback accepts a symbolic scan extent."""
 
+    n = T.dynamic("n")
+
     @I.ir_module
     class Symbolic:
         I.module_global_infos({"vdevice": [R.vdevice("webgpu", 0)]})
 
         @R.function
-        def main(x: 'R.Tensor((1, "n", 9), "float32", "webgpu")'):
+        def main(x: 'R.Tensor((1, n, 9), "float32", "webgpu"))':
             return R.cumsum(x, axis=1)
 
     target = tvm.target.Target("webgpu", host="llvm")

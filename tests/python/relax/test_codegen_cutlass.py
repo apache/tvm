@@ -1801,6 +1801,8 @@ def test_conv2d_cuda_graph():
 
 
 def test_fp16A_int8B_gemm_batched():
+    b = T.dynamic("b")
+
     @I.ir_module
     class Module:
         @Ts.prim_func
@@ -1868,12 +1870,11 @@ def test_fp16A_int8B_gemm_batched():
 
         @R.function
         def main(
-            x: R.Tensor(("b", 64, 64), dtype="float16"),
+            x: R.Tensor((b, 64, 64), dtype="float16"),
             y: R.Tensor((64, 64), dtype="float16"),
-        ) -> R.Tensor(("b", 64, 64), dtype="float16"):
+        ) -> R.Tensor((b, 64, 64), dtype="float16"):
             R.func_attr({"num_input": 1})
             cls = Module
-            b = T.int64()
             with R.dataflow():
                 lv = R.call_tir(
                     cls.encode,
@@ -1935,6 +1936,8 @@ def test_fp16A_int8B_gemm_batched():
 
 
 def test_fp16A_int8B_gemm_batched_finegrained():
+    b = T.dynamic("b")
+
     @I.ir_module
     class Module:
         @Ts.prim_func
@@ -2021,12 +2024,11 @@ def test_fp16A_int8B_gemm_batched_finegrained():
 
         @R.function
         def main(
-            x: R.Tensor(("b", 128, 128), dtype="float16"),
+            x: R.Tensor((b, 128, 128), dtype="float16"),
             y: R.Tensor((128, 128), dtype="float16"),
-        ) -> R.Tensor(("b", 128, 128), dtype="float16"):
+        ) -> R.Tensor((b, 128, 128), dtype="float16"):
             R.func_attr({"num_input": 1})
             cls = Module
-            b = T.int64()
             with R.dataflow():
                 lv = R.call_tir(
                     cls.encode,
@@ -2213,6 +2215,9 @@ def _test_batched_var_len_attention(
 
 
 def test_batched_var_len_attention():
+    num_tokens = T.dynamic("num_tokens")
+    num_seq = T.dynamic("num_seq")
+
     @I.ir_module
     class Module:
         I.module_global_infos(
@@ -2225,15 +2230,13 @@ def test_batched_var_len_attention():
 
         @R.function
         def main(
-            queries: R.Tensor(("num_tokens", 4096), dtype="float16"),
-            keys: R.Tensor(("num_tokens", 4096), dtype="float16"),
-            values: R.Tensor(("num_tokens", 4096), dtype="float16"),
-            seq_lens: R.Tensor(("num_seq",), dtype="int32"),
-        ) -> R.Tensor(("num_tokens", 4096), dtype="float16"):
+            queries: R.Tensor((num_tokens, 4096), dtype="float16"),
+            keys: R.Tensor((num_tokens, 4096), dtype="float16"),
+            values: R.Tensor((num_tokens, 4096), dtype="float16"),
+            seq_lens: R.Tensor((num_seq,), dtype="int32"),
+        ) -> R.Tensor((num_tokens, 4096), dtype="float16"):
             R.func_attr({"num_input": 4})
             cls = Module
-            num_tokens = T.int64()
-            num_seq = T.int64()
 
             with R.dataflow():
                 # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.
@@ -2266,6 +2269,9 @@ def test_batched_var_len_attention():
 
 
 def test_batched_var_len_multi_query_attention():
+    num_tokens = T.dynamic("num_tokens")
+    num_seq = T.dynamic("num_seq")
+
     @I.ir_module
     class Module:
         I.module_global_infos(
@@ -2278,15 +2284,13 @@ def test_batched_var_len_multi_query_attention():
 
         @R.function
         def main(
-            queries: R.Tensor(("num_tokens", 4096), dtype="float16"),
-            keys: R.Tensor(("num_tokens", 512), dtype="float16"),
-            values: R.Tensor(("num_tokens", 512), dtype="float16"),
-            seq_lens: R.Tensor(("num_seq",), dtype="int32"),
-        ) -> R.Tensor(("num_tokens", 4096), dtype="float16"):
+            queries: R.Tensor((num_tokens, 4096), dtype="float16"),
+            keys: R.Tensor((num_tokens, 512), dtype="float16"),
+            values: R.Tensor((num_tokens, 512), dtype="float16"),
+            seq_lens: R.Tensor((num_seq,), dtype="int32"),
+        ) -> R.Tensor((num_tokens, 4096), dtype="float16"):
             R.func_attr({"num_input": 4})
             cls = Module
-            num_tokens = T.int64()
-            num_seq = T.int64()
 
             with R.dataflow():
                 # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.
@@ -2361,6 +2365,9 @@ def test_sliding_window():
 
 
 def test_batched_var_len_sliding_window():
+    num_tokens = T.dynamic("num_tokens")
+    num_seq = T.dynamic("num_seq")
+
     @I.ir_module
     class Module:
         I.module_global_infos(
@@ -2373,15 +2380,13 @@ def test_batched_var_len_sliding_window():
 
         @R.function
         def main(
-            queries: R.Tensor(("num_tokens", 4096), dtype="float16"),
-            keys: R.Tensor(("num_tokens", 4096), dtype="float16"),
-            values: R.Tensor(("num_tokens", 4096), dtype="float16"),
-            seq_lens: R.Tensor(("num_seq",), dtype="int32"),
-        ) -> R.Tensor(("num_tokens", 4096), dtype="float16"):
+            queries: R.Tensor((num_tokens, 4096), dtype="float16"),
+            keys: R.Tensor((num_tokens, 4096), dtype="float16"),
+            values: R.Tensor((num_tokens, 4096), dtype="float16"),
+            seq_lens: R.Tensor((num_seq,), dtype="int32"),
+        ) -> R.Tensor((num_tokens, 4096), dtype="float16"):
             R.func_attr({"num_input": 4})
             cls = Module
-            num_tokens = T.int64()
-            num_seq = T.int64()
 
             with R.dataflow():
                 # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.

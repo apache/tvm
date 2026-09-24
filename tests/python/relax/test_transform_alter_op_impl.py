@@ -256,6 +256,9 @@ def test_supported_implicit_padding():
                     Ts.writes(output[v_ax0])
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
+    p0 = T.dynamic("p0")
+    i0 = T.dynamic("i0")
+
     @I.ir_module
     class Expected:
         @R.function
@@ -299,9 +302,7 @@ def test_supported_implicit_padding():
         @Ts.prim_func(private=True)
         def remove_pad(var_input: T.handle, var_output: T.handle):
             T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
-            p0 = T.int64()
             input = T.match_buffer(var_input, (p0,))
-            i0 = T.int64()
             output = T.match_buffer(var_output, (i0,))
             # with Ts.sblock("root"):
             for ax0 in range(i0):

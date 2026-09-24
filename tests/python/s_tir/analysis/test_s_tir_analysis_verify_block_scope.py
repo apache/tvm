@@ -72,6 +72,8 @@ def test_block_match_buffer_defines_buffer_obj():
 def test_block_match_buffer_defines_symbolic_variables():
     """In a block, T.match_buffer may define symbolic variables"""
 
+    elem_offset = T.dynamic("elem_offset", "int32")
+
     @I.ir_module
     class mod:
         @Ts.prim_func
@@ -80,7 +82,6 @@ def test_block_match_buffer_defines_symbolic_variables():
                 with Ts.sblock("compute"):
                     tile_i, tile_j, i, j = Ts.axis.remap("SSSS", iters)
 
-                    elem_offset = T.int32()
                     B = T.match_buffer(
                         A[tile_i * 16 : (tile_i + 1) * 16, tile_j * 16 : (tile_j + 1) * 16],
                         dtype="float32",

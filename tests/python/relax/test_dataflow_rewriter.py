@@ -1225,13 +1225,20 @@ def test_match_dynamic_shape():
 
     """
 
+    N1_pattern = T.dynamic("N1")
+    M_pattern = T.dynamic("M")
+    N2_pattern = T.dynamic("N2")
+    N1_replacement = T.dynamic("N1")
+    N2_replacement = T.dynamic("N2")
+    M_replacement = T.dynamic("M")
+
     @R.rewriter
     class Rewriter:
         @R.function
         def pattern(
-            lhs_A: R.Tensor(["N1", "M"], "float32"),
-            lhs_B: R.Tensor(["N2", "M"], "float32"),
-            rhs: R.Tensor(["M"], "float32"),
+            lhs_A: R.Tensor([N1_pattern, M_pattern], "float32"),
+            lhs_B: R.Tensor([N2_pattern, M_pattern], "float32"),
+            rhs: R.Tensor([M_pattern], "float32"),
         ):
             proj_A = R.matmul(lhs_A, rhs)
             proj_B = R.matmul(lhs_B, rhs)
@@ -1239,20 +1246,17 @@ def test_match_dynamic_shape():
 
         @R.function
         def replacement(
-            lhs_A: R.Tensor(["N1", "M"], "float32"),
-            lhs_B: R.Tensor(["N2", "M"], "float32"),
-            rhs: R.Tensor(["M"], "float32"),
+            lhs_A: R.Tensor([N1_replacement, M_replacement], "float32"),
+            lhs_B: R.Tensor([N2_replacement, M_replacement], "float32"),
+            rhs: R.Tensor([M_replacement], "float32"),
         ):
-            N1 = T.int64()
-            N2 = T.int64()
-
             lhs = R.concat([lhs_A, lhs_B])
             proj_concat = R.matmul(lhs, rhs)
-            proj_A: R.Tensor([N1], "float32") = R.strided_slice(
-                proj_concat, axes=[0], begin=[0], end=[N1]
+            proj_A: R.Tensor([N1_replacement], "float32") = R.strided_slice(
+                proj_concat, axes=[0], begin=[0], end=[N1_replacement]
             )
-            proj_B: R.Tensor([N2], "float32") = R.strided_slice(
-                proj_concat, axes=[0], begin=[N1], end=[N2 + N1]
+            proj_B: R.Tensor([N2_replacement], "float32") = R.strided_slice(
+                proj_concat, axes=[0], begin=[N1_replacement], end=[N2_replacement + N1_replacement]
             )
             return (proj_A, proj_B)
 
@@ -1267,15 +1271,16 @@ def test_match_dynamic_shape():
         out = proj_A + proj_B
         return out
 
+    N1 = T.dynamic("N1")
+    M = T.dynamic("M")
+    N2 = T.dynamic("N2")
+
     @R.function(private=True)
     def expected(
         state: R.Tensor([16], "float32"),
         A: R.Tensor([16, 16], "float32"),
         B: R.Tensor([16, 16], "float32"),
     ):
-        N1 = T.int64()
-        M = T.int64()
-        N2 = T.int64()
         with R.dataflow():
             lhs_A = R.match_cast(A, R.Tensor([N1, M], "float32"))
             lhs_B = R.match_cast(B, R.Tensor([N2, M], "float32"))
@@ -1298,49 +1303,53 @@ def test_match_dynamic_shape():
 def test_match_dynamic_pattern_against_dynamic_shape():
     """A dynamic pattern may match a static shape"""
 
+    M_pattern = T.dynamic("M")
+    N_pattern = T.dynamic("N")
+    M_replacement = T.dynamic("M")
+    N_replacement = T.dynamic("N")
+
     @R.rewriter
     class Rewriter:
         @R.function
         def pattern(
-            A: R.Tensor(["M", "N"], "float32"),
-            B: R.Tensor(["N", "N"], "float32"),
+            A: R.Tensor([M_pattern, N_pattern], "float32"),
+            B: R.Tensor([N_pattern, N_pattern], "float32"),
         ):
             return R.matmul(A, B)
 
         @R.function
         def replacement(
-            A: R.Tensor(["M", "N"], "float32"),
-            B: R.Tensor(["N", "N"], "float32"),
+            A: R.Tensor([M_replacement, N_replacement], "float32"),
+            B: R.Tensor([N_replacement, N_replacement], "float32"),
         ):
-            M = T.int64()
-            N = T.int64()
             return R.call_pure_packed(
                 "my_optimized_square_matmul",
                 A,
                 B,
-                ty_args=R.Tensor([M, N], "float32"),
+                ty_args=R.Tensor([M_replacement, N_replacement], "float32"),
             )
+
+    N = T.dynamic("N")
 
     @R.function(private=True)
     def before(
-        A: R.Tensor(["N", "N*2"], "float32"),
-        B: R.Tensor(["N*2", "N*2"], "float32"),
-        C: R.Tensor(["N", "N"], "float32"),
+        A: R.Tensor([N, N * 2], "float32"),
+        B: R.Tensor([N * 2, N * 2], "float32"),
+        C: R.Tensor([N, N], "float32"),
     ):
-        N = T.int64()
         D: R.Tensor([N, N * 2], "float32") = R.matmul(A, B)
         E: R.Tensor([N * 2, N], "float32") = R.permute_dims(D)
         F: R.Tensor([N * 2, N], "float32") = R.matmul(E, C)
         return F
 
+    N = T.dynamic("N")
+
     @R.function(private=True)
     def expected(
-        A: R.Tensor(["N", "N*2"], "float32"),
-        B: R.Tensor(["N*2", "N*2"], "float32"),
-        C: R.Tensor(["N", "N"], "float32"),
+        A: R.Tensor([N, N * 2], "float32"),
+        B: R.Tensor([N * 2, N * 2], "float32"),
+        C: R.Tensor([N, N], "float32"),
     ):
-        N = T.int64()
-
         D: R.Tensor([N, N * 2], "float32") = R.call_pure_packed(
             "my_optimized_square_matmul",
             A,

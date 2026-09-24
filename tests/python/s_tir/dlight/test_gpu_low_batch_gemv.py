@@ -30,10 +30,11 @@ from tvm.target import Target
 def test_batch_decode_gemv():
     # fmt: off
 
+    batch_size = T.dynamic("batch_size")
+
     @Ts.prim_func(private=True)
     def before(lv429: T.Buffer((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Buffer((T.int64(4096), T.int64(896)), "float16"), p_lv807: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.noalias": True, "tirx.HoistIfThenElseExprWithBlock": 1})
-        batch_size = T.int64()
         lv807 = T.match_buffer(p_lv807, (batch_size, T.int64(1), T.int64(28672)), "float16")
         NT_matmul_intermediate = T.match_buffer(p_output0, (batch_size, T.int64(1), T.int64(4096)), "float16")
         # with Ts.sblock("root"):
@@ -60,10 +61,11 @@ def test_batch_decode_gemv():
                     NT_matmul_intermediate[v_i0, v_i1, v_i2] = T.float16(0)
                 NT_matmul_intermediate[v_i0, v_i1, v_i2] = NT_matmul_intermediate[v_i0, v_i1, v_i2] + lv807[v_i0, v_i1, v_k] * dequantize_intermediate_intermediate[v_i2, v_k]
 
+    batch_size = T.dynamic("batch_size")
+
     @Ts.prim_func(private=True)
     def expected(lv429: T.Buffer((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Buffer((T.int64(4096), T.int64(896)), "float16"), p_lv807: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.HoistIfThenElseExprWithBlock": 1, "tirx.is_scheduled": True, "tirx.noalias": True})
-        batch_size = T.int64()
         lv807 = T.match_buffer(p_lv807, (batch_size, T.int64(1), T.int64(28672)), "float16")
         NT_matmul_intermediate = T.match_buffer(p_output0, (batch_size, T.int64(1), T.int64(4096)), "float16")
         # with Ts.sblock("root"):
@@ -158,10 +160,11 @@ def test_batch_gemv():
     K = 4096
 
     # fmt: off
+    batch_size = T.dynamic("batch_size")
+
     @Ts.prim_func(private=True)
     def before(var_A: T.handle, B: T.Buffer((T.int64(N), T.int64(K)), "float16"), var_NT_matmul: T.handle):
         T.func_attr({"tirx.noalias": True, "tirx.HoistIfThenElseExprWithBlock": 1})
-        batch_size = T.int64()
         A = T.match_buffer(var_A, (batch_size, T.int64(1), T.int64(K)), "float16")
         NT_matmul = T.match_buffer(var_NT_matmul, (batch_size, T.int64(1), T.int64(N)), "float16")
         # with Ts.sblock("root"):
@@ -174,10 +177,11 @@ def test_batch_gemv():
                     NT_matmul[v_i0, v_i1, v_i2] = T.float16(0)
                 NT_matmul[v_i0, v_i1, v_i2] = NT_matmul[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_i2, v_k]
 
+    batch_size = T.dynamic("batch_size")
+
     @Ts.prim_func(private=True)
     def expected(var_A: T.handle, B: T.Buffer((T.int64(4096), T.int64(4096)), "float16"), var_NT_matmul: T.handle):
         T.func_attr({"tirx.HoistIfThenElseExprWithBlock": 1, "tirx.is_scheduled": True, "tirx.noalias": True})
-        batch_size = T.int64()
         A = T.match_buffer(var_A, (batch_size, T.int64(1), T.int64(4096)), "float16")
         NT_matmul = T.match_buffer(var_NT_matmul, (batch_size, T.int64(1), T.int64(4096)), "float16")
         # with Ts.sblock("root"):
@@ -259,10 +263,11 @@ def test_batch_gemv():
 
 def test_reduction_symbolic_var():
     # fmt: off
+    kv_seq_len = T.dynamic("kv_seq_len")
+
     @Ts.prim_func(private=True)
     def before(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float32")):
         T.func_attr({"tirx.noalias": True})
-        kv_seq_len = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), kv_seq_len))
         B = T.match_buffer(var_B, (T.int64(1), T.int64(32), kv_seq_len, T.int64(128)))
         # with Ts.sblock("root"):
@@ -282,10 +287,11 @@ def test_reduction_symbolic_var():
 
 
 def test_small_spatial_axis():
+    batch_size = T.dynamic("batch_size")
+
     @Ts.prim_func(private=True)
     def func(var_A: T.handle, B: T.Buffer((T.int64(8), T.int64(4096)), "float16"), var_C: T.handle):
         T.func_attr({"tirx.noalias": True})
-        batch_size = T.int64()
         A = T.match_buffer(var_A, (batch_size, T.int64(4096)), "float16")
         C = T.match_buffer(var_C, (batch_size, T.int64(8)), "float16")
         for i0, i1, k in T.grid(batch_size, T.int64(8), T.int64(4096)):
@@ -298,10 +304,11 @@ def test_small_spatial_axis():
                 C[v_i0, v_i1] = C[v_i0, v_i1] + A[v_i0, v_k] * B[v_i1, v_k]
 
     # fmt: off
+    batch_size = T.dynamic("batch_size")
+
     @Ts.prim_func(private=True)
     def expected(var_A: T.handle, B: T.Buffer((T.int64(8), T.int64(4096)), "float16"), var_C: T.handle):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-        batch_size = T.int64()
         A = T.match_buffer(var_A, (batch_size, T.int64(4096)), "float16")
         C = T.match_buffer(var_C, (batch_size, T.int64(8)), "float16")
         # with Ts.sblock("root"):
@@ -389,6 +396,8 @@ def test_small_spatial_axis():
 
 def test_outer_reduction():
     # fmt: off
+    batch_size = T.dynamic("batch_size", "int32")
+
     @Ts.prim_func(private=True)
     def before(
         B0: T.Buffer((512, 6144), "uint32"),
@@ -396,7 +405,6 @@ def test_outer_reduction():
         var_A: T.handle,
         var_C: T.handle
     ):
-        batch_size = T.int32()
         A = T.match_buffer(var_A, (batch_size, 1, 4096), "float16")
         C = T.match_buffer(var_C, (batch_size, 1, 6144), "float16")
         compute = Ts.sblock_alloc_buffer((4096, 6144), "float16")
@@ -416,10 +424,11 @@ def test_outer_reduction():
                     C[v_i0, v_i1, v_i2] = T.float16(0)
                 C[v_i0, v_i1, v_i2] = C[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_k, v_i2]
 
+    batch_size = T.dynamic("batch_size", "int32")
+
     @Ts.prim_func(private=True)
     def expected(B0: T.Buffer((512, 6144), "uint32"), B1: T.Buffer((128, 6144), "float16"), var_A: T.handle, var_C: T.handle):
         T.func_attr({"tirx.is_scheduled": True})
-        batch_size = T.int32()
         A = T.match_buffer(var_A, (batch_size, 1, 4096), "float16")
         C = T.match_buffer(var_C, (batch_size, 1, 6144), "float16")
         # with Ts.sblock("root"):
@@ -535,10 +544,11 @@ def test_outer_reduction():
 
 def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
     # fmt: off
+    batch_size = T.dynamic("batch_size")
+
     @Ts.prim_func(private=True)
     def before(var_A: T.handle, B: T.Buffer((T.int64(128), T.int64(128)), "float16"), var_C: T.handle):
         T.func_attr({"tir.noalias": True})
-        batch_size = T.int64()
         A = T.match_buffer(var_A, (batch_size, T.int64(1), T.int64(128)), "float16")
         C = T.match_buffer(var_C, (batch_size, T.int64(1), T.int64(128)), "float16")
         for i0, i1, i2, k in T.grid(batch_size, T.int64(1), T.int64(128), T.int64(128)):
@@ -561,13 +571,14 @@ def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
 
 
 def test_low_batch_gemv_rejects_non_einsum_buffer_access():
+    batch_size = T.dynamic("batch_size")
+
     @Ts.prim_func(private=True)
     def before(
         var_A: T.handle,
         var_B: T.handle,
         var_C: T.handle,
     ):
-        batch_size = T.int64()
         A = T.match_buffer(var_A, (batch_size, 8), "float16")
         B = T.match_buffer(var_B, (4, batch_size + 8), "float16")
         C = T.match_buffer(var_C, (batch_size, 4), "float16")
@@ -587,6 +598,8 @@ def test_low_batch_gemv_rejects_non_einsum_buffer_access():
 
 def test_low_batch_gemv_broadcast_epilogue():
     # fmt: off
+    batch_size = T.dynamic("batch_size")
+
     @Ts.prim_func(private=True)
     def before(
         var_A: T.handle,
@@ -594,7 +607,6 @@ def test_low_batch_gemv_broadcast_epilogue():
         var_C: T.handle,
     ):
         T.func_attr({"tirx.noalias": True})
-        batch_size = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), batch_size, T.int64(1), T.int64(128)), "float16")
         C = T.match_buffer(var_C, (T.int64(1), batch_size, T.int64(2), T.int64(3), T.int64(128)), "float32")
         C_temp = Ts.sblock_alloc_buffer((T.int64(1), batch_size, T.int64(1), T.int64(128)), "float16")

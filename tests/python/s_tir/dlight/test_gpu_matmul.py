@@ -26,9 +26,10 @@ from tvm.target import Target
 
 def test_matmul():
     # fmt: off
+    m = T.dynamic("m")
+
     @Ts.prim_func(private=True)
     def before(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
-        m = T.int64()
         inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
         matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
         for i0, i1, i2, k in T.grid(T.int64(1), m, T.int64(4096), T.int64(4096)):
@@ -38,10 +39,11 @@ def test_matmul():
                     matmul[v_i0, v_i1, v_i2] = T.float32(0)
                 matmul[v_i0, v_i1, v_i2] = matmul[v_i0, v_i1, v_i2] + inp0[v_i0, v_i1, v_k] * inp1[v_k, v_i2]
 
+    m = T.dynamic("m")
+
     @Ts.prim_func(private=True)
     def expected(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
         T.func_attr({"tirx.is_scheduled": True})
-        m = T.int64()
         inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
         matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
         # with Ts.sblock("root"):
@@ -118,9 +120,10 @@ def test_matmul():
 
 def test_matmul_int32():
     # fmt: off
+    m = T.dynamic("m", "int32")
+
     @Ts.prim_func(private=True)
     def func(var_inp0: T.handle, inp1: T.Buffer((4096, 4096), "float32"), var_matmul: T.handle):
-        m = T.int32()
         inp0 = T.match_buffer(var_inp0, (1, m, 4096))
         matmul = T.match_buffer(var_matmul, (1, m, 4096))
         for i0, i1, i2, k in T.grid(1, m, 4096, 4096):
@@ -130,10 +133,11 @@ def test_matmul_int32():
                     matmul[v_i0, v_i1, v_i2] = T.float32(0)
                 matmul[v_i0, v_i1, v_i2] = matmul[v_i0, v_i1, v_i2] + inp0[v_i0, v_i1, v_k] * inp1[v_k, v_i2]
 
+    m = T.dynamic("m", "int32")
+
     @Ts.prim_func(private=True)
     def expected(var_inp0: T.handle, inp1: T.Buffer((4096, 4096), "float32"), var_matmul: T.handle):
         T.func_attr({"tirx.is_scheduled": True})
-        m = T.int32()
         inp0 = T.match_buffer(var_inp0, (1, m, 4096))
         matmul = T.match_buffer(var_matmul, (1, m, 4096))
         # with Ts.sblock("root"):
@@ -350,10 +354,11 @@ def test_skip_gemv():
 
 def test_output_fp32():
     # fmt: off
+    n = T.dynamic("n")
+
     @Ts.prim_func(private=True)
     def before(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), p_lv48: T.handle, lv13_1: T.Buffer((T.int64(4096),), "float16"), p_lv3: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.noalias": True})
-        n = T.int64()
         lv48 = T.match_buffer(p_lv48, (T.int64(1), n, T.int64(4096)), "float16")
         lv3 = T.match_buffer(p_lv3, (T.int64(1), n, T.int64(4096)), "float16")
         p_output0_intermediate = T.match_buffer(p_output0, (T.int64(1), n, T.int64(4096)), "float16")
@@ -402,10 +407,11 @@ def test_output_fp32():
                 Ts.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
                 p_output0_intermediate[v_ax0, v_ax1, v_ax2] = var_compute_intermediate_1[v_ax0, v_ax1, v_ax2] + lv3[v_ax0, v_ax1, v_ax2]
 
+    n = T.dynamic("n")
+
     @Ts.prim_func(private=True)
     def expected(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), p_lv48: T.handle, lv13_1: T.Buffer((T.int64(4096),), "float16"), p_lv3: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-        n = T.int64()
         lv48 = T.match_buffer(p_lv48, (T.int64(1), n, T.int64(4096)), "float16")
         lv3 = T.match_buffer(p_lv3, (T.int64(1), n, T.int64(4096)), "float16")
         p_output0_intermediate = T.match_buffer(p_output0, (T.int64(1), n, T.int64(4096)), "float16")
@@ -484,10 +490,11 @@ def test_output_fp32():
 
 def test_inline_consumer_chain():
     # fmt: off
+    n = T.dynamic("n")
+
     @Ts.prim_func(private=True)
     def before(p_lv26: T.handle, lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), p_lv52: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.noalias": True})
-        n = T.int64()
         lv26 = T.match_buffer(p_lv26, (n, T.int64(2048)), "float16")
         lv52 = T.match_buffer(p_lv52, (T.int64(1), n, T.int64(2048)))
         var_T_multiply_intermediate = T.match_buffer(p_output0, (n, T.int64(2048)), "float16")
@@ -536,10 +543,11 @@ def test_inline_consumer_chain():
                 Ts.writes(var_T_multiply_intermediate[v_ax0, v_ax1])
                 var_T_multiply_intermediate[v_ax0, v_ax1] = var_compute_intermediate[v_ax0, v_ax1] * var_T_multiply_intermediate_1[v_ax0, v_ax1]
 
+    n = T.dynamic("n")
+
     @Ts.prim_func(private=True)
     def expected(p_lv26: T.handle, lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), p_lv52: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-        n = T.int64()
         lv26 = T.match_buffer(p_lv26, (n, T.int64(2048)), "float16")
         lv52 = T.match_buffer(p_lv52, (T.int64(1), n, T.int64(2048)))
         var_T_multiply_intermediate = T.match_buffer(p_output0, (n, T.int64(2048)), "float16")
@@ -618,9 +626,10 @@ def test_inline_consumer_chain():
 
 def test_matmul_android():
     # fmt: off
+    m = T.dynamic("m")
+
     @Ts.prim_func(private=True)
     def before(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
-        m = T.int64()
         inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
         matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
         for i0, i1, i2, k in T.grid(T.int64(1), m, T.int64(4096), T.int64(4096)):
@@ -630,10 +639,11 @@ def test_matmul_android():
                     matmul[v_i0, v_i1, v_i2] = T.float32(0)
                 matmul[v_i0, v_i1, v_i2] = matmul[v_i0, v_i1, v_i2] + inp0[v_i0, v_i1, v_k] * inp1[v_k, v_i2]
 
+    m = T.dynamic("m")
+
     @Ts.prim_func(private=True)
     def expected(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
         T.func_attr({"tirx.is_scheduled": True})
-        m = T.int64()
         inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
         matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
         # with Ts.sblock("root"):
@@ -711,10 +721,11 @@ def test_matmul_android():
 
 def test_fused_dequant_matmul_android():
     # fmt: off
+    seq_len = T.dynamic("seq_len")
+
     @Ts.prim_func(private=True)
     def before(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), p_rms_norm130: T.handle, transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), p_output0: T.handle):
         T.func_attr({"tirx.noalias": True})
-        seq_len = T.int64()
         rms_norm130 = T.match_buffer(p_rms_norm130, (T.int64(1), seq_len, T.int64(4096)), "float16")
         T_add_intermediate_intermediate = T.match_buffer(p_output0, (T.int64(1), seq_len, T.int64(12288)), "float16")
         # with Ts.sblock("root"):
@@ -748,10 +759,11 @@ def test_fused_dequant_matmul_android():
                 Ts.writes(T_add_intermediate_intermediate[v_ax0, v_ax1, v_ax2])
                 T_add_intermediate_intermediate[v_ax0, v_ax1, v_ax2] = matmul_intermediate[v_ax0, v_ax1, v_ax2] + transformer_h_0_attn_c_attn_bias3[v_ax2]
 
+    seq_len = T.dynamic("seq_len")
+
     @Ts.prim_func(private=True)
     def expected(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), p_rms_norm130: T.handle, transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), p_output0: T.handle):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-        seq_len = T.int64()
         rms_norm130 = T.match_buffer(p_rms_norm130, (T.int64(1), seq_len, T.int64(4096)), "float16")
         T_add_intermediate_intermediate = T.match_buffer(p_output0, (T.int64(1), seq_len, T.int64(12288)), "float16")
         # with Ts.sblock("root"):

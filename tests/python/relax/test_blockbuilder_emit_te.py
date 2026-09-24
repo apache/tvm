@@ -20,7 +20,7 @@
 
 import tvm
 from tvm import relax as rx
-from tvm import te, tirx
+from tvm import te
 from tvm.ir.base import assert_structural_equal
 from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
@@ -30,7 +30,7 @@ from tvm.script.parser import tirx as T
 
 def test_emit_te_with_symbolic_arg():
     bb = rx.BlockBuilder()
-    m = tirx.Var("m", "int64")
+    m = T.dynamic("m", "int64")
     x = rx.Var("x", R.Tensor([10], "float32"))
     y = rx.Var("y", R.Shape([m]))
 
@@ -42,6 +42,8 @@ def test_emit_te_with_symbolic_arg():
         bb.emit_func_output(out)
 
     after = bb.get()
+
+    m = T.dynamic("m")
 
     @I.ir_module
     class Expected:
@@ -59,10 +61,9 @@ def test_emit_te_with_symbolic_arg():
                     B[v_i] = A[v_i + m]
 
         @R.function
-        def main(x: R.Tensor((10,), dtype="float32"), y: R.Shape(["m"])) -> R.Tensor(
+        def main(x: R.Tensor((10,), dtype="float32"), y: R.Shape([m])) -> R.Tensor(
             (10,), dtype="float32"
         ):
-            m = T.int64()
             cls = Expected
             gv = R.call_tir(
                 cls.te_func,

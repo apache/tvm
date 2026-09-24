@@ -737,6 +737,9 @@ def spatial_reduction_loop_predicate(A: T.Buffer((2, 32), "float32"), B: T.Buffe
                         B[vi] = B[vi] + A[vi, vk]
 
 
+k_0 = T.dynamic("k_0", "int32")
+
+
 @Ts.prim_func
 def lowered_reduction_spatial_loop_predicate(
     A: T.Buffer((2, 32), "float32"), B: T.Buffer((2,), "float32")
@@ -769,7 +772,6 @@ def lowered_reduction_spatial_loop_predicate(
                     T.tvm_thread_allreduce(
                         T.uint32(1), in_thread_B[0], T.bool(True), cross_thread_B[0], k_1
                     )
-                k_0 = T.int32()
                 with Ts.sblock("block_write_back"):
                     vi = Ts.axis.spatial(2, i_0 * 16 + i_1)
                     Ts.where(i_0 * 16 + i_1 < 2 and k_1 == 0)
@@ -1627,9 +1629,10 @@ def lowered_thread_broadcast_1(A: T.Buffer((256, 256), "float32"), B: T.Buffer((
 
 
 # fmt: off
+n = T.dynamic("n")
+
 @Ts.prim_func
 def thread_broadcast_2(lv1605: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16"), p_lv1606: T.handle, p_lv1582: T.handle, p_output0: T.handle):
-    n = T.int64()
     lv1606 = T.match_buffer(p_lv1606, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
     lv1582 = T.match_buffer(p_lv1582, (T.int64(1), T.int64(1), T.int64(1), n), "float16")
     var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), T.int64(1), n))
@@ -1675,9 +1678,10 @@ def thread_broadcast_2(lv1605: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.
             var_compute_intermediate[T.int64(0), v0, T.int64(0), v1] = T.Cast("float32", T.min(T.max(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] * T.float16(0.088397790055248615), T.float16(-65504)), lv1582[T.int64(0), T.int64(0), T.int64(0), v1]))
 
 
+n = T.dynamic("n")
+
 @Ts.prim_func
 def lowered_thread_broadcast_2(lv1605: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16"), p_lv1606: T.handle, p_lv1582: T.handle, p_output0: T.handle):
-    n = T.int64()
     lv1606 = T.match_buffer(p_lv1606, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
     lv1582 = T.match_buffer(p_lv1582, (T.int64(1), T.int64(1), T.int64(1), n), "float16")
     var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), T.int64(1), n))
