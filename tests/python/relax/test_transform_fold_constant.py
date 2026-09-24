@@ -460,6 +460,27 @@ def test_fold_shape_to_tensor_symbolic_shape():
     tvm.ir.assert_structural_equal(after, Module)
 
 
+def test_fold_shape_to_tensor_dynamic_reshape():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor(("m",), "float32")):
+            with R.dataflow():
+                shape = R.shape_of(x)
+                shape_tensor = R.shape_to_tensor(shape)
+                target_shape = R.tensor_to_shape(shape_tensor)
+                R.output(target_shape)
+            with R.dataflow():
+                result = R.reshape(x, target_shape)
+                R.output(result)
+            return result
+
+    with tvm.target.Target("llvm"):
+        after = relax.transform.FoldConstant()(Module)
+    relax.analysis.well_formed(after)
+    tvm.ir.assert_structural_equal(after, Module)
+
+
 def test_fold_shape_to_tensor_symbolic_shape_without_legalize():
     @I.ir_module
     class Module:
