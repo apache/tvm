@@ -21,8 +21,7 @@ Dimensions use ordinary Python expressions over explicit symbols.
 from __future__ import annotations
 
 # Invalid script examples deliberately contain unresolved or unused bindings.
-# ruff: noqa: F821, F841
-import inspect
+# ruff: noqa: F821
 import sys
 
 import pytest
@@ -97,11 +96,6 @@ def test_captured_shape_requires_concrete_symbols():
         build(("n", 16))
 
 
-def _line_of(function, statement):
-    lines, first = inspect.getsourcelines(function)
-    return first + next(index for index, line in enumerate(lines) if line.strip() == statement)
-
-
 def test_argument_policies_reuse_symbols_and_resolve_only_marked_literals(language):
     # Shape expressions reuse the external symbol while marked device strings resolve.
     M = language.M
@@ -133,28 +127,26 @@ def test_external_symbol_does_not_introduce_same_named_python_binding(language):
             M.record(n)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_symbol_reassignment_reports_introduction_and_exact_write(language):
-    # Ordinary writes to a symbolic dimension must point to its original introduction and
-    # exact target.
-    M = language.M
-    n = M.dynamic("n")
+    # Ordinary writes to a header symbol must point to its declaration and exact target.
+    source = """
+@M.function
+def main[n](x: M.Tensor((n,))):
+    n = 2
+"""
+    filename = "symbol_reassignment.py"
     with pytest.raises(SyntaxError) as caught:
-
-        @M.function
-        def main(x: M.Tensor((n,))):
-            n = 2
+        entry.parse(source, extra_vars={"M": language.M}, filename=filename)
 
     message = str(caught.value)
-    introduction = _line_of(
-        test_symbol_reassignment_reports_introduction_and_exact_write,
-        "def main(x: M.Tensor((n,))):",
-    )
-    offending = _line_of(test_symbol_reassignment_reports_introduction_and_exact_write, "n = 2")
+    introduction = 3
+    offending = 4
     assert "Symbolic variable 'n' cannot be reassigned" in message
     assert f"introduced at line {introduction}" in message
     error = caught.value
-    assert (error.filename, error.lineno, error.end_lineno) == (__file__, offending, offending)
-    assert (error.offset, error.end_offset) == (13, 14)
+    assert (error.filename, error.lineno, error.end_lineno) == (filename, offending, offending)
+    assert (error.offset, error.end_offset) == (5, 6)
 
 
 def test_external_dynamic_symbols_reuse_identity(language):
