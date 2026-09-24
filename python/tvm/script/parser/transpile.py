@@ -2129,6 +2129,73 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             )
         return body
 
+    def _create_split_declaration(
+        self,
+        node: ast.FunctionDef,
+        frame: str,
+        body_name: str,
+        definition: ast.FunctionDef,
+        frame_declaration: list[ast.stmt],
+    ) -> list[ast.stmt]:
+        """Give each signature a lexical scope and retain its body closure."""
+        # Each signature needs its own Python parameter scope. Keep
+        # definition captures outside, at the original declaration
+        # point, and retain the body helper's signature closures.
+        # -------------------- Pattern --------------------
+        # Python source:
+        #     def f(x: annotation):
+        #         body(x)
+        #
+        # Builder:
+        #     def declare(frame):
+        #         with frame:
+        #             x = X.arg("x", annotation)
+        #         def build():
+        #             x, = frame.params
+        #             body(x)
+        #         return frame, build
+        #     frame, build = declare(X.function_(decl=True))
+        #     f = frame.global_var
+        #     with frame:
+        #         build()
+        # -------------------------------------------------
+        declare_name = self.module.fresh("_declare")
+        signature = frame_declaration[0]
+        # Decorator options belong to the outer definition scope;
+        # a same-named parameter must not hide them in the helper.
+        constructor = signature.items[0].context_expr
+        signature.items[0].context_expr = ast.copy_location(ast.Name(frame, ast.Load()), node)
+        returned = ast.copy_location(
+            ast.Return(
+                ast.Tuple(
+                    [ast.Name(frame, ast.Load()), ast.Name(body_name, ast.Load())],
+                    ast.Load(),
+                )
+            ),
+            node,
+        )
+        declare = self._create_definition(declare_name, [signature, definition, returned], node)
+        declare.args.args.append(ast.arg(frame))
+        return [
+            declare,
+            ast.copy_location(
+                ast.Assign(
+                    [
+                        ast.Tuple(
+                            [
+                                ast.Name(frame, ast.Store()),
+                                ast.Name(body_name, ast.Store()),
+                            ],
+                            ast.Store(),
+                        )
+                    ],
+                    ast.Call(ast.Name(declare_name, ast.Load()), [constructor], []),
+                ),
+                node,
+            ),
+            frame_declaration[1],
+        ]
+
     def create_function_builder_fragments(
         self, node: ast.FunctionDef, *, local_function: bool = False, split_declare: bool = True
     ) -> tuple[list[ast.stmt], str, ast.With]:
@@ -2256,68 +2323,10 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     ast.Expr(ast.Call(ast.Name(body_name, ast.Load()), [], [])), node
                 )
                 if split_declare:
-                    # Each signature needs its own Python parameter scope. Keep
-                    # definition captures outside, at the original declaration
-                    # point, and retain the body helper's signature closures.
-                    # -------------------- Pattern --------------------
-                    # Python source:
-                    #     def f(x: annotation):
-                    #         body(x)
-                    #
-                    # Builder:
-                    #     def declare(frame):
-                    #         with frame:
-                    #             x = X.arg("x", annotation)
-                    #         def build():
-                    #             x, = frame.params
-                    #             body(x)
-                    #         return frame, build
-                    #     frame, build = declare(X.function_(decl=True))
-                    #     f = frame.global_var
-                    #     with frame:
-                    #         build()
-                    # -------------------------------------------------
-                    declare_name = self.module.fresh("_declare")
-                    signature = frame_declaration[0]
-                    # Decorator options belong to the outer definition scope;
-                    # a same-named parameter must not hide them in the helper.
-                    constructor = signature.items[0].context_expr
-                    signature.items[0].context_expr = ast.copy_location(
-                        ast.Name(frame, ast.Load()), node
-                    )
-                    returned = ast.copy_location(
-                        ast.Return(
-                            ast.Tuple(
-                                [ast.Name(frame, ast.Load()), ast.Name(body_name, ast.Load())],
-                                ast.Load(),
-                            )
-                        ),
-                        node,
-                    )
-                    declare = self._create_definition(
-                        declare_name, [signature, definition, returned], node
-                    )
-                    declare.args.args.append(ast.arg(frame))
                     statements.extend(
-                        [
-                            declare,
-                            ast.copy_location(
-                                ast.Assign(
-                                    [
-                                        ast.Tuple(
-                                            [
-                                                ast.Name(frame, ast.Store()),
-                                                ast.Name(body_name, ast.Store()),
-                                            ],
-                                            ast.Store(),
-                                        )
-                                    ],
-                                    ast.Call(ast.Name(declare_name, ast.Load()), [constructor], []),
-                                ),
-                                node,
-                            ),
-                            frame_declaration[1],
-                        ]
+                        self._create_split_declaration(
+                            node, frame, body_name, definition, frame_declaration
+                        )
                     )
                 resumed = ast.copy_location(
                     ast.With(
@@ -2331,6 +2340,67 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             # Restore the enclosing function before returning fragments or propagating
             # an error; partially rewritten nested functions cannot leave active state.
             self.function = old
+
+    def _create_result_metadata(
+        self,
+        root: ast.ClassDef | ast.FunctionDef,
+        result: str,
+        python_functions: list[tuple[str, str]],
+        *,
+        check_well_formed: bool,
+    ) -> list[ast.stmt]:
+        """Attach source identity and check the completed construction result."""
+        is_module = isinstance(root, ast.ClassDef)
+        statements: list[ast.stmt] = [
+            ast.copy_location(
+                ast.Assign(
+                    [ast.Attribute(ast.Name(result, ast.Load()), "__name__", ast.Store())],
+                    ast.Constant(root.name),
+                ),
+                root,
+            )
+        ]
+        if is_module:
+            statements.append(
+                ast.copy_location(
+                    ast.Assign(
+                        [ast.Attribute(ast.Name(result, ast.Load()), "__pyfuncs__", ast.Store())],
+                        ast.Dict(
+                            [ast.Constant(name) for name, _ in python_functions],
+                            [ast.Name(alias, ast.Load()) for _, alias in python_functions],
+                        ),
+                    ),
+                    root,
+                )
+            )
+        if check_well_formed:
+            # -------------------- Pattern --------------------
+            # Python source:
+            #     @X.function
+            #     def f():
+            #         body()
+            #
+            # Builder:
+            #     result = builder.get()
+            #     X.check_well_formed_(result)
+            # -------------------------------------------------
+            # Module syntax selects I.check_well_formed_ instead, after all bodies complete.
+            namespace = (
+                self.module.infrastructure_name
+                if is_module
+                else self._function_namespace(root, self.read_function_metadata(root)[0])
+            )
+            statements.append(
+                ast.copy_location(
+                    ast.Expr(
+                        self._call(
+                            namespace, "check_well_formed_", [ast.Name(result, ast.Load())], root
+                        )
+                    ),
+                    root,
+                )
+            )
+        return statements
 
     def rewrite_module(
         self, tree: ast.Module, *, check_well_formed: bool = True
@@ -2468,53 +2538,9 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 self._assign(result, output, root),
             ]
         )
-        translated.append(
-            ast.copy_location(
-                ast.Assign(
-                    [ast.Attribute(ast.Name(result, ast.Load()), "__name__", ast.Store())],
-                    ast.Constant(root.name),
-                ),
-                root,
+        translated.extend(
+            self._create_result_metadata(
+                root, result, python_functions, check_well_formed=check_well_formed
             )
         )
-        if is_module:
-            translated.append(
-                ast.copy_location(
-                    ast.Assign(
-                        [ast.Attribute(ast.Name(result, ast.Load()), "__pyfuncs__", ast.Store())],
-                        ast.Dict(
-                            [ast.Constant(name) for name, _ in python_functions],
-                            [ast.Name(alias, ast.Load()) for _, alias in python_functions],
-                        ),
-                    ),
-                    root,
-                )
-            )
-        if check_well_formed:
-            # -------------------- Pattern --------------------
-            # Python source:
-            #     @X.function
-            #     def f():
-            #         body()
-            #
-            # Builder:
-            #     result = builder.get()
-            #     X.check_well_formed_(result)
-            # -------------------------------------------------
-            # Module syntax selects I.check_well_formed_ instead, after all bodies complete.
-            namespace = (
-                self.module.infrastructure_name
-                if is_module
-                else self._function_namespace(root, self.read_function_metadata(root)[0])
-            )
-            translated.append(
-                ast.copy_location(
-                    ast.Expr(
-                        self._call(
-                            namespace, "check_well_formed_", [ast.Name(result, ast.Load())], root
-                        )
-                    ),
-                    root,
-                )
-            )
         return ast.fix_missing_locations(ast.Module(translated, [])), result
