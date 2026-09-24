@@ -67,19 +67,19 @@ def test_constructor_policy_survives_a_failed_definition(language):
     assert calls == [first, first, invalid, second, second]
 
 
-def test_argument_policy_preserves_expression_dtype(language):
-    # Shape-expression parsing must retain the declared int32 symbol dtype.
+def test_external_expression_preserves_symbol_dtype(language):
+    # Ordinary expressions retain the externally declared int32 symbol dtype.
     M = language.M
 
-    @registry.args_policy("M.shape", {"values": "expr_str"}, dtype="int32")
     def shape(values):
         return values
 
     M.shape = shape
+    n = M.dynamic("n", "int32")
 
     @M.function
     def main():
-        M.shape(("n", "n + 1"))
+        M.shape((n, n + 1))
 
     n, increment = main.body[0][1]
     assert n.args == ("int32",)

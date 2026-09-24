@@ -78,9 +78,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         std::unordered_map<const tirx::VarNode*, ExprDoc> scalar_param_docs;
         // Define scalar docs up front so a preceding Buffer parameter can render
         // a reference to a later scalar parameter.  `bound_signature_vars`
-        // separately tracks Python bindings in source order. Quoted shapes
-        // resolve native symbols without binding their names in Python.
+        // separately tracks Python bindings in source order.
         std::unordered_set<tirx::Var> bound_signature_vars;
+        bool has_dependent_annotations = false;
         for (const tirx::Var& param : func->params) {
           if (!param->ty.as<tirx::BufferTypeNode>()) {
             scalar_param_docs.emplace(param.get(), DefineVar(param, *f, d));
@@ -97,7 +97,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             bool needs_body_declaration = false;
             auto check_annotation_var =
                 [&](const tirx::Var& annotation_var) -> ffi::Expected<ffi::WalkResult> {
-              if (!bound_signature_vars.count(annotation_var)) {
+              has_dependent_annotations =
+                  has_dependent_annotations || runtime_params.count(annotation_var.get());
+              if (!bound_signature_vars.count(annotation_var) &&
+                  !type_vars.count(annotation_var.get())) {
                 needs_body_declaration = true;
               }
               return ffi::WalkResult::Advance();
@@ -106,6 +109,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                 !ffi::StructuralEqual()(buffer->layout,
                                         tirx::TileLayoutNode::DefaultLayout(buffer->shape))) {
               ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(buffer->layout, check_annotation_var);
+            }
+            for (const PrimExpr& extent : buffer->shape) {
+              ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(extent, check_annotation_var);
+            }
+            for (const PrimExpr& stride : buffer->strides) {
+              ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(stride, check_annotation_var);
+            }
+            ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(buffer->elem_offset,
+                                                            check_annotation_var);
+            for (const PrimExpr& address : buffer->allocated_addr) {
+              ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(address, check_annotation_var);
             }
             if (needs_body_declaration) {
               tirx::Var handle(var->name + "_handle", PointerType::VoidPointerTy());
@@ -117,33 +131,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               (*f)->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
               continue;
             }
-            std::unordered_set<tirx::Var> stringify_shape_vars;
-            auto walk_fn = [&](const tirx::Var& shape_var) -> ffi::Expected<ffi::WalkResult> {
-              bool is_type_var = type_vars.count(shape_var.get());
-              if (!bound_signature_vars.count(shape_var) && !is_type_var) {
-                stringify_shape_vars.insert(shape_var);
-              }
-              return ffi::WalkResult::Advance();
-            };
-            for (const PrimExpr& shape : buffer->shape) {
-              ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(shape, walk_fn);
-            }
-            for (const PrimExpr& stride : buffer->strides) {
-              ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(stride, walk_fn);
-            }
-            ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(buffer->elem_offset, walk_fn);
-            for (const PrimExpr& address : buffer->allocated_addr) {
-              ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(address, walk_fn);
-            }
             IdDoc lhs = DefineBuffer(buffer, *f, d);
-            ExprDoc annotation =
-                BufferAttn(buffer, var_p->Attr("ty"), *f, d, std::move(stringify_shape_vars));
+            ExprDoc annotation = BufferAttn(buffer, var_p->Attr("ty"), *f, d);
             args.push_back(AssignDoc(lhs, std::nullopt, annotation));
             continue;
           }
           ExprDoc a = d->AsDoc<ExprDoc>(var->ty, var_p->Attr("ty"));
           args.push_back(AssignDoc(scalar_param_docs.at(var.get()), std::nullopt, a));
           bound_signature_vars.insert(var);
+        }
+        if (has_dependent_annotations) {
+          d->ir_usage.insert("future_annotations");
         }
         ffi::Optional<ExprDoc> ret_type = std::nullopt;
         if (!func->ret_type.IsMissing()) {

@@ -76,6 +76,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             prim_params.insert(param.get());
           }
         }
+        if (!prim_params.empty()) {
+          d->ir_usage.insert("future_annotations");
+        }
         // Step 1. Print params
         ffi::Array<AssignDoc> params;
         {

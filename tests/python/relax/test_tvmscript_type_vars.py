@@ -29,8 +29,8 @@ UNUSED_GENERIC = I.dynamic("UNUSED_GENERIC")
 def test_type_vars_roundtrip():
     @R.function(private=True)
     def func(
-        x: R.Tensor((M, "M * 2"), "float32"),
-    ) -> R.Tensor((M, "M * 2"), "float32"):
+        x: R.Tensor((M, M * 2), "float32"),
+    ) -> R.Tensor((M, M * 2), "float32"):
         return x
 
     script = func.script()

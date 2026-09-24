@@ -56,7 +56,7 @@ def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
     )
 
 
-def test_function_dependent_shape_escaped_source_spans():
+def test_function_dependent_shape_source_spans():
     n = tirx.Var("n", "int64")
     cast = tirx.Cast("int64", n)
     x = relax.Var("x", relax.TensorType([cast], "float32"))
@@ -86,17 +86,17 @@ def test_function_dependent_shape_escaped_source_spans():
         assert "Access path:" not in lines[definition_index]
         return lines[definition_index], lines[definition_index + 1]
 
-    expression = r'"T.Cast(\"int64\", n)"'
+    expression = 'T.Cast("int64", n)'
     definition, underline = render(cast_path)
     expression_start = definition.index(expression)
     assert underline[expression_start : expression_start + len(expression)] == "^" * len(expression)
     assert underline.strip() == "^" * len(expression)
 
-    escaped_dtype = r"\"int64\""
+    dtype_literal = '"int64"'
     definition, underline = render(cast_path.attr("dtype"))
-    dtype_start = definition.index(escaped_dtype)
-    assert underline[dtype_start : dtype_start + len(escaped_dtype)] == "^" * len(escaped_dtype)
-    assert underline.strip() == "^" * len(escaped_dtype)
+    dtype_start = definition.index(dtype_literal)
+    assert underline[dtype_start : dtype_start + len(dtype_literal)] == "^" * len(dtype_literal)
+    assert underline.strip() == "^" * len(dtype_literal)
 
     definition, underline = render(cast_path.attr("value"))
     variable_start = definition.index(expression) + expression.rindex("n")

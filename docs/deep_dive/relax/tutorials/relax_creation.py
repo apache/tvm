@@ -43,17 +43,19 @@ from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
+n = T.dynamic("n")
+
 
 @I.ir_module
 class RelaxModule:
     @R.function
     def forward(
-        data: R.Tensor(("n", 784), dtype="float32"),
+        data: R.Tensor((n, 784), dtype="float32"),
         w0: R.Tensor((128, 784), dtype="float32"),
         b0: R.Tensor((128,), dtype="float32"),
         w1: R.Tensor((10, 128), dtype="float32"),
         b1: R.Tensor((10,), dtype="float32"),
-    ) -> R.Tensor(("n", 10), dtype="float32"):
+    ) -> R.Tensor((n, 10), dtype="float32"):
         with R.dataflow():
             lv0 = R.matmul(data, R.permute_dims(w0)) + b0
             lv1 = R.nn.relu(lv0)

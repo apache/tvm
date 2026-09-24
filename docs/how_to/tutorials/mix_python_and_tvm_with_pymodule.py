@@ -412,9 +412,9 @@ if RUN_EXAMPLE:
 
         @R.function
         def add_relax(
-            x: R.Tensor(("n",), "float32"),
-            y: R.Tensor(("n",), "float32"),
-        ) -> R.Tensor(("n",), "float32"):
+            x: R.Tensor((n,), "float32"),
+            y: R.Tensor((n,), "float32"),
+        ) -> R.Tensor((n,), "float32"):
             return R.add(x, y)
 
     mod = DynamicModule(device=tvm.cpu(0), target="llvm")

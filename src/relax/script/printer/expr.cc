@@ -66,7 +66,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         ffi::Array<ExprDoc> values_doc;
         AccessPath values_p = n_p->Attr("values");
         for (int i = 0, l = n->values.size(); i < l; ++i) {
-          values_doc.push_back(PrintShapeVar(n->values[i], values_p->ArrayItem(i), d));
+          values_doc.push_back(d->AsDoc<ExprDoc>(n->values[i], values_p->ArrayItem(i)));
         }
         return Relax(d, "shape")->Call({ListDoc(values_doc)});
       });

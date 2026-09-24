@@ -757,7 +757,7 @@ def resolve_type_var_(
     Parameters
     ----------
     name : str
-        Function-local lookup key; quoted symbols do not create a Python binding.
+        Function-local lookup key for explicit header parameters and captured symbols.
     dtype : str, Type or Var, optional
         Explicit primitive type or supplied variable. None defaults new symbols to
         int64; existing symbols must agree with an explicit dtype.
@@ -871,7 +871,6 @@ def module_member_(name: str, value: Any) -> Any:
 #
 # Syntax markers live in tvm.script.parser.protocol_registry.
 # ``constexpr(value)`` selects host evaluation in marked control flow.
-# ``args_policy(path, fields)`` marks expression-string arguments.
 # ``register_scalar_annotation(path, constructor, dtype=...)`` describes scalar annotations.
 # ``mutable_cell_decl(path)`` marks mutable storage declarations.
 # ``result_span(path)`` permits attaching a call's result span without a call context.
