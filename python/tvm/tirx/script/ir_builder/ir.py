@@ -325,9 +325,7 @@ def buffer(
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
     shape = tuple(shape)
-    if strides is not None:
-        strides = [Var(s, "int64") if isinstance(s, str) else s for s in strides]
-    else:
+    if strides is None:
         strides = []
     if allocated_addr is None:
         allocated_addr = []
@@ -537,9 +535,7 @@ def match_buffer(
         else:
             raise ValueError("Shape must be specified when binding input param")
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    if strides is not None:
-        strides = [Var(s, "int64") if isinstance(s, str) else s for s in strides]
-    else:
+    if strides is None:
         strides = []
     if allocated_addr is None:
         allocated_addr = []
@@ -1527,9 +1523,7 @@ def decl_buffer(
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
     shape = tuple(shape)
-    if strides is not None:
-        strides = [Var(s, "int64") if isinstance(s, str) else s for s in strides]
-    else:
+    if strides is None:
         strides = []
     dtype = _normalize_prim_type(dtype)
     decl_frame = _ffi_api.DeclBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member

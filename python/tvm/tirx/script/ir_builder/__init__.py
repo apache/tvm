@@ -23,11 +23,10 @@ import tvm_ffi as _ffi
 
 from tvm import ir as _ir
 from tvm import tirx as _tir
+from tvm.script.ir_builder.base import annotation_constructor as _annotation_constructor
 from tvm.script.ir_builder.base import at as _at
 from tvm.script.ir_builder.base import source_span as _source_span
 from tvm.script.ir_builder import dynamic as dynamic
-from tvm.script.parser.protocol_registry import ARGS_POLICIES as _ARGS_POLICIES
-from tvm.script.parser.protocol_registry import args_policy as _args_policy
 from tvm.script.parser.protocol_registry import constexpr as constexpr
 from tvm.script.parser.protocol_registry import (
     mutable_cell_decl as _mutable_cell_decl,
@@ -99,16 +98,8 @@ is_type_var = _ir.is_prim_var
 
 @_result_span("T.Buffer")
 @_mutable_cell_decl("T.Buffer", syntax="parameter")
-@_args_policy(
-    "T.Buffer",
-    {
-        "shape": "expr_str",
-        "strides": "expr_str",
-        "elem_offset": "expr_str",
-        "byte_offset": "expr_str",
-        "allocated_addr": "expr_str",
-    },
-    as_type=True,
+@_annotation_constructor(
+    "shape", "strides", "elem_offset", "byte_offset", "allocated_addr", as_type=True
 )
 def Buffer(
     shape,
@@ -194,7 +185,6 @@ def Buffer(
 
 
 buffer = _mutable_cell_decl("T.buffer", syntax="parameter")(Buffer)
-_ARGS_POLICIES["T.buffer"] = _ARGS_POLICIES["T.Buffer"]
 
 
 def Ptr(dtype, storage_scope="global", *, span=None):
@@ -352,15 +342,6 @@ def shared_scalar(dtype="float32"):
 
 
 @_mutable_cell_decl("T.match_buffer")
-@_args_policy(
-    "T.match_buffer",
-    {
-        "shape": "expr_str",
-        "strides": "expr_str",
-        "elem_offset": "expr_str",
-        "allocated_addr": "expr_str",
-    },
-)
 @_wraps(_native.match_buffer)
 def match_buffer(*args, **kwargs):
     """The buffer match function.
@@ -427,8 +408,8 @@ def match_buffer(*args, **kwargs):
 
     Notes
     -----
-    Shape, stride, element-offset and allocation-address expression strings are
-    resolved by the construction protocol before the native buffer match is created.
+    Shape, stride, element-offset and allocation-address expressions use
+    concrete primitive values, including externally constructed dynamic symbols.
     """
     return _native.match_buffer(*args, **kwargs)
 

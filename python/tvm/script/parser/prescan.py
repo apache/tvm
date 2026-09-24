@@ -25,7 +25,7 @@ from types import ModuleType
 from typing import NamedTuple, NoReturn
 
 from . import protocol_registry as protocol
-from .expr_str_handling import parse_annotation
+from .annotation import parse_annotation
 
 
 def collect_annotation_free_names(
@@ -420,7 +420,6 @@ class PrescanCollector(ast.NodeVisitor):
                 annotation.func if isinstance(annotation, ast.Call) else annotation,
                 self.environment,
             )
-            dtype = protocol.SCALAR_ANNOTATION_DTYPE.get(constructor)
             self._record_binding(
                 arg.arg,
                 arg,
@@ -430,7 +429,6 @@ class PrescanCollector(ast.NodeVisitor):
                 and "parameter" in protocol.MUTABLE_CELL_DECL.get(constructor, ())
                 else "parameter",
                 arg.annotation,
-                dtype if not isinstance(annotation, ast.Call) else None,
             )
         for statement in node.body:
             self.visit(statement)

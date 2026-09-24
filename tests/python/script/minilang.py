@@ -218,7 +218,6 @@ class Language:
         )
 
         @resolve_global_info_args("device", resolver=self.resolve_global_info)
-        @registry.args_policy("M.Tensor", {"shape": "expr_str"}, scalar_strings=False)
         def Tensor(shape=None, dtype="float32", device=None, placement="S[0]"):
             return Value("tensor", (shape, dtype, device, placement))
 

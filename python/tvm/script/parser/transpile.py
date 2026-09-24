@@ -44,7 +44,7 @@ from types import FunctionType
 from typing import Any, NoReturn, TypeVar
 
 from . import protocol_registry as protocol
-from .expr_str_handling import parse_annotation, parse_expression_string
+from .annotation import parse_annotation
 from .prescan import Binding, PrescanContext, resolve_namespace_key, resolve_namespace_value
 
 _Node = TypeVar("_Node", bound=ast.AST)
@@ -157,8 +157,6 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         # Bypass syntax-to-builder lowering.
         # Still traverse children and instrument source calls with spans.
         self.bypass_ast_rewrite = False
-        # Temporary policy only while this same visitor processes a decoded string.
-        self.expression_string: protocol.ExprStrPolicy | None = None
         # Only annotation syntax consults the function's one substitution map;
         # ordinary body globals keep Python lookup even when names coincide.
         self.annotation_expression = False
@@ -361,28 +359,6 @@ class IRBuilderTranspiler(ast.NodeTransformer):
     def visit_Name(self, node: ast.Name) -> ast.expr:
         # -------------------- Pattern --------------------
         # Python source:
-        #     X.Tensor(("n",))
-        #
-        # Builder:
-        #     X.Tensor((X.resolve_type_var_("n"),))
-        # -------------------------------------------------
-        # Only the marked string is symbolic; no Python binding is introduced.
-        if self.expression_string is not None:
-            keywords = {}
-            if self.expression_string.dtype is not None:
-                keywords["dtype"] = ast.Constant(self.expression_string.dtype)
-            return self._attach_span(
-                self._call(
-                    self.function.dialect_prefix,
-                    "resolve_type_var_",
-                    [ast.Constant(node.id)],
-                    node,
-                    **keywords,
-                ),
-                node,
-            )
-        # -------------------- Pattern --------------------
-        # Python source:
         #     value: X.Tensor((n,))
         #
         # Builder:
@@ -428,11 +404,6 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         return node
 
     def visit_Attribute(self, node: ast.Attribute) -> ast.expr:
-        # Within a decoded string, known namespace attributes remain Python
-        # lookup; unknown roots still denote symbolic variables.
-        if self.expression_string is not None and self._resolve(node.value) is not None:
-            with self._use_string_policy(None):
-                return self.visit_Attribute(node)
         # -------------------- Pattern --------------------
         # Python source:
         #     Module.f
@@ -576,50 +547,11 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         ]
         return bool(records) and all(item.kind == "module_alias" for item in records)
 
-    @contextmanager
-    def _use_string_policy(self, policy: protocol.ExprStrPolicy | None) -> Iterator[None]:
-        """Restore decoded-string dtype context after normal or failed traversal."""
-        previous, self.expression_string = self.expression_string, policy
-        try:
-            yield
-        finally:
-            self.expression_string = previous
-
-    def _rewrite_policy_argument(
-        self,
-        node: ast.expr,
-        kind: str | None,
-        policy: protocol.ExprStrPolicy,
-        *,
-        nested: bool = False,
-    ) -> ast.expr:
-        """Visit an argument once, assembling policy lookups after source children."""
-        if kind == "expr_str" and isinstance(node, ast.Tuple | ast.List):
-            # -------------------- Pattern --------------------
-            # Python source:
-            #     X.Tensor(("n", value))
-            #
-            # Builder:
-            #     X.Tensor((X.resolve_type_var_("n"), value))
-            # -------------------------------------------------
-            node.elts = [
-                self._rewrite_policy_argument(item, kind, policy, nested=True) for item in node.elts
-            ]
-            return node if self.bypass_ast_rewrite else self._attach_span(node, node)
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            if kind == "expr_str" and (nested or policy.scalar_strings):
-                with self._use_string_policy(policy):
-                    return self.visit(parse_expression_string(node, self.module.filename))
-        return self.visit(node)
 
     def _visit_direct_operand(self, node: ast.expr) -> ast.expr:
         """Preserve an existing payload's span without bypassing child operations."""
         if isinstance(node, ast.Name):
-            return (
-                node
-                if not self.annotation_expression and self.expression_string is None
-                else self.visit(node)
-            )
+            return self.visit(node) if self.annotation_expression else node
         if isinstance(node, ast.Attribute):
             node.value = self._visit_direct_operand(node.value)
             return node
@@ -634,21 +566,16 @@ class IRBuilderTranspiler(ast.NodeTransformer):
     def visit_Call(self, node: ast.Call, *, callee: ast.expr | None = None) -> ast.expr:
         # -------------------- Pattern --------------------
         # Python source:
-        #     X.Tensor(("n",), vdevice="cuda:0")
+        #     X.Tensor((n,), vdevice="cuda:0")
         #
         # Builder:
-        #     X.Tensor((X.resolve_type_var_("n"),), vdevice="cuda:0")
+        #     X.Tensor((n,), vdevice="cuda:0")
         # -------------------------------------------------
         binding_value = node is self.binding_expression
         marker = self._read_constexpr_operand(node)
         if marker is not None:
             with self._bypass_rewrite():
                 return self.visit(marker)
-        selected = (
-            None
-            if self.bypass_ast_rewrite
-            else protocol.handle_call_args_policy(node, self._resolve)
-        )
         constructor = self._resolve(node.func)
         global_call = (
             isinstance(node.func, ast.Name) and node.func.id in self.module.module_functions
@@ -660,28 +587,10 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         # Visit source callee/arguments first. A normalized range callee is
         # assembled afterward, but its original arguments keep normal rewriting.
         if callee is None:
-            if self.expression_string is not None and constructor is not None:
-                with self._use_string_policy(None):
-                    node.func = self._visit_direct_operand(node.func)
-            else:
-                node.func = self._visit_direct_operand(node.func)
-        if selected is None:
-            node.args = [self.visit(value) for value in node.args]
-            for keyword in node.keywords:
-                keyword.value = self.visit(keyword.value)
-        else:
-            policy, parameters = selected
-            known_position = True
-            for index, value in enumerate(node.args):
-                known_position = known_position and not isinstance(value, ast.Starred)
-                name = parameters[index] if known_position and index < len(parameters) else None
-                node.args[index] = self._rewrite_policy_argument(
-                    value, policy.fields.get(name), policy.expression
-                )
-            for keyword in node.keywords:
-                keyword.value = self._rewrite_policy_argument(
-                    keyword.value, policy.fields.get(keyword.arg), policy.expression
-                )
+            node.func = self._visit_direct_operand(node.func)
+        node.args = [self.visit(value) for value in node.args]
+        for keyword in node.keywords:
+            keyword.value = self.visit(keyword.value)
         if callee is not None:
             node.func = callee
         # -------------------- Pattern --------------------
@@ -1816,9 +1725,9 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         return [self._assign(special, special_expr, node)]
 
     def _create_symbol_declarations(
-        self, node: ast.FunctionDef, facts: list[Binding]
+        self, node: ast.FunctionDef
     ) -> tuple[list[ast.stmt], dict[str, str]]:
-        """Predeclare symbol types and bind explicit signature type parameters."""
+        """Bind explicit signature type parameters with their declared dtypes."""
         declaration: list[ast.stmt] = []
         symbol_aliases: dict[str, str] = {}
         # -------------------- Pattern --------------------
@@ -1829,8 +1738,6 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         # Builder:
         #     n = X.resolve_type_var_("n")
         # -------------------------------------------------
-        # Explicit symbol dtypes precede quoted shapes; only explicit type
-        # parameters bind signature names.
         for parameter in getattr(node, "type_params", ()):
             if not isinstance(parameter, getattr(ast, "TypeVar", ())):
                 self._raise_error(parameter, "Only scalar type parameters are supported")
@@ -1858,17 +1765,6 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     parameter,
                 )
             )
-        for item in facts:
-            if item.direct and item.dtype is not None and item.kind == "parameter":
-                symbol = self._call_dialect(
-                    "resolve_type_var_",
-                    [ast.Constant(item.name)],
-                    item.node,
-                    dtype=ast.Constant(item.dtype),
-                )
-                # A later Python parameter name does not enter annotation scope
-                # until its own arg, even though the native map knows its dtype.
-                declaration.append(ast.copy_location(ast.Expr(symbol), item.node))
         return declaration, symbol_aliases
 
     @staticmethod
@@ -2213,7 +2109,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                         node,
                     )
                 ]
-                symbols, symbol_aliases = self._create_symbol_declarations(node, facts)
+                symbols, symbol_aliases = self._create_symbol_declarations(node)
                 declaration.extend(symbols)
                 with (
                     self._use_aliases({**definition_aliases, **symbol_aliases}),

@@ -50,9 +50,9 @@ class _LiteralParser:
                     node.end_col_offset + 1,
                 ),
             ) from error
-        # Example: in R.Tensor(("n + 1",), "float32"), the generated resolve
-        # call for n retains the byte range of n inside the quoted literal, not
-        # the whole constructor. A triple-quoted physical newline advances lineno;
+        # In a quoted whole annotation such as "R.Tensor((n + 1,), 'float32')",
+        # n retains its byte range inside the literal, not the whole constructor.
+        # A triple-quoted physical newline advances lineno;
         # an escaped \n advances decoded input but maps back to the escape's real
         # source bytes. Generated call wrappers copy these four mapped fields.
         source = "".join(linecache.getlines(self.filename))
@@ -129,8 +129,3 @@ def parse_annotation(node: ast.expr, filename: str) -> ast.expr:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return _LiteralParser(filename)._parse_string_expression(node)
     return node
-
-
-def parse_expression_string(node: ast.Constant, filename: str) -> ast.expr:
-    """Decode one policy-marked string, preserving its physical source ranges."""
-    return _LiteralParser(filename)._parse_string_expression(node)

@@ -17,8 +17,6 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
-#include <tvm/ffi/extra/structural_visit.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../../script/printer/ir/utils.h"
 #include "./utils.h"
@@ -32,46 +30,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "", [](relax::AnyType n, AccessPath n_p, IRDocsifier d) -> Doc { return Relax(d, "Any"); });
 }
 
-ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifier& d) {
-  ExprDoc expr_doc = d->AsDoc<ExprDoc>(e, e_p);
-  // Step 1. Find if `func_vars` are being collected
-  const RelaxFrameNode* f = nullptr;
-  for (const Frame& frame : d->frames) {
-    if (const auto* relax_frame = frame.as<RelaxFrameNode>()) {
-      if (relax_frame->func_vars) {
-        f = relax_frame;
-        break;
-      }
-    }
-  }
-  // Step 2. Figure out if the PrimExpr contains at least a func var
-  bool func_var_mode = false;
-  if (f != nullptr) {
-    auto walk_fn = [f, &func_var_mode](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
-      if (auto prim_var = var.as<PrimVar>()) {
-        if (f->prim_params->count(prim_var.value().get())) {
-          func_var_mode = true;
-        }
-      }
-      return ffi::WalkResult::Advance();
-    };
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(e, walk_fn);
-  }
-  // Step 3. Stringify the PrimExpr if func var exists
-  bool is_bare_type_var = false;
-  if (f != nullptr && f->type_vars != nullptr) {
-    if (auto var = e.as<PrimVar>()) {
-      is_bare_type_var = f->type_vars->count(var.value().get());
-    }
-  }
-  bool use_postponed_annotations =
-      UsePEP695TypeVars(d) && f != nullptr && f->type_vars != nullptr && !f->type_vars->empty();
-  if (func_var_mode && !is_bare_type_var && !use_postponed_annotations) {
-    return ExprStringDoc(expr_doc, e_p);
-  }
-  return expr_doc;
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<relax::ShapeType>(
       "", [](relax::ShapeType n, AccessPath n_p, IRDocsifier d) -> Doc {
@@ -80,7 +38,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           AccessPath shape_p = n_p->Attr("values");
           ffi::Array<ExprDoc> shape_docs;
           for (int i = 0, ndim = shape.size(); i < ndim; ++i) {
-            shape_docs.push_back(PrintShapeVar(shape[i], shape_p->ArrayItem(i), d));
+            shape_docs.push_back(d->AsDoc<ExprDoc>(shape[i], shape_p->ArrayItem(i)));
           }
           return Relax(d, "Shape")->Call({ListDoc(shape_docs)});
         }
@@ -101,7 +59,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             AccessPath shape_p = n_p->Attr("shape")->Attr("values");
             ffi::Array<ExprDoc> shape_docs;
             for (int i = 0, ndim = shape_expr->values.size(); i < ndim; ++i) {
-              shape_docs.push_back(PrintShapeVar(shape_expr->values[i], shape_p->ArrayItem(i), d));
+              shape_docs.push_back(d->AsDoc<ExprDoc>(shape_expr->values[i], shape_p->ArrayItem(i)));
             }
             args.push_back(TupleDoc(shape_docs));
           } else {

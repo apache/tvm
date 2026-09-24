@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Explicit symbolic dimensions retain identity in signatures and function bodies.
-Quoted dimensions must not create or replace ordinary Python bindings.
+Dimensions use ordinary Python expressions over explicit symbols.
 """
 
 from __future__ import annotations
@@ -54,22 +54,23 @@ def test_signature_symbols_cross_nested_calls_parameters_return_and_body(languag
 
 
 def test_signature_read_before_introduction_remains_unbound(language):
-    # A quoted dimension must not introduce an ordinary Python name before its declaration.
+    # An undeclared dimension must remain an ordinary unbound Python name.
     M = language.M
     with pytest.raises(NameError, match="n"):
 
         @M.function
-        def main(x: M.Tensor((n, "n"), "float32")):
+        def main(x: M.Tensor((n,), "float32")):
             return x
 
 
-def test_signature_strings_do_not_replace_captured_python_names(language):
-    # A captured Python dimension and a same-spelling quoted symbol must remain distinct.
+def test_same_named_symbol_does_not_replace_captured_python_value(language):
+    # A captured Python dimension and a same-spelling external symbol remain distinct.
     M = language.M
     n = 7
+    symbol = M.dynamic("n")
 
     @M.function
-    def main(x: M.Tensor((n, "n"), "float32"), y: M.Tensor((n,), "float32")):
+    def main(x: M.Tensor((n, symbol), "float32"), y: M.Tensor((n,), "float32")):
         M.record(n)
         return y
 
@@ -81,8 +82,7 @@ def test_signature_strings_do_not_replace_captured_python_names(language):
 
 
 def test_captured_shape_requires_concrete_symbols():
-    # Captured tuples bypass literal decoding; native shape construction must
-    # preserve concrete symbols and reject captured strings instead of inventing vars.
+    # Native shape construction preserves concrete symbols and rejects strings.
     def build(shape):
         @T.prim_func
         def main(x: T.Buffer(shape, "float32")):
@@ -93,11 +93,8 @@ def test_captured_shape_requires_concrete_symbols():
     n = T.dynamic("n")
     function = build((n, 16))
     assert function.params[0].ty.shape[0].same_as(n)
-    with pytest.raises(
-        TypeError, match="^Builder expression arguments require concrete symbols, not strings$"
-    ) as caught:
+    with pytest.raises(AssertionError, match="data must be int or Expr, but got n"):
         build(("n", 16))
-    assert type(caught.value) is TypeError
 
 
 def _line_of(function, statement):
@@ -106,13 +103,14 @@ def _line_of(function, statement):
 
 
 def test_argument_policies_reuse_symbols_and_resolve_only_marked_literals(language):
-    # Quoted shapes must reuse one symbol while only marked device strings resolve.
+    # Shape expressions reuse the external symbol while marked device strings resolve.
     M = language.M
     device = object()
     language.global_infos["cuda:1"] = device
+    n = M.dynamic("n")
 
     @M.function
-    def main(x: M.Tensor(shape=("n + 1", "n"), dtype="float32", device="cuda:1")):
+    def main(x: M.Tensor(shape=(n + 1, n), dtype="float32", device="cuda:1")):
         M.record(x)
 
     annotation = main.params[0].args[0]
@@ -124,13 +122,14 @@ def test_argument_policies_reuse_symbols_and_resolve_only_marked_literals(langua
     assert main.body == [("emit", main.params[0])]
 
 
-def test_quoted_symbols_do_not_introduce_python_bindings(language):
-    # Resolving a quoted dimension must not silently define its unquoted body name.
+def test_external_symbol_does_not_introduce_same_named_python_binding(language):
+    # Capturing a symbol under another name must not introduce its IR name in Python.
     M = language.M
+    symbol = M.dynamic("n")
     with pytest.raises(NameError, match="n"):
 
         @M.function
-        def main(x: M.Tensor(("n", "n"))):
+        def main(x: M.Tensor((symbol, symbol))):
             M.record(n)
 
 

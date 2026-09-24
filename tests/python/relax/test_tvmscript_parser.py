@@ -145,7 +145,7 @@ def test_unexpected_tir_args():
         m = T.dynamic("m", "int64")
 
         @R.function
-        def f(x: R.Tensor((m, "n"), "float32")):
+        def f(x: R.Tensor((m, m), "float32")):
             # call_tir expected a tirx prim_func
             return relax.call_tir("extern_func", (x,), R.Tensor((T.max(m),), dtype="float32"))
 
@@ -1529,6 +1529,8 @@ def test_erase_to_well_defined_keeps_variants_exposed_by_shape_expr():
 def test_erase_to_well_defined_infers_from_shape_expr():
     m = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
+    main_m = T.dynamic("m", "int64")
+    main_n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -1545,7 +1547,7 @@ def test_erase_to_well_defined_infers_from_shape_expr():
         # subroutine.  Therefore, the shape of the tensor returned
         # from main can have a well-defined shape.
         @R.function
-        def main(x: R.Tensor, shape: R.Shape(["m", "n"])):
+        def main(x: R.Tensor, shape: R.Shape([main_m, main_n])):
             output = Module.subroutine(x, shape)
             return output
 
@@ -1569,10 +1571,12 @@ def test_empty_tuple():
 
 
 def test_symbolic_vars_in_tensor_shape_with_usage_first():
-    """First param may use symbolic variable defined in second param"""
+    """A captured symbol can first appear inside a compound dimension."""
+
+    m = T.dynamic("m")
 
     @R.function
-    def foo(x: R.Tensor(("m + 1",), "float32"), y: R.Tensor(("m", 1), "float32")):
+    def foo(x: R.Tensor((m + 1,), "float32"), y: R.Tensor((m, 1), "float32")):
         z = R.add(x, y)
         return z
 
@@ -1588,13 +1592,13 @@ def test_symbolic_vars_in_tensor_shape_with_usage_first():
 
 
 def test_symbolic_vars_in_tensor_shape_with_definition_first():
-    """Second param may use symbolic variable defined in first param"""
+    """A captured symbol is shared across direct and compound dimensions."""
 
     m = T.dynamic("m", "int64")
 
     @R.function
-    def bar(x: R.Tensor((m,), "float32"), y: R.Tensor(("T.max(m, 20)",), "float32")) -> R.Tensor(
-        ("T.max(m, 20) + 1",), "float32"
+    def bar(x: R.Tensor((m,), "float32"), y: R.Tensor((T.max(m, 20),), "float32")) -> R.Tensor(
+        (T.max(m, 20) + 1,), "float32"
     ):
         z = R.call_dps_packed("test_intrin", (x, y), R.Tensor((T.max(m, 20) + 1,), dtype="float32"))
         return z
@@ -1621,17 +1625,17 @@ def test_bound_prim_param_reused_in_dependent_annotations():
 def main(
     n: T.int64,
     direct: R.Tensor([n], "float32"),
-    string_direct: R.Tensor(["n"], "float32"),
-    shape: R.Shape(["n"]),
-    compound: R.Tensor(["n + 1"], "float32"),
-) -> R.Tensor(["n + 1"], "float32"):
+    repeated: R.Tensor([n], "float32"),
+    shape: R.Shape([n]),
+    compound: R.Tensor([n + 1], "float32"),
+) -> R.Tensor([n + 1], "float32"):
     return compound
 """
     )
 
-    n, direct, string_direct, shape, compound = func.params
+    n, direct, repeated, shape, compound = func.params
     assert direct.ty.shape[0].same_as(n)
-    assert string_direct.ty.shape[0].same_as(n)
+    assert repeated.ty.shape[0].same_as(n)
     assert shape.ty.values[0].same_as(n)
     assert compound.ty.shape[0].a.same_as(n)
     assert func.ret_ty.shape[0].a.same_as(n)
@@ -1644,8 +1648,8 @@ def test_bound_prim_param_reused_in_declared_function_signature():
 @I.ir_module
 class Module:
     @R.function
-    def main(n: T.int64, x: R.Tensor(["n + 1"], "float32")) -> R.Tensor(
-        ["n + 1"], "float32"
+    def main(n: T.int64, x: R.Tensor([n + 1], "float32")) -> R.Tensor(
+        [n + 1], "float32"
     ):
         return x
 """
@@ -1658,12 +1662,12 @@ class Module:
     _check(mod)
 
 
-def test_later_prim_param_not_adopted_by_usage_first_symbol():
-    with pytest.raises(ValueError):
+def test_later_prim_param_requires_external_shape_symbol():
+    with pytest.raises(NameError):
         tvm.script.from_source(
             """
 @R.function
-def main(x: R.Tensor(["n"], "float32"), n: T.int64):
+def main(x: R.Tensor([n], "float32"), n: T.int64):
     return x
 """
         )
@@ -1674,7 +1678,7 @@ def test_non_int64_prim_param_rejected_in_shape_annotation():
         tvm.script.from_source(
             """
 @R.function
-def main(n: T.int32, x: R.Tensor(["n"], "float32")):
+def main(n: T.int32, x: R.Tensor([n], "float32")):
     return x
 """
         )
@@ -1729,26 +1733,21 @@ def test_symbolic_vars_in_shape():
     _check(baz, bb.get()["baz"])
 
 
-def test_undefined_symbolic_var_raises_error():
-    """An undefined symbolic variable in an error
-
-    A symbolic variables is defined at the first site where it appears
-    as a shape parameter without any modification.  TVMScript does not
-    support solving for a symbolic variable in terms of the argument
-    shape.  That is, this test case raises an error, and will not
-    attempt to define `m` as either `x.shape[0]-1` or `x.shape[1]//2`.
-    """
-    with pytest.raises(ValueError):
+def test_string_shape_expression_is_not_resolved():
+    """A quoted expression is ordinary data, not a symbol declaration."""
+    with pytest.raises(TypeError, match="Array<ir.Expr>"):
 
         @R.function
-        def foo(x: R.Tensor(("m + 1", "m * 2"), "float32")):  # name 'm' is not defined
-            z = R.add(x, x)
-            return z
+        def foo(x: R.Tensor(("m + 1", "m * 2"), "float32")):
+            return x
 
 
 def test_arith_operators():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @R.function
-    def foo(x: R.Tensor(("m", "n"), "float32"), y: R.Tensor(("m", "n"), "float32")):
+    def foo(x: R.Tensor((m, n), "float32"), y: R.Tensor((m, n), "float32")):
         a0 = -x
         a1 = x + y
         a2 = x - y
@@ -1830,8 +1829,11 @@ def test_vm_ops():
 
 
 def test_builtin_ops():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @R.function
-    def foo(x: R.Tensor(("m", "n"), dtype="float32")):
+    def foo(x: R.Tensor((m, n), dtype="float32")):
         tensor = R.builtin.stop_lift_params(x)
         gv = tensor
         return gv
@@ -2401,11 +2403,13 @@ def test_function_attributes_are_defined():
 
     m = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
+    main_m = T.dynamic("m", "int64")
+    main_n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
         @R.function
-        def main(x: R.Tensor, shape: R.Shape(["m", "n"])):
+        def main(x: R.Tensor, shape: R.Shape([main_m, main_n])):
             output = Module.subroutine(x, shape)
             return output
 
@@ -2449,8 +2453,10 @@ def test_function_symbolic_variables_are_annotated():
 def test_non_declaration_prim_expr_emits_binding():
     """Dtype casts emit ordinary bindings without replacing shape symbols."""
 
+    symbol = T.dynamic("extent")
+
     @R.function(private=True)
-    def func(A: R.Tensor(["extent"], "float32")):
+    def func(A: R.Tensor([symbol], "float32")):
         extent = T.int64(4)
         output = A
         return output
