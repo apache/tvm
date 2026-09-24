@@ -43,7 +43,7 @@ from .inspect_source import (
     capture_definition_scope,
     capture_lexical_bindings,
 )
-from .prescan import PrescanCollector, resolve_namespace_key
+from .prescan import PrescanCollector
 from .transpile import FunctionContext, IRBuilderTranspiler, ModuleContext
 
 if TYPE_CHECKING:
@@ -179,35 +179,24 @@ def _recompose_builder(
     return namespace.pop(name)
 
 
-def _is_inside_class(function: FunctionType, frame: FrameType) -> bool:
-    """Defer only in the exact class frame of a registered module decorator."""
+def _is_inside_ir_module(function: FunctionType, frame: FrameType) -> bool:
+    """Recognize module decorators from the enclosing class declaration."""
     local = frame.f_locals
     if local.get("__module__") != function.__module__ or "__qualname__" not in local:
         return False
-    text = "".join(linecache.getlines(frame.f_code.co_filename))
-    if not text:
+    caller = frame.f_back
+    if caller is None:
         return False
-    classes = [
-        node
-        for node in ast.walk(ast.parse(text))
-        if isinstance(node, ast.ClassDef)
-        and node.name == frame.f_code.co_name
-        and node.lineno <= frame.f_lineno <= node.end_lineno
-    ]
-    if not classes:
-        return False
-    node = min(classes, key=lambda item: item.end_lineno - item.lineno)
-    environment = dict(frame.f_globals)
-    if frame.f_back is not None:
-        environment.update(frame.f_back.f_locals)
-
-    return any(
-        syntax_protocol.MODULE_DECORATOR.get(
-            resolve_namespace_key(item.func if isinstance(item, ast.Call) else item, environment),
-            False,
-        )
-        for item in node.decorator_list
-    )
+    # The class code starts at its first decorator, while its caller is still
+    # executing the class declaration. Read only those lines, including options
+    # spread across multiple lines, rather than parsing the file for each member.
+    for lineno in range(frame.f_code.co_firstlineno, caller.f_lineno + 1):
+        line = linecache.getline(frame.f_code.co_filename, lineno).strip()
+        if line.startswith("@") and any(
+            name in line for name in ("ir_module", "py_module", "rewriter")
+        ):
+            return True
+    return False
 
 
 def make_decorator(
@@ -293,7 +282,7 @@ def make_decorator(
             try:
                 if frame.f_code is decorator.__code__:
                     frame = frame.f_back
-                deferred = _is_inside_class(function, frame)
+                deferred = _is_inside_ir_module(function, frame)
                 # The module root supplies one scope for all deferred members.
                 definition_scope = {} if deferred else capture_definition_scope(frame)
             finally:
