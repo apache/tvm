@@ -546,15 +546,15 @@ def test_insert_inplace_calls():
 
 
 def test_dynamic():
-    a = T.dynamic("a")
+    a_dim = T.dynamic("a")
     b = T.dynamic("b")
 
     @I.ir_module
     class DynamicTestCase:
         @R.function
         def main(
-            x: R.Tensor((a, b), dtype="float32"), y: R.Tensor((a, b), dtype="float32")
-        ) -> R.Tensor((a, b), dtype="float32"):
+            x: R.Tensor((a_dim, b), dtype="float32"), y: R.Tensor((a_dim, b), dtype="float32")
+        ) -> R.Tensor((a_dim, b), dtype="float32"):
             with R.dataflow():
                 z = R.add(x, y)
                 # Cannot be done in-place because x and y are arguments
@@ -637,7 +637,7 @@ def test_dynamic():
 
 def test_dynamic_mismatch():
     # cannot statically prove the shapes to be equal so the module should be unchanged
-    a = T.dynamic("a")
+    a_dim = T.dynamic("a")
     b = T.dynamic("b")
     c = T.dynamic("c")
     d = T.dynamic("d")
@@ -645,7 +645,7 @@ def test_dynamic_mismatch():
     @I.ir_module
     class DynamicMistmatchTestCase:
         @R.function
-        def main(x: R.Tensor((a, b), dtype="float32"), y: R.Tensor((c, d), dtype="float32")):
+        def main(x: R.Tensor((a_dim, b), dtype="float32"), y: R.Tensor((c, d), dtype="float32")):
             with R.dataflow():
                 z = R.add(x, y)
                 # Cannot be done in-place because x and y are arguments
