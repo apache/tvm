@@ -120,6 +120,8 @@ def test_module():
     _assert_print(
         TestModule,
         """
+from __future__ import annotations
+
 # from tvm.script import ir as I
 # from tvm.script import tirx as T
 # from tvm.tirx.layout import Axis
