@@ -2778,7 +2778,7 @@ def sample_top_p_top_k_from_sorted_prob(
     prob_dtype = sorted_prob.dtype
     index_dtype = sorted_index.dtype
     prob_batch = sorted_prob.shape[0]
-    out_batch = uniform_sample.shape[0]
+    sample_batch = uniform_sample.shape[0]
 
     if sample_indices is not None:
         assert sample_indices.shape == uniform_sample.shape, (
@@ -2789,7 +2789,7 @@ def sample_top_p_top_k_from_sorted_prob(
             "Number of samples must match the number of probability distributions."
         )
         sample_indices = Tensor.from_const(
-            np.arange(out_batch).reshape(out_batch, 1).astype(np.int64)
+            np.arange(sample_batch).reshape(sample_batch, 1).astype(np.int64)
         )
         print("sample_indices: ", sample_indices)
     sample_indices_dtype = sample_indices.dtype
@@ -2867,7 +2867,7 @@ def sample_top_p_top_k_from_sorted_prob(
         _get_index_from_sorted,
         "get_index_from_sorted",
         args=[cumsum_sorted, sorted_index, renorm_prob, uniform_sample, sample_indices],
-        out=Tensor.placeholder([out_batch, 1], index_dtype),
+        out=Tensor.placeholder([sample_batch, 1], index_dtype),
     )
     return out_index_in_sorted
 
@@ -2902,7 +2902,7 @@ def renormalize_top_p_top_k_prob(prob, sorted_prob, top_p, top_k):
     """
     prob_dtype = prob.dtype
     top_k_dtype = top_k.dtype
-    batch = sorted_prob.shape[0]
+    prob_batch = sorted_prob.shape[0]
 
     def _cumsum_mask(cumsum_sorted, top_p, top_k, i, j):
         return _tir.all(cumsum_sorted[i, j] < top_p[i, 0], j + 1 < top_k[i, 0])
@@ -2935,7 +2935,7 @@ def renormalize_top_p_top_k_prob(prob, sorted_prob, top_p, top_k):
         "get_renorm_cutoff",
         args=[sorted_prob, cumsum_sorted, top_p, top_k],
         out=Tensor.placeholder(
-            [batch, 1],
+            [prob_batch, 1],
             prob_dtype,
         ),
     )
