@@ -446,37 +446,19 @@ class PrescanCollector(ast.NodeVisitor):
     visit_AsyncFunctionDef = visit_FunctionDef
 
     def _validate_symbols(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
-        """Reject ordinary writes after symbolic introduction in this function."""
+        """Reject ordinary writes to explicit function-local symbolic declarations."""
         facts = self.bindings[node]
-        # Mutable storage and loop/parameter names retain their existing assignment
-        # rules. Annotation lambda/comprehension binders are handled by free-name lookup.
+        # Captured annotation values belong to the definition scope and may be
+        # shadowed by ordinary body locals. Only header declarations introduce symbols.
+        # Mutable storage and loop/parameter names retain their assignment rules.
         assignable = {
             item.name
             for item in facts
             if item.kind in ("parameter", "mutable_parameter", "mutable", "loop")
         }
-        annotations = [item.annotation for item in facts if item.annotation is not None]
-        if node.returns is not None:
-            annotations.append(node.returns)
         # This temporary diagnostic index is derived from existing source facts;
         # it is not retained in the prescan result or used as value state.
         origins: dict[str, ast.AST] = {}
-        for annotation in annotations:
-            for name, annotation_origin in collect_annotation_free_names(annotation).items():
-                # A prior body target makes this a local annotation operand,
-                # not a free symbolic introduction. Explicit symbols below
-                # still establish their own origin and reject ordinary writes.
-                bound_in_body = any(
-                    item.name == name
-                    and isinstance(item.node, ast.Name)
-                    and (item.node.lineno, item.node.col_offset)
-                    < (annotation_origin.lineno, annotation_origin.col_offset)
-                    for item in facts
-                )
-                if name not in assignable and name not in self.namespaces and not bound_in_body:
-                    previous = origins.get(name)
-                    if previous is None or annotation_origin.lineno < previous.lineno:
-                        origins[name] = annotation_origin
         for item in facts:
             if item.kind == "symbol":
                 origin = origins.get(item.name)
