@@ -86,7 +86,7 @@ def test_roundtrip_scopeid2():
         # fmt: on
 
     code = test.script()
-    assert "cta_id_in_pair = T.cta_id_in_pair()" in code
+    assert " = T.cta_id_in_pair()" in code
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
 
@@ -110,8 +110,8 @@ def test_roundtrip_scopeid_deferred():
         # fmt: on
 
     code = test.script()
-    assert "bx = T.cta_id()" in code
-    assert "tx = T.thread_id()" in code
+    assert " = T.cta_id()" in code
+    assert " = T.thread_id()" in code
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
 
@@ -667,7 +667,7 @@ def test_grid():
     @T.prim_func
     def test():
         T.device_entry()
-        for lvs in T.grid(10, (2, 12)):
+        for (*lvs,) in T.grid(10, (2, 12)):
             T.evaluate(lvs[0] + lvs[1])
         # fmt: on
     code = test.script()
@@ -757,7 +757,7 @@ def test_meta_class_constructor_rejects_unowned_resource():
         def __init__(self):
             tmp = T.alloc_buffer((1,), "int32", scope="local")
 
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @T.prim_func
         def test():
@@ -765,13 +765,16 @@ def test_meta_class_constructor_rejects_unowned_resource():
             bad = Bad()
 
 
-def test_meta_class_multiple_instances_auto_name_owned_resources():
+def test_meta_class_multiple_instances_preserve_owned_resources():
+    instances = []
+
     @T.meta_class
     class Holder:
         def __init__(self, external):
             self.external = external
             self.buf = T.alloc_buffer((2,), "int32", scope="local")
             self.scalar = T.local_scalar("int32")
+            instances.append(self)
 
     @T.prim_func
     def test():
@@ -789,15 +792,29 @@ def test_meta_class_multiple_instances_auto_name_owned_resources():
         )
 
     code = test.script()
-    bufs = _collect_buffers(test)
-    assert "external" in bufs
-    assert "first_external" not in bufs
-    assert "second_external" not in bufs
-    assert {"first_buf", "second_buf", "first_scalar", "second_scalar"}.issubset(bufs)
-    assert 'first_buf = T.alloc_local((2,), "int32")' in code
-    assert 'second_buf = T.alloc_local((2,), "int32")' in code
-    assert "first_scalar: T.int32" in code
-    assert "second_scalar: T.int32" in code
+    assert len(instances) == 2
+    first, second = instances
+    assert first.external.same_as(second.external)
+    assert first.external.name == "external"
+    owned = [first.buf, second.buf, first.scalar.source, second.scalar.source]
+    assert all(resource.name == "" for resource in owned)
+    assert all(
+        not lhs.same_as(rhs) for index, lhs in enumerate(owned) for rhs in owned[index + 1 :]
+    )
+    assert [tuple(resource.shape) for resource in owned] == [(2,), (2,), (1,), (1,)]
+    assert all(resource.dtype == "int32" and resource.scope() == "local" for resource in owned)
+    allocations = []
+
+    def collect_allocation(node):
+        if isinstance(node, tvm.tirx.AllocBuffer):
+            allocations.append(node.buffer)
+
+    tvm_ffi.structural_walk(test.body, collect_allocation)
+    assert len(allocations) == 5
+    assert all(
+        sum(resource.same_as(allocated) for allocated in allocations) == 1
+        for resource in [first.external, *owned]
+    )
     assert from_source(code).script() == code
 
 
@@ -852,7 +869,7 @@ def test_macro_recursive():
 
             @T.inline
             def add(x, c):
-                if c > 0:
+                if T.constexpr(c > 0):
                     add(x, c - 1)
                 T.evaluate(x)
 
@@ -1088,11 +1105,10 @@ def func():
     v: T.int32
     v = v + T.int32(1)
 """
-    # The ValueError propagates through the parser framework which wraps it
-    # into a DiagnosticError.  Before the fix the broad ``except Exception``
-    # would silently swallow it and fall through to eval_assign.
+    # The ValueError propagates unchanged. A broad ``except Exception`` here
+    # previously swallowed it and fell through to eval_assign.
     with patch("tvm.tirx.script.builder.buffer_store", side_effect=bomb):
-        with pytest.raises(tvm.error.DiagnosticError):
+        with pytest.raises(ValueError, match="boom"):
             from_source(src)
 
 
@@ -1251,7 +1267,7 @@ from tvm.script import tirx as T
 def func():
     x: T.handle = T.int64(0)
 """
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(tvm.error.InternalError):
         from_source(src_handle)
 
     # 3. Banned: non-PrimType annotation without T.let
@@ -1262,16 +1278,16 @@ from tvm.ir import PointerType, PrimType
 def func():
     x: T.Var(name="x", ty=PointerType(PrimType("float16"))) = T.int64(0)
 """
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(tvm.error.InternalError):
         from_source(src_ptr)
 
-    # 4. Bare assignment to new variable creates scalar — round-trip
+    # 4. An explicit mutable scalar declaration retains updates — round-trip
     # fmt: off
     @T.prim_func
     def test_bare_assign():
         T.device_entry()
         tid = T.launch_thread("threadIdx.x", 128)
-        x = tid + T.int32(1)
+        x: T.int32 = tid + T.int32(1)
         x = x + T.int32(2)
         T.evaluate(x)
         # fmt: on
@@ -1316,27 +1332,28 @@ def test_roundtrip_buffer_local_auto():
 
 
 def _collect_buffers(func):
-    """Collect all buffers from DeclBuffer and AllocBuffer nodes, returning {name: Buffer}."""
-    bufs = {}
+    """Collect native buffers in declaration order, including anonymous views."""
+    buffers = []
 
-    def _visit(node):
+    def visit(node):
         if isinstance(node, tvm.tirx.DeclBuffer | tvm.tirx.AllocBuffer):
-            bufs[node.buffer.name] = node.buffer
+            buffers.append(node.buffer)
 
-    tvm_ffi.structural_walk(func.body, _visit)
-    return bufs
+    tvm_ffi.structural_walk(func.body, visit)
+    return buffers
 
 
-def _collect_buffer_sources(func):
-    """Collect the explicit data source of each DeclBuffer."""
-    sources = {}
+def _buffer_source(func, buffer):
+    """Find the unique declaration source by native buffer identity."""
+    sources = []
 
-    def _visit(node):
-        if isinstance(node, tvm.tirx.DeclBuffer):
-            sources[node.buffer.name] = node.data
+    def visit(node):
+        if isinstance(node, tvm.tirx.DeclBuffer) and node.buffer.same_as(buffer):
+            sources.append(node.data)
 
-    tvm_ffi.structural_walk(func.body, _visit)
-    return sources
+    tvm_ffi.structural_walk(func.body, visit)
+    assert len(sources) == 1
+    return sources[0]
 
 
 def test_buffer_local_ir():
@@ -1353,12 +1370,10 @@ def test_buffer_local_ir():
         B_local[0] = T.float16(0)
         # fmt: on
 
-    bufs = _collect_buffers(func)
-    b_local = bufs["B_local"]
-    b_buf = bufs["B"]
+    _, b_buf, b_local = _collect_buffers(func)
 
     # Shared data pointer
-    assert_structural_equal(_collect_buffer_sources(func)["B_local"], b_buf.data)
+    assert_structural_equal(_buffer_source(func, b_local), b_buf.data)
     # Shape: single dim matching the raw physical storage span
     assert len(b_local.ty.shape) == 1
     storage = b_buf.ty.layout.storage()
@@ -1368,7 +1383,7 @@ def test_buffer_local_ir():
 
     # Round-trip
     code = func.script()
-    assert "B_local = B.local()" in code
+    assert "buffer_1 = buffer.local()" in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
 
@@ -1389,17 +1404,14 @@ def test_buffer_local_physical_order():
         B_2d[0, 2] = T.float32(2)
         # fmt: on
 
-    bufs = _collect_buffers(func)
-    b_buf = bufs["B"]
-    b_flat = bufs["B_flat"]
-    b_2d = bufs["B_2d"]
+    _, b_buf, b_flat, b_2d = _collect_buffers(func)
 
     # The parent storage view enumerates storage iters in a different order
     # from their physical strides, so inheriting it would permute registers.
     assert not b_buf.ty.layout.storage().is_trivial()
 
     for local in [b_flat, b_2d]:
-        assert_structural_equal(_collect_buffer_sources(func)[local.name], b_buf.data)
+        assert_structural_equal(_buffer_source(func, local), b_buf.data)
         assert local.ty.layout.is_trivial()
     assert [int(dim) for dim in b_flat.ty.shape] == [32]
     assert [int(dim) for dim in b_2d.ty.shape] == [4, 8]
@@ -1410,8 +1422,8 @@ def test_buffer_local_physical_order():
     assert int(flat_offset) == int(reshaped_offset) == 2
 
     code = func.script()
-    assert "B_flat = B.local()" in code
-    assert "B_2d = B.local(4, 8)" in code
+    assert "buffer_1 = buffer.local()" in code
+    assert "buffer_2 = buffer.local(4, 8)" in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
 
@@ -1434,17 +1446,14 @@ def test_buffer_local_layout_overrides_roundtrip():
         B_custom[0, 0] = T.float32(2)
         # fmt: on
 
-    bufs = _collect_buffers(func)
-    b_buf = bufs["B"]
-    b_storage = bufs["B_storage"]
-    b_custom = bufs["B_custom"]
+    _, b_buf, b_storage, b_custom = _collect_buffers(func)
     assert_structural_equal(b_storage.ty.layout, b_buf.ty.layout.storage())
     assert not b_storage.ty.layout.is_trivial()
     assert not b_custom.ty.layout.is_trivial()
 
     code = func.script()
-    storage_line = next(line for line in code.splitlines() if "B_storage =" in line)
-    custom_line = next(line for line in code.splitlines() if "B_custom =" in line)
+    storage_line = next(line for line in code.splitlines() if "buffer_1 =" in line)
+    custom_line = next(line for line in code.splitlines() if "buffer_2 =" in line)
     assert ".local(layout=" in storage_line
     assert ".local(2, 4, layout=" in custom_line
     assert_structural_equal(func, from_source(code))
@@ -1463,9 +1472,9 @@ def test_buffer_local_explicit_layout_without_parent_layout():
         B[0] = T.float32(1)
         # fmt: on
 
-    bufs = _collect_buffers(func)
-    assert bufs["A"].ty.layout is None
-    assert bufs["B"].ty.layout.is_trivial()
+    a_buf, b_buf = _collect_buffers(func)
+    assert a_buf.ty.layout is None
+    assert b_buf.ty.layout.is_trivial()
     code = func.script()
     parsed = from_source(code)
     assert_structural_equal(func, parsed)
@@ -1489,11 +1498,11 @@ def test_buffer_local_compose_layout_printer_roundtrip():
         B[0] = T.float32(1)
         # fmt: on
 
-    bufs = _collect_buffers(func)
-    assert [int(dim) for dim in bufs["B"].ty.shape] == [64]
-    assert bufs["B"].ty.layout.is_trivial()
+    _, b_buf = _collect_buffers(func)
+    assert [int(dim) for dim in b_buf.ty.shape] == [64]
+    assert b_buf.ty.layout.is_trivial()
     code = func.script()
-    local_line = next(line for line in code.splitlines() if "B =" in line)
+    local_line = next(line for line in code.splitlines() if "buffer =" in line)
     assert ".view(64, layout=" in local_line
     parsed = from_source(code)
     assert_structural_equal(func, parsed)
@@ -1503,7 +1512,7 @@ def test_buffer_local_compose_layout_printer_roundtrip():
 def test_buffer_local_inference_without_parent_layout_has_clear_diagnostic():
     """Shape inference requires a parent storage layout."""
 
-    with pytest.raises(tvm.error.DiagnosticError, match="parent buffer has layout=None"):
+    with pytest.raises(ValueError, match="parent buffer has layout=None"):
         # fmt: off
         @T.prim_func
         def func() -> None:
@@ -1531,11 +1540,7 @@ def test_buffer_local_physical_span_includes_gaps_and_offset():
         B_storage[1] = T.float32(3)
         # fmt: on
 
-    bufs = _collect_buffers(func)
-    b_buf = bufs["B"]
-    b_flat = bufs["B_flat"]
-    b_2d = bufs["B_2d"]
-    b_storage = bufs["B_storage"]
+    _, b_buf, b_flat, b_2d, b_storage = _collect_buffers(func)
     assert int(b_buf.ty.layout.storage().span()) == 6
     assert int(b_buf.ty.layout.storage().size()) == 2
     assert [int(dim) for dim in b_flat.ty.shape] == [6]
@@ -1551,7 +1556,7 @@ def test_buffer_local_physical_span_includes_gaps_and_offset():
     assert int(b_storage.ty.layout.apply(1, shape=list(b_storage.ty.shape))["m"]) == 5
 
     code = func.script()
-    storage_line = next(line for line in code.splitlines() if "B_storage =" in line)
+    storage_line = next(line for line in code.splitlines() if "buffer_3 =" in line)
     assert ".local(layout=" in storage_line
     assert_structural_equal(func, from_source(code))
     assert from_source(code).script() == code
@@ -1574,9 +1579,9 @@ def test_buffer_local_printer_is_stable_with_multiple_aliases():
         # fmt: on
 
     expected = func.script()
-    assert "B_flat = B.local()" in expected
-    assert "B_2d = B.local(4, 8)" in expected
-    storage_line = next(line for line in expected.splitlines() if "B_storage =" in line)
+    assert "buffer_1 = buffer.local()" in expected
+    assert "buffer_2 = buffer.local(4, 8)" in expected
+    storage_line = next(line for line in expected.splitlines() if "buffer_3 =" in line)
     assert ".local(layout=" in storage_line
     for _ in range(20):
         parsed = from_source(expected)
@@ -1632,7 +1637,7 @@ def test_buffer_local_printer_preserves_inherited_metadata():
 def test_buffer_local_rejects_shape_that_does_not_match_physical_span():
     """An explicit local shape product must preserve the physical span."""
 
-    with pytest.raises(tvm.error.DiagnosticError, match="physical storage span 6 per thread"):
+    with pytest.raises(ValueError, match="physical storage span 6 per thread"):
         # fmt: off
         @T.prim_func
         def func() -> None:
@@ -1666,17 +1671,37 @@ def test_pointer_expression_assignment_uses_bind():
     assert_structural_equal(func, from_source(code))
 
 
-def test_pointer_expression_assignment_rejects_reassignment():
-    with pytest.raises(tvm.error.DiagnosticError, match="cannot be reassigned"):
-        # fmt: off
-        @T.prim_func
-        def func() -> None:
-            T.device_entry()
-            buf = T.alloc_buffer((4,), "uint32", scope="shared")
-            ptr = buf.ptr_to([0])
-            ptr = buf.ptr_to([1])
-            T.evaluate(T.reinterpret("uint64", ptr))
-        # fmt: on
+def test_pointer_expression_rebinding_creates_distinct_native_bindings():
+    # Before: ptr = buf.ptr_to([0]); ptr = buf.ptr_to([1]); X.evaluate(ptr)
+    # Expected builder program:
+    # ptr = X.bind_(buf.ptr_to([0]), name="ptr")
+    # ptr = X.bind_(buf.ptr_to([1]), name="ptr"); X.emit_(X.evaluate(ptr))
+    # Pointer expressions are ordinary immutable bindings.
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        buf = T.alloc_buffer((4,), "uint32", scope="shared")
+        ptr = buf.ptr_to([0])
+        ptr = buf.ptr_to([1])
+        T.evaluate(T.reinterpret("uint64", ptr))
+    # fmt: on
+
+    bindings, uses = [], []
+
+    def collect(node):
+        if isinstance(node, tvm.tirx.Bind):
+            bindings.append(node)
+        elif isinstance(node, tvm.tirx.Evaluate):
+            uses.append(node)
+
+    tvm_ffi.structural_walk(func.body, collect)
+    assert len(bindings) == 2
+    assert all(isinstance(binding.var.ty, PointerType) for binding in bindings)
+    assert not bindings[0].var.same_as(bindings[1].var)
+    assert len(uses) == 1
+    assert uses[0].value.args[0].same_as(bindings[1].var)
+    assert_structural_equal(func, from_source(func.script()))
 
 
 def test_pointer_expression_assignment_can_shadow_extra_var():
@@ -1712,12 +1737,10 @@ def test_buffer_permute_ir():
         B[0, 0] = T.float16(0)
         # fmt: on
 
-    bufs = _collect_buffers(func)
-    a_buf = bufs["A"]
-    b_buf = bufs["B"]
+    a_buf, b_buf = _collect_buffers(func)
 
     # Shared data pointer
-    assert_structural_equal(_collect_buffer_sources(func)["B"], a_buf.data)
+    assert_structural_equal(_buffer_source(func, b_buf), a_buf.data)
     # Shape: [4, 8] from [8, 4]
     assert int(b_buf.ty.shape[0]) == 4
     assert int(b_buf.ty.shape[1]) == 8
@@ -1789,9 +1812,9 @@ def test_buffer_rearrange_allows_arbitrary_axis_names():
         B = A.rearrange(pattern="(outer inner) tail -> outer tail inner", outer=2)
         B[0, 0, 0] = T.float16(0)
 
-    expected = _collect_buffers(ordinary_axis)["B"]
+    _, _, _, expected = _collect_buffers(ordinary_axis)
     for func in (buf_axis, self_axis, pattern_axis, keyword_pattern):
-        actual = _collect_buffers(func)["B"]
+        _, _, _, actual = _collect_buffers(func)
         assert_structural_equal(actual.shape, expected.shape)
         assert_structural_equal(actual.layout, expected.layout)
 
@@ -1813,11 +1836,9 @@ def test_buffer_permute_compose_layout_ir():
         B[0, 0, 0, 0] = T.bfloat16(0)
         # fmt: on
 
-    bufs = _collect_buffers(func)
-    a_buf = bufs["A"]
-    b_buf = bufs["B"]
+    a_buf, b_buf = _collect_buffers(func)
 
-    assert_structural_equal(_collect_buffer_sources(func)["B"], a_buf.data)
+    assert_structural_equal(_buffer_source(func, b_buf), a_buf.data)
     assert [int(s) for s in b_buf.shape] == [4, 4, 4, 64]
     expected = tvm.tirx.layout.ComposeLayout(
         a_buf.layout.per_element,
@@ -1846,8 +1867,7 @@ def test_buffer_sub_multi_iter_dim_ir():
         B[0] = T.float16(0)
         # fmt: on
 
-    bufs = _collect_buffers(func)
-    a_buf, b_buf = bufs["A"], bufs["B"]
+    a_buf, b_buf = _collect_buffers(func)
     # 5 -> (5 // 4, 5 % 4) = (1, 1) -> 1 * 1024 + 1 * 64
     assert int(tvm.sym.Analyzer().simplify(b_buf.elem_offset - a_buf.elem_offset)) == 1088
     assert [int(s) for s in b_buf.shape] == [16]
@@ -1883,8 +1903,7 @@ def test_buffer_sub_ir():
         C[0, 0, 0] = T.float16(0)
         # fmt: on
 
-    bufs = _collect_buffers(func)
-    a_buf, b_buf, c_buf = bufs["A"], bufs["B"], bufs["C"]
+    a_buf, _, b_buf, _, c_buf = _collect_buffers(func)
     # sub[1, 2:6]: drop dim 0 at 1 (1 * 256) then narrow dim 1 to [2, 6) (2 * 16)
     assert [int(s) for s in b_buf.shape] == [4, 16]
     assert int(tvm.sym.Analyzer().simplify(b_buf.elem_offset - a_buf.elem_offset)) == 288
@@ -1962,8 +1981,7 @@ def test_buffer_sub_swizzle_commutation():
         C[0, 0] = T.bfloat16(0)
         # fmt: on
 
-    bufs = _collect_buffers(func)
-    a_buf, b_buf, c_buf = bufs["A"], bufs["B"], bufs["C"]
+    a_buf, b_buf, c_buf = _collect_buffers(func)
     base = a_buf.elem_offset
     assert int(analyzer.simplify(b_buf.elem_offset - base)) == 1024
     for j in (0, 1, 63, 511, 1023):
@@ -1996,16 +2014,15 @@ def test_buffer_sub_swizzle_commutation():
             F[0, 0] = T.float16(0)
         # fmt: on
 
-    bufs = _collect_buffers(func2)
-    a2, base2 = bufs["A"], bufs["A"].elem_offset
+    a2, b2, c2, d2, e2, _ = _collect_buffers(func2)
+    base2 = a2.elem_offset
     shape2 = [2, 16, 8]
-    for name, to_parent in {
-        "B": lambda c: (c[0], 1, c[1]),
-        "C": lambda c: (c[0], c[1], 1),
-        "D": lambda c: (c[0], 1 + c[1], c[2]),
-        "E": lambda c: (c[0], 1 + c[1], c[2]),
-    }.items():
-        child = bufs[name]
+    for name, child, to_parent in [
+        ("B", b2, lambda c: (c[0], 1, c[1])),
+        ("C", c2, lambda c: (c[0], c[1], 1)),
+        ("D", d2, lambda c: (c[0], 1 + c[1], c[2])),
+        ("E", e2, lambda c: (c[0], 1 + c[1], c[2])),
+    ]:
         assert int(analyzer.simplify(child.elem_offset - base2)) == 0
         child_shape = [int(s) for s in child.shape]
         for flat in range(math.prod(child_shape)):
@@ -2035,8 +2052,7 @@ def test_buffer_sub_swizzle_commutation():
         B[0] = T.bfloat16(0)
         # fmt: on
 
-    bufs = _collect_buffers(func3)
-    a3, b3 = bufs["A"], bufs["B"]
+    a3, b3 = _collect_buffers(func3)
     for j in range(8):
         assert addr(a3, a3.elem_offset, 8 + j) == addr(b3, a3.elem_offset, j) == 8 + j
 
@@ -2092,17 +2108,18 @@ def test_buffer_tile_ir():
                 L[0, 0] = T.float16(0)
     # fmt: on
 
-    b = _collect_buffers(func)
-    assert [int(s) for s in b["B"].shape] == [3, 16, 512]
-    assert_structural_equal(b["B"].layout, b["C"].layout)
-    assert_structural_equal(b["D"].layout, b["E"].layout)
-    assert_structural_equal(b["F"].layout, b["G"].layout)
-    m = _collect_buffers(func_multi)
-    assert [int(s) for s in m["H"].shape] == [16, 64]
-    assert_structural_equal(m["H"].layout, m["J"].layout)
-    mp = _collect_buffers(func_multipick)
-    assert [int(s) for s in mp["K"].shape] == [16, 16]
-    assert_structural_equal(mp["K"].layout, mp["L"].layout)
+    # Tile/view chains also declare intermediate reshaped and selected buffers.
+    _, _, _, b, _, _, c, _, d, _, e, _, f, g = _collect_buffers(func)
+    assert [int(s) for s in b.shape] == [3, 16, 512]
+    assert_structural_equal(b.layout, c.layout)
+    assert_structural_equal(d.layout, e.layout)
+    assert_structural_equal(f.layout, g.layout)
+    _, _, _, _, _, _, h, _, _, _, _, _, j = _collect_buffers(func_multi)
+    assert [int(s) for s in h.shape] == [16, 64]
+    assert_structural_equal(h.layout, j.layout)
+    _, _, _, k, _, _, l_buf = _collect_buffers(func_multipick)
+    assert [int(s) for s in k.shape] == [16, 16]
+    assert_structural_equal(k.layout, l_buf.layout)
 
     code = func_multipick.script()
     assert from_source(code).script() == code
@@ -2191,12 +2208,10 @@ def test_buffer_view_dtype_ir():
         B[0, 0] = T.float32(0)
         # fmt: on
 
-    bufs = _collect_buffers(func)
-    a_buf = bufs["A"]
-    b_buf = bufs["B"]
+    a_buf, b_buf = _collect_buffers(func)
 
     # Shared data pointer
-    assert_structural_equal(_collect_buffer_sources(func)["B"], a_buf.data)
+    assert_structural_equal(_buffer_source(func, b_buf), a_buf.data)
     # dtype
     assert str(b_buf.ty.dtype) == "float32"
     # Shape: [8, 4] (last dim halved since float32 is 2x float16)
@@ -2463,11 +2478,16 @@ def test_warp_role():
         # fmt: on
 
     code = test.script()
-    assert "warp_id == 1" in code, f"should have warp_id==1 guard:\n{code}"
-    assert "warp_id == 0" in code, f"should have warp_id==0 guard:\n{code}"
+    warp_name = next(
+        line.partition(" = ")[0].strip()
+        for line in code.splitlines()
+        if " = T.warp_id_in_wg([4])" in line
+    )
+    assert f"{warp_name} == 1" in code, f"should have warp_id==1 guard:\n{code}"
+    assert f"{warp_name} == 0" in code, f"should have warp_id==0 guard:\n{code}"
     assert "setmaxnreg" in code, f"should have setmaxnreg:\n{code}"
-    assert "if warp_id == 1:" in code, f"should have warp_id==1 if-guard:\n{code}"
-    assert "if warp_id == 0:" in code, f"should have warp_id==0 if-guard:\n{code}"
+    assert f"if {warp_name} == 1:" in code, f"should have warp_id==1 if-guard:\n{code}"
+    assert f"if {warp_name} == 0:" in code, f"should have warp_id==0 if-guard:\n{code}"
     # The printed code is valid TIR — it should parse back
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
@@ -2491,7 +2511,12 @@ def test_warpgroup_role():
         # fmt: on
 
     code = test.script()
-    assert "wg_id == 2" in code, f"should have wg_id==2 guard:\n{code}"
+    group_name = next(
+        line.partition(" = ")[0].strip()
+        for line in code.splitlines()
+        if " = T.warpgroup_id([4])" in line
+    )
+    assert f"{group_name} == 2" in code, f"should have wg_id==2 guard:\n{code}"
     assert "setmaxnreg" in code, f"should have setmaxnreg:\n{code}"
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
@@ -2580,12 +2605,12 @@ def test_buffer_sub_tmem_offset_uses_physical_columns():
         T.evaluate(F32_tail[0, 0])
         # fmt: on
 
-    bufs = _collect_buffers(func)
-    assert int(bufs["Q_tail"].allocated_addr[0]) == 384  # 256 + 256 * 16 / 32
-    assert int(bufs["F8_tail"].allocated_addr[0]) == 48  # 32 + 64 * 8 / 32
-    assert int(bufs["F32_tail"].allocated_addr[0]) == 96  # 64 + 32 * 32 / 32
-    for name in ("Q_tail", "F8_tail", "F32_tail"):
-        assert int(bufs[name].layout.offset.get(TCol, 0)) == 0
+    _, q_tail, _, f8_tail, _, f32_tail = _collect_buffers(func)
+    assert int(q_tail.allocated_addr[0]) == 384  # 256 + 256 * 16 / 32
+    assert int(f8_tail.allocated_addr[0]) == 48  # 32 + 64 * 8 / 32
+    assert int(f32_tail.allocated_addr[0]) == 96  # 64 + 32 * 32 / 32
+    for buffer in (q_tail, f8_tail, f32_tail):
+        assert int(buffer.layout.offset.get(TCol, 0)) == 0
 
     code = func.script()
     assert from_source(code).script() == code
@@ -2608,7 +2633,7 @@ def test_buffer_sub_tmem_rejects_partial_column_offset():
 
         return func
 
-    with pytest.raises(tvm.error.DiagnosticError, match="aligned to a physical 32-bit column"):
+    with pytest.raises(ValueError, match="aligned to a physical 32-bit column"):
         build()
 
 

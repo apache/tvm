@@ -61,6 +61,8 @@ def test_tir_triton_integration():
         output = x + y
         tl.store(output_ptr + offsets, output, mask=mask)
 
+    BLOCK_SIZE = 64
+
     @I.ir_module(s_tir=True)
     class Module:
         @T.prim_func(s_tir=True)
@@ -73,7 +75,6 @@ def test_tir_triton_integration():
             with T.sblock("root"):
                 T.reads(x[0:m], y[0:m])
                 T.writes(output[0:m])
-                BLOCK_SIZE = T.meta_var(64)
                 T.call_kernel(
                     add_kernel,
                     (T.ceildiv(m, BLOCK_SIZE),),
@@ -93,8 +94,13 @@ def test_tir_triton_integration():
                 R.output(output)
             return output
 
-    # Constexpr parameters (BLOCK_SIZE) stay in the kernel arguments, and the
-    # thread extent is 256 because the kernel is compiled with num_warps=8.
+    # Triton omits constexpr arguments and appends global scratch, plus profile
+    # scratch starting in 3.5. This kernel requires no scratch allocation.
+    scratch_args = [tvm.tirx.reinterpret("handle", tvm.tirx.IntImm("uint64", 0))]
+    if version.parse(triton.__version__) >= version.parse("3.5.0"):
+        scratch_args.append(tvm.tirx.reinterpret("handle", tvm.tirx.IntImm("uint64", 0)))
+
+    # The thread extent is 256 because the kernel is compiled with num_warps=8.
     @I.ir_module(s_tir=True)
     class Parsed:
         @T.prim_func(s_tir=True)
@@ -112,7 +118,7 @@ def test_tir_triton_integration():
                     y.data,
                     output.data,
                     m,
-                    64,
+                    *scratch_args,
                     256,
                     (m + T.int64(64) - T.int64(1)) // T.int64(64),
                 )

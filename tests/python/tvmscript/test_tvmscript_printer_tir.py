@@ -66,7 +66,7 @@ def test_prim_func_symbolic_buffer_param_roundtrip():
     )
 
     source = func.script()
-    assert 'T.Buffer(("n + 1", n)' in source
+    assert 'T.Buffer(("n + 1", "n")' in source
     assert source.index("n = T.int32()") < source.index("T.evaluate(n)")
     tvm.ir.assert_structural_equal(tvm.script.from_source(source), func)
 
@@ -803,10 +803,10 @@ def main():
     # with T.sblock("root"):
     for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
         with T.sblock("update"):
-            v0 = T.axis.spatial(128, i0 + 1)
-            v1, v2 = T.axis.remap("SR", [i1, i2])
-            v3 = T.axis.spatial(128, i3 - 1)
-            v4, v5 = T.axis.remap("RS", [i4, i5])
+            v = T.axis.spatial(128, i0 + 1)
+            v_1, v_2 = T.axis.remap("SR", [i1, i2])
+            v_3 = T.axis.spatial(128, i3 - 1)
+            v_4, v_5 = T.axis.remap("RS", [i4, i5])
             T.reads()
             T.writes()
             T.evaluate(0)"""
@@ -839,7 +839,7 @@ def test_root_block():
 @T.prim_func(s_tir=True)
 def main():
     # with T.sblock("root"):
-    a = T.sblock_alloc_buffer((128, 128))
+    buffer = T.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock(""):
             T.reads()
@@ -1021,7 +1021,8 @@ def test_predicated_load_store():
 
 @T.prim_func(s_tir=True)
 def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
-    T.masked_store(A, T.masked_load("float32x4", A, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4)), 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
+    a_load: T.let[T.float32x4] = T.masked_load("float32x4", A, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4))
+    T.masked_store(A, a_load, 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
     """
     _assert_print(main, expected_output)
 
@@ -1095,7 +1096,9 @@ def test_predicated_scalable_load_store():
 
 @T.prim_func(s_tir=True)
 def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
-    T.masked_store(A, T.masked_load("float32xvscalex4", A, 0, T.Ramp(0, 4, T.vscale() * 4), T.get_active_lane_mask("uint1xvscalex4", 0, 13)), 0, T.Ramp(0, 2, T.vscale() * 4), T.get_active_lane_mask("uint1xvscalex4", 0, 13))
+    mask: T.let[T.uint1xvscalex4] = T.get_active_lane_mask("uint1xvscalex4", 0, 13)
+    a_load: T.let[T.float32xvscalex4] = T.masked_load("float32xvscalex4", A, 0, T.Ramp(0, 4, T.vscale() * 4), mask)
+    T.masked_store(A, a_load, 0, T.Ramp(0, 2, T.vscale() * 4), mask)
     """
     _assert_print(main, expected_output)
 

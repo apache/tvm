@@ -190,7 +190,7 @@ def test_two_elementwise_transform_intermediate_buffer(use_block_name):
     if use_block_name:
         sch.transform_layout(
             block="B",
-            buffer="B",
+            buffer=sch.get(sch.get_sblock("B")).writes[0].source.name,
             index_map=packed_index_map_func,
         )
     else:
@@ -258,7 +258,7 @@ def test_two_elementwise_unit_dim(use_block_name):
         sch.transform_layout(
             index_map=index_map,
             block="B",
-            buffer="B",
+            buffer=sch.get(sch.get_sblock("B")).writes[0].source.name,
         )
     else:
         block = sch.get_sblock("B")
@@ -490,7 +490,7 @@ def test_no_padding(pad_value):
     sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
-        "A",
+        sch.get(sch.get_sblock("block")).writes[0].source.name,
         lambda i: [i // 4, i % 4],
         pad_value=pad_value,
     )
@@ -542,7 +542,7 @@ def test_no_padding_multiple_usage(pad_value):
     sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
-        "A",
+        sch.get(sch.get_sblock("block")).writes[0].source.name,
         lambda i: [i // 4, i % 4],
         pad_value=pad_value,
     )
@@ -578,7 +578,7 @@ def test_no_padding_opaque_block(pad_value):
     sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
-        "A",
+        sch.get(sch.get_sblock("block")).writes[0].source.name,
         lambda i: [i // 4, i % 4],
         pad_value=pad_value,
     )
@@ -603,7 +603,7 @@ def test_error_if_padding_forbidden():
     with pytest.raises(tvm.s_tir.schedule.schedule.ScheduleError):
         sch.transform_layout(
             "block",
-            "A",
+            sch.get(sch.get_sblock("block")).writes[0].source.name,
             lambda i: [i // 4, i % 4],
             pad_value=None,
         )
@@ -637,7 +637,7 @@ def test_implicit_padding_assume_injective():
     sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
-        "A",
+        sch.get(sch.get_sblock("block")).writes[0].source.name,
         lambda i: [i // 4, i % 4],
         pad_value=None,
         assume_injective_transform=True,
@@ -663,7 +663,7 @@ def test_error_on_wrong_padding_type():
     with pytest.raises(tvm.s_tir.schedule.schedule.ScheduleError):
         sch.transform_layout(
             "block",
-            "A",
+            sch.get(sch.get_sblock("block")).writes[0].source.name,
             lambda i: [i // 4, i % 4],
             pad_value=tirx.IntImm("int8", 0),
         )
@@ -686,7 +686,7 @@ def test_error_on_non_matching_types():
     with pytest.raises(tvm.s_tir.schedule.schedule.ScheduleError):
         sch.transform_layout(
             "block",
-            "A",
+            sch.get(sch.get_sblock("block")).writes[0].source.name,
             lambda i: [i // 4, i % 4],
             pad_value=0,
         )
@@ -730,7 +730,7 @@ def test_padded_transform_if_then_else(dtype):
     sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
-        "B",
+        sch.get(sch.get_sblock("block")).writes[0].source.name,
         lambda i: [i // 4, i % 4],
         pad_value=0,
     )
@@ -811,7 +811,7 @@ def test_padded_transform_if_then_else_reduction():
     sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
-        "B",
+        sch.get(sch.get_sblock("block")).writes[0].source.name,
         lambda i: [i // 4, i % 4],
         pad_value=0,
     )
@@ -849,7 +849,7 @@ def test_padded_transform_if_then_else_reduction_opaque():
     sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
-        "B",
+        sch.get(sch.get_sblock("block")).writes[0].source.name,
         lambda i: [i // 4, i % 4],
         pad_value=0,
     )
@@ -895,9 +895,10 @@ def test_padded_transform_post_proc_if_required_due_to_side_effects():
                     B[vi, vj] = 0
 
     sch = tvm.s_tir.Schedule(Before)
+    # Both local outputs are anonymous; select the first write by native identity.
     sch.transform_layout(
         "block",
-        "B",
+        sch.get(sch.get_sblock("block")).writes[0].source,
         lambda i: [i // 4, i % 4],
         pad_value=0,
     )
@@ -974,7 +975,7 @@ def test_padded_transform_non_constant_value():
     sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
-        "B",
+        sch.get(sch.get_sblock("block")).writes[0].source.name,
         lambda i: [i // 4, i % 4],
         pad_value=lambda i, j: i + j,
     )
@@ -1101,7 +1102,7 @@ def test_transform_layout_with_var():
     n = sch.mod["main"].params[1]
     sch.transform_layout(
         "block",
-        "B",
+        sch.get(sch.get_sblock("block")).writes[0].source.name,
         lambda i: [i // n, i % n],
         pad_value=0,
     )

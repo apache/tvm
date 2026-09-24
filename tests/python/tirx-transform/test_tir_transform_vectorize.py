@@ -502,7 +502,7 @@ def test_illegal_extent():
     class Mod:
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer((25,), "int32")):
-            n = T.Var("n", ty="int32")
+            n = T.int32()
             for j in T.vectorized(n):
                 A[j] = 3
 
@@ -542,22 +542,21 @@ def test_vectorize_and_predicate_all_buffer_loads_stores():
         B = T.match_buffer(b, (16,), "float32")
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0 in range(4):
-            load_a = T.meta_var(
-                T.call_intrin(
-                    "float32x4",
-                    "tirx.masked_load",
-                    A,
-                    T.Ramp(i_0 * 4, 1, 4),
-                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
-                )
-            )
-            add_1 = T.meta_var(load_a + T.Broadcast(T.float32(1), 4))
             T.evaluate(
                 T.call_intrin(
                     "void",
                     "tirx.masked_store",
                     B,
-                    add_1,
+                    (
+                        T.call_intrin(
+                            "float32x4",
+                            "tirx.masked_load",
+                            A,
+                            T.Ramp(i_0 * 4, 1, 4),
+                            T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                        )
+                        + T.Broadcast(T.float32(1), 4)
+                    ),
                     T.Ramp(i_0 * 4, 1, 4),
                     T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
                 )
@@ -754,22 +753,21 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_func_attr_target():
         B = T.match_buffer(b, (16,), "float32")
         T.func_attr({"global_symbol": "main", "tirx.noalias": True, "target": sve_target})
         for i_0 in range(4):
-            load_a = T.meta_var(
-                T.call_intrin(
-                    "float32x4",
-                    "tirx.masked_load",
-                    A,
-                    T.Ramp(i_0 * 4, 1, 4),
-                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
-                )
-            )
-            add_1 = T.meta_var(load_a + T.Broadcast(T.float32(1), 4))
             T.evaluate(
                 T.call_intrin(
                     "void",
                     "tirx.masked_store",
                     B,
-                    add_1,
+                    (
+                        T.call_intrin(
+                            "float32x4",
+                            "tirx.masked_load",
+                            A,
+                            T.Ramp(i_0 * 4, 1, 4),
+                            T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                        )
+                        + T.Broadcast(T.float32(1), 4)
+                    ),
                     T.Ramp(i_0 * 4, 1, 4),
                     T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
                 )
@@ -799,22 +797,21 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_attr_scope_target()
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with T.attr(sve_target, "target", 0):
             for i_0 in range(4):
-                load_a = T.meta_var(
-                    T.call_intrin(
-                        "float32x4",
-                        "tirx.masked_load",
-                        A,
-                        T.Ramp(i_0 * 4, 1, 4),
-                        T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
-                    )
-                )
-                add_1 = T.meta_var(load_a + T.Broadcast(T.float32(1), 4))
                 T.evaluate(
                     T.call_intrin(
                         "void",
                         "tirx.masked_store",
                         B,
-                        add_1,
+                        (
+                            T.call_intrin(
+                                "float32x4",
+                                "tirx.masked_load",
+                                A,
+                                T.Ramp(i_0 * 4, 1, 4),
+                                T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                            )
+                            + T.Broadcast(T.float32(1), 4)
+                        ),
                         T.Ramp(i_0 * 4, 1, 4),
                         T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
                     )

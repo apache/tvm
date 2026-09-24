@@ -677,7 +677,7 @@ def test_cuda_ldg_vector_dtype_codegen(dtype, suffix, c_type, vec_base, vec):
 
 
 def test_cuda_ldg_vector_rejects_unsupported_dtype():
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="Unsupported vector CUDA"):
+    with pytest.raises(ValueError, match="Unsupported vector CUDA"):
         _get_source(_cuda_ldg_vector_kernel("float16", "v2"))
 
 
@@ -1225,7 +1225,7 @@ def test_uint32_loop_var_and_scope_id_emit_unsigned():
     # The loop var is declared unsigned and iterates over unsigned bounds.
     assert re.search(r"for \(uint k = \(uint\)0; k < \(uint\)4;", src), src
     # The scope id is bound as an unsigned value.
-    assert re.search(r"uint tx = ", src), src
+    assert re.search(r"uint v_1 = ", src), src
 
 
 @pytest.mark.gpu

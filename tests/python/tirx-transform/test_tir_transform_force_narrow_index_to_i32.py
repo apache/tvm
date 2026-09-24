@@ -315,7 +315,7 @@ def test_conditional_index_mixed_width_branches():
     class Before:
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer((T.int64(4),), "float32"), B: T.Buffer((4,), "float32"), n: T.int64):
-            opaque_index = T.call_extern("opaque_index", n, dtype="int64")
+            opaque_index: T.int64 = T.call_extern("opaque_index", n, dtype="int64")
             B[0] = A[T.if_then_else(n < T.int64(0), opaque_index, n)]
             B[1] = A[T.if_then_else(n < T.int64(0), n, opaque_index)]
             B[2] = A[T.Select(n < T.int64(0), opaque_index, n)]
@@ -325,7 +325,7 @@ def test_conditional_index_mixed_width_branches():
     class Expected:
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32"), n: T.int32):
-            opaque_index = T.call_extern("opaque_index", n, dtype="int64")
+            opaque_index: T.int64 = T.call_extern("opaque_index", n, dtype="int64")
             B[0] = A[T.if_then_else(n < 0, opaque_index, T.Cast("int64", n))]
             B[1] = A[T.if_then_else(n < 0, T.Cast("int64", n), opaque_index)]
             B[2] = A[T.Select(n < 0, opaque_index, T.Cast("int64", n))]
@@ -459,7 +459,7 @@ def test_let_binding():
         def main(buf: T.handle):
             n = T.int64()
             Buf = T.match_buffer(buf, [n], "int32")
-            ceil_log2 = T.Cast("int64", T.ceil(T.log2(T.Cast("float32", n))))
+            ceil_log2: T.int64 = T.Cast("int64", T.ceil(T.log2(T.Cast("float32", n))))
             for i in T.serial(ceil_log2):
                 T.evaluate(0)
 
@@ -472,7 +472,7 @@ def test_let_binding():
             # The pass narrows indexing variables (n, the For extent) but leaves
             # an explicitly-typed `T.Cast("int64", ...)` storage alone; a Cast to
             # int32 is inserted at the use site (the For iter) instead.
-            ceil_log2 = T.Cast("int64", T.ceil(T.log2(T.Cast("float32", n))))
+            ceil_log2: T.int64 = T.Cast("int64", T.ceil(T.log2(T.Cast("float32", n))))
             for i in range(T.Cast("int32", ceil_log2)):
                 T.evaluate(0)
 

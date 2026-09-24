@@ -21,6 +21,7 @@
 #define TVM_TIRX_ANALYSIS_VERIFY_WELL_FORMED_H_
 
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 
 #include "../ir/tir_visitor_with_path.h"
 namespace tvm {
@@ -271,11 +272,68 @@ class TensorLoadTypeVerifier : public Verifier<TensorLoadTypeVerifier<PathVisito
   }
 };
 
+/*! \brief Verify that loop control belongs to a loop body in the same function. */
+template <typename PathVisitor>
+class LoopControlVerifier : public Verifier<LoopControlVerifier<PathVisitor>, PathVisitor> {
+  using Verifier = tirx::Verifier<LoopControlVerifier<PathVisitor>, PathVisitor>;
+
+ public:
+  using Verifier::Verifier;
+  using Verifier::Verify;
+
+ private:
+  using Verifier::Visit;
+
+  void Visit(const PrimFunc& prim_func, AccessPath path) override {
+    int enclosing_depth = loop_depth_;
+    loop_depth_ = 0;
+    Verifier::Visit(prim_func, path);
+    loop_depth_ = enclosing_depth;
+  }
+
+  void Dispatch_(const ForNode* op, AccessPath path) override {
+    Visit(op->min, path->Attr("min"));
+    Visit(op->extent, path->Attr("extent"));
+    Visit(op->step, path->Attr("step"));
+    ++loop_depth_;
+    Visit(op->body, path->Attr("body"));
+    --loop_depth_;
+  }
+
+  void Dispatch_(const WhileNode* op, AccessPath path) override {
+    Visit(op->condition, path->Attr("condition"));
+    ++loop_depth_;
+    Visit(op->body, path->Attr("body"));
+    --loop_depth_;
+  }
+
+  void Dispatch_(const BreakNode* op, AccessPath path) override {
+    Verify(loop_depth_ > 0) << "ValueError: break at " << path
+                            << " requires an enclosing loop in the same function.";
+  }
+
+  void Dispatch_(const ContinueNode* op, AccessPath path) override {
+    Verify(loop_depth_ > 0) << "ValueError: continue at " << path
+                            << " requires an enclosing loop in the same function.";
+  }
+
+  void Dispatch_(const CallNode* op, AccessPath path) override {
+    if (op->op.same_as(builtin::break_loop()) || op->op.same_as(builtin::continue_loop())) {
+      Verify(loop_depth_ > 0) << "ValueError: " << op->op << " at " << path
+                              << " requires an enclosing loop in the same function.";
+    }
+    PathVisitor::Dispatch_(op, path);
+  }
+
+  int loop_depth_{0};
+};
+
 template <typename PathVisitor, typename NodeRef>
 bool VerifyWellFormedCommon(const NodeRef& node, bool assert_mode) {
   return UndefinedVarVerifier<PathVisitor>::Verify(node, assert_mode) &&
          UndefinedBufferVerifier<PathVisitor>::Verify(node, assert_mode) &&
-         TensorLoadTypeVerifier<PathVisitor>::Verify(node, assert_mode);
+         TensorLoadTypeVerifier<PathVisitor>::Verify(node, assert_mode) &&
+         LoopControlVerifier<PathVisitor>::Verify(node, assert_mode);
 }
 }  // namespace tirx
 }  // namespace tvm
