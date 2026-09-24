@@ -160,8 +160,6 @@ class Language:
             at_=self.at,
             with_at_group_=self.with_at_group,
             module_member_=lambda name, value: value,
-            require_defined=self.require_defined,
-            annotation_value_=lambda name, value: value,
             MISSING=self.missing,
             check_well_formed_=lambda result: None,
             constexpr=registry.constexpr,
@@ -242,11 +240,6 @@ class Language:
 
     def frame(self):
         return next(frame for frame in reversed(self.stack) if frame.kind == "function")
-
-    def require_defined(self, value, name):
-        if value is self.missing:
-            raise NameError(name)
-        return value
 
     def func_name(self, name):
         self.frame().function.name = name

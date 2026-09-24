@@ -28,8 +28,6 @@ from tvm.relax.distributed import DTensorType as _DTensorType
 from tvm.relax.distributed import Placement as _Placement
 from tvm.relax.distributed import device_mesh as device_mesh
 from tvm.script.ir_builder import resolve_global_info_args as _resolve_global_info_args
-from tvm.script.ir_builder import IRBuilder as _IRBuilder
-from tvm.script.ir_builder.base import annotation_constructor as _annotation_constructor
 from tvm.script.ir_builder.base import at as _at
 from tvm.script.ir_builder.base import source_span as _source_span
 from tvm.script.parser.protocol_registry import constexpr as constexpr
@@ -84,7 +82,6 @@ supports_mutable_declarations = False
 
 
 @_resolve_global_info_args("vdevice", resolver=resolve_global_info_)
-@_annotation_constructor("shape")
 def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
     """Construct a Relax tensor type.
 
@@ -109,8 +106,8 @@ def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
 
     Returns
     -------
-    result : TensorType or Type
-        The tensor type, or a missing type for an unresolved eager shape annotation.
+    result : TensorType
+        The constructed tensor type.
         String selectors outside an active module always raise ValueError.
     """
     if isinstance(shape, _python.str) and dtype is None:
@@ -119,7 +116,6 @@ def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
 
 
 @_resolve_global_info_args("device_mesh", resolver=resolve_global_info_)
-@_annotation_constructor("shape")
 def DTensor(shape=None, dtype=None, device_mesh=None, placement="", *, ndim=-1, span=None):
     """Construct a Relax distributed tensor type.
 
@@ -144,8 +140,8 @@ def DTensor(shape=None, dtype=None, device_mesh=None, placement="", *, ndim=-1, 
 
     Returns
     -------
-    result : DTensorType or Type
-        The distributed type, or a missing type for an unresolved eager shape annotation.
+    result : DTensorType
+        The constructed distributed type.
         String selectors outside an active module always raise ValueError.
     """
     if device_mesh is None:
@@ -155,7 +151,7 @@ def DTensor(shape=None, dtype=None, device_mesh=None, placement="", *, ndim=-1, 
     return _DTensorType(Tensor(shape, dtype, ndim=ndim), device_mesh, placement, _source_span(span))
 
 
-# The distributed source spelling shares concrete constructors and argument policy.
+# The distributed source spelling shares the decorated concrete constructor.
 dist.DTensor = DTensor
 dist.device_mesh = device_mesh
 
@@ -165,7 +161,6 @@ Range = _ir.Range
 __tvm_value_if__ = True
 
 
-@_annotation_constructor("values")
 def Shape(values=None, ndim=-1, *, span=None):
     """Construct a Relax shape type.
 

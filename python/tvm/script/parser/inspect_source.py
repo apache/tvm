@@ -34,10 +34,30 @@ from collections.abc import Mapping
 from types import CodeType, FrameType, FunctionType
 from typing import Any
 
+from tvm_ffi.dataclasses import MISSING
+
 from tvm.ir import SourceName, Span
 
 from .annotation import parse_annotation
 from .prescan import collect_annotation_free_names
+
+
+class _AnnotationScope(dict):
+    """Snapshot selected bindings; absent names fail only when an annotation reads them."""
+
+    def __init__(self, names, *scopes):
+        super().__init__()
+        for name in names:
+            for scope in scopes:
+                if name in scope:
+                    value = scope[name]
+                    if value is not MISSING:
+                        self[name] = value
+                    # An explicit absence still shadows the remaining scopes.
+                    break
+
+    def __missing__(self, name):
+        raise NameError(f"name {name!r} is not defined")
 
 
 class Source:

@@ -470,7 +470,6 @@ def _prepare_transpiler(
     No builder frame or expression is created here.
     """
     namespace = {
-        "TypeVar": TypeVar,
         "tvm": sys.modules.get("tvm"),
         **_NAMESPACES,
         **environment,
