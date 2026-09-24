@@ -20,7 +20,7 @@
 
 import tvm.script
 
-tvm.script.register_dialect("tirx", "tvm.tirx.script")
+tvm.script.register_dialect("tirx", "tvm.tirx.script", builder_path="tvm.tirx.script.ir_builder")
 
 
 from tvm.ir import Expr
@@ -117,12 +117,12 @@ if not _RUNTIME_ONLY_TIRX:
 
 import tvm.script
 
-tvm.script.register_dialect("tirx", "tvm.tirx.script")
+tvm.script.register_dialect("tirx", "tvm.tirx.script", builder_path="tvm.tirx.script.ir_builder")
 
 
 def _check_script_module(module: "tvm.ir.IRModule") -> None:
     # Delay builder imports until validation, keeping dialect/runtime bootstrap safe.
-    from tvm.script.ir_builder.tirx.parser_protocol import _check_module_well_formed
+    from tvm.tirx.script.ir_builder.parser_protocol import _check_module_well_formed
 
     _check_module_well_formed(module)
 

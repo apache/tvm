@@ -29,6 +29,7 @@ from tvm import relax
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.contrib.pickle_memoize import memoize
 from tvm.relax.backend.cuda.cutlass import partition_for_cutlass
+from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.testing import (
     get_relax_attention_module,
     get_relax_matmul_module,
@@ -38,7 +39,6 @@ from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import relax as relax_builder
 
 
 @pytest.fixture(autouse=True)
@@ -891,9 +891,9 @@ def attention_rewrite_size(request):
 def get_relax_attention_rewrite_module(
     q_shape, k_shape, v_shape, out_shape, dtype, bias_shape=None, scale=None
 ):
+    from tvm.relax.script import ir_builder as relax_builder
     from tvm.script.ir_builder import IRBuilder
-    from tvm.script.ir_builder import relax as relax_builder
-    from tvm.script.ir_builder import tirx as T
+    from tvm.tirx.script import ir_builder as T
 
     with IRBuilder() as builder:
         with relax_builder.function():

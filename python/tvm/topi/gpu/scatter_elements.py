@@ -20,7 +20,7 @@
 import tvm
 from tvm import te, tirx
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as T
+from tvm.tirx.script import ir_builder as T
 
 from .. import utils
 from ..math import cast

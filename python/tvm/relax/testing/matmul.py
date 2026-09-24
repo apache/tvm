@@ -18,9 +18,9 @@
 """Utilities to construct matmul workloads."""
 
 import tvm
+from tvm.relax.script import ir_builder as relax_builder
 from tvm.script import relax as R
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import relax as relax_builder
 
 
 def get_relax_matmul_module(

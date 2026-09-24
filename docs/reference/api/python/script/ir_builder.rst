@@ -35,18 +35,21 @@ and :func:`~tvm.script.ir_builder.parser_protocol.function_`.
 .. automodule:: tvm.script.ir_builder.parser_protocol
    :members:
 
-tvm.script.ir_builder.relax
+Dialect builders are owned by their respective script packages. Registered
+compatibility paths under ``tvm.script.ir_builder`` resolve to the same modules.
+
+tvm.relax.script.ir_builder
 ***************************
-.. automodule:: tvm.script.ir_builder.relax
+.. automodule:: tvm.relax.script.ir_builder
    :members:
    :exclude-members: ExternFunc, ShapeExpr, TupleGetItem, Range
 
-tvm.script.ir_builder.relax.distributed
+tvm.relax.script.ir_builder.distributed
 ***************************************
-.. automodule:: tvm.script.ir_builder.relax.distributed
+.. automodule:: tvm.relax.script.ir_builder.distributed
    :members:
 
-tvm.script.ir_builder.tirx
+tvm.tirx.script.ir_builder
 **************************
-.. automodule:: tvm.script.ir_builder.tirx
+.. automodule:: tvm.tirx.script.ir_builder
    :members:

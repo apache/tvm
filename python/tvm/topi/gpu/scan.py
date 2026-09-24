@@ -24,7 +24,7 @@ import tvm
 from tvm import te
 from tvm.contrib.thrust import can_use_rocthrust, can_use_thrust
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as T
+from tvm.tirx.script import ir_builder as T
 
 from ..math import cast, ceil_log2
 from ..transform import expand_dims, reshape, squeeze, transpose

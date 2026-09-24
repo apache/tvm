@@ -21,8 +21,8 @@
 from tvm import tirx
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder.tirx import prim_func as build_prim_func
 from tvm.target.codegen import llvm_version_major
+from tvm.tirx.script.ir_builder import prim_func as build_prim_func
 
 from .. import TensorIntrin
 from .dot_product_common import (

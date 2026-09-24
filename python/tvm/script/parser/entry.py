@@ -251,15 +251,15 @@ def make_decorator(
             For ``T.prim_func``, select scheduled-TIR construction semantics:
             buffers have no default layout and the body is wrapped in a root
             block. Defaults to False, selecting TIRx construction. See
-            :func:`tvm.script.ir_builder.tirx.prim_func`.
+            :func:`tvm.tirx.script.ir_builder.prim_func`.
         persistent : bool, optional
             For ``T.prim_func``, mark the resulting function as a persistent
             kernel. Defaults to False. See
-            :func:`tvm.script.ir_builder.tirx.prim_func`.
+            :func:`tvm.tirx.script.ir_builder.prim_func`.
         pure : bool, optional
             For ``R.function``, declare whether the function is pure, meaning
             that it has no observable side effects. Defaults to True. See
-            :func:`tvm.script.ir_builder.relax.function_`.
+            :func:`tvm.relax.script.ir_builder.function_`.
         **options
             Keyword options are forwarded to the selected language variant's
             :func:`~tvm.script.ir_builder.parser_protocol.function_` hook,

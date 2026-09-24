@@ -18,7 +18,7 @@
 import tvm
 import tvm.testing
 from tvm import relax, tirx, topi
-from tvm.script.ir_builder import relax as R
+from tvm.relax.script import ir_builder as R
 from tvm.script.ir_builder.base import IRBuilder
 
 
@@ -165,7 +165,7 @@ def test_dataflow_block():
 
 def test_regression_py_print():
     # Test that the py_print directs to python builtin print
-    from tvm.script.ir_builder.relax.ir import py_print  # pylint: disable=import-outside-toplevel
+    from tvm.relax.script.ir_builder.ir import py_print  # pylint: disable=import-outside-toplevel
 
     assert py_print == print
 

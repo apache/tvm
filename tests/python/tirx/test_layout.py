@@ -26,7 +26,6 @@ from tvm.ir import assert_structural_equal
 from tvm.ir.type import PointerType, PrimType
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as Tx_builder
 from tvm.sym import Analyzer
 from tvm.tirx import Var
 from tvm.tirx.cuda.tile_primitive.tma_utils import (
@@ -54,6 +53,7 @@ from tvm.tirx.layout import (
     wgid,
     wid_in_wg,
 )
+from tvm.tirx.script import ir_builder as Tx_builder
 
 
 def test_axis():

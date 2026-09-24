@@ -1088,7 +1088,7 @@ def test_scalar_assign_error_not_swallowed():
     swallowed and the assignment would silently fall through to eval_assign."""
     from unittest.mock import patch
 
-    original = tvm.script.ir_builder.tirx.buffer_store
+    original = tvm.tirx.script.ir_builder.buffer_store
 
     def bomb(*args, **kwargs):
         # Intercept only the scalar-assignment path (indices == [0])
@@ -1107,7 +1107,7 @@ def func():
 """
     # The ValueError propagates unchanged. A broad ``except Exception`` here
     # previously swallowed it and fell through to eval_assign.
-    with patch("tvm.script.ir_builder.tirx.buffer_store", side_effect=bomb):
+    with patch("tvm.tirx.script.ir_builder.buffer_store", side_effect=bomb):
         with pytest.raises(ValueError, match="boom"):
             from_source(src)
 

@@ -21,7 +21,7 @@ from math import pi
 
 from tvm import ir, te, tirx
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as T
+from tvm.tirx.script import ir_builder as T
 
 
 def stft(

@@ -34,7 +34,7 @@ _ir = None
 def _get_ir():
     global _ir
     if _ir is None:
-        from tvm.script.ir_builder.tirx import ir as _mod
+        from tvm.tirx.script.ir_builder import ir as _mod
 
         _ir = _mod
     return _ir
