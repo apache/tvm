@@ -473,6 +473,12 @@ void ClearPyFuncRegistry() { py_func_registry.clear(); }
 void RegisterPyFunc(const std::string& name, ffi::Function func) { py_func_registry[name] = func; }
 
 /*!
+ * \brief Unregister a Python function registered with RegisterPyFunc
+ * \param name The function name
+ */
+void UnregisterPyFunc(const std::string& name) { py_func_registry.erase(name); }
+
+/*!
  * \brief Get a registered Python function
  * \param name The function name
  * \return The Python function
@@ -522,6 +528,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def_packed("vm.builtin.call_py_func", CallPyFunc)
       .def("vm.builtin.register_py_func", RegisterPyFunc)
+      .def("vm.builtin.unregister_py_func", UnregisterPyFunc)
       .def("vm.builtin.get_py_func", GetPyFunc)
       .def("vm.builtin.clear_py_func_registry", ClearPyFuncRegistry);
 }

@@ -16,8 +16,11 @@
 # under the License.
 # ruff: noqa: E501, F841
 
+import gc
 import sys
 import tempfile
+import weakref
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -478,8 +481,32 @@ def test_op_call_py_func(exec_mode):
     expected2 = 1.0 / (1.0 + np.exp(-np.maximum(y_data, 0.0)))
     assert (result2.numpy() == expected2).all()
 
-    clear_func = tvm.get_global_func("vm.builtin.clear_py_func_registry")
-    clear_func()
+    unregister_func = tvm.get_global_func("vm.builtin.unregister_py_func")
+    unregister_func("torch_relu")
+    unregister_func("torch_sigmoid")
+
+
+def test_py_func_registry_is_scoped_to_its_module():
+    """A module's finalizer must drop its own registrations and nothing else."""
+    from tvm.relax.base_py_module import BasePyModule
+
+    get_func = tvm.get_global_func("vm.builtin.get_py_func")
+    tvm.get_global_func("vm.builtin.register_py_func")("registry_probe", lambda x: x)
+
+    # __new__ skips __init__'s JIT compilation; only the registration matters here.
+    module = BasePyModule.__new__(BasePyModule)
+    module.ir_mod = SimpleNamespace(pyfuncs={"registry_owned": lambda self, x: x})
+    module._register_python_functions()
+    module_ref = weakref.ref(module)
+
+    del module
+    gc.collect()
+
+    assert module_ref() is None, "the registry must not keep the module alive"
+    assert get_func("registry_probe") is not None, "another owner's function was dropped"
+    with pytest.raises(tvm.error.InternalError, match="not found in registry"):
+        get_func("registry_owned")
+    tvm.get_global_func("vm.builtin.unregister_py_func")("registry_probe")
 
 
 def test_op_to_device(exec_mode):
