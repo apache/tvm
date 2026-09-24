@@ -30,8 +30,8 @@ from types import FrameType, FunctionType
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from tvm.ir import SourceName, Span
+from tvm.script import ir_builder as builder_ir
 from tvm.script.ir_builder import base
-from tvm.script.ir_builder import ir as builder_ir
 from tvm.script.ir_builder.base import SpanEntry
 
 from . import _NAMESPACES, _initialize, jit_support
@@ -258,9 +258,25 @@ def make_decorator(
         check_well_formed : bool, optional
             Whether to check that the constructed function is well formed.
             Defaults to True.
+        s_tir : bool, optional
+            For ``T.prim_func``, select scheduled-TIR construction semantics:
+            buffers have no default layout and the body is wrapped in a root
+            block. Defaults to False, selecting TIRx construction. See
+            :func:`tvm.script.ir_builder.tirx.prim_func`.
+        persistent : bool, optional
+            For ``T.prim_func``, mark the resulting function as a persistent
+            kernel. Defaults to False. See
+            :func:`tvm.script.ir_builder.tirx.prim_func`.
+        pure : bool, optional
+            For ``R.function``, declare whether the function is pure, meaning
+            that it has no observable side effects. Defaults to True. See
+            :func:`tvm.script.ir_builder.relax.function_`.
         **options
-            Additional language variant options. ``T.prim_func`` accepts ``s_tir`` and
-            ``persistent``; ``R.function`` accepts ``pure``.
+            Keyword options are forwarded to the selected language variant's
+            :func:`~tvm.script.ir_builder.parser_protocol.function_` hook,
+            except ``check_well_formed``, which controls parser validation.
+            Options supported by only one language variant are not shared
+            between ``T.prim_func`` and ``R.function``.
 
         Returns
         -------
@@ -321,7 +337,7 @@ def make_macro_decorator(
         Accepts a function directly or keyword options. The ``hygienic``
         option defaults to True and snapshots the definition environment;
         False captures the calling environment on each invocation. Other
-        options remain metadata for the namespace consumer.
+        keyword options are accepted but do not affect helper construction.
 
     Raises
     ------
@@ -350,6 +366,10 @@ def make_macro_decorator(
             instead of its calling environment. Defaults to True. ``T.macro``
             and ``R.macro`` capture values at definition time; ``T.inline``
             refreshes captured closure cells when called.
+        **options
+            Keyword configuration for this helper decorator. ``hygienic``
+            controls name lookup as described above; other options are
+            accepted but are not consumed or forwarded to builder hooks.
 
         Returns
         -------

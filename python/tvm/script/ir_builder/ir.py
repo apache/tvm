@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package tvm.script.ir_builder.ir.ir"""
+"""Package tvm.script.ir_builder.ir"""
 
 import inspect
 from typing import TypeVar
@@ -22,8 +22,8 @@ from typing import TypeVar
 from tvm.ir import BaseFunc, GlobalInfo, GlobalVar
 from tvm.runtime import Object as tvm_Object
 
-from ..base import IRBuilder
 from . import _ffi_api
+from .base import IRBuilder
 from .frame import IRModuleFrame
 
 T = TypeVar("T")

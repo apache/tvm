@@ -282,11 +282,11 @@ or emission receipt, allowing result attachment without a construction context. 
 helpers still require ``.ctx`` to locate internal effects. At an ordinary assignment boundary,
 ``.ctx(..., attach_result=False)`` preserves construction context while leaving the returned
 value's attribution to ``bind_`` through its separate ``value_span``.
-The parser-owned ``parser.protocol_registry`` module defines registration APIs, metadata and
-persistent registration state. Dialects apply these policies beside concrete definitions,
+The parser-owned :mod:`tvm.script.parser.protocol_registry` module defines registration APIs,
+metadata and persistent registration state. Dialects apply these policies beside concrete definitions,
 constructor creation or necessary exposure sites, without namespace scans or bulk
 registration inventories. Dialect ``parser_protocol`` modules implement construction hooks. The shared
-``ir_builder.ir.parser_protocol`` documents the detailed builder-hook contract and links
+:mod:`tvm.script.ir_builder.parser_protocol` documents the detailed builder-hook contract and links
 to the registry for special syntax policies. Dialect hooks retain typed signatures and
 document only their specific behavior. For example, dialects import ``args_policy``
 from ``tvm.script.parser.protocol_registry`` to register literal argument policies.
@@ -384,7 +384,7 @@ construction policy and finalization; the syntax transpiler does not maintain an
 TIR builder
 ~~~~~~~~~~~
 
-The TIR builder (``python/tvm/tirx/script/builder/``) implements the construction operations
+The TIR builder (``python/tvm/script/ir_builder/tirx/``) implements the construction operations
 behind public ``T`` syntax. Builder modules also support direct programmatic construction;
 public decorators and internal frame-opening operations have distinct roles. Key categories:
 
@@ -416,7 +416,7 @@ public decorators and internal frame-opening operations have distinct roles. Key
 Relax builder
 ~~~~~~~~~~~~~
 
-The Relax builder (``python/tvm/relax/script/builder/``) implements:
+The Relax builder (``python/tvm/script/ir_builder/relax/``) implements:
 
 **Function and dataflow**:
 

@@ -117,7 +117,7 @@ tvm.script.register_dialect("relax", "tvm.relax.script")
 
 def _check_script_module(module: "tvm.ir.IRModule") -> None:
     # Delay builder imports until validation, keeping dialect/runtime bootstrap safe.
-    from .script.builder.parser_protocol import _check_module_well_formed
+    from tvm.script.ir_builder.relax.parser_protocol import _check_module_well_formed
 
     _check_module_well_formed(module)
 

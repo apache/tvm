@@ -23,7 +23,7 @@ from tvm import te, tirx, topi
 from tvm.ir import Call
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tirx as T
-from tvm.tirx.script.builder.utils import buffer_proxy
+from tvm.script.ir_builder.tirx.utils import buffer_proxy
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr

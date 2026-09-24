@@ -23,17 +23,17 @@ tvm.script.ir_builder
 .. automodule:: tvm.script.ir_builder
    :members:
    :imported-members:
-   :exclude-members: Any
+   :exclude-members: GenericConst, Range, StringImm, StringType
 
-tvm.script.ir_builder.ir
-************************
-The :class:`~tvm.script.ir_builder.IRBuilder` class is also available as
-``tvm.script.ir_builder.ir.IRBuilder``.
+tvm.script.ir_builder.parser_protocol
+*************************************
+Shared module construction and location helpers are exported directly from
+:mod:`tvm.script.ir_builder`. The protocol below describes the hooks implemented
+by each language variant, including :func:`~tvm.script.ir_builder.parser_protocol.if_`
+and :func:`~tvm.script.ir_builder.parser_protocol.function_`.
 
-.. automodule:: tvm.script.ir_builder.ir
+.. automodule:: tvm.script.ir_builder.parser_protocol
    :members:
-   :imported-members:
-   :exclude-members: GenericConst, IRBuilder, Range, StringImm, StringType
 
 tvm.script.ir_builder.relax
 ***************************

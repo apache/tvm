@@ -37,12 +37,12 @@ Parser entry points
 
 Core IR builder
 ---------------
-.. automodule:: tvm.tirx.script.builder.ir
+.. automodule:: tvm.script.ir_builder.tirx.ir
    :members:
    :no-index:
    :exclude-members: LetAnnotation, alloc_tcgen05_ldst_frag, anylist_getitem, anylist_resetitem, anylist_setitem_call_packed, anylist_setitem_call_cpacked, match_buffer
 
-.. currentmodule:: tvm.tirx.script.builder.ir
+.. currentmodule:: tvm.script.ir_builder.tirx.ir
 
 .. py:function:: match_buffer(param, shape=None, dtype="float32", data=None, strides=None, elem_offset=None, scope="global", align=-1, offset_factor=0, layout="default")
 

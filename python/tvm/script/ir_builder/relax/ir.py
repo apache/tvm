@@ -207,9 +207,8 @@ from tvm.runtime._tensor import (
     vulkan,
     webgpu,
 )
-from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder.ir import decl_function
-from tvm.script.ir_builder.ir.ir import _class_global_infos
+from tvm.script.ir_builder import IRBuilder, decl_function
+from tvm.script.ir_builder.ir import _class_global_infos
 from tvm.script.parser.protocol_registry import module_decorator as _module_decorator
 
 from . import _ffi_api, frame

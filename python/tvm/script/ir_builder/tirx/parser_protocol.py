@@ -19,7 +19,7 @@
 Hooks delegate construction to this language variant's native builder and IR APIs.
 For example, generated ``X.if_(condition)`` creates the native conditional frame;
 ``X.then_()`` and ``X.else_()`` enter its branches. See the corresponding shared
-``tvm.script.ir_builder.ir.parser_protocol`` hooks for operand and span contracts.
+``tvm.script.ir_builder.parser_protocol`` hooks for operand and span contracts.
 """
 
 from __future__ import annotations
@@ -29,13 +29,13 @@ from collections.abc import Sequence
 from functools import partial as _partial
 from typing import Any
 
+import tvm.script.ir_builder.tirx as _builder
 from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm.ir.prim import _ffi_api as _prim_ffi
 from tvm.script.ir_builder import IRBuilder as _IRBuilder
 from tvm.script.ir_builder import base as _base
 
-from .. import builder as _builder
 from . import _ffi_api
 from . import frame as _frame
 from . import ir as _native
@@ -43,9 +43,9 @@ from . import ir as _native
 _Span = _base.SpanEntry | _ir.Span | tuple[_ir.SourceName, int, int, int, int] | None
 
 
-# ------------
+# --------------------------------------
 # Section: control flow
-# ------------
+# --------------------------------------
 #
 # ``with X.if_(cond):`` opens a conditional frame.
 # ``with X.then_():`` enters its true branch.
@@ -58,24 +58,24 @@ _Span = _base.SpanEntry | _ir.Span | tuple[_ir.SourceName, int, int, int, int] |
 
 
 def if_(condition: Any, *, span: _Span = None) -> _frame.IfFrame:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.if_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.if_`."""
     return _base.at_(span, _native.If(condition))
 
 
 def then_(*, span: _Span = None) -> _frame.ThenFrame:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.then_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.then_`."""
     return _base.at_(span, _native.Then())
 
 
 def else_(*, span: _Span = None) -> _frame.ElseFrame:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.else_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.else_`."""
     return _base.at_(span, _native.Else())
 
 
 def for_(
     iterable: Any, *, names: str | Sequence[str] | None = None, span: _Span = None
 ) -> _frame.ForFrame:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.for_`.
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.for_`.
 
     A single native loop returns its scalar Var; multiple loops return their
     sequence. frame.vars remains the stable sequence for source unpacking.
@@ -89,12 +89,12 @@ def for_(
 
 
 def while_(condition: Any, *, span: _Span = None) -> _frame.WhileFrame:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.while_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.while_`."""
     return _base.at_(span, _native.While(condition))
 
 
 def range_(*args: Any, annotations: dict[str, Any] | None = None) -> _frame.ForFrame:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.range_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.range_`."""
     if len(args) == 1:
         args = (0, args[0], None)
     elif len(args) == 2:
@@ -107,7 +107,7 @@ def range_(*args: Any, annotations: dict[str, Any] | None = None) -> _frame.ForF
 
 
 def break_(*, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.break_`.
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.break_`.
 
     Legality is checked on the completed function, across loop and function boundaries.
     """
@@ -115,16 +115,16 @@ def break_(*, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
 
 
 def continue_(*, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.continue_`.
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.continue_`.
 
     Legality is checked on the completed function, across loop and function boundaries.
     """
     return _base.at_(span, _native.evaluate(_native.continue_loop()))
 
 
-# ------------
+# --------------------------------------
 # Section: operator overloading
-# ------------
+# --------------------------------------
 #
 # ``X.if_then_else_(c, a, b)`` selects an expression.
 # ``X.and_(a, b)`` constructs conjunction.
@@ -139,58 +139,58 @@ def continue_(*, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
 
 
 def if_then_else_(condition: Any, true_value: Any, false_value: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.if_then_else_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.if_then_else_`."""
     return _builder.select(condition, true_value, false_value)
 
 
 def and_(*values: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.and_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.and_`."""
     return _builder.logical_and(*values)
 
 
 def or_(*values: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.or_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.or_`."""
     return _builder.logical_or(*values)
 
 
 def not_(value: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.not_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.not_`."""
     return _builder.logical_not(value)
 
 
 def lt_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.lt_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.lt_`."""
     return _prim_ffi._OpLT(lhs, rhs, _base.source_span(span))
 
 
 def le_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.le_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.le_`."""
     return _prim_ffi._OpLE(lhs, rhs, _base.source_span(span))
 
 
 def gt_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.gt_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.gt_`."""
     return _prim_ffi._OpGT(lhs, rhs, _base.source_span(span))
 
 
 def ge_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.ge_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.ge_`."""
     return _prim_ffi._OpGE(lhs, rhs, _base.source_span(span))
 
 
 def eq_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.eq_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.eq_`."""
     return _prim_ffi._OpEQ(lhs, rhs, _base.source_span(span))
 
 
 def ne_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.ne_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.ne_`."""
     return _prim_ffi._OpNE(lhs, rhs, _base.source_span(span))
 
 
-# ------------
+# --------------------------------------
 # Section: context lookup and resolution
-# ------------
+# --------------------------------------
 #
 # ``X.resolve_global_info_(key)`` resolves module metadata.
 # ``X.resolve_type_var_("n")`` resolves a symbolic dimension.
@@ -198,7 +198,7 @@ def ne_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
 
 
 def resolve_global_info_(content: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.resolve_global_info_`.
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.resolve_global_info_`.
 
     TIRx does not define global-info selectors.
     """
@@ -212,18 +212,18 @@ def resolve_type_var_(
     value: _ir.Var | None = None,
     span: _Span = None,
 ) -> _ir.Var:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.resolve_type_var_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.resolve_type_var_`."""
     return _base._current_function_frame().resolve_type_var(name, dtype, value=value, span=span)
 
 
 def call_global_var_(function: _ir.GlobalVar, args: Sequence[Any]) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.call_global_var_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.call_global_var_`."""
     return _native._call_global(function, *args)
 
 
-# ------------
+# --------------------------------------
 # Section: special protocol
-# ------------
+# --------------------------------------
 #
 # Syntax markers live in tvm.script.parser.protocol_registry.
 # ``with X.function_(...) as fn:`` builds a function frame.
@@ -242,7 +242,7 @@ def function_(
     decl: bool = False,
     span: _Span = None,
 ) -> _frame.PrimFuncFrame:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.function_`.
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.function_`.
 
     Public private/s_tir/persistent options pass to the native function frame;
     is_stir supplies the JIT spelling. The same frame supports declaration and body entry.
@@ -258,7 +258,7 @@ def function_(
 
 
 def arg(name: str, annotation: Any, *, span: _Span = None) -> _ir.Var:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.arg`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.arg`."""
     if getattr(annotation, "__tvm_optional_annotation__", None) is not None:
         raise TypeError("T.Optional is only supported by @T.jit")
     if callable(annotation) and not isinstance(annotation, _ir.Expr):
@@ -287,12 +287,12 @@ def arg(name: str, annotation: Any, *, span: _Span = None) -> _ir.Var:
 
 
 def func_name(name: str) -> None:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.func_name`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.func_name`."""
     return _native.func_name(name)
 
 
 def func_ret_type(annotation: Any, *, span: _Span = None) -> None:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.func_ret_type`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.func_ret_type`."""
     annotation = _base._return_annotation(annotation)
     if callable(annotation) and not isinstance(annotation, _ir.Expr | _ir.Type):
         annotation = annotation()
@@ -302,7 +302,22 @@ def func_ret_type(annotation: Any, *, span: _Span = None) -> None:
 
 
 def check_well_formed_(function: _tir.PrimFunc) -> None:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.check_well_formed_`.
+    """Validate a completed TIRx function.
+
+    Parameters
+    ----------
+    function : tvm.tirx.PrimFunc
+        Completed function to validate, without changing its IR.
+
+    Raises
+    ------
+    ValueError
+        If the function fails language variant validation.
+
+    Notes
+    -----
+    See :func:`tvm.script.ir_builder.parser_protocol.check_well_formed_`
+    for the shared whole-module validation coordinator.
 
     The completed native function owns semantic loop and IR validation.
     Module-wide S-TIR and TIRx checks are supplied separately to the root coordinator.
@@ -338,9 +353,9 @@ def _check_module_well_formed(module: _ir.IRModule) -> None:
         raise ValueError(f"{message}\n{error}") from error
 
 
-# ------------
+# --------------------------------------
 # Section: binding
-# ------------
+# --------------------------------------
 #
 # ``a = X.bind_(value, name="a")`` binds a source name.
 # ``X.decl_mutable_cell_(value, ty=ty)`` declares mutable storage.
@@ -371,7 +386,7 @@ def bind_(
     name_span: _Span = None,
     frame_value: bool = False,
 ) -> Any:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.bind_`.
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.bind_`.
 
     Returned Vars, including buffers, and metadata retain identity, names and spans.
     Other expressions create native Bind nodes; value_span belongs to the RHS.
@@ -441,7 +456,7 @@ def decl_mutable_cell_(
     span: _Span = None,
     name_span: _Span = None,
 ) -> Any:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.decl_mutable_cell_`.
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.decl_mutable_cell_`.
 
     Primitive annotations allocate scalar local storage; vector annotations
     allocate their declared shape. Buffer declaration producers retain their own effects.
@@ -477,7 +492,7 @@ def decl_mutable_cell_(
 def set_mutable_cell_(
     target: _ir.TensorLoad | _ir.Var | _native.scalar_wrapper, value: Any, *, span: _Span = None
 ) -> _base.AlreadyEmitted[_tir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.set_mutable_cell_`.
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.set_mutable_cell_`.
 
     Updates emit a scalar buffer store. Targets must denote scalar storage.
     """
@@ -497,7 +512,7 @@ def set_mutable_cell_(
 
 
 def unpack(value: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.unpack`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.unpack`."""
     if isinstance(value, _ir.Tuple):
         return _python.tuple(value.fields)
     if isinstance(value, _ir.Expr) and isinstance(value.ty, _ir.TupleType):
@@ -505,9 +520,9 @@ def unpack(value: Any) -> Any:
     return value
 
 
-# ------------
+# --------------------------------------
 # Section: statement
-# ------------
+# --------------------------------------
 #
 # ``X.emit_(value)`` emits an expression statement.
 # ``X.return_(value)`` emits a function return.
@@ -517,7 +532,7 @@ def unpack(value: Any) -> Any:
 
 
 def emit_(value: Any, *, span: _Span = None) -> None:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.emit_`.
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.emit_`.
 
     Native statements emit once; receipts are already emitted. Vars, layouts
     and meta_class instances are inert. Sequences are consumed
@@ -553,7 +568,7 @@ def emit_(value: Any, *, span: _Span = None) -> None:
 
 
 def return_(value: Any = None, *, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.return_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.return_`."""
     if value is None:
         raise TypeError("A primitive function return requires an expression")
     return _base.with_at_group_(span, lambda: _native.Return(_builder._as_expr(value)))
@@ -562,14 +577,14 @@ def return_(value: Any = None, *, span: _Span = None) -> _base.AlreadyEmitted[_t
 def setitem_(
     target: Any, key: Any, value: Any, *, span: _Span = None
 ) -> _base.AlreadyEmitted[_tir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.setitem_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.setitem_`."""
     return _base.at_(span, _builder.buffer_store(target, value, key))
 
 
 def setattr_(
     target: Any, name: str, value: Any, *, span: _Span = None
 ) -> _base.AlreadyEmitted[_tir.Stmt] | None:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.setattr_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.setattr_`."""
     previous = getattr(target, name, _base.MISSING)
     if isinstance(previous, _native.scalar_wrapper):
         previous = previous.scalar
@@ -587,7 +602,7 @@ def assert_(
     *,
     span: _Span = None,
 ) -> None:
-    """Implements :func:`tvm.script.ir_builder.ir.parser_protocol.assert_`."""
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.assert_`."""
     kind = "RuntimeError"
     if isinstance(message, tuple):
         if len(message) != 2 or not isinstance(message[0], str):

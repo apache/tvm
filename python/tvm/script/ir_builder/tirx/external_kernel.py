@@ -213,7 +213,7 @@ def call_kernel(
     kwargs : Dict[str, Any]
         Additional keyword arguments to pass to the kernel or compilation.
     """
-    from tvm.script.ir_builder.ir import (  # pylint: disable=import-outside-toplevel
+    from tvm.script.ir_builder import (  # pylint: disable=import-outside-toplevel
         module_get_attr,
         module_set_attr,
     )
