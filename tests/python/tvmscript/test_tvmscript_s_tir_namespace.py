@@ -101,7 +101,7 @@ def test_tirx_construction_roundtrip_and_execution_are_independent(monkeypatch):
 
 @pytest.mark.parametrize("option", ["s_tir", "is_stir"])
 def test_raw_tirx_builder_rejects_legacy_mode(option):
-    from tvm.tirx.script import builder
+    from tvm.script.ir_builder import tirx as builder
 
     with pytest.raises(TypeError, match="unexpected keyword argument"):
         builder.prim_func(**{option: True})
@@ -137,8 +137,8 @@ def test_legacy_mode_is_not_a_function_option(namespace, option):
     ],
 )
 def test_s_tir_operations_have_an_independent_namespace(operation):
-    from tvm.s_tir.script import builder as s_tir_builder
-    from tvm.tirx.script import builder as tirx_builder
+    from tvm.script.ir_builder import s_tir as s_tir_builder
+    from tvm.script.ir_builder import tirx as tirx_builder
 
     assert hasattr(Ts, operation)
     assert hasattr(s_tir_builder, operation)
@@ -166,7 +166,7 @@ def test_tirx_cannot_change_dialect_with_attribute(value):
 @pytest.mark.parametrize("value", [True, False])
 def test_tirx_cannot_change_dialect_from_exit_callback(value):
     from tvm.script.ir_builder import IRBuilder
-    from tvm.tirx.script import builder
+    from tvm.script.ir_builder import tirx as builder
 
     with pytest.raises(ValueError, match="Ts.prim_func"):
         with IRBuilder():

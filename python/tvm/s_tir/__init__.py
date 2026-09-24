@@ -77,7 +77,7 @@ def _check_script_module(module):
     from tvm.tirx import PrimFunc
 
     if any(isinstance(fn, PrimFunc) and not fn.is_tirx for fn in module.functions.values()):
-        from .script.builder import _check_module_well_formed
+        from tvm.script.ir_builder.s_tir import _check_module_well_formed
 
         _check_module_well_formed(module)
 

@@ -20,9 +20,9 @@ import pytest
 
 from tvm import IRModule
 from tvm.script import ir_builder as I
-from tvm.s_tir.script.builder import prim_func as build_prim_func
 from tvm.script.ir_builder import IRBuilder
 from tvm.tirx.script import ir_builder as T
+from tvm.script.ir_builder.s_tir import prim_func as build_prim_func
 
 
 def _assert_print(obj, expected):

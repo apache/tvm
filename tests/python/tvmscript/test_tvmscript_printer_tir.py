@@ -24,10 +24,10 @@ import pytest
 import tvm.testing
 from tvm import ir, s_tir, tirx
 from tvm.ir import Range
-from tvm.s_tir.script.builder import prim_func as build_prim_func
 from tvm.script import s_tir as Ts
 from tvm.script.ir_builder import IRBuilder
 from tvm.tirx.script import ir_builder as T
+from tvm.script.ir_builder.s_tir import prim_func as build_prim_func
 
 
 def _assert_print(obj, expected):

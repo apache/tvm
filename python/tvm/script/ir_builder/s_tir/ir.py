@@ -24,9 +24,9 @@ from typing import Any
 from tvm import ir
 from tvm import tirx as tir
 from tvm.ir import TensorLoad, TensorRegion, is_prim_expr
+from tvm.script.ir_builder.tirx.ir import _get_layout, _record_meta_resource
 from tvm.tirx import Buffer, Expr, IntImm, Var
 from tvm.tirx.layout import Layout
-from tvm.tirx.script.builder.ir import _get_layout, _record_meta_resource
 
 from . import _ffi_api
 from .frame import BlockInitFrame, SBlockFrame

@@ -26,10 +26,10 @@ import tvm.runtime
 import tvm.testing
 from tvm import s_tir, tirx
 from tvm.ir.base import SourceName, Span, assert_structural_equal
-from tvm.s_tir.script.builder import prim_func as build_prim_func
 from tvm.script import s_tir as Ts
 from tvm.script.ir_builder import IRBuilder
 from tvm.tirx.script import ir_builder as T
+from tvm.script.ir_builder.s_tir import prim_func as build_prim_func
 
 
 def test_ir_builder_tir_primfunc_base():
