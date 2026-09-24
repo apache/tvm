@@ -20,7 +20,9 @@ A nested function failure must unwind lexical and construction scopes without
 leaking its source context into a subsequently constructed native expression.
 """
 
+import ast
 import inspect
+import sys
 import traceback
 
 import pytest
@@ -28,6 +30,114 @@ import pytest
 from tvm import ir
 from tvm.ir import prim
 from tvm.script import tirx as T
+from tvm.script.parser import entry
+
+
+@pytest.mark.parametrize(
+    "definition, message, node_kind, version",
+    [
+        pytest.param(
+            "def main(*args):\n    pass",
+            "ordinary named parameters",
+            ast.FunctionDef,
+            (3, 10),
+            id="varargs",
+        ),
+        pytest.param(
+            "def main(**kwargs):\n    pass",
+            "ordinary named parameters",
+            ast.FunctionDef,
+            (3, 10),
+            id="kwargs",
+        ),
+        pytest.param(
+            "def main():\n    try:\n        pass\n    finally:\n        pass",
+            "Unsupported statement: Try",
+            ast.Try,
+            (3, 10),
+            id="try",
+        ),
+        pytest.param(
+            "def main():\n    raise ValueError()",
+            "Unsupported statement: Raise",
+            ast.Raise,
+            (3, 10),
+            id="raise",
+        ),
+        pytest.param(
+            "def main():\n    del value",
+            "Unsupported statement: Delete",
+            ast.Delete,
+            (3, 10),
+            id="delete",
+        ),
+        pytest.param(
+            "def main():\n    match 0:\n        case 0:\n            pass",
+            "Unsupported statement: Match",
+            ast.Match,
+            (3, 10),
+            id="match",
+        ),
+        pytest.param(
+            "def main[n: float]():\n    pass",
+            "bound must be int",
+            "TypeVar",
+            (3, 12),
+            id="type-bound",
+        ),
+        pytest.param(
+            "def main[*ns]():\n    pass",
+            "Only scalar type parameters",
+            "TypeVarTuple",
+            (3, 12),
+            id="type-tuple",
+        ),
+        pytest.param(
+            "def main[**ps]():\n    pass",
+            "Only scalar type parameters",
+            "ParamSpec",
+            (3, 12),
+            id="param-spec",
+        ),
+        pytest.param(
+            "def main[n = int]():\n    pass",
+            "cannot have a default",
+            "TypeVar",
+            (3, 13),
+            id="type-default",
+        ),
+    ],
+)
+def test_rejected_syntax_keeps_source_range_and_recovers(
+    language, definition, message, node_kind, version
+):
+    if sys.version_info < version:
+        pytest.skip(f"requires Python {version[0]}.{version[1]} syntax")
+    source = "@M.function\n" + definition + "\n"
+    kind = getattr(ast, node_kind) if isinstance(node_kind, str) else node_kind
+    node = next(node for node in ast.walk(ast.parse(source)) if isinstance(node, kind))
+    with pytest.raises(SyntaxError, match=message) as caught:
+        entry.parse(source, extra_vars={"M": language.M}, filename="rejected.py")
+    error = caught.value
+    assert type(error) is SyntaxError
+    assert (error.filename, error.lineno, error.offset, error.end_lineno, error.end_offset) == (
+        "rejected.py",
+        node.lineno,
+        node.col_offset + 1,
+        node.end_lineno,
+        node.end_col_offset + 1,
+    )
+    assert not language.functions
+    result = entry.parse("@M.function\ndef valid():\n    pass\n", extra_vars={"M": language.M})
+    assert result.name == "valid"
+
+
+def test_named_parameter_kinds_remain_supported(language):
+    result = entry.parse(
+        "@M.function\ndef main(x: M.Tensor((4,)), /, *, y: M.Tensor((4,))):\n    pass\n",
+        extra_vars={"M": language.M},
+    )
+    assert [parameter.name for parameter in result.params] == ["x", "y"]
 
 
 def test_nested_function_failure_preserves_error_and_recovers(spanned_language):
@@ -221,3 +331,72 @@ def test_undefined_name_reports_the_original_source(language):
             location,
             column + len("missing_value"),
         )
+
+
+def test_missing_parameter_annotation_keeps_source_range(language):
+    # An unannotated script parameter must report that parameter before constructing IR.
+    M = language.M
+    with pytest.raises(SyntaxError, match="requires an annotation") as caught:
+
+        @M.function
+        def main(value):
+            pass
+
+    error = caught.value
+    # The outer test's fixture argument is not the offending script argument.
+    lines, first = inspect.getsourcelines(test_missing_parameter_annotation_keeps_source_range)
+    node = next(
+        n
+        for n in ast.walk(ast.parse("".join(lines)))
+        if isinstance(n, ast.arg) and n.arg == "value"
+    )
+    expected = (
+        __file__,
+        first + node.lineno - 1,
+        node.col_offset + 1,
+        first + node.end_lineno - 1,
+        node.end_col_offset + 1,
+    )
+    assert type(error) is SyntaxError
+    assert (
+        error.filename,
+        error.lineno,
+        error.offset,
+        error.end_lineno,
+        error.end_offset,
+    ) == expected
+    assert not language.functions
+
+
+def test_invalid_quoted_annotation_keeps_source_range(language):
+    # A malformed quoted annotation must report the original literal, not generated code.
+    M = language.M
+    with pytest.raises(SyntaxError, match="Invalid annotation expression") as caught:
+
+        @M.function
+        def main(value: "invalid +"):  # noqa: F722
+            pass
+
+    error = caught.value
+    lines, first = inspect.getsourcelines(test_invalid_quoted_annotation_keeps_source_range)
+    node = next(
+        n
+        for n in ast.walk(ast.parse("".join(lines)))
+        if isinstance(n, ast.Constant) and n.value == "invalid +"
+    )
+    expected = (
+        __file__,
+        first + node.lineno - 1,
+        node.col_offset + 1,
+        first + node.end_lineno - 1,
+        node.end_col_offset + 1,
+    )
+    assert type(error) is SyntaxError
+    assert (
+        error.filename,
+        error.lineno,
+        error.offset,
+        error.end_lineno,
+        error.end_offset,
+    ) == expected
+    assert not language.functions
