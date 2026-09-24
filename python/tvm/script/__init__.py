@@ -33,12 +33,6 @@ _DIALECT_REGISTRY: dict[str, str] = {}
 # Callbacks own concrete eligibility; this list retains no source or construction state.
 _MODULE_VALIDATORS: list[Callable[[Any], None]] = []
 
-# Preserve former implementation imports as aliases of the canonical builders.
-_BUILDER_ALIASES = {
-    "tvm.tirx.script.builder": "tvm.script.ir_builder.tirx",
-    "tvm.relax.script.builder": "tvm.script.ir_builder.relax",
-}
-
 # An empty suffix names the public language variant namespace itself.
 # Builder redirection applies only when no real package owns that name.
 _REDIRECTED_SUBPACKAGES = {
@@ -87,9 +81,8 @@ def register_dialect(name: str, module_path: str) -> None:
     ``__getattr__``, and ``tvm.script.parser.<name>`` / ``tvm.script.ir_builder.<name>``
     resolve to the same script namespace and the corresponding real builder
     package, respectively. When no real builder package exists, external language
-    variants resolve through ``module_path + ".builder"``. Deep aliases, including
-    the former in-tree ``tvm.<variant>.script.builder`` paths, are handled by
-    ``_DialectRedirectFinder`` on ``sys.meta_path``.
+    variants resolve through ``module_path + ".builder"``. Registered namespace
+    imports are handled by ``_DialectRedirectFinder`` on ``sys.meta_path``.
 
     This function is idempotent — re-registering the same name with the same
     path is harmless.
@@ -121,9 +114,6 @@ def _redirect_target(fullname: str) -> str | None:
 
     Returns ``None`` if ``fullname`` is not a redirected name.
     """
-    for legacy, canonical in _BUILDER_ALIASES.items():
-        if fullname == legacy or fullname.startswith(legacy + "."):
-            return canonical + fullname[len(legacy) :]
     if fullname.startswith("tvm.script."):
         # tvm.script.<language variant>[.subpath]
         rest = fullname[len("tvm.script.") :]

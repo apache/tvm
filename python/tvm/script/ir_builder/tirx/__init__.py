@@ -90,7 +90,7 @@ from .utils import seq_scope as seq_scope
 If = if_
 For = for_
 
-# Syntax capability: mutable declaration policies apply only in this language variant.
+# Syntax capability: mutable declaration policies apply only in this dialect.
 supports_mutable_declarations = True
 
 is_type_var = _ir.is_prim_var

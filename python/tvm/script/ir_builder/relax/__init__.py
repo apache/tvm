@@ -79,7 +79,7 @@ from .parser_protocol import (
 If = if_
 For = for_
 
-# Syntax capability: mutable declaration policies apply only in this language variant.
+# Syntax capability: mutable declaration policies apply only in this dialect.
 supports_mutable_declarations = False
 
 

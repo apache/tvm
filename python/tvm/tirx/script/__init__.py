@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Public canonical TVMScript language variant namespace."""
+"""Public canonical TVMScript dialect namespace."""
 
 import importlib as _importlib
 import sys as _sys
@@ -68,8 +68,6 @@ def _initialize() -> None:
 
 
 def __getattr__(name: str) -> _Any:
-    if name == "builder":
-        return _importlib.import_module("tvm.script.ir_builder.tirx")
     if name == "tile":
         return _importlib.import_module(__name__ + ".tile")
     if name.startswith("_") and name != "__all__":
