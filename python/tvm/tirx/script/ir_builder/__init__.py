@@ -23,10 +23,10 @@ import tvm_ffi as _ffi
 
 from tvm import ir as _ir
 from tvm import tirx as _tir
+from tvm.script.ir_builder import dynamic as dynamic
 from tvm.script.ir_builder.base import annotation_constructor as _annotation_constructor
 from tvm.script.ir_builder.base import at as _at
 from tvm.script.ir_builder.base import source_span as _source_span
-from tvm.script.ir_builder import dynamic as dynamic
 from tvm.script.parser.protocol_registry import constexpr as constexpr
 from tvm.script.parser.protocol_registry import (
     mutable_cell_decl as _mutable_cell_decl,
