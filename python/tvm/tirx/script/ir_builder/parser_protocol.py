@@ -273,6 +273,7 @@ def func_name(name: str) -> None:
 
 def func_ret_type(annotation: Any, *, span: _Span = None) -> None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.func_ret_type`."""
+    annotation = _base._return_annotation(annotation)
     if callable(annotation) and not isinstance(annotation, _ir.Expr | _ir.Type):
         annotation = annotation()
     if isinstance(annotation, _ir.Expr):
