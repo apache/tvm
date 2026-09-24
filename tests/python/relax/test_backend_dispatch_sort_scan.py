@@ -36,7 +36,7 @@ from tvm.script import tirx as T
 def test_dispatch_scanop():
     @I.ir_module
     class Before:
-        I.module_global_infos({"vdevice": [I.vdevice("llvm", 0)]})
+        I.module_global_infos({"vdevice": [R.vdevice("llvm", 0)]})
 
         @R.function
         def foo(x: R.Tensor((2, 3), "float32", "llvm")):
@@ -49,7 +49,7 @@ def test_dispatch_scanop():
 
     mod = DispatchSortScan()(Before)
 
-    vdevices = [I.vdevice("llvm", 0)]
+    vdevices = [R.vdevice("llvm", 0)]
     x = relax.Var("x", R.Tensor((2, 3), "float32", vdevices[0]))
     bb = relax.BlockBuilder()
 
@@ -75,7 +75,7 @@ def test_dispatch_scanop_cuda():
 
     @I.ir_module
     class Before:
-        I.module_global_infos({"vdevice": [I.vdevice("cuda", 0)]})
+        I.module_global_infos({"vdevice": [R.vdevice("cuda", 0)]})
 
         @R.function
         def main(x: R.Tensor(("m", 3), "float32", "cuda")):
@@ -88,7 +88,7 @@ def test_dispatch_scanop_cuda():
 
     target = tvm.target.Target("cuda", host="llvm")
 
-    vdevices = [I.vdevice("cuda", 0)]
+    vdevices = [R.vdevice("cuda", 0)]
     m = tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor((m, 3), "float32", vdevices[0]))
     bb = relax.BlockBuilder()
@@ -121,7 +121,7 @@ def test_dispatch_scanop_cuda():
 def test_dispatch_sort():
     @I.ir_module
     class Before:
-        I.module_global_infos({"vdevice": [I.vdevice("llvm", 0)]})
+        I.module_global_infos({"vdevice": [R.vdevice("llvm", 0)]})
 
         @R.function
         def foo(x: R.Tensor(("m", 3), "float32", "llvm")):
@@ -132,7 +132,7 @@ def test_dispatch_sort():
                 R.output(gv)
             return gv
 
-    vdevices = [I.vdevice("llvm", 0)]
+    vdevices = [R.vdevice("llvm", 0)]
     m = tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor((m, 3), "float32", vdevices[0]))
     bb = relax.BlockBuilder()
@@ -153,7 +153,7 @@ def test_dispatch_sort():
 def test_dispatch_sort_cuda():
     @I.ir_module
     class Before:
-        I.module_global_infos({"vdevice": [I.vdevice("cuda")]})
+        I.module_global_infos({"vdevice": [R.vdevice("cuda")]})
 
         @R.function
         def foo(x: R.Tensor((2, 3), "float32", "cuda")):
@@ -173,7 +173,7 @@ def test_dispatch_sort_cuda():
 
     target = tvm.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
 
-    vdevices = [I.vdevice("cuda", 0)]
+    vdevices = [R.vdevice("cuda", 0)]
     x = relax.Var("x", R.Tensor((2, 3), "float32", vdevices[0]))
     y = relax.Var("y", R.Tensor((2, 3), "float32"))
     bb = relax.BlockBuilder()
@@ -218,7 +218,7 @@ def test_dispatch_sort_cuda():
 def test_dispatch_argsort():
     @I.ir_module
     class Before:
-        I.module_global_infos({"vdevice": [I.vdevice("llvm", 0)]})
+        I.module_global_infos({"vdevice": [R.vdevice("llvm", 0)]})
 
         @R.function
         def foo(x: R.Tensor(("m", 3), "float32", "llvm")):
@@ -229,7 +229,7 @@ def test_dispatch_argsort():
                 R.output(gv)
             return gv
 
-    vdevices = [I.vdevice("llvm", 0)]
+    vdevices = [R.vdevice("llvm", 0)]
     m = tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor((m, 3), "float32", vdevices[0]))
     bb = relax.BlockBuilder()
@@ -249,7 +249,7 @@ def test_dispatch_argsort():
 def test_dispatch_argsort_cuda():
     @I.ir_module
     class Before:
-        I.module_global_infos({"vdevice": [I.vdevice("cuda")]})
+        I.module_global_infos({"vdevice": [R.vdevice("cuda")]})
 
         @R.function
         def foo(x: R.Tensor((2, 3), "float32", "cuda")):
@@ -269,7 +269,7 @@ def test_dispatch_argsort_cuda():
 
     target = tvm.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
 
-    vdevices = [I.vdevice("cuda", 0)]
+    vdevices = [R.vdevice("cuda", 0)]
     x = relax.Var("x", R.Tensor((2, 3), "float32", vdevices[0]))
     y = relax.Var("y", R.Tensor((2, 3), "float32"))
     bb = relax.BlockBuilder()
@@ -311,7 +311,7 @@ def test_dispatch_argsort_cuda():
 def test_dispatch_topk():
     @I.ir_module
     class Before:
-        I.module_global_infos({"vdevice": [I.vdevice("llvm", 0)]})
+        I.module_global_infos({"vdevice": [R.vdevice("llvm", 0)]})
 
         @R.function
         def foo(x: R.Tensor(("m", 3), "float32", "llvm")):
@@ -322,7 +322,7 @@ def test_dispatch_topk():
                 R.output(gv)
             return gv
 
-    vdevices = [I.vdevice("llvm", 0)]
+    vdevices = [R.vdevice("llvm", 0)]
     m = tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor((m, 3), "float32", vdevices[0]))
     bb = relax.BlockBuilder()
@@ -342,7 +342,7 @@ def test_dispatch_topk():
 def test_dispatch_topk_cuda():
     @I.ir_module
     class Before:
-        I.module_global_infos({"vdevice": [I.vdevice("cuda")]})
+        I.module_global_infos({"vdevice": [R.vdevice("cuda")]})
 
         @R.function
         def foo(x: R.Tensor((2, 3), "float32", "cuda")):
@@ -354,7 +354,7 @@ def test_dispatch_topk_cuda():
 
     target = tvm.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
 
-    vdevices = [I.vdevice("cuda", 0)]
+    vdevices = [R.vdevice("cuda", 0)]
     x = relax.Var("x", R.Tensor((2, 3), "float32", vdevices[0]))
     bb = relax.BlockBuilder()
     with target:
@@ -376,7 +376,7 @@ def test_dispatch_topk_cuda():
 def test_dispatch_topk_gpu():
     @I.ir_module
     class Before:
-        I.module_global_infos({"vdevice": [I.vdevice("vulkan")]})
+        I.module_global_infos({"vdevice": [R.vdevice("vulkan")]})
 
         @R.function
         def foo(x: R.Tensor((2, 3), "float32", "vulkan")):
@@ -390,7 +390,7 @@ def test_dispatch_topk_gpu():
 
     target = tvm.target.Target("vulkan", host="llvm")
 
-    vdevices = [I.vdevice("vulkan", 0)]
+    vdevices = [R.vdevice("vulkan", 0)]
     x = relax.Var("x", R.Tensor((2, 3), "float32", vdevices[0]))
     bb = relax.BlockBuilder()
     with target:
@@ -693,7 +693,7 @@ def test_dispatch_cumsum_webgpu_symbolic_non_contiguous_axis():
 
     @I.ir_module
     class Symbolic:
-        I.module_global_infos({"vdevice": [I.vdevice("webgpu", 0)]})
+        I.module_global_infos({"vdevice": [R.vdevice("webgpu", 0)]})
 
         @R.function
         def main(x: R.Tensor((1, "n", 9), "float32", "webgpu")):

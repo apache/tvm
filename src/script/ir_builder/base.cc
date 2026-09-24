@@ -22,11 +22,25 @@
 #include <tvm/ir/module.h>
 #include <tvm/script/ir_builder/base.h>
 
+#include <algorithm>
 #include <utility>
 
 namespace tvm {
 namespace script {
 namespace ir_builder {
+
+tvm::Var ResolveTypeVar(ffi::Map<ffi::String, tvm::Var>* symbols, const ffi::String& name,
+                        ffi::Optional<PrimType> dtype, ffi::Optional<tvm::Var> value, Span span) {
+  TVM_FFI_CHECK(!name.empty(), ValueError) << "A symbolic variable requires a nonempty name";
+  if (auto existing = symbols->Get(name)) return existing.value();
+  tvm::Var symbol =
+      value.has_value() ? value.value() : tvm::Var(name, dtype.value_or(PrimType::Int(64)), span);
+  TVM_FFI_CHECK(symbol->ty.as<PrimTypeNode>(), TypeError)
+      << "A symbolic variable requires a primitive type";
+  if (symbol->name.empty()) details::Namer::Name(symbol, name);
+  symbols->Set(name, symbol);
+  return symbol;
+}
 
 namespace {
 
@@ -43,21 +57,72 @@ bool Contains(const Span& outer, const Span& inner) {
          PositionLessEqual(inner->end_line, inner->end_column, outer->end_line, outer->end_column);
 }
 
+bool SameLocation(const Span& lhs, const Span& rhs) {
+  return Contains(lhs, rhs) && Contains(rhs, lhs);
+}
+
 void AppendNormalizedSpan(const Span& span, std::vector<Span>* normalized) {
   if (!span.defined()) {
     return;
   }
   if (const auto* sequential = span.as<SequentialSpanNode>()) {
-    for (const Span& nested : sequential->spans) {
-      AppendNormalizedSpan(nested, normalized);
+    // Stored node/frame context can repeat the active caller prefix.  Merge
+    // overlapping chains before appending their distinct definition locations.
+    std::vector<Span> nested;
+    for (const Span& item : sequential->spans) {
+      AppendNormalizedSpan(item, &nested);
+    }
+    size_t common_prefix = 0;
+    while (common_prefix < normalized->size() && common_prefix < nested.size() &&
+           SameLocation((*normalized)[common_prefix], nested[common_prefix])) {
+      ++common_prefix;
+    }
+    size_t overlap = std::min(normalized->size(), nested.size());
+    for (; overlap > 0; --overlap) {
+      bool matches = true;
+      for (size_t i = 0; i < overlap; ++i) {
+        if (!SameLocation((*normalized)[normalized->size() - overlap + i], nested[i])) {
+          matches = false;
+          break;
+        }
+      }
+      if (matches) {
+        break;
+      }
+    }
+    for (size_t i = std::max(overlap, common_prefix); i < nested.size(); ++i) {
+      AppendNormalizedSpan(nested[i], normalized);
     }
     return;
   }
   if (!normalized->empty() && Contains(normalized->back(), span)) {
     normalized->back() = span;
-  } else {
+  } else if (normalized->empty() || !Contains(span, normalized->back())) {
     normalized->push_back(span);
   }
+}
+
+Span NormalizedSpan(const std::vector<Span>& normalized) {
+  if (normalized.empty()) {
+    return Span();
+  }
+  if (normalized.size() == 1) {
+    return normalized[0];
+  }
+  return SequentialSpan(ffi::Array<Span>(normalized.begin(), normalized.end()));
+}
+
+Span ComposeSpan(const Span& active, const Span& existing) {
+  std::vector<Span> normalized;
+  AppendNormalizedSpan(active, &normalized);
+  // A node constructed under a single caller can acquire its explicit local
+  // location later. Treat that existing caller as a shared prefix, just as
+  // AppendNormalizedSpan does for an existing SequentialSpan.
+  if (!normalized.empty() && SameLocation(normalized.front(), existing)) {
+    return NormalizedSpan(normalized);
+  }
+  AppendNormalizedSpan(existing, &normalized);
+  return NormalizedSpan(normalized);
 }
 
 }  // namespace
@@ -65,6 +130,10 @@ void AppendNormalizedSpan(const Span& span, std::vector<Span>* normalized) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRBuilderFrameNode::RegisterReflection();
   IRBuilderNode::RegisterReflection();
+}
+
+IRBuilderFrameNode::IRBuilderFrameNode() {
+  if (IRBuilder::IsInScope()) source_span = IRBuilder::Current()->GetCurrentSourceSpan();
 }
 
 void IRBuilderFrameNode::EnterWithScope() {
@@ -105,31 +174,25 @@ void IRBuilderNode::PopSourceSpan() {
   source_spans.pop_back();
 }
 
-Span IRBuilderNode::GetCurrentSourceSpan() const {
+Span IRBuilderNode::GetCurrentSourceSpan(Span location) const {
   std::vector<Span> normalized;
   normalized.reserve(source_spans.size());
   for (const Span& span : source_spans) {
     AppendNormalizedSpan(span, &normalized);
   }
-  if (normalized.empty()) {
-    return Span();
-  }
-  if (normalized.size() == 1) {
-    return normalized[0];
-  }
-  ffi::Array<Span> spans;
-  spans.reserve(normalized.size());
-  for (const Span& span : normalized) {
-    spans.push_back(span);
-  }
-  return SequentialSpan(std::move(spans));
+  AppendNormalizedSpan(location, &normalized);
+  return NormalizedSpan(normalized);
 }
 
 ffi::ObjectRef IRBuilderNode::SetCurrentSourceSpan(ffi::ObjectRef obj) const {
-  Span span = GetCurrentSourceSpan();
-  if (span.defined()) {
-    if (const auto* expr = obj.as<ExprNode>(); expr != nullptr && !expr->span.defined()) {
-      expr->span = std::move(span);
+  return SetSourceSpan(std::move(obj), Span());
+}
+
+ffi::ObjectRef IRBuilderNode::SetSourceSpan(ffi::ObjectRef obj, Span span) const {
+  span = ComposeSpan(GetCurrentSourceSpan(), span);
+  if (span.defined() && obj.defined()) {
+    if (Span* target = details::SourceSpanAccessor::vtable()(obj)) {
+      *target = ComposeSpan(span, *target);
     }
   }
   return obj;
@@ -172,6 +235,21 @@ bool IRBuilder::IsInScope() {
 
 namespace details {
 
+SourceSpanAccessor::FType& SourceSpanAccessor::vtable() {
+  static FType inst;
+  return inst;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  SourceSpanAccessor::vtable()
+      .SetDispatch<ffi::Object>([](const ffi::ObjectRef&) -> Span* { return nullptr; })
+      .SetDispatch<ExprNode>(
+          [](const ffi::ObjectRef& obj) -> Span* { return &obj.as<ExprNode>()->span; })
+      .SetDispatch<IRBuilderFrameNode>([](const ffi::ObjectRef& obj) -> Span* {
+        return &obj.as<IRBuilderFrameNode>()->source_span;
+      });
+}
+
 Namer::FType& Namer::vtable() {
   static FType inst;
   return inst;
@@ -203,6 +281,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("script.ir_builder.IRBuilderPopSourceSpan", &IRBuilderNode::PopSourceSpan)
       .def_method("script.ir_builder.IRBuilderSetCurrentSourceSpan",
                   &IRBuilderNode::SetCurrentSourceSpan)
+      .def_method("script.ir_builder.IRBuilderSetSourceSpan", &IRBuilderNode::SetSourceSpan)
       .def("script.ir_builder.IRBuilderName", IRBuilder::Name<ffi::ObjectRef>);
 }
 

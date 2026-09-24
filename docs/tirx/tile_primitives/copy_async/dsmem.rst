@@ -141,12 +141,12 @@ chunk's offsets each step:
 
 .. code-block:: python
 
-    if not outer_extents:                                 # one contiguous chunk
+    if Tx.constexpr(not outer_extents):                                 # one contiguous chunk
         Tx.ptx["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
             Tx.cast(mapped[1], "uint32"), src_buf.ptr_to(src_st),
             Tx.cast(chunk_bytes, "uint32"), Tx.cast(mapped[0], "uint32"))
     else:
-        for loop_vars in Tx.grid(*outer_extents):          # one chunk per outer coord
+        for loop_vars in T.grid(*outer_extents):              # one chunk per outer coord
             ...  # re-decl src/dst views at the per-chunk offset
             Tx.ptx["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
                 Tx.cast(mapped[1], "uint32"), src_ptr,

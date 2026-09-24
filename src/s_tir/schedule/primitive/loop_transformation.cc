@@ -502,7 +502,7 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
 
   explicit BufferIndicesMapExtractor(Var loop_var) : loop_var_(loop_var) {}
 
-  static ffi::Map<ffi::String, ffi::Array<ffi::String>> Extract(Var loop_var, SBlock& block) {
+  static ffi::Map<BufferVar, ffi::Array<Var>> Extract(Var loop_var, SBlock& block) {
     auto extractor = ffi::make_object<BufferIndicesMapExtractor>(loop_var);
     extractor->Visit(std::move(block->body));
     return extractor->buffer_indices_map;
@@ -510,7 +510,7 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
-    ffi::Array<ffi::String> indices;
+    ffi::Array<Var> indices;
     bool check_ = false;
     for (size_t i = 0; i < store->indices.size(); i++) {
       auto var = store->indices[i].as<PrimVar>();
@@ -518,15 +518,15 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
         check_ = true;
         break;
       }
-      indices.push_back(var.value()->name);
+      indices.push_back(var.value());
     }
-    if (buffer_indices_map.find(store->buffer.name()) == buffer_indices_map.end() && !check_)
-      buffer_indices_map.Set(store->buffer.name(), indices);
+    if (buffer_indices_map.find(store->buffer) == buffer_indices_map.end() && !check_)
+      buffer_indices_map.Set(store->buffer, indices);
     return StmtExprVisitor::Visit_(store);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
-    ffi::Array<ffi::String> indices;
+    ffi::Array<Var> indices;
     bool check_ = false;
     for (size_t i = 0; i < load->indices.size(); i++) {
       auto var = load->indices[i].as<PrimVar>();
@@ -534,32 +534,30 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
         check_ = true;
         break;
       }
-      indices.push_back(var.value()->name);
+      indices.push_back(var.value());
     }
     BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
-    if (buffer_indices_map.find(buffer.name()) == buffer_indices_map.end() && !check_) {
-      buffer_indices_map.Set(buffer.name(), indices);
+    if (buffer_indices_map.find(buffer) == buffer_indices_map.end() && !check_) {
+      buffer_indices_map.Set(buffer, indices);
     }
     return StmtExprVisitor::Visit_(load);
   }
 
   Var loop_var_;
-  ffi::Map<ffi::String, ffi::Array<ffi::String>> buffer_indices_map;
+  ffi::Map<BufferVar, ffi::Array<Var>> buffer_indices_map;
 };
 
-ffi::Array<TensorRegion> MutateBufferRegion(
-    ffi::Map<ffi::String, ffi::Array<ffi::String>> buffer_indices_map,
-    ffi::Map<ffi::String, Range> index_range_map, ffi::Array<TensorRegion> region_arr) {
+ffi::Array<TensorRegion> MutateBufferRegion(ffi::Map<BufferVar, ffi::Array<Var>> buffer_indices_map,
+                                            ffi::Map<Var, Range> index_range_map,
+                                            ffi::Array<TensorRegion> region_arr) {
   // Update the region with new Ranges and return new TensorRegion
   ffi::Array<TensorRegion> new_region_arr =
       region_arr.Map([&buffer_indices_map, &index_range_map](const TensorRegion& region) {
         TensorRegion new_region = region;
-        auto it =
-            buffer_indices_map.find(new_region->source.as_or_throw<tvm::tirx::BufferVar>().name());
+        auto it = buffer_indices_map.find(new_region->source.as_or_throw<BufferVar>());
         if (it == buffer_indices_map.end()) return new_region;
 
-        ffi::Array<ffi::String> old_indices =
-            buffer_indices_map[new_region->source.as_or_throw<tvm::tirx::BufferVar>().name()];
+        ffi::Array<Var> old_indices = (*it).second;
         ffi::Array<Range> new_ranges;
         for (size_t i = 0; i < old_indices.size(); i++) {
           new_ranges.push_back(index_range_map[old_indices[i]]);
@@ -617,14 +615,16 @@ class BlockMutator : public StmtExprMutator {
     }
 
     // Get the (iter_var, new Range) map
-    ffi::Map<ffi::String, Range> index_range_map;
+    ffi::Map<Var, Range> index_range_map;
     for (size_t i = 0; i < new_block->iter_vars.size(); i++) {
       IterVar iter = new_block->iter_vars[i];
-      index_range_map.Set(iter->var->name, iter->dom);
+      // The body still uses the original Vars until substitution below. Their
+      // identities distinguish axes even when producer names are empty or equal.
+      index_range_map.Set(_op->iter_vars[i]->var, iter->dom);
     }
 
     // Get the (BufferVar, indices) map
-    ffi::Map<ffi::String, ffi::Array<ffi::String>> buffer_indices_map =
+    ffi::Map<BufferVar, ffi::Array<Var>> buffer_indices_map =
         BufferIndicesMapExtractor::Extract(new_loop_var_, new_block);
     ffi::Array<TensorRegion> new_writes =
         MutateBufferRegion(buffer_indices_map, index_range_map, new_block->writes);

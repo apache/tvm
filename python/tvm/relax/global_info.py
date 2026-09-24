@@ -14,13 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Global information used by Relax."""
+"""Concrete global information used by Relax."""
 
 import tvm_ffi
 
-import tvm
 from tvm.ir import GlobalInfo
-from tvm.runtime import Device
+from tvm.runtime import Device, convert
+from tvm.target import Target
 
 from . import _ffi_api
 
@@ -46,7 +46,7 @@ class VDevice(GlobalInfo):
         memory_scope: str = "global",
     ) -> None:
         if isinstance(target, dict | str):
-            target = tvm.target.Target(tvm.runtime.convert(target))
+            target = Target(convert(target))
         if isinstance(target, Device):
-            target = tvm.target.Target.from_device(target)
+            target = Target.from_device(target)
         self.__init_handle_by_constructor__(_ffi_api.VDevice, target, vdevice_id, memory_scope)

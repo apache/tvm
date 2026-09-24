@@ -63,6 +63,23 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
     ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(data.value(), count_data_var);
   }
   auto is_new_var = [&](const Expr& e) { return e->IsInstance<VarNode>() && !d->IsVarDefined(e); };
+  // All expression-string annotation fields use the same Python-binding rule.
+  // Bare TypeVars are real annotation bindings; compound expressions involving
+  // them, or any expression referring to a later parameter, must be quoted.
+  auto expression_doc = [&](const PrimExpr& e, const AccessPath& e_p,
+                            bool was_undefined = false) -> ExprDoc {
+    bool needs_quote = stringify_undefined_shape && was_undefined;
+    auto walk_fn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+      needs_quote = needs_quote ||
+                    (stringify_undefined_shape &&
+                     (!d->IsVarDefined(var) || stringify_shape_vars.count(var))) ||
+                    (stringify_compound_shape_vars.count(var) && !e.same_as(var));
+      return ffi::WalkResult::Advance();
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(e, walk_fn);
+    ExprDoc result = d->AsDoc<ExprDoc>(e, e_p);
+    return needs_quote ? ExprDoc(ExprStringDoc(result, e_p)) : result;
+  };
   auto add_out_of_line_var_def = [&](const Var& var, const AccessPath& var_p) {
     TVM_FFI_ICHECK(!d->IsVarDefined(var));
     ExprDoc lhs = DefineVar(var, frame, d);
@@ -92,33 +109,11 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
     for (int i = 0; i < n; ++i) {
       PrimExpr e = shape[i];
       AccessPath e_p = shape_p->ArrayItem(i);
-      bool contains_new_var = false;
-      bool contains_compound_shape_var = false;
-      std::unordered_set<Var> vars_in_shape;
-      auto walk_fn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-        vars_in_shape.insert(var);
-        contains_new_var =
-            contains_new_var || !d->IsVarDefined(var) || stringify_shape_vars.count(var);
-        contains_compound_shape_var =
-            contains_compound_shape_var || stringify_compound_shape_vars.count(var);
-        return ffi::WalkResult::Advance();
-      };
-      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(e, walk_fn);
-      if (is_new_var(e)) {
+      bool was_undefined = is_new_var(e);
+      if (was_undefined) {
         add_out_of_line_var_def(e.as_or_throw<Var>(), e_p);
       }
-      ExprDoc result = d->AsDoc<ExprDoc>(e, e_p);
-      bool is_bare_compound_shape_var =
-          e.as<VarNode>() && stringify_compound_shape_vars.count(e.as_or_throw<Var>());
-      bool stringify_compound_expr = contains_compound_shape_var && !is_bare_compound_shape_var;
-      results.push_back((stringify_undefined_shape && contains_new_var) || stringify_compound_expr
-                            ? ExprStringDoc(result, e_p)
-                            : result);
-      // A quoted shape expression defines every Var it contains.  Do not quote
-      // later dimensions merely because they reuse a Var introduced here.
-      for (const Var& var : vars_in_shape) {
-        stringify_shape_vars.erase(var);
-      }
+      results.push_back(expression_doc(e, e_p, was_undefined));
     }
     kwargs.Set("shape", TupleDoc(results));
   }
@@ -159,15 +154,19 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
       PrimExpr e = strides[i];
       AccessPath e_p = strides_p->ArrayItem(i);
       if (is_new_var(e)) {
-        if (try_inline_def(e, e_p, [=]() {
-              return d->AsDoc<ExprDoc>(buffer, buffer_p)
-                  ->Attr("strides")[{LiteralDoc::Int(i, std::nullopt)}];
-            })) {
+        // String stride declarations have int64 dtype.
+        PrimType stride_ty = e.ty();
+        if (!stride_ty.IsScalar() || !stride_ty.MatchesElementType(DLDataTypeCode::kDLInt, 64)) {
+          add_out_of_line_var_def(e.as_or_throw<Var>(), e_p);
+        } else if (try_inline_def(e, e_p, [=]() {
+                     return d->AsDoc<ExprDoc>(buffer, buffer_p)
+                         ->Attr("strides")[{LiteralDoc::Int(i, std::nullopt)}];
+                   })) {
           results.push_back(LiteralDoc::Str(e.as_or_throw<Var>()->name, e_p));
           continue;
         }
       }
-      results.push_back(d->AsDoc<ExprDoc>(e, e_p));
+      results.push_back(expression_doc(e, e_p));
     }
     kwargs.Set("strides", TupleDoc(results));
   }
@@ -176,18 +175,14 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
   if (const auto* int_imm = buffer->elem_offset.as<IntImmNode>()) {
     if (int_imm->value != 0 ||
         int_imm->ty.as_or_throw<PrimType>()->dtype != buffer->DefaultIndexType()) {
-      kwargs.Set("elem_offset",
-                 d->AsDoc<ExprDoc>(buffer->elem_offset,  //
-                                   buffer_p->Attr("elem_offset")));
+      kwargs.Set("elem_offset", expression_doc(buffer->elem_offset, buffer_p->Attr("elem_offset")));
     }
   } else if (is_new_var(buffer->elem_offset)) {
     try_inline_def(buffer->elem_offset, buffer_p->Attr("elem_offset"),
                    [=]() { return d->AsDoc<ExprDoc>(buffer, buffer_p)->Attr("elem_offset"); });
     needs_print_factor = true;
   } else {
-    kwargs.Set("elem_offset",
-               d->AsDoc<ExprDoc>(buffer->elem_offset,  //
-                                 buffer_p->Attr("elem_offset")));
+    kwargs.Set("elem_offset", expression_doc(buffer->elem_offset, buffer_p->Attr("elem_offset")));
   }
   // Step 6. Handle `buffer.scope`
   {
@@ -237,12 +232,15 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
       // Unwrap single-element array: DeclBuffer expects Optional<PrimExpr>, not Array.
       // Use the normal expression printer so a bound scalar alias stays a scalar
       // load, while an ordinary buffer load retains its indices.
-      kwargs.Set("allocated_addr",
-                 d->AsDoc<ExprDoc>(buffer->allocated_addr[0],
-                                   buffer_p->Attr("allocated_addr")->ArrayItem(0)));
+      kwargs.Set("allocated_addr", expression_doc(buffer->allocated_addr[0],
+                                                  buffer_p->Attr("allocated_addr")->ArrayItem(0)));
     } else {
-      kwargs.Set("allocated_addr",
-                 d->AsDoc<ExprDoc>(buffer->allocated_addr, buffer_p->Attr("allocated_addr")));
+      ffi::Array<ExprDoc> addresses;
+      for (size_t i = 0; i < buffer->allocated_addr.size(); ++i) {
+        addresses.push_back(expression_doc(buffer->allocated_addr[i],
+                                           buffer_p->Attr("allocated_addr")->ArrayItem(i)));
+      }
+      kwargs.Set("allocated_addr", TupleDoc(addresses));
     }
   }
 

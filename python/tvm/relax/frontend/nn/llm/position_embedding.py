@@ -499,7 +499,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         ext_factors: T.Buffer | None = None,
     ):
         kwargs = {}
-        if ext_factors:
+        if ext_factors is not None:
             kwargs["ext_factors"] = ext_factors
         cos_freq, sin_freq, var_map = switch_rope_freq_func(rope_scaling)(
             pos * scale, d, rotary_dim, theta, "float32", **kwargs
@@ -725,7 +725,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
         ext_factors: T.Buffer | None = None,
     ):
         kwargs = {}
-        if ext_factors:
+        if ext_factors is not None:
             kwargs["ext_factors"] = ext_factors
         cos_freq, sin_freq, var_map = switch_rope_freq_func(rope_scaling)(
             pos * scale, d, rotary_dim, theta, "float32", **kwargs

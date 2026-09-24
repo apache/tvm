@@ -20,19 +20,16 @@
 import pytest
 
 import tvm.testing
-from tvm.script.parser.core.diagnostics import Source
-from tvm.script.parser.core.evaluator import ExprEvaluator
+from tvm.script.parser.entry import _run_statements
+from tvm.tirx.script import builder as T
 
 
 def _calc(expr, extra_vars=None):
     if extra_vars is None:
         extra_vars = {}
-    source = Source(expr)
-    mod_ast = source.as_ast()
-    mod_body_ast = mod_ast.body
-    expr_stmt_ast = mod_body_ast[0]
-    expr_ast = expr_stmt_ast.value
-    return ExprEvaluator.eval(None, extra_vars, expr_ast)
+    return _run_statements(
+        "def evaluate():\n    return " + expr + "\n", T, extra_vars, set(), preserve_return=True
+    )
 
 
 def test_evaluator_basic():

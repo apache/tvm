@@ -108,7 +108,7 @@ def test_symbolic_shape_in_prim_value():
         @R.function
         def main(
             A: R.Tensor([16, 16], "float32"),
-            arg_row_index: R.Prim("int64"),
+            arg_row_index: T.int64,
         ):
             cls = Expected
 

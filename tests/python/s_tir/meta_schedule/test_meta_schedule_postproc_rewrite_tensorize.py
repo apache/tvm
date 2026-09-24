@@ -230,11 +230,11 @@ class Conv2dNCHWcVNNIModuleTensorized:
                         dtype="int32",
                         offset_factor=1,
                     )
-                    A_u8x4 = A.vload([0], "uint8x4")
-                    A_i32 = T.reinterpret(A_u8x4, dtype="int32")
-                    B_i8x64 = B.vload([0, 0], dtype="int8x64")
-                    B_i32x16 = T.reinterpret(B_i8x64, dtype="int32x16")
-                    C_i32x16 = C.vload([0], dtype="int32x16")
+                    A_u8x4: T.uint8x4 = A.vload([0], "uint8x4")
+                    A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")
+                    B_i8x64: T.int8x64 = B.vload([0, 0], dtype="int8x64")
+                    B_i32x16: T.int32x16 = T.reinterpret(B_i8x64, dtype="int32x16")
+                    C_i32x16: T.int32x16 = C.vload([0], dtype="int32x16")
                     C[T.ramp(0, 1, 16)] = T.call_llvm_pure_intrin(
                         T.llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512"),
                         C_i32x16,

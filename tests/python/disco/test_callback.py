@@ -68,8 +68,8 @@ def test_callback():
 
         @R.function
         def transform_params(
-            rank_arg: R.Prim("int64"),
-            fget_item: R.Callable([R.Any, R.Prim("int64")], R.Any),
+            rank_arg: T.int64,
+            fget_item: R.Callable([R.Any, T.int64], R.Any),
         ):
             cls = Module
 

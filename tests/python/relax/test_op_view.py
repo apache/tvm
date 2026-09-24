@@ -54,7 +54,7 @@ def test_infer_shape_of_2d_static_view():
 
 
 def test_error_if_shape_argument_is_not_shape():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(TypeError):
 
         @R.function
         def func(A: R.Tensor([16])):
@@ -105,7 +105,7 @@ def test_infer_shape_of_2d_static_view_same_size_as_2d_source():
 
 
 def test_error_if_1d_static_view_larger_than_1d_source():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function
         def func(A: R.Tensor([16])):
@@ -114,7 +114,7 @@ def test_error_if_1d_static_view_larger_than_1d_source():
 
 
 def test_error_if_static_2d_view_larger_than_source():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function
         def func(A: R.Tensor([16])):
@@ -171,7 +171,7 @@ def test_infer_shape_of_2d_dynamic_view():
 
 
 def test_error_if_1d_dynamic_view_larger_than_1d_source():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function
         def func(A: R.Tensor(["N"])):
@@ -180,9 +180,8 @@ def test_error_if_1d_dynamic_view_larger_than_1d_source():
             return B
 
 
-@pytest.mark.xfail(reason="See https://github.com/apache/tvm/pull/16877")
 def test_error_if_1d_dynamic_view_provably_larger_than_1d_source():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function
         def func(A: R.Tensor(["N"])):
@@ -192,7 +191,7 @@ def test_error_if_1d_dynamic_view_provably_larger_than_1d_source():
 
 
 def test_error_if_2d_dynamic_view_provably_larger_than_1d_source():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function
         def func(A: R.Tensor(["N"])):
@@ -245,7 +244,7 @@ def test_infer_dtype_of_float32_view():
 
 
 def test_error_if_view_dtype_is_void():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(TypeError):
 
         @R.function
         def func(A: R.Tensor("float32")):
@@ -338,7 +337,7 @@ def test_view_dtype_may_be_smaller_than_input_dtype():
 
 def test_error_if_view_dtype_is_larger_than_input_dtype():
     """A view may not exceed the bounds of the viewed array"""
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function
         def func(A: R.Tensor([16], "uint8")):
@@ -393,7 +392,7 @@ def test_error_if_number_of_bytes_of_view_is_larger_than_original():
     byte/element).
 
     """
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function
         def func(A: R.Tensor([8], "float16")):
@@ -410,7 +409,7 @@ def test_error_for_non_zero_relative_byte_offset():
 
     """
 
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function
         def func(A: R.Tensor):
@@ -451,12 +450,12 @@ def test_applying_unknown_relative_byte_offset_is_legal():
     """
 
     @R.function(private=True)
-    def explicit_ty(A: R.Tensor, relative_byte_offset: R.Prim("int64")) -> R.Tensor:
+    def explicit_ty(A: R.Tensor, relative_byte_offset: T.int64) -> R.Tensor:
         B: R.Tensor = R.memory.view(A, relative_byte_offset=relative_byte_offset)
         return B
 
     @R.function(private=True)
-    def inferred_ty(A: R.Tensor, relative_byte_offset: R.Prim("int64")):
+    def inferred_ty(A: R.Tensor, relative_byte_offset: T.int64):
         B = R.memory.view(A, relative_byte_offset=relative_byte_offset)
         return B
 

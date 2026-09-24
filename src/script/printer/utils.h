@@ -157,9 +157,9 @@ inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
   return doc;
 }
 
-inline std::vector<std::pair<std::string, ExprDoc>> DefineTypeVarDocs(
+inline std::vector<std::pair<Var, ExprDoc>> DefineTypeVarDocs(
     const std::unordered_set<const VarNode*>& type_vars, const Frame& frame, const IRDocsifier& d) {
-  std::vector<std::pair<std::string, ExprDoc>> type_var_docs;
+  std::vector<std::pair<Var, ExprDoc>> type_var_docs;
   type_var_docs.reserve(type_vars.size());
   for (const VarNode* var_node : type_vars) {
     Var var = ffi::GetRef<Var>(var_node);
@@ -169,10 +169,11 @@ inline std::vector<std::pair<std::string, ExprDoc>> DefineTypeVarDocs(
                           : d->Define(var, frame, var->name.empty() ? "v" : var->name);
     const auto* id_doc = var_doc.as<IdDocNode>();
     TVM_FFI_ICHECK(id_doc != nullptr);
-    type_var_docs.emplace_back(id_doc->name, var_doc);
+    type_var_docs.emplace_back(var, var_doc);
   }
-  std::sort(type_var_docs.begin(), type_var_docs.end(),
-            [](const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
+  std::sort(type_var_docs.begin(), type_var_docs.end(), [](const auto& lhs, const auto& rhs) {
+    return lhs.second.template as<IdDocNode>()->name < rhs.second.template as<IdDocNode>()->name;
+  });
   return type_var_docs;
 }
 
@@ -181,9 +182,8 @@ inline bool UsePEP695TypeVars(const IRDocsifier& d) {
                                       d->cfg->GetExtraConfig<bool>("relax.use_pep695", false));
 }
 
-inline Doc WrapFunctionDocWithTypeVars(
-    const IRDocsifier& d, FunctionDoc function_doc,
-    const std::vector<std::pair<std::string, ExprDoc>>& type_var_docs) {
+inline Doc WrapFunctionDocWithTypeVars(const IRDocsifier& d, FunctionDoc function_doc,
+                                       const std::vector<std::pair<Var, ExprDoc>>& type_var_docs) {
   if (type_var_docs.empty()) {
     return HeaderWrapper(d, function_doc);
   }
@@ -197,11 +197,19 @@ inline Doc WrapFunctionDocWithTypeVars(
 
   d->ir_usage.insert("type_var");
   ffi::Array<StmtDoc> stmts;
-  for (const auto& [name, var_doc] : type_var_docs) {
+  ffi::Array<StmtDoc> body;
+  for (const auto& [var, var_doc] : type_var_docs) {
+    const ffi::String& name = var_doc.as<IdDocNode>()->name;
     stmts.push_back(AssignDoc(
         var_doc, IdDoc("TypeVar")->Call({LiteralDoc::Str(name, ffi::Optional<AccessPath>())}),
         std::nullopt));
+    // TypeVar supplies the eager annotation's real Python binding. The body
+    // explicitly declares its native symbol instead of capturing that metadata.
+    PrimType dtype = var->ty.as_or_throw<PrimType>();
+    body.push_back(AssignDoc(var_doc, TIR(d, DType2Str(dtype->dtype))->Call({}), std::nullopt));
   }
+  body.insert(body.end(), function_doc->body.begin(), function_doc->body.end());
+  function_doc->body = std::move(body);
   stmts.push_back(function_doc);
   return HeaderWrapper(d, StmtBlockDoc(stmts));
 }

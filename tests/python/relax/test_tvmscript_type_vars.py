@@ -38,6 +38,7 @@ def test_type_vars_roundtrip():
         assert script.startswith("from __future__ import annotations\n\n")
         assert "def main[M](" in script
         assert 'R.Tensor((M, M * 2), dtype="float32")' in script
+        assert "M = T.int64()" not in script
         typed = tvm.script.from_source(
             """
 @R.function(private=True)
@@ -49,13 +50,14 @@ def func[M: int](x: R.Tensor((M, M * 2), "float32")):
     else:
         assert "from __future__ import annotations" not in script
         assert 'M = TypeVar("M")' in script
+        assert "M = T.int64()" in script
         assert 'R.Tensor((M, "M * 2"), dtype="float32")' in script
 
     portable = func.script(extra_config={"relax.use_pep695": False})
     assert "from __future__ import annotations" not in portable
     assert 'M = TypeVar("M")' in portable
     assert 'R.Tensor((M, "M * 2"), dtype="float32")' in portable
-    assert "M = T.int64()" not in script
+    assert "M = T.int64()" in portable
     assert "UNUSED_GENERIC" not in script
     assert [param.name for param in func.params] == ["x"]
     assert not hasattr(func, "type_params")

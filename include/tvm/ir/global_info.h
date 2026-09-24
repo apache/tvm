@@ -25,6 +25,7 @@
 #define TVM_IR_GLOBAL_INFO_H_
 
 #include <tvm/ffi/object.h>
+#include <tvm/ffi/reflection/registry.h>
 
 namespace tvm {
 

@@ -120,8 +120,7 @@ def select_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
                         if inst_gen.make_guard(dst):
                             dst_indices = T.meta_var(inst_gen.generate_indices(dst))
                             true_value_indices = T.meta_var(inst_gen.generate_indices(true_value))
-                            pred = T.meta_var(analyzer.simplify(op.predicate.apply(inst_gen.generate_axes(dst))))  # noqa: E501
-                            T.evaluate(T.nki.affine_select(dst_buffer[tuple(dst_indices)], pred, true_value_buffer[tuple(true_value_indices)], false_value))  # noqa: E501
+                            T.evaluate(T.nki.affine_select(dst_buffer[tuple(dst_indices)], analyzer.simplify(op.predicate.apply(inst_gen.generate_axes(dst))), true_value_buffer[tuple(true_value_indices)], false_value))  # noqa: E501
     # fmt: on
 
     return impl

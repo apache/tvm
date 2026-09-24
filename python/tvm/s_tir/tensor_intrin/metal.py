@@ -93,7 +93,7 @@ def get_simdgroup_load_intrin(
             for i, j in T.grid(col, row):
                 with T.sblock("load"):
                     vii, vjj = T.axis.remap("SS", [i, j])
-                    if transpose_matrix:
+                    if T.constexpr(transpose_matrix):
                         # C[vii, vjj] = A[vjj, vii]
                         C[vjj, vii] = A[vii, vjj]
                     else:
@@ -157,7 +157,7 @@ def get_simdgroup_store_intrin(
             for i, j in T.grid(col, row):
                 with T.sblock("store"):
                     vii, vjj = T.axis.remap("SS", [i, j])
-                    if transpose_matrix:
+                    if T.constexpr(transpose_matrix):
                         C[vjj, vii] = A[vii, vjj]
                     else:
                         C[vii, vjj] = A[vii, vjj]

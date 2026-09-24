@@ -403,7 +403,7 @@ def test_flip():
 def test_to_vdevice():
     @I.ir_module
     class ToVDevice:
-        I.module_global_infos({"vdevice": [I.vdevice("llvm")]})
+        I.module_global_infos({"vdevice": [R.vdevice("llvm")]})
 
         @R.function
         def foo(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -412,7 +412,7 @@ def test_to_vdevice():
 
     x = relax.Var("x", R.Tensor((), "int32"))
     bb = relax.BlockBuilder()
-    vdev = I.vdevice("llvm")
+    vdev = R.vdevice("llvm")
     with bb.function("foo", (x,)):
         tensor = bb.emit(relax.op.to_vdevice(x, vdev))
         bb.emit_func_output(tensor)

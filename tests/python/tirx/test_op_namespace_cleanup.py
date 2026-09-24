@@ -229,7 +229,8 @@ def test_backend_specific_wrappers_are_not_root_exports():
 
 
 def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
-    from tvm.tirx.script import builder, parser
+    from tvm.script.parser import tirx as parser
+    from tvm.tirx.script import builder
     from tvm.tirx.script.builder import ir as builder_ir
 
     backend_name = "unit_test_backend"
@@ -292,9 +293,9 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
     @T.prim_func
     def device_namespaces(dst: T.handle, src: T.handle):
         A = T.match_buffer(src, (1,), "float32")
-        R = T.alloc_buffer((1,), "float32", scope="local")
+        Result = T.alloc_buffer((1,), "float32", scope="local")
         T.cuda.cta_sync()
-        T.s_tir.ldg32(R[0], 1, A[0], 0)
+        T.s_tir.ldg32(Result[0], 1, A[0], 0)
         T.metal.simd_shuffle(A[0], 0)
         T.metal.simd_shuffle_up(A[0], 1)
         T.metal.simd_shuffle_down(A[0], 1)

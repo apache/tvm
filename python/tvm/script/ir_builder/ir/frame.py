@@ -22,4 +22,14 @@ from ..base import IRBuilderFrame
 
 
 @_register_object("script.ir_builder.IRModuleFrame")
-class IRModuleFrame(IRBuilderFrame): ...
+class IRModuleFrame(IRBuilderFrame):
+    def __getattr__(self, name):
+        """Expose a declared function through the native module's reference map.
+
+        Reflected native fields and Python methods resolve before this fallback.
+        Source aliases therefore retain this frame and its plain GlobalVars.
+        """
+        try:
+            return self.global_vars[name]
+        except KeyError:
+            raise AttributeError(f"IRModuleFrame has no attribute {name!r}") from None

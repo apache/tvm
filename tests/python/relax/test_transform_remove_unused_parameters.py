@@ -147,8 +147,8 @@ def test_remove_extra_prim_parameters():
         @R.function(private=True)
         def func(
             A: R.Tensor(["m", "n"], "float32"),
-            _m: R.Prim("int64"),
-            _n: R.Prim("int64"),
+            _m: T.int64,
+            _n: T.int64,
         ) -> R.Tensor(["m", "n"], "float32"):
             m = T.int64()
             n = T.int64()

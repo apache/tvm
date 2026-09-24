@@ -55,25 +55,58 @@ void SeqExprFrameNode::ExitWithScope() {
 
 void SeqExprFrameNode::EnterWithScope() {
   RelaxFrameNode::EnterWithScope();
-  BindingBlock()->EnterWithScope();
+  BindingBlockFrame block = BindingBlock();
+  block->source_span = source_span;
+  block->EnterWithScope();
 }
 
 void FunctionFrameNode::EnterWithScope() {
+  if (function.has_value()) {
+    ffi::Optional<tvm::IRModule> mod = std::nullopt;
+    if (auto frame = IRBuilder::Current()->FindFrame<ir::IRModuleFrame>()) {
+      mod = tvm::IRModule(frame.value()->functions);
+    }
+    block_builder = tvm::relax::BlockBuilder::Create(
+        mod, tvm::relax::BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript());
+  }
   this->block_builder->BeginScope(params);
-  SeqExprFrameNode::EnterWithScope();
+  if (declaration) {
+    RelaxFrameNode::EnterWithScope();
+  } else {
+    SeqExprFrameNode::EnterWithScope();
+  }
 }
 
 void FunctionFrameNode::ExitWithScope() {
   using ir::IRModuleFrame;
   using tvm::relax::Expr;
   IRBuilder builder = IRBuilder::Current();
+  if (declaration) {
+    TVM_FFI_CHECK(name.has_value(), ValueError) << "A function declaration requires a name";
+    RelaxFrameNode::ExitWithScope();
+    block_builder->EndScope();
+    function =
+        tvm::relax::Function::CreateEmpty(params, ret_ty.value_or(tvm::relax::AnyType()),
+                                          is_pure.value_or(true), DictAttrs(attrs), source_span);
+    if (local) {
+      auto ty = tvm::relax::GetType(function.value());
+      local_var = CheckBindingBlockFrameExistAndUnended()->is_dataflow
+                      ? tvm::relax::DataflowVar(name.value(), ty, source_span)
+                      : tvm::Var(name.value(), ty, source_span);
+    } else if (builder->FindFrame<IRModuleFrame>().has_value()) {
+      global_var = ir::DeclFunction(name.value(), function.value());
+    }
+    declaration = false;
+    return;
+  }
   SeqExprFrameNode::ExitWithScope();
   // Step 1: Create the function.
   TVM_FFI_CHECK(output.has_value(), ValueError)
       << "A Relax function must have a return value. Please use "
          "`return` to return an Expr";
 
-  Expr body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
+  Expr body = this->block_builder->Normalize(
+      tvm::relax::SeqExpr(binding_blocks, output.value(), source_span));
   // if the function is not private, add a global symbol to its attributes
   if (!is_private.value_or(false) && name.has_value() && !attrs.count(tvm::attr::kGlobalSymbol)) {
     attrs.Set(tvm::attr::kGlobalSymbol, name.value());
@@ -83,9 +116,47 @@ void FunctionFrameNode::ExitWithScope() {
                             /*body=*/body,
                             /*ret_ty=*/ret_ty,
                             /*is_pure=*/is_pure.value_or(true),
-                            /*attrs=*/DictAttrs(attrs));
+                            /*attrs=*/DictAttrs(attrs),
+                            /*span=*/source_span);
+  function = func;
   // Step 2: Update IRModule.
-  if (builder->frames.empty()) {
+  if (local) {
+    TVM_FFI_CHECK(local_var.has_value(), ValueError)
+        << "A local function definition requires its declared reference";
+    bool recursive = false;
+    for (const tvm::Var& var : tvm::relax::FreeVars(func)) {
+      recursive = recursive || var.same_as(local_var.value());
+    }
+    // Retain the declared reference identity while publishing its inferred type,
+    // just as DefFunction refines a module's global reference after definition.
+    Type reference_type = tvm::relax::GetType(func);
+    if (recursive) {
+      // A recursive reference has its own provisional signature.  Its formal
+      // primitive parameters must not bind the definition's parameter objects.
+      // Keep lexical captures intact while renewing these signature binders.
+      ffi::Map<tvm::Var, tvm::Expr> signature_params;
+      for (const tvm::Var& param : params) {
+        if (param.as<PrimVar>()) {
+          signature_params.Set(param, param.CopyWithName(param->name));
+        }
+      }
+      if (!signature_params.empty()) {
+        auto signature = reference_type.as_or_throw<tvm::relax::FuncType>();
+        auto bind_param = [&](const Type& ty) { return tvm::relax::Bind(ty, signature_params); };
+        reference_type =
+            tvm::relax::FuncType(signature->params.value().Map(bind_param),
+                                 bind_param(signature->ret), signature->purity, signature->span);
+      }
+      if (local_var.value()->IsInstance<tvm::relax::DataflowVarNode>()) {
+        // The self-reference is captured by the nested function, so it must
+        // survive the dataflow region.  Region finalization rewrites every use
+        // together, including recursive calls, to the same ordinary Var.
+        CheckBindingBlockFrameExistAndUnended()->output_vars.push_back(local_var.value());
+      }
+    }
+    local_var.value()->ty = reference_type;
+    EmitVarBinding(tvm::relax::VarBinding(local_var.value(), func, source_span));
+  } else if (builder->frames.empty()) {
     // Case 0. No outer frame, return function directly
     TVM_FFI_CHECK(!builder->result.has_value(), ValueError)
         << "Builder.result has already been set";
@@ -104,6 +175,7 @@ void FunctionFrameNode::ExitWithScope() {
     // Define the function.
     // Note we do checks to disallow redefinition of functions inside the `DefFunction`.
     ir::DefFunction(func_name, func);
+    global_var = frame->global_var_map[func_name];
   } else {
     TVM_FFI_THROW(ValueError) << "Cannot find where to insert Relax.Function";
   }
@@ -169,8 +241,14 @@ void BindingBlockFrameNode::ExitWithScope() {
     ffi::Array<tvm::Var> new_output_vars;
     std::unordered_map<tvm::Var, tvm::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap;
     for (const auto& output_var : output_vars) {
-      tvm::Var new_output_var(output_var->name, tvm::relax::GetType(output_var));
+      if (var_remap.count(output_var)) {
+        continue;
+      }
+      tvm::Var new_output_var(output_var->name, tvm::relax::GetType(output_var), output_var->span);
       new_output_vars.push_back(new_output_var);
+      if (auto span = binding_spans.Get(output_var)) {
+        binding_spans.Set(new_output_var, span.value());
+      }
       var_remap[output_var] = new_output_var;
     }
     VarReplacer mutator(std::move(var_remap));
@@ -185,6 +263,14 @@ void BindingBlockFrameNode::ExitWithScope() {
     auto function = FindFunctionFrame("R.dataflow()");
     if (function->output.has_value()) {
       function->output = mutator.VisitExpr(function->output.value());
+    }
+  }
+
+  // Variable rewriting may rebuild bindings, so attach their own source ranges last.
+  block->span = source_span;
+  for (const auto& binding : block->bindings) {
+    if (auto span = binding_spans.Get(binding->var)) {
+      binding->span = span.value();
     }
   }
 
@@ -210,14 +296,19 @@ void BindingBlockFrameNode::ExitWithScope() {
 
   // Step 6. Start another binding block when a dataflow block ended.
   if (is_dataflow) {
-    BindingBlock()->EnterWithScope();
+    BindingBlockFrame block = BindingBlock();
+    block->source_span = last_frame->source_span;
+    block->EnterWithScope();
   }
 }
 
 void IfFrameNode::EnterWithScope() {
   const ffi::Array<IRBuilderFrame>& frames = IRBuilder::Current()->frames;
-  for (const IRBuilderFrame& frame : frames) {
-    const auto* block_frame = frame.as<BindingBlockFrameNode>();
+  for (auto it = frames.rbegin(); it != frames.rend(); ++it) {
+    if ((*it)->IsInstance<FunctionFrameNode>()) {
+      break;
+    }
+    const auto* block_frame = (*it).as<BindingBlockFrameNode>();
     if (block_frame && block_frame->is_dataflow) {
       TVM_FFI_THROW(ValueError) << "Cannot create an IfFrame inside a dataflow block.";
     }
@@ -229,10 +320,15 @@ void IfFrameNode::ExitWithScope() {
   RelaxFrameNode::ExitWithScope();
   TVM_FFI_CHECK(then_expr.has_value(), ValueError)
       << "The body of then part is expected to be defined before exiting.";
-  TVM_FFI_CHECK(then_expr.has_value(), ValueError)
+  TVM_FFI_CHECK(else_expr.has_value(), ValueError)
       << "The body of else part is expected to be defined before exiting.";
-  auto body = tvm::relax::If(condition, then_expr.value(), else_expr.value());
-  var = Emit(body);
+  auto body = tvm::relax::If(condition, then_expr.value(), else_expr.value(), source_span);
+  var = Emit(body, std::nullopt);
+  // Finalization uses the frame's already-composed location, never the exit context.
+  if (source_span.defined()) {
+    CheckBindingBlockFrameExistAndUnended()->binding_spans.Set(var, source_span);
+  }
+  var->span = source_span;
   IRBuilder::Name(var_name, var);
 }
 

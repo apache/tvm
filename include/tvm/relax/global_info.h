@@ -24,7 +24,6 @@
 #ifndef TVM_RELAX_GLOBAL_INFO_H_
 #define TVM_RELAX_GLOBAL_INFO_H_
 
-#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/global_info.h>
 #include <tvm/target/target.h>
 

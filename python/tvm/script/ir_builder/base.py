@@ -17,11 +17,14 @@
 """A generic IRBuilder across the TVM stack"""
 
 from collections.abc import Callable
-from contextlib import contextmanager
-from typing import Any
+from contextlib import contextmanager, nullcontext
+from functools import wraps
+from typing import Any, Generic, TypeVar
 
 from tvm_ffi import register_object as _register_object
+from tvm_ffi.dataclasses import MISSING
 
+from tvm import ir
 from tvm.runtime import Object as _Object
 
 from . import _ffi_api
@@ -31,39 +34,11 @@ from . import _ffi_api
 class IRBuilderFrame(_Object):
     """A stack frame of the IRBuilder used to keep track of the current scope.
 
-    Furthermore, the information stored in each stack frame can be useful for context-dependent
-    IR construction.
-
-    Examples
-    --------
-
-    The `T.match_buffer` below instead an element in the buffer map of `PrimFuncFrame`:
-
-    .. code-block:: python
-
-        from tvm.script.ir_builder import tirx as T
-        from tvm.script.ir_builder import IRBuilder
-
-        with IRBuilder() as builder:
-            with T.prim_func(...):  # pushes a PrimFuncFrame (subclass of IRBuilderFrame)
-                                    # to `builder`'s stack of frames
-                buffer = T.match_buffer(...)
-
-
-    The `T.match_buffer` below instead generates `MatchBufferRegion` in a TIR block:
-
-    .. code-block:: python
-
-        from tvm.script.ir_builder import tirx as T
-        from tvm.script.ir_builder import IRBuilder
-
-        with IRBuilder() as builder:
-            with T.prim_func(...):  # pushes a PrimFuncFrame (subclass of IRBuilderFrame)
-                                    # to `builder`'s stack of frames
-               with T.sblock(...):  # pushes a BlockFrame (subclass of IRBuilderFrame)
-                                    # to `builder`'s stack of frames
-                    buffer = T.match_buffer(...)
-
+    A language variant supplies frame subclasses that retain the information
+    needed for context-dependent construction. Entering a frame pushes it onto
+    the active builder's stack; nested operations can inspect that stack to
+    find their enclosing scope. Normal exit finalizes the frame and runs its
+    registered callbacks.
     """
 
     def __enter__(self) -> "IRBuilderFrame":
@@ -90,24 +65,22 @@ class IRBuilderFrame(_Object):
 
 @_register_object("script.ir_builder.IRBuilder")
 class IRBuilder(_Object):
-    """A dialect-agnostic IRBuilder that constructs any IR of TVM.
+    """A shared construction context for any language variant's IR.
 
     Examples
     --------
-    An idiomatic use of this class is to put this inside the with-scope,
-    call dialect-specific methods accordingly. Upon exiting the scope.
+    Enter the builder before using a language variant's construction frames.
+    Each completed frame contributes to the result returned by ``get``.
 
     .. code-block:: python
 
-        from tvm.script.ir_builder import tirx as T
         from tvm.script.ir_builder import IRBuilder
 
-        with IRBuilder() as builder:
-            with T.prim_func(...):  # pushes a PrimFuncFrame (subclass of IRBuilderFrame)
-                                # to `builder`'s stack of frames
-                buffer = T.match_buffer(...)
-
-        return builder.get()        # returns the constructed IR, i.e. tirx.PrimFunc
+        def build(frame, emit_body):
+            with IRBuilder() as builder:
+                with frame:
+                    emit_body()
+            return builder.get()
     """
 
     def __init__(self) -> None:
@@ -185,7 +158,7 @@ class IRBuilder(_Object):
             )
 
     def _set_current_source_span(self, value):
-        """Attach the active source span to an expression without one."""
+        """Compose the active source span onto the same supported IR node or frame."""
         return _ffi_api.IRBuilderSetCurrentSourceSpan(  # type: ignore[attr-defined] # pylint: disable=no-member
             self, value
         )
@@ -229,3 +202,211 @@ class IRBuilder(_Object):
         """
         assert len(s) == len(vs)
         return [IRBuilder.name(i, v) for i, v in zip(s, vs)]
+
+
+_T = TypeVar("_T")
+
+
+class SpanEntry:
+    """A materialized source range shared by generated builder operations.
+
+    Entries retain only fixed source metadata. Calling an entry attaches its
+    span to the same result; ``ctx(thunk)`` additionally supplies call provenance
+    during evaluation. ``ctx(thunk, attach_result=False)`` supplies only the
+    evaluation context, leaving result attachment to the binding operation.
+    Both compose the active caller context at invocation.
+    Builders accepting an explicit span normalize an entry with ``source_span``.
+    """
+
+    __slots__ = ("span",)
+
+    def __init__(self, span: ir.Span) -> None:
+        self.span = span
+
+    def __call__(self, value: _T) -> _T:
+        """Attach this range to the same value, receipt, or native frame."""
+        return at(self.span, value)
+
+    def ctx(self, thunk: Callable[[], _T], *, attach_result: bool = True) -> _T:
+        """Evaluate once under this range, optionally attaching it to the result.
+
+        Context is restored even on failure. Frames constructed during the call
+        retain their native construction span regardless of result attachment.
+        """
+        return with_at_group_(self.span, thunk, attach_result=attach_result)
+
+
+def source_span(
+    location: SpanEntry | ir.Span | tuple[str | ir.SourceName, int, int, int, int] | None,
+) -> ir.Span | None:
+    """Normalize an entry or materialize a range without retaining source-unit state."""
+    if isinstance(location, SpanEntry):
+        return location.span
+    if location is None or isinstance(location, ir.Span | ir.SequentialSpan):
+        return location
+    source_name, line, end_line, column, end_column = location
+    if isinstance(source_name, str):
+        source_name = ir.SourceName(source_name)
+    return ir.Span(source_name, line, end_line, column, end_column)
+
+
+class AlreadyEmitted(Generic[_T]):
+    """Hold the exact emitted value; location handling preserves this receipt."""
+
+    __slots__ = ("value",)
+
+    def __init__(self, value: _T) -> None:
+        self.value = value
+
+
+def at(
+    span: SpanEntry | ir.Span | tuple[str | ir.SourceName, int, int, int, int] | None, value: _T
+) -> _T:
+    """Attach source context to the same IR node, emission receipt, or frame.
+
+    Native mutation annotates the statement held by the builder itself.  Keep
+    the original Python facade as well, including callable objects and frames.
+    Unsupported objects and ordinary Python values pass through unchanged.
+    """
+    if span is None or not IRBuilder.is_in_scope():
+        return value
+    target = value.value if isinstance(value, AlreadyEmitted) else value
+    targets = target if isinstance(target, list | tuple) else (target,)
+    for item in targets:
+        if isinstance(item, _Object):
+            _ffi_api.IRBuilderSetSourceSpan(IRBuilder.current(), item, source_span(span))
+    return value
+
+
+def require_defined(value, name):
+    """Report a source name whose designated region output was not produced."""
+    if value is MISSING:
+        raise NameError(f"name {name!r} is not defined")
+    return value
+
+
+def with_at_group_(
+    location: SpanEntry | ir.Span | tuple[str | ir.SourceName, int, int, int, int] | None,
+    thunk: Callable[[], _T],
+    *,
+    attach_result: bool = True,
+) -> _T:
+    """Evaluate once under a location, optionally attaching it to the same result."""
+    span = source_span(location)
+    context = (
+        IRBuilder.current().with_source_span(span)
+        if span is not None and IRBuilder.is_in_scope()
+        else nullcontext()
+    )
+    with context:
+        value = thunk()
+        return at(location, value) if attach_result else value
+
+
+at_ = at
+
+
+def _resolve_type_var(frame, ffi_resolver, name, dtype=None, *, value=None, span=None):
+    """Validate a native function resolver's inputs, leaving its map owned by C++."""
+    if not isinstance(name, str) or not name:
+        raise ValueError("A symbolic variable requires a nonempty string name")
+    if isinstance(dtype, ir.Var):
+        value, dtype = dtype, dtype.ty
+    if isinstance(dtype, str):
+        dtype = ir.PrimType(dtype)
+    if dtype is not None and not isinstance(dtype, ir.PrimType):
+        raise TypeError("A symbolic variable requires a primitive type")
+    if value is not None and not ir.is_prim_var(value):
+        raise TypeError("A symbolic binding requires a primitive Var")
+    return ffi_resolver(frame, name, dtype, value, source_span(span))
+
+
+def _current_function_frame():
+    """Find the nearest function for eager shared annotation constructors."""
+    if IRBuilder.is_in_scope():
+        for frame in reversed(IRBuilder.current().frames):
+            if callable(getattr(frame, "resolve_type_var", None)):
+                return frame
+    raise ValueError("Symbol resolution requires an active function frame")
+
+
+def wrap_expression_constructor(constructor, call_signature, policy, *, as_type=False):
+    """Adapt an eager constructor using parser-owned expression-string metadata."""
+    fields = policy.fields
+
+    def unresolved(value, nested=False):
+        if isinstance(value, str):
+            return nested or policy.scalar_strings
+        if isinstance(value, TypeVar):
+            return True
+        if isinstance(value, tuple | list):
+            return any(unresolved(item, True) for item in value)
+        return False
+
+    @wraps(constructor)
+    def invoke(*args, **kwargs):
+        bound = call_signature.bind(*args, **kwargs)
+        if IRBuilder.is_in_scope():
+            # typing.TypeVar is ordinary eager Python metadata. Resolve it
+            # here, never in the syntax-only transpiler.
+            def resolve(value):
+                if isinstance(value, TypeVar):
+                    if value.__bound__ is not None or value.__constraints__:
+                        raise TypeError("A symbolic TypeVar cannot have constraints or a bound")
+                    return _current_function_frame().resolve_type_var(value.__name__)
+                if isinstance(value, tuple):
+                    return tuple(resolve(item) for item in value)
+                if isinstance(value, list):
+                    return [resolve(item) for item in value]
+                return value
+
+            for field in fields:
+                if field in bound.arguments:
+                    bound.arguments[field] = resolve(bound.arguments[field])
+        if any(unresolved(bound.arguments[field]) for field in fields if field in bound.arguments):
+            if IRBuilder.is_in_scope():
+                raise TypeError(
+                    "Builder expression arguments require concrete symbols, not strings"
+                )
+            return ir.Type.missing()
+        return constructor(*bound.args, **bound.kwargs)
+
+    result = invoke
+    if as_type:
+        # The class is an annotation surface, not an IR or proxy type.
+        # __new__ returns the concrete construction result (or MissingType).
+        result = type(
+            constructor.__name__,
+            (),
+            {
+                "__new__": lambda cls, *args, **kwargs: invoke(*args, **kwargs),
+                "__signature__": call_signature,
+                "__doc__": constructor.__doc__,
+                "__module__": constructor.__module__,
+            },
+        )
+    return result
+
+
+def _return_annotation(annotation):
+    """Evaluate a return annotation without introducing return-only symbols."""
+    if not callable(annotation) or isinstance(annotation, ir.Expr | ir.Type):
+        return annotation
+    frame = _current_function_frame()
+    declared = set(frame.type_var_map)
+    annotation = annotation()
+    introduced = set(frame.type_var_map) - declared
+    if introduced:
+        raise ValueError(f"Return annotation introduces unbound symbol {sorted(introduced)[0]!r}")
+    return annotation
+
+
+def annotation_value_(name, value):
+    """Adapt a real definition-context symbol using the native function map."""
+    if isinstance(value, TypeVar):
+        if value.__bound__ is not None or value.__constraints__:
+            raise TypeError("A symbolic TypeVar cannot have constraints or a bound")
+        return _current_function_frame().resolve_type_var(name)
+    if ir.is_prim_var(value):
+        return _current_function_frame().resolve_type_var(name, value=value)
+    return value

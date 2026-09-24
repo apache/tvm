@@ -132,7 +132,7 @@ class WarpgroupRole:
     def __enter__(self):
         if isinstance(self.wg_id_val, tuple):
             start, stop = self.wg_id_val
-            self._if_frame = T.If(start <= self.wg_id_var and self.wg_id_var < stop)
+            self._if_frame = T.If(T.And(T.LE(start, self.wg_id_var), self.wg_id_var < stop))
         else:
             self._if_frame = T.If(self.wg_id_var == self.wg_id_val)
         self._if_frame.__enter__()

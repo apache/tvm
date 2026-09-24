@@ -240,7 +240,7 @@ def test_pad_rms():
         n = T.int32()
         A = T.match_buffer(a, (1, n, 4096))
         W = T.match_buffer(w, (4096,), "float32")
-        R = T.match_buffer(r, (1, n, 4096), "float32")
+        Result = T.match_buffer(r, (1, n, 4096), "float32")
         S = T.sblock_alloc_buffer((1, n), "float32")
         for bsz, i, k in T.grid(1, n, 4096):
             with T.sblock("S"):
@@ -253,7 +253,7 @@ def test_pad_rms():
         for bsz, i, k in T.grid(1, n, 4096):
             with T.sblock("R"):
                 v_bsz, v_i, v_k = T.axis.remap("SSS", [bsz, i, k])
-                R[v_bsz, v_i, v_k] = W[v_k] * (
+                Result[v_bsz, v_i, v_k] = W[v_k] * (
                     A[v_bsz, v_i, v_k]
                     / T.sqrt(S[v_bsz, v_i] * T.float32(0.000244140625) + T.float32(1e-6))
                 )
@@ -264,7 +264,7 @@ def test_pad_rms():
         n = T.int32()
         A = T.match_buffer(a, (1, n, 4096))
         W = T.match_buffer(w, (4096,), "float32")
-        R = T.match_buffer(r, (1, n, 4096))
+        Result = T.match_buffer(r, (1, n, 4096))
         S = T.sblock_alloc_buffer((1, n))
         A_pad = T.sblock_alloc_buffer((1, (n + 31) // 32 * 32, 4096))
         S_pad = T.sblock_alloc_buffer((1, (n + 31) // 32 * 32))
@@ -289,7 +289,7 @@ def test_pad_rms():
         for bsz, i, k in T.grid(1, n, 4096):
             with T.sblock("R"):
                 v_bsz, v_i, v_k = T.axis.remap("SSS", [bsz, i, k])
-                R[v_bsz, v_i, v_k] = W[v_k] * (
+                Result[v_bsz, v_i, v_k] = W[v_k] * (
                     A[v_bsz, v_i, v_k]
                     / T.sqrt(S[v_bsz, v_i] * T.float32(0.000244140625) + T.float32(1e-6))
                 )

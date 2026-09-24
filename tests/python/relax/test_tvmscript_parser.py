@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F401, F821, F841
+import inspect
 import sys
 from typing import Optional, Union
 
@@ -64,12 +65,12 @@ def test_simple_func():
     _check(foo, bb.get()["foo"])
 
 
-def test_error_report():
-    with pytest.raises(tvm.error.DiagnosticError):
+def test_call_tir_requires_global_var():
+    with pytest.raises(tvm.error.InternalError, match="first argument to be a GlobalVar"):
 
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
-            # error: a = b = c is not allowed.
+            # call_tir requires a GlobalVar rather than a packed-function name.
             gv0 = gv1 = R.call_tir("extern_func", x, R.Tensor((128, 128), dtype="float32"))
             return gv0
 
@@ -110,7 +111,7 @@ def test_unexpected_ndim_type():
 
 
 def test_unexpected_tir_cast_args():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(TypeError):
 
         @R.function
         def f(x: R.Tensor(("m",), "float32")):
@@ -120,7 +121,7 @@ def test_unexpected_tir_cast_args():
 
 
 def test_unexpected_tir_args():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(TypeError):
 
         @tvm.script.ir_module
         class TestWellCallTIR:
@@ -139,7 +140,7 @@ def test_unexpected_tir_args():
                 gv = R.call_tir(tir_addone, (x,), R.Tensor((T.max(16),), dtype="float32"))
                 return gv
 
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(TypeError):
 
         @R.function
         def f(x: R.Tensor(("m", "n"), "float32")):
@@ -149,7 +150,7 @@ def test_unexpected_tir_args():
 
 
 def test_func_type_annotation_fail():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(SyntaxError, match="Parameter 'x' requires an annotation") as error:
 
         @R.function
         def f(x, y):  # error: the parameter type annotation is missing
@@ -157,9 +158,16 @@ def test_func_type_annotation_fail():
             y = z
             return y
 
+    lines, start = inspect.getsourcelines(test_func_type_annotation_fail)
+    line_index = next(i for i, line in enumerate(lines) if "def f(x, y):" in line)
+    assert error.value.filename == __file__
+    assert error.value.lineno == error.value.end_lineno == start + line_index
+    assert error.value.offset == lines[line_index].index("x, y") + 1
+    assert error.value.end_offset == error.value.offset + 1
+
 
 def test_if_mismatch_var_fail():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(SyntaxError, match="same named output") as error:
 
         @R.function
         def f(cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")):
@@ -171,9 +179,18 @@ def test_if_mismatch_var_fail():
                 z = R.add(w, w)  # error: The binding var is expected to `y`
             return z
 
+    lines, start = inspect.getsourcelines(test_if_mismatch_var_fail)
+    last = next(i for i, line in enumerate(lines) if "z = R.add(w, w)" in line)
+    assert error.value.filename == __file__
+    assert error.value.lineno == error.value.end_lineno == start + last
+    assert error.value.offset == lines[last].index("z = R.add(w, w)") + 1
+    assert (
+        error.value.end_offset == lines[last].index("z = R.add(w, w)") + len("z = R.add(w, w)") + 1
+    )
+
 
 def test_unassigned_call_fail():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function
         def f(x: R.Tensor):
@@ -182,7 +199,7 @@ def test_unassigned_call_fail():
 
 
 def test_incorrect_tensor_shape():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(tvm.error.InternalError):
 
         @R.function
         def f(x: R.Tensor([16])):
@@ -278,8 +295,8 @@ def test_module_with_attr_and_global_info():
         I.module_global_infos(
             {
                 "dummy": [
-                    I.dummy_global_info(),  # dummy[0]
-                    I.dummy_global_info(),  # dummy[1]
+                    R.dummy_global_info(),  # dummy[0]
+                    R.dummy_global_info(),  # dummy[1]
                 ]
             }
         )
@@ -326,10 +343,10 @@ def test_global_info_vdevice():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("cuda", 0),
-                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
-                    I.vdevice("metal", 0, "global"),
+                    R.vdevice("llvm"),
+                    R.vdevice("cuda", 0),
+                    R.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
+                    R.vdevice("metal", 0, "global"),
                 ]
             }
         )
@@ -426,7 +443,7 @@ def test_symbolic_shape():
         gv0 = R.call_dps_packed("extern_func", x, R.Tensor((m, n), dtype="float32"))
         return gv0
 
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(tvm.error.InternalError):
 
         @R.function
         def mismatch_dtype(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(None, "float32", ndim=2):
@@ -667,53 +684,57 @@ def test_dataflow_block_advanced():
 
 
 def test_dataflow_binding_after_output():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError, match="New binding is not allowed after dataflow block output"):
 
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
             with R.dataflow():
-                gv = R.call_tir("extern_func", x, R.Tensor((128, 128), dtype="float32"))
+                gv = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
                 R.output(gv)
-                lv = R.call_tir("extern_func", gv, R.Tensor((128, 128), dtype="float32"))
+                lv = R.call_dps_packed("extern_func", gv, R.Tensor((128, 128), dtype="float32"))
             return gv
 
 
 def test_dataflow_output_global_var():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(
+        ValueError, match="An output variable is not emitted by this dataflow block"
+    ):
 
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
-            gv0 = R.call_tir("extern_func", x, R.Tensor((128, 128), dtype="float32"))
+            gv0 = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
             with R.dataflow():
-                gv1 = R.call_tir("extern_func", gv0, R.Tensor((128, 128), dtype="float32"))
+                gv1 = R.call_dps_packed("extern_func", gv0, R.Tensor((128, 128), dtype="float32"))
                 R.output(gv0, gv1)
             return gv1
 
 
 def test_dataflow_multiple_output():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(
+        ValueError, match="not allowed for a dataflow block to have multiple output"
+    ):
 
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
             with R.dataflow():
-                gv = R.call_tir("extern_func", x, R.Tensor((128, 128), dtype="float32"))
+                gv = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
                 R.output(gv)
                 R.output(gv)
             return gv
 
 
 def test_dataflow_output_outside_dataflow_block():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError, match="`R.output` should appear inside a dataflow block"):
 
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
-            gv = R.call_tir("extern_func", x, R.Tensor((128, 128), dtype="float32"))
+            gv = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
             R.output(gv)
             return gv
 
 
 def test_dataflow_scope_fail():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function
         def f(x: R.Tensor(ndim=2)):
@@ -740,7 +761,7 @@ def test_return_without_binding():
 
 
 def test_multiple_return():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")):
@@ -749,11 +770,11 @@ def test_multiple_return():
 
 
 def test_function_without_return():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError, match="A Relax function must have a return value"):
 
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")):
-            gv0 = R.call_tir("extern_func", x, R.Tensor((128, 128), dtype="float32"))
+            gv0 = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
 
 
 def test_tensor_type_without_args():
@@ -785,10 +806,10 @@ def test_tensor_with_vdevice():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("cuda", 0),
-                    I.vdevice("metal", 0, "global"),
-                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
+                    R.vdevice("llvm"),
+                    R.vdevice("cuda", 0),
+                    R.vdevice("metal", 0, "global"),
+                    R.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
@@ -931,7 +952,7 @@ def test_annotate_override():
     assert isinstance(y_bind.var.ty, relax.TensorType)
     assert isinstance(z_bind.var.ty, relax.AnyType)
 
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(tvm.error.InternalError):
 
         @R.function
         def test(x: R.Tensor):
@@ -1062,7 +1083,7 @@ def test_call_tir_inplace():
 
 
 def test_call_tir_inplace_with_tuple_var_raises_error():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(TypeError):
 
         @tvm.script.ir_module
         class Module:
@@ -1089,7 +1110,7 @@ def test_call_tir_inplace_with_tuple_var_raises_error():
             ):
                 # copies the contents of B into A and out1
                 T.func_attr({"tirx.noalias": True})
-                for iters in T.grid(T.int64(2), T.int64(3)):
+                for (*iters,) in T.grid(T.int64(2), T.int64(3)):
                     with T.sblock("T_zeros"):
                         i, j = T.axis.remap("SS", iters)
                         A[i, j] = B[i, j]
@@ -1128,7 +1149,7 @@ def test_local_function():
 
 
 def test_inline_prim_func():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(TypeError, match="unexpected keyword argument.*local"):
 
         @I.ir_module(s_tir=True)
         class TestModule:
@@ -1237,10 +1258,10 @@ def test_if_branch_with_match_cast():
     """
 
     @R.function
-    def func(A: R.Tensor([16, 16]), is_bfloat16: R.Prim("bool")):
+    def func(A: R.Tensor([16, 16]), is_bfloat16: T.bool):
         if is_bfloat16:
-            A = R.match_cast(A, R.Tensor([16, 16], "bfloat16"))
-            B = A.astype("float16")
+            matched = R.match_cast(A, R.Tensor([16, 16], "bfloat16"))
+            B = matched.astype("float16")
         else:
             B = R.match_cast(A, R.Tensor([16, 16], "float16"))
         return B
@@ -1270,7 +1291,7 @@ def test_if_branch_with_match_cast():
 
 
 def test_if_inside_dataflow():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function
         def foo(cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")):
@@ -1286,7 +1307,7 @@ def test_if_inside_dataflow():
 
 
 def test_var_if_scoping_fail():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(NameError):
 
         @R.function
         def f(cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")):
@@ -1315,19 +1336,11 @@ def test_scalar_tensor_as_branch_condition():
     tvm.ir.assert_structural_equal(if_else.cond.ty, R.Tensor([], "bool"))
 
 
-def test_prim_annotation_requires_dtype():
-    with pytest.raises(TypeError, match="missing 1 required positional argument: 'dtype'"):
-        R.Prim()
-
-    with pytest.raises(TypeError, match="unexpected keyword argument 'value'"):
-        R.Prim(value="n")
-
-
 def test_prim_value_as_branch_condition():
-    """In addition to scalar tensor, can use R.Prim condition"""
+    """In addition to scalar tensor, can use a primitive scalar condition"""
 
     @R.function
-    def func(cond: R.Prim("bool"), x: R.Tensor((1,), "float32")):
+    def func(cond: T.bool, x: R.Tensor((1,), "float32")):
         if cond:
             out = R.add(x, x)
         else:
@@ -1336,11 +1349,11 @@ def test_prim_value_as_branch_condition():
 
     if_else = func.body.blocks[0].bindings[0].value
     assert isinstance(if_else.cond, relax.Var)
-    tvm.ir.assert_structural_equal(if_else.cond.ty, R.Prim("bool"))
+    tvm.ir.assert_structural_equal(if_else.cond.ty, tvm.ir.PrimType("bool"))
 
 
 def test_computed_prim_value_as_branch_condition():
-    """The R.Prim condition may be computed within the function"""
+    """The primitive scalar condition may be computed within the function"""
 
     @R.function
     def func(x: R.Tensor(["N"], "float32")):
@@ -1355,7 +1368,7 @@ def test_computed_prim_value_as_branch_condition():
     if_else = func.body.blocks[0].bindings[0].value
     assert tvm.ir.is_prim_expr(if_else.cond)
     tvm.ir.assert_structural_equal(N % 16 == 0, if_else.cond)
-    tvm.ir.assert_structural_equal(if_else.cond.ty, R.Prim("bool"))
+    tvm.ir.assert_structural_equal(if_else.cond.ty, tvm.ir.PrimType("bool"))
 
 
 def test_tir_expr_as_branch_condition():
@@ -1398,10 +1411,10 @@ def test_scalar_tensor_as_assert_condition():
 
 
 def test_prim_value_as_assert_condition():
-    """In addition to scalar tensor, can use R.Prim condition"""
+    """In addition to scalar tensor, can use a primitive scalar condition"""
 
     @R.function(pure=False)
-    def func(cond: R.Prim("bool"), x: R.Tensor((1,), "float32")):
+    def func(cond: T.bool, x: R.Tensor((1,), "float32")):
         _ = R.assert_op(cond)
         out = R.add(x, x)
         return out
@@ -1409,11 +1422,11 @@ def test_prim_value_as_assert_condition():
     assert_op = func.body.blocks[0].bindings[0].value
     condition = assert_op.args[0]
     assert isinstance(condition, relax.Var)
-    tvm.ir.assert_structural_equal(condition.ty, R.Prim("bool"))
+    tvm.ir.assert_structural_equal(condition.ty, tvm.ir.PrimType("bool"))
 
 
 def test_computed_prim_value_as_assert_condition():
-    """The R.Prim condition may be computed within the function"""
+    """The primitive scalar condition may be computed within the function"""
 
     @R.function(pure=False)
     def func(x: R.Tensor(["N"], "float32")):
@@ -1427,7 +1440,7 @@ def test_computed_prim_value_as_assert_condition():
     condition = assert_op.args[0]
     assert tvm.ir.is_prim_expr(condition)
     tvm.ir.assert_structural_equal(N % 16 == 0, condition)
-    tvm.ir.assert_structural_equal(condition.ty, R.Prim("bool"))
+    tvm.ir.assert_structural_equal(condition.ty, tvm.ir.PrimType("bool"))
 
 
 def test_tir_expr_as_assert_condition():
@@ -1580,7 +1593,7 @@ def test_bound_prim_param_reused_in_dependent_annotations():
         """
 @R.function
 def main(
-    n: R.Prim("int64"),
+    n: T.int64,
     direct: R.Tensor([n], "float32"),
     string_direct: R.Tensor(["n"], "float32"),
     shape: R.Shape(["n"]),
@@ -1605,7 +1618,7 @@ def test_bound_prim_param_reused_in_declared_function_signature():
 @I.ir_module
 class Module:
     @R.function
-    def main(n: R.Prim("int64"), x: R.Tensor(["n + 1"], "float32")) -> R.Tensor(
+    def main(n: T.int64, x: R.Tensor(["n + 1"], "float32")) -> R.Tensor(
         ["n + 1"], "float32"
     ):
         return x
@@ -1620,22 +1633,22 @@ class Module:
 
 
 def test_later_prim_param_not_adopted_by_usage_first_symbol():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
         tvm.script.from_source(
             """
 @R.function
-def main(x: R.Tensor(["n"], "float32"), n: R.Prim("int64")):
+def main(x: R.Tensor(["n"], "float32"), n: T.int64):
     return x
 """
         )
 
 
 def test_non_int64_prim_param_rejected_in_shape_annotation():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(tvm.error.InternalError):
         tvm.script.from_source(
             """
 @R.function
-def main(n: R.Prim("int32"), x: R.Tensor(["n"], "float32")):
+def main(n: T.int32, x: R.Tensor(["n"], "float32")):
     return x
 """
         )
@@ -1645,9 +1658,9 @@ def test_recursive_local_function_reuses_earlier_prim_param_in_signature():
     func = tvm.script.from_source(
         """
 @R.function
-def main(n: R.Prim("int64"), x: R.Tensor([n], "float32")):
+def main(n: T.int64, x: R.Tensor([n], "float32")):
     @R.function
-    def recurse(current: R.Prim("int64"), value: R.Tensor([current], "float32")) -> R.Tensor(
+    def recurse(current: T.int64, value: R.Tensor([current], "float32")) -> R.Tensor(
         [current], "float32"
     ):
         return recurse(current, value)
@@ -1698,7 +1711,7 @@ def test_undefined_symbolic_var_raises_error():
     shape.  That is, this test case raises an error, and will not
     attempt to define `m` as either `x.shape[0]-1` or `x.shape[1]//2`.
     """
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function
         def foo(x: R.Tensor(("m + 1", "m * 2"), "float32")):  # name 'm' is not defined
@@ -2079,7 +2092,7 @@ def test_function_with_void_return_type_may_be_used_as_statements():
 def test_function_with_non_void_return_type_must_be_assigned():
     """Non-void results must be assigned to a variable"""
 
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function(pure=False)
         def func(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -2166,7 +2179,7 @@ def test_private_function():
 
 
 def test_private_function_with_global_symbol_fail():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @I.ir_module(s_tir=True)
         class Addition:
@@ -2183,7 +2196,7 @@ def test_private_function_with_global_symbol_fail():
 
 
 def test_private_function_with_global_symbol_no_module_fail():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function(private=True)
         def func(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -2260,7 +2273,7 @@ def test_macro_non_hygienic():
 
 
 def test_macro_no_variable_leak():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(NameError):
 
         @R.macro(hygienic=True)
         def add_two(value):
@@ -2423,12 +2436,12 @@ def test_primitive_assignments_emit_fresh_bindings():
     """Primitive expressions follow ordinary Relax assignment semantics."""
 
     @R.function(private=True)
-    def func(scalar: R.Prim("int64"), tensor: R.Tensor([1], "float32")):
+    def func(scalar: T.int64, tensor: R.Tensor([1], "float32")):
         alias = scalar
         arithmetic = alias + 1
-        integer: R.Prim("int32") = 2
-        floating: R.Prim("float32") = 2.5
-        boolean: R.Prim("bool") = True
+        integer: T.int32 = 2
+        floating: T.float32 = 2.5
+        boolean: T.bool = True
         compatibility = R.prim_value(arithmetic)
         tensor_alias = tensor
         return tensor_alias
@@ -2465,29 +2478,36 @@ def test_primitive_assignments_emit_fresh_bindings():
     _check(func)
 
 
-def test_shared_meta_var_skips_relax_bindings():
-    """I.meta_var and T.meta_var are one explicit parser-time escape."""
+def test_shared_meta_var_uses_ordinary_relax_bindings():
+    """Identity calls retain ordinary fresh Relax bindings and strict roundtrip."""
 
     assert I.meta_var is T.meta_var
 
     @R.function(private=True)
     def func(A: R.Tensor(["N"], "float32")):
-        N: R.Prim("int64") = T.int64()
+        N: T.int64 = T.int64()
         via_i = I.meta_var(N)
         via_t = T.meta_var(via_i)
         output = R.reshape(A, R.shape([via_t]))
         return output
 
-    assert len(func.body.blocks[0].bindings) == 1
+    bindings = func.body.blocks[0].bindings
+    assert len(bindings) == 3
+    via_i, via_t, output = bindings
+    assert via_i.value.same_as(func.params[0].ty.shape[0])
+    assert via_t.value.same_as(via_i.var)
+    assert not via_i.var.same_as(via_i.value)
+    assert not via_t.var.same_as(via_t.value)
+    assert func.body.body.same_as(output.var)
     source = func.script(show_all_ty=False)
     assert "meta_var" not in source
     _check(func)
 
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @R.function(private=True)
         def mismatched_declaration():
-            value: R.Prim("float32") = T.int64()
+            value: T.float32 = T.int64()
             return value
 
 
@@ -2495,7 +2515,7 @@ def test_primitive_if_emits_fresh_result():
     """A primitive If has a fresh Relax result and typed branch terminators."""
 
     @R.function(private=True)
-    def func(cond: R.Prim("bool"), lhs: R.Prim("int64"), rhs: R.Prim("int64")):
+    def func(cond: T.bool, lhs: T.int64, rhs: T.int64):
         if cond:
             output = lhs
         else:
@@ -2538,7 +2558,7 @@ def test_conditional_may_use_symbolic_variables_from_function_scope():
     def explicit_ty(
         A: R.Tensor(["N"], "float32"),
         B: R.Tensor(["N"], "float32"),
-        cond: R.Prim("bool"),
+        cond: T.bool,
     ) -> R.Tensor(["N"], "float32"):
         N = T.int64()
 
@@ -2553,7 +2573,7 @@ def test_conditional_may_use_symbolic_variables_from_function_scope():
     def inferred_ty(
         A: R.Tensor(["N"], "float32"),
         B: R.Tensor(["N"], "float32"),
-        cond: R.Prim("bool"),
+        cond: T.bool,
     ):
         N = T.int64()
         if cond:

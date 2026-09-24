@@ -2217,7 +2217,7 @@ def test_batched_var_len_attention():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
+                    R.vdevice("llvm"),
                 ]
             }
         )
@@ -2270,7 +2270,7 @@ def test_batched_var_len_multi_query_attention():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
+                    R.vdevice("llvm"),
                 ]
             }
         )
@@ -2365,7 +2365,7 @@ def test_batched_var_len_sliding_window():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
+                    R.vdevice("llvm"),
                 ]
             }
         )

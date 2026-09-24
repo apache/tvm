@@ -29,6 +29,9 @@ namespace script {
 namespace ir_builder {
 namespace relax {
 
+/*! \brief Find a module virtual device by target kind and index. */
+TVM_DLL tvm::relax::VDevice LookupVDevice(ffi::String target_kind, int device_index);
+
 /////////////////////////////// Function ////////////////////////////////
 
 /*!
@@ -38,6 +41,15 @@ namespace relax {
  * \return The created ir_builder Function frame.
  */
 TVM_DLL FunctionFrame Function(bool is_pure, bool is_private);
+
+/*! \brief Start a bodyless declaration using the normal signature operations. */
+TVM_DLL FunctionFrame DeclFunction(bool is_pure, bool is_private, bool local);
+
+/*! \brief Define a local function under its cached declaration identity. */
+TVM_DLL FunctionFrame LocalFunction(bool is_pure, const tvm::Var& reference);
+
+/*! \brief Add a cached parameter without changing its identity. */
+TVM_DLL tvm::Var ArgVar(const ffi::String& name, const tvm::Var& var);
 
 /*!
  * \brief Add a parameter to the last function frame.
@@ -116,6 +128,17 @@ TVM_DLL tvm::Var EmitMatchCast(const tvm::relax::Expr& value, const tvm::Type& t
  * \return The left side var of the emitted binding.
  */
 TVM_DLL tvm::Var EmitVarBinding(const tvm::relax::VarBinding& binding);
+
+/*! \brief Emit a binding with separate statement and variable-name ranges. */
+TVM_DLL tvm::Var EmitWithSpan(const tvm::relax::Expr& value,
+                              const ffi::Optional<tvm::Type>& annotate_ty,
+                              const ffi::Optional<Span>& name_span,
+                              const ffi::Optional<Span>& span = std::nullopt);
+
+/*! \brief Emit a match cast with separate statement and variable-name ranges. */
+TVM_DLL tvm::Var EmitMatchCastWithSpan(const tvm::relax::Expr& value, const tvm::Type& ty,
+                                       const ffi::Optional<Span>& name_span,
+                                       const ffi::Optional<Span>& span = std::nullopt);
 
 ///////////////////////////// If Then Else /////////////////////////////
 

@@ -117,7 +117,6 @@ class TritonKernel(BaseKernel):
             if kernel_params[i].is_constexpr:
                 constants[kernel_params[i].name] = get_const_int(arg)
                 signature[kernel_params[i].name] = "constexpr"
-                kernel_args.append(arg)
                 continue
             if isinstance(arg.ty, PointerType):
                 assert isinstance(arg.ty.element_type, PrimType)
@@ -133,4 +132,11 @@ class TritonKernel(BaseKernel):
         # TODO: Add specialization for aligned buffer pointers
         source = triton.compiler.ASTSource(fn=func, signature=signature, constexprs=constants)
         compiled = triton.compiler.compile(source, options=kwargs)
+        # Triton appends scratch pointers after the non-constexpr arguments.
+        for scratch in ("global_scratch_size", "profile_scratch_size"):
+            size = getattr(compiled.metadata, scratch, None)
+            if size is not None:
+                if size != 0:
+                    raise ValueError(f"Triton kernels requiring {scratch}={size} are not supported")
+                kernel_args.append(tirx.reinterpret("handle", tirx.IntImm("uint64", 0)))
         return compiled, kernel_args

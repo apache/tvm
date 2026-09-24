@@ -52,7 +52,8 @@ class BasePyModule:
     3. Wrapping Relax functions for easy Python calling.
     4. Cross-function calls between Python, TIR, and Relax functions.
 
-    Only IRModules that inherit from this class are allowed to contain Python functions.
+    Shared IRModules collect Python functions in ``__pyfuncs__``. Decorating a
+    subclass with ``R.py_module`` adds this executable runtime interface.
     """
 
     def __del__(self):
@@ -168,8 +169,8 @@ class BasePyModule:
             def _create_relax_wrapper(name):
                 def wrapper(*args, **kwargs):
                     """Wrapper for Relax function with automatic tensor conversion."""
-                    if hasattr(self.ir_mod, "pyfuncs") and name in self.ir_mod.pyfuncs:
-                        return self.ir_mod.pyfuncs[name](*args, **kwargs)
+                    if hasattr(self.ir_mod, "__pyfuncs__") and name in self.ir_mod.__pyfuncs__:
+                        return self.ir_mod.__pyfuncs__[name](*args, **kwargs)
 
                     if self.relax_vm is not None:
                         converted_args = self._convert_pytorch_to_tvm(list(args))
@@ -191,7 +192,7 @@ class BasePyModule:
 
     def _register_python_functions(self):
         """Register Python functions with the VM runtime for call_py_func support."""
-        if not hasattr(self.ir_mod, "pyfuncs") or not self.ir_mod.pyfuncs:
+        if not hasattr(self.ir_mod, "__pyfuncs__") or not self.ir_mod.__pyfuncs__:
             return
 
         try:
@@ -199,7 +200,7 @@ class BasePyModule:
         except ValueError:
             return
 
-        for func_name, py_func in self.ir_mod.pyfuncs.items():
+        for func_name, py_func in self.ir_mod.__pyfuncs__.items():
 
             def create_py_func_wrapper(name, original_func):
                 def wrapper(*args, **kwargs):
@@ -514,7 +515,7 @@ class BasePyModule:
         """Print TVM IR into TVMScript text format with Python function support.
 
         This method extends the standard IRModule script() method to handle
-        Python functions stored in the IRModule's pyfuncs attribute.
+        Python functions stored in the IRModule's ``__pyfuncs__`` attribute.
         """
         # First get the standard IRModule script
         base_script = self.ir_mod.script(
@@ -535,7 +536,7 @@ class BasePyModule:
         )
 
         # If there are no Python functions, return the base script
-        if not hasattr(self.ir_mod, "pyfuncs") or not self.ir_mod.pyfuncs:
+        if not hasattr(self.ir_mod, "__pyfuncs__") or not self.ir_mod.__pyfuncs__:
             return base_script
 
         # Insert Python functions into the script
@@ -559,8 +560,8 @@ class BasePyModule:
                 class_indent = len(line) - len(line.lstrip())
 
                 # Insert Python functions after the class definition
-                if hasattr(self.ir_mod, "pyfuncs") and self.ir_mod.pyfuncs:
-                    for func_name, func in self.ir_mod.pyfuncs.items():
+                if hasattr(self.ir_mod, "__pyfuncs__") and self.ir_mod.__pyfuncs__:
+                    for func_name, func in self.ir_mod.__pyfuncs__.items():
                         # Get the function source code
                         func_source = self._get_function_source(func)
                         if func_source:

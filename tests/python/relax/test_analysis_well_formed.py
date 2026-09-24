@@ -701,7 +701,7 @@ def test_pass_dltensor_arg_to_tir():
     @I.ir_module(s_tir=True)
     class Module:
         @R.function
-        def main(A: R.Tensor) -> R.Prim("bool"):
+        def main(A: R.Tensor) -> T.bool:
             return Module.is_bfloat16_dtype(A)
 
         @T.prim_func(private=True, s_tir=True)
@@ -756,7 +756,7 @@ def test_call_tir_with_interspersed_primitive_argument():
         @R.function
         def main(
             A: R.Tensor([16], "float16"),
-            scale: R.Prim("float32"),
+            scale: T.float32,
             C: R.Tensor([16], "float16"),
         ):
             B = R.call_tir(Module.add_scaled, (A, scale, C), out_ty=R.Tensor([16], "float16"))
@@ -781,7 +781,7 @@ def test_call_tir_with_incorrect_primitive_argument_dtype():
     @I.ir_module(check_well_formed=False, s_tir=True)
     class Module:
         @R.function
-        def main(A: R.Tensor([16], "float16"), scale: R.Prim("int64")):
+        def main(A: R.Tensor([16], "float16"), scale: T.int64):
             B = R.call_tir(Module.scale, (A, scale), out_ty=R.Tensor([16], "float16"))
             return B
 

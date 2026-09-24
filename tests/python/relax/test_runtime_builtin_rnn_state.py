@@ -226,7 +226,7 @@ def rnn_state_get(
         output = T.match_buffer(var_output, (batch_size, *shape), dtype)
 
         for i in range(batch_size):
-            for s in T.grid(*shape):
+            for (*s,) in T.grid(*shape):
                 with T.sblock("copy"):
                     vi, *vs = T.axis.remap("S" * (len(shape) + 1), [i, *s])
                     seq_id: T.let[T.int32] = seq_slot_ids[vi]
@@ -261,7 +261,7 @@ def rnn_state_set(
         data = T.match_buffer(var_data, (batch_size, *shape), dtype)
 
         for i in range(batch_size):
-            for s in T.grid(*shape):
+            for (*s,) in T.grid(*shape):
                 with T.sblock("copy"):
                     vi, *vs = T.axis.remap("S" * (len(shape) + 1), [i, *s])
                     seq_id: T.let[T.int32] = seq_slot_ids[vi]

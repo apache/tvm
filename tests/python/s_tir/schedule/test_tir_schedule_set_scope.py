@@ -98,7 +98,12 @@ use_buffer_name = tvm.testing.parameter(by_dict={"buffer_index": False, "buffer_
 def test_set_scope(use_block_name, use_buffer_name):
     func = element_wise
     s = tvm.s_tir.Schedule(func, debug_mask='all')
-    s.set_scope('B' if use_block_name else s.get_sblock("B"), 'B' if use_buffer_name else 0, "shared")
+    buffer_name = s.get(s.get_sblock("B")).writes[0].source.name
+    s.set_scope(
+        "B" if use_block_name else s.get_sblock("B"),
+        buffer_name if use_buffer_name else 0,
+        "shared",
+    )
     assert_structural_equal_ignore_global_symbol(element_wise_set_scope, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 

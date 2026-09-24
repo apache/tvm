@@ -135,10 +135,10 @@ class Module:
         # with T.sblock("root"):
         for i, j in T.grid(T.int64(128), T.int64(128)):
             with T.sblock(""):
-                vi, vj = T.axis.remap("SS", [i, j])
-                T.reads(x[vi, vj])
-                T.writes(y[vi, vj])
-                y[vi, vj] = x[vi, vj] + T.float32(1.0)
+                v, v_1 = T.axis.remap("SS", [i, j])
+                T.reads(x[v, v_1])
+                T.writes(y[v, v_1])
+                y[v, v_1] = x[v, v_1] + T.float32(1.0)
 
     @R.function
     def foo(x: R.DTensor((128, 128), "float32", "mesh[0]", "S[0], R")) -> R.DTensor((128, 128), "float32", "mesh[0]", "S[0], R"):

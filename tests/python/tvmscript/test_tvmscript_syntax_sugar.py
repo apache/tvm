@@ -233,7 +233,7 @@ def test_match_buffer_region_has_implicit_shape_dtype():
 
 
 def test_match_buffer_input_requires_shape_arg():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(ValueError):
 
         @T.prim_func(s_tir=True)
         def func(a: T.handle):
@@ -274,7 +274,7 @@ def test_bind_with_constant():
 def test_func_call():
     def shared_16x16_to_ldmatrix_32x8_layout(i, j):
         thread_id = (i % 8) * 4 + (j % 8) // 2
-        return T.meta_var((thread_id, (j // 8) * 4 + (i // 8) * 2 + (j % 2)))
+        return thread_id, (j // 8) * 4 + (i // 8) * 2 + (j % 2)
 
     @T.prim_func(s_tir=True)
     def mma_sync_m16n16k16_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
@@ -288,19 +288,19 @@ def test_func_call():
             for i, j, k in T.grid(16, 16, 16):
                 with T.sblock("C"):
                     i, j, k = T.axis.remap("SSR", [i, j, k])
-                    thread_id_C, local_id_C = shared_16x16_to_ldmatrix_32x8_layout(i, j)
-                    thread_id_A, local_id_A = shared_16x16_to_ldmatrix_32x8_layout(i, k)
-                    thread_id_B, local_id_B = shared_16x16_to_ldmatrix_32x8_layout(k, j)
+                    indices_C = shared_16x16_to_ldmatrix_32x8_layout(i, j)
+                    indices_A = shared_16x16_to_ldmatrix_32x8_layout(i, k)
+                    indices_B = shared_16x16_to_ldmatrix_32x8_layout(k, j)
 
                     T.reads(
-                        C[thread_id_C, local_id_C],
-                        A[thread_id_A, local_id_A],
-                        B[thread_id_B, local_id_B],
+                        C[indices_C[0], indices_C[1]],
+                        A[indices_A[0], indices_A[1]],
+                        B[indices_B[0], indices_B[1]],
                     )
-                    T.writes(C[thread_id_C, local_id_C])
+                    T.writes(C[indices_C[0], indices_C[1]])
 
-                    C[thread_id_C, local_id_C] += (
-                        A[thread_id_A, local_id_A] * B[thread_id_B, local_id_B]
+                    C[indices_C[0], indices_C[1]] += (
+                        A[indices_A[0], indices_A[1]] * B[indices_B[0], indices_B[1]]
                     )
 
     @T.prim_func(s_tir=True)
@@ -455,18 +455,27 @@ def test_preserve_parameter_name():
     assert param_name == "i"
 
 
-def test_preserve_variable_name():
+@pytest.mark.parametrize("mutable", [False, True])
+def test_preserve_variable_name(mutable):
     """Use variable name when generating tirx::Bind / AllocBuffer"""
 
-    @T.prim_func(s_tir=True)
-    def func():
-        for i in T.serial(16):
-            j = i // 4
-            T.evaluate(j)
-
-    # In fork, bare `j = i // 4` lowers to AllocBuffer (local_scalar) in the for-body
-    # SeqStmt; the variable name lives on the underlying buffer.
-    var_name = func.body.body.seq[0].buffer.name
+    # Bare bindings name the immutable Var; explicit declarations name scalar storage.
+    annotation = ": T.int32" if mutable else ""
+    func = from_source(
+        f"""@T.prim_func(s_tir=True)
+def func():
+    for i in T.serial(16):
+        j{annotation} = i // 4
+        T.evaluate(j)
+"""
+    )
+    binding = func.body.body.seq[0]
+    if mutable:
+        assert isinstance(binding, tvm.tirx.AllocBuffer)
+        var_name = binding.buffer.name
+    else:
+        assert isinstance(binding, tvm.tirx.Bind)
+        var_name = binding.var.name
     assert var_name == "j"
 
 

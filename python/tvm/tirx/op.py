@@ -2980,10 +2980,14 @@ def TVMBackendFreeWorkspace(device_type, device_id, ptr):
 
 def anylist_getitem(list_handle, index):
     """Returns an item from any list.
+
+    Parameters
+    ----------
     list_handle: Var
         The handle to anylist
     index : int
         The index
+
     Returns
     -------
     call : Expr
@@ -2994,10 +2998,14 @@ def anylist_getitem(list_handle, index):
 
 def anylist_resetitem(list_handle, index):
     """Reset an item from any list.
+
+    Parameters
+    ----------
     list_handle: Var
         The handle to anylist
     index : int
         The index
+
     Returns
     -------
     call : Expr
@@ -3008,6 +3016,9 @@ def anylist_resetitem(list_handle, index):
 
 def anylist_setitem_call_packed(list_handle, index, func_name, *args):
     """Set anylist item by result of packed call.
+
+    Parameters
+    ----------
     list_handle: Var
         The handle to anylist
     index : int
@@ -3016,6 +3027,7 @@ def anylist_setitem_call_packed(list_handle, index, func_name, *args):
         The name of the function to be called.
     args:
         Extra arguments
+
     Returns
     -------
     call : Expr
@@ -3028,6 +3040,9 @@ def anylist_setitem_call_packed(list_handle, index, func_name, *args):
 
 def anylist_setitem_call_cpacked(list_handle, index, func_name, *args):
     """Set anylist item by result of packed call.
+
+    Parameters
+    ----------
     list_handle: Var
         The handle to anylist
     index : int
@@ -3036,6 +3051,7 @@ def anylist_setitem_call_cpacked(list_handle, index, func_name, *args):
         The name of the function to be called.
     args:
         Extra arguments
+
     Returns
     -------
     call : Expr

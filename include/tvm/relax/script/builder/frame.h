@@ -97,6 +97,8 @@ class FunctionFrameNode : public SeqExprFrameNode {
    *       However, we must specify the name by `R.func_name` before exit this frame.
    */
   ffi::Optional<ffi::String> name;
+  /*! \brief Function-local symbols retained across declaration and body entry. */
+  ffi::Map<ffi::String, tvm::Var> type_var_map;
   /*! \brief The function params. */
   ffi::Array<tvm::Var> params;
   /*!
@@ -117,15 +119,26 @@ class FunctionFrameNode : public SeqExprFrameNode {
   ffi::Map<ffi::String, Any> attrs;
   /*! \brief The block builder to create Relax function. */
   tvm::relax::BlockBuilder block_builder;
+  /*! \brief Whether this frame constructs only a function signature. */
+  bool declaration = false;
+  bool local = false;
+  ffi::Optional<tvm::Var> local_var;
+  /*! \brief Finalized function and its stable module reference. */
+  ffi::Optional<tvm::relax::Function> function;
+  ffi::Optional<tvm::GlobalVar> global_var;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FunctionFrameNode>()
+        .def_ro("type_var_map", &FunctionFrameNode::type_var_map)
         .def_ro("name", &FunctionFrameNode::name)
         .def_ro("params", &FunctionFrameNode::params)
         .def_ro("ret_ty", &FunctionFrameNode::ret_ty)
         .def_ro("is_pure", &FunctionFrameNode::is_pure)
-        .def_ro("attrs", &FunctionFrameNode::attrs);
+        .def_ro("attrs", &FunctionFrameNode::attrs)
+        .def_ro("function", &FunctionFrameNode::function)
+        .def_ro("global_var", &FunctionFrameNode::global_var)
+        .def_ro("local_var", &FunctionFrameNode::local_var);
     // `binding_blocks` and `output` are inherited from SeqExprFrameNode.
     // `block_builder` is not registered as it's not visited.
   }
@@ -163,6 +176,8 @@ class BindingBlockFrameNode : public RelaxFrameNode {
    * \note Only used for a dataflow block.
    */
   ffi::Array<tvm::Var> output_vars;
+  /*! \brief Statement ranges for explicitly emitted bindings. */
+  ffi::Map<tvm::Var, Span> binding_spans;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

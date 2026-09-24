@@ -172,7 +172,7 @@ def test_add_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             gv = R.add(x, y)
             return gv
@@ -182,7 +182,7 @@ def test_add_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             cls = Expected
             gv = R.call_tir(cls.add, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
@@ -349,7 +349,7 @@ def test_divide_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             gv = R.divide(x, y)
             return gv
@@ -359,7 +359,7 @@ def test_divide_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             cls = Expected
             gv = R.call_tir(cls.divide, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
@@ -526,7 +526,7 @@ def test_floordiv_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             gv = R.floor_divide(x, y)
             return gv
@@ -536,7 +536,7 @@ def test_floordiv_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             cls = Expected
             gv = R.call_tir(cls.floor_divide, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
@@ -641,7 +641,7 @@ def test_multiply_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             gv = R.multiply(x, y)
             return gv
@@ -651,7 +651,7 @@ def test_multiply_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             cls = Expected
             gv = R.call_tir(cls.multiply, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
@@ -759,7 +759,7 @@ def test_power_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             gv = R.power(x, y)
             return gv
@@ -769,7 +769,7 @@ def test_power_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             cls = Expected
             gv = R.call_tir(cls.power, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
@@ -876,7 +876,7 @@ def test_atan2_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             gv = R.atan2(x, y)
             return gv
@@ -886,7 +886,7 @@ def test_atan2_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             cls = Expected
             gv = R.call_tir(cls.atan2, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
@@ -991,7 +991,7 @@ def test_subtract_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             gv = R.subtract(x, y)
             return gv
@@ -1001,7 +1001,7 @@ def test_subtract_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             cls = Expected
             gv = R.call_tir(cls.subtract, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
@@ -1171,7 +1171,7 @@ def test_equal_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             gv = R.equal(x, y)
             return gv
@@ -1181,7 +1181,7 @@ def test_equal_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             cls = Expected
             gv = R.call_tir(cls.equal, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
@@ -1348,7 +1348,7 @@ def test_greater_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             gv = R.greater(x, y)
             return gv
@@ -1358,7 +1358,7 @@ def test_greater_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             cls = Expected
             gv = R.call_tir(cls.greater, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
@@ -1463,7 +1463,7 @@ def test_greater_equal_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             gv = R.greater_equal(x, y)
             return gv
@@ -1473,7 +1473,7 @@ def test_greater_equal_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             cls = Expected
             gv = R.call_tir(cls.greater_equal, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
@@ -1578,7 +1578,7 @@ def test_less_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             gv = R.less(x, y)
             return gv
@@ -1588,7 +1588,7 @@ def test_less_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             cls = Expected
             gv = R.call_tir(cls.less, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
@@ -1755,7 +1755,7 @@ def test_less_equal_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             gv = R.less_equal(x, y)
             return gv
@@ -1765,7 +1765,7 @@ def test_less_equal_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             cls = Expected
             gv = R.call_tir(cls.less_equal, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
@@ -1870,7 +1870,7 @@ def test_not_equal_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             gv = R.not_equal(x, y)
             return gv
@@ -1880,7 +1880,7 @@ def test_not_equal_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             cls = Expected
             gv = R.call_tir(cls.not_equal, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
@@ -2048,7 +2048,7 @@ def test_max_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             gv = R.maximum(x, y)
             return gv
@@ -2058,7 +2058,7 @@ def test_max_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             cls = Expected
             gv = R.call_tir(cls.maximum, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
@@ -2226,7 +2226,7 @@ def test_min_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             gv = R.minimum(x, y)
             return gv
@@ -2236,7 +2236,7 @@ def test_min_primvalue():
         @R.function
         def main(
             x: R.Tensor([64, 32, 16], "float32"),
-            y: R.Prim("float32"),
+            y: T.float32,
         ):
             cls = Expected
             gv = R.call_tir(cls.minimum, (x, y), R.Tensor([64, 32, 16], dtype="float32"))

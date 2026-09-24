@@ -1312,14 +1312,15 @@ def test_cache_read_elementwise(use_block_name):
     sch = tvm.s_tir.Schedule(elementwise, debug_mask="all")
     block_b = sch.get_sblock("B")
     block_c = sch.get_sblock("C")
+    buffer_b_name = sch.get(block_b).writes[0].source.name
     if use_block_name:
         cached_a = sch.cache_read("B", "A", "global")
-        cached_b = sch.cache_read("C", "B", "local")
+        cached_b = sch.cache_read("C", buffer_b_name, "local")
     else:
         cached_a = sch.cache_read(block_b, 0, "global")
         cached_b = sch.cache_read(block_c, 0, "local")
     assert sch.get(cached_a) == sch.get(sch.get_sblock("A_global"))
-    assert sch.get(cached_b) == sch.get(sch.get_sblock("B_local"))
+    assert sch.get(cached_b) == sch.get(sch.get_sblock(buffer_b_name + "_local"))
     assert sch.get(block_b) == sch.get(sch.get_sblock("B"))
     assert sch.get(block_c) == sch.get(sch.get_sblock("C"))
     assert_structural_equal_ignore_global_symbol(cache_read_elementwise, sch.mod["main"])
@@ -1458,9 +1459,10 @@ def test_cache_write_elementwise(use_block_name):
     sch = tvm.s_tir.Schedule(elementwise, debug_mask="all")
     block_b = sch.get_sblock("B")
     block_c = sch.get_sblock("C")
+    buffer_b_name = sch.get(block_b).writes[0].source.name
     cached_b = sch.cache_write("B" if use_block_name else block_b, 0, "local")
     cached_c = sch.cache_write("C" if use_block_name else block_c, 0, "global")
-    assert sch.get(cached_b) == sch.get(sch.get_sblock("B_local"))
+    assert sch.get(cached_b) == sch.get(sch.get_sblock(buffer_b_name + "_local"))
     assert sch.get(cached_c) == sch.get(sch.get_sblock("C_global"))
     assert sch.get(block_b) == sch.get(sch.get_sblock("B"))
     assert sch.get(block_c) == sch.get(sch.get_sblock("C"))

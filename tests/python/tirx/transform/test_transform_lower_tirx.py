@@ -15,12 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from types import SimpleNamespace
+
 import pytest
 import tvm_ffi
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.script.parser import register_namespace
+from tvm.script.parser.protocol_registry import mutable_cell_decl
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.function import PrimFunc
 from tvm.tirx.layout import laneid, warpid, wg_local_layout
@@ -130,7 +134,6 @@ def test_lower_view_get():
         bz: T.let[T.int32] = blockIdx_z
         v: T.let[T.int32] = warp_id_in_cta
         lane_id: T.let[T.int32] = threadIdx_x % 32
-        T.evaluate(v)
         A = T.alloc_local((2,), "float16", layout=None)
         B = T.decl_buffer((64,), "float16", data=A.data, scope="local", layout=None)
         A_local = T.decl_buffer((2,), "float16", data=A.data, scope="local", layout=None)
@@ -186,7 +189,6 @@ def test_lower_view_get():
         bz: T.let[T.int32] = blockIdx_z
         v: T.let[T.int32] = warp_id_in_cta
         lane_id: T.let[T.int32] = threadIdx_x % 32
-        T.evaluate(v)
         A = T.alloc_local((8,), layout=None)
         B = T.decl_buffer((256,), data=A.data, scope="local", layout=None)
         A_local = T.decl_buffer((8,), data=A.data, scope="local", layout=None)
@@ -333,7 +335,6 @@ def test_lower_view_get():
         bz: T.let[T.int32] = blockIdx_z
         v: T.let[T.int32] = warp_id_in_cta
         lane_id: T.let[T.int32] = threadIdx_x % 32
-        T.evaluate(v)
         A = T.alloc_local((2,), "float16", layout=None)
         B = T.decl_buffer((64,), "float16", data=A.data, scope="local", layout=None)
         B_1 = T.decl_buffer((64,), "float16", data=A.data, scope="local", layout=None)
@@ -675,10 +676,12 @@ def test_lower_layout():
         v: T.let[T.int32] = warp_id_in_cta
         v_1: T.let[T.int32] = threadIdx_x % 32
         tid: T.let[T.int32] = threadIdx_x
-        T.evaluate(v)
-        T.evaluate(v_1)
         A_smem = T.alloc_shared((4096,), "float16", layout=None)
-        for tile in range(4):
+        thread_col = 4
+        thread_row = 32
+        for tile in range(128 // thread_row):
+            row = tile * thread_row + tid // thread_col
+            col = tid % thread_col * 8
             for vec in T.vectorized(8):
                 # The swizzle lowers to its composition bindings rather than a
                 # folded closed form: compose_m is the flat element index, so
@@ -743,8 +746,6 @@ def test_lower_decl_buffer_access_ptr():
         )
         v: T.let[T.int32] = blockIdx_x
         v_1: T.let[T.int32] = threadIdx_x
-        T.evaluate(v)
-        T.evaluate(v_1)
         buf = T.alloc_buffer((1024,), "uint8", scope="shared.dyn", layout=None)
         A = T.decl_buffer(
             (128,), "float16", data=buf.data, elem_offset=32, scope="shared.dyn", layout=None
@@ -772,7 +773,6 @@ def test_lower_separate_scope_id_def():
         )
         v: T.let[T.int32] = blockIdx_x
         tx: T.let[T.int32] = threadIdx_x
-        T.evaluate(v)
         if tx == 0:
             T.evaluate(tx)
 
@@ -799,7 +799,6 @@ def test_lower_uint32_scope_id_casts_at_bind():
         )
         v: T.let[T.int32] = blockIdx_x
         tx: T.let[T.uint32] = T.Cast("uint32", threadIdx_x)
-        T.evaluate(v)
         for k in T.serial(T.uint32(4)):
             T.evaluate(tx + k)
 
@@ -1061,9 +1060,9 @@ def test_lower_exec_context_keeps_plain_predicate_condition():
         lowered = LowerTIRx()(tvm.IRModule({"main": before}))
 
     script = lowered.script(extra_config={"tirx.prefix": "T"})
-    assert "if wg_id == 0:" in script
-    assert "0 <= wg_id" not in script
-    assert "wg_id < 1" not in script
+    assert "if v_1 == 0:" in script
+    assert "0 <= v_1" not in script
+    assert "v_1 < 1" not in script
 
 
 def test_lower_exec_context_keeps_plain_scope_predicate_condition():
@@ -1082,9 +1081,9 @@ def test_lower_exec_context_keeps_plain_scope_predicate_condition():
         lowered = LowerTIRx()(tvm.IRModule({"main": before}))
 
     script = lowered.script(extra_config={"tirx.prefix": "T"})
-    assert "if wg_id == 0:" in script
-    assert "0 <= wg_id" not in script
-    assert "wg_id < 1" not in script
+    assert "if v_1 == 0:" in script
+    assert "0 <= v_1" not in script
+    assert "v_1 < 1" not in script
 
 
 def test_simplify_uses_floor_div_scope_predicate_as_context_fact():
@@ -1146,8 +1145,8 @@ def test_lower_exec_context_selector_filter_for_elect_sync():
         LowerTIRx()(tvm.IRModule({"main": before}))
 
     assert len(seen) == 3
-    assert any("T.selector(lane_id, T.cuda.elect_sync())" in item for item in seen)
-    assert any("T.selector(lane_id, T.cuda.elect_sync() != T.uint32(0))" in item for item in seen)
+    assert any("T.selector(v, T.cuda.elect_sync())" in item for item in seen)
+    assert any("T.selector(v, T.cuda.elect_sync() != T.uint32(0))" in item for item in seen)
 
 
 def test_lower_cleanup_accepts_bool_elect_sync_else_path():
@@ -1207,7 +1206,7 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
     assert int(seen[0]["inter"]["laneid"][0]) == 1
     assert (
         seen[0]["inter"]["laneid"][1].script(extra_config={"tirx.prefix": "T"})
-        == "T.selector(lane_id, T.cuda.elect_sync())"
+        == "T.selector(v, T.cuda.elect_sync())"
     )
     assert len(seen[0]["intra"]) == 0
 
@@ -1472,8 +1471,6 @@ def test_lower_buffer_offset():
         )
         v: T.let[T.int32] = blockIdx_x
         v_1: T.let[T.int32] = threadIdx_x
-        T.evaluate(v)
-        T.evaluate(v_1)
         A = T.alloc_local((4096,), "float16", layout=None)
         A0 = T.decl_buffer(
             (64,), "float16", data=A.data, elem_offset=2080, scope="local", layout=None
@@ -1491,11 +1488,15 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
             self.B = T.alloc_local([1], "float16")
             self.C = T.decl_buffer([1], "float16", smem, elem_offset=0, scope="shared.dyn")
 
+    @mutable_cell_decl("TestMutableCells.int_var1")
     def int_var1(val):
         buf = T.local_scalar("int32")
         if val is not None:
             T.buffer_store(buf.source, val, 0)
         return buf
+
+    TestMutableCells = SimpleNamespace(int_var1=int_var1)
+    register_namespace("TestMutableCells", TestMutableCells)
 
     def int_var2(val):
         buf = T.alloc_local([1], "int32")
@@ -1511,9 +1512,9 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
         state.A[0] = T.float16(1)
         state.B[0] = T.float16(2)
         state.C[0] = T.float16(3)
-        D = int_var1(1)
+        D = TestMutableCells.int_var1(1)
         D = D + 1
-        E = int_var1(2)
+        E = TestMutableCells.int_var1(2)
         E = E + 2
         F = int_var2(3)
         F[0] = F[0] + 3
@@ -1579,7 +1580,6 @@ def test_alloc_buffer_with_thread_axis_layout():
         v: T.let[T.int32] = warp_id_in_cta // 4
         warp_id: T.let[T.int32] = warp_id_in_cta % 4
         lane_id: T.let[T.int32] = threadIdx_x % 32
-        T.evaluate(v)
         reg_wg = T.alloc_local((4,), layout=None)
         reg = T.decl_buffer((4,), data=reg_wg.data, scope="local", layout=None)
         for i in range(4):

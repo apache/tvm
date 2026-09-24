@@ -1357,8 +1357,14 @@ def binary_reduce(
     workspace : Dict[str, Buffer]
         The workspace of the operator.
 
-    config : Dict[str, Any]
-        The scheduler configuration.
+    dispatch : str, optional
+        The dispatch implementation requested for this operator.
+
+    scope : ExecScope, optional
+        The execution scope for this operator.
+
+    **kwargs
+        Scheduler configuration passed as keyword arguments.
     """
     if workspace is None:
         workspace = {}
@@ -1439,8 +1445,14 @@ def unary_reduce(
     workspace : Dict[str, Buffer]
         The workspace of the operator.
 
-    config : Dict[str, Any]
-        The scheduler configuration.
+    dispatch : str, optional
+        The dispatch implementation requested for this operator.
+
+    scope : ExecScope, optional
+        The execution scope for this operator.
+
+    **kwargs
+        Scheduler configuration passed as keyword arguments.
     """
     if workspace is None:
         workspace = {}
@@ -1524,8 +1536,14 @@ def binary_chain(
     workspace : Dict[str, Buffer]
         The workspace of the operator.
 
-    config : Dict[str, Any]
-        The scheduler configuration.
+    dispatch : str, optional
+        The dispatch implementation requested for this operator.
+
+    scope : ExecScope, optional
+        The execution scope for this operator.
+
+    **kwargs
+        Scheduler configuration passed as keyword arguments.
     """
     if workspace is None:
         workspace = {}
@@ -1594,8 +1612,14 @@ def reduce_negate(
     workspace : Dict[str, Buffer]
         The workspace of the operator.
 
-    config : Dict[str, Any]
-        The scheduler configuration.
+    dispatch : str, optional
+        The dispatch implementation requested for this operator.
+
+    scope : ExecScope, optional
+        The execution scope for this operator.
+
+    **kwargs
+        Scheduler configuration passed as keyword arguments.
     """
     if workspace is None:
         workspace = {}
@@ -1644,8 +1668,9 @@ def select(
         The value to select if the predicate is false.
 
     pred : Union[LambdaExpr, Callable[..., Expr]]
-        The predicate to evaluate. The callable should take the same number of arguments as the dimensions of the destination buffer.
-    """  # noqa: E501
+        The predicate to evaluate. The callable should take the same number of arguments
+        as the dimensions of the destination buffer.
+    """
     dst = _to_region(dst)
     if is_buffer_var(true_value):
         true_value = _to_region(true_value)

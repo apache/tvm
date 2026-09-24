@@ -45,10 +45,10 @@ def test_dataflow_binding():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("cuda", 0),
-                    I.vdevice("metal", 0, "global"),
-                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
+                    R.vdevice("llvm"),
+                    R.vdevice("cuda", 0),
+                    R.vdevice("metal", 0, "global"),
+                    R.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
@@ -76,10 +76,10 @@ def test_dataflow_binding():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("cuda", 0),
-                    I.vdevice("metal", 0, "global"),
-                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
+                    R.vdevice("llvm"),
+                    R.vdevice("cuda", 0),
+                    R.vdevice("metal", 0, "global"),
+                    R.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
@@ -111,7 +111,7 @@ def test_binding():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
+                    R.vdevice("llvm"),
                 ]
             }
         )
@@ -137,7 +137,7 @@ def test_binding():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
+                    R.vdevice("llvm"),
                 ]
             }
         )
@@ -167,7 +167,7 @@ def test_func_ret():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("cuda"),
+                    R.vdevice("cuda"),
                 ]
             }
         )
@@ -190,7 +190,7 @@ def test_func_ret():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("cuda"),
+                    R.vdevice("cuda"),
                 ]
             }
         )
@@ -217,7 +217,7 @@ def test_tuple_func_ret():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("cuda"),
+                    R.vdevice("cuda"),
                 ]
             }
         )
@@ -240,7 +240,7 @@ def test_tuple_func_ret():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("cuda"),
+                    R.vdevice("cuda"),
                 ]
             }
         )
@@ -267,10 +267,10 @@ def test_multi_device():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("cuda", 0),
-                    I.vdevice("metal", 0, "global"),
-                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
+                    R.vdevice("llvm"),
+                    R.vdevice("cuda", 0),
+                    R.vdevice("metal", 0, "global"),
+                    R.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
@@ -296,10 +296,10 @@ def test_multi_device():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("cuda", 0),
-                    I.vdevice("metal", 0, "global"),
-                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
+                    R.vdevice("llvm"),
+                    R.vdevice("cuda", 0),
+                    R.vdevice("metal", 0, "global"),
+                    R.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
@@ -329,10 +329,10 @@ def test_insert_to_vdevice():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("cuda", 0),
-                    I.vdevice("metal", 0, "global"),
-                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
+                    R.vdevice("llvm"),
+                    R.vdevice("cuda", 0),
+                    R.vdevice("metal", 0, "global"),
+                    R.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
@@ -359,10 +359,10 @@ def test_insert_to_vdevice():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("cuda", 0),
-                    I.vdevice("metal", 0, "global"),
-                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
+                    R.vdevice("llvm"),
+                    R.vdevice("cuda", 0),
+                    R.vdevice("metal", 0, "global"),
+                    R.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
@@ -390,7 +390,7 @@ def test_input_module_is_unmodified():
     def make_module():
         @I.ir_module
         class Module:
-            I.module_global_infos({"vdevice": [I.vdevice("llvm")]})
+            I.module_global_infos({"vdevice": [R.vdevice("llvm")]})
 
             @R.function
             def foo(

@@ -3627,8 +3627,7 @@ def test_attention():
     class Attention:
         @R.function
         def main(q: R.Tensor((4, 16, 32, 8), "float32"), k: R.Tensor((4, 8, 32, 8), "float32"), v: R.Tensor((4, 8, 32, 16), "float32"), bias: R.Tensor((4, 32, 16, 8), "float32")):
-            scale = I.meta_var(T.FloatImm("float32", 0.1))
-            gv: R.Tensor((4, 16, 32, 16), "float32") = R.nn.attention(q, k, v, bias, scale=scale, causal_mask="TopLeft")
+            gv: R.Tensor((4, 16, 32, 16), "float32") = R.nn.attention(q, k, v, bias, scale=T.FloatImm("float32", 0.1), causal_mask="TopLeft")
             return gv
 
     @tvm.script.ir_module
@@ -3821,8 +3820,9 @@ def test_dynamic_attention():
             v: R.Tensor((4, "seq_len_kv", 32, 16), "float32"),
             bias: R.Tensor((4, 32, "seq_len", "seq_len_kv"), "float32"),
         ):
-            scale = I.meta_var(T.FloatImm("float32", 0.1))
-            gv = R.nn.attention(q, k, v, bias, scale=scale, causal_mask="BottomRight")
+            gv = R.nn.attention(
+                q, k, v, bias, scale=T.FloatImm("float32", 0.1), causal_mask="BottomRight"
+            )
             return gv
 
     LegalizeOps()(Attention)
@@ -3856,8 +3856,9 @@ def test_dynamic_batch_attention():
             v: R.Tensor(("batch_size", 8, 32, 16), "float32"),
             bias: R.Tensor(("batch_size", 32, 16, 8), "float32"),
         ):
-            scale = I.meta_var(T.FloatImm("float32", 0.1))
-            gv = R.nn.attention(q, k, v, bias, scale=scale, causal_mask="BottomRight")
+            gv = R.nn.attention(
+                q, k, v, bias, scale=T.FloatImm("float32", 0.1), causal_mask="BottomRight"
+            )
             return gv
 
     LegalizeOps()(AttentionBias)

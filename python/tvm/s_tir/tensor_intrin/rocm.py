@@ -131,10 +131,10 @@ def get_mma_fill_intrin(dtype, local_size):
             for i0, i1 in T.grid(M_DIM, N_DIM):
                 with T.sblock("C_warp"):
                     i, j = T.axis.remap("SS", [i0, i1])
-                    thread_id, local_id = T.meta_var(index_map(i, j))
+                    warp_indices = index_map(i, j)
                     T.reads()
-                    T.writes(C_warp[thread_id, local_id])
-                    C_warp[thread_id, local_id] = zero
+                    T.writes(C_warp[warp_indices[0], warp_indices[1]])
+                    C_warp[warp_indices[0], warp_indices[1]] = zero
 
     @T.prim_func(s_tir=True)
     def mma_fill_impl(a: T.handle) -> None:
@@ -221,9 +221,9 @@ def get_mfma_load_intrin(
                     v0, v1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(memory[v0, v1])
 
-                    thread_id, local_id = T.meta_var(index_map(v0, v1))
-                    T.writes(reg[thread_id, local_id])
-                    reg[thread_id, local_id] = memory[v0, v1]
+                    warp_indices = index_map(v0, v1)
+                    T.writes(reg[warp_indices[0], warp_indices[1]])
+                    reg[warp_indices[0], warp_indices[1]] = memory[v0, v1]
 
     @T.prim_func(s_tir=True)
     def mfma_load_impl(reg_handle: T.handle, memory_handle: T.handle) -> None:
@@ -248,9 +248,9 @@ def get_mfma_load_intrin(
             T.writes(reg[0:WARP_SIZE, 0:local_size])
             tx = T.env_thread("threadIdx.x")
             for local_id in T.serial(0, local_size):
-                row, col = T.meta_var(reverse_index_map(tx, local_id))
+                matrix_indices = reverse_index_map(tx, local_id)
                 T.launch_thread(tx, WARP_SIZE)
-                reg[tx, local_id] = memory[row, col]
+                reg[tx, local_id] = memory[matrix_indices[0], matrix_indices[1]]
 
     return mfma_load_desc, mfma_load_impl
 
@@ -302,22 +302,22 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
             for i, j, k in T.grid(M_DIM, N_DIM, k_dim):
                 with T.sblock("C"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    b_row_ind, b_col_ind = T.meta_var(maybe_swap(vk, vj))
+                    b_indices = maybe_swap(vk, vj)
 
-                    thread_id_C, local_id_C = T.meta_var(index_map_C(vi, vj))
-                    thread_id_A, local_id_A = T.meta_var(index_map_A(vi, vk))
-                    thread_id_B, local_id_B = T.meta_var(index_map_B(b_row_ind, b_col_ind))
+                    c_warp_indices = index_map_C(vi, vj)
+                    a_warp_indices = index_map_A(vi, vk)
+                    b_warp_indices = index_map_B(b_indices[0], b_indices[1])
 
                     T.reads(
-                        C[thread_id_C, local_id_C],
-                        A[thread_id_A, local_id_A],
-                        B[thread_id_B, local_id_B],
+                        C[c_warp_indices[0], c_warp_indices[1]],
+                        A[a_warp_indices[0], a_warp_indices[1]],
+                        B[b_warp_indices[0], b_warp_indices[1]],
                     )
-                    T.writes(C[thread_id_C, local_id_C])
+                    T.writes(C[c_warp_indices[0], c_warp_indices[1]])
 
-                    C[thread_id_C, local_id_C] += maybe_cast(
-                        A[thread_id_A, local_id_A]
-                    ) * maybe_cast(B[thread_id_B, local_id_B])
+                    C[c_warp_indices[0], c_warp_indices[1]] += maybe_cast(
+                        A[a_warp_indices[0], a_warp_indices[1]]
+                    ) * maybe_cast(B[b_warp_indices[0], b_warp_indices[1]])
 
     @T.prim_func(s_tir=True)
     def mfma_sync_impl_float(a: T.handle, b: T.handle, c: T.handle) -> None:
@@ -336,8 +336,8 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
             T.launch_thread(tx, WARP_SIZE)
             C[tx, T.ramp(0, 1, local_size_out)] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id(mfma_intrin),
-                A[tx, T.ramp(0, 1, local_size) if local_size > 1 else 0],
-                B[tx, T.ramp(0, 1, local_size) if local_size > 1 else 0],
+                A[tx, T.ramp(0, 1, local_size) if T.constexpr(local_size > 1) else 0],
+                B[tx, T.ramp(0, 1, local_size) if T.constexpr(local_size > 1) else 0],
                 C[tx, T.ramp(0, 1, local_size_out)],
                 T.int32(0),
                 T.int32(0),
@@ -366,12 +366,12 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
                 T.call_intrin(
                     "int32",
                     "tirx.reinterpret",
-                    A[tx, T.ramp(0, 1, local_size) if local_size > 1 else 0],
+                    A[tx, T.ramp(0, 1, local_size) if T.constexpr(local_size > 1) else 0],
                 ),
                 T.call_intrin(
                     "int32",
                     "tirx.reinterpret",
-                    B[tx, T.ramp(0, 1, local_size) if local_size > 1 else 0],
+                    B[tx, T.ramp(0, 1, local_size) if T.constexpr(local_size > 1) else 0],
                 ),
                 C[tx, T.ramp(0, 1, local_size_out)],
                 T.int32(0),
@@ -401,10 +401,10 @@ def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
             for i0, i1 in T.grid(M_DIM, N_DIM):
                 with T.sblock("C_warp"):
                     v0, v1 = T.axis.remap("SS", [i0, i1])
-                    thread_id, local_id = T.meta_var(index_map(v0, v1))
-                    T.reads(C_warp[thread_id, local_id])
+                    warp_indices = index_map(v0, v1)
+                    T.reads(C_warp[warp_indices[0], warp_indices[1]])
                     T.writes(C[v0, v1])
-                    C[v0, v1] = C_warp[thread_id, local_id]
+                    C[v0, v1] = C_warp[warp_indices[0], warp_indices[1]]
 
     @T.prim_func(s_tir=True)
     def mfma_store_impl(a: T.handle, c: T.handle) -> None:

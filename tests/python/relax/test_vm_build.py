@@ -1212,7 +1212,7 @@ def test_relax_module_with_multiple_targets(exec_mode):
 
     @I.ir_module(s_tir=True)
     class Module:
-        I.module_global_infos({"vdevice": [I.vdevice("llvm")]})
+        I.module_global_infos({"vdevice": [R.vdevice("llvm")]})
 
         @R.function
         def func_cuda(A: R.Tensor([32, 32], "float32"), B: R.Tensor([32, 32], "float32")):

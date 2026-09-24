@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401, F841
+# ruff: noqa: F841
 """Block builder unit test"""
 
 # The test here do not depend on tvmscript to cover most basic features
@@ -664,8 +664,8 @@ def test_emit_nested_tuple(emit_nested_tuple):
 
             @R.function
             def func(
-                n_1: R.Prim("int64"),
-                m_1: R.Prim("int64"),
+                n_1: T.int64,
+                m_1: T.int64,
                 x: R.Tensor(("n", "m"), dtype="float32"),
                 y: R.Tensor(("m", "n"), dtype="float32"),
             ):
@@ -675,8 +675,8 @@ def test_emit_nested_tuple(emit_nested_tuple):
 
             @R.function
             def func(
-                n_1: R.Prim("int64"),
-                m_1: R.Prim("int64"),
+                n_1: T.int64,
+                m_1: T.int64,
                 x: R.Tensor(("n", "m"), dtype="float32"),
                 y: R.Tensor(("m", "n"), dtype="float32"),
             ):

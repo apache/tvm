@@ -34,13 +34,13 @@ namespace tirx {
 /*!
  * \brief Add tirx Stmt to the top frame in IRBuilder frame stack.
  * \param stmt The Stmt.
+ * \param span The stored result location, which may be undefined.
  */
-inline void AddToParent(tvm::tirx::Stmt stmt) {
+inline void AddToParent(tvm::tirx::Stmt stmt, Span span) {
   IRBuilder builder = IRBuilder::Current();
-  // Some builder paths use an undefined statement as an omitted branch.
-  if (stmt.defined() && !stmt->span.defined()) {
-    stmt->span = builder->GetCurrentSourceSpan();
-  }
+  // A deferred frame owns its location even when that location is undefined.
+  // Preserve an existing body location when flattening returns the body itself.
+  if (stmt.defined() && !stmt->span.defined()) stmt->span = std::move(span);
   if (builder->frames.empty()) {
     TVM_FFI_CHECK(!builder->result.has_value(), ValueError)
         << "Builder.result has already been set";
@@ -50,6 +50,13 @@ inline void AddToParent(tvm::tirx::Stmt stmt) {
   } else {
     TVM_FFI_THROW(TypeError) << "Unsupported frame type: " << builder->frames.back();
   }
+}
+
+/*! \brief Add an eager statement under the current source-call context. */
+inline void AddToParent(tvm::tirx::Stmt stmt) {
+  // Some builder paths use an undefined statement as an omitted branch.
+  if (stmt.defined()) IRBuilder::Current()->SetCurrentSourceSpan(stmt);
+  AddToParent(std::move(stmt), Span());
 }
 
 /*!

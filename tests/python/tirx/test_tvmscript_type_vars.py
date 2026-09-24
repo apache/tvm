@@ -38,6 +38,7 @@ def func(A: T.Buffer((M, M * 2), "float32")):
         assert script.startswith("from __future__ import annotations\n\n")
         assert "def main[M](" in script
         assert 'T.Buffer((M, M * T.int64(2)), "float32")' in script
+        assert "M = T.int64()" not in script
         typed = tvm.script.from_source(
             """
 @T.prim_func(private=True)
@@ -49,13 +50,14 @@ def func[M: int](A: T.Buffer((M, M * 2), "float32")):
     else:
         assert "from __future__ import annotations" not in script
         assert 'M = TypeVar("M")' in script
+        assert "M = T.int64()" in script
 
     portable = func.script(extra_config={"script.use_pep695": False})
     assert "from __future__ import annotations" not in portable
     assert 'M = TypeVar("M")' in portable
     assert 'T.Buffer((M, "M * T.int64(2)"), "float32")' in portable
     assert "UNUSED" not in script
-    assert "M = T.int64()" not in script
+    assert "M = T.int64()" in portable
     assert len(func.params) == 1
     assert not hasattr(func, "type_params")
     assert func.attrs.get("tirx.type_vars") is None

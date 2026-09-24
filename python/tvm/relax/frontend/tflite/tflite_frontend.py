@@ -8343,8 +8343,8 @@ def _build_tflite_rfft2d_primfunc(input_shape, output_pair_shape):
         for b_idx, out_y, out_x in T.grid(batch, height, out_width):
             with T.sblock("rfft2d"):
                 v_b, v_oy, v_ox = T.axis.remap("SSS", [b_idx, out_y, out_x])
-                real_sum = T.float32(0)
-                imag_sum = T.float32(0)
+                real_sum: T.float32 = T.float32(0)
+                imag_sum: T.float32 = T.float32(0)
                 input_base = v_b * height * width
                 for in_y, in_x in T.grid(height, width):
                     phase_y = T.Cast("float32", v_oy) * T.Cast("float32", in_y) / T.float32(height)

@@ -79,11 +79,13 @@ def test_simple_binary(op_type, operands_type):
         A_sbuf = T.alloc_buffer(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
         B_sbuf = T.alloc_buffer(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
         C_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        if operands_type == "region_region" or operands_type.startswith("region_broadcast"):
+        if T.constexpr(
+            operands_type == "region_region" or operands_type.startswith("region_broadcast")
+        ):
             Tx_func(C_sbuf, A_sbuf, B_sbuf)
-        elif operands_type == "const_region":
+        elif T.constexpr(operands_type == "const_region"):
             Tx_func(C_sbuf, const, A_sbuf)
-        elif operands_type == "region_const":
+        elif T.constexpr(operands_type == "region_const"):
             Tx_func(C_sbuf, A_sbuf, const)
 
     @T.prim_func
@@ -96,15 +98,15 @@ def test_simple_binary(op_type, operands_type):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
-                    if operands_type == "region_region":
+                    if T.constexpr(operands_type == "region_region"):
                         T.nki.tensortensor(C_sbuf[p_loop, f_loop], A_sbuf[p_loop, f_loop], B_sbuf[p_loop, f_loop], op_type)  # noqa: E501
-                    elif operands_type == "region_const":
+                    elif T.constexpr(operands_type == "region_const"):
                         T.nki.tensorscalar(C_sbuf[p_loop, f_loop], A_sbuf[p_loop, f_loop], T.float32(3.0), op_type, T.bool(False))  # noqa: E501
-                    elif operands_type == "const_region":
+                    elif T.constexpr(operands_type == "const_region"):
                         T.nki.tensorscalar(C_sbuf[p_loop, f_loop], A_sbuf[p_loop, f_loop], T.float32(3.0), op_type, T.bool(True))  # noqa: E501
-                    elif operands_type == "region_broadcast_rhs":
+                    elif T.constexpr(operands_type == "region_broadcast_rhs"):
                         T.nki.tensorscalar(C_sbuf[p_loop, f_loop], A_sbuf[p_loop, f_loop], B_sbuf[p_loop, 0], op_type, T.bool(False))  # noqa: E501
-                    elif operands_type == "region_broadcast_lhs":
+                    elif T.constexpr(operands_type == "region_broadcast_lhs"):
                         T.nki.tensorscalar(C_sbuf[p_loop, f_loop], B_sbuf[p_loop, f_loop], A_sbuf[p_loop, 0], op_type, T.bool(True))  # noqa: E501
             # fmt: on
     with target:
@@ -156,15 +158,15 @@ def test_binary_complex(op_type, operands_type):
         B_sbuf_view = B_sbuf.view(*src2_view_shape)
         C_sbuf_view = C_sbuf.view(*dst_view_shape)
         for i in range(4):
-            if operands_type == "region_region":
+            if T.constexpr(operands_type == "region_region"):
                 Tx_func(C_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :], B_sbuf_view[:, i, :])
-            elif operands_type == "region_const":
+            elif T.constexpr(operands_type == "region_const"):
                 Tx_func(C_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :], const)
-            elif operands_type == "const_region":
+            elif T.constexpr(operands_type == "const_region"):
                 Tx_func(C_sbuf_view[:, i, :], const, A_sbuf_view[:, i * 2, :])
-            elif operands_type == "region_broadcast_rhs":
+            elif T.constexpr(operands_type == "region_broadcast_rhs"):
                 Tx_func(C_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :], B_sbuf_view[:, 0, :])
-            elif operands_type == "region_broadcast_lhs":
+            elif T.constexpr(operands_type == "region_broadcast_lhs"):
                 Tx_func(C_sbuf_view[:, i, :, :], A_sbuf_view[:, i*2,:, :], B_sbuf_view[:, i, :, :])
 
     f_extent = 128 if operands_type == "region_broadcast_lhs" else 512
@@ -183,15 +185,15 @@ def test_binary_complex(op_type, operands_type):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, f_extent, annotations={"nki_dim":"F"}):
-                    if operands_type == "region_region":
+                    if T.constexpr(operands_type == "region_region"):
                         T.nki.tensortensor(C_sbuf_view[p_loop, i * 512 + f_loop], A_sbuf_view[p_loop, i * 1024 + f_loop], B_sbuf_view[p_loop, i * 512 + f_loop], op_type)  # noqa: E501
-                    elif operands_type == "const_region":
+                    elif T.constexpr(operands_type == "const_region"):
                         T.nki.tensorscalar(C_sbuf_view[p_loop, i * 512 + f_loop], A_sbuf_view[p_loop, i * 1024 + f_loop], T.float32(3.0), op_type, T.bool(True))  # noqa: E501
-                    elif operands_type == "region_const":
+                    elif T.constexpr(operands_type == "region_const"):
                         T.nki.tensorscalar(C_sbuf_view[p_loop, i * 512 + f_loop], A_sbuf_view[p_loop, i * 1024 + f_loop], T.float32(3.0), op_type, T.bool(False))  # noqa: E501
-                    elif operands_type == "region_broadcast_lhs":
+                    elif T.constexpr(operands_type == "region_broadcast_lhs"):
                         T.nki.tensorscalar(C_sbuf_view[p_loop, i * 512 + b_loop * 128 + f_loop], B_sbuf_view[p_loop, i * 512 + b_loop * 128 + f_loop], A_sbuf_view[p_loop, i * 8 + b_loop], op_type, T.bool(True))  # noqa: E501
-                    elif operands_type == "region_broadcast_rhs":
+                    elif T.constexpr(operands_type == "region_broadcast_rhs"):
                         T.nki.tensortensor(C_sbuf_view[p_loop, i * 512 + f_loop], A_sbuf_view[p_loop, i * 1024 + f_loop], B_sbuf_view[p_loop, f_loop], op_type)  # noqa: E501
 
             # fmt: on
