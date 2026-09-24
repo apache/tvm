@@ -31,8 +31,10 @@ _LAZY_SUBMODULES = {
 
 def register_backend():
     """Register Trainium-owned Python semantics."""
+    from tvm.script.ir_builder.tirx import (
+        ir as builder_ir,  # pylint: disable=import-outside-toplevel
+    )
     from tvm.tirx import compilation_pipeline  # pylint: disable=import-outside-toplevel
-    from tvm.tirx.script.builder import ir as builder_ir  # pylint: disable=import-outside-toplevel
 
     for name, namespace in script_namespaces().items():
         builder_ir.register_script_namespace(name, namespace)

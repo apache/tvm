@@ -42,9 +42,9 @@ from tvm.ir import register_op_attr as _register_op_attr
 from tvm.ir.base import deprecated
 from tvm.ir.prim import _ffi_api as _prim_ffi_api
 from tvm.runtime import convert
+from tvm.script.ir_builder import meta_var
 from tvm.script.ir_builder.base import AlreadyEmitted, IRBuilder
-from tvm.script.ir_builder.ir import meta_var
-from tvm.script.ir_builder.ir.frame import IRModuleFrame
+from tvm.script.ir_builder.frame import IRModuleFrame
 from tvm.script.parser.protocol_registry import (
     mutable_cell_decl as _mutable_cell_decl,
 )
@@ -1608,7 +1608,23 @@ def bind(
     *,
     var: Var | None = None,  # pylint: disable=redefined-outer-name
 ) -> Var:
-    """Create an immutable binding and return its native variable directly."""
+    """Create an immutable binding and return its native variable.
+
+    Parameters
+    ----------
+    value : Expr
+        Expression bound in the current statement frame.
+    type_annotation : Type or callable, optional
+        Explicit binding type, or a zero-argument annotation factory. A variable
+        annotation supplies its type; None lets the native builder infer it.
+    var : Var, optional
+        Existing variable to bind. None asks the native builder to create one.
+
+    Returns
+    -------
+    result : Var
+        The same variable stored in the emitted Bind statement.
+    """
     return Bind(value, type_annotation, var=var)
 
 
@@ -1785,7 +1801,19 @@ def While(condition: Expr) -> frame.WhileFrame:  # pylint: disable=invalid-name
 
 
 def Return(value: Expr) -> AlreadyEmitted[tir.Stmt]:  # pylint: disable=invalid-name
-    """Emit a return and retain the stored statement in an emission receipt."""
+    """Emit a return and retain the stored statement in an emission receipt.
+
+    Parameters
+    ----------
+    value : Expr
+        Expression returned by the active primitive function.
+
+    Returns
+    -------
+    result : AlreadyEmitted[Stmt]
+        Receipt holding the exact return statement emitted into the current frame;
+        consuming it does not emit that statement again.
+    """
     return AlreadyEmitted(_ffi_api.Return(value))  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
@@ -3084,7 +3112,7 @@ def register_script_namespace(name: str, namespace: object) -> object:
     import sys  # pylint: disable=import-outside-toplevel
 
     for module_name in [
-        "tvm.tirx.script.builder",
+        "tvm.script.ir_builder.tirx",
         "tvm.tirx.script",
         "tvm.script.tirx",
     ]:

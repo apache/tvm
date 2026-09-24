@@ -19,3 +19,6 @@
 import tvm_ffi
 
 tvm_ffi.init_ffi_api("script.ir_builder", __name__)  # pylint: disable=protected-access
+
+# Shared module construction retains its native registry namespace.
+tvm_ffi.init_ffi_api("script.ir_builder.ir", __name__)  # pylint: disable=protected-access

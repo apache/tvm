@@ -18,7 +18,7 @@
 
 import sys as _sys
 
-from tvm.script.ir_builder.ir import *  # noqa: F403
+from tvm.script.ir_builder import *  # noqa: F403
 
 from . import register_namespace
 from .entry import ir_module as ir_module

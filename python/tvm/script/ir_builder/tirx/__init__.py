@@ -97,7 +97,27 @@ is_type_var = _ir.is_prim_var
 
 
 def type_var(name, *, dtype=None, span=None):
-    """Construct an explicit standalone primitive symbol."""
+    """Construct a fresh standalone primitive symbol.
+
+    Parameters
+    ----------
+    name : str
+        Name of the symbol.
+    dtype : str or PrimType, optional
+        Primitive type of the symbol; None selects "int64".
+    span : Span or source location, optional
+        Source location attached to the constructed IR; None leaves it unspecified.
+
+    Returns
+    -------
+    result : Var
+        The newly constructed primitive variable.
+
+    Notes
+    -----
+    This constructor creates a new symbol on each call. Use the language variant
+    resolver for symbols shared by name within a function signature.
+    """
     return _ir.Var(name, "int64" if dtype is None else dtype, _source_span(span))
 
 
@@ -242,7 +262,24 @@ def _as_expr(value):
 
 
 def emit(value):
-    """Emit a standalone value, preserving already-emitted statement receipts."""
+    """Emit a standalone value without repeating an earlier emission.
+
+    Parameters
+    ----------
+    value : Expr, Stmt, IRBuilderFrame, AlreadyEmitted, or sequence
+        Value consumed by the statement hook. AlreadyEmitted receipts and None
+        add no statement; other values follow the language variant ``emit_`` contract.
+
+    Returns
+    -------
+    None
+        No source-visible result.
+
+    Notes
+    -----
+    See :func:`tvm.script.ir_builder.parser_protocol.emit_` for construction
+    context, sequence handling, and supported inert values.
+    """
     from tvm.script.ir_builder.base import AlreadyEmitted
 
     if isinstance(value, AlreadyEmitted):
@@ -274,20 +311,67 @@ def grid(*extents, dtype=None):
 
 @_mutable_cell_decl("T.alloc_scalar")
 def alloc_scalar(dtype="float32", scope="global"):
-    """Allocate scalar storage and return its load expression."""
+    """Allocate scalar storage and return its load expression.
+
+    Parameters
+    ----------
+    dtype : str, optional
+        Element dtype; defaults to "float32".
+    scope : str, optional
+        Storage scope for the one-element allocation; defaults to "global".
+
+    Returns
+    -------
+    result : TensorLoad
+        A load from the allocated scalar storage, usable as a mutable-cell target.
+
+    Notes
+    -----
+    Requires an active allocation scope in the TIRx builder.
+    """
     value = _native.alloc_scalar(dtype, scope)
     return value.scalar if isinstance(value, _native.scalar_wrapper) else value
 
 
 @_mutable_cell_decl("T.local_scalar")
 def local_scalar(dtype="float32"):
-    """Allocate scalar storage in local memory."""
+    """Allocate scalar storage in local memory.
+
+    Parameters
+    ----------
+    dtype : str, optional
+        Element dtype; defaults to "float32".
+
+    Returns
+    -------
+    result : TensorLoad
+        A load from the allocated scalar storage, usable as a mutable-cell target.
+
+    Notes
+    -----
+    Equivalent to ``alloc_scalar(dtype, "local")`` in an active allocation scope.
+    """
     return alloc_scalar(dtype, "local")
 
 
 @_mutable_cell_decl("T.shared_scalar")
 def shared_scalar(dtype="float32"):
-    """Allocate scalar storage in shared memory."""
+    """Allocate scalar storage in shared memory.
+
+    Parameters
+    ----------
+    dtype : str, optional
+        Element dtype; defaults to "float32".
+
+    Returns
+    -------
+    result : TensorLoad
+        A load from the allocated scalar storage, usable as a mutable-cell target.
+
+    Notes
+    -----
+    Equivalent to ``alloc_scalar(dtype, "shared")`` in an active allocation scope.
+    """
     return alloc_scalar(dtype, "shared")
 
 
@@ -374,7 +458,25 @@ def match_buffer(*args, **kwargs):
 
 
 def logical_and(*values):
-    """Construct scalar or vector conjunction from eager operands."""
+    """Construct scalar or vector conjunction from eager operands.
+
+    Parameters
+    ----------
+    values : Expr or Python value
+        One or more operands. Object-convertible values are normalized first.
+        Host pairs follow Python logical operations; IR pairs use scalar logical
+        or vector bitwise operations according to their types.
+
+    Returns
+    -------
+    result : Expr or Python value
+        The conjunction reduced from left to right.
+
+    Notes
+    -----
+    All arguments are evaluated before this call; it does not provide Python
+    short-circuit evaluation of the argument expressions.
+    """
     if not values:
         raise TypeError("logical_and requires at least one operand")
     values = [
@@ -391,7 +493,25 @@ def logical_and(*values):
 
 
 def logical_or(*values):
-    """Construct scalar or vector disjunction from eager operands."""
+    """Construct scalar or vector disjunction from eager operands.
+
+    Parameters
+    ----------
+    values : Expr or Python value
+        One or more operands. Object-convertible values are normalized first.
+        Host pairs follow Python logical operations; IR pairs use scalar logical
+        or vector bitwise operations according to their types.
+
+    Returns
+    -------
+    result : Expr or Python value
+        The disjunction reduced from left to right.
+
+    Notes
+    -----
+    All arguments are evaluated before this call; it does not provide Python
+    short-circuit evaluation of the argument expressions.
+    """
     if not values:
         raise TypeError("logical_or requires at least one operand")
     values = [
@@ -408,14 +528,47 @@ def logical_or(*values):
 
 
 def logical_not(value):
-    """Negate a host or IR value without testing IR truth in Python."""
+    """Negate a host or IR value.
+
+    Parameters
+    ----------
+    value : Expr or Python value
+        Operand to negate. Object-convertible values are normalized first;
+        IR expressions use primitive Not and host values use Python not.
+
+    Returns
+    -------
+    result : Expr or bool
+        The logical negation without testing an IR expression as a Python bool.
+    """
     if isinstance(value, _ffi.ObjectConvertible):
         value = value.asobject()
     return _tir.Not(value) if isinstance(value, _ir.Expr) else not value
 
 
 def select(condition, true_value, false_value):
-    """Construct a scalar conditional whose runtime evaluates one arm."""
+    """Construct a scalar conditional or select a host value.
+
+    Parameters
+    ----------
+    condition : Expr or Python value
+        Scalar IR condition or host truth value. Object-convertible conditions
+        are normalized before selection.
+    true_value : Expr or Python value
+        Value selected when the condition is true.
+    false_value : Expr or Python value
+        Value selected when the condition is false.
+
+    Returns
+    -------
+    result : Expr or Python value
+        A primitive if_then_else expression, or the selected host object.
+
+    Notes
+    -----
+    Both Python value arguments are constructed before this call. The generated
+    IR conditional evaluates only its selected arm at runtime.
+    """
     if isinstance(condition, _ffi.ObjectConvertible):
         condition = condition.asobject()
     if not isinstance(condition, _ir.Expr):
