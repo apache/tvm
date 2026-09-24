@@ -73,7 +73,7 @@ def if_(condition: Any, *, span: _Span = None) -> IRBuilderFrame:
 
     Notes
     -----
-    Requires an active function region. Enter then_/else_ frames inside it; each branch's
+    Requires an active function region. Enter ``then_``/``else_`` frames inside it; each branch's
     lexical helper is defined and called inside that branch frame. TIRx permits a missing
     else; value-producing Relax branches must agree on their final binding name/type.
     Invalid context/condition/outputs produce builder diagnostics. Explicit constexpr

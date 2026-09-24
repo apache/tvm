@@ -268,7 +268,7 @@ def emit(value):
     ----------
     value : Expr, Stmt, IRBuilderFrame, AlreadyEmitted, or sequence
         Value consumed by the statement hook. AlreadyEmitted receipts and None
-        add no statement; other values follow the language variant emit_ contract.
+        add no statement; other values follow the language variant ``emit_`` contract.
 
     Returns
     -------
