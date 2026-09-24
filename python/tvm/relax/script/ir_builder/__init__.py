@@ -92,8 +92,8 @@ def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
     ----------
     shape : Expr or sequence of Expr, optional
         Tensor shape, or None when unknown. A string supplied without dtype
-        is shorthand for the dtype. Script dimension strings follow the
-        registered shape-expression argument policy.
+        is shorthand for the dtype. Symbolic dimensions are expressions over
+        explicit variables, such as those created with I.dynamic.
     dtype : str or PrimType, optional
         Element type; None leaves the element type unknown.
     vdevice : VDevice or str, optional
@@ -126,8 +126,8 @@ def DTensor(shape=None, dtype=None, device_mesh=None, placement="", *, ndim=-1, 
     Parameters
     ----------
     shape : Expr or sequence of Expr, optional
-        Global tensor shape, or None when unknown; dimension strings in script
-        follow the registered shape-expression argument policy.
+        Global tensor shape, or None when unknown. Symbolic dimensions are
+        expressions over explicit variables, such as those created with I.dynamic.
     dtype : str or PrimType, optional
         Element type; None leaves the element type unknown.
     device_mesh : DeviceMesh or str, optional
@@ -172,8 +172,8 @@ def Shape(values=None, ndim=-1, *, span=None):
     Parameters
     ----------
     values : sequence of Expr, optional
-        Known dimensions, or None for an unknown shape value. Script dimension
-        strings use the registered int64 shape-expression policy.
+        Known dimensions, or None for an unknown shape value. Symbolic dimensions
+        are expressions over explicit variables, such as those created with I.dynamic.
     ndim : int, optional
         Number of dimensions when values is None; -1 leaves it unknown.
         Do not supply an explicit count together with known values.
