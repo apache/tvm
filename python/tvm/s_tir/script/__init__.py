@@ -16,6 +16,7 @@
 # under the License.
 """S-TIR construction namespace, exposed as ``tvm.script.s_tir``."""
 
+import importlib as _importlib
 import sys as _sys
 
 _initialized = False
@@ -28,15 +29,16 @@ def _initialize():
         return
     _initializing = True
     try:
-        from tvm.script.ir_builder import s_tir as builder
         from tvm.script.parser import entry, protocol_registry, register_namespace
         from tvm.tirx import script as shared
+
+        from . import ir_builder as builder
 
         shared._initialize()
         globals().update(
             (name, getattr(shared, name))
             for name in shared.__all__
-            if name not in ("builder", "jit")
+            if name not in ("builder", "ir_builder", "jit")
         )
         for name in (
             "function_",
@@ -88,6 +90,8 @@ def _initialize():
 
 
 def __getattr__(name):
+    if name == "ir_builder":
+        return _importlib.import_module(__name__ + ".ir_builder")
     if name.startswith("_") and name != "__all__":
         raise AttributeError(name)
     _initialize()

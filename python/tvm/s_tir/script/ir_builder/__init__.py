@@ -19,10 +19,10 @@
 from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm.script.ir_builder import base as _base
-from tvm.script.ir_builder.tirx import *
-from tvm.script.ir_builder.tirx import _native
-from tvm.script.ir_builder.tirx import arg as _shared_arg
-from tvm.script.ir_builder.tirx import bind_ as _shared_bind
+from tvm.tirx.script.ir_builder import *
+from tvm.tirx.script.ir_builder import _native
+from tvm.tirx.script.ir_builder import arg as _shared_arg
+from tvm.tirx.script.ir_builder import bind_ as _shared_bind
 
 from . import _ffi_api
 from .frame import PrimFuncFrame as _PrimFuncFrame

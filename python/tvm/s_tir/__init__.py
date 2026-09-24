@@ -20,7 +20,7 @@
 
 import tvm.script
 
-tvm.script.register_dialect("s_tir", "tvm.s_tir.script")
+tvm.script.register_dialect("s_tir", "tvm.s_tir.script", builder_path="tvm.s_tir.script.ir_builder")
 
 from ._tensor_intrin import TensorIntrin
 from .stmt import MatchBufferRegion, SBlock, SBlockRealize
@@ -77,7 +77,7 @@ def _check_script_module(module):
     from tvm.tirx import PrimFunc
 
     if any(isinstance(fn, PrimFunc) and not fn.is_tirx for fn in module.functions.values()):
-        from tvm.script.ir_builder.s_tir import _check_module_well_formed
+        from tvm.s_tir.script.ir_builder import _check_module_well_formed
 
         _check_module_well_formed(module)
 

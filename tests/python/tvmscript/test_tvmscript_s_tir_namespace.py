@@ -101,7 +101,7 @@ def test_tirx_construction_roundtrip_and_execution_are_independent(monkeypatch):
 
 @pytest.mark.parametrize("option", ["s_tir", "is_stir"])
 def test_raw_tirx_builder_rejects_legacy_mode(option):
-    from tvm.script.ir_builder import tirx as builder
+    from tvm.tirx.script import ir_builder as builder
 
     with pytest.raises(TypeError, match="unexpected keyword argument"):
         builder.prim_func(**{option: True})
@@ -137,8 +137,8 @@ def test_legacy_mode_is_not_a_function_option(namespace, option):
     ],
 )
 def test_s_tir_operations_have_an_independent_namespace(operation):
-    from tvm.script.ir_builder import s_tir as s_tir_builder
-    from tvm.script.ir_builder import tirx as tirx_builder
+    from tvm.s_tir.script import ir_builder as s_tir_builder
+    from tvm.tirx.script import ir_builder as tirx_builder
 
     assert hasattr(Ts, operation)
     assert hasattr(s_tir_builder, operation)
@@ -166,7 +166,7 @@ def test_tirx_cannot_change_dialect_with_attribute(value):
 @pytest.mark.parametrize("value", [True, False])
 def test_tirx_cannot_change_dialect_from_exit_callback(value):
     from tvm.script.ir_builder import IRBuilder
-    from tvm.script.ir_builder import tirx as builder
+    from tvm.tirx.script import ir_builder as builder
 
     with pytest.raises(ValueError, match="Ts.prim_func"):
         with IRBuilder():
@@ -190,7 +190,16 @@ def test_s_tir_options_and_helpers():
     tvm.ir.assert_structural_equal(scheduled, tvm.script.from_source(scheduled.script()))
 
 
-@pytest.mark.parametrize("first", ["tvm.s_tir.script", "tvm.tirx.script", "tvm.script.parser"])
+@pytest.mark.parametrize(
+    "first",
+    [
+        "tvm.s_tir.script",
+        "tvm.tirx.script",
+        "tvm.script.parser",
+        "tvm.s_tir.script.ir_builder.frame",
+        "tvm.script.ir_builder.s_tir.frame",
+    ],
+)
 def test_import_order(first):
     subprocess.run(
         [
@@ -202,6 +211,14 @@ def test_import_order(first):
             "from tvm.script.parser import s_tir as parser\n"
             "assert Ts is direct is parser\n"
             "assert Ts.Buffer is T.Buffer\n"
+            "from tvm.s_tir.script import ir_builder as owned\n"
+            "from tvm.script.ir_builder import s_tir as alias\n"
+            "import tvm.s_tir.script.ir_builder.frame as owned_frame\n"
+            "import tvm.script.ir_builder.s_tir.frame as alias_frame\n"
+            "assert Ts.ir_builder is owned is alias\n"
+            "assert owned.__name__ == 'tvm.s_tir.script.ir_builder'\n"
+            "assert owned_frame is alias_frame\n"
+            "assert Ts.ir_builder is not T.ir_builder\n"
             "from tvm.script.parser import _NAMESPACES\n"
             "assert _NAMESPACES['Ts'] is Ts\n"
             "assert _NAMESPACES['T'] is T\n",
