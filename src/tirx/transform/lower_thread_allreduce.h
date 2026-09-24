@@ -179,13 +179,13 @@ class ThreadAllreduceBuilder final : public DialectMutator {
                             .template as_or_throw<BufferStore>();
 
     if (auto it = load_remap_.find(allocation); it != load_remap_.end()) {
-      const auto* replacement = it->second.as<TensorLoadNode>();
+      const auto* replacement = it->second.template as<TensorLoadNode>();
       TVM_FFI_ICHECK(replacement);
       for (const auto& index : store->indices) {
         TVM_FFI_ICHECK(is_zero(index));
       }
       auto* writer = store.CopyOnWrite();
-      writer->buffer = replacement->source.as_or_throw<tvm::tirx::BufferVar>();
+      writer->buffer = replacement->source.template as_or_throw<tvm::tirx::BufferVar>();
       writer->indices = replacement->indices;
     } else if (auto opt = GetRemappedBuffer(store->buffer)) {
       store.CopyOnWrite()->buffer = opt.value();
