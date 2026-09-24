@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, missing-docstring
 # ruff: noqa: F401, F841
-"""Unittests for tvm.script.ir_builder.tirx"""
+"""Unittests for tvm.tirx.script.ir_builder"""
 
 import numpy as np
 import pytest
@@ -27,7 +27,7 @@ import tvm.testing
 from tvm import s_tir, tirx
 from tvm.ir.base import SourceName, Span, assert_structural_equal
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as T
+from tvm.tirx.script import ir_builder as T
 
 
 def test_ir_builder_tir_primfunc_base():

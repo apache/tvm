@@ -40,7 +40,7 @@ def _redecl(buf: Buffer, shape, layout, *, dtype=None, elem_offset=None, addr_of
         addr = buf.allocated_addr[0]
         if addr_offset is not None:
             addr = addr + addr_offset
-        return tvm.script.ir_builder.tirx.decl_buffer(
+        return tvm.tirx.script.ir_builder.decl_buffer(
             shape,
             buf.dtype if dtype is None else dtype,
             None,
@@ -53,7 +53,7 @@ def _redecl(buf: Buffer, shape, layout, *, dtype=None, elem_offset=None, addr_of
             layout,
             allocated_addr=addr,
         )
-    return tvm.script.ir_builder.tirx.decl_buffer(
+    return tvm.tirx.script.ir_builder.decl_buffer(
         shape,
         buf.dtype if dtype is None else dtype,
         buf.data,

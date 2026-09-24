@@ -75,7 +75,7 @@ __all__ = [
 
 
 def __getattr__(name: str) -> _Any:
-    # Real packages resolve directly; the finder supplies registered external builders.
+    # The finder resolves each registered dialect's canonical builder package.
     from tvm.script import _DIALECT_REGISTRY  # pylint: disable=import-outside-toplevel
 
     if name in _DIALECT_REGISTRY:
