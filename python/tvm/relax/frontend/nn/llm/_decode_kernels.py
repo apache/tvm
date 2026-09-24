@@ -519,7 +519,13 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_sy
                                 V[bx, ty + by * bdy, tx * VEC_SIZE + vec] = v_vec[vec]
 
                             # store s
-                            S[bx, ty + by * bdy] = T.log2(s_val[0] + s_other_val[0]) + s_max[0]
+                            # Every threadIdx.x thread of this block reads the same S element
+                            # above, so none may overwrite it until all of them have read it.
+                            # Without this barrier the threads only stay in step while bdx fits
+                            # in one warp, and a head_dim above 128 makes bdx wider than that.
+                            T.tvm_storage_sync("shared")
+                            if tx == 0:
+                                S[bx, ty + by * bdy] = T.log2(s_val[0] + s_other_val[0]) + s_max[0]
 
     func = merge_state_inplace
     if global_symbol:
