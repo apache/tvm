@@ -43,6 +43,7 @@ tvm::Type InferType(const PrimFunc& prim_func) {
     tvm::Type param_ty = [&]() -> tvm::Type {
       if (param->ty.as<BufferTypeNode>()) {
         BufferVar buf(param);
+        With<prim::OpConstFoldScope> normalize_shape(true);
         relax::ShapeExpr shape(
             buf->shape.Map([](PrimExpr dim) { return cast(PrimType::Int(64), dim); }));
         return relax::TensorType(shape, buf->dtype);

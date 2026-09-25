@@ -536,7 +536,7 @@ def setattr_(
     buffer = previous.source if isinstance(previous, _ir.TensorLoad) else previous
     if _tir.is_buffer_var(buffer):
         shape = buffer.ty.shape
-        if len(shape) == 1 and _python.bool(shape[0] == 1):
+        if len(shape) == 1 and isinstance(shape[0], _ir.prim.IntImm) and shape[0].value == 1:
             return set_mutable_cell_(previous, value, span=span)
     _python.setattr(target, name, value)
 

@@ -35,6 +35,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RelaxFrameNode::RegisterReflection();
   SeqExprFrameNode::RegisterReflection();
   FunctionFrameNode::RegisterReflection();
+  ffi::reflection::GlobalDef().def_method(
+      "script.ir_builder.relax.FunctionFrameExitOpConstFoldScope",
+      &FunctionFrameNode::ExitOpConstFoldScope);
   BindingBlockFrameNode::RegisterReflection();
   IfFrameNode::RegisterReflection();
   ThenFrameNode::RegisterReflection();
@@ -61,6 +64,8 @@ void SeqExprFrameNode::EnterWithScope() {
 }
 
 void FunctionFrameNode::EnterWithScope() {
+  TVM_FFI_CHECK(!op_const_fold_scope_, ValueError) << "Function frame is already entered";
+  auto scope = std::make_unique<With<prim::OpConstFoldScope>>(false);
   if (function.has_value()) {
     ffi::Optional<tvm::IRModule> mod = std::nullopt;
     if (auto frame = IRBuilder::Current()->FindFrame<ir::IRModuleFrame>()) {
@@ -75,9 +80,11 @@ void FunctionFrameNode::EnterWithScope() {
   } else {
     SeqExprFrameNode::EnterWithScope();
   }
+  op_const_fold_scope_ = std::move(scope);
 }
 
 void FunctionFrameNode::ExitWithScope() {
+  auto scope = std::move(op_const_fold_scope_);
   using ir::IRModuleFrame;
   using tvm::relax::Expr;
   IRBuilder builder = IRBuilder::Current();

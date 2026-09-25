@@ -36,6 +36,13 @@ class SeqExprFrame(RelaxFrame): ...
 class FunctionFrame(SeqExprFrame):
     """Native function frame retaining signature, symbols and finalized results."""
 
+    def __exit__(self, exc_type, exc_value, trace):
+        try:
+            return super().__exit__(exc_type, exc_value, trace)
+        finally:
+            # Failed Python bodies skip native finalization, but must restore the policy.
+            _ffi_api.FunctionFrameExitOpConstFoldScope(self)
+
     def resolve_type_var(self, name, dtype=None, *, value=None, span=None):
         """Resolve a primitive symbol in this function's native map."""
         return _resolve_type_var(self, _ffi_api.ResolveTypeVar, name, dtype, value=value, span=span)

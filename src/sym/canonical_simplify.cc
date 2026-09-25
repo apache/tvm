@@ -1448,6 +1448,8 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::LTNode* op,
 }
 
 PrimExpr CanonicalSimplifier::operator()(const PrimExpr& expr) {
+  // Explicit simplification also uses construction helpers to apply rewrites.
+  With<prim::OpConstFoldScope> const_fold_scope(true);
   return impl_->Mutate(expr).ValueOrUnchanged(expr);
 }
 

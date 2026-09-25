@@ -147,6 +147,7 @@ class LinearEqDetector : public tvm::ExprFunctor<LinearEqEntry(const Expr&, cons
 };
 
 ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const ffi::Array<PrimVar>& vars) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   PrimExpr base = e;
   ffi::Array<PrimExpr> coeff;
 

@@ -30,6 +30,19 @@ using prim::is_const_int;
 using prim::MakeConst;
 using namespace prim::detail;
 namespace {
+thread_local bool op_const_fold_enabled = true;
+
+bool SetOpConstFoldEnabled(bool enabled) { return std::exchange(op_const_fold_enabled, enabled); }
+
+// Constant argument checks remain active when eager evaluation is disabled.
+void CheckNonzeroDivisor(const PrimExpr& b) {
+  if (const auto* value = b.as<IntImmNode>()) {
+    TVM_FFI_ICHECK_NE(value->value, 0) << "Divide by zero";
+  } else if (const auto* value = b.as<FloatImmNode>()) {
+    TVM_FFI_ICHECK_NE(value->value, 0) << "Divide by zero";
+  }
+}
+
 // File-local helper: true if `expr` is a call to prim::builtin::vscale().
 bool IsVScaleCall(const PrimExpr& expr) {
   if (const auto* call = expr.as<CallNode>()) {
@@ -39,6 +52,19 @@ bool IsVScaleCall(const PrimExpr& expr) {
 }
 
 }  // namespace
+namespace prim {
+bool OpConstFoldEnabled() { return op_const_fold_enabled; }
+
+void OpConstFoldScope::EnterWithScope() { previous_ = SetOpConstFoldEnabled(enabled_); }
+void OpConstFoldScope::ExitWithScope() { SetOpConstFoldEnabled(previous_); }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::GlobalDef()
+      .def("prim.op_const_fold_enabled", OpConstFoldEnabled)
+      .def("prim._OpConstFoldSwapEnabled", SetOpConstFoldEnabled);
+}
+}  // namespace prim
+
 namespace prim::detail {
 void BroadcastToMatchLanes(PrimExpr& op_a, PrimExpr& op_b) {  // NOLINT(*)
   PrimType ty_a = op_a.ty();
@@ -143,6 +169,8 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
   TVM_FFI_ICHECK(lanes_match) << "Cannot match type " << lhs_ty->dtype << " vs " << rhs_ty->dtype;
 
   PrimType promoted_ty = PromoteBinaryOpType(lhs_ty, rhs_ty);
+  // Operand conversion is type normalization, including typed immediate values.
+  With<prim::OpConstFoldScope> normalize_types(true);
   if (lhs_ty->dtype != promoted_ty->dtype) {
     lhs = prim::cast(promoted_ty, lhs, span);
   }
@@ -274,9 +302,9 @@ PrimExpr cast(PrimType t, PrimExpr value, Span span) {
       << "Cannot cast an expression with the void sentinel type";
   // const fold IntImm as they are used in index computations
   if (dtype.IsScalar()) {
-    if (const IntImmNode* op = value.as<IntImmNode>()) {
+    if (const IntImmNode* op = value.as<IntImmNode>(); OpConstFoldEnabled() && op) {
       return MakeConst(dtype, op->value, op->span);
-    } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
+    } else if (const FloatImmNode* op = value.as<FloatImmNode>(); OpConstFoldEnabled() && op) {
       return MakeConst(dtype, op->value, op->span);
     }
     return prim::Cast(std::move(t), value, span);
@@ -285,9 +313,9 @@ PrimExpr cast(PrimType t, PrimExpr value, Span span) {
     if (!value.ty().IsScalableVector() && !value.ty().IsFixedLengthVector()) {
       // manually unroll cast
       if (value.ty() != elem_ty) {
-        if (const IntImmNode* op = value.as<IntImmNode>()) {
+        if (const IntImmNode* op = value.as<IntImmNode>(); OpConstFoldEnabled() && op) {
           value = MakeConst(elem_ty, op->value, op->span);
-        } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
+        } else if (const FloatImmNode* op = value.as<FloatImmNode>(); OpConstFoldEnabled() && op) {
           value = MakeConst(elem_ty, op->value, op->span);
         } else {
           value = prim::Cast(elem_ty, value, span);
@@ -312,9 +340,10 @@ PrimExpr cast(PrimType t, PrimExpr value, Span span) {
         lanes_match = value.ty().lanes() == dtype.lanes();
       }
       TVM_FFI_ICHECK(lanes_match);
-      if (const auto* broadcast = value.as<prim::BroadcastNode>()) {
+      if (const auto* broadcast = value.as<prim::BroadcastNode>();
+          OpConstFoldEnabled() && broadcast) {
         return prim::Broadcast(cast(elem_ty, broadcast->value, span), broadcast->lanes, span);
-      } else if (const auto* ramp = value.as<prim::RampNode>()) {
+      } else if (const auto* ramp = value.as<prim::RampNode>(); OpConstFoldEnabled() && ramp) {
         if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
           // only cast to index data type can be folded to ramp
           return prim::Ramp(cast(elem_ty, ramp->base, span), cast(elem_ty, ramp->stride, span),
@@ -358,7 +387,9 @@ PrimExpr operator+(PrimExpr a, PrimExpr b) { return add(a, b); }
 
 PrimExpr add(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::Add>(a, b)) return ret.value();
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::Add>(a, b)) return ret.value();
+  }
   return prim::Add(a, b, span);
 }
 
@@ -368,14 +399,14 @@ PrimExpr operator-(PrimExpr a) { return neg(a); }
 PrimExpr neg(PrimExpr a, Span span) {
   const IntImmNode* pa = a.as<IntImmNode>();
   const FloatImmNode* fa = a.as<FloatImmNode>();
-  if (pa) {
+  if (prim::OpConstFoldEnabled() && pa) {
     ffi::BigInt value = -pa->value;
     if (a.ty().MatchesCode(DLDataTypeCode::kDLInt) && a.ty().bits() >= 64) {
       value = prim::detail::GetFoldResult(std::move(value), a.ty());
     }
     return IntImm(a.ty(), std::move(value), span);
   }
-  if (fa) return FloatImm(a.ty(), -fa->value, span);
+  if (prim::OpConstFoldEnabled() && fa) return FloatImm(a.ty(), -fa->value, span);
   return MakeConst(a.ty(), 0, span) - a;
 }
 
@@ -383,20 +414,34 @@ PrimExpr operator-(PrimExpr a, PrimExpr b) { return sub(a, b); }
 
 PrimExpr sub(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::Sub>(a, b)) return ret.value();
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::Sub>(a, b)) return ret.value();
+  }
+  if (!prim::OpConstFoldEnabled() && a.ty().MatchesCode(DLDataTypeCode::kDLUInt)) {
+    const auto* pa = a.as<IntImmNode>();
+    const auto* pb = b.as<IntImmNode>();
+    TVM_FFI_ICHECK(!(pa && pb && pa->value == 0U && pb->value > 0U))
+        << "Checked failed. Minuend 's value is 0U and it's dtype is uint "
+        << "while Subtrahend's dtype is uint; which will cause a negative uint";
+  }
   return prim::Sub(a, b, span);
 }
 
 PrimExpr operator*(PrimExpr a, PrimExpr b) { return mul(a, b); }
 PrimExpr mul(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::Mul>(a, b)) return ret.value();
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::Mul>(a, b)) return ret.value();
+  }
   return prim::Mul(a, b, span);
 }
 
 PrimExpr div(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::Div>(a, b)) return ret.value();
+  if (!prim::OpConstFoldEnabled()) CheckNonzeroDivisor(b);
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::Div>(a, b)) return ret.value();
+  }
   return prim::Div(a, b, span);
 }
 
@@ -408,7 +453,14 @@ PrimExpr truncdiv(PrimExpr a, PrimExpr b, Span span) {
 
 PrimExpr truncmod(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::Mod>(a, b)) return ret.value();
+  if (!prim::OpConstFoldEnabled() &&
+      ((IsIndexTypedExpr(a) && IsIndexTypedExpr(b)) ||
+       (a.as<IntImmNode>() && b.as<IntImmNode>() && (a.ty().bits() >= 64)))) {
+    CheckNonzeroDivisor(b);
+  }
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::Mod>(a, b)) return ret.value();
+  }
   return prim::Mod(a, b, span);
 }
 
@@ -427,7 +479,10 @@ PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << a;
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << b;
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::FloorDiv>(a, b)) return ret.value();
+  if (!prim::OpConstFoldEnabled()) CheckNonzeroDivisor(b);
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::FloorDiv>(a, b)) return ret.value();
+  }
   return prim::FloorDiv(a, b, span);
 }
 
@@ -435,7 +490,10 @@ PrimExpr ceildiv(PrimExpr a, PrimExpr b, Span span) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << a;
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << b;
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::FloorDiv>(a + b - 1, b)) return ret.value();
+  if (!prim::OpConstFoldEnabled()) CheckNonzeroDivisor(b);
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::FloorDiv>(a + b - 1, b)) return ret.value();
+  }
   return prim::FloorDiv(a + b - 1, b, span);
 }
 
@@ -443,7 +501,15 @@ PrimExpr floormod(PrimExpr a, PrimExpr b, Span span) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << a;
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << b;
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::FloorMod>(a, b)) return ret.value();
+  if (!prim::OpConstFoldEnabled() &&
+      ((IsIndexTypedExpr(a) && IsIndexTypedExpr(b)) ||
+       (a.as<IntImmNode>() && b.as<IntImmNode>() &&
+        (a.ty().bits() >= 64 || a.ty().MatchesCode(DLDataTypeCode::kDLUInt))))) {
+    CheckNonzeroDivisor(b);
+  }
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::FloorMod>(a, b)) return ret.value();
+  }
   return prim::FloorMod(a, b, span);
 }
 
@@ -451,12 +517,14 @@ PrimExpr min(PrimExpr a, PrimExpr b, Span span) {
   // inf-aware simplificaiton
   using prim::detail::is_neg_inf;
   using prim::detail::is_pos_inf;
-  if (is_pos_inf(a)) return b;
-  if (is_neg_inf(a)) return a;
-  if (is_pos_inf(b)) return a;
-  if (is_neg_inf(b)) return b;
+  if (prim::OpConstFoldEnabled() && is_pos_inf(a)) return b;
+  if (prim::OpConstFoldEnabled() && is_neg_inf(a)) return a;
+  if (prim::OpConstFoldEnabled() && is_pos_inf(b)) return a;
+  if (prim::OpConstFoldEnabled() && is_neg_inf(b)) return b;
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::Min>(a, b)) return ret.value();
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::Min>(a, b)) return ret.value();
+  }
   return prim::Min(a, b, span);
 }
 
@@ -464,12 +532,14 @@ PrimExpr max(PrimExpr a, PrimExpr b, Span span) {
   // inf-aware simplificaiton
   using prim::detail::is_neg_inf;
   using prim::detail::is_pos_inf;
-  if (is_pos_inf(a)) return a;
-  if (is_neg_inf(a)) return b;
-  if (is_pos_inf(b)) return b;
-  if (is_neg_inf(b)) return a;
+  if (prim::OpConstFoldEnabled() && is_pos_inf(a)) return a;
+  if (prim::OpConstFoldEnabled() && is_neg_inf(a)) return b;
+  if (prim::OpConstFoldEnabled() && is_pos_inf(b)) return b;
+  if (prim::OpConstFoldEnabled() && is_neg_inf(b)) return a;
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::Max>(a, b)) return ret.value();
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::Max>(a, b)) return ret.value();
+  }
   return prim::Max(a, b, span);
 }
 
@@ -478,7 +548,7 @@ PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value, 
   TVM_FFI_ICHECK(cond.ty().MatchesCode(DLDataTypeCode::kDLBool))
       << "if_then_else only accept the condition to be boolean type.";
   BinaryOpMatchTypes(true_value, false_value, span);
-  if (const IntImmNode* op = cond.as<IntImmNode>()) {
+  if (const IntImmNode* op = cond.as<IntImmNode>(); prim::OpConstFoldEnabled() && op) {
     if (op->value != 0) {
       return true_value;
     } else {
@@ -493,7 +563,7 @@ PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value, 
 
 // likely
 PrimExpr likely(PrimExpr cond, Span span) {
-  if (is_const_int(cond)) return cond;
+  if (prim::OpConstFoldEnabled() && is_const_int(cond)) return cond;
   return Call(cond.ty(), prim::builtin::likely(), {cond}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
@@ -501,64 +571,82 @@ PrimExpr likely(PrimExpr cond, Span span) {
 PrimExpr operator>(PrimExpr a, PrimExpr b) { return greater(a, b); }
 PrimExpr greater(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::GT>(a, b)) return ret.value();
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::GT>(a, b)) return ret.value();
+  }
   return prim::GT(a, b, span);
 }
 
 PrimExpr operator>=(PrimExpr a, PrimExpr b) { return greater_equal(a, b); }
 PrimExpr greater_equal(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::GE>(a, b)) return ret.value();
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::GE>(a, b)) return ret.value();
+  }
   return prim::GE(a, b, span);
 }
 
 PrimExpr operator<(PrimExpr a, PrimExpr b) { return less(a, b); }
 PrimExpr less(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::LT>(a, b)) return ret.value();
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::LT>(a, b)) return ret.value();
+  }
   return prim::LT(a, b, span);
 }
 
 PrimExpr operator<=(PrimExpr a, PrimExpr b) { return less_equal(a, b); }
 PrimExpr less_equal(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::LE>(a, b)) return ret.value();
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::LE>(a, b)) return ret.value();
+  }
   return prim::LE(a, b, span);
 }
 
 PrimExpr operator==(PrimExpr a, PrimExpr b) { return equal(a, b); }
 PrimExpr equal(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::EQ>(a, b)) return ret.value();
-  if (IsVScaleCall(a) && IsVScaleCall(b)) return true;
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::EQ>(a, b)) return ret.value();
+  }
+  if (prim::OpConstFoldEnabled() && IsVScaleCall(a) && IsVScaleCall(b)) return true;
   return prim::EQ(a, b, span);
 }
 
 PrimExpr operator!=(PrimExpr a, PrimExpr b) { return not_equal(a, b); }
 PrimExpr not_equal(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
-  if (auto ret = prim::detail::TryConstFold<prim::NE>(a, b)) return ret.value();
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::NE>(a, b)) return ret.value();
+  }
   return prim::NE(a, b, span);
 }
 
 PrimExpr operator&&(PrimExpr a, PrimExpr b) { return logical_and(a, b); }
 PrimExpr logical_and(PrimExpr a, PrimExpr b, Span span) {
   type_check_boolean_args(a, b, "&& operator (logical AND)");
-  if (auto ret = prim::detail::TryConstFold<prim::And>(a, b)) return ret.value();
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::And>(a, b)) return ret.value();
+  }
   return prim::And(a, b, span);
 }
 
 PrimExpr operator||(PrimExpr a, PrimExpr b) { return logical_or(a, b); }
 PrimExpr logical_or(PrimExpr a, PrimExpr b, Span span) {
   type_check_boolean_args(a, b, "|| operator (logical OR)");
-  if (auto ret = prim::detail::TryConstFold<prim::Or>(a, b)) return ret.value();
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::Or>(a, b)) return ret.value();
+  }
   return prim::Or(a, b, span);
 }
 
 PrimExpr operator!(PrimExpr a) { return logical_not(a); }
 PrimExpr logical_not(PrimExpr a, Span span) {
   type_check_boolean_args(a, "! operator (logical NOT)");
-  if (auto ret = prim::detail::TryConstFold<prim::Not>(a)) return ret.value();
+  if (prim::OpConstFoldEnabled()) {
+    if (auto ret = prim::detail::TryConstFold<prim::Not>(a)) return ret.value();
+  }
   return prim::Not(a, span);
 }
 
@@ -575,10 +663,10 @@ PrimExpr right_shift(PrimExpr a, PrimExpr b, Span span) {
       TVM_FFI_ICHECK(pb->value >= 0 && pb->value < result_ty.bits())
           << "Shift amount must be non-negative and less than " << result_ty.bits() << " for type "
           << result_ty;
-    if (pa && pb) {
+    if (prim::OpConstFoldEnabled() && pa && pb) {
       return IntImm(result_ty, (pa->value >> pb->value), span);
     }
-    if (pb) {
+    if (prim::OpConstFoldEnabled() && pb) {
       if (pb->value == 0) return a;
     }
   });
@@ -597,12 +685,12 @@ PrimExpr left_shift(PrimExpr a, PrimExpr b, Span span) {
       TVM_FFI_ICHECK(pb->value >= 0 && pb->value < result_ty.bits())
           << "Shift amount must be non-negative and less than " << result_ty.bits() << " for type "
           << result_ty;
-    if (pa && pb) {
+    if (prim::OpConstFoldEnabled() && pa && pb) {
       ffi::BigInt value = pa->value << pb->value;
       if (result_ty.bits() >= 64) value = prim::detail::GetFoldResult(std::move(value), result_ty);
       return IntImm(result_ty, std::move(value), span);
     }
-    if (pb) {
+    if (prim::OpConstFoldEnabled() && pb) {
       if (pb->value == 0) return a;
     }
   });
@@ -616,7 +704,8 @@ PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
-    if (pa && pb) return IntImm(result_ty, (pa->value & pb->value), span);
+    if (prim::OpConstFoldEnabled() && pa && pb)
+      return IntImm(result_ty, (pa->value & pb->value), span);
   });
   return prim::BitwiseAnd(a, b, span);
 }
@@ -628,7 +717,8 @@ PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
-    if (pa && pb) return IntImm(result_ty, (pa->value | pb->value), span);
+    if (prim::OpConstFoldEnabled() && pa && pb)
+      return IntImm(result_ty, (pa->value | pb->value), span);
   });
   return prim::BitwiseOr(a, b, span);
 }
@@ -640,7 +730,8 @@ PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
-    if (pa && pb) return IntImm(result_ty, (pa->value ^ pb->value), span);
+    if (prim::OpConstFoldEnabled() && pa && pb)
+      return IntImm(result_ty, (pa->value ^ pb->value), span);
   });
   return prim::BitwiseXor(a, b, span);
 }
@@ -661,7 +752,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 PrimExpr prim::IntegerAbs(PrimExpr x, Span span) {
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
-    if (const IntImmNode* px = x.as<IntImmNode>()) {
+    if (const IntImmNode* px = x.as<IntImmNode>(); prim::OpConstFoldEnabled() && px) {
       ffi::BigInt value = px->value < 0 ? -px->value : px->value;
       if (x.ty().bits() >= 64) value = prim::detail::GetFoldResult(std::move(value), x.ty());
       return IntImm(x.ty(), std::move(value), px->span);
@@ -732,7 +823,7 @@ PrimExpr ceil(PrimExpr x, Span span) {
     return x;
   }
   const FloatImmNode* fx = x.as<FloatImmNode>();
-  if (fx) return FloatImm(x.ty(), std::ceil(fx->value), fx->span);
+  if (prim::OpConstFoldEnabled() && fx) return FloatImm(x.ty(), std::ceil(fx->value), fx->span);
   return Call(x.ty(), prim::builtin::ceil(), {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 

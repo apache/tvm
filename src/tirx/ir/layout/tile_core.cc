@@ -237,6 +237,7 @@ bool TileLayoutNode::VerifyWellFormed() const {
 }
 
 PrimExpr TileLayoutNode::GetSize(ffi::Optional<ffi::String> axis_name) const {
+  With<prim::OpConstFoldScope> normalize_size(true);
   auto filter = [&](const Iter& iter, PrimExpr acc) {
     if (!axis_name.has_value() || iter->axis->name == axis_name.value()) {
       return acc * iter->extent;

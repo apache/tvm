@@ -1974,7 +1974,7 @@ def buffer_store(
             lanes = Analyzer().simplify(  # pylint: disable=redefined-outer-name
                 (index.stop - index.start + step - 1) // step
             )
-            if lanes == 1:
+            if isinstance(lanes, IntImm) and lanes.value == 1:
                 expr_indices.append(index.start)
             else:
                 expr_indices.append(ramp(index.start, step, lanes))

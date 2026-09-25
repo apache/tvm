@@ -324,6 +324,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Layout TileLayoutNode::Tile(const TileLayout& outer_in, const Array<PrimExpr>& outer_shape,
                             const Array<PrimExpr>& inner_shape) const {
+  With<prim::OpConstFoldScope> normalize_layout(true);
   auto outer = outer_in->Canonicalize().as<TileLayout>().value();
   auto inner = ffi::GetRef<TileLayout>(this)->Canonicalize().as<TileLayout>().value();
 

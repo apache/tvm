@@ -19,6 +19,7 @@
 #ifndef TVM_TIRX_SCRIPT_IR_BUILDER_FRAME_H_
 #define TVM_TIRX_SCRIPT_IR_BUILDER_FRAME_H_
 
+#include <tvm/ir/prim/op.h>
 #include <tvm/script/ir_builder/base.h>
 #include <tvm/script/ir_builder/frame.h>
 #include <tvm/tirx/exec_scope.h>
@@ -26,6 +27,7 @@
 #include <tvm/tirx/stmt.h>
 
 #include <functional>
+#include <memory>
 #include <utility>
 
 namespace tvm {
@@ -122,7 +124,10 @@ class PrimFuncFrameNode : public TIRFrameNode {
    * \brief The method called when exiting RAII scope.
    * \sa tvm::support::With
    */
+  void EnterWithScope() final;
   void ExitWithScope() final;
+  /*! \brief Restore the construction policy without finalizing a failed Python body. */
+  void ExitOpConstFoldScope() { op_const_fold_scope_.reset(); }
 
   /*! \brief Register validation for an extension-owned function attribute. */
   using AttrValidator = std::function<void(const PrimFuncFrameNode*, const ffi::Any&)>;
@@ -131,6 +136,9 @@ class PrimFuncFrameNode : public TIRFrameNode {
 
   /*! \brief Complete dialect-specific function construction before publication. */
   virtual tvm::tirx::PrimFunc FinalizeFunction(tvm::tirx::PrimFunc func);
+
+ private:
+  std::unique_ptr<With<prim::OpConstFoldScope>> op_const_fold_scope_;
 };
 
 /*!

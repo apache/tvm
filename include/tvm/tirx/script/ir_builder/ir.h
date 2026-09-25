@@ -415,11 +415,19 @@ inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
 
 inline Var TensorMap() { return tvm::tirx::Var("", PointerType(tvm::tirx::TensorMapType())); }
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                      \
-  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {        \
-    PrimType dtype = DType;                                                      \
-    return expr.has_value() ? tvm::prim::cast(dtype, expr.value())               \
-                            : tvm::tirx::Var("", dtype).as_or_throw<PrimExpr>(); \
+// Typed literal constructors normalize constants even when operator folding is disabled.
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                          \
+  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {            \
+    PrimType dtype = DType;                                                          \
+    if (!expr.has_value()) return tvm::tirx::Var("", dtype).as_or_throw<PrimExpr>(); \
+    if (expr.value().ty() == dtype) return expr.value();                             \
+    if (const auto* imm = expr.value().as<IntImmNode>()) {                           \
+      return prim::MakeConst(dtype, imm->value, imm->span);                          \
+    }                                                                                \
+    if (const auto* imm = expr.value().as<FloatImmNode>()) {                         \
+      return prim::MakeConst(dtype, imm->value, imm->span);                          \
+    }                                                                                \
+    return tvm::prim::cast(dtype, expr.value());                                     \
   }
 
 #define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, Code)                         \

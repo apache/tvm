@@ -292,7 +292,7 @@ PrimExpr abs(PrimExpr x, Span span) {
     return prim::IntegerAbs(x, span);
   } else if (IsFloatType(x.ty()) || IsBFloat16Type(x.ty())) {
     const FloatImmNode* fx = x.as<FloatImmNode>();
-    if (fx) {
+    if (prim::OpConstFoldEnabled() && fx) {
       return FloatImm(x.ty(), std::fabs(fx->value), fx->span);
     }
     static const Op& fabs_op = Op::Get("tirx.fabs");
@@ -316,7 +316,7 @@ PrimExpr isnan(PrimExpr x, Span span) {
     return MakeConst(t, false);
   } else if (IsFloatType(x.ty())) {
     const FloatImmNode* fx = x.as<FloatImmNode>();
-    if (fx) {
+    if (prim::OpConstFoldEnabled() && fx) {
       return MakeConst(t, std::isnan(fx->value), fx->span);
     }
     if (x.ty().bits() == 16) {
@@ -433,7 +433,7 @@ PrimExpr floor(PrimExpr x, Span span) {
     return x;
   }
   const FloatImmNode* fx = x.as<FloatImmNode>();
-  if (fx) return FloatImm(x.ty(), std::floor(fx->value), fx->span);
+  if (prim::OpConstFoldEnabled() && fx) return FloatImm(x.ty(), std::floor(fx->value), fx->span);
   static const Op& floor_op = Op::Get("tirx.floor");
   return Call(x.ty(), floor_op, {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
@@ -447,7 +447,8 @@ PrimExpr round(PrimExpr x, Span span) {
     return x;
   }
   const FloatImmNode* fx = x.as<FloatImmNode>();
-  if (fx) return FloatImm(x.ty(), std::nearbyint(fx->value), fx->span);
+  if (prim::OpConstFoldEnabled() && fx)
+    return FloatImm(x.ty(), std::nearbyint(fx->value), fx->span);
   static const Op& round_op = Op::Get("tirx.round");
   return Call(x.ty(), round_op, {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
@@ -461,7 +462,8 @@ PrimExpr nearbyint(PrimExpr x, Span span) {
     return x;
   }
   const FloatImmNode* fx = x.as<FloatImmNode>();
-  if (fx) return FloatImm(x.ty(), std::nearbyint(fx->value), fx->span);
+  if (prim::OpConstFoldEnabled() && fx)
+    return FloatImm(x.ty(), std::nearbyint(fx->value), fx->span);
   static const Op& nearbyint_op = Op::Get("tirx.nearbyint");
   return Call(x.ty(), nearbyint_op, {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
@@ -475,7 +477,7 @@ PrimExpr trunc(PrimExpr x, Span span) {
     return x;
   }
   const FloatImmNode* fx = x.as<FloatImmNode>();
-  if (fx) {
+  if (prim::OpConstFoldEnabled() && fx) {
     return FloatImm(x.ty(), (fx->value < 0 ? std::ceil(fx->value) : std::floor(fx->value)),
                     fx->span);
   }

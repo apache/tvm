@@ -22,3 +22,26 @@ tvm.ir
    :imported-members:
    :exclude-members: Expr
    :autosummary:
+
+Primitive construction
+~~~~~~~~~~~~~~~~~~~~~~
+
+Primitive operators eagerly fold constants and identities by default. Use
+:py:class:`tvm.ir.prim.OpConstFoldScope` to retain expression structure while
+constructing IR. The setting is local to the current thread and is restored on
+scope exit, including exceptions. Explicit symbolic simplification remains
+available inside a disabled scope.
+
+Type promotion, typed literal construction, and shape normalization remain active.
+Type-directed intrinsic results, such as rounding an integer or taking the absolute
+value of an unsigned integer, also retain their usual behavior. Explicit symbolic
+simplification and interval analysis remain available inside disabled scopes.
+
+TVMScript function frames disable eager folding during signature and body
+construction. Ordinary Python arithmetic such as ``1 + 2`` still evaluates in
+Python; use IR constants to construct an expression, such as
+``T.int32(1) + T.int32(2)``.
+
+.. autoclass:: tvm.ir.prim.OpConstFoldScope
+
+.. autofunction:: tvm.ir.prim.op_const_fold_enabled

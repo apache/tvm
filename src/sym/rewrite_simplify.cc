@@ -2577,6 +2577,8 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::LetNode* op,
 }
 
 PrimExpr RewriteSimplifier::operator()(const PrimExpr& expr) {
+  // Explicit simplification also uses construction helpers to apply rewrites.
+  With<prim::OpConstFoldScope> const_fold_scope(true);
   // Run simplification in post order
   PrimExpr res = expr;
   int max_iter = 2;
@@ -2595,6 +2597,7 @@ void RewriteSimplifier::Update(const Var& var, const PrimExpr& info, bool allow_
 
 std::function<void()> RewriteSimplifier::EnterConstraint(const PrimExpr& constraint,
                                                          bool is_assume) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   return impl_->EnterConstraint(constraint, is_assume);
 }
 

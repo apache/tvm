@@ -578,6 +578,7 @@ void TransitiveComparisonAnalyzer::Impl::AddKnown(const PrimExpr& expr,
 
 void TransitiveComparisonAnalyzer::Impl::Bind(const Var& var, const Range& range,
                                               bool allow_override) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   auto it = prev_bindings_.find(var);
   if (it != prev_bindings_.end()) {
     prim::ExprDeepEqual expr_equal;

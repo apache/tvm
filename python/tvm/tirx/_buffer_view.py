@@ -39,7 +39,7 @@ def _redecl(buf: Buffer, shape, layout, *, dtype=None, elem_offset=None, addr_of
     if buf.scope() == "tmem" and buf.allocated_addr is not None and len(buf.allocated_addr) > 0:
         addr = buf.allocated_addr[0]
         if addr_offset is not None:
-            addr = addr + addr_offset
+            addr = tvm.sym.Analyzer().simplify(addr + addr_offset)
         return tvm.tirx.script.ir_builder.decl_buffer(
             shape,
             buf.dtype if dtype is None else dtype,
@@ -72,10 +72,17 @@ def view(buf: Buffer, *args, **kwargs) -> Buffer:
 
     def _infer_shape(shape):
         shape = list(shape)
-        if -1 in shape and shape.count(-1) == 1:
+        inferred = [
+            i
+            for i, dim in enumerate(shape)
+            if isinstance(dim, int | tvm.ir.prim.IntImm) and int(dim) == -1
+        ]
+        if len(inferred) == 1:
             size = functools.reduce(lambda x, y: x * y, buf.shape)
-            n_size = functools.reduce(lambda x, y: x * y, [s for s in shape if s != -1], 1)
-            shape[shape.index(-1)] = size // n_size
+            n_size = functools.reduce(
+                lambda x, y: x * y, [s for i, s in enumerate(shape) if i != inferred[0]], 1
+            )
+            shape[inferred[0]] = tvm.sym.Analyzer().simplify(size // n_size)
         else:
             # A PrimExpr comparison returns an EQ node, not a Python bool.
             if all(isinstance(s, int) for s in shape) and all(
@@ -93,20 +100,21 @@ def view(buf: Buffer, *args, **kwargs) -> Buffer:
         return shape
 
     if len(args) == 1 and isinstance(args[0], str | tvm.DataType) and not kwargs:
+        analyzer = tvm.sym.Analyzer()
         cast_dtype = tvm.DataType(args[0])
         cur_dtype = tvm.DataType(buf.dtype)
         if cast_dtype.bits > cur_dtype.bits:
             assert cast_dtype.bits % cur_dtype.bits == 0
             ratio = cast_dtype.bits // cur_dtype.bits
             layout = buf.layout.pack(ratio)
-            shape = [s for s in buf.shape[:-1]] + [buf.shape[-1] // ratio]
-            new_elem_offset = buf.elem_offset // ratio
+            shape = [s for s in buf.shape[:-1]] + [analyzer.simplify(buf.shape[-1] // ratio)]
+            new_elem_offset = analyzer.simplify(buf.elem_offset // ratio)
         else:
             assert cur_dtype.bits % cast_dtype.bits == 0
             ratio = cur_dtype.bits // cast_dtype.bits
             layout = buf.layout.unpack(ratio)
-            shape = [s for s in buf.shape[:-1]] + [buf.shape[-1] * ratio]
-            new_elem_offset = buf.elem_offset * ratio
+            shape = [s for s in buf.shape[:-1]] + [analyzer.simplify(buf.shape[-1] * ratio)]
+            new_elem_offset = analyzer.simplify(buf.elem_offset * ratio)
         return _redecl(buf, shape, layout, dtype=cast_dtype, elem_offset=new_elem_offset)
 
     shape = args

@@ -20,12 +20,14 @@
 #define TVM_RELAX_SCRIPT_IR_BUILDER_FRAME_H_
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
 #include <tvm/script/ir_builder/base.h>
 #include <tvm/script/ir_builder/frame.h>
 #include <tvm/script/ir_builder/ir.h>
 
+#include <memory>
 #include <utility>
 
 namespace tvm {
@@ -148,6 +150,11 @@ class FunctionFrameNode : public SeqExprFrameNode {
  public:
   void EnterWithScope() final;
   void ExitWithScope() final;
+  /*! \brief Restore the construction policy without finalizing a failed Python body. */
+  void ExitOpConstFoldScope() { op_const_fold_scope_.reset(); }
+
+ private:
+  std::unique_ptr<With<prim::OpConstFoldScope>> op_const_fold_scope_;
 };
 
 class FunctionFrame : public SeqExprFrame {

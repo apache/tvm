@@ -24,12 +24,36 @@
 #define TVM_IR_PRIM_OP_H_
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/with_context.h>
 
 #include <algorithm>
 #include <limits>
 #include <type_traits>
 #include <utility>
 namespace tvm {
+namespace prim {
+/*! \brief Whether primitive construction eagerly folds constants on this thread. */
+TVM_DLL bool OpConstFoldEnabled();
+
+/*!
+ * \brief Control eager primitive-operator folding within a thread-local scope.
+ *
+ * Use With<OpConstFoldScope> scope(false) to retain operations during construction.
+ * Explicit symbolic simplification remains available regardless of this setting.
+ */
+class OpConstFoldScope {
+ public:
+  explicit OpConstFoldScope(bool enabled) : enabled_(enabled) {}
+
+ private:
+  friend class tvm::With<OpConstFoldScope>;
+  TVM_DLL void EnterWithScope();
+  TVM_DLL void ExitWithScope();
+  bool enabled_;
+  bool previous_;
+};
+}  // namespace prim
+
 /*!
  * \brief add operator
  *

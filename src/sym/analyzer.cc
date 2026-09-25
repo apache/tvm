@@ -71,6 +71,7 @@ void AnalyzerObj::Bind(const Var& var, const Range& range, bool allow_override) 
 }
 
 void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   // decompose value as symbol * scale + offset
   ffi::BigInt offset = 0;
   PrimType value_ty = value.ty();

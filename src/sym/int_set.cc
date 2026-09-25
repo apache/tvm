@@ -69,6 +69,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 IntervalSet Intersect(AnalyzerObj* analyzer, IntervalSet a, IntervalSet b) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   PrimExpr max_value = min(a->max_value, b->max_value);
   PrimExpr min_value = max(a->min_value, b->min_value);
   PrimType max_ty = max_value.ty();
@@ -83,6 +84,7 @@ IntervalSet Intersect(AnalyzerObj* analyzer, IntervalSet a, IntervalSet b) {
 }
 
 IntervalSet Union(AnalyzerObj* analyzer, IntervalSet a, IntervalSet b) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   if (a->IsEmpty()) return b;
   if (b->IsEmpty()) return a;
   PrimExpr max_value = max(a->max_value, b->max_value);
@@ -407,7 +409,10 @@ class IntervalSetEvaluator : public tvm::ExprFunctor<IntervalSet(const Expr&)> {
         dom_constraints_(dom_constraints),
         eval_vec_(eval_vec) {}
 
-  IntervalSet Eval(const PrimExpr& val) { return this->Dispatch(val); }
+  IntervalSet Eval(const PrimExpr& val) {
+    With<prim::OpConstFoldScope> enable_folding(true);
+    return this->Dispatch(val);
+  }
   // evaluate and relax the set
   IntervalSet Eval(IntervalSet val) {
     // avoid recursive indefinite recursive expansion.
@@ -731,6 +736,7 @@ void IntSetAnalyzer::Impl::Bind(const Var& var, const PrimExpr& expr, bool can_o
 
 std::vector<std::pair<Var, IntSet>> IntSetAnalyzer::Impl::DetectBoundInfo(
     const PrimExpr& constraint) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   PVar<Var> x;
   PVar<PrimExpr> limit;
 
@@ -785,6 +791,7 @@ std::function<void()> IntSetAnalyzer::Impl::EnterConstraint(const PrimExpr& cons
 // Quickly adapt to IntSet interface
 // TODO(tqchen): revisit IntSet interface as well.
 Range IntSet::CoverRange(Range max_range) const {
+  With<prim::OpConstFoldScope> enable_folding(true);
   IntSet temp;
   Analyzer analyzer;
   const IntervalSetNode* s_int = (*this).as<IntervalSetNode>();
@@ -910,6 +917,7 @@ inline bool ProveEqual(AnalyzerObj* analyzer, PrimExpr lhs, PrimExpr rhs) {
 }
 
 IntSet IntSet::FromMinExtent(PrimExpr min, PrimExpr extent) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   if (is_one(extent)) {
     return IntSet::SinglePoint(min);
   }
@@ -917,6 +925,7 @@ IntSet IntSet::FromMinExtent(PrimExpr min, PrimExpr extent) {
 }
 
 IntSet IntSet::FromRange(Range r) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   // must make sure it can be matched back by MatchRange.
   if (is_one(r->extent)) {
     return IntSet::SinglePoint(r->min);
@@ -965,6 +974,7 @@ ffi::Array<IntSet> UnionRegion(const ffi::Array<ffi::Array<IntSet>>& nd_int_sets
 }
 
 IntSet UnionLowerBound(const ffi::Array<IntSet>& sets) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   if (sets.size() == 0) return IntSet::Nothing();
   if (sets.size() == 1) return sets[0];
   Analyzer analyzer;

@@ -599,23 +599,22 @@ def test_binary_arith_const():
     a = tirx.IntImm("int64", 3)
     b = tirx.IntImm("int64", 4)
     for op, name in [
-        (tirx.Add, "Add"),
-        (tirx.Sub, "Sub"),
-        (tirx.Mul, "Mul"),
+        (tirx.Add, "+"),
+        (tirx.Sub, "-"),
+        (tirx.Mul, "*"),
         (tirx.Div, "Div"),
         (tirx.Mod, "truncmod"),
-        (tirx.FloorDiv, "FloorDiv"),
-        (tirx.FloorMod, "FloorMod"),
-        (tirx.LT, "LT"),
-        (tirx.LE, "LE"),
-        (tirx.EQ, "EQ"),
-        (tirx.NE, "NE"),
-        (tirx.GT, "GT"),
-        (tirx.GE, "GE"),
+        (tirx.FloorDiv, "//"),
+        (tirx.FloorMod, "%"),
+        (tirx.LT, "<"),
+        (tirx.LE, "<="),
+        (tirx.EQ, "=="),
+        (tirx.NE, "!="),
+        (tirx.GT, ">"),
+        (tirx.GE, ">="),
     ]:
         obj = op(a, b)
-        expected = f"""
-T.{name}({a!s}, {b!s})"""
+        expected = f"T.{name}({a!s}, {b!s})" if name.isalpha() else f"{a!s} {name} {b!s}"
         _assert_print(obj, expected)
 
 

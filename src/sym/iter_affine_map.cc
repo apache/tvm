@@ -792,6 +792,7 @@ class IterMapRewriter : public tvm::ExprMutator {
    * \return The Normalized expression.
    */
   IterSumExpr NormalizeToIterSum(IterSumExpr expr) {
+    With<prim::OpConstFoldScope> enable_folding(true);
     // We are normalizing a regular iter
     if (expr->args.size() < 1) return expr;
     if (auto opt = TryCombineSplitFromSameSource(expr)) {
@@ -1536,6 +1537,7 @@ IterMapResult DetectIterMap(const ffi::Array<PrimExpr>& indices,
                             const ffi::Map<PrimVar, Range>& input_iters, const PrimExpr& predicate,
                             IterMapLevel check_level, const sym::Analyzer& analyzer,
                             bool simplify_trivial_iterators) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   sym::AnalyzerObj* analyzer_ptr = analyzer.get();
   IterMapResult result;
 
@@ -2297,6 +2299,7 @@ bool IterMapRewriter::CanProveDivisible(const PrimExpr& lhs, const PrimExpr& rhs
 }
 
 PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   sym::Analyzer analyzer;
   auto normalizer = ffi::make_object<IterMapToExprNormalizer>(analyzer.get());
   return normalizer->Mutate(expr).ValueOrUnchanged(expr);
@@ -2311,6 +2314,7 @@ ffi::Array<PrimExpr> IterMapSimplify(const ffi::Array<PrimExpr>& indices,
                                      const ffi::Map<PrimVar, Range>& input_iters,
                                      const PrimExpr& input_pred, IterMapLevel check_level,
                                      const sym::Analyzer& ana, bool simplify_trivial_iterators) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   sym::AnalyzerObj* ana_ptr = ana.get();
   if (!IterRangeSanityCheck(input_iters)) return indices;
   auto res = DetectIterMap(indices, input_iters, input_pred, check_level, ana,
@@ -2660,6 +2664,7 @@ ffi::Array<ffi::Array<IterMark>> SubspaceDivide(const ffi::Array<PrimExpr>& bind
                                                 const PrimExpr& predicate, IterMapLevel check_level,
                                                 const sym::Analyzer& analyzer,
                                                 bool simplify_trivial_iterators) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   sym::AnalyzerObj* analyzer_ptr = analyzer.get();
   if (!IterRangeSanityCheck(input_iters)) return ffi::Array<ffi::Array<IterMark>>();
   auto res = DetectIterMap(bindings, input_iters, predicate, check_level, analyzer,
@@ -2829,6 +2834,7 @@ class InverseAffineIterMapTransformer {
 
 ffi::Map<Var, PrimExpr> InverseAffineIterMap(const ffi::Array<IterSumExpr>& iter_map,
                                              const ffi::Array<PrimExpr> outputs) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   Analyzer analyzer;
   return InverseAffineIterMapTransformer(analyzer.get())(iter_map, outputs);
 }

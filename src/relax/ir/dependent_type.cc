@@ -217,6 +217,7 @@ ShapeType::ShapeType(ffi::Array<PrimExpr> values, Span span) : Type(ffi::UnsafeI
   n->ndim = static_cast<int>(values.size());
   n->values = values.Map([](PrimExpr value) {
     if (value->IsInstance<IntImmNode>()) {
+      With<prim::OpConstFoldScope> normalize_shape(true);
       return tvm::prim::cast(PrimType::Int(64), value);
     }
     TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))

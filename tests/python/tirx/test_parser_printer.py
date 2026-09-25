@@ -849,7 +849,7 @@ def test_macro():
         for x in range(10):
             T.evaluate(x + 1)
             T.evaluate(x + 2)
-            T.evaluate(x)
+            T.evaluate(x * 1)
             T.evaluate(x + 2)
             T.evaluate(x + 4)
             T.evaluate(x * 2)
@@ -1092,7 +1092,11 @@ def test_scalar_assign_error_not_swallowed():
 
     def bomb(*args, **kwargs):
         # Intercept only the scalar-assignment path (indices == [0])
-        if args[2] == [0]:
+        if (
+            len(args[2]) == 1
+            and isinstance(args[2][0], tvm.ir.prim.IntImm)
+            and args[2][0].value == 0
+        ):
             raise ValueError("boom")
         return original(*args, **kwargs)
 

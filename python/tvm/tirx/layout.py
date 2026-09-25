@@ -333,12 +333,13 @@ class Layout(Object):
                 stride = IntImm(t.ty, stride)
                 break
         res = list()
-        for t in reversed(data):
-            assert isinstance(t, int) or tvm.ir.is_prim_expr(t), (
-                f"data must be int or Expr, but got {t}"
-            )
-            res.append(stride)
-            stride *= t
+        with tvm.ir.prim.OpConstFoldScope(True):
+            for t in reversed(data):
+                assert isinstance(t, int) or tvm.ir.is_prim_expr(t), (
+                    f"data must be int or Expr, but got {t}"
+                )
+                res.append(stride)
+                stride *= t
         return list(reversed(res))
 
     def is_swizzle(self) -> bool:
@@ -388,7 +389,11 @@ class Layout(Object):
             The unpacked layout
         """  # noqa: E501
         if isinstance(self, TileLayout):
-            shard = [Iter(iter.extent, iter.stride * num, iter.axis) for iter in self.shard]
+            analyzer = tvm.sym.Analyzer()
+            shard = [
+                Iter(iter.extent, analyzer.simplify(iter.stride * num), iter.axis)
+                for iter in self.shard
+            ]
             shard.append(Iter(num, 1, Axis.get("m")))
             return TileLayout.from_iters(shard, self.replica, self.offset)
         elif isinstance(self, ComposeLayout):
@@ -448,13 +453,17 @@ class Layout(Object):
         """  # noqa: E501
         if isinstance(self, TileLayout):
             inner_iter = self.shard[-1]
+            analyzer = tvm.sym.Analyzer()
             assert (
-                inner_iter.stride == 1
-                and inner_iter.extent % num == 0
+                analyzer.can_prove_equal(inner_iter.stride, 1)
+                and analyzer.can_prove_equal(inner_iter.extent % num, 0)
                 and inner_iter.axis.is_memory()
             ), f"Layout {self} can not be packed into {num} elements"
-            shard = [Iter(iter.extent, iter.stride // num, iter.axis) for iter in self.shard[:-1]]
-            shard.append(Iter(inner_iter.extent // num, 1, inner_iter.axis))
+            shard = [
+                Iter(iter.extent, analyzer.simplify(iter.stride // num), iter.axis)
+                for iter in self.shard[:-1]
+            ]
+            shard.append(Iter(analyzer.simplify(inner_iter.extent // num), 1, inner_iter.axis))
             return TileLayout.from_iters(shard, self.replica, self.offset)
         elif isinstance(self, ComposeLayout):
             assert num & (num - 1) == 0, "num must be a power of 2"

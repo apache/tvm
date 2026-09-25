@@ -24,6 +24,20 @@ namespace tvm {
 namespace script {
 namespace printer {
 
+namespace {
+// Both operands must remain IR values when Python evaluates an overloaded operator.
+ExprDoc BinaryOperationDoc(OperationDocNode::Kind kind, PrimExpr lhs, PrimExpr rhs, AccessPath p,
+                           IRDocsifier d) {
+  ExprDoc a = d->AsDoc<ExprDoc>(lhs, p->Attr("a"));
+  ExprDoc b = d->AsDoc<ExprDoc>(rhs, p->Attr("b"));
+  if (a->IsInstance<LiteralDocNode>() && b->IsInstance<LiteralDocNode>()) {
+    a = TIR(d, DType2Str(lhs.ty()->dtype))->Call({a});
+    b = TIR(d, DType2Str(rhs.ty()->dtype))->Call({b});
+  }
+  return OperationDoc(kind, {a, b});
+}
+}  // namespace
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<prim::BitwiseNot>(
       "", [](prim::BitwiseNot node, AccessPath p, IRDocsifier d) -> Doc {
@@ -132,61 +146,42 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<prim::Div>(
       "", [](prim::Div node, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
-        ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));
-        PrimExpr ret = tvm::div(node->a, node->b);
-        if (!ret->IsInstance<prim::DivNode>()) {
-          return TIR(d, "Div")->Call({a, b});
-        }
         PrimType a_ty = node->a.ty();
         PrimType b_ty = node->b.ty();
         if (a_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
             b_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
-          return TIR(d, "Div")->Call({a, b});
+          return TIR(d, "Div")->Call(
+              {d->AsDoc<ExprDoc>(node->a, p->Attr("a")), d->AsDoc<ExprDoc>(node->b, p->Attr("b"))});
         }
-        return OperationDoc(OperationDocNode::Kind::kDiv, {a, b});
+        return BinaryOperationDoc(OperationDocNode::Kind::kDiv, node->a, node->b, p, d);
       });
 }
 
-#define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, NodeObj, NodeFunc, OpString, OpKind) \
-  IRDocsifier::vtable().set_dispatch<prim::NodeType>(                                           \
-      "", [](prim::NodeType node, AccessPath p, IRDocsifier d) -> Doc {                         \
-        ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));                                   \
-        ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));                                   \
-        PrimExpr ret = tvm::NodeFunc(node->a, node->b);                                         \
-        if (const auto* ret_node = ret.as<tvm::NodeObj>()) {                                    \
-          if (ret_node->a.same_as(node->a) && ret_node->b.same_as(node->b)) {                   \
-            return OperationDoc(OperationDocNode::Kind::OpKind, {a, b});                        \
-          }                                                                                     \
-        }                                                                                       \
-        return TIR(d, OpString)->Call({a, b});                                                  \
+#define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, OpKind)                         \
+  IRDocsifier::vtable().set_dispatch<prim::NodeType>(                                      \
+      "", [](prim::NodeType node, AccessPath p, IRDocsifier d) -> Doc {                    \
+        return BinaryOperationDoc(OperationDocNode::Kind::OpKind, node->a, node->b, p, d); \
       });
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Add, prim::AddNode, add, "Add", kAdd);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Sub, prim::SubNode, sub, "Sub", kSub);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Mul, prim::MulNode, mul, "Mul", kMult);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorDiv, prim::FloorDivNode, floordiv, "FloorDiv",
-                                           kFloorDiv);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorMod, prim::FloorModNode, floormod, "FloorMod",
-                                           kMod);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LShift, prim::LShiftNode, left_shift, "LShift", kLShift);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(RShift, prim::RShiftNode, right_shift, "RShift",
-                                           kRShift);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(BitwiseAnd, prim::BitwiseAndNode, bitwise_and,
-                                           "BitwiseAnd", kBitAnd);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(BitwiseOr, prim::BitwiseOrNode, bitwise_or, "BitwiseOr",
-                                           kBitOr);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(BitwiseXor, prim::BitwiseXorNode, bitwise_xor,
-                                           "BitwiseXor", kBitXor);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LT, prim::LTNode, less, "LT", kLt);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LE, prim::LENode, less_equal, "LE", kLtE);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(EQ, prim::EQNode, equal, "EQ", kEq);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NE, prim::NENode, not_equal, "NE", kNotEq);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GT, prim::GTNode, greater, "GT", kGt);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GE, prim::GENode, greater_equal, "GE", kGtE);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(And, prim::AndNode, logical_and, "And", kAnd);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Or, prim::OrNode, logical_or, "Or", kOr);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Add, kAdd);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Sub, kSub);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Mul, kMult);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorDiv, kFloorDiv);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorMod, kMod);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LShift, kLShift);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(RShift, kRShift);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(BitwiseAnd, kBitAnd);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(BitwiseOr, kBitOr);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(BitwiseXor, kBitXor);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LT, kLt);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LE, kLtE);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(EQ, kEq);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NE, kNotEq);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GT, kGt);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GE, kGtE);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(And, kAnd);
+  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Or, kOr);
 
   TVM_SCRIPT_PRINTER_DEF_BINARY(Mod, "truncmod");
   TVM_SCRIPT_PRINTER_DEF_BINARY(Min, "min");

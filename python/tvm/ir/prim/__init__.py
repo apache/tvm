@@ -57,7 +57,7 @@ from .expr import (
     Shuffle,
     Sub,
 )
-from .op import clz, convert, max_value, min_value
+from .op import OpConstFoldScope, clz, convert, max_value, min_value, op_const_fold_enabled
 
 
 def expr_deep_equal(lhs: Expr, rhs: Expr) -> bool:

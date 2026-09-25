@@ -508,7 +508,7 @@ def test_foldable_boolean_in_assert():
 
     @Ts.prim_func
     def explicit():
-        assert T.bool(False), "Message"
+        assert T.int32(0) == T.int32(1), "Message"
         T.evaluate(0)
 
     @Ts.prim_func

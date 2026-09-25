@@ -16,11 +16,48 @@
 # under the License.
 """Construction helpers for shared primitive expressions."""
 
+from threading import local
 from typing import Any
 
 from ..base import Span
 from ..expr import Call, Expr
 from . import _ffi_api
+
+
+class OpConstFoldScope:
+    """Control eager primitive-operator folding on the current thread.
+
+    Parameters
+    ----------
+    enabled : bool
+        Whether primitive construction folds constants and identities. The default
+        outside a scope is True. Explicit symbolic simplification is unaffected.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        with tvm.ir.prim.OpConstFoldScope(enabled=False):
+            expr = tvm.ir.prim.const(1) + tvm.ir.prim.const(2)
+    """
+
+    def __init__(self, enabled: bool):
+        self.enabled = enabled
+        self._local = local()
+
+    def __enter__(self):
+        if not hasattr(self._local, "previous"):
+            self._local.previous = []
+        self._local.previous.append(_ffi_api._OpConstFoldSwapEnabled(self.enabled))
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        _ffi_api._OpConstFoldSwapEnabled(self._local.previous.pop())
+
+
+def op_const_fold_enabled() -> bool:
+    """Return whether primitive construction eagerly folds on the current thread."""
+    return _ffi_api.op_const_fold_enabled()
 
 
 def convert(expr) -> Expr:

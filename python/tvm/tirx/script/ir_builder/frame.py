@@ -35,6 +35,13 @@ class TIRFrame(IRBuilderFrame): ...
 class PrimFuncFrame(TIRFrame):
     """Native function frame retaining signature, symbols and finalized results."""
 
+    def __exit__(self, exc_type, exc_value, trace):
+        try:
+            return super().__exit__(exc_type, exc_value, trace)
+        finally:
+            # Failed Python bodies skip native finalization, but must restore the policy.
+            _ffi_api.PrimFuncFrameExitOpConstFoldScope(self)
+
     def default_buffer_layout(self, shape, scope):
         """Select the default layout for buffers constructed in this function."""
         from tvm.tirx.layout import S, TileLayout

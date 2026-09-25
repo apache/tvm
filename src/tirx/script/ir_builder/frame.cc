@@ -40,6 +40,9 @@ namespace tirx {
 TVM_FFI_STATIC_INIT_BLOCK() {
   TIRFrameNode::RegisterReflection();
   PrimFuncFrameNode::RegisterReflection();
+  ffi::reflection::GlobalDef().def_method(
+      "script.ir_builder.tirx.PrimFuncFrameExitOpConstFoldScope",
+      &PrimFuncFrameNode::ExitOpConstFoldScope);
   ForFrameNode::RegisterReflection();
   AssertFrameNode::RegisterReflection();
   LaunchThreadFrameNode::RegisterReflection();
@@ -77,7 +80,15 @@ void TIRFrameNode::BindBufferRegion(tvm::tirx::BufferVar buffer, tvm::TensorRegi
 
 tvm::tirx::PrimFunc PrimFuncFrameNode::FinalizeFunction(tvm::tirx::PrimFunc func) { return func; }
 
+void PrimFuncFrameNode::EnterWithScope() {
+  TVM_FFI_CHECK(!op_const_fold_scope_, ValueError) << "Function frame is already entered";
+  auto scope = std::make_unique<With<prim::OpConstFoldScope>>(false);
+  TIRFrameNode::EnterWithScope();
+  op_const_fold_scope_ = std::move(scope);
+}
+
 void PrimFuncFrameNode::ExitWithScope() {
+  auto scope = std::move(op_const_fold_scope_);
   TIRFrameNode::ExitWithScope();
   ValidateAttrs();
   // if the prim func is not private and there isn't already a global symbol,
