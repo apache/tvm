@@ -34,6 +34,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <optional>
 #include <utility>
 
 #include "../../sym/int_operator.h"
@@ -614,6 +615,66 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
 #pragma optimize("g", on)
 #endif
 
+std::optional<std::pair<Var, Range>> GetUnsignedRange(const PrimExpr& e) {
+  auto match = [&e](const auto* op) -> std::optional<std::pair<Var, Range>> {
+    if (!op) return std::nullopt;
+    for (bool reverse : {false, true}) {
+      PrimExpr value = reverse ? op->b : op->a;
+      PrimExpr bound = reverse ? op->a : op->b;
+      const auto* var = value.as<VarNode>();
+      PrimType dtype = value.ty();
+      // Only direct comparisons are safe; unsigned arithmetic may wrap.
+      if (!var || !dtype.IsScalar() || !dtype.MatchesCode(DLDataTypeCode::kDLUInt) ||
+          dtype.bits() > 64) {
+        continue;
+      }
+      const auto* constant = bound.as<IntImmNode>();
+      if (!constant || constant->value < 0) continue;
+      const ffi::BigInt& c = constant->value;
+      ffi::BigInt maximum = (ffi::BigInt(1) << dtype.bits()) - 1;
+      ffi::BigInt lower = 0, upper = maximum;
+      if (e->IsInstance<prim::EQNode>()) {
+        lower = upper = c;
+      } else if (e->IsInstance<prim::NENode>()) {
+        // Only an excluded endpoint can be represented by a single interval.
+        if (c == 0) {
+          lower = 1;
+        } else if (c == maximum) {
+          upper = maximum - 1;
+        } else {
+          return std::nullopt;
+        }
+      } else {
+        bool is_lower = e->IsInstance<prim::GTNode>() || e->IsInstance<prim::GENode>();
+        bool strict = e->IsInstance<prim::GTNode>() || e->IsInstance<prim::LTNode>();
+        if (reverse) is_lower = !is_lower;
+        // Leave impossible endpoint comparisons unresolved, rather than wrap.
+        if (strict && ((is_lower && c == maximum) || (!is_lower && c == 0))) {
+          return std::nullopt;
+        }
+        if (is_lower) {
+          lower = c + strict;
+        } else {
+          upper = c - strict;
+        }
+      }
+      // The full type domain has no representable unsigned extent and adds no bound.
+      if (lower == 0 && upper == maximum) return std::nullopt;
+      return std::make_pair(ffi::GetRef<Var>(var),
+                            Range::FromMinExtent(prim::MakeConst(dtype, lower),
+                                                 prim::MakeConst(dtype, upper - lower + 1)));
+    }
+    return std::nullopt;
+  };
+  if (const auto* op = e.as<prim::EQNode>()) return match(op);
+  if (const auto* op = e.as<prim::NENode>()) return match(op);
+  if (const auto* op = e.as<prim::LTNode>()) return match(op);
+  if (const auto* op = e.as<prim::LENode>()) return match(op);
+  if (const auto* op = e.as<prim::GTNode>()) return match(op);
+  if (const auto* op = e.as<prim::GENode>()) return match(op);
+  return std::nullopt;
+}
+
 }  // namespace
 
 ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition() {
@@ -626,10 +687,15 @@ ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition(
   }
   ffi::Array<PrimExpr> equations;
   ffi::Array<PrimVar> vars;
-  std::function<void(const PrimExpr&)> fvisit = [&equations, &vars, &fvisit](const PrimExpr& e) {
+  std::vector<std::pair<Var, Range>> unsigned_ranges;
+  std::function<void(const PrimExpr&)> fvisit = [&](const PrimExpr& e) {
     if (e->IsInstance<prim::GENode>() || e->IsInstance<prim::GTNode>() ||
         e->IsInstance<prim::LENode>() || e->IsInstance<prim::LTNode>() ||
         e->IsInstance<prim::EQNode>() || e->IsInstance<prim::NENode>()) {
+      if (auto bound = GetUnsignedRange(e)) {
+        unsigned_ranges.push_back(*bound);
+        return;
+      }
       bool is_simple = true;
       std::vector<PrimVar> cand_vars;
       auto walk_fn = [&cand_vars, &is_simple,
@@ -638,8 +704,13 @@ ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition(
           return ffi::WalkResult::Advance();
         } else if (const VarNode* var = obj.as<VarNode>()) {
           PrimType var_ty = var->ty.as_or_throw<PrimType>();
-          if (var_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
+          if (var_ty.MatchesCode(DLDataTypeCode::kDLInt)) {
             cand_vars.push_back(ffi::GetRef<Var>(var).as_or_throw<PrimVar>());
+          } else {
+            // The inequality solver constructs signed coefficients in the
+            // variable's type. Unsigned arithmetic cannot be treated as
+            // ordered integer arithmetic; leave such conditions unresolved.
+            is_simple = false;
           }
         } else {
           is_simple &= obj->IsInstance<prim::AddNode>() || obj->IsInstance<prim::SubNode>() ||
@@ -670,7 +741,7 @@ ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition(
     }
   };
   fvisit(condition);
-  if (equations.empty() || vars.empty()) {
+  if (equations.empty() && unsigned_ranges.empty()) {
     return std::nullopt;
   }
   // build dom ranges for related vars
@@ -690,13 +761,31 @@ ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition(
       ranges.Set(v, Range::FromMinExtent(dom.min(), analyzer->Simplify(dom.max() - dom.min() + 1)));
     }
   }
-  // solve constraints
+  // Keep unsigned comparisons out of signed-coefficient elimination.
   IntConstraints constraint(vars, ranges, equations);
-  IntConstraints result = SolveInequalitiesToRange(constraint);
-  if (!result.relations.empty()) {
-    return std::nullopt;
+  IntConstraints result = vars.empty() ? constraint : SolveInequalitiesToRange(constraint);
+  if (result.relations.empty()) {
+    ranges = result.ranges;
+  } else {
+    ranges.clear();
   }
-  return result.ranges;
+  // Intersect the static unsigned bounds collected during condition traversal.
+  for (auto [var, range] : unsigned_ranges) {
+    if (auto previous = ranges.Get(var)) {
+      const ffi::BigInt& min = range->min.as_or_throw<IntImm>()->value;
+      const ffi::BigInt& extent = range->extent.as_or_throw<IntImm>()->value;
+      const ffi::BigInt& previous_min = previous.value()->min.as_or_throw<IntImm>()->value;
+      const ffi::BigInt& previous_extent = previous.value()->extent.as_or_throw<IntImm>()->value;
+      ffi::BigInt lower = std::max(min, previous_min);
+      ffi::BigInt upper = std::min(min + extent - 1, previous_min + previous_extent - 1);
+      if (lower > upper) return std::nullopt;
+      range = Range::FromMinExtent(prim::MakeConst(range->min.ty(), lower),
+                                   prim::MakeConst(range->min.ty(), upper - lower + 1));
+    }
+    ranges.Set(var, range);
+  }
+  if (ranges.empty()) return std::nullopt;
+  return ranges;
 }
 
 ConditionalBoundsContext::ConditionalBoundsContext(
@@ -719,7 +808,18 @@ void ConditionalBoundsContext::EnterWithScope() {
   // update solved var ranges
   for (const auto& kv : constraints.value()) {
     const VarNode* var = kv.first.get();
-    sym::IntSet new_dom = sym::IntSet::FromRange(kv.second);
+    sym::IntSet new_dom;
+    if (var->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLUInt)) {
+      // These static ranges are nonempty. Compute the endpoint in BigInt
+      // before constructing the unsigned expression to avoid wraparound.
+      const ffi::BigInt& min = kv.second->min.as_or_throw<IntImm>()->value;
+      const ffi::BigInt& extent = kv.second->extent.as_or_throw<IntImm>()->value;
+      new_dom = sym::IntSet::Interval(
+          kv.second->min,
+          extent == 1 ? kv.second->min : prim::MakeConst(kv.second->min.ty(), min + (extent - 1)));
+    } else {
+      new_dom = sym::IntSet::FromRange(kv.second);
+    }
     auto relax_it = relax_map_->find(var);
     if (relax_it != relax_map_->end()) {
       // this is a bound for relaxed var

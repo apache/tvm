@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E501
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import s_tir, tirx
@@ -1430,6 +1432,26 @@ class TestSymbolicDiagMaskCase:
                         A[0, 0, (k * 65536 + i * 256 + k) // n, (k * 65536 + i * 256 + k) % n] = B[
                             (k * 65536 + i * 256 + k) // n, (k * 65536 + i * 256 + k) % n
                         ]
+
+
+@pytest.mark.parametrize("dtype, value", [("uint32", 0), ("uint64", 2**63), ("uint64", 2**64 - 1)])
+def test_unsigned_condition(dtype, value):
+    x = tirx.Var("x", dtype)
+    # Both branches must handle unsigned constants, including BigInt values.
+    func = tirx.PrimFunc([x], tirx.Evaluate(tirx.if_then_else(x != tirx.const(value, dtype), 1, 0)))
+    before = tvm.IRModule.from_expr(func)
+    # Exercise ConditionalBoundsContext without any buffer accesses.
+    after = s_tir.transform.CompactBufferAllocation()(before)
+    tvm.ir.assert_structural_equal(after, before)
+
+
+def test_unsigned_wraparound_condition():
+    x = tirx.Var("x", "uint32")
+    # Do not treat modular arithmetic as a signed linear inequality.
+    func = tirx.PrimFunc([x], tirx.Evaluate(tirx.if_then_else(x + 1 < x, 1, 0)))
+    before = tvm.IRModule.from_expr(func)
+    after = s_tir.transform.CompactBufferAllocation()(before)
+    tvm.ir.assert_structural_equal(after, before)
 
 
 if __name__ == "__main__":
