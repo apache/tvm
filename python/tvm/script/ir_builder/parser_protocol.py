@@ -162,10 +162,10 @@ def arg_(name: str, annotation: Any, *, span: _Span = None) -> _ir.Var:
 
     Notes
     -----
-    Requires an active function signature frame. Primitive symbols use that frame's
-    resolver, preserving annotation/body identity. TIRx handles buffer layout according to
-    its function policy; Relax converts its type annotation. Invalid annotations or context
-    raise TypeError/native builder errors.
+    Requires an active function signature frame. Existing variables retain identity;
+    type annotations create fresh variables. TIRx handles buffer layout according to
+    its function policy; Relax converts its type annotation. Invalid annotations or
+    context raise TypeError/native builder errors.
 
     .. code:: python
 
@@ -331,50 +331,6 @@ def resolve_global_info_(content: str) -> _ir.GlobalInfo:
         raise ValueError(f"Invalid global-info reference: {content!r}")
     name, index = match.groups()
     return _global_infos()[name][int(index)]
-
-
-def resolve_type_var_(
-    name: str,
-    dtype: str | _ir.Type | _ir.Var | None = None,
-    *,
-    value: _ir.Var | None = None,
-    span: _Span = None,
-) -> _ir.Var:
-    """Resolve or declare a symbolic variable in the nearest native function.
-
-    Parameters
-    ----------
-    name : str
-        Function-local lookup key for explicit header parameters and captured symbols.
-    dtype : str, Type or Var, optional
-        Explicit primitive type or supplied variable. None defaults new symbols to
-        int64; existing symbols must agree with an explicit dtype.
-    value : Var, optional
-        Existing primitive variable to register without replacement. None creates a
-        variable only if the name is not already registered.
-    span : SpanEntry, Span or None, optional
-        Location for the constructed result. None (the default) leaves explicit location
-        unspecified; active source-call provenance is composed by the builder. Frames
-        retain their location until finalization.
-
-    Returns
-    -------
-    _ir.Var
-        The exact existing or newly registered variable.
-
-    Notes
-    -----
-    Requires an active native function frame. The signature and resumed body use the same
-    symbol map; nested functions use separate maps. Conflicting dtype/variable declarations
-    or missing context raise a builder error. No statement is emitted.
-
-    .. code:: python
-
-        # Source: def f[n: T.int32](...)
-        # Generated builder
-        n = X.resolve_type_var_("n", dtype="int32")
-    """
-    raise NotImplementedError
 
 
 def call_global_var_(function: _ir.GlobalVar, args: Sequence[Any]) -> _ir.Expr:

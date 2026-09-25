@@ -726,10 +726,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("script.ir_builder.tirx.ResolveTypeVar",
-           [](PrimFuncFrame frame, ffi::String name, ffi::Optional<PrimType> dtype,
-              ffi::Optional<tvm::Var> value,
-              Span span) { return ResolveTypeVar(&frame->type_var_map, name, dtype, value, span); })
       .def("script.ir_builder.tirx.Buffer",
            static_cast<BufferVar (*)(ffi::Array<PrimExpr>, PrimType, ffi::String,
                                      ffi::Optional<Expr>, ffi::Optional<ffi::Array<PrimExpr>>,

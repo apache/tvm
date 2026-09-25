@@ -74,8 +74,6 @@ class TIRFrame : public IRBuilderFrame {
  */
 class PrimFuncFrameNode : public TIRFrameNode {
  public:
-  /*! \brief Function-local symbols retained across declaration and body entry. */
-  ffi::Map<ffi::String, tvm::Var> type_var_map;
   /*! \brief The name of the block. */
   ffi::Optional<ffi::String> name;
   /*! \brief Function parameters. */
@@ -101,7 +99,6 @@ class PrimFuncFrameNode : public TIRFrameNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimFuncFrameNode>()
-        .def_ro("type_var_map", &PrimFuncFrameNode::type_var_map)
         .def_ro("name", &PrimFuncFrameNode::name)
         .def_ro("args", &PrimFuncFrameNode::args)
         .def_ro("is_private", &PrimFuncFrameNode::is_private)
