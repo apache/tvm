@@ -31,12 +31,13 @@ from tvm.ir import assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
+from tvm.script.parser import protocol_registry
 from tvm.tirx.script.jit import make_jit
 
 
 @pytest.fixture
 def jit_language(language):
-    language.M.jit = make_jit(language.M)
+    language.M.jit = protocol_registry.declaration_kind("M.jit", "function")(make_jit(language.M))
     return language
 
 
@@ -145,7 +146,7 @@ def test_live_jit_retains_only_needed_scope_across_uncached_builds(jit_language)
         pass
 
     M = jit_language.M
-    M.jit = make_jit(M)
+    M.jit = protocol_registry.declaration_kind("M.jit", "function")(make_jit(M))
 
     def make():
         payload = Payload()
@@ -177,7 +178,7 @@ def test_live_jit_retains_only_needed_scope_across_uncached_builds(jit_language)
 def test_recursive_parameters_survive_empty_specialization(jit_language):
     # Empty specialization must preserve recursive runtime arguments and their identities.
     M = jit_language.M
-    M.jit = make_jit(M)
+    M.jit = protocol_registry.declaration_kind("M.jit", "function")(make_jit(M))
 
     @M.jit
     def main(x: M.Tensor((4,)), y: M.Tensor((4,))):
@@ -208,3 +209,28 @@ def test_tirx_jit_specializes_captured_shape_and_value():
     result = fill.specialize(value=3)
     assert len(result.params) == 1
     assert_structural_equal(result, expected, map_free_vars=True)
+
+
+def test_optional_missing_annotation_stays_lazy(jit_language):
+    M = jit_language.M
+    M.Optional = T.Optional
+
+    @M.jit
+    def function(value: M.Optional(missing_annotation)):  # noqa: F821
+        M.record(value)
+
+    absent = function.specialize(value=None)
+    assert absent.params == [] and absent.body == [("emit", None)]
+    with pytest.raises(NameError, match="missing_annotation"):
+        function.specialize()
+
+
+def test_jit_preserves_namespace_used_only_by_decorator(jit_language):
+    Alias = jit_language.M
+
+    @Alias.jit(private=True)
+    def function():
+        pass
+
+    result = function.specialize()
+    assert result.params == [] and result.body == []

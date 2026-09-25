@@ -33,8 +33,8 @@ def test_parse_string_returns_fresh_symbols(language):
     # The direct string API must create independent symbol/parameter objects on repeated calls.
     # This is the suite's single dedicated parse(str) API case.
     source = '@M.function\ndef main(x: M.Tensor((M.dynamic("n") + 1,))):\n    M.record(x)\n'
-    first = entry.parse(source, extra_vars={"M": language.M}, root_builder=language.M)
-    second = entry.parse(source, extra_vars={"M": language.M}, root_builder=language.M)
+    first = entry.parse(source, extra_vars={"M": language.M})
+    second = entry.parse(source, extra_vars={"M": language.M})
     assert first.params[0] is not second.params[0]
     first_shape = first.params[0].args[0].args[0][0]
     second_shape = second.params[0].args[0].args[0][0]
@@ -50,9 +50,6 @@ def test_callable_entry_emits_the_expected_builder_program(language, monkeypatch
     # scaffolding.
     M = language.M
 
-    def identity(x: M.Tensor((4,))):
-        M.record(x)
-
     programs = []
     recompose = entry._recompose_builder
 
@@ -62,7 +59,18 @@ def test_callable_entry_emits_the_expected_builder_program(language, monkeypatch
 
     # Observe actual generated output; the original recomposition and execution still run.
     monkeypatch.setattr(entry, "_recompose_builder", observe)
-    result = entry.parse(identity, root_builder=M, track_span=False)
+    parse = entry.parse
+
+    def without_spans(*args, **kwargs):
+        return parse(*args, track_span=False, **kwargs)
+
+    monkeypatch.setattr(entry, "parse", without_spans)
+
+    @M.function
+    def identity(x: M.Tensor((4,))):
+        M.record(x)
+
+    result = identity
     expected = dedent(
         """
         with _I0.IRBuilder() as _builder0:
@@ -85,3 +93,39 @@ def test_callable_entry_emits_the_expected_builder_program(language, monkeypatch
     assert programs == [expected]
     assert result.params[0].args[0].args[0] == (4,)
     assert result.body == [("emit", result.params[0])]
+
+
+def test_source_prefix_and_lazy_annotation_capture(language):
+    source = """
+extent = 3
+@M.function
+def main(x: M.Tensor((missing if I.constexpr(False) else extent,))):
+    extent = 5
+    M.record(extent)
+"""
+    result = entry.parse(source, extra_vars={"M": language.M}, definition_scope={"extent": 128})
+    assert result.params[0].args[0].args[0] == (3,)
+    assert result.body == [("emit", 5)]
+
+
+def test_text_definition_defaults_preserve_body_globals_and_prefix_closures(language):
+    source = """
+@M.function
+def main(x: M.Tensor((extent,))):
+    def nested():
+        return extent
+    M.record(nested())
+"""
+    result = entry.parse(
+        source, extra_vars={"M": language.M, "extent": 256}, definition_scope={"extent": 128}
+    )
+    assert result.params[0].args[0].args[0] == (128,)
+    assert result.body == [("emit", 256)]
+
+    prefixed = entry.parse(
+        "extent = 3\n" + source,
+        extra_vars={"M": language.M, "extent": 256},
+        definition_scope={"extent": 128},
+    )
+    assert prefixed.params[0].args[0].args[0] == (3,)
+    assert prefixed.body == [("emit", 3)]

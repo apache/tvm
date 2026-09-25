@@ -45,6 +45,22 @@ function decorators retain definitions until module construction, which can decl
 signatures before building bodies. Captured Python values belong to the source
 context; symbolic IR values are created and resolved by builders.
 
+Function construction, JIT and macro decorators require ``@`` application at the
+function definition site. Later application to an existing function is rejected.
+Use a registered namespace, such as ``@T.prim_func`` or ``@Ts.prim_func(private=True)``.
+Python definitions support namespace aliases such as ``Alias = T``; bare callable
+aliases and preconfigured decorator aliases are unsupported. Source strings resolve
+namespace aliases from imports or ``extra_vars``, not executable prefix assignments.
+
+``GeneratedBuilder`` records connect generated body helpers to original functions and
+identify bindings preserved during recomposition. Original-name wrapper parameters
+capture definition values as defaults. Execution globals remain separate from the
+locals that evaluate those defaults. Known unshadowed signature values use these
+parameters; lazy snapshots remain for missing or shadowed names and body annotations.
+Class setup and declaration snapshots execute in source order before function bodies.
+Body globals, closures and local shadowing retain their Python scope. Missing values
+are read only when needed, including conditional and optional annotations.
+
 Annotations read concrete values from their definition scope, preserving missing-name
 errors when a value is used. Create external symbols with ``n = I.dynamic("n")``
 or the identical ``T.dynamic`` and ``Ts.dynamic`` constructors. Each call creates a
@@ -68,7 +84,10 @@ The syntax transpiler rewrites a fresh Python AST using scope and declaration fa
 from a prescan. A registered decorator selects the construction namespace. Assignments
 call binding hooks, expression statements call emission hooks, and control flow opens
 builder frames. The namespace owns the meaning of these operations and the supported
-IR constructs.
+IR constructs. Standalone decorators pass already-evaluated ``root_function_kwargs``
+so option expressions execute once. Nested functions and module members use their own
+decorator options. Builder hooks own option defaults; ``check_well_formed`` remains a
+separate parser setting.
 
 ``tvm.script.parser.protocol_registry`` records syntax policies under registered
 namespace paths. These policies identify scalar annotations, mutable declarations and

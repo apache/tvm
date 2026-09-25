@@ -39,7 +39,21 @@ class OptionalAnnotation:
 
 
 def make_jit(builder: object) -> Callable[..., Any]:
-    """Create a JIT decorator for the canonical construction namespace."""
+    """Create a definition-site JIT decorator for a construction namespace.
+
+    Parameters
+    ----------
+    builder : object
+        Namespace associated with the public decorator. The decorated source
+        must name its registered namespace; parsing selects construction hooks
+        from that syntax rather than accepting a root namespace override.
+
+    Returns
+    -------
+    Callable[..., Any]
+        Decorator accepting a function at its definition site or keyword options
+        for that application. Its result defers construction until specialization.
+    """
 
     def jit(
         func: FunctionType | None = None,
@@ -56,7 +70,37 @@ def make_jit(builder: object) -> Callable[..., Any]:
         exposes ``.specialize(**specialization_kwargs)``, which returns a
         ``tvm.tirx.PrimFunc``.
 
-        Example::
+        Parameters
+        ----------
+        func : types.FunctionType or None, optional
+            Function supplied by a definition-site ``@T.jit`` application. None,
+            the default, returns a decorator for ``@T.jit(**options)``.
+        private : bool, optional
+            Omit the function's public global symbol when True. Default is False.
+        check_well_formed : bool, optional
+            Validate each constructed specialization. Default is True; this option
+            controls the parser separately from the function builder kwargs.
+        persistent : bool, optional
+            Mark constructed specializations as persistent kernels. Default is False.
+
+        Returns
+        -------
+        TIRJit or Callable[[types.FunctionType], TIRJit]
+            Deferred kernel, or its definition-site decorator when func is None.
+
+        Raises
+        ------
+        TypeError
+            If the decorated value is not a Python function.
+        SyntaxError
+            If application occurs after definition or uses an unsupported bare or
+            preconfigured callable alias instead of a qualified namespace decorator.
+        OSError
+            If the function's source cannot be recovered.
+
+        Examples
+        --------
+        Specialize compile-time dimensions before compiling the kernel::
 
             from __future__ import annotations
 
@@ -88,7 +132,10 @@ def make_jit(builder: object) -> Callable[..., Any]:
         """
 
         def apply(function: FunctionType) -> TIRJit:
-            from tvm.script.parser.inspect_source import capture_definition_scope
+            from tvm.script.parser.inspect_source import (
+                capture_definition_scope,
+                require_definition_site,
+            )
 
             if not inspect.isfunction(function):
                 raise TypeError(f"Expect a function, but got: {function}")
@@ -96,6 +143,7 @@ def make_jit(builder: object) -> Callable[..., Any]:
             try:
                 if frame.f_code is jit.__code__:
                     frame = frame.f_back
+                require_definition_site(function, frame, jit)
                 definition_scope = capture_definition_scope(frame)
             finally:
                 del frame
@@ -136,6 +184,33 @@ class TIRJit:
         definition_scope: Mapping[str, Any] | None = None,
         builder: object | None = None,
     ) -> None:
+        """Capture the original kernel and its deferred construction options.
+
+        Parameters
+        ----------
+        func : types.FunctionType
+            Original inspectable Python function retained for each specialization.
+        check_well_formed : bool, optional
+            Validate constructed functions when True, the default.
+        persistent : bool, optional
+            Mark constructed functions as persistent kernels. Default is False.
+        private : bool, optional
+            Omit a public global symbol on constructed functions. Default is False.
+        definition_scope : Mapping[str, Any] or None, optional
+            Definition-site bindings for deferred annotations and decorator namespace
+            lookup. None and an empty mapping both add no external bindings; actual
+            source globals and closures are captured independently.
+        builder : object or None, optional
+            Namespace associated with the creating decorator. None is the default;
+            construction itself is resolved from qualified source decorator syntax.
+
+        Raises
+        ------
+        OSError
+            If source inspection cannot recover the function.
+        SyntaxError
+            If the function's source or a quoted annotation cannot be parsed.
+        """
         from tvm.script.parser.inspect_source import (
             capture_annotation_bindings,
             capture_lexical_bindings,
@@ -198,8 +273,8 @@ class TIRJit:
 
         Parameters
         ----------
-        **specialization_kwargs
-            One value per ``T.constexpr``-annotated parameter.  A
+        **specialization_kwargs : Any
+            One hashable value per ``T.constexpr``-annotated parameter.  A
             ``T.Optional`` parameter may additionally be supplied as ``None``
             to remove it from the resulting PrimFunc ABI.  Omitting an
             optional parameter keeps it as a normal runtime parameter.
@@ -208,7 +283,20 @@ class TIRJit:
         -------
         PrimFunc
             A concrete TIRx PrimFunc, identical in type to the output of
-            ``@T.prim_func``.
+            ``@T.prim_func``. Repeated selections reuse the cached function.
+
+        Raises
+        ------
+        TypeError
+            If a name is not specializable, a required constexpr value is absent,
+            an optional parameter is assigned anything other than None, or a
+            constexpr value is not hashable.
+
+        Notes
+        -----
+        No supplied kwargs still selects JIT construction with an empty map when
+        no constexpr defaults exist. Selected None optional values omit parameters
+        and skip their annotations. Source and builder exceptions propagate unchanged.
         """
         from tvm.script.parser.entry import parse
 
@@ -252,16 +340,11 @@ class TIRJit:
         if cached is not None:
             return cached
 
-        if self.builder is None:
-            from tvm.tirx.script import ir_builder as builder
-        else:
-            builder = self.builder
         prim_func = parse(
             self.func,
             self._closure_vars,
             definition_scope=self._definition_scope,
-            root_builder=builder,
-            root_function_options={
+            root_function_kwargs={
                 "private": self.private,
                 "persistent": self.persistent,
             },

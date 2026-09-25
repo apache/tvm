@@ -24,6 +24,14 @@ tvm.script.parser
    :members:
    :imported-members:
 
+tvm.script.parser.jit_support
+*****************************
+These helpers carry an already-selected root specialization into generated builder
+execution. Parameter validation and caching remain with the JIT entry point.
+
+.. automodule:: tvm.script.parser.jit_support
+   :members: use_specialization, read_specialization_bindings, unwrap_annotation, require_constexpr_binding
+
 tvm.script.parser.protocol_registry
 ***********************************
 Language variants register source syntax policies independently of their

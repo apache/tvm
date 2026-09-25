@@ -234,8 +234,26 @@ class PrescanCollector(ast.NodeVisitor):
         self.builder: object = None
         self.direct: bool = False
 
-    def collect(self, tree: ast.Module, *, root_builder: object | None = None) -> PrescanContext:
-        """Collect reserved names, scoped declarations and region-result syntax."""
+    def collect(self, tree: ast.Module) -> PrescanContext:
+        """Collect reserved names, scoped declarations and region-result syntax.
+
+        Parameters
+        ----------
+        tree : ast.Module
+            Entry-owned source tree for one module, standalone function or macro.
+            Qualified decorator syntax selects each function's construction namespace.
+
+        Returns
+        -------
+        PrescanContext
+            Collected syntax facts for the subsequent rewrite. Its collections
+            are transferred from this collector and treated as read-only.
+
+        Raises
+        ------
+        SyntaxError
+            If source bindings or declarations violate a parser restriction.
+        """
         # Only registered namespace objects establish fixed source aliases.
         self.namespaces.update(
             name
@@ -244,9 +262,6 @@ class PrescanCollector(ast.NodeVisitor):
         )
         self.scope = tree
         self.bindings[tree] = []
-        # A directly applied decorator has no corresponding decorator AST.
-        # Supply its builder as a phase input, not an attachment on the tree.
-        self.builder = root_builder
         self.visit(tree)
         # Transfer the completed collections directly. Consumers keep the facts, not
         # this collector, and do not mutate the collections during AST rewriting.
@@ -375,11 +390,9 @@ class PrescanCollector(ast.NodeVisitor):
         self.bindings[node] = []
         for decorator in node.decorator_list:
             target = decorator.func if isinstance(decorator, ast.Call) else decorator
-            if (
-                isinstance(target, ast.Attribute)
-                and protocol.DECLARATION_KIND.get(resolve_namespace_key(target, self.environment))
-                == "function"
-            ):
+            if isinstance(target, ast.Attribute) and protocol.DECLARATION_KIND.get(
+                resolve_namespace_key(target, self.environment)
+            ) in ("function", "helper"):
                 namespace = resolve_namespace_value(target.value, self.environment)
                 if namespace is not None:
                     self.builder = namespace

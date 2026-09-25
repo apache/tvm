@@ -193,7 +193,7 @@ def main[n, k: M.int32](x: M.Tensor((n, k))) -> M.Tensor((n, k)):
     M.record(k)
     return x
 """
-    main = entry.parse(source, extra_vars={"M": language.M}, root_builder=language.M)
+    main = entry.parse(source, extra_vars={"M": language.M})
     n, k = main.params[0].args[0].args[0]
     assert n.args == ("int64",)
     assert k.args == ("int32",)

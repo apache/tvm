@@ -42,9 +42,22 @@ _SPECIALIZATION: ContextVar[tuple[str | None, dict[str, Any]] | None] = ContextV
 def use_specialization(name: str | None, bindings: Mapping[str, Any] | None) -> Iterator[None]:
     """Pass selected JIT bindings to one root builder execution.
 
-    ``None`` denotes ordinary parsing; an empty mapping is a specialization
-    with no compile-time values. Copy inputs so nested execution cannot alter
-    the caller's selection.
+    Parameters
+    ----------
+    name : str or None
+        Source name of the standalone root function. Readers must request this
+        exact name. None is used when the parsed root is not a function.
+    bindings : Mapping[str, Any] or None
+        Already-selected parameter values, including explicit None values for
+        omitted optional parameters. None selects ordinary parsing; an empty
+        mapping still selects specialization with no compile-time values.
+        The mapping is copied on entry, without copying its values.
+
+    Yields
+    ------
+    None
+        The enclosed builder execution sees this selection. The previous
+        selection is restored on exit, including nested parsing and exceptions.
     """
     token = _SPECIALIZATION.set(None if bindings is None else (name, dict(bindings)))
     try:
@@ -54,7 +67,21 @@ def use_specialization(name: str | None, bindings: Mapping[str, Any] | None) -> 
 
 
 def read_specialization_bindings(name: str) -> dict[str, Any] | None:
-    """Read the current root's bindings, or None outside specialization."""
+    """Read the current root's selected JIT bindings.
+
+    Parameters
+    ----------
+    name : str
+        Source function name to match against the active root selection.
+
+    Returns
+    -------
+    dict[str, Any] or None
+        The active selection when its root name matches, including an empty
+        dictionary for an active specialization with no selected values. None
+        means ordinary parsing or a different root name. The returned dictionary
+        is borrowed from the current context and should not be mutated.
+    """
     context = _SPECIALIZATION.get()
     return context[1] if context is not None and context[0] == name else None
 
@@ -62,9 +89,33 @@ def read_specialization_bindings(name: str) -> dict[str, Any] | None:
 def unwrap_annotation(annotation: Any, specialization: Mapping[str, Any] | None = None) -> Any:
     """Read an optional runtime annotation only within a JIT specialization.
 
+    Parameters
+    ----------
+    annotation : Any
+        Evaluated runtime annotation. An object implementing the callable
+        ``__tvm_optional_annotation__`` adapter supplies its contained annotation;
+        all other objects pass through unchanged.
+    specialization : Mapping[str, Any] or None, optional
+        Active root selection. None, the default, means ordinary parsing and
+        forbids optional annotation adapters. Any mapping, including an empty
+        mapping, enables the adapter; its contents are not inspected here.
+
+    Returns
+    -------
+    Any
+        The adapter's result, or the identical input object when no adapter exists.
+
+    Raises
+    ------
+    TypeError
+        If an optional annotation adapter is used without specialization.
+
+    Notes
+    -----
     Generated specialization calls this after checking selected values and
     absences, so omitted parameters never evaluate their annotation. Ordinary
     argument construction delegates annotation validation to the language variant.
+    Adapter lookup and execution exceptions propagate unchanged.
     """
     unwrap = getattr(annotation, "__tvm_optional_annotation__", None)
     if unwrap is not None:
@@ -75,7 +126,26 @@ def unwrap_annotation(annotation: Any, specialization: Mapping[str, Any] | None 
 
 
 def require_constexpr_binding(value: _Value, name: str) -> _Value:
-    """Require an explicit captured value for a constexpr parameter."""
+    """Require an explicit captured value for a constexpr parameter.
+
+    Parameters
+    ----------
+    value : Any
+        Selected or captured compile-time value. Only the builder's MISSING
+        sentinel denotes an absent binding; None is an explicit valid value.
+    name : str
+        Source parameter name included in a missing-binding diagnostic.
+
+    Returns
+    -------
+    Any
+        The identical input value, preserving its Python type and identity.
+
+    Raises
+    ------
+    TypeError
+        If value is the MISSING sentinel and no constexpr binding was selected.
+    """
     from tvm.script.ir_builder.base import MISSING
 
     if value is MISSING:
