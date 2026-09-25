@@ -25,7 +25,6 @@ import pytest
 
 from tvm.script import tirx as T
 from tvm.script.ir_builder import resolve_global_info_args
-from tvm.script.parser import protocol_registry as registry
 
 
 def test_constructor_policy_survives_a_failed_definition(language):
