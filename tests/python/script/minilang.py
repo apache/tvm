@@ -78,7 +78,6 @@ class Frame:
         )
         self.function = Function() if kind == "function" else None
         self.params = []
-        self.type_var_map = {}
         self.global_var = Value("global", (self,))
         self.local_var = Value("local", (self,))
         self.result = None
@@ -107,15 +106,6 @@ class Frame:
         elif self.kind == "module":
             self.language.result = Module(self.language.functions)
         return False
-
-    def resolve_type_var(self, name, dtype=None, *, value=None, **kwargs):
-        if name not in self.type_var_map:
-            self.type_var_map[name] = (
-                value
-                if value is not None
-                else Value("symbol", ("int64" if dtype is None else dtype,), name)
-            )
-        return self.type_var_map[name]
 
     def __getitem__(self, name):
         return self.language.functions[name]
@@ -180,7 +170,6 @@ class Language:
             ),
             break_=lambda **kwargs: self.statement("break"),
             continue_=lambda **kwargs: self.statement("continue"),
-            resolve_type_var_=self.resolve_type_var,
             resolve_global_info_=self.resolve_global_info,
             bind_=self.bind,
             check_well_formed_=lambda result: None,
@@ -217,14 +206,14 @@ class Language:
         def Tensor(shape=None, dtype="float32", device=None, placement="S[0]"):
             return Value("tensor", (shape, dtype, device, placement))
 
-        def dynamic(name, dtype="int64"):
-            return Value("symbol", (dtype,), name)
+        def dynamic(name, dtype="int64", *, span=None):
+            return self.at(span, Value("symbol", (dtype,), name))
 
         def cell(value=None):
             return Value("cell", (value,))
 
         self.M.Tensor = Tensor
-        self.M.dynamic = dynamic
+        self.M.dynamic = self.I.dynamic = dynamic
         self.M.int32 = protocol_registry.register_scalar_annotation(
             "M.int32", lambda: None, dtype="int32"
         )
@@ -261,10 +250,6 @@ class Language:
         statement = ("return", value)
         self.frame().function.body.append(statement)
         return AlreadyEmitted(statement)
-
-    def resolve_type_var(self, name, dtype=None, **kwargs):
-        value = self.frame().resolve_type_var(name, dtype, **kwargs)
-        return value
 
     def resolve_global_info(self, name):
         return self.global_infos[name]

@@ -18,9 +18,7 @@
 
 from tvm_ffi import register_object as _register_object
 
-from tvm.script.ir_builder.base import IRBuilderFrame, _resolve_type_var
-
-from . import _ffi_api
+from tvm.script.ir_builder.base import IRBuilderFrame
 
 
 @_register_object("script.ir_builder.relax.RelaxFrame")
@@ -34,11 +32,7 @@ class SeqExprFrame(RelaxFrame): ...
 
 @_register_object("script.ir_builder.relax.FunctionFrame")
 class FunctionFrame(SeqExprFrame):
-    """Native function frame retaining signature, symbols and finalized results."""
-
-    def resolve_type_var(self, name, dtype=None, *, value=None, span=None):
-        """Resolve a primitive symbol in this function's native map."""
-        return _resolve_type_var(self, _ffi_api.ResolveTypeVar, name, dtype, value=value, span=span)
+    """Native function frame retaining signature and finalized results."""
 
 
 @_register_object("script.ir_builder.relax.BindingBlockFrame")

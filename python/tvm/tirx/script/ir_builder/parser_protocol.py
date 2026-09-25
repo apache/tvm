@@ -121,9 +121,7 @@ def arg_(name: str, annotation: Any, *, span: _Span = None) -> _ir.Var:
         raise TypeError("T.Optional is only supported by @T.jit")
     if callable(annotation) and not isinstance(annotation, _ir.Expr):
         annotation = annotation()
-    if isinstance(annotation, _ir.PrimType) or _ir.is_prim_var(annotation):
-        annotation = resolve_type_var_(name, annotation, span=span)
-    elif isinstance(annotation, _ir.Type):
+    if isinstance(annotation, _ir.Type):
         annotation = _ir.Var(name, annotation)
     return _ffi_api.Arg(name, _base.at_(span, annotation))
 
@@ -207,17 +205,6 @@ def resolve_global_info_(content: Any) -> Any:
     TIRx does not define global-info selectors.
     """
     raise NotImplementedError("TIRx does not support global-info lookup")
-
-
-def resolve_type_var_(
-    name: str,
-    dtype: str | _ir.Type | _ir.Var | None = None,
-    *,
-    value: _ir.Var | None = None,
-    span: _Span = None,
-) -> _ir.Var:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.resolve_type_var_`."""
-    return _base._current_function_frame().resolve_type_var(name, dtype, value=value, span=span)
 
 
 def call_global_var_(function: _ir.GlobalVar, args: Sequence[Any]) -> _ir.Expr:
@@ -1107,7 +1094,6 @@ __all__ = [
     "prim_func",
     "range_",
     "resolve_global_info_",
-    "resolve_type_var_",
     "return_",
     "serial",
     "set_mutable_cell_",

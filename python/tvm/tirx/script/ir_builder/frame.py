@@ -21,7 +21,7 @@ from collections.abc import Sequence
 from tvm_ffi import Array
 from tvm_ffi import register_object as _register_object
 
-from tvm.script.ir_builder.base import IRBuilderFrame, _resolve_type_var
+from tvm.script.ir_builder.base import IRBuilderFrame
 from tvm.tirx import Buffer, Var
 
 from . import _ffi_api
@@ -33,7 +33,7 @@ class TIRFrame(IRBuilderFrame): ...
 
 @_register_object("script.ir_builder.tirx.PrimFuncFrame")
 class PrimFuncFrame(TIRFrame):
-    """Native function frame retaining signature, symbols and finalized results."""
+    """Native function frame retaining signature and finalized results."""
 
     def default_buffer_layout(self, shape, scope):
         """Select the default layout for buffers constructed in this function."""
@@ -45,10 +45,6 @@ class PrimFuncFrame(TIRFrame):
     def params(self):
         """The native declared parameters, shared with the resumed body."""
         return self.args
-
-    def resolve_type_var(self, name, dtype=None, *, value=None, span=None):
-        """Resolve a primitive symbol in this function's native map."""
-        return _resolve_type_var(self, _ffi_api.ResolveTypeVar, name, dtype, value=value, span=span)
 
 
 @_register_object("script.ir_builder.tirx.ForFrame")

@@ -688,13 +688,12 @@ def _run_statements(
     # Macros enter through their body instead of function declaration lowering.
     # Snapshot annotations before defining the helper, in the definition scope.
     # Bound arguments remain original-name parameters of the macro body.
-    _, _, annotation_names = transformer._read_function_annotations(
-        node, [], transformer.module.prescan_ctx.bindings.get(node, ())
-    )
     captures = transformer.module.make_fresh_name("_definition")
     transformer.function.definition_captures = captures
-    statements = transformer._create_definition_bindings(node, annotation_names, captures=captures)
     body = transformer.transform_statements(node.body)
+    statements = transformer._create_definition_bindings(
+        node, transformer.function.capture_names, captures=captures
+    )
     names = sorted(name for name in bound_names if name in namespace)
     helper_name = transformer.module.make_fresh_name("_macro")
     helper = ast.copy_location(

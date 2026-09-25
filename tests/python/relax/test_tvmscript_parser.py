@@ -1695,21 +1695,23 @@ class Module:
     _check(mod)
 
 
-def test_later_prim_param_requires_external_shape_symbol():
-    with pytest.raises(NameError):
-        tvm.script.from_source(
-            """
+def test_later_prim_param_reuses_shape_symbol():
+    function = tvm.script.from_source(
+        """
 @R.function
 def main(x: R.Tensor([n], "float32"), n: T.int64):
     return x
 """,
-            extra_vars={
-                "I": tvm.script.ir,
-                "R": tvm.script.relax,
-                "T": tvm.script.tirx,
-                "Ts": tvm.script.s_tir,
-            },
-        )
+        extra_vars={
+            "I": tvm.script.ir,
+            "R": tvm.script.relax,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+        },
+    )
+    x, n = function.params
+    assert x.ty.shape[0].same_as(n)
+    assert str(n.ty.dtype) == "int64"
 
 
 def test_non_int64_prim_param_rejected_in_shape_annotation():

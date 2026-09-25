@@ -97,8 +97,6 @@ class FunctionFrameNode : public SeqExprFrameNode {
    *       However, we must specify the name by `R.func_name` before exit this frame.
    */
   ffi::Optional<ffi::String> name;
-  /*! \brief Function-local symbols retained across declaration and body entry. */
-  ffi::Map<ffi::String, tvm::Var> type_var_map;
   /*! \brief The function params. */
   ffi::Array<tvm::Var> params;
   /*!
@@ -130,7 +128,6 @@ class FunctionFrameNode : public SeqExprFrameNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FunctionFrameNode>()
-        .def_ro("type_var_map", &FunctionFrameNode::type_var_map)
         .def_ro("name", &FunctionFrameNode::name)
         .def_ro("params", &FunctionFrameNode::params)
         .def_ro("ret_ty", &FunctionFrameNode::ret_ty)

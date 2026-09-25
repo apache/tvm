@@ -526,8 +526,8 @@ def type_var(name, *, dtype=None, span=None):
 
     Notes
     -----
-    This constructor creates a new symbol on each call. Use the language variant
-    resolver for symbols shared by name within a function signature.
+    This constructor creates a new symbol on each call. Reuse the returned
+    variable to share its identity across annotations and function parameters.
     """
     return _ir.Var(
         name,
