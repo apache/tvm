@@ -105,5 +105,22 @@ def test_cmp_load_store(target):
         run_and_check()
 
 
+def test_bitwise_not_c(tmp_path):
+    @T.prim_func
+    def complement(values: T.Buffer((5,), "int32"), output: T.Buffer((5,), "bool")):
+        for i in range(5):
+            output[i] = T.bitwise_not(values[i] != 0)
+
+    built = tvm.compile(complement, target="c")
+    library = str(tmp_path / "complement.so")
+    built.export_library(library)
+    built = tvm.runtime.load_module(library)
+
+    values = np.array([-3, -1, 0, 1, 2], dtype="int32")
+    output = tvm.runtime.tensor(np.zeros(5, dtype="bool"))
+    built(tvm.runtime.tensor(values), output)
+    np.testing.assert_array_equal(output.numpy(), np.logical_not(values))
+
+
 if __name__ == "__main__":
     tvm.testing.main()
