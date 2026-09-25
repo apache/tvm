@@ -89,7 +89,7 @@ def register_scalar_annotation(
 
         register_scalar_annotation("tirx.int32", T.int32, dtype="int32")
         # Source: def f[n: T.int32](...):
-        # Builder: n = X.resolve_type_var_("n", dtype="int32")
+        # Builder: n = I.dynamic("n", "int32")
     """
     SCALAR_ANNOTATION_DTYPE[namespace_path] = dtype
     return constructor

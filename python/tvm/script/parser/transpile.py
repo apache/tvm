@@ -30,8 +30,8 @@ entry-owned definition scope and hand generated helpers to private recomposition
 in one direction, without back-references to the rewriter. Entry executes the
 recomposed builder and releases temporary captures. Short-lived frame names,
 statement lists and assembly results stay local to the methods that need them.
-Native frames own symbols, declarations, parameters, region results and final
-IR; the Python contexts do not mirror that construction state.
+Native frames own declarations, parameters, region results and final IR;
+the Python contexts do not mirror that construction state.
 """
 
 from __future__ import annotations
@@ -1677,16 +1677,19 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         )
         return [self._assign(const_args, const_args_expr, node)]
 
-    def _create_symbol_declarations(self, node: ast.FunctionDef) -> list[ast.stmt]:
-        """Bind explicit signature type parameters with their declared dtypes."""
+    def _create_symbol_declarations(
+        self, node: ast.FunctionDef
+    ) -> tuple[list[ast.stmt], dict[str, str]]:
+        """Create explicit header symbols and carry their identities into the body."""
         declaration: list[ast.stmt] = []
+        aliases: dict[str, str] = {}
         # -------------------- Pattern --------------------
         # Python source:
         #     def f[n]():
         #         body(n)
         #
         # Builder:
-        #     n = X.resolve_type_var_("n")
+        #     n = I.dynamic("n")
         # -------------------------------------------------
         for parameter in getattr(node, "type_params", ()):
             if not isinstance(parameter, getattr(ast, "TypeVar", ())):
@@ -1712,19 +1715,23 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     )
             if getattr(parameter, "default_value", None) is not None:
                 self._raise_error(parameter, "A symbolic type parameter cannot have a default")
+            alias = self.module.make_fresh_name("_symbol")
+            aliases[parameter.name] = alias
             declaration.append(
                 self._assign(
-                    parameter.name,
-                    self._call_dialect(
-                        "resolve_type_var_",
-                        [ast.Constant(parameter.name)],
+                    alias,
+                    self._call(
+                        self.module.ir_prefix,
+                        "dynamic",
+                        [ast.Constant(parameter.name), ast.Constant(dtype)],
                         parameter,
-                        keywords={"dtype": ast.Constant(dtype)},
+                        span=self.module.make_span_expr(parameter),
                     ),
                     parameter,
                 )
             )
-        return declaration
+            declaration.append(self._assign(parameter.name, ast.Name(alias, ast.Load()), parameter))
+        return declaration, aliases
 
     @staticmethod
     def _select_specialized_value(
@@ -1760,6 +1767,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         *,
         captures: str,
         const_args: str | None,
+        symbols: dict[str, str],
     ) -> tuple[list[ast.stmt], dict[str, str]]:
         """Declare signature parameters, making constexpr values available first."""
         declaration: list[ast.stmt] = []
@@ -1772,7 +1780,47 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             is_constexpr = self._is_constexpr_annotation(annotation)
             group = constexpr_params if is_constexpr else other_params
             group.append((parameter, annotation, is_constexpr))
-        unbound = {parameter.arg for parameter in parameters}
+        forward: dict[str, str] = {}
+        for parameter, annotation, _ in other_params:
+            if self.module.prescan_ctx.sites[parameter].kind != BindingKind.FORWARD_PARAMETER:
+                continue
+            name = parameter.arg
+            self.function.capture_names.add(name)
+            alias = self.module.make_fresh_name("_parameter")
+            forward[name] = alias
+            dtype = protocol_registry.SCALAR_ANNOTATION_DTYPE[
+                self.module.prescan_ctx._match_special_func(annotation)
+            ]
+            created = self._call(
+                self.module.ir_prefix,
+                "dynamic",
+                [ast.Constant(name), ast.Constant(dtype)],
+                parameter,
+                span=self.module.make_span_expr(parameter),
+            )
+            if const_args is not None:
+                created = self._select_specialized_value(
+                    name, created, parameter, const_args=const_args
+                )
+            # An outer dimension still belongs to earlier annotations. The later
+            # scalar gets a fresh parameter unless this declaration supplied it.
+            supplied = ast.Compare(ast.Constant(name), [ast.In()], [ast.Name(captures, ast.Load())])
+            declaration.append(
+                self._assign(alias, ast.IfExp(supplied, self.visit(annotation), created), parameter)
+            )
+            declaration.append(
+                self._assign(
+                    name,
+                    self._call(
+                        captures,
+                        "get",
+                        [ast.Constant(name), ast.Name(alias, ast.Load())],
+                        parameter,
+                    ),
+                    parameter,
+                )
+            )
+        unbound = {parameter.arg for parameter in parameters} - symbols.keys() - forward.keys()
         for parameter, annotation, is_constexpr in [*constexpr_params, *other_params]:
             if annotation is None:
                 self._raise_error(parameter, f"Parameter {parameter.arg!r} requires an annotation")
@@ -1805,11 +1853,24 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     [],
                 )
             else:
-                reads = {
-                    read for read in collect_annotation_free_reads(annotation) if read.id in unbound
-                }
-                with self._rewrite_annotation(reads):
-                    translated = self.visit(annotation)
+                if name in forward:
+                    translated = ast.Name(forward[name], ast.Load())
+                elif (
+                    name in symbols
+                    and protocol_registry.SCALAR_ANNOTATION_DTYPE.get(
+                        self.module.prescan_ctx._match_special_func(annotation)
+                    )
+                    is not None
+                ):
+                    translated = ast.Name(name, ast.Load())
+                else:
+                    reads = {
+                        read
+                        for read in collect_annotation_free_reads(annotation)
+                        if read.id in unbound
+                    }
+                    with self._rewrite_annotation(reads):
+                        translated = self.visit(annotation)
                 if const_args is not None:
                     # Optional annotations are unwrapped only for specialization;
                     # ordinary annotation validation belongs to the language variant arg.
@@ -1899,6 +1960,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         node: ast.FunctionDef,
         parameters: list[ast.arg],
         constexpr_aliases: dict[str, str],
+        symbol_aliases: dict[str, str],
         *,
         frame: str,
         const_args: str | None,
@@ -1957,16 +2019,8 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     )
                 )
                 body.append(self._assign(name, value, parameter))
-        for parameter in getattr(node, "type_params", ()):
-            body.append(
-                self._assign(
-                    parameter.name,
-                    self._call_dialect(
-                        "resolve_type_var_", [ast.Constant(parameter.name)], parameter
-                    ),
-                    parameter,
-                )
-            )
+        for name, alias in symbol_aliases.items():
+            body.append(self._assign(name, ast.Name(alias, ast.Load()), node))
         return body
 
     def _create_split_declaration(
@@ -1975,18 +2029,18 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         frame: str,
         definition: ast.FunctionDef,
         frame_declaration: list[ast.stmt],
-        constexpr_aliases: dict[str, str],
+        declaration_values: list[str],
     ) -> list[ast.stmt]:
         """Keep signature snapshots separate from the body's enclosing Python scope."""
-        # The declaration helper returns only the frame and selected host values.
-        # Runtime parameters and explicit symbols are recovered from the frame by
-        # the sibling body helper, whose closures still observe source class setup.
+        # The declaration helper returns its frame, explicit symbols and host values.
+        # The sibling body reads runtime parameters from the frame and receives
+        # explicit symbol identities directly, without resolving names again.
         declare_name = self.module.make_fresh_name("_declare")
         signature = frame_declaration[0]
         # Decorator options evaluate outside the signature's same-named parameters.
         constructor = signature.items[0].context_expr
         signature.items[0].context_expr = ast.copy_location(ast.Name(frame, ast.Load()), node)
-        outputs = [frame, *constexpr_aliases.values()]
+        outputs = [frame, *declaration_values]
         returned = ast.copy_location(
             ast.Return(ast.Tuple([ast.Name(name, ast.Load()) for name in outputs], ast.Load())),
             node,
@@ -2041,9 +2095,14 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     node,
                 )
             ]
-            declaration.extend(self._create_symbol_declarations(node))
+            symbols, symbol_aliases = self._create_symbol_declarations(node)
+            declaration.extend(symbols)
             arguments, constexpr_aliases = self._rewrite_parameters(
-                parameters, annotations, captures=captures, const_args=const_args
+                parameters,
+                annotations,
+                captures=captures,
+                const_args=const_args,
+                symbols=symbol_aliases,
             )
             declaration.extend(arguments)
             if returns is not None:
@@ -2072,7 +2131,12 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 split_declare=split_declare,
             )
             body = self._create_body_parameters(
-                node, parameters, constexpr_aliases, frame=frame, const_args=const_args
+                node,
+                parameters,
+                constexpr_aliases,
+                symbol_aliases,
+                frame=frame,
+                const_args=const_args,
             )
             body.extend(self.transform_statements(node.body))
             definition = self._create_definition(body_name, body, node)
@@ -2104,14 +2168,15 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             invocation = ast.copy_location(
                 ast.Expr(ast.Call(ast.Name(body_name, ast.Load()), [], [])), node
             )
+            declaration_values = [*symbol_aliases.values(), *constexpr_aliases.values()]
             if split_declare:
                 statements.extend(
                     self._create_split_declaration(
-                        node, frame, definition, frame_declaration, constexpr_aliases
+                        node, frame, definition, frame_declaration, declaration_values
                     )
                 )
             else:
-                outputs = list(constexpr_aliases.values())
+                outputs = declaration_values
                 if outputs:
                     declaration.append(
                         ast.copy_location(

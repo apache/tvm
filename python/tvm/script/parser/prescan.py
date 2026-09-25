@@ -156,6 +156,7 @@ class BindingKind(IntEnum):
 
     ORDINARY = auto()
     PARAMETER = auto()
+    FORWARD_PARAMETER = auto()
     MUTABLE_PARAMETER = auto()
     SYMBOL = auto()
     MUTABLE = auto()
@@ -504,9 +505,11 @@ class PrescanCollector(ast.NodeVisitor):
             #         body(n)
             #
             # Builder:
-            #     n = X.resolve_type_var_("n")
+            #     n = I.dynamic("n")
             # -------------------------------------------------
             self._record_binding(parameter.name, parameter, BindingKind.SYMBOL)
+        earlier_reads: set[str] = set()
+        header_names = {parameter.name for parameter in getattr(node, "type_params", ())}
         for arg in [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]:
             # -------------------- Pattern --------------------
             # Python source:
@@ -531,8 +534,17 @@ class PrescanCollector(ast.NodeVisitor):
                 if inspect.getattr_static(self.builder, "supports_mutable_declarations", True)
                 is True
                 and "parameter" in protocol_registry.MUTABLE_CELL_DECL.get(constructor, ())
+                else BindingKind.FORWARD_PARAMETER
+                if arg.arg in earlier_reads
+                and arg.arg not in header_names
+                and protocol_registry.SCALAR_ANNOTATION_DTYPE.get(
+                    _match_special_func(annotation, self.namespaces)
+                )
+                is not None
                 else BindingKind.PARAMETER,
             )
+            if annotation is not None:
+                earlier_reads.update(read.id for read in collect_annotation_free_reads(annotation))
         # Parameters, defaults and annotation-local binders are part of the same
         # fixed-name invariant, even when signature lowering handles them separately.
         self.visit(node.args)
@@ -563,6 +575,7 @@ class PrescanCollector(ast.NodeVisitor):
             if item.kind
             in (
                 BindingKind.PARAMETER,
+                BindingKind.FORWARD_PARAMETER,
                 BindingKind.MUTABLE_PARAMETER,
                 BindingKind.MUTABLE,
                 BindingKind.LOOP,

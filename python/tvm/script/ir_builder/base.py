@@ -407,32 +407,6 @@ def with_at_group_(
 at_ = at
 
 
-def _resolve_type_var(frame, ffi_resolver, name, dtype=None, *, value=None, span=None):
-    """Validate a native function resolver's inputs, leaving its map owned by C++."""
-    if not isinstance(name, str) or not name:
-        raise ValueError("A symbolic variable requires a nonempty string name")
-    if isinstance(dtype, ir.Var):
-        value, dtype = dtype, dtype.ty
-    if isinstance(dtype, str):
-        dtype = ir.PrimType(dtype)
-    if dtype is not None and not isinstance(dtype, ir.PrimType):
-        raise TypeError("A symbolic variable requires a primitive type")
-    if value is not None and not ir.is_prim_var(value):
-        raise TypeError("A symbolic binding requires a primitive Var")
-    return ffi_resolver(
-        frame, name, dtype, value, span.span if isinstance(span, SpanEntry) else span
-    )
-
-
-def _current_function_frame():
-    """Find the nearest native function frame for explicit symbol declarations."""
-    if IRBuilder.is_in_scope():
-        for frame in reversed(IRBuilder.current().frames):
-            if callable(getattr(frame, "resolve_type_var", None)):
-                return frame
-    raise ValueError("Symbol resolution requires an active function frame")
-
-
 def _return_annotation(annotation):
     """Evaluate the deferred return expression before normalizing its annotation value."""
     if callable(annotation) and not isinstance(annotation, ir.Expr | ir.Type):

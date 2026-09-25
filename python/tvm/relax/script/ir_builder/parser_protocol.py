@@ -106,8 +106,8 @@ def arg_(name: str, ty: Any, *, span: _Span = None) -> _ir.Var:
     ty : Type, Var, or callable
         Parameter annotation; corresponds to ``annotation`` in the shared
         :func:`tvm.script.ir_builder.parser_protocol.arg_` contract. Primitive
-        annotations resolve through the active signature symbol context; an
-        existing variable retains its identity.
+        annotations create a fresh parameter; an existing variable retains
+        its identity.
     span : SpanEntry, Span or None, optional
         Source location attached to the constructed IR; None leaves it unspecified.
 
@@ -118,8 +118,6 @@ def arg_(name: str, ty: Any, *, span: _Span = None) -> _ir.Var:
     """
     if not isinstance(ty, _ir.Var):
         ty = _native._type(ty)
-    if isinstance(ty, _ir.PrimType) or _ir.is_prim_var(ty):
-        ty = resolve_type_var_(name, ty, span=span)
     if isinstance(ty, _ir.Var):
         return _ffi_api.ArgVar(name, ty)
     return _base.at_(span, _ffi_api.Arg(name, _native._type(ty)))
@@ -193,17 +191,6 @@ def _check_module_well_formed(module: _ir.IRModule) -> None:
 # --------------------------------------
 # Bindings
 # --------------------------------------
-
-
-def resolve_type_var_(
-    name: str,
-    dtype: str | _ir.Type | _ir.Var | None = None,
-    *,
-    value: _ir.Var | None = None,
-    span: _Span = None,
-) -> _ir.Var:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.resolve_type_var_`."""
-    return _base._current_function_frame().resolve_type_var(name, dtype, value=value, span=span)
 
 
 def call_global_var_(function: _ir.GlobalVar, args: Sequence[Any]) -> _ir.Expr:
@@ -605,7 +592,6 @@ __all__ = [
     "output",
     "range_",
     "resolve_global_info_",
-    "resolve_type_var_",
     "return_",
     "seq_expr",
     "set_mutable_cell_",

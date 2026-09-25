@@ -203,10 +203,6 @@ void FuncRetValue(const tvm::relax::Expr& value) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("script.ir_builder.relax.ResolveTypeVar",
-           [](FunctionFrame frame, ffi::String name, ffi::Optional<PrimType> dtype,
-              ffi::Optional<tvm::Var> value,
-              Span span) { return ResolveTypeVar(&frame->type_var_map, name, dtype, value, span); })
       .def("script.ir_builder.relax.Function", Function)
       .def("script.ir_builder.relax.DeclFunction", DeclFunction)
       .def("script.ir_builder.relax.LocalFunction", LocalFunction)

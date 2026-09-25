@@ -111,11 +111,6 @@ class IRBuilderFrame : public ffi::ObjectRef {
   }
 };
 
-/*! \brief Resolve one symbol in a native function frame's retained map. */
-TVM_DLL tvm::Var ResolveTypeVar(ffi::Map<ffi::String, tvm::Var>* symbols, const ffi::String& name,
-                                ffi::Optional<PrimType> dtype, ffi::Optional<tvm::Var> value,
-                                Span span);
-
 ////////////////////////////// IRBuilder //////////////////////////////
 
 /*!
