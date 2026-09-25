@@ -2818,7 +2818,8 @@ def sample_top_p_top_k_from_sorted_prob(
 
     batch = T.dynamic("batch")
     vocab_size = T.dynamic("vocab_size")
-    out_batch = T.dynamic("out_batch")
+    kernel_out_batch = T.dynamic("out_batch")
+
     @Ts.prim_func(private=True)
     def _get_index_from_sorted(
         A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle, F: T.handle
@@ -2826,11 +2827,11 @@ def sample_top_p_top_k_from_sorted_prob(
         cumsum_sorted = T.match_buffer(A, (batch, vocab_size), prob_dtype)
         indices = T.match_buffer(B, (batch, vocab_size), index_dtype)
         renorm_prob = T.match_buffer(C, (batch, 1), prob_dtype)
-        usample = T.match_buffer(D, (out_batch, 1), prob_dtype)
-        sample_indices = T.match_buffer(E, (out_batch, 1), sample_indices_dtype)
-        output_index = T.match_buffer(F, (out_batch, 1), index_dtype)
+        usample = T.match_buffer(D, (kernel_out_batch, 1), prob_dtype)
+        sample_indices = T.match_buffer(E, (kernel_out_batch, 1), sample_indices_dtype)
+        output_index = T.match_buffer(F, (kernel_out_batch, 1), index_dtype)
 
-        for ax0, ax1 in T.grid(out_batch, vocab_size):
+        for ax0, ax1 in T.grid(kernel_out_batch, vocab_size):
             with Ts.sblock("T_get_index_from_sorted"):
                 v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
                 Ts.writes(output_index[v_ax0, 0])
@@ -2905,16 +2906,16 @@ def renormalize_top_p_top_k_prob(prob, sorted_prob, top_p, top_k):
     def _cumsum_mask(cumsum_sorted, top_p, top_k, i, j):
         return _tir.all(cumsum_sorted[i, j] < top_p[i, 0], j + 1 < top_k[i, 0])
 
-    batch = T.dynamic("batch")
+    kernel_batch = T.dynamic("batch")
     vocab_size = T.dynamic("vocab_size")
     @Ts.prim_func(private=True)
     def _get_renorm_cutoff(A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle):
-        sorted_prob = T.match_buffer(A, (batch, vocab_size), prob_dtype)
-        cumsum_sorted = T.match_buffer(B, (batch, vocab_size), prob_dtype)
-        top_p = T.match_buffer(C, (batch, 1), prob_dtype)
-        top_k = T.match_buffer(D, (batch, 1), top_k_dtype)
-        cutoff = T.match_buffer(E, (batch, 1), prob_dtype)
-        for ax0, ax1 in T.grid(batch, vocab_size):
+        sorted_prob = T.match_buffer(A, (kernel_batch, vocab_size), prob_dtype)
+        cumsum_sorted = T.match_buffer(B, (kernel_batch, vocab_size), prob_dtype)
+        top_p = T.match_buffer(C, (kernel_batch, 1), prob_dtype)
+        top_k = T.match_buffer(D, (kernel_batch, 1), top_k_dtype)
+        cutoff = T.match_buffer(E, (kernel_batch, 1), prob_dtype)
+        for ax0, ax1 in T.grid(kernel_batch, vocab_size):
             with Ts.sblock("T_get_renorm_cutoff"):
                 v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
                 if _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, 0) == 0:
