@@ -287,33 +287,60 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         )
 
     def _call(
-        self, namespace: str, member: str, args: list[ast.expr], node: ast.AST, **keywords: ast.expr
+        self,
+        namespace: str,
+        member: str,
+        args: list[ast.expr],
+        node: ast.AST,
+        *,
+        keywords: Mapping[str, ast.expr] | None = None,
+        span: ast.expr | None = None,
+        name_span: ast.expr | None = None,
+        value_span: ast.expr | None = None,
     ) -> ast.Call:
         """Build a generated operation with its source range and named arguments."""
-        if not self.module.track_span:
-            keywords.pop("span", None)
-            keywords.pop("name_span", None)
-            keywords.pop("value_span", None)
+        arguments = [ast.keyword(key, value) for key, value in keywords.items()] if keywords else []
+        if self.module.track_span:
+            if span is not None:
+                arguments.append(ast.keyword("span", span))
+            if name_span is not None:
+                arguments.append(ast.keyword("name_span", name_span))
+            if value_span is not None:
+                arguments.append(ast.keyword("value_span", value_span))
         return ast.copy_location(
             ast.Call(
                 ast.Attribute(ast.Name(namespace, ast.Load()), member, ast.Load()),
                 args,
-                [ast.keyword(key, value) for key, value in keywords.items()],
+                arguments,
             ),
             node,
         )
 
     def _call_dialect(
-        self, member: str, args: list[ast.expr], node: ast.AST, **keywords: ast.expr
+        self,
+        member: str,
+        args: list[ast.expr],
+        node: ast.AST,
+        *,
+        keywords: Mapping[str, ast.expr] | None = None,
+        span: ast.expr | None = None,
+        name_span: ast.expr | None = None,
+        value_span: ast.expr | None = None,
     ) -> ast.Call:
-        return self._call(
+        # Dialect calls evaluate their span, name span, builder arguments, then value span.
+        call = self._call(
             self.function.dialect_prefix,
             member,
             args,
             node,
-            span=self.module.make_span_expr(node),
-            **keywords,
+            span=self.module.make_span_expr(node) if span is None else span,
+            name_span=name_span,
         )
+        if keywords:
+            call.keywords.extend(ast.keyword(key, value) for key, value in keywords.items())
+        if self.module.track_span and value_span is not None:
+            call.keywords.append(ast.keyword("value_span", value_span))
+        return call
 
     def _attach_span(self, value: ast.expr, node: ast.AST) -> ast.expr:
         if (
@@ -974,7 +1001,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     [value],
                     statement,
                     name_span=self.module.make_span_expr(target),
-                    **keywords,
+                    keywords=keywords,
                 )
             elif kind == "module_alias" and not frame_value:
                 # -------------------- Pattern --------------------
@@ -1014,18 +1041,19 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 # Builder:
                 #     y = X.bind_(value, name="y", span=target_span, value_span=rhs_span)
                 # -------------------------------------------------
-                if value_span is not None:
-                    keywords["value_span"] = value_span
                 value = (
                     self._call_dialect(
                         "bind_",
                         [value],
                         statement,
                         name_span=self.module.make_span_expr(target),
-                        **keywords,
+                        keywords=keywords,
+                        value_span=value_span,
                     )
                     if frame_value
-                    else self._call_dialect("bind_", [value], target, **keywords)
+                    else self._call_dialect(
+                        "bind_", [value], target, keywords=keywords, value_span=value_span
+                    )
                 )
             if frame_value:
                 # Binding an entered frame originates at the source as-target;
@@ -1136,9 +1164,11 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                         "setitem_",
                         [],
                         node,
-                        value=self._rewrite_assignment_value(node.value, ordinary=ordinary),
-                        target=self.visit(target.value),
-                        key=self._rewrite_index(target.slice),
+                        keywords={
+                            "value": self._rewrite_assignment_value(node.value, ordinary=ordinary),
+                            "target": self.visit(target.value),
+                            "key": self._rewrite_index(target.slice),
+                        },
                         span=self.module.make_span_expr(node),
                     )
                 ),
@@ -1464,7 +1494,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             )
         else:
             self._raise_error(node.target, "Loop targets must be names or a flat tuple of names")
-        context = self._call_dialect("for_", [iterable], node, names=names)
+        context = self._call_dialect("for_", [iterable], node, keywords={"names": names})
         # The generated iteration check originates at the source iterable, not
         # the final body line. Its native frame span still covers the whole loop.
         ast.copy_location(context, node.iter)
@@ -1838,7 +1868,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                         "resolve_type_var_",
                         [ast.Constant(parameter.name)],
                         parameter,
-                        dtype=ast.Constant(dtype),
+                        keywords={"dtype": ast.Constant(dtype)},
                     ),
                     parameter,
                 )
