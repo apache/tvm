@@ -411,6 +411,37 @@ def test_nonlocal_declaration_preserves_captured_values(language):
     assert dtype == "float32" and value == 3
 
 
+@pytest.mark.parametrize("hygienic", [True, False])
+def test_macro_local_annotation_captures_definition_and_argument_names(
+    language, hygienic, monkeypatch
+):
+    M = language.M
+    M.macro = protocol_registry.declaration_kind("M.macro", "helper")(entry.make_macro_decorator(M))
+    MACRO_VALUE = 7  # noqa: F841 — captured only by the postponed local annotation.
+    observed = []
+
+    def annotation(shape):
+        observed.append(shape)
+        return M.Tensor(shape, "float32")
+
+    monkeypatch.setitem(globals(), "annotation", annotation)
+
+    @M.macro(hygienic=hygienic)
+    def typed_local(size):
+        value: annotation((MACRO_VALUE, size)) = M.value(1, 2)
+        M.record(value)
+
+    monkeypatch.setitem(globals(), "MACRO_VALUE", 9)
+
+    @M.function
+    def function():
+        typed_local(3)
+
+    assert observed == [(7 if hygienic else 9, 3)]
+    assert function.body[0][0] == "emit"
+    assert function.body[0][1].op == "value"
+
+
 def test_macro_capture_policy_remains_explicit(language, monkeypatch):
     # A changed global must distinguish captured macro scope from caller scope: values 2 then 1.
     M = language.M
