@@ -1568,10 +1568,10 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             key = self.module.prescan_ctx._match_special_func(target)
             if key is None:
                 continue
-            kind = protocol.DECLARATION_KIND.get(key)
-            if kind == "helper":
+            kind = protocol.DEFINITION_KIND.get(key)
+            if kind in (protocol.DefinitionKind.MACRO, protocol.DefinitionKind.PYTHON):
                 return None, ast.Dict([], [])
-            if kind != "function":
+            if kind != protocol.DefinitionKind.FUNCTION:
                 continue
             # A matched decorator is a direct member of a fixed root. Construction
             # needs that root's actual builder, not another syntax/value resolution.

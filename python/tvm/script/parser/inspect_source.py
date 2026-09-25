@@ -231,9 +231,13 @@ def capture_annotation_bindings(
     environment = ChainMap(definition_scope, source.__globals__)
     for decorator in tree.body[-1].decorator_list:
         target = decorator.func if isinstance(decorator, ast.Call) else decorator
-        if isinstance(target, ast.Attribute) and protocol.DECLARATION_KIND.get(
+        if isinstance(target, ast.Attribute) and protocol.DEFINITION_KIND.get(
             resolve_namespace_key(target, environment)
-        ) in ("function", "helper"):
+        ) in (
+            protocol.DefinitionKind.FUNCTION,
+            protocol.DefinitionKind.MACRO,
+            protocol.DefinitionKind.PYTHON,
+        ):
             names.update(collect_annotation_free_names(target.value))
     for node in ast.walk(tree):
         annotation = (

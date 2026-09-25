@@ -34,16 +34,25 @@ and namespace initialization.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Literal, TypeVar
+from enum import IntEnum, auto
+from typing import Any, TypeVar
 
 __all__ = ["register_mutable_decl", "register_scalar_annotation"]
 
 _Callable = TypeVar("_Callable", bound=Callable[..., Any])
 
 
+class DefinitionKind(IntEnum):
+    """Construction behavior of a definition's canonical source decorator."""
+
+    FUNCTION = auto()
+    MACRO = auto()
+    PYTHON = auto()
+
+
 SCALAR_ANNOTATION_DTYPE: dict[str, object] = {}
 MUTABLE_CELL_DECL: dict[str, frozenset[str]] = {}
-DECLARATION_KIND: dict[str, Literal["function", "helper"]] = {}
+DEFINITION_KIND: dict[str, DefinitionKind] = {}
 
 
 def register_scalar_annotation(

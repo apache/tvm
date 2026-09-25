@@ -313,7 +313,7 @@ def make_decorator(builder: object, *, namespace_path: str) -> Callable[..., Any
     pass directly to ``builder.function_``; the language variant hook owns their defaults.
     """
 
-    syntax_protocol.DECLARATION_KIND[namespace_path] = "function"
+    syntax_protocol.DEFINITION_KIND[namespace_path] = syntax_protocol.DefinitionKind.FUNCTION
 
     def decorator(function: FunctionType | None = None, **options: Any) -> Any:
         """Parse a Python function into a function of the selected IR language variant.
@@ -433,7 +433,7 @@ def make_macro_decorator(
     compilation, and builder exceptions propagate to the caller.
     """
 
-    syntax_protocol.DECLARATION_KIND[namespace_path] = "helper"
+    syntax_protocol.DEFINITION_KIND[namespace_path] = syntax_protocol.DefinitionKind.MACRO
 
     def decorator(function: FunctionType | None = None, **options: Any) -> Callable[..., Any]:
         """Decorate a helper that constructs IR in its caller's active frames.
@@ -525,7 +525,7 @@ def make_macro_decorator(
     return decorator
 
 
-syntax_protocol.DECLARATION_KIND["I.pyfunc"] = "helper"
+syntax_protocol.DEFINITION_KIND["I.pyfunc"] = syntax_protocol.DefinitionKind.PYTHON
 
 
 def pyfunc(function: _Callable) -> _Callable:

@@ -317,7 +317,8 @@ class PrescanCollector(ast.NodeVisitor):
                 for decorator in self.functions[-1].decorator_list
             )
             if not any(
-                path != "I.pyfunc" and protocol.DECLARATION_KIND.get(path) in ("function", "helper")
+                protocol.DEFINITION_KIND.get(path)
+                in (protocol.DefinitionKind.FUNCTION, protocol.DefinitionKind.MACRO)
                 for path in paths
             ):
                 return
@@ -473,9 +474,13 @@ class PrescanCollector(ast.NodeVisitor):
         self.bindings[node] = []
         for decorator in node.decorator_list:
             target = decorator.func if isinstance(decorator, ast.Call) else decorator
-            if isinstance(target, ast.Attribute) and protocol.DECLARATION_KIND.get(
+            if isinstance(target, ast.Attribute) and protocol.DEFINITION_KIND.get(
                 _match_special_func(target, self.namespaces)
-            ) in ("function", "helper"):
+            ) in (
+                protocol.DefinitionKind.FUNCTION,
+                protocol.DefinitionKind.MACRO,
+                protocol.DefinitionKind.PYTHON,
+            ):
                 namespace = resolve_namespace_value(target.value, self.environment)
                 if namespace is not None:
                     self.builder = namespace

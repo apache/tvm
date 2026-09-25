@@ -58,7 +58,7 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
         for that application. Its result defers construction until specialization.
     """
 
-    protocol.DECLARATION_KIND[namespace_path] = "function"
+    protocol.DEFINITION_KIND[namespace_path] = protocol.DefinitionKind.FUNCTION
 
     def jit(
         func: FunctionType | None = None,

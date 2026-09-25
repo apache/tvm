@@ -137,8 +137,12 @@ def test_nested_function_failure_preserves_error_and_recovers(spanned_language):
         '"""M.Tensor(\n    (4,), "float32"\n)"""',
     ],
 )
-def test_quoted_source_annotations_report_the_complete_literal(language, declaration, annotation):
-    source = "from __future__ import annotations\n@M.function\n" + declaration.format(
+@pytest.mark.parametrize("decorator", ["function", "inline"])
+def test_quoted_source_annotations_report_the_complete_literal(
+    spanned_language, declaration, annotation, decorator
+):
+    language = spanned_language
+    source = f"from __future__ import annotations\n@M.{decorator}\n" + declaration.format(
         annotation=annotation
     )
     literal = next(node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.Constant))

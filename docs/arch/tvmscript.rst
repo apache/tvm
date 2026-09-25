@@ -93,7 +93,11 @@ separate parser setting.
 
 ``tvm.script.parser.protocol_registry`` records syntax policies under registered
 namespace paths. The public registration helpers identify scalar annotations and mutable
-declarations; entry factories register function and helper classification automatically.
+declarations. Entry factories populate ``DEFINITION_KIND`` with ``DefinitionKind``
+values: ``FUNCTION`` for regular and JIT IR definitions, ``MACRO`` for inline and macro
+expansion, and ``PYTHON`` for retained ``I.pyfunc`` runtime callables. Macro bodies
+construct IR in the caller's context; Python bodies retain ordinary execution and do
+not need builder span context.
 All calls retain their source context, with binding hooks owning result attachment.
 Symbolic shapes use concrete expressions. Source aliases resolve to those paths;
 ordinary Python calls remain calls in the generated program. Explicit ``constexpr``
