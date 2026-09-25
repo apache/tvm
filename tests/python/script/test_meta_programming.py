@@ -32,6 +32,7 @@ from typing import TypeVar
 
 import pytest
 
+from tvm import ir
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script.parser import entry, protocol_registry

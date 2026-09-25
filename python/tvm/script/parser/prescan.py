@@ -164,7 +164,6 @@ class Binding(NamedTuple):
     kind: str
     annotation: ast.expr | None = None
     dtype: object = None
-    direct: bool = False
 
 
 class PrescanContext:
@@ -188,7 +187,6 @@ class PrescanContext:
         namespaces: dict[str, str],
         with_outputs: dict[ast.With, list[str]],
         recursive_functions: set[ast.FunctionDef | ast.AsyncFunctionDef],
-        environment: Mapping[str, object],
     ) -> None:
         # Collected source/entry names seed the allocator; this set stays read-only.
         self.reserved_names = reserved_names
@@ -207,18 +205,12 @@ class PrescanContext:
         self.conditional_outputs = conditional_outputs
         # Fixed source roots map to canonical dialect names; the map stays read-only.
         self.namespaces = namespaces
-        # Borrow qualified module metadata for configuration/expression-string lookup.
-        self._namespace_environment = environment
         # Collected explicit output names select exports after each with-region exits;
         # rewriting reads the original lists without adding inferred outputs.
         self.with_outputs = with_outputs
         # Collected self-reference facts select standalone declaration-before-body
         # lowering; rewriting does not add or remove functions from this set.
         self.recursive_functions = recursive_functions
-
-    def resolve_namespace_key(self, node: ast.AST | None) -> str | None:
-        """Normalize namespace/configuration paths without evaluating source expressions."""
-        return resolve_namespace_key(node, self._namespace_environment)
 
     def _match_special_func(self, node: ast.AST | None) -> str | None:
         """Match direct source syntax against the roots fixed by this prescan."""
@@ -245,11 +237,9 @@ class PrescanCollector(ast.NodeVisitor):
         self.module_name: str | None = None
         # Temporary lexical with-stack routes explicit output calls, then resets.
         self.regions: list[ast.With] = []
-        # Lexical scope and language variant restore on function/class exit. direct marks
-        # unconditional function-body declarations eligible before signatures.
+        # Lexical scope and language variant restore on function/class exit.
         self.scope: ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef | None = None
         self.builder: object = None
-        self.direct: bool = False
 
     def collect(self, tree: ast.Module) -> PrescanContext:
         """Collect reserved names, scoped declarations and region-result syntax.
@@ -299,7 +289,6 @@ class PrescanCollector(ast.NodeVisitor):
             self.namespaces,
             self.exports,
             self.recursive,
-            self.environment,
         )
 
     def _raise_error(self, node: ast.AST, message: str) -> NoReturn:
@@ -333,7 +322,7 @@ class PrescanCollector(ast.NodeVisitor):
     ) -> None:
         self._check_reserved(name, node)
         self.names.add(name)
-        item = Binding(name, node, kind, annotation, dtype, self.direct)
+        item = Binding(name, node, kind, annotation, dtype)
         self.bindings[self.scope].append(item)
         self.sites[node] = item
 
@@ -454,8 +443,8 @@ class PrescanCollector(ast.NodeVisitor):
         # -------------------------------------------------
         # Collect this function separately from its enclosing scope.
         self._record_binding(node.name, node, "function")
-        old_scope, old_builder, old_direct = self.scope, self.builder, self.direct
-        self.scope, self.direct = node, True
+        old_scope, old_builder = self.scope, self.builder
+        self.scope = node
         self.functions.append(node)
         self.bindings[node] = []
         for decorator in node.decorator_list:
@@ -481,7 +470,7 @@ class PrescanCollector(ast.NodeVisitor):
                 "int64"
                 if bound is None or (isinstance(bound, ast.Name) and bound.id == "int")
                 else protocol.SCALAR_ANNOTATION_DTYPE.get(
-                    resolve_namespace_key(bound, self.environment)
+                    _match_special_func(bound, self.namespaces)
                 )
             )
             self._record_binding(parameter.name, parameter, "symbol", dtype=dtype)
@@ -520,8 +509,6 @@ class PrescanCollector(ast.NodeVisitor):
             self.visit(parameter)
         for statement in node.body:
             self.visit(statement)
-            if isinstance(statement, ast.Return | ast.Raise):
-                self.direct = False
         for decorator in node.decorator_list:
             self.visit(decorator)
         if node.returns:
@@ -529,7 +516,7 @@ class PrescanCollector(ast.NodeVisitor):
             self.visit(node.returns)
         self._validate_symbols(node)
         self.functions.pop()
-        self.scope, self.builder, self.direct = old_scope, old_builder, old_direct
+        self.scope, self.builder = old_scope, old_builder
 
     visit_AsyncFunctionDef = visit_FunctionDef
 
@@ -695,7 +682,6 @@ class PrescanCollector(ast.NodeVisitor):
         #     y = frame.var
         # -------------------------------------------------
         # Record matching branch outputs; lexical helpers are assembled during rewriting.
-        old_direct, self.direct = self.direct, False
         self.generic_visit(node)
         marker = (
             isinstance(node.test, ast.Call)
@@ -732,7 +718,6 @@ class PrescanCollector(ast.NodeVisitor):
                         location, "IR conditional branches must end with the same named output"
                     )
                 self.outputs[node] = then
-        self.direct = old_direct
 
     def visit_For(self, node: ast.For) -> None:
         # -------------------- Pattern --------------------
@@ -745,27 +730,10 @@ class PrescanCollector(ast.NodeVisitor):
         #         X.emit_(body(i))
         # -------------------------------------------------
         # Loop binders remain assignable and are never signature declarations.
-        old_direct, self.direct = self.direct, False
         self._collect_target(node.target, kind="loop")
         self.visit(node.iter)
         for statement in node.body + node.orelse:
             self.visit(statement)
-        self.direct = old_direct
-
-    def visit_While(self, node: ast.While) -> None:
-        # -------------------- Pattern --------------------
-        # Python source:
-        #     while condition:
-        #         body()
-        #
-        # Builder:
-        #     with X.While(condition):
-        #         X.emit_(body())
-        # -------------------------------------------------
-        # Declarations inside this region are conditional.
-        old_direct, self.direct = self.direct, False
-        self.generic_visit(node)
-        self.direct = old_direct
 
     def visit_With(self, node: ast.With) -> None:
         # -------------------- Pattern --------------------
@@ -779,7 +747,6 @@ class PrescanCollector(ast.NodeVisitor):
         #         X.emit_(body(value))
         # -------------------------------------------------
         # Collect targets and explicit region outputs.
-        old_direct, self.direct = self.direct, False
         self.regions.append(node)
         for item in node.items:
             self.visit(item.context_expr)
@@ -788,7 +755,6 @@ class PrescanCollector(ast.NodeVisitor):
         for statement in node.body:
             self.visit(statement)
         self.regions.pop()
-        self.direct = old_direct
 
     def visit_Call(self, node: ast.Call) -> None:
         # -------------------- Pattern --------------------

@@ -42,7 +42,6 @@ _Callable = TypeVar("_Callable", bound=Callable[..., Any])
 SCALAR_ANNOTATION_DTYPE: dict[str, object] = {}
 MUTABLE_CELL_DECL: dict[str, frozenset[str]] = {}
 RESULT_SPAN: dict[str, bool] = {}
-MODULE_DECORATOR: dict[str, bool] = {}
 DECLARATION_KIND: dict[str, Literal["function", "helper"]] = {}
 
 
@@ -200,40 +199,6 @@ def result_span(namespace_path: str) -> Callable[[_Callable], _Callable]:
     def decorate(constructor: _Callable) -> _Callable:
         RESULT_SPAN[namespace_path] = True
         return constructor
-
-    return decorate
-
-
-def module_decorator(namespace_path: str) -> Callable[[_Callable], _Callable]:
-    """Mark a module entry point and return the same callable.
-
-    Parameters
-    ----------
-    namespace_path : str
-        Canonical registered namespace alias and exported module-decorator path,
-        such as ``"I.ir_module"``.
-
-    Returns
-    -------
-    Callable
-        Registration decorator that returns the module entry point unchanged.
-
-    Notes
-    -----
-    Member function decorators use this fixed namespace syntax to defer parsing
-    until the complete enclosing module is available. No source-function records,
-    captured scopes or constructed module results are retained in the table.
-
-    .. code:: python
-
-        @module_decorator("I.ir_module")
-        def ir_module(source):
-            return parse(source)
-    """
-
-    def decorate(decorator: _Callable) -> _Callable:
-        MODULE_DECORATOR[namespace_path] = True
-        return decorator
 
     return decorate
 

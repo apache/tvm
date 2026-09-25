@@ -911,7 +911,4 @@ def ir_module(module: type | None = None, **options: Any) -> IRModule | Callable
     return apply(module) if module is not None else apply
 
 
-syntax_protocol.module_decorator("I.ir_module")(ir_module)
-syntax_protocol.module_decorator("script.ir_module")(ir_module)
-
 from_source = parse
