@@ -524,7 +524,7 @@ def test_return_statement():
 
     @Ts.prim_func
     def explicit():
-        T.Return(T.int32(5))
+        T.return_(T.int32(5))
 
     @Ts.prim_func
     def implicit():

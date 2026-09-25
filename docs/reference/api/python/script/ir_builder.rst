@@ -25,31 +25,7 @@ tvm.script.ir_builder
    :imported-members:
    :exclude-members: GenericConst, Range, StringImm, StringType
 
-tvm.script.ir_builder.parser_protocol
-*************************************
-Shared module construction and location helpers are exported directly from
-:mod:`tvm.script.ir_builder`. The protocol below describes the hooks implemented
-by each language variant, including :func:`~tvm.script.ir_builder.parser_protocol.if_`
-and :func:`~tvm.script.ir_builder.parser_protocol.function_`.
-
-.. automodule:: tvm.script.ir_builder.parser_protocol
-   :members:
-
-Dialect builders are owned by their respective script packages. Registered
-compatibility paths under ``tvm.script.ir_builder`` resolve to the same modules.
-
-tvm.relax.script.ir_builder
-***************************
-.. automodule:: tvm.relax.script.ir_builder
-   :members:
-   :exclude-members: ExternFunc, ShapeExpr, TupleGetItem, Range
-
 tvm.relax.script.ir_builder.distributed
 ***************************************
 .. automodule:: tvm.relax.script.ir_builder.distributed
-   :members:
-
-tvm.tirx.script.ir_builder
-**************************
-.. automodule:: tvm.tirx.script.ir_builder
    :members:

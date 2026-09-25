@@ -2047,7 +2047,7 @@ def _get_or_encode_descriptor(spec: TensorMapSpec, sctx: DispatchContext):
     # fmt: off
     @T.prim_func(check_well_formed=False)
     def create_tensor_map():
-        T.Bind(T.tvm_stack_alloca("tensormap", 1), var=tensor_map)
+        T.bind(T.tvm_stack_alloca("tensormap", 1), var=tensor_map)
         T.tensormap_encode_tiled(
             tensor_map,
             spec.base,

@@ -19,7 +19,7 @@
 import inspect
 from typing import TypeVar
 
-from tvm.ir import BaseFunc, GlobalInfo, GlobalVar, Span, Var
+from tvm.ir import GlobalInfo, Span, Var
 from tvm.runtime import Object as tvm_Object
 
 from . import _ffi_api
@@ -71,60 +71,6 @@ def meta_var(value: T) -> T:
         a, b = I.meta_var((left, right))
     """
     return value
-
-
-def ir_module() -> IRModuleFrame:
-    """Start a ir_module frame.
-
-    Returns
-    -------
-    frame: IRModuleFrame
-        The constructed frame.
-    """
-    return _ffi_api.IRModule()  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def decl_function(func_name: str, func_signature: BaseFunc) -> GlobalVar:
-    """Declare a Function without given the specific function implementation.
-
-    Parameters
-    ----------
-    func_name : str
-        The function unique name.
-
-    func_signature: BaseFunc
-        A Function w/o body, which used to specify the function signature
-        (i.e. func params and func return type/shape).
-
-    Note
-    ----
-    It is usually used in cross-function call. And we can specify the function by `DefFunction`
-
-    Returns
-    -------
-    gv : GlobalVar
-        The corresponding GlobalVar.
-    """
-    if not isinstance(func_signature, BaseFunc):
-        raise ValueError(
-            "decl_function expects an instance of BaseFunc, "
-            f"but {func_signature} is of type {type(func_signature)}"
-        )
-    return _ffi_api.DeclFunction(  # type: ignore[attr-defined] # pylint: disable=no-member
-        func_name, func_signature
-    )
-
-
-def def_function(func_name: str, func: BaseFunc) -> None:
-    """Define the function which is declared before.
-    Parameters
-    ----------
-    func_name : str
-        The function unique name.
-    func: BaseFunc
-        The given function implementation
-    """
-    return _ffi_api.DefFunction(func_name, func)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def module_attrs(attrs: dict[str, tvm_Object], allow_overwrite=False) -> None:
@@ -243,3 +189,17 @@ def lookup_name(name: str) -> bool:
         True if the global variable exists, False otherwise.
     """
     return _ffi_api.LookupName(name)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def _get_dialect_builder(name: str):
+    """Resolve a registered lazy dialect export for the shared builder package."""
+    import importlib
+    import sys
+
+    from tvm.script import _DIALECT_REGISTRY
+
+    if name in _DIALECT_REGISTRY:
+        module = importlib.import_module(f"tvm.script.ir_builder.{name}")
+        setattr(sys.modules["tvm.script.ir_builder"], name, module)
+        return module
+    raise AttributeError(f"module 'tvm.script.ir_builder' has no attribute {name!r}")

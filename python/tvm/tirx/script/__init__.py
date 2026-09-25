@@ -43,7 +43,7 @@ def _initialize() -> None:
             (name, value) for name, value in vars(builder).items() if not name.startswith("_")
         )
         globals().update(
-            bind=builder._native.bind,
+            bind=builder.bind,
             prim_func=declaration_kind("T.prim_func", "function")(entry.make_decorator(builder)),
             inline=declaration_kind("T.inline", "helper")(
                 entry.make_macro_decorator(builder, preserve_return=True, late_binding=True)
