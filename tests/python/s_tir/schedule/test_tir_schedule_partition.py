@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
 # ruff: noqa: F401, F841
+from __future__ import annotations
+
 import pytest
 
 import tvm
@@ -33,9 +35,7 @@ from tvm.tirx.expr import IntImm
 
 
 @Ts.prim_func
-def elementwise(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128))
+def elementwise(A: T.Buffer((128, 128, 128)), B: T.Buffer((128, 128, 128))) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("B"):
             vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
@@ -43,9 +43,11 @@ def elementwise(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_symbolic(a: T.handle, b: T.handle, n: T.int32) -> None:
-    A = T.match_buffer(a, (128, 128, n))
-    B = T.match_buffer(b, (128, 128, n))
+def elementwise_symbolic(
+    A: T.Buffer((128, 128, n)),  # noqa: F821
+    B: T.Buffer((128, 128, n)),  # noqa: F821
+    n: T.int32,
+) -> None:
     for i, j, k in T.grid(128, 128, n):
         with Ts.sblock("B"):
             vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
@@ -53,9 +55,7 @@ def elementwise_symbolic(a: T.handle, b: T.handle, n: T.int32) -> None:
 
 
 @Ts.prim_func
-def elementwise_with_anno(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128))
+def elementwise_with_anno(A: T.Buffer((128, 128, 128)), B: T.Buffer((128, 128, 128))) -> None:
     for i, j in T.grid(128, 128):
         for k in T.serial(0, 128, annotations={"useless_annotation": True}):
             with Ts.sblock("B"):
@@ -66,9 +66,9 @@ def elementwise_with_anno(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_with_thread_binding(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128))
+def elementwise_with_thread_binding(
+    A: T.Buffer((128, 128, 128)), B: T.Buffer((128, 128, 128))
+) -> None:
     for i, j in T.grid(128, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
             with Ts.sblock("B"):
@@ -79,9 +79,9 @@ def elementwise_with_thread_binding(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_with_opaque_block(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128))
+def elementwise_with_opaque_block(
+    A: T.Buffer((128, 128, 128)), B: T.Buffer((128, 128, 128))
+) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("opaque"):
             Ts.reads([A[i, j, k]])
@@ -94,9 +94,9 @@ def elementwise_with_opaque_block(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_partition_with_opaque_block(a: T.handle, b: T.handle) -> None:
-    B = T.match_buffer(b, [128, 128, 128])
-    A = T.match_buffer(a, [128, 128, 128])
+def elementwise_partition_with_opaque_block(
+    A: T.Buffer([128, 128, 128]), B: T.Buffer([128, 128, 128])
+) -> None:
     with Ts.sblock("root"):
         Ts.reads()
         Ts.writes()
@@ -131,9 +131,9 @@ def elementwise_partition_with_opaque_block(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_loop_partition_case0(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128, 128])
-    B = T.match_buffer(b, [128, 128, 128])
+def elementwise_loop_partition_case0(
+    A: T.Buffer([128, 128, 128]), B: T.Buffer([128, 128, 128])
+) -> None:
     with Ts.sblock("root"):
         Ts.reads()
         Ts.writes()
@@ -209,9 +209,9 @@ def elementwise_loop_partition_case0(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_loop_partition_case1(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128, 128])
-    B = T.match_buffer(b, [128, 128, 128])
+def elementwise_loop_partition_case1(
+    A: T.Buffer([128, 128, 128]), B: T.Buffer([128, 128, 128])
+) -> None:
     with Ts.sblock("root"):
         Ts.reads()
         Ts.writes()
@@ -275,9 +275,7 @@ def elementwise_loop_partition_case1(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def opaque_access(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [16, 16], "float32")
-    B = T.match_buffer(b, [16, 16], "float32")
+def opaque_access(A: T.Buffer([16, 16], "float32"), B: T.Buffer([16, 16], "float32")) -> None:
     for i, j in T.grid(16, 16):
         with Ts.sblock("A"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -293,9 +291,7 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def opaque_access_loop_partition(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16))
-    B = T.match_buffer(b, (16, 16))
+def opaque_access_loop_partition(A: T.Buffer((16, 16)), B: T.Buffer((16, 16))) -> None:
     for i in range(16):
         with Ts.sblock("A_j_common"):
             Ts.reads()

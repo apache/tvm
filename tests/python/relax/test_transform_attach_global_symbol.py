@@ -39,11 +39,11 @@ def test_basic():
     @tvm.script.ir_module
     class Before:
         @Ts.prim_func
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
-            A = T.match_buffer(x, (m_tir_matmul, n_tir_matmul))
-            B = T.match_buffer(y, (n_tir_matmul, k_tir_matmul))
-            C = T.match_buffer(z, (m_tir_matmul, k_tir_matmul))
-
+        def tir_matmul(
+            A: T.Buffer((m_tir_matmul, n_tir_matmul)),
+            B: T.Buffer((n_tir_matmul, k_tir_matmul)),
+            C: T.Buffer((m_tir_matmul, k_tir_matmul)),
+        ) -> None:
             for i, j, k_tir_matmul_index in T.grid(m_tir_matmul, k_tir_matmul, n_tir_matmul):
                 with Ts.sblock("matmul"):
                     vi, vj, vk = Ts.axis.remap("SSR", [i, j, k_tir_matmul_index])
@@ -68,11 +68,12 @@ def test_basic():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+        def tir_matmul(
+            A: T.Buffer((m_tir_matmul, n_tir_matmul)),
+            B: T.Buffer((n_tir_matmul, k_tir_matmul)),
+            C: T.Buffer((m_tir_matmul, k_tir_matmul)),
+        ) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            A = T.match_buffer(x, (m_tir_matmul, n_tir_matmul))
-            B = T.match_buffer(y, (n_tir_matmul, k_tir_matmul))
-            C = T.match_buffer(z, (m_tir_matmul, k_tir_matmul))
 
             for i, j, k_tir_matmul_index in T.grid(m_tir_matmul, k_tir_matmul, n_tir_matmul):
                 with Ts.sblock("matmul"):

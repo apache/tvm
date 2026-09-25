@@ -295,13 +295,10 @@ def test_unused_relax_func_symbolic_shape():
     class InputModule:
         @Ts.prim_func
         def tir_matmul(
-            x_handle: T.handle,
-            y_handle: T.handle,
-            z_handle: T.handle,
+            x: T.Buffer((m_tir_matmul, n_tir_matmul), "float32"),
+            y: T.Buffer((n_tir_matmul, k_tir_matmul), "float32"),
+            z: T.Buffer((m_tir_matmul, k_tir_matmul), "float32"),
         ) -> None:
-            x = T.match_buffer(x_handle, (m_tir_matmul, n_tir_matmul), "float32")
-            y = T.match_buffer(y_handle, (n_tir_matmul, k_tir_matmul), "float32")
-            z = T.match_buffer(z_handle, (m_tir_matmul, k_tir_matmul), "float32")
             for i, j, k_tir_matmul_index in T.grid(m_tir_matmul, k_tir_matmul, n_tir_matmul):
                 with Ts.sblock("matmul"):
                     vi, vj, vk = Ts.axis.remap("SSR", [i, j, k_tir_matmul_index])

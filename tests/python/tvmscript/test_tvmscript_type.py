@@ -20,14 +20,15 @@ from tvm.script import tirx as T
 
 """
 This prim func include necessary buffer types that need to be checked
-e.g. reads/writes, match_buffer/alloc_buffer, serial/block etc.
+e.g. reads/writes, Buffer/alloc_buffer, serial/block etc.
 """
 
 
 @Ts.prim_func
-def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
-    C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
-    A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
+def element_wise_storage_align(
+    A: T.Buffer([128, 128], elem_offset=0, align=64, offset_factor=1),
+    C: T.Buffer([128, 128], elem_offset=0, align=64, offset_factor=1),
+) -> None:
     # body
     with Ts.sblock("root"):
         Ts.reads([])
@@ -57,13 +58,13 @@ e.g. env_thread, launch_thread, thread_binding etc.
 
 
 @Ts.prim_func
-def element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
+def element_wise_env_thread_x(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     j1_0 = T.env_thread("threadIdx.x")
     j0_0 = T.env_thread("threadIdx.x")
     i = T.env_thread("blockIdx.x")
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+
     T.launch_thread(i, 128)
     T.launch_thread(j0_0, 4)
     T.launch_thread(j1_0, 4)
@@ -88,9 +89,9 @@ This test case is added to test T.grid
 
 
 @Ts.prim_func
-def loop_split(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def loop_split(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     for i, ko in T.grid(128, 4):
         for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
             with Ts.sblock("B"):
@@ -109,9 +110,9 @@ This test case is added to test T.comm_reducer, T.reinterpret, T.tvm_thread_allr
 
 
 @Ts.prim_func
-def lowered_loop_split(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def lowered_loop_split(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     normal_reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
@@ -155,9 +156,9 @@ This test case is added to test T.Buffer with slice as argument and T.exp
 
 
 @Ts.prim_func
-def different_access_indices(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128, 128], dtype="float32")
-    B = T.match_buffer(b, [128, 128], dtype="float32")
+def different_access_indices(
+    A: T.Buffer([128, 128, 128], dtype="float32"), B: T.Buffer([128, 128], dtype="float32")
+) -> None:
     for i, j in T.grid(128, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
             with Ts.sblock("B"):

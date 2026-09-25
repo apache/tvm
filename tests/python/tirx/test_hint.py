@@ -34,8 +34,7 @@ def test_hint_statement():
     """T.hint("msg") as a bare statement produces an AttrStmt with attr_key=tirx_hint."""
 
     @T.prim_func
-    def func(A_ptr: T.handle) -> None:
-        _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
+    def func(_A: T.Buffer((64,), "float32", scope="global")) -> None:
         bx, by, bz = T.cta_id([1, 1, 1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
@@ -60,8 +59,7 @@ def test_hint_context_manager():
     """with T.hint("msg"): scopes its body inside the AttrStmt."""
 
     @T.prim_func
-    def func(A_ptr: T.handle) -> None:
-        _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
+    def func(_A: T.Buffer((64,), "float32", scope="global")) -> None:
         bx, by, bz = T.cta_id([1, 1, 1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
@@ -84,8 +82,7 @@ def test_hint_with_attrs():
     """T.hint("msg", key="value") passes structured attrs in Map node."""
 
     @T.prim_func
-    def func(A_ptr: T.handle) -> None:
-        _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
+    def func(_A: T.Buffer((64,), "float32", scope="global")) -> None:
         bx, by, bz = T.cta_id([1, 1, 1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
@@ -110,8 +107,7 @@ def test_hint_printer_roundtrip_statement():
     """Verify T.hint("msg") prints as T.hint("msg") and roundtrips through script/parse."""
 
     @T.prim_func
-    def func(A_ptr: T.handle) -> None:
-        _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
+    def func(_A: T.Buffer((64,), "float32", scope="global")) -> None:
         bx, by, bz = T.cta_id([1, 1, 1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
@@ -128,8 +124,7 @@ def test_hint_printer_roundtrip_context_manager():
     """Verify with T.hint("msg"): prints correctly and roundtrips."""
 
     @T.prim_func
-    def func(A_ptr: T.handle) -> None:
-        _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
+    def func(_A: T.Buffer((64,), "float32", scope="global")) -> None:
         bx, by, bz = T.cta_id([1, 1, 1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
@@ -146,8 +141,7 @@ def test_hint_printer_roundtrip_with_attrs():
     """Verify T.hint("msg", key="val") prints with kwargs and roundtrips."""
 
     @T.prim_func
-    def func(A_ptr: T.handle) -> None:
-        _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
+    def func(_A: T.Buffer((64,), "float32", scope="global")) -> None:
         bx, by, bz = T.cta_id([1, 1, 1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
@@ -185,9 +179,9 @@ def test_hint_keyword_arg_on_tx_op_roundtrip():
     from tvm.script.tirx import tile as Tx
 
     @T.prim_func
-    def func(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, [10], "float32", scope="global")
-        B = T.match_buffer(B_ptr, [10], "float32", scope="global")
+    def func(
+        A: T.Buffer([10], "float32", scope="global"), B: T.Buffer([10], "float32", scope="global")
+    ):
         Tx.add(B, A, T.float32(1), hint="use_fast_math")
 
     code = func.script()
@@ -201,8 +195,7 @@ def test_hint_no_message():
     """T.hint(access=...) with no message string."""
 
     @T.prim_func
-    def func(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
+    def func(A: T.Buffer((128,), "float32", scope="global")) -> None:
         bx, by, bz = T.cta_id([1, 1, 1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
@@ -229,8 +222,7 @@ def test_hint_access_buffer_region():
     """T.hint(access=A[region]) stores the BufferRegion structurally in the IR."""
 
     @T.prim_func
-    def func(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128, 64), "float32", scope="global")
+    def func(A: T.Buffer((128, 64), "float32", scope="global")) -> None:
         bx, by, bz = T.cta_id([2, 1, 1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])

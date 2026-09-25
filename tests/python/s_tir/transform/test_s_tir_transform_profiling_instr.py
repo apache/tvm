@@ -33,10 +33,11 @@ default_lwp_test_config = {
 
 
 @Ts.prim_func
-def input1(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (8, 8, 128), dtype="int32")
-    B = T.match_buffer(b, (8, 8, 128), dtype="int32")
-    C = T.match_buffer(c, (8, 8, 128), dtype="int32")
+def input1(
+    A: T.Buffer((8, 8, 128), dtype="int32"),
+    B: T.Buffer((8, 8, 128), dtype="int32"),
+    C: T.Buffer((8, 8, 128), dtype="int32"),
+) -> None:
     for i, j in T.grid(8, 8):
         for k, l in T.grid(8, 16):
             with Ts.sblock("B"):
@@ -49,11 +50,12 @@ def input1(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def input2(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (8, 8, 128), dtype="int32")
-    B = T.match_buffer(b, (8, 8, 128), dtype="int32")
-    C = T.match_buffer(c, (8, 8, 128), dtype="int32")
-    D = T.match_buffer(d, (8, 8, 128), dtype="int32")
+def input2(
+    A: T.Buffer((8, 8, 128), dtype="int32"),
+    B: T.Buffer((8, 8, 128), dtype="int32"),
+    C: T.Buffer((8, 8, 128), dtype="int32"),
+    D: T.Buffer((8, 8, 128), dtype="int32"),
+) -> None:
     for i in T.serial(0, 8):
         for j in T.serial(0, 8):
             for k, l in T.grid(8, 16):
@@ -76,11 +78,12 @@ def input2(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
 
 
 @Ts.prim_func
-def input3(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (8, 8, 128), dtype="int32")
-    B = T.match_buffer(b, (8, 8, 128), dtype="int32")
-    C = T.match_buffer(c, (8, 8, 128), dtype="int32")
-    D = T.match_buffer(d, (8, 8, 128), dtype="int32")
+def input3(
+    A: T.Buffer((8, 8, 128), dtype="int32"),
+    B: T.Buffer((8, 8, 128), dtype="int32"),
+    C: T.Buffer((8, 8, 128), dtype="int32"),
+    D: T.Buffer((8, 8, 128), dtype="int32"),
+) -> None:
     for i in T.serial(0, 8):
         for j in T.parallel(0, 8):
             for k in T.serial(0, 8):
@@ -107,10 +110,11 @@ def input3(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
 
 
 @Ts.prim_func
-def test1_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (8, 8, 128), dtype="int32")
-    B = T.match_buffer(b, (8, 8, 128), dtype="int32")
-    C = T.match_buffer(c, (8, 8, 128), dtype="int32")
+def test1_expected_output(
+    A: T.Buffer((8, 8, 128), dtype="int32"),
+    B: T.Buffer((8, 8, 128), dtype="int32"),
+    C: T.Buffer((8, 8, 128), dtype="int32"),
+) -> None:
     for i, j in T.grid(8, 8):
         T.evaluate(T.start_profile_intrinsic(3, dtype="handle"))
         for k, l in T.grid(8, 16):
@@ -127,10 +131,11 @@ def test1_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def test2_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (8, 8, 128), dtype="int32")
-    B = T.match_buffer(b, (8, 8, 128), dtype="int32")
-    C = T.match_buffer(c, (8, 8, 128), dtype="int32")
+def test2_expected_output(
+    A: T.Buffer((8, 8, 128), dtype="int32"),
+    B: T.Buffer((8, 8, 128), dtype="int32"),
+    C: T.Buffer((8, 8, 128), dtype="int32"),
+) -> None:
     T.evaluate(T.start_profile_intrinsic(1, dtype="handle"))
     for i in T.serial(0, 8):
         T.evaluate(T.start_profile_intrinsic(2, dtype="handle"))
@@ -150,10 +155,11 @@ def test2_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def test3_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (8, 8, 128), dtype="int32")
-    B = T.match_buffer(b, (8, 8, 128), dtype="int32")
-    C = T.match_buffer(c, (8, 8, 128), dtype="int32")
+def test3_expected_output(
+    A: T.Buffer((8, 8, 128), dtype="int32"),
+    B: T.Buffer((8, 8, 128), dtype="int32"),
+    C: T.Buffer((8, 8, 128), dtype="int32"),
+) -> None:
     T.evaluate(T.start_profile_intrinsic(1, dtype="handle"))
     for i in T.serial(0, 8):
         T.evaluate(T.start_profile_intrinsic(2, dtype="handle"))
@@ -177,11 +183,12 @@ def test3_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def test4_expected_output(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (8, 8, 128), dtype="int32")
-    B = T.match_buffer(b, (8, 8, 128), dtype="int32")
-    C = T.match_buffer(c, (8, 8, 128), dtype="int32")
-    D = T.match_buffer(d, (8, 8, 128), dtype="int32")
+def test4_expected_output(
+    A: T.Buffer((8, 8, 128), dtype="int32"),
+    B: T.Buffer((8, 8, 128), dtype="int32"),
+    C: T.Buffer((8, 8, 128), dtype="int32"),
+    D: T.Buffer((8, 8, 128), dtype="int32"),
+) -> None:
     for i in T.serial(0, 8):
         T.evaluate(T.start_profile_intrinsic(2, dtype="handle"))
         for j in T.serial(0, 8):
@@ -216,10 +223,11 @@ def test4_expected_output(a: T.handle, b: T.handle, c: T.handle, d: T.handle) ->
 
 
 @Ts.prim_func
-def test5_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (8, 8, 128), dtype="int32")
-    B = T.match_buffer(b, (8, 8, 128), dtype="int32")
-    C = T.match_buffer(c, (8, 8, 128), dtype="int32")
+def test5_expected_output(
+    A: T.Buffer((8, 8, 128), dtype="int32"),
+    B: T.Buffer((8, 8, 128), dtype="int32"),
+    C: T.Buffer((8, 8, 128), dtype="int32"),
+) -> None:
     T.evaluate(T.start_profile_intrinsic(1, dtype="handle"))
     for i in T.serial(0, 8):
         T.evaluate(T.start_profile_intrinsic(2, dtype="handle"))
@@ -239,11 +247,12 @@ def test5_expected_output(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def test6_expected_output(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (8, 8, 128), dtype="int32")
-    B = T.match_buffer(b, (8, 8, 128), dtype="int32")
-    C = T.match_buffer(c, (8, 8, 128), dtype="int32")
-    D = T.match_buffer(d, (8, 8, 128), dtype="int32")
+def test6_expected_output(
+    A: T.Buffer((8, 8, 128), dtype="int32"),
+    B: T.Buffer((8, 8, 128), dtype="int32"),
+    C: T.Buffer((8, 8, 128), dtype="int32"),
+    D: T.Buffer((8, 8, 128), dtype="int32"),
+) -> None:
     for i in T.serial(0, 8):
         T.evaluate(T.start_profile_intrinsic(2, dtype="handle"))
         for j in T.parallel(0, 8):

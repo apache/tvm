@@ -31,10 +31,7 @@ def identity_packed(a):
 
 
 @Ts.prim_func
-def identity_tir(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [54, 96])
-    B = T.match_buffer(b, [54, 96])
-
+def identity_tir(A: T.Buffer([54, 96]), B: T.Buffer([54, 96])) -> None:
     for i, j in T.grid(54, 96):
         with Ts.sblock("compute"):
             vi, vj = Ts.axis.remap("SS", [i, j])

@@ -50,10 +50,8 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks,not-callable
 
 @Ts.prim_func
-def cuda_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=undefined-loop-variable
-    A = T.match_buffer(a, [2048, 2048], "float32")
-    B = T.match_buffer(b, [2048, 2048], "float32")
-    C = T.match_buffer(c, [2048, 2048], "float32")
+def cuda_matmul(A: T.Buffer([2048, 2048], 'float32'), B: T.Buffer([2048, 2048], 'float32'), C: T.Buffer([2048, 2048], 'float32')) -> None:  # pylint: disable=undefined-loop-variable
+
     for by in T.thread_binding(0, 32, thread = "blockIdx.y"):
         for bx in T.thread_binding(0, 32, thread = "blockIdx.x"):
             for vy in T.thread_binding(0, 2, thread = "vthread.y"):
@@ -73,12 +71,9 @@ def cuda_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disab
                                                 C[vi, vj] = 0.0
                                             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-
 @Ts.prim_func
-def cuda_matmul_read_at_a(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [2048, 2048], dtype="float32")
-    B = T.match_buffer(b, [2048, 2048], dtype="float32")
-    C = T.match_buffer(c, [2048, 2048], dtype="float32")
+def cuda_matmul_read_at_a(A: T.Buffer([2048, 2048], dtype='float32'), B: T.Buffer([2048, 2048], dtype='float32'), C: T.Buffer([2048, 2048], dtype='float32')) -> None:
+
     A_shared = Ts.sblock_alloc_buffer([2048, 2048], dtype="float32", scope="shared")
     for by in T.thread_binding(0, 32, thread="blockIdx.y"):
         for bx in T.thread_binding(0, 32, thread="blockIdx.x"):
@@ -107,12 +102,9 @@ def cuda_matmul_read_at_a(a: T.handle, b: T.handle, c: T.handle) -> None:
                                                 C[vi, vj] = T.float32(0)
                                             C[vi, vj] = C[vi, vj] + A_shared[vi, vk] * B[vk, vj]
 
-
 @Ts.prim_func
-def cuda_matmul_read_at_ab(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [2048, 2048], dtype="float32")
-    B = T.match_buffer(b, [2048, 2048], dtype="float32")
-    C = T.match_buffer(c, [2048, 2048], dtype="float32")
+def cuda_matmul_read_at_ab(A: T.Buffer([2048, 2048], dtype='float32'), B: T.Buffer([2048, 2048], dtype='float32'), C: T.Buffer([2048, 2048], dtype='float32')) -> None:
+
     A_shared = Ts.sblock_alloc_buffer([2048, 2048], dtype="float32", scope="shared")
     B_shared = Ts.sblock_alloc_buffer([2048, 2048], dtype="float32", scope="shared")
     for by in T.thread_binding(0, 32, thread="blockIdx.y"):
@@ -151,10 +143,8 @@ def cuda_matmul_read_at_ab(a: T.handle, b: T.handle, c: T.handle) -> None:
                                             C[vi, vj] = C[vi, vj] + A_shared[vi, vk] * B_shared[vk, vj]
 
 @Ts.prim_func
-def cuda_matmul_write_at_c(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [2048, 2048], dtype="float32")
-    B = T.match_buffer(b, [2048, 2048], dtype="float32")
-    C = T.match_buffer(c, [2048, 2048], dtype="float32")
+def cuda_matmul_write_at_c(A: T.Buffer([2048, 2048], dtype='float32'), B: T.Buffer([2048, 2048], dtype='float32'), C: T.Buffer([2048, 2048], dtype='float32')) -> None:
+
     A_shared = Ts.sblock_alloc_buffer([2048, 2048], dtype="float32", scope="shared")
     B_shared = Ts.sblock_alloc_buffer([2048, 2048], dtype="float32", scope="shared")
     C_shared = Ts.sblock_alloc_buffer([2048, 2048], dtype="float32", scope="shared")
@@ -200,7 +190,6 @@ def cuda_matmul_write_at_c(a: T.handle, b: T.handle, c: T.handle) -> None:
                                 Ts.sblock_attr({"auto_copy": True})
                                 for ax0, ax1 in T.grid(64, 64):
                                     C[v0 * 64 + ax0, v1 * 64 + ax1] = C_shared[v0 * 64 + ax0, v1 * 64 + ax1]
-
 
 # pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks,not-callable
 # fmt: on

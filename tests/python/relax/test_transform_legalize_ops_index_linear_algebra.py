@@ -149,11 +149,9 @@ def test_take_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def take(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_take: T.handle):
+        def take(rxplaceholder: T.Buffer([m_take, n_take], dtype='float32'), rxplaceholder_1: T.Buffer([i_take], dtype='int64'), T_take: T.Buffer([m_take, i_take], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [m_take, n_take], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [i_take], dtype="int64")
-            T_take = T.match_buffer(var_T_take, [m_take, i_take], dtype="float32")
+
             for i0, i1 in T.grid(m_take, i_take):
                 with Ts.sblock("T_take"):
                     ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
@@ -188,8 +186,7 @@ def test_take_symbolic_prim_value():
             return gv
 
         @Ts.prim_func(private=True)
-        def take(x_handle: T.handle, T_take: T.Buffer((T.int64(2), T.int64(4)), "float32")):
-            rxplaceholder = T.match_buffer(x_handle, (T.int64(2), n_take, T.int64(4)), "float32")
+        def take(rxplaceholder: T.Buffer((T.int64(2), n_take, T.int64(4)), 'float32'), T_take: T.Buffer((T.int64(2), T.int64(4)), "float32")):
 
             T.func_attr({"tirx.noalias": True})
             for i0, i2 in T.grid(T.int64(2), T.int64(4)):
@@ -318,10 +315,9 @@ def test_strided_slice_symbolic_sliced_axis():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def strided_slice(var_A: T.handle, var_T_dynamic_strided_slice_with_axes: T.handle):
+        def strided_slice(A: T.Buffer((m_strided_slice, n_strided_slice)), T_dynamic_strided_slice_with_axes: T.Buffer((T.int64(3), n_strided_slice))):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m_strided_slice, n_strided_slice))
-            T_dynamic_strided_slice_with_axes = T.match_buffer(var_T_dynamic_strided_slice_with_axes, (T.int64(3), n_strided_slice))
+
             # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(3), n_strided_slice):
                 with Ts.sblock("T_dynamic_strided_slice_with_axes"):
@@ -363,10 +359,9 @@ def test_strided_slice_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def strided_slice(var_rxplaceholder: T.handle, var_T_strided_slice_with_axes: T.handle):
+        def strided_slice(rxplaceholder: T.Buffer([T.int64(10), n_strided_slice], dtype='float32'), T_strided_slice_with_axes: T.Buffer([T.int64(3), n_strided_slice], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(10), n_strided_slice], dtype="float32")
-            T_strided_slice_with_axes = T.match_buffer(var_T_strided_slice_with_axes, [T.int64(3), n_strided_slice], dtype="float32")
+
             for i0, i1 in T.grid(T.int64(3), n_strided_slice):
                 with Ts.sblock("T_strided_slice_with_axes"):
                     ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
@@ -401,10 +396,9 @@ def test_strided_slice_symbolic_bound():
             return gv
 
         @Ts.prim_func(private=True)
-        def strided_slice(var_rxplaceholder: T.handle, var_T_strided_slice_with_axes: T.handle):
+        def strided_slice(rxplaceholder: T.Buffer([T.int64(10), n_strided_slice], dtype='float32'), T_strided_slice_with_axes: T.Buffer([T.int64(3), n_strided_slice], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(10), n_strided_slice], dtype="float32")
-            T_strided_slice_with_axes = T.match_buffer(var_T_strided_slice_with_axes, [T.int64(3), n_strided_slice], dtype="float32")
+
             for i0, i1 in T.grid(T.int64(3), n_strided_slice):
                 with Ts.sblock("T_strided_slice_with_axes"):
                     ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
@@ -435,10 +429,9 @@ def test_strided_slice_non_unit_stride():
             return gv
 
         @Ts.prim_func(private=True)
-        def strided_slice(var_rxplaceholder: T.handle, var_T_strided_slice_with_axes: T.handle):
+        def strided_slice(rxplaceholder: T.Buffer([T.int64(10), n_strided_slice], dtype='float32'), T_strided_slice_with_axes: T.Buffer([T.int64(3), n_strided_slice], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(10), n_strided_slice], dtype="float32")
-            T_strided_slice_with_axes = T.match_buffer(var_T_strided_slice_with_axes, [T.int64(3), n_strided_slice], dtype="float32")
+
             for i0, i1 in T.grid(T.int64(3), n_strided_slice):
                 with Ts.sblock("T_strided_slice_with_axes"):
                     ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
@@ -474,12 +467,10 @@ def test_dynamic_strided_slice():
             rxplaceholder_1: T.Buffer((T.int64(4),), "int64"),
             rxplaceholder_2: T.Buffer((T.int64(4),), "int64"),
             rxplaceholder_3: T.Buffer((T.int64(4),), "int64"),
-            var_T_strided_slice_dynamic: T.handle,
+            T_strided_slice_dynamic: T.Buffer((s_dynamic_strided_slice, s_1_dynamic_strided_slice, s_2_dynamic_strided_slice, s_3_dynamic_strided_slice)),
         ):
             T.func_attr({"tirx.noalias": True})
-            T_strided_slice_dynamic = T.match_buffer(
-                var_T_strided_slice_dynamic, (s_dynamic_strided_slice, s_1_dynamic_strided_slice, s_2_dynamic_strided_slice, s_3_dynamic_strided_slice)
-            )
+
             # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(s_dynamic_strided_slice, s_1_dynamic_strided_slice, s_2_dynamic_strided_slice, s_3_dynamic_strided_slice):
                 with Ts.sblock("T_strided_slice_dynamic"):
@@ -814,15 +805,14 @@ def test_dynamic_strided_slice_symbolic():
     class Expected:
         @Ts.prim_func(private=True)
         def dynamic_strided_slice(
-            var_rxplaceholder: T.handle,
+            rxplaceholder_3: T.Buffer((T.int64(10), n_dynamic_strided_slice)),
             rxplaceholder: T.Buffer((T.int64(2),), "int64"),
             rxplaceholder_1: T.Buffer((T.int64(2),), "int64"),
             rxplaceholder_2: T.Buffer((T.int64(2),), "int64"),
-            var_T_strided_slice_dynamic: T.handle,
+            T_strided_slice_dynamic: T.Buffer((s_dynamic_strided_slice, s_1_dynamic_strided_slice)),
         ):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder_3 = T.match_buffer(var_rxplaceholder, (T.int64(10), n_dynamic_strided_slice))
-            T_strided_slice_dynamic = T.match_buffer(var_T_strided_slice_dynamic, (s_dynamic_strided_slice, s_1_dynamic_strided_slice))
+
             # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(s_dynamic_strided_slice, s_1_dynamic_strided_slice):
                 with Ts.sblock("T_strided_slice_dynamic"):
@@ -873,14 +863,14 @@ def test_dynamic_strided_slice_symbolic():
 
         @Ts.prim_func(private=True)
         def shape_func(
-            var_rxplaceholder: T.handle,
+            rxplaceholder_3: T.Buffer((T.int64(10), n_shape_func)),
             rxplaceholder: T.Buffer((T.int64(2),), "int64"),
             rxplaceholder_1: T.Buffer((T.int64(2),), "int64"),
             rxplaceholder_2: T.Buffer((T.int64(2),), "int64"),
             T_shape_func_strided_slice_dynamic: T.Buffer((T.int64(2),), "int64"),
         ):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder_3 = T.match_buffer(var_rxplaceholder, (T.int64(10), n_shape_func))
+
             # with Ts.sblock("root"):
             for i_index in range(T.int64(2)):
                 with Ts.sblock("T_shape_func_strided_slice_dynamic"):
@@ -1189,11 +1179,9 @@ def test_matmul_4_5_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def matmul(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_matmul: T.handle):
+        def matmul(rxplaceholder: T.Buffer([b_matmul, T.int64(1), m_matmul, k_matmul], dtype='float32'), rxplaceholder_1: T.Buffer([a_matmul, T.int64(1), c_matmul, k_matmul, n_matmul], dtype='float32'), matmul: T.Buffer([a_matmul, b_matmul, c_matmul, m_matmul, n_matmul], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [b_matmul, T.int64(1), m_matmul, k_matmul], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_matmul, T.int64(1), c_matmul, k_matmul, n_matmul], dtype="float32")
-            matmul = T.match_buffer(var_matmul, [a_matmul, b_matmul, c_matmul, m_matmul, n_matmul], dtype="float32")
+
             for i0, i1, i2, i3, i4, i5 in T.grid(a_matmul, b_matmul, c_matmul, m_matmul, n_matmul, k_matmul):
                 with Ts.sblock("matmul"):
                     i0_1, i1_1, i2_1, i3_1, i4_1, k_1 = Ts.axis.remap("SSSSSR", [i0, i1, i2, i3, i4, i5])
@@ -1335,14 +1323,12 @@ def test_einsum_symbolic():
 
         @Ts.prim_func(private=True)
         def einsum(
-            var_rxplaceholder: T.handle,
-            var_rxplaceholder_1: T.handle,
-            var_T_einsum: T.handle,
+            rxplaceholder: T.Buffer((a_einsum, b_einsum)),
+            rxplaceholder_1: T.Buffer((b_einsum, c_einsum)),
+            T_einsum: T.Buffer((a_einsum, c_einsum)),
         ):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (a_einsum, b_einsum))
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (b_einsum, c_einsum))
-            T_einsum = T.match_buffer(var_T_einsum, (a_einsum, c_einsum))
+
             for ax0, ax1, j in T.grid(a_einsum, c_einsum, b_einsum):
                 with Ts.sblock("T_einsum"):
                     v_ax0, v_ax1, v_j = Ts.axis.remap("SSR", [ax0, ax1, j])

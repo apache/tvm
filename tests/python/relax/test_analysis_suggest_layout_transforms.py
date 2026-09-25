@@ -264,9 +264,7 @@ def test_op_elemwise_symbolic():
     W = T.dynamic("W")
 
     @Ts.prim_func(private=True)
-    def before(arg: T.handle, relu: T.handle):
-        Arg = T.match_buffer(arg, (N, C, H, W))
-        Relu = T.match_buffer(relu, (N, C, H, W))
+    def before(Arg: T.Buffer((N, C, H, W)), Relu: T.Buffer((N, C, H, W))):
         for i0, i1, i2, i3 in T.grid(N, C, H, W):
             with Ts.sblock("compute"):
                 v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -280,9 +278,7 @@ def test_op_elemwise_symbolic():
     W = T.dynamic("W")
 
     @Ts.prim_func(private=True)
-    def expected(arg: T.handle, relu: T.handle):
-        Arg = T.match_buffer(arg, (N, H, W, C))
-        Relu = T.match_buffer(relu, (N, H, W, C))
+    def expected(Arg: T.Buffer((N, H, W, C)), Relu: T.Buffer((N, H, W, C))):
         # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3 in T.grid(N, H, W, C):
             with Ts.sblock("compute"):

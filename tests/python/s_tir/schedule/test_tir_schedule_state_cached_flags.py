@@ -32,9 +32,8 @@ from tvm.script import tirx as T
 # fmt: off
 
 @Ts.prim_func
-def elementwise(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
-    C = T.match_buffer(c, (128, 128), "float32")
+def elementwise(A: T.Buffer((128, 128), 'float32'), C: T.Buffer((128, 128), 'float32')) -> None:
+
     B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -45,12 +44,9 @@ def elementwise(a: T.handle, c: T.handle) -> None:
             vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
-
 @Ts.prim_func
-def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -60,11 +56,9 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
-
 @Ts.prim_func
-def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
-    B = T.match_buffer(b, (128, 128), "float32")
+def block_in_opaque_block(A: T.Buffer((128, 128), 'float32'), B: T.Buffer((128, 128), 'float32')) -> None:
+
     for i in range(128):
         with Ts.sblock("B"):
             vi = Ts.axis.S(128, i)
@@ -88,12 +82,9 @@ def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
                             vj = Ts.axis.S(128, j)
                             B[vi, vj] = A[vi, vj] * 2.0
 
-
 @Ts.prim_func
-def write_after_read(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128, 128))
-    C = T.match_buffer(c, (128, 128))
+def write_after_read(A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -103,12 +94,9 @@ def write_after_read(a: T.handle, b: T.handle, c: T.handle) -> None:
             vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
-
 @Ts.prim_func
-def loop_carried_dependency(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128,))
-    B = T.match_buffer(b, (128,))
-    C = T.match_buffer(c, (128,))
+def loop_carried_dependency(A: T.Buffer((128,)), B: T.Buffer((128,)), C: T.Buffer((128,))) -> None:
+
     for i in range(0, 128):
         with Ts.sblock("B"):
             vi = Ts.axis.S(128, i)
@@ -117,11 +105,9 @@ def loop_carried_dependency(a: T.handle, b: T.handle, c: T.handle) -> None:
             vi = Ts.axis.S(128, i)
             C[vi] = T.if_then_else(vi >= 1, B[vi - 1] + 1.0, 0.0, dtype="float32")
 
-
 @Ts.prim_func
-def concatenate_multi_producer(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128,))
-    B = T.match_buffer(b, (128,))
+def concatenate_multi_producer(A: T.Buffer((128,)), B: T.Buffer((128,))) -> None:
+
     for i in range(0, 64):
         with Ts.sblock("A_0"):
             vi = Ts.axis.S(64, i)
@@ -135,11 +121,9 @@ def concatenate_multi_producer(a: T.handle, b: T.handle) -> None:
             vi = Ts.axis.S(128, i)
             B[vi] = A[vi] * 2.0
 
-
 @Ts.prim_func
-def concatenate_multi_producer_uncovered(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128,))
-    B = T.match_buffer(b, (128,))
+def concatenate_multi_producer_uncovered(A: T.Buffer((128,)), B: T.Buffer((128,))) -> None:
+
     for i in range(0, 63):
         with Ts.sblock("A_0"):
             vi = Ts.axis.S(63, i)
@@ -153,12 +137,9 @@ def concatenate_multi_producer_uncovered(a: T.handle, b: T.handle) -> None:
             vi = Ts.axis.S(128, i)
             B[vi] = A[vi] * 2.0
 
-
 @Ts.prim_func
-def lca_at_loop(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128,))
-    B = T.match_buffer(b, (128,))
-    C = T.match_buffer(c, (128,))
+def lca_at_loop(A: T.Buffer((128,)), B: T.Buffer((128,)), C: T.Buffer((128,))) -> None:
+
     for i in range(0, 128):
         with Ts.sblock("B"):
             vi = Ts.axis.S(128, i)
@@ -167,11 +148,9 @@ def lca_at_loop(a: T.handle, b: T.handle, c: T.handle) -> None:
             vi = Ts.axis.S(128, i)
             C[vi] = B[vi] + 1.0
 
-
 @Ts.prim_func
-def multi_producer_consumer(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128,))
-    B = T.match_buffer(b, (128,))
+def multi_producer_consumer(A: T.Buffer((128,)), B: T.Buffer((128,))) -> None:
+
     for i in range(0, 64):
         with Ts.sblock("A_0"):
             vi = Ts.axis.S(64, i)
@@ -189,11 +168,9 @@ def multi_producer_consumer(a: T.handle, b: T.handle) -> None:
             vi = Ts.axis.S(64, i + 64)
             B[vi] = A[vi] + 3.0
 
-
 @Ts.prim_func
-def elementwise_affine_producer(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
-    C = T.match_buffer(c, (128, 128), "float32")
+def elementwise_affine_producer(A: T.Buffer((128, 128), 'float32'), C: T.Buffer((128, 128), 'float32')) -> None:
+
     B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j, k, l in T.grid(16, 2, 32, 16):
         with Ts.sblock("B"):
@@ -205,11 +182,9 @@ def elementwise_affine_producer(a: T.handle, c: T.handle) -> None:
             vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
-
 @Ts.prim_func
-def elementwise_subblock(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
-    C = T.match_buffer(c, (128, 128), "float32")
+def elementwise_subblock(A: T.Buffer((128, 128), 'float32'), C: T.Buffer((128, 128), 'float32')) -> None:
+
     B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(32, 32):
         with Ts.sblock("B"):
@@ -225,11 +200,9 @@ def elementwise_subblock(a: T.handle, c: T.handle) -> None:
             vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
-
 @Ts.prim_func
-def elementwise_subblock_uncovered(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
-    C = T.match_buffer(c, (128, 128), "float32")
+def elementwise_subblock_uncovered(A: T.Buffer((128, 128), 'float32'), C: T.Buffer((128, 128), 'float32')) -> None:
+
     B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(32, 32):
         with Ts.sblock("B"):
@@ -245,11 +218,9 @@ def elementwise_subblock_uncovered(a: T.handle, c: T.handle) -> None:
             vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
-
 @Ts.prim_func
-def bound_to_thread(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+def bound_to_thread(A: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+
     B = Ts.sblock_alloc_buffer([128, 128], scope="shared")
     for i in T.thread_binding(0, 128, thread="threadIdx.x"):
         for j in T.serial(0, 128):
@@ -261,11 +232,9 @@ def bound_to_thread(a: T.handle, c: T.handle) -> None:
                 vi, vj = Ts.axis.remap("SS", [i, j])
                 C[vj, vi] = B[vj, vi] + 1.0
 
-
 @Ts.prim_func
-def equal_ranked_threads(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+def equal_ranked_threads(A: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+
     B = Ts.sblock_alloc_buffer([128, 128], scope="shared")
     for i_o in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i_i in T.thread_binding(0, 8, thread="threadIdx.y"):
@@ -280,11 +249,9 @@ def equal_ranked_threads(a: T.handle, c: T.handle) -> None:
                     vj = Ts.axis.S(128, j)
                     C[vj, vi] = B[vj, vi] + 1.0
 
-
 @Ts.prim_func
-def warp_memory(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+def warp_memory(A: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+
     B = Ts.sblock_alloc_buffer([128, 4, 32], scope="warp")
     for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
         for i_i in T.thread_binding(0, 32, thread="threadIdx.x"):
@@ -297,11 +264,9 @@ def warp_memory(a: T.handle, c: T.handle) -> None:
                     warp_id, lane_id, vj = Ts.axis.remap("SSS", [i_o, i_i, j])
                     C[warp_id * 32 + lane_id, vj] = B[vj, warp_id, lane_id] + 1.0
 
-
 @Ts.prim_func
-def warp_memory_negative(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+def warp_memory_negative(A: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+
     B = Ts.sblock_alloc_buffer([128, 4, 32], scope="warp")
     for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
         for i_i in T.thread_binding(0, 32, thread="threadIdx.x"):
@@ -317,11 +282,9 @@ def warp_memory_negative(a: T.handle, c: T.handle) -> None:
                         )
                         C[warp_id * 32 + lane_id, vj] = B[vj, warp_id, lane_id] + 1.0
 
-
 @Ts.prim_func
-def non_perfect_tiling_cache(a: T.handle, b: T.handle) -> None:
-    X = T.match_buffer(a, [224, 224], dtype="float32")
-    Y = T.match_buffer(b, [224, 224], dtype="float32")
+def non_perfect_tiling_cache(X: T.Buffer([224, 224], dtype='float32'), Y: T.Buffer([224, 224], dtype='float32')) -> None:
+
     cache = Ts.sblock_alloc_buffer([224, 224], dtype="float32")
     for hh_0, ww_0 in T.grid(28, 28):
         for ax0 in T.serial(0, 10):
@@ -356,7 +319,6 @@ def non_perfect_tiling_cache(a: T.handle, b: T.handle) -> None:
                     ),
                 )
 
-
 @Ts.prim_func
 def uncovered_producer_region(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
     for i in range(120):
@@ -367,7 +329,6 @@ def uncovered_producer_region(A: T.Buffer((128,), "float32"), B: T.Buffer((128,)
         with Ts.sblock("consumer"):
             vi = Ts.axis.S((8, 128), i + 8)
             B[vi] = A[vi]
-
 
 @Ts.prim_func
 def matmul_relu_padding(A: T.Buffer((127, 127), "float16"), B: T.Buffer((127, 127), "float16"), compute: T.Buffer((127, 127), "float32")) -> None:
@@ -440,7 +401,6 @@ def matmul_relu_padding(A: T.Buffer((127, 127), "float16"), B: T.Buffer((127, 12
             Ts.writes(compute[i0_1, i1_1])
             compute[i0_1, i1_1] = T.max(C[i0_1, i1_1], T.float32(0))
 
-
 @Ts.prim_func
 def splitted_square_sum_with_predicate(
     A: T.Buffer((1, 7, 7, 512), "float32"), B: T.Buffer((1, 1, 1, 512), "float32")
@@ -458,7 +418,6 @@ def splitted_square_sum_with_predicate(
                 with Ts.init():
                     B[ax0_1, ax1_1, ax2_1, ax3_1] = T.float32(0)
                 B[ax0_1, ax1_1, ax2_1, ax3_1] += A[ax0_1, ax1_1 * 7 + rv0, ax2_1 * 7 + rv1, ax3_1]
-
 
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 # fmt: on

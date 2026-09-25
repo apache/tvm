@@ -43,8 +43,7 @@ def get_make_filled_simdgroup_matrix_intrin(
     dtype: str, col: int = 8, row: int = 8
 ) -> tuple[PrimFunc, PrimFunc]:
     @Ts.prim_func
-    def desc(a: T.handle) -> None:
-        A = T.match_buffer(a, (col, row), dtype, scope="metal.simdgroup", offset_factor=1)
+    def desc(A: T.Buffer((col, row), dtype, scope="metal.simdgroup", offset_factor=1)) -> None:
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes(A[0:col, 0:row])
@@ -57,10 +56,9 @@ def get_make_filled_simdgroup_matrix_intrin(
     d1 = T.dynamic("d1", "int32")
 
     @Ts.prim_func
-    def impl(a: T.handle) -> None:
-        A = T.match_buffer(
-            a, (col, row), dtype, scope="metal.simdgroup", strides=[d1, d0], offset_factor=1
-        )
+    def impl(
+        A: T.Buffer((col, row), dtype, scope="metal.simdgroup", strides=[d1, d0], offset_factor=1),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes(A[0:col, 0:row])
@@ -85,11 +83,10 @@ def get_simdgroup_load_intrin(
     align = col * row
 
     @Ts.prim_func
-    def desc(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (col, row), dtype, align=align, scope=scope, offset_factor=1)
-        C = T.match_buffer(
-            c, (col, row), dtype, align=align, scope="metal.simdgroup", offset_factor=1
-        )
+    def desc(
+        A: T.Buffer((col, row), dtype, align=align, scope=scope, offset_factor=1),
+        C: T.Buffer((col, row), dtype, align=align, scope="metal.simdgroup", offset_factor=1),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:col, 0:row])
             Ts.writes(C[0:col, 0:row])
@@ -108,25 +105,17 @@ def get_simdgroup_load_intrin(
     d1 = T.dynamic("d1", "int32")
 
     @Ts.prim_func
-    def impl(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a,
-            (col, row),
-            dtype,
-            align=align,
-            scope=scope,
-            strides=[s1, s0],
-            offset_factor=1,
-        )
-        C = T.match_buffer(
-            c,
+    def impl(
+        A: T.Buffer((col, row), dtype, align=align, scope=scope, strides=[s1, s0], offset_factor=1),
+        C: T.Buffer(
             (col, row),
             dtype,
             align=align,
             scope="metal.simdgroup",
             strides=[d1, d0],
             offset_factor=1,
-        )
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:col, 0:row])
             Ts.writes(C[0:col, 0:row])
@@ -153,11 +142,10 @@ def get_simdgroup_store_intrin(
     align = col * row
 
     @Ts.prim_func
-    def desc(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a, (col, row), dtype, align=align, scope="metal.simdgroup", offset_factor=1
-        )
-        C = T.match_buffer(c, (col, row), dtype, align=align, scope=scope, offset_factor=1)
+    def desc(
+        A: T.Buffer((col, row), dtype, align=align, scope="metal.simdgroup", offset_factor=1),
+        C: T.Buffer((col, row), dtype, align=align, scope=scope, offset_factor=1),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:col, 0:row])
             Ts.writes(C[0:col, 0:row])
@@ -175,19 +163,17 @@ def get_simdgroup_store_intrin(
     d1 = T.dynamic("d1", "int32")
 
     @Ts.prim_func
-    def impl(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a,
+    def impl(
+        A: T.Buffer(
             (col, row),
             dtype,
             align=align,
             scope="metal.simdgroup",
             strides=[s1, s0],
             offset_factor=1,
-        )
-        C = T.match_buffer(
-            c, (col, row), dtype, align=align, scope=scope, strides=[d1, d0], offset_factor=1
-        )
+        ),
+        C: T.Buffer((col, row), dtype, align=align, scope=scope, strides=[d1, d0], offset_factor=1),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:col, 0:row])
             Ts.writes(C[0:col, 0:row])
@@ -208,10 +194,11 @@ def get_simdgroup_multiply_accumulate_intrin(
     m_dim: int, n_dim: int, k_dim: int, dtype: str
 ) -> tuple[PrimFunc, PrimFunc]:
     @Ts.prim_func
-    def desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (m_dim, k_dim), dtype, scope="metal.simdgroup", offset_factor=1)
-        B = T.match_buffer(b, (k_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1)
-        C = T.match_buffer(c, (m_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1)
+    def desc(
+        A: T.Buffer((m_dim, k_dim), dtype, scope="metal.simdgroup", offset_factor=1),
+        B: T.Buffer((k_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1),
+        C: T.Buffer((m_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:k_dim, 0:n_dim])
             Ts.writes(C[0:m_dim, 0:n_dim])
@@ -228,16 +215,17 @@ def get_simdgroup_multiply_accumulate_intrin(
     c1 = T.dynamic("c1", "int32")
 
     @Ts.prim_func
-    def impl(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a, (m_dim, k_dim), dtype, scope="metal.simdgroup", strides=[a1, a0], offset_factor=1
-        )
-        B = T.match_buffer(
-            b, (k_dim, n_dim), dtype, scope="metal.simdgroup", strides=[b1, b0], offset_factor=1
-        )
-        C = T.match_buffer(
-            c, (m_dim, n_dim), dtype, scope="metal.simdgroup", strides=[c1, c0], offset_factor=1
-        )
+    def impl(
+        A: T.Buffer(
+            (m_dim, k_dim), dtype, scope="metal.simdgroup", strides=[a1, a0], offset_factor=1
+        ),
+        B: T.Buffer(
+            (k_dim, n_dim), dtype, scope="metal.simdgroup", strides=[b1, b0], offset_factor=1
+        ),
+        C: T.Buffer(
+            (m_dim, n_dim), dtype, scope="metal.simdgroup", strides=[c1, c0], offset_factor=1
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:k_dim, 0:n_dim])
             Ts.writes(C[0:m_dim, 0:n_dim])

@@ -995,9 +995,7 @@ def test_call_tir_with_correct_dynamic_output_shape():
             return B
 
         @Ts.prim_func
-        def reshape(A: T.Buffer(16, "float16"), B_handle: T.handle):
-            B = T.match_buffer(B_handle, [M, N], dtype="float16")
-
+        def reshape(A: T.Buffer(16, "float16"), B: T.Buffer([M, N], dtype="float16")):
             for i, j in T.grid(M, N):
                 with Ts.sblock("compute"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1029,9 +1027,7 @@ def test_call_tir_with_incorrect_dynamic_output_shape():
             return B
 
         @Ts.prim_func
-        def reshape(A: T.Buffer(16, "float16"), B_handle: T.handle):
-            B = T.match_buffer(B_handle, [M, N], dtype="float16")
-
+        def reshape(A: T.Buffer(16, "float16"), B: T.Buffer([M, N], dtype="float16")):
             for i, j in T.grid(M, N):
                 with Ts.sblock("compute"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1065,9 +1061,7 @@ def test_call_tir_incorrect_dimensionality_of_output_shape():
             return B
 
         @Ts.prim_func
-        def reshape(A: T.Buffer(16, "float16"), B_handle: T.handle):
-            B = T.match_buffer(B_handle, [M, N], dtype="float16")
-
+        def reshape(A: T.Buffer(16, "float16"), B: T.Buffer([M, N], dtype="float16")):
             for i, j in T.grid(M, N):
                 with Ts.sblock("compute"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1104,9 +1098,7 @@ def test_call_tir_output_shape_with_mixed_static_and_dynamic():
             return B
 
         @Ts.prim_func
-        def reshape(A: T.Buffer(256, "float16"), B_handle: T.handle):
-            B = T.match_buffer(B_handle, [16, M, N], dtype="float16")
-
+        def reshape(A: T.Buffer(256, "float16"), B: T.Buffer([16, M, N], dtype="float16")):
             for i, j, k in T.grid(16, M, N):
                 with Ts.sblock("compute"):
                     vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
@@ -1137,10 +1129,7 @@ def test_call_tir_with_correct_inferred_dynamic_output_shape():
             return B
 
         @Ts.prim_func
-        def flatten(A_handle: T.handle, B_handle: T.handle):
-            A = T.match_buffer(A_handle, [M, N], dtype="float16")
-            B = T.match_buffer(B_handle, [M * N], dtype="float16")
-
+        def flatten(A: T.Buffer([M, N], dtype="float16"), B: T.Buffer([M * N], dtype="float16")):
             for i in T.grid(M * N):
                 with Ts.sblock("compute"):
                     vi = Ts.axis.remap("S", [i])
@@ -1176,10 +1165,7 @@ def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
             return B
 
         @Ts.prim_func
-        def flatten(A_handle: T.handle, B_handle: T.handle):
-            A = T.match_buffer(A_handle, [M, N], dtype="float16")
-            B = T.match_buffer(B_handle, [M * N], dtype="float16")
-
+        def flatten(A: T.Buffer([M, N], dtype="float16"), B: T.Buffer([M * N], dtype="float16")):
             for i in T.grid(M * N):
                 with Ts.sblock("compute"):
                     vi = Ts.axis.remap("S", [i])
@@ -1216,10 +1202,7 @@ def test_call_tir_with_dtensor_arguments():
             return B
 
         @Ts.prim_func
-        def flatten(A_handle: T.handle, B_handle: T.handle):
-            A = T.match_buffer(A_handle, [M, N], dtype="float16")
-            B = T.match_buffer(B_handle, [M * N], dtype="float16")
-
+        def flatten(A: T.Buffer([M, N], dtype="float16"), B: T.Buffer([M * N], dtype="float16")):
             for i in T.grid(M * N):
                 with Ts.sblock("compute"):
                     vi = Ts.axis.remap("S", [i])

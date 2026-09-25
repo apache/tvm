@@ -229,10 +229,11 @@ def test_reshape_dynamic_shape():
     @tvm.script.ir_module
     class Module:
         @Ts.prim_func(private=True)
-        def reshape(var_A: T.handle, var_T_reshape: T.handle):
+        def reshape(
+            A: T.Buffer((n, 16, 128), "float16"), T_reshape: T.Buffer((1, n, 16, 128), "float16")
+        ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            A = T.match_buffer(var_A, (n, 16, 128), "float16")
-            T_reshape = T.match_buffer(var_T_reshape, (1, n, 16, 128), "float16")
+
             # with Ts.sblock("root"):
             for ax0_ax1_ax2_fused_0 in T.thread_binding(n * 2, thread="blockIdx.x"):
                 for ax0_ax1_ax2_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
@@ -270,10 +271,11 @@ def test_reshape_dynamic_shape():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def reshape(var_A: T.handle, var_T_reshape: T.handle):
+        def reshape(
+            A: T.Buffer((n, 16, 128), "float16"), T_reshape: T.Buffer((1, n, 16, 128), "float16")
+        ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            A = T.match_buffer(var_A, (n, 16, 128), "float16")
-            T_reshape = T.match_buffer(var_T_reshape, (1, n, 16, 128), "float16")
+
             # with Ts.sblock("root"):
             for ax0_ax1_ax2_fused_0 in T.thread_binding(n * 2, thread="blockIdx.x"):
                 for ax0_ax1_ax2_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
@@ -670,15 +672,12 @@ def test_rewrite_static_reshape():
 
 #         @T.prim_func(private=True)
 #         def add(
-#             y1_handle: T.handle,
-#             y2_handle: T.handle,
+#             y1: T.Buffer([N // 4, 4], "float32"),
+#             y2: T.Buffer([N // 4, 4], "float32"),
 #             N: T.int64,
-#             z_handle: T.handle,
+#             z: T.Buffer([N // 4, 4], "float32"),
 #         ):
 
-#             y1 = T.match_buffer(y1_handle, [N // 4, 4], "float32")
-#             y2 = T.match_buffer(y2_handle, [N // 4, 4], "float32")
-#             z = T.match_buffer(z_handle, [N // 4, 4], "float32")
 
 #             T.func_attr({"tirx.noalias": True})
 
@@ -734,17 +733,15 @@ def test_rewrite_dynamic_reshape():
                 R.output(z)
             return z
 
+        add_N = T.int64()
+
         @Ts.prim_func(private=True)
         def add(
-            y1_handle: T.handle,
-            y2_handle: T.handle,
-            N: T.int64,
-            z_handle: T.handle,
+            y1: T.Buffer([add_N * 4, T.int64(4)], "float32"),
+            y2: T.Buffer([add_N * 4, T.int64(4)], "float32"),
+            N: add_N,
+            z: T.Buffer([add_N * 4, T.int64(4)], "float32"),
         ):
-            y1 = T.match_buffer(y1_handle, [N * 4, T.int64(4)], "float32")
-            y2 = T.match_buffer(y2_handle, [N * 4, T.int64(4)], "float32")
-            z = T.match_buffer(z_handle, [N * 4, T.int64(4)], "float32")
-
             T.func_attr({"tirx.noalias": True})
 
             for (*iters,) in T.grid(N * 4, T.int64(4)):

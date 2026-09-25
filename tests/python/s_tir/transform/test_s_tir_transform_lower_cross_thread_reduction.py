@@ -44,9 +44,9 @@ def _check_fail(original):
 
 
 @Ts.prim_func
-def loop_split(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def loop_split(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     for i, ko in T.grid(128, 4):
         for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
             with Ts.sblock("B"):
@@ -60,9 +60,9 @@ def loop_split(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def lowered_loop_split(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def lowered_loop_split(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     normal_reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
@@ -105,9 +105,9 @@ def lowered_loop_split(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def no_normal_reduction(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def no_normal_reduction(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     for i in T.serial(0, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
             with Ts.sblock("B"):
@@ -121,9 +121,9 @@ def no_normal_reduction(a: T.handle, b: T.handle) -> None:
 
 # complains that k is defined outside of a block
 @Ts.prim_func(check_well_formed=False)
-def lowered_no_normal_reduction(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def lowered_no_normal_reduction(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
@@ -150,9 +150,9 @@ def lowered_no_normal_reduction(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def two_bound_loops(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def two_bound_loops(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     for i in T.serial(0, 128):
         for ko in T.thread_binding(0, 4, thread="threadIdx.x"):
             for ki in T.thread_binding(0, 32, thread="threadIdx.y"):
@@ -168,9 +168,9 @@ def two_bound_loops(a: T.handle, b: T.handle) -> None:
 
 # complains that ko is defined outside of a block
 @Ts.prim_func(check_well_formed=False)
-def lowered_two_bound_loops(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def lowered_two_bound_loops(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
         for ko in T.thread_binding(0, 4, thread="threadIdx.x"):
@@ -199,9 +199,9 @@ def lowered_two_bound_loops(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def multiple_blocks_under_reduction_loop(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [16, 16, 16], dtype="float32")
-    B = T.match_buffer(b, [16], dtype="float32")
+def multiple_blocks_under_reduction_loop(
+    A: T.Buffer([16, 16, 16], dtype="float32"), B: T.Buffer([16], dtype="float32")
+) -> None:
     B_rf_local = Ts.sblock_alloc_buffer([16, 16], dtype="float32", scope="local")
     for i in T.thread_binding(0, 16, thread="blockIdx.x"):
         for k0o in T.thread_binding(0, 4, thread="threadIdx.x"):
@@ -226,9 +226,9 @@ def multiple_blocks_under_reduction_loop(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def lowered_multiple_blocks_under_reduction_loop(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [16, 16, 16], dtype="float32")
-    B = T.match_buffer(b, [16], dtype="float32")
+def lowered_multiple_blocks_under_reduction_loop(
+    A: T.Buffer([16, 16, 16], dtype="float32"), B: T.Buffer([16], dtype="float32")
+) -> None:
     B_rf_local = Ts.sblock_alloc_buffer([16, 16], dtype="float32", scope="local")
     reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     normal_reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
@@ -281,9 +281,9 @@ def lowered_multiple_blocks_under_reduction_loop(a: T.handle, b: T.handle) -> No
 
 
 @Ts.prim_func
-def with_block_predicate(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 120], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def with_block_predicate(
+    A: T.Buffer([128, 120], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     for i, ko in T.grid(128, 4):
         for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
             with Ts.sblock("B"):
@@ -298,9 +298,9 @@ def with_block_predicate(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def lowered_with_block_predicate(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 120], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def lowered_with_block_predicate(
+    A: T.Buffer([128, 120], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     normal_reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
@@ -817,19 +817,19 @@ def single_reduction_loop_with_tensorize(
                     input_B[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:32, 0:4],
                 )
                 Ts.writes(output[n, oc_chunk, oh, ow, 0:32])
-                A = T.match_buffer(
+                A = Ts.match_buffer(
                     input_A[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4],
                     [4],
                     dtype="uint8",
                     offset_factor=1,
                 )
-                B = T.match_buffer(
+                B = Ts.match_buffer(
                     input_B[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:32, 0:4],
                     [32, 4],
                     dtype="int8",
                     offset_factor=1,
                 )
-                C = T.match_buffer(
+                C = Ts.match_buffer(
                     output[n, oc_chunk, oh, ow, 0:32], [32], dtype="int32", offset_factor=1
                 )
                 A_u8x4: T.uint8x4 = A[T.ramp(0, 1, 4)]
@@ -875,19 +875,19 @@ def nested_reduction_loop_with_inner_match_buffers(
                             in1[yi, yi * 4 + xr : yi * 4 + xr + 4],
                         )
                         Ts.writes(out[yi, xr])
-                        A = T.match_buffer(
+                        A = Ts.match_buffer(
                             in0[yi, yi * 4 + xr : yi * 4 + xr + 4],
                             [4],
                             dtype="int8",
                             offset_factor=1,
                         )
-                        B = T.match_buffer(
+                        B = Ts.match_buffer(
                             in1[yi, yi * 4 + xr : yi * 4 + xr + 4],
                             [4],
                             dtype="int8",
                             offset_factor=1,
                         )
-                        C = T.match_buffer(out[yi, xr], [1], dtype="int32", offset_factor=1)
+                        C = Ts.match_buffer(out[yi, xr], [1], dtype="int32", offset_factor=1)
                         A_i8x4: T.int8x4 = A[T.ramp(0, 1, 4)]
                         A_i32: T.int32 = T.reinterpret(A_i8x4, dtype="int32")
                         B_i8x4: T.int8x4 = B[T.ramp(0, 1, 4)]
@@ -896,9 +896,9 @@ def nested_reduction_loop_with_inner_match_buffers(
 
 
 @Ts.prim_func
-def reducer_max(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def reducer_max(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     for i in T.serial(0, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
             with Ts.sblock("B"):
@@ -912,9 +912,9 @@ def reducer_max(a: T.handle, b: T.handle) -> None:
 
 # complains that k is defined outside of a block
 @Ts.prim_func(check_well_formed=False)
-def lowered_reducer_max(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def lowered_reducer_max(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
@@ -941,9 +941,7 @@ def lowered_reducer_max(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def zero_rank_buffer(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128], dtype="float32")
-    B = T.match_buffer(b, [], dtype="float32")
+def zero_rank_buffer(A: T.Buffer([128], dtype="float32"), B: T.Buffer([], dtype="float32")) -> None:
     for k in T.thread_binding(0, 128, thread="threadIdx.x"):
         with Ts.sblock("B"):
             vk = Ts.axis.reduce(128, k)
@@ -956,9 +954,9 @@ def zero_rank_buffer(a: T.handle, b: T.handle) -> None:
 
 # complains that k is defined outside of a block
 @Ts.prim_func(check_well_formed=False)
-def lowered_zero_rank_buffer(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128], dtype="float32")
-    B = T.match_buffer(b, [], dtype="float32")
+def lowered_zero_rank_buffer(
+    A: T.Buffer([128], dtype="float32"), B: T.Buffer([], dtype="float32")
+) -> None:
     reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for k in T.thread_binding(0, 128, thread="threadIdx.x"):
         with Ts.sblock("B_cross_thread_reduction"):
@@ -981,9 +979,9 @@ def lowered_zero_rank_buffer(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def multiple_bufferstore(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def multiple_bufferstore(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     C = Ts.sblock_alloc_buffer([], dtype="float32")
     for i in T.serial(0, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
@@ -998,9 +996,9 @@ def multiple_bufferstore(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def reduction_loop_not_deepest(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def reduction_loop_not_deepest(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     for k in T.thread_binding(0, 128, thread="threadIdx.x"):
         for i in T.serial(0, 128):
             with Ts.sblock("B"):
@@ -1013,9 +1011,9 @@ def reduction_loop_not_deepest(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def reduction_loop_bound_to_blockidx(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def reduction_loop_bound_to_blockidx(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     for i in T.serial(0, 128):
         for k in T.thread_binding(0, 128, thread="blockIdx.x"):
             with Ts.sblock("B"):
@@ -1028,9 +1026,9 @@ def reduction_loop_bound_to_blockidx(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def different_access_indices(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128, 128], dtype="float32")
-    B = T.match_buffer(b, [128, 128], dtype="float32")
+def different_access_indices(
+    A: T.Buffer([128, 128, 128], dtype="float32"), B: T.Buffer([128, 128], dtype="float32")
+) -> None:
     for i, j in T.grid(128, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
             with Ts.sblock("B"):
@@ -1050,9 +1048,9 @@ def different_access_indices(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def invalid_reducer(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def invalid_reducer(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     for i in T.serial(0, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
             with Ts.sblock("B"):
@@ -1065,9 +1063,9 @@ def invalid_reducer(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
-    A = T.match_buffer(var_A, [256, 256], dtype="float32")
-    T_softmax_norm = T.match_buffer(var_T_softmax_norm, [256, 256], dtype="float32")
+def softmax(
+    A: T.Buffer([256, 256], dtype="float32"), T_softmax_norm: T.Buffer([256, 256], dtype="float32")
+) -> None:
     T_softmax_maxelem_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
     T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
     for i0 in T.thread_binding(0, 256, thread="blockIdx.x"):
@@ -1124,9 +1122,9 @@ def softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
 
 
 @Ts.prim_func
-def lowered_softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
-    A = T.match_buffer(var_A, [256, 256], dtype="float32")
-    T_softmax_norm = T.match_buffer(var_T_softmax_norm, [256, 256], dtype="float32")
+def lowered_softmax(
+    A: T.Buffer([256, 256], dtype="float32"), T_softmax_norm: T.Buffer([256, 256], dtype="float32")
+) -> None:
     T_softmax_maxelem_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
     T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
     reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
@@ -1632,10 +1630,8 @@ def lowered_thread_broadcast_1(A: T.Buffer((256, 256), "float32"), B: T.Buffer((
 n = T.dynamic("n")
 
 @Ts.prim_func
-def thread_broadcast_2(lv1605: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16"), p_lv1606: T.handle, p_lv1582: T.handle, p_output0: T.handle):
-    lv1606 = T.match_buffer(p_lv1606, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
-    lv1582 = T.match_buffer(p_lv1582, (T.int64(1), T.int64(1), T.int64(1), n), "float16")
-    var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), T.int64(1), n))
+def thread_broadcast_2(lv1605: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16"), lv1606: T.Buffer((T.int64(1), T.int64(32), n, T.int64(128)), 'float16'), lv1582: T.Buffer((T.int64(1), T.int64(1), T.int64(1), n), 'float16'), var_compute_intermediate: T.Buffer((T.int64(1), T.int64(32), T.int64(1), n))):
+
     var_NT_matmul_intermediate_local = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
     var_NT_matmul_intermediate_rf_local = Ts.sblock_alloc_buffer((T.int64(256), T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
     for ax0_ax1_fused in T.thread_binding(n * T.int64(32), thread="blockIdx.x"):
@@ -1677,14 +1673,11 @@ def thread_broadcast_2(lv1605: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.
             Ts.writes(var_compute_intermediate[T.int64(0), v0, T.int64(0), v1])
             var_compute_intermediate[T.int64(0), v0, T.int64(0), v1] = T.Cast("float32", T.min(T.max(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] * T.float16(0.088397790055248615), T.float16(-65504)), lv1582[T.int64(0), T.int64(0), T.int64(0), v1]))
 
-
 n = T.dynamic("n")
 
 @Ts.prim_func
-def lowered_thread_broadcast_2(lv1605: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16"), p_lv1606: T.handle, p_lv1582: T.handle, p_output0: T.handle):
-    lv1606 = T.match_buffer(p_lv1606, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
-    lv1582 = T.match_buffer(p_lv1582, (T.int64(1), T.int64(1), T.int64(1), n), "float16")
-    var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), T.int64(1), n))
+def lowered_thread_broadcast_2(lv1605: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16"), lv1606: T.Buffer((T.int64(1), T.int64(32), n, T.int64(128)), 'float16'), lv1582: T.Buffer((T.int64(1), T.int64(1), T.int64(1), n), 'float16'), var_compute_intermediate: T.Buffer((T.int64(1), T.int64(32), T.int64(1), n))):
+
     var_NT_matmul_intermediate_local = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
     var_NT_matmul_intermediate_rf_local = Ts.sblock_alloc_buffer((T.int64(256), T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
     cross_thread_var_NT_matmul_intermediate_local = Ts.sblock_alloc_buffer((1,), "float16", strides=(1,), scope="local")

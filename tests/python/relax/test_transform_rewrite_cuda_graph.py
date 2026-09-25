@@ -50,7 +50,6 @@ def test_rewrite_cuda_graph():
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
                         compute[i0, i1] = T.exp(rxplaceholder[i0, i1], dtype="float32")
 
-
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2,4), dtype="float32"):
             # force_pure is expected because purity checking should be disabled before this pass
@@ -77,7 +76,6 @@ def test_rewrite_cuda_graph():
             _11: R.Tuple = R.memory.kill_storage(storage1)
             _12: R.Tuple = R.memory.kill_storage(storage2)
             return alloc4
-
 
     @I.ir_module
     class Expected:
@@ -165,7 +163,6 @@ def test_tuple():
                         Ts.reads(rxplaceholder[i0, i1])
                         Ts.writes(compute[i0, i1])
                         compute[i0, i1] = T.exp(rxplaceholder[i0, i1], dtype="float32")
-
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2, 4), dtype="float32"):
@@ -269,7 +266,6 @@ def test_vm_builtin():
                         i0 = Ts.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
                         compute[i0, i1] = T.exp(rxplaceholder[i0, i1], dtype="float32")
-
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2,4), dtype="float32"):
@@ -769,9 +765,7 @@ def test_dynamic_capture():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def add_one(x_handle: T.handle, y_handle: T.handle):
-            x = T.match_buffer(x_handle, (m_add_one,), "float32")
-            y = T.match_buffer(y_handle, (m_add_one,), "float32")
+        def add_one(x: T.Buffer((m_add_one,), "float32"), y: T.Buffer((m_add_one,), "float32")):
             # Use T.serial with explicit int64 min so the inner sblock iter_var
             # dom is all-int64 (matches what Expected emits via Ts.axis.spatial(m, i)).
             for i in T.serial(T.int64(0), m_add_one):
@@ -809,9 +803,7 @@ def test_dynamic_capture():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def add_one(x_handle: T.handle, y_handle: T.handle):
-            x = T.match_buffer(x_handle, (m_add_one,))
-            y = T.match_buffer(y_handle, (m_add_one,))
+        def add_one(x: T.Buffer((m_add_one,)), y: T.Buffer((m_add_one,))):
             # with Ts.sblock("root"):
             for i in T.serial(T.int64(0), m_add_one):
                 with Ts.sblock("add"):

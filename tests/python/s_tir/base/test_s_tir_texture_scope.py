@@ -33,11 +33,14 @@ def test_texture_scope():
     @tvm.script.ir_module
     class PlusOneMultTwo:
         @Ts.prim_func
-        def main(a: T.handle, b: T.handle) -> None:
+        def main(
+            A: T.Buffer((128, 128, 4), dtype="float32", scope="global.texture"),
+            C: T.Buffer((128, 128, 4), dtype="float32", scope="global.texture"),
+        ) -> None:
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(a, (128, 128, 4), dtype="float32", scope="global.texture")
+
             B = Ts.sblock_alloc_buffer((128, 128, 4), dtype="float32", scope="global.texture")
-            C = T.match_buffer(b, (128, 128, 4), dtype="float32", scope="global.texture")
+
             for block_idx in T.thread_binding(0, 128, thread="blockIdx.x"):
                 for thread_idx in T.thread_binding(0, 128, thread="threadIdx.x"):
                     for k in T.serial(4):

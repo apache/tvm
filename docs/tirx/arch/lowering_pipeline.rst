@@ -157,10 +157,11 @@ Take a one-line scale kernel:
 .. code-block:: python
 
     @Tx.prim_func
-    def scale(A_ptr: Tx.handle, B_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, (256,), "float32")
-        B = Tx.match_buffer(B_ptr, (256,), "float32")
-        Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
+    def scale(A: Tx.Buffer((256,), "float32"), B: Tx.Buffer((256,), "float32")):
+
+        Tx.device_entry()
+        bx = Tx.cta_id([1])
+        tx = Tx.thread_id([256])
         B[tx] = A[tx] * Tx.float32(2.0)
 
 **After ``LowerTIRx``** the scope ids are real thread axes and the layout is applied

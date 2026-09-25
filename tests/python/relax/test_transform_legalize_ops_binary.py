@@ -36,7 +36,6 @@ def test_add():
             gv: R.Tensor((4, 3, 2, 3), "float32") = R.add(x, y)
             return gv
 
-
     @tvm.script.ir_module
     class Expected:
         @R.function
@@ -152,11 +151,9 @@ def test_add_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def add(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_add: T.handle):
+        def add(rxplaceholder: T.Buffer([T.int64(1), c_add, d_add], dtype='float32'), rxplaceholder_1: T.Buffer([a_add, b_add, c_add, T.int64(1)], dtype='float32'), T_add: T.Buffer([a_add, b_add, c_add, d_add], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_add, d_add], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_add, b_add, c_add, T.int64(1)], dtype="float32")
-            T_add = T.match_buffer(var_T_add, [a_add, b_add, c_add, d_add], dtype="float32")
+
             for i0, i1, i2, i3 in T.grid(a_add, b_add, c_add, d_add):
                 with Ts.sblock("T_add"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -331,11 +328,9 @@ def test_divide_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def divide(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_divide: T.handle):
+        def divide(rxplaceholder: T.Buffer([T.int64(1), c_divide, d_divide], dtype='float32'), rxplaceholder_1: T.Buffer([a_divide, b_divide, c_divide, T.int64(1)], dtype='float32'), T_divide: T.Buffer([a_divide, b_divide, c_divide, d_divide], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_divide, d_divide], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_divide, b_divide, c_divide, T.int64(1)], dtype="float32")
-            T_divide = T.match_buffer(var_T_divide, [a_divide, b_divide, c_divide, d_divide], dtype="float32")
+
             for i0, i1, i2, i3 in T.grid(a_divide, b_divide, c_divide, d_divide):
                 with Ts.sblock("T_divide"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -510,11 +505,9 @@ def test_floor_divide_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def floor_divide(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_floor_divide: T.handle):
+        def floor_divide(rxplaceholder: T.Buffer([T.int64(1), c_floor_divide, d_floor_divide], dtype='float32'), rxplaceholder_1: T.Buffer([a_floor_divide, b_floor_divide, c_floor_divide, T.int64(1)], dtype='float32'), T_floor_divide: T.Buffer([a_floor_divide, b_floor_divide, c_floor_divide, d_floor_divide], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_floor_divide, d_floor_divide], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_floor_divide, b_floor_divide, c_floor_divide, T.int64(1)], dtype="float32")
-            T_floor_divide = T.match_buffer(var_T_floor_divide, [a_floor_divide, b_floor_divide, c_floor_divide, d_floor_divide], dtype="float32")
+
             for i0, i1, i2, i3 in T.grid(a_floor_divide, b_floor_divide, c_floor_divide, d_floor_divide):
                 with Ts.sblock("T_floor_divide"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -627,11 +620,9 @@ def test_multiply_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def multiply(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_multiply: T.handle):
+        def multiply(rxplaceholder: T.Buffer([T.int64(1), c_multiply, d_multiply], dtype='float32'), rxplaceholder_1: T.Buffer([a_multiply, b_multiply, c_multiply, T.int64(1)], dtype='float32'), T_multiply: T.Buffer([a_multiply, b_multiply, c_multiply, d_multiply], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_multiply, d_multiply], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_multiply, b_multiply, c_multiply, T.int64(1)], dtype="float32")
-            T_multiply = T.match_buffer(var_T_multiply, [a_multiply, b_multiply, c_multiply, d_multiply], dtype="float32")
+
             for i0, i1, i2, i3 in T.grid(a_multiply, b_multiply, c_multiply, d_multiply):
                 with Ts.sblock("T_multiply"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -741,11 +732,9 @@ def test_power_symbolic():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def power(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_power: T.handle):
+        def power(rxplaceholder: T.Buffer((T.int64(1), c_power, d_power)), rxplaceholder_1: T.Buffer((a_power, b_power, c_power, T.int64(1))), T_power: T.Buffer((a_power, b_power, c_power, d_power))):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), c_power, d_power))
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (a_power, b_power, c_power, T.int64(1)))
-            T_power = T.match_buffer(var_T_power, (a_power, b_power, c_power, d_power))
+
             # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(a_power, b_power, c_power, d_power):
                 with Ts.sblock("T_power"):
@@ -861,11 +850,9 @@ def test_atan2_symbolic():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def atan2(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_atan2: T.handle):
+        def atan2(rxplaceholder: T.Buffer((T.int64(1), c_atan2, d_atan2)), rxplaceholder_1: T.Buffer((a_atan2, b_atan2, c_atan2, T.int64(1))), T_atan2: T.Buffer((a_atan2, b_atan2, c_atan2, d_atan2))):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), c_atan2, d_atan2))
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (a_atan2, b_atan2, c_atan2, T.int64(1)))
-            T_atan2 = T.match_buffer(var_T_atan2, (a_atan2, b_atan2, c_atan2, d_atan2))
+
             for ax0, ax1, ax2, ax3 in T.grid(a_atan2, b_atan2, c_atan2, d_atan2):
                 with Ts.sblock("T_atan2"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -983,11 +970,9 @@ def test_subtract_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def subtract(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_subtract: T.handle):
+        def subtract(rxplaceholder: T.Buffer([T.int64(1), c_subtract, d_subtract], dtype='float32'), rxplaceholder_1: T.Buffer([a_subtract, b_subtract, c_subtract, T.int64(1)], dtype='float32'), T_subtract: T.Buffer([a_subtract, b_subtract, c_subtract, d_subtract], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_subtract, d_subtract], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_subtract, b_subtract, c_subtract, T.int64(1)], dtype="float32")
-            T_subtract = T.match_buffer(var_T_subtract, [a_subtract, b_subtract, c_subtract, d_subtract], dtype="float32")
+
             for i0, i1, i2, i3 in T.grid(a_subtract, b_subtract, c_subtract, d_subtract):
                 with Ts.sblock("T_subtract"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1165,11 +1150,9 @@ def test_equal_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_equal: T.handle):
+        def equal(rxplaceholder: T.Buffer([T.int64(1), c_equal, d_equal], dtype='float32'), rxplaceholder_1: T.Buffer([a_equal, b_equal, c_equal, T.int64(1)], dtype='float32'), T_equal: T.Buffer([a_equal, b_equal, c_equal, d_equal], dtype='bool')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_equal, d_equal], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_equal, b_equal, c_equal, T.int64(1)], dtype="float32")
-            T_equal = T.match_buffer(var_T_equal, [a_equal, b_equal, c_equal, d_equal], dtype="bool")
+
             for i0, i1, i2, i3 in T.grid(a_equal, b_equal, c_equal, d_equal):
                 with Ts.sblock("T_equal"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1344,11 +1327,9 @@ def test_greater_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def greater(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_greater: T.handle):
+        def greater(rxplaceholder: T.Buffer([T.int64(1), c_greater, d_greater], dtype='float32'), rxplaceholder_1: T.Buffer([a_greater, b_greater, c_greater, T.int64(1)], dtype='float32'), T_greater: T.Buffer([a_greater, b_greater, c_greater, d_greater], dtype='bool')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_greater, d_greater], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_greater, b_greater, c_greater, T.int64(1)], dtype="float32")
-            T_greater = T.match_buffer(var_T_greater, [a_greater, b_greater, c_greater, d_greater], dtype="bool")
+
             for i0, i1, i2, i3 in T.grid(a_greater, b_greater, c_greater, d_greater):
                 with Ts.sblock("T_greater"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1461,11 +1442,9 @@ def test_greater_equal_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def greater_equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_greater_equal: T.handle):
+        def greater_equal(rxplaceholder: T.Buffer([T.int64(1), c_greater_equal, d_greater_equal], dtype='float32'), rxplaceholder_1: T.Buffer([a_greater_equal, b_greater_equal, c_greater_equal, T.int64(1)], dtype='float32'), T_greater_equal: T.Buffer([a_greater_equal, b_greater_equal, c_greater_equal, d_greater_equal], dtype='bool')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_greater_equal, d_greater_equal], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_greater_equal, b_greater_equal, c_greater_equal, T.int64(1)], dtype="float32")
-            T_greater_equal = T.match_buffer(var_T_greater_equal, [a_greater_equal, b_greater_equal, c_greater_equal, d_greater_equal], dtype="bool")
+
             for i0, i1, i2, i3 in T.grid(a_greater_equal, b_greater_equal, c_greater_equal, d_greater_equal):
                 with Ts.sblock("T_greater_equal"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1578,11 +1557,9 @@ def test_less_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def less(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_less: T.handle):
+        def less(rxplaceholder: T.Buffer([T.int64(1), c_less, d_less], dtype='float32'), rxplaceholder_1: T.Buffer([a_less, b_less, c_less, T.int64(1)], dtype='float32'), T_less: T.Buffer([a_less, b_less, c_less, d_less], dtype='bool')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_less, d_less], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_less, b_less, c_less, T.int64(1)], dtype="float32")
-            T_less = T.match_buffer(var_T_less, [a_less, b_less, c_less, d_less], dtype="bool")
+
             for i0, i1, i2, i3 in T.grid(a_less, b_less, c_less, d_less):
                 with Ts.sblock("T_less"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1757,11 +1734,9 @@ def test_less_equal_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def less_equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_less_equal: T.handle):
+        def less_equal(rxplaceholder: T.Buffer([T.int64(1), c_less_equal, d_less_equal], dtype='float32'), rxplaceholder_1: T.Buffer([a_less_equal, b_less_equal, c_less_equal, T.int64(1)], dtype='float32'), T_less_equal: T.Buffer([a_less_equal, b_less_equal, c_less_equal, d_less_equal], dtype='bool')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_less_equal, d_less_equal], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_less_equal, b_less_equal, c_less_equal, T.int64(1)], dtype="float32")
-            T_less_equal = T.match_buffer(var_T_less_equal, [a_less_equal, b_less_equal, c_less_equal, d_less_equal], dtype="bool")
+
             for i0, i1, i2, i3 in T.grid(a_less_equal, b_less_equal, c_less_equal, d_less_equal):
                 with Ts.sblock("T_less_equal"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1874,11 +1849,9 @@ def test_not_equal_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def not_equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_not_equal: T.handle):
+        def not_equal(rxplaceholder: T.Buffer([T.int64(1), c_not_equal, d_not_equal], dtype='float32'), rxplaceholder_1: T.Buffer([a_not_equal, b_not_equal, c_not_equal, T.int64(1)], dtype='float32'), T_not_equal: T.Buffer([a_not_equal, b_not_equal, c_not_equal, d_not_equal], dtype='bool')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_not_equal, d_not_equal], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_not_equal, b_not_equal, c_not_equal, T.int64(1)], dtype="float32")
-            T_not_equal = T.match_buffer(var_T_not_equal, [a_not_equal, b_not_equal, c_not_equal, d_not_equal], dtype="bool")
+
             for i0, i1, i2, i3 in T.grid(a_not_equal, b_not_equal, c_not_equal, d_not_equal):
                 with Ts.sblock("T_not_equal"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1937,7 +1910,6 @@ def test_maximum():
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
             gv: R.Tensor((4, 3, 2, 3), "float32") = R.maximum(x, y)
             return gv
-
 
     @tvm.script.ir_module
     class Expected:
@@ -2054,11 +2026,9 @@ def test_maximum_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def maximum(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_maximum: T.handle):
+        def maximum(rxplaceholder: T.Buffer([T.int64(1), c_maximum, d_maximum], dtype='float32'), rxplaceholder_1: T.Buffer([a_maximum, b_maximum, c_maximum, T.int64(1)], dtype='float32'), T_maximum: T.Buffer([a_maximum, b_maximum, c_maximum, d_maximum], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_maximum, d_maximum], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_maximum, b_maximum, c_maximum, T.int64(1)], dtype="float32")
-            T_maximum = T.match_buffer(var_T_maximum, [a_maximum, b_maximum, c_maximum, d_maximum], dtype="float32")
+
             for i0, i1, i2, i3 in T.grid(a_maximum, b_maximum, c_maximum, d_maximum):
                 with Ts.sblock("T_maximum"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -2117,7 +2087,6 @@ def test_minimum():
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
             gv: R.Tensor((4, 3, 2, 3), "float32") = R.minimum(x, y)
             return gv
-
 
     @tvm.script.ir_module
     class Expected:
@@ -2234,11 +2203,9 @@ def test_minimum_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def minimum(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_minimum: T.handle):
+        def minimum(rxplaceholder: T.Buffer([T.int64(1), c_minimum, d_minimum], dtype='float32'), rxplaceholder_1: T.Buffer([a_minimum, b_minimum, c_minimum, T.int64(1)], dtype='float32'), T_minimum: T.Buffer([a_minimum, b_minimum, c_minimum, d_minimum], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(1), c_minimum, d_minimum], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [a_minimum, b_minimum, c_minimum, T.int64(1)], dtype="float32")
-            T_minimum = T.match_buffer(var_T_minimum, [a_minimum, b_minimum, c_minimum, d_minimum], dtype="float32")
+
             for i0, i1, i2, i3 in T.grid(a_minimum, b_minimum, c_minimum, d_minimum):
                 with Ts.sblock("T_minimum"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])

@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 import tvm
 from tvm.script import ir as I
 from tvm.script import tirx as T
@@ -23,8 +25,7 @@ def test_unroll_loop():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.handle, n: T.int64):
-            Ab = T.match_buffer(A, (n,), "int64")
+        def main(Ab: T.Buffer((n,), "int64"), n: T.int64):  # noqa: F821
             for i in T.serial(n, n + 2):
                 for j in T.unroll(8):
                     Ab[j + 1] = Ab[i] + T.int64(1)
@@ -52,8 +53,7 @@ def test_unroll_loop():
     @I.ir_module
     class ModuleWithPragma:
         @T.prim_func
-        def main(A: T.handle, n: T.int64):
-            Ab = T.match_buffer(A, (n,), "int64")
+        def main(Ab: T.Buffer((n,), "int64"), n: T.int64):  # noqa: F821
             with T.attr(T.int32(0), "pragma_auto_unroll_max_step", 16):
                 for i in T.serial(n, n + 2):
                     for j in T.unroll(8):
@@ -76,8 +76,7 @@ def test_unroll_fake_loop():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.handle, n: T.int64):
-            Ab = T.match_buffer(A, (n,), "int32")
+        def main(Ab: T.Buffer((n,), "int32"), n: T.int64):  # noqa: F821
             for i in T.serial(1):
                 Ab[i * 2] = 3
                 for j in T.serial(10):

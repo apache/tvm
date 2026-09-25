@@ -198,11 +198,9 @@ def test_print():
         C_np = A_np + B_np
 
         @T.prim_func
-        def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M,), dtype_str)
-            B = T.match_buffer(B_ptr, (M,), dtype_str)
-            C = T.match_buffer(C_ptr, (M,), dtype_str)
-
+        def add_func(
+            A: T.Buffer((M,), dtype_str), B: T.Buffer((M,), dtype_str), C: T.Buffer((M,), dtype_str)
+        ) -> None:
             for i in T.thread_binding(M, thread="threadIdx.x"):
                 C[i] = A[i] + B[i]
                 T.print_buffer(C.data, dtype_str, False, False, dim_num, (M,))
@@ -220,11 +218,11 @@ def test_print():
         C_np = A_np + B_np
 
         @T.prim_func
-        def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M, N), dtype_str)
-            B = T.match_buffer(B_ptr, (M, N), dtype_str)
-            C = T.match_buffer(C_ptr, (M, N), dtype_str)
-
+        def add_func(
+            A: T.Buffer((M, N), dtype_str),
+            B: T.Buffer((M, N), dtype_str),
+            C: T.Buffer((M, N), dtype_str),
+        ) -> None:
             for i in T.thread_binding(M, thread="threadIdx.x"):
                 for j in T.thread_binding(N, thread="threadIdx.y"):
                     C[i, j] = A[i, j] + B[i, j]
@@ -243,11 +241,11 @@ def test_print():
         C_np = A_np + B_np
 
         @T.prim_func
-        def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M, N, K), dtype_str)
-            B = T.match_buffer(B_ptr, (M, N, K), dtype_str)
-            C = T.match_buffer(C_ptr, (M, N, K), dtype_str)
-
+        def add_func(
+            A: T.Buffer((M, N, K), dtype_str),
+            B: T.Buffer((M, N, K), dtype_str),
+            C: T.Buffer((M, N, K), dtype_str),
+        ) -> None:
             for i in T.thread_binding(M, thread="threadIdx.x"):
                 for j in T.thread_binding(N, thread="threadIdx.y"):
                     for k in T.thread_binding(K, thread="threadIdx.z"):
@@ -267,10 +265,9 @@ def test_print():
         C_np = A_np + B_np
 
         @T.prim_func
-        def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M,), dtype_str)
-            B = T.match_buffer(B_ptr, (M,), dtype_str)
-            C = T.match_buffer(C_ptr, (M,), dtype_str)
+        def add_func(
+            A: T.Buffer((M,), dtype_str), B: T.Buffer((M,), dtype_str), C: T.Buffer((M,), dtype_str)
+        ) -> None:
             Ten: T.let = T.IntImm(dtype_str, 10)
 
             for i in T.thread_binding(M, thread="threadIdx.x"):
@@ -290,10 +287,9 @@ def test_print():
         C_np = A_np + B_np
 
         @T.prim_func
-        def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M,), dtype_str)
-            B = T.match_buffer(B_ptr, (M,), dtype_str)
-            C = T.match_buffer(C_ptr, (M,), dtype_str)
+        def add_func(
+            A: T.Buffer((M,), dtype_str), B: T.Buffer((M,), dtype_str), C: T.Buffer((M,), dtype_str)
+        ) -> None:
             string_var = tvm.ir.StringImm(test_string)
 
             for i in T.thread_binding(M, thread="threadIdx.x"):

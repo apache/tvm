@@ -378,9 +378,9 @@ def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tirx.Prim
         B = te.placeholder((128, 128), name="B")
 
         @Ts.prim_func
-        def before_split(a: T.handle, b: T.handle) -> None:
-            A = T.match_buffer(a, (128, 128))
-            B = T.match_buffer(b, (128, 128))
+        def before_split(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
             for i, j in T.grid(128, 128):
                 with Ts.sblock("B"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -570,10 +570,9 @@ def create_prim_func(
     .. code-block:: python
 
         @Ts.prim_func
-        def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-            A = T.match_buffer(a, (128, 128))
-            B = T.match_buffer(b, (128, 128))
-            C = T.match_buffer(c, (128, 128))
+        def tir_matmul(
+            A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+        ) -> None:
 
             for i, j, k in T.grid(128, 128, 128):
                 with Ts.sblock():

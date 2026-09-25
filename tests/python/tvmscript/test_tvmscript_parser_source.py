@@ -44,10 +44,7 @@ def _capture_source(sources):
     return capture
 
 
-def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("update"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -75,22 +72,16 @@ def test_source_ast():
     func_args = func_def.args
     assert (
         len(func_args.args) == 3
-        and func_args.args[0].arg == "a"
-        and func_args.args[1].arg == "b"
-        and func_args.args[2].arg == "c"
+        and func_args.args[0].arg == "A"
+        and func_args.args[1].arg == "B"
+        and func_args.args[2].arg == "C"
     )
     func_body = func_def.body
-    assert len(func_body) == 4
-    func_assigns = func_body[:3]
-    assert (
-        isinstance(func_assigns[0], doc.Assign)
-        and func_assigns[0].targets[0].id == "A"
-        and isinstance(func_assigns[1], doc.Assign)
-        and func_assigns[1].targets[0].id == "B"
-        and isinstance(func_assigns[2], doc.Assign)
-        and func_assigns[2].targets[0].id == "C"
-    )
-    func_for = func_body[3]
+    assert len(func_body) == 1
+    for argument in func_args.args:
+        assert isinstance(argument.annotation, doc.Call)
+        assert argument.annotation.func.attr == "Buffer"
+    func_for = func_body[0]
     assert (
         len(func_for.target.elts) == 3
         and func_for.target.elts[0].id == "i"
@@ -123,13 +114,13 @@ def _find_ir_node(func, predicate):
 
 def test_source_to_span_matches_parser_diagnostic_coordinates():
     source = Source(matmul)
-    assign = source.as_ast().body[0].body[0]
+    assign = source.as_ast().body[0].body[0].body[0].body[1]
     span = source.to_span(assign)
     expected_location = (
-        source.start_line + 1,
-        5,
-        source.start_line + 1,
-        38,
+        source.start_line + 4,
+        13,
+        source.start_line + 4,
+        58,
     )
 
     assert source.location(assign) == expected_location

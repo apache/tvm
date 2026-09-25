@@ -253,30 +253,25 @@ def test_constexpr_specializes_nested_selector_condition():
 
 def test_optional_param_present_and_absent_ir():
     @T.jit(private=True)
-    def kernel(a: T.Optional(T.handle), out_h: T.handle):
-        out = T.match_buffer(out_h, (1,), "int32")
+    def kernel(a: T.Optional(T.Buffer((1,), "int32")), out: T.Buffer((1,), "int32")):
         if T.constexpr(a is not None):
-            A = T.match_buffer(a, (1,), "int32")
-            out[0] = A[0]
+            out[0] = a[0]
         else:
             out[0] = -1
 
     @T.prim_func(private=True)
-    def expected_present(a: T.handle, out_h: T.handle):
-        A = T.match_buffer(a, (1,), "int32")
-        out = T.match_buffer(out_h, (1,), "int32")
+    def expected_present(A: T.Buffer((1,), "int32"), out: T.Buffer((1,), "int32")):
         out[0] = A[0]
 
     @T.prim_func(private=True)
-    def expected_absent(out_h: T.handle):
-        out = T.match_buffer(out_h, (1,), "int32")
+    def expected_absent(out: T.Buffer((1,), "int32")):
         out[0] = -1
 
     present = kernel.specialize()
     absent = kernel.specialize(a=None)
     assert_structural_equal(present, expected_present, map_free_vars=True)
     assert_structural_equal(absent, expected_absent, map_free_vars=True)
-    assert [param.name for param in present.params] == ["A", "out"]
+    assert [param.name for param in present.params] == ["a", "out"]
     assert [param.name for param in absent.params] == ["out"]
     assert all(tvm.tirx.is_buffer_var(param) for param in present.params)
     assert all(tvm.tirx.is_buffer_var(param) for param in absent.params)
@@ -284,11 +279,9 @@ def test_optional_param_present_and_absent_ir():
 
 def test_optional_specialization_cache_includes_presence():
     @T.jit(private=True)
-    def kernel(a: T.Optional(T.handle), out_h: T.handle):
-        out = T.match_buffer(out_h, (1,), "int32")
+    def kernel(a: T.Optional(T.Buffer((1,), "int32")), out: T.Buffer((1,), "int32")):
         if T.constexpr(a is not None):
-            A = T.match_buffer(a, (1,), "int32")
-            out[0] = A[0]
+            out[0] = a[0]
         else:
             out[0] = 0
 
@@ -302,33 +295,29 @@ def test_optional_specialization_cache_includes_presence():
 def test_multiple_optional_params_preserve_runtime_order():
     @T.jit(private=True)
     def kernel(
-        first_h: T.handle,
-        a: T.Optional(T.handle),
+        first: T.Buffer((1,), "int32"),
+        a: T.Optional(T.Buffer((1,), "int32")),
         scale: T.int32,
-        b: T.Optional(T.handle),
-        out_h: T.handle,
+        b: T.Optional(T.Buffer((1,), "int32")),
+        out: T.Buffer((1,), "int32"),
     ):
-        first = T.match_buffer(first_h, (1,), "int32")
-        out = T.match_buffer(out_h, (1,), "int32")
         out[0] = first[0] * scale
         if T.constexpr(a is not None):
-            A = T.match_buffer(a, (1,), "int32")
-            out[0] = out[0] + A[0]
+            out[0] = out[0] + a[0]
         if T.constexpr(b is not None):
-            B = T.match_buffer(b, (1,), "int32")
-            out[0] = out[0] + B[0]
+            out[0] = out[0] + b[0]
 
     assert [param.name for param in kernel.specialize().params] == [
         "first",
-        "A",
+        "a",
         "scale",
-        "B",
+        "b",
         "out",
     ]
     assert [param.name for param in kernel.specialize(a=None).params] == [
         "first",
         "scale",
-        "B",
+        "b",
         "out",
     ]
     assert [param.name for param in kernel.specialize(a=None, b=None).params] == [
@@ -340,10 +329,10 @@ def test_multiple_optional_params_preserve_runtime_order():
 
 def test_optional_only_accepts_none_at_specialization_time():
     @T.jit(private=True)
-    def kernel(a: T.Optional(T.handle), out_h: T.handle):
+    def kernel(a: T.Optional(T.Buffer((1,), "int32")), out_h: T.Buffer((1,), "int32")):
         if T.constexpr(a is not None):
-            T.match_buffer(a, (1,), "int32")
-        T.match_buffer(out_h, (1,), "int32")
+            T.evaluate(a[0])
+        T.evaluate(out_h[0])
 
     with pytest.raises(TypeError, match="only accept None"):
         kernel.specialize(a=object())
@@ -374,18 +363,18 @@ def test_t_optional_is_restricted_to_jit():
 
 def test_compile_time_if_binding_uses_python_scope():
     @T.jit(private=True)
-    def kernel(a: T.Optional(T.handle), out_h: T.handle):
+    def kernel(a: T.Optional(T.Buffer((1,), "int32")), out_h: T.Buffer((1,), "int32")):
         if T.constexpr(a is None):
-            selected = T.match_buffer(out_h, (1,), "int32")
+            selected = out_h
         else:
-            selected = T.match_buffer(a, (1,), "int32")
+            selected = a
         selected[0] = 1
 
     present = kernel.specialize()
     absent = kernel.specialize(a=None)
     assert len(present.params) == 2
     assert len(absent.params) == 1
-    assert sum(tvm.tirx.is_buffer_var(param) for param in present.params) == 1
+    assert sum(tvm.tirx.is_buffer_var(param) for param in present.params) == 2
     assert sum(tvm.tirx.is_buffer_var(param) for param in absent.params) == 1
 
 
@@ -394,8 +383,7 @@ def test_compile_time_bool_ops_and_if_expression_short_circuit():
         raise RuntimeError("dead expression was evaluated")
 
     @T.jit(private=True)
-    def kernel(a: T.Optional(T.handle), out_h: T.handle):
-        out = T.match_buffer(out_h, (1,), "int32")
+    def kernel(a: T.Optional(T.handle), out: T.Buffer((1,), "int32")):
         if T.constexpr(a is None or fail_if_evaluated()):
             out[0] = 1
         if T.constexpr(a is not None and fail_if_evaluated()):
@@ -408,11 +396,11 @@ def test_compile_time_bool_ops_and_if_expression_short_circuit():
 
 def test_runtime_tir_if_cannot_guard_absent_optional_param():
     @T.jit(private=True)
-    def kernel(a: T.Optional(T.handle), flag: T.int32):
+    def kernel(a: T.Optional(T.Buffer((1,), "int32")), flag: T.int32):
         if flag != 0:
-            T.match_buffer(a, (1,), "int32")
+            T.evaluate(a[0])
 
-    with pytest.raises(ValueError, match="match_buffer"):
+    with pytest.raises(TypeError, match="subscriptable"):
         kernel.specialize(a=None)
 
 
@@ -421,18 +409,15 @@ def test_runtime_tir_if_cannot_guard_absent_optional_param():
     [
         ("subscript", "a[10]", TypeError),
         ("attribute", "a.ptr_to", AttributeError),
-        ("match_buffer", "T.match_buffer", tvm.error.InternalError),
     ],
 )
 def test_unguarded_absent_optional_param_reports_source(operation, source_text, error_type):
     @T.jit(private=True)
-    def kernel(a: T.Optional(T.handle)):
+    def kernel(a: T.Optional(T.Buffer((1,), "int32"))):
         if T.constexpr(operation == "subscript"):
             a[10]
         elif T.constexpr(operation == "attribute"):
             a.ptr_to([0])
-        else:
-            T.match_buffer(a, (1,), "int32")
 
     with pytest.raises(error_type) as exc_info:
         kernel.specialize(a=None)
@@ -443,8 +428,7 @@ def test_unguarded_absent_optional_param_reports_source(operation, source_text, 
 
 def test_present_optional_param_still_rejects_ffi_none():
     @T.jit
-    def kernel(a: T.Optional(T.handle)):
-        A = T.match_buffer(a, (1,), "int32")
+    def kernel(A: T.Buffer((1,), "int32")):
         A[0] = 0
 
     executable = tvm.compile(kernel.specialize(), target="llvm", tir_pipeline="tirx")

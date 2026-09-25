@@ -24,11 +24,65 @@ from typing import Any
 from tvm import ir
 from tvm import tirx as tir
 from tvm.ir import TensorLoad, TensorRegion, is_prim_expr
+from tvm.script.parser.protocol_registry import register_mutable_decl as _register_mutable_decl
 from tvm.tirx import Buffer, Expr, IntImm, Var
 from tvm.tirx.layout import Layout
 from tvm.tirx.script.ir_builder.ir import _get_layout, _record_meta_resource
 
 from . import _ffi_api
+
+
+@_register_mutable_decl("s_tir.match_buffer")
+def match_buffer(
+    param: TensorLoad | TensorRegion,
+    shape: list[Expr] | tuple[Expr] | Expr | Integral = None,
+    dtype: str = "float32",
+    data: Var = None,
+    strides: list[Expr] | None = None,
+    elem_offset: Expr = None,
+    scope: str = "global",
+    align: int = -1,
+    offset_factor: int = 0,
+    layout: str | Layout | None = "default",
+    allocated_addr: Expr | int | tuple[Expr | int, ...] | None = None,
+) -> Buffer:
+    """Bind a buffer subregion inside an S-TIR block.
+
+    Function inputs use Buffer annotations in the function signature.
+    Shape and dtype are inferred when the source is a TensorRegion.
+    """
+    if not isinstance(param, TensorLoad | TensorRegion):
+        raise TypeError("match_buffer requires a buffer subregion; use Buffer for function inputs")
+    if isinstance(param, TensorRegion) and not tir.is_buffer_var(param.source):
+        raise TypeError("match_buffer requires a TensorRegion with a BufferVar source")
+    if shape is None:
+        if isinstance(param, TensorRegion):
+            dtype = param.source.ty.dtype
+            shape = [region.extent for region in param.region]
+        else:
+            raise ValueError("Shape must be specified when binding a scalar buffer access")
+    shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
+    if strides is None:
+        strides = []
+    if allocated_addr is None:
+        allocated_addr = []
+    if not isinstance(allocated_addr, list | tuple):
+        allocated_addr = [allocated_addr]
+    result = _ffi_api.MatchBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+        param,
+        shape,
+        dtype,
+        data,
+        strides,
+        elem_offset,
+        scope,
+        align,
+        offset_factor,
+        _get_layout(layout, shape, scope),
+        allocated_addr,
+    )
+    return result
+
 
 _block_name_suffix = threading.local()
 
@@ -371,6 +425,7 @@ class axis:  # pylint: disable=invalid-name
 __all__ = [
     "axis",
     "block_name_suffix_context",
+    "match_buffer",
     "reads",
     "sblock_alloc_buffer",
     "sblock_attr",

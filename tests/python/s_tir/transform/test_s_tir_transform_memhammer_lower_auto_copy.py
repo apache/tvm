@@ -30,9 +30,7 @@ from tvm.script import tirx as T
 @tvm.script.ir_module
 class Transpose:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [1024, 1024])
-        B = T.match_buffer(b, [1024, 1024])
+    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for ty in T.thread_binding(8, thread="threadIdx.y"):
@@ -53,9 +51,7 @@ class Transpose:
 @tvm.script.ir_module
 class GlobalToShared:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [1024, 1024])
-        B = T.match_buffer(b, [1024, 1024])
+    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -77,9 +73,7 @@ class GlobalToShared:
 @tvm.script.ir_module
 class SharedToGlobal:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [1024, 1024])
-        B = T.match_buffer(b, [1024, 1024])
+    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -101,9 +95,7 @@ class SharedToGlobal:
 @tvm.script.ir_module
 class GlobalToSharedWithLocalStage:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [1024, 1024])
-        B = T.match_buffer(b, [1024, 1024])
+    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -171,8 +163,7 @@ class WmmaToShared:
 @tvm.script.ir_module
 class WmmaToGlobal:
     @Ts.prim_func
-    def main(c: T.handle) -> None:
-        C = T.match_buffer(c, [1024, 1024])
+    def main(C: T.Buffer([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -191,9 +182,7 @@ class WmmaToGlobal:
 @tvm.script.ir_module
 class WmmaToGlobalWithFusion:
     @Ts.prim_func
-    def main(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, [1024])
-        C = T.match_buffer(c, [1024, 1024])
+    def main(A: T.Buffer([1024]), C: T.Buffer([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -214,8 +203,7 @@ class WmmaToGlobalWithFusion:
 @tvm.script.ir_module
 class MmaToGlobal:
     @Ts.prim_func
-    def main(c: T.handle) -> None:
-        C = T.match_buffer(c, [1024, 1024])
+    def main(C: T.Buffer([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -234,9 +222,7 @@ class MmaToGlobal:
 @tvm.script.ir_module
 class TransformedGlobalToShared:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [1024, 1024])
-        B = T.match_buffer(b, [1024, 1024])
+    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -275,9 +261,7 @@ class TransformedGlobalToShared:
 @tvm.script.ir_module
 class TransformedSharedToGlobal:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [1024, 1024])
-        B = T.match_buffer(b, [1024, 1024])
+    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -318,9 +302,7 @@ class TransformedSharedToGlobal:
 @tvm.script.ir_module
 class TransformedGlobalToSharedWithLocalStage:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (1024, 1024))
-        B = T.match_buffer(b, (1024, 1024))
+    def main(A: T.Buffer((1024, 1024)), B: T.Buffer((1024, 1024))):
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -460,7 +442,7 @@ class TransformedSharedToWmma:
                                                 ax10 * 16 : ax10 * 16 + 16,
                                             ]
                                         )
-                                        src = T.match_buffer(
+                                        src = Ts.match_buffer(
                                             A_shared_dyn[
                                                 ax00 * 16 : ax00 * 16 + 16,
                                                 ax10 * 16 : ax10 * 16 + 16,
@@ -471,7 +453,7 @@ class TransformedSharedToWmma:
                                             scope="shared.dyn",
                                             offset_factor=16,
                                         )
-                                        tgt = T.match_buffer(
+                                        tgt = Ts.match_buffer(
                                             A_wmma[
                                                 ax00 * 16 : ax00 * 16 + 16,
                                                 ax10 * 16 : ax10 * 16 + 16,
@@ -543,7 +525,7 @@ class TransformedWmmaToShared:
                                                 ax10 * 16 : ax10 * 16 + 16,
                                             ]
                                         )
-                                        src = T.match_buffer(
+                                        src = Ts.match_buffer(
                                             C_accum[
                                                 ax00 * 16 : ax00 * 16 + 16,
                                                 ax10 * 16 : ax10 * 16 + 16,
@@ -553,7 +535,7 @@ class TransformedWmmaToShared:
                                             scope="wmma.accumulator",
                                             offset_factor=16,
                                         )
-                                        tgt = T.match_buffer(
+                                        tgt = Ts.match_buffer(
                                             C_shared[
                                                 ax00 * 16 : ax00 * 16 + 16,
                                                 ax10 * 16 : ax10 * 16 + 16,
@@ -621,7 +603,7 @@ class TransformedWmmaToGlobal:
                                                 ]
                                             )
                                             Ts.writes(C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16])
-                                            src = T.match_buffer(
+                                            src = Ts.match_buffer(
                                                 C_accum[
                                                     ax0_0 * 16 : ax0_0 * 16 + 16,
                                                     ax1_0 * 16 : ax1_0 * 16 + 16,
@@ -630,7 +612,7 @@ class TransformedWmmaToGlobal:
                                                 scope="wmma.accumulator",
                                                 offset_factor=16,
                                             )
-                                            tgt = T.match_buffer(
+                                            tgt = Ts.match_buffer(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16],
                                                 (16, 16),
                                                 strides=(s1, s0),
@@ -825,7 +807,7 @@ class TransformedWmmaToGlobalWithFusion:
                                                 ]
                                             )
                                             Ts.writes(C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16])
-                                            src = T.match_buffer(
+                                            src = Ts.match_buffer(
                                                 C_accum[
                                                     ax0_0 * 16 : ax0_0 * 16 + 16,
                                                     ax1_0 * 16 : ax1_0 * 16 + 16,
@@ -834,7 +816,7 @@ class TransformedWmmaToGlobalWithFusion:
                                                 scope="wmma.accumulator",
                                                 offset_factor=16,
                                             )
-                                            tgt = T.match_buffer(
+                                            tgt = Ts.match_buffer(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16],
                                                 (16, 16),
                                                 strides=(s1_1, s0_1),
@@ -1047,7 +1029,7 @@ class TransformedMmaToGlobal:
                                                 ]
                                             )
                                             Ts.writes(C_accum_shared_dyn[ty, ax1_0, 0:8, 0:8])
-                                            src = T.match_buffer(
+                                            src = Ts.match_buffer(
                                                 C_accum[
                                                     ax0_0 * 8 : ax0_0 * 8 + 8,
                                                     ax1_0 * 8 : ax1_0 * 8 + 8,
@@ -1056,7 +1038,7 @@ class TransformedMmaToGlobal:
                                                 scope="m16n8k8.matrixC",
                                                 offset_factor=8,
                                             )
-                                            tgt = T.match_buffer(
+                                            tgt = Ts.match_buffer(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:8, 0:8],
                                                 (8, 8),
                                                 strides=(s1, s0),

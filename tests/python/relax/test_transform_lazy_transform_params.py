@@ -486,9 +486,10 @@ def test_param_shape_symbolic():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def transform_layout_IOHW_to_OIHW(var_w1: T.handle, var_out: T.handle):
-            w1 = T.match_buffer(var_w1, (ic_transform_layout_IOHW_to_OIHW, 16, 3, 3), "float32")
-            out = T.match_buffer(var_out, (16, ic_transform_layout_IOHW_to_OIHW, 3, 3), "float32")
+        def transform_layout_IOHW_to_OIHW(
+            w1: T.Buffer((ic_transform_layout_IOHW_to_OIHW, 16, 3, 3), "float32"),
+            out: T.Buffer((16, ic_transform_layout_IOHW_to_OIHW, 3, 3), "float32"),
+        ):
             for ax0, ax1, ax2, ax3 in T.grid(16, ic_transform_layout_IOHW_to_OIHW, 3, 3):
                 with Ts.sblock("layout_transform"):
                     o, i, h, w = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -528,9 +529,10 @@ def test_param_shape_symbolic():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def transform_layout_IOHW_to_OIHW(var_w1: T.handle, var_out: T.handle):
-            w1 = T.match_buffer(var_w1, (ic_transform_layout_IOHW_to_OIHW, 16, 3, 3), "float32")
-            out = T.match_buffer(var_out, (16, ic_transform_layout_IOHW_to_OIHW, 3, 3), "float32")
+        def transform_layout_IOHW_to_OIHW(
+            w1: T.Buffer((ic_transform_layout_IOHW_to_OIHW, 16, 3, 3), "float32"),
+            out: T.Buffer((16, ic_transform_layout_IOHW_to_OIHW, 3, 3), "float32"),
+        ):
             for ax0, ax1, ax2, ax3 in T.grid(16, ic_transform_layout_IOHW_to_OIHW, 3, 3):
                 with Ts.sblock("layout_transform"):
                     o, i, h, w = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])

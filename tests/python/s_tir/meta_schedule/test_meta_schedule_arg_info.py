@@ -24,11 +24,13 @@ from tvm.script import tirx as T
 # fmt: off
 
 @Ts.prim_func
-def Matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+def Matmul(
+    A: T.Buffer((128, 256), "float32"),
+    B: T.Buffer((256, 512), "float32"),
+    C: T.Buffer((128, 512), "float32"),
+) -> None:
     T.func_attr({"global_symbol": "main"})
-    A = T.match_buffer(a, (128, 256), "float32")
-    B = T.match_buffer(b, (256, 512), "float32")
-    C = T.match_buffer(c, (128, 512), "float32")
+
     for i, j, k in T.grid(128, 256, 512):
         with Ts.sblock("matmul"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])

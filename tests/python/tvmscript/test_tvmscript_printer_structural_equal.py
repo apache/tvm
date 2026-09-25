@@ -57,14 +57,12 @@ def test_prim_type_hidden_path_exact_message():
 
 def test_prim_func_buffer_param():
     @Ts.prim_func
-    def func1(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (128, 128))
-        B = T.match_buffer(b, (128, 128))
+    def func1(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))):
+        pass
 
     @Ts.prim_func
-    def func2(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (128, 128))
-        B = T.match_buffer(b, (128, 256))
+    def func2(A: T.Buffer((128, 128)), B: T.Buffer((128, 256))):
+        pass
 
     func1 = func1.with_attr("global_symbol", "main")
     func2 = func2.with_attr("global_symbol", "main")

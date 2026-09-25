@@ -27,19 +27,14 @@ from tvm.testing import env
 
 @Ts.prim_func
 def get_valid_counts(
-    data: T.handle,
-    valid_count: T.handle,
-    out: T.handle,
-    out_indices: T.handle,
+    data_buf: T.Buffer((1, 2500, 6), "float32"),
+    valid_count_buf: T.Buffer((1,), "int32"),
+    out_buf: T.Buffer((1, 2500, 6), "float32"),
+    out_indices_buf: T.Buffer((1, 2500), "int32"),
     score_threshold: T.float32,
     id_index: T.int32,
     score_index: T.int32,
 ) -> None:
-    data_buf = T.match_buffer(data, (1, 2500, 6), "float32")
-    valid_count_buf = T.match_buffer(valid_count, (1,), "int32")
-    out_buf = T.match_buffer(out, (1, 2500, 6), "float32")
-    out_indices_buf = T.match_buffer(out_indices, (1, 2500), "int32")
-
     with Ts.sblock("init"):
         vi = Ts.axis.S(1, 0)
         valid_count_buf[vi] = T.int32(0)
@@ -108,9 +103,9 @@ def test_get_valid_counts_script_func():
 
 
 @Ts.prim_func
-def alloc_zero_dim_buffer(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [], dtype="float32")
-    B = T.match_buffer(b, [], dtype="float32")
+def alloc_zero_dim_buffer(
+    A: T.Buffer([], dtype="float32"), B: T.Buffer([], dtype="float32")
+) -> None:
     # body
     # tirx.with block("root")
     C = Ts.sblock_alloc_buffer([], dtype="float32")
@@ -120,9 +115,7 @@ def alloc_zero_dim_buffer(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def alloc_zero_dim_buffer_block(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (), "float32")
-    B = T.match_buffer(b, (), "float32")
+def alloc_zero_dim_buffer_block(A: T.Buffer((), "float32"), B: T.Buffer((), "float32")) -> None:
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])

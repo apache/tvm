@@ -294,11 +294,9 @@ def get_expected_3():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def f_mul(var_A: T.handle, var_B: T.handle, var_f_mul: T.handle):
+        def f_mul(A: T.Buffer((n_f_mul, n_f_mul)), B: T.Buffer((n_f_mul, n_f_mul)), f_mul_1: T.Buffer((n_f_mul, n_f_mul))):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (n_f_mul, n_f_mul))
-            B = T.match_buffer(var_B, (n_f_mul, n_f_mul))
-            f_mul_1 = T.match_buffer(var_f_mul, (n_f_mul, n_f_mul))
+
             # with Ts.sblock("root"):
             for i0, i1 in T.grid(n_f_mul, n_f_mul):
                 with Ts.sblock("f_mul"):
@@ -308,13 +306,9 @@ def get_expected_3():
                     f_mul_1[v_i0, v_i1] = A[v_i0, v_i1] * B[v_i0, v_i1]
 
         @Ts.prim_func(private=True)
-        def f_mul_grad(var_A: T.handle, var_B: T.handle, var_C: T.handle, var_f_mul_grad_1: T.handle, var_f_mul_grad_2: T.handle):
+        def f_mul_grad(A: T.Buffer((n_f_mul_grad, n_f_mul_grad)), B: T.Buffer((n_f_mul_grad, n_f_mul_grad)), C: T.Buffer((n_f_mul_grad, n_f_mul_grad)), f_mul_grad_1: T.Buffer((n_f_mul_grad, n_f_mul_grad)), f_mul_grad_2: T.Buffer((n_f_mul_grad, n_f_mul_grad))):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (n_f_mul_grad, n_f_mul_grad))
-            B = T.match_buffer(var_B, (n_f_mul_grad, n_f_mul_grad))
-            C = T.match_buffer(var_C, (n_f_mul_grad, n_f_mul_grad))
-            f_mul_grad_1 = T.match_buffer(var_f_mul_grad_1, (n_f_mul_grad, n_f_mul_grad))
-            f_mul_grad_2 = T.match_buffer(var_f_mul_grad_2, (n_f_mul_grad, n_f_mul_grad))
+
             # with Ts.sblock("root"):
             for i0, i1 in T.grid(n_f_mul_grad, n_f_mul_grad):
                 with Ts.sblock("f_mul_grad_1"):

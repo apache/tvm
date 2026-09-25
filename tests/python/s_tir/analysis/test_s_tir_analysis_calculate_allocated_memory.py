@@ -34,7 +34,6 @@ class Module:
             with Ts.sblock("C"):
                 c[i] = a[i] * T.int8(2)
 
-
     @Ts.prim_func
     def scale_by_two_three(a: T.Buffer((128,), "int8"), c: T.Buffer((128,), "int8")):
         B = Ts.sblock_alloc_buffer([128], dtype="int8", scope="global.vtcm")
@@ -71,10 +70,11 @@ def test_scale_by(primFunc, size):
 
 
 @Ts.prim_func
-def matmul_mix_scope(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], scope="global")
-    B = T.match_buffer(b, [128, 128], scope="global")
-    C = T.match_buffer(c, [128, 128], scope="global")
+def matmul_mix_scope(
+    A: T.Buffer([128, 128], scope="global"),
+    B: T.Buffer([128, 128], scope="global"),
+    C: T.Buffer([128, 128], scope="global"),
+) -> None:
     A_allocated = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="global.texture")
     B_allocated = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="global.texture")
     C_allocated = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="global")

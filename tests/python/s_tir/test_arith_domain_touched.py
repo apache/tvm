@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 import pytest
 import tvm_ffi
 
@@ -25,10 +27,7 @@ m = T.dynamic("m", "int32")
 
 
 @Ts.prim_func
-def scalar_func(a: T.handle, b: T.handle):
-    A = T.match_buffer(a, (100, m))
-    B = T.match_buffer(b, (100, m))
-
+def scalar_func(A: T.Buffer((100, m)), B: T.Buffer((100, m))):
     for i, j in T.grid(100, m):
         A[i, j] = B[i - 1, j + 1] + A[i - 1, j - 1]
 
@@ -76,10 +75,7 @@ def test_domain_touched_vector():
     m = tvm.runtime.convert(128)
 
     @Ts.prim_func
-    def func(a: T.handle, b: T.handle, n: T.int32):
-        A = T.match_buffer(a, (n * m,))
-        B = T.match_buffer(b, (n * m,))
-
+    def func(A: T.Buffer((n * m,)), B: T.Buffer((n * m,)), n: T.int32):  # noqa: F821
         for i in T.serial(n):
             A[i * m : (i + 1) * m : 1] = A[i * m : (i + 1) * m : 1] + B[i * m : (i + 1) * m : 1]
 

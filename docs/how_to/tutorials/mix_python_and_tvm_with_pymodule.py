@@ -68,7 +68,6 @@ IS_IN_CI = os.getenv("CI", "").lower() == "true"
 HAS_TORCH = torch is not None
 RUN_EXAMPLE = HAS_TORCH and not IS_IN_CI
 
-
 ######################################################################
 # Step 1: Your First Hybrid Module
 # ----------------------------------
@@ -119,7 +118,6 @@ if RUN_EXAMPLE:
     # list_functions() shows what is available in the module
     print("Available functions:", mod.list_functions())
 
-
 ######################################################################
 # Step 2: Debugging — The Main Selling Point
 # ---------------------------------------------
@@ -134,10 +132,11 @@ if RUN_EXAMPLE:
     @R.py_module
     class DebugModule(BasePyModule):
         @Ts.prim_func
-        def matmul_tir(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            A = T.match_buffer(var_A, (n, 4), "float32")
-            B = T.match_buffer(var_B, (4, 3), "float32")
-            C = T.match_buffer(var_C, (n, 3), "float32")
+        def matmul_tir(
+            A: T.Buffer((n, 4), "float32"),
+            B: T.Buffer((4, 3), "float32"),
+            C: T.Buffer((n, 3), "float32"),
+        ):
             for i, j, k in T.grid(n, 3, 4):
                 with Ts.sblock("matmul"):
                     vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -183,7 +182,6 @@ if RUN_EXAMPLE:
 # Users can also make quick, manual edits to Python functions and immediately observe the
 # results." No compilation cycle, no VM loading — just Python.
 
-
 ######################################################################
 # Step 3: A Realistic Pipeline — Python, TIR, and Packed Functions
 # -------------------------------------------------------------------
@@ -211,10 +209,11 @@ if RUN_EXAMPLE:
     @R.py_module
     class PipelineModule(BasePyModule):
         @Ts.prim_func
-        def matmul_tir(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            A = T.match_buffer(var_A, (2, 4), "float32")
-            B = T.match_buffer(var_B, (4, 3), "float32")
-            C = T.match_buffer(var_C, (2, 3), "float32")
+        def matmul_tir(
+            A: T.Buffer((2, 4), "float32"),
+            B: T.Buffer((4, 3), "float32"),
+            C: T.Buffer((2, 3), "float32"),
+        ):
             for i, j, k in T.grid(2, 3, 4):
                 with Ts.sblock("matmul"):
                     vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -256,7 +255,6 @@ if RUN_EXAMPLE:
     print("Expected:       ", expected)
     assert torch.allclose(result, expected, atol=1e-4)
 
-
 ######################################################################
 # Step 4: Relax-to-Python Converter — Verify at Any Compilation Stage
 # ----------------------------------------------------------------------
@@ -275,10 +273,11 @@ if RUN_EXAMPLE:
     @I.ir_module
     class DenseLayer:
         @Ts.prim_func
-        def bias_add_tir(var_x: T.handle, var_b: T.handle, var_out: T.handle):
-            x = T.match_buffer(var_x, (2, 4), "float32")
-            b = T.match_buffer(var_b, (4,), "float32")
-            out = T.match_buffer(var_out, (2, 4), "float32")
+        def bias_add_tir(
+            x: T.Buffer((2, 4), "float32"),
+            b: T.Buffer((4,), "float32"),
+            out: T.Buffer((2, 4), "float32"),
+        ):
             for i, j in T.grid(2, 4):
                 out[i, j] = x[i, j] + b[j]
 
@@ -327,7 +326,6 @@ if RUN_EXAMPLE:
     print("  Converted result:", py_result_late)
     print("  Still matches:   ", torch.allclose(py_result_late, expected, atol=1e-5))
     assert torch.allclose(py_result_late, expected, atol=1e-5)
-
 
 ######################################################################
 # Step 5: R.call_py_func — Python Callbacks in Compiled IR
@@ -379,7 +377,6 @@ if RUN_EXAMPLE:
     print("call_py_func result:", result)
     assert torch.allclose(torch.tensor(result.numpy()), expected, atol=1e-5)
 
-
 ######################################################################
 # Step 6: Cross-Level Calls and Symbolic Shapes
 # ------------------------------------------------
@@ -404,9 +401,7 @@ if RUN_EXAMPLE:
     @R.py_module
     class DynamicModule(BasePyModule):
         @Ts.prim_func
-        def scale_tir(var_x: T.handle, var_out: T.handle):
-            x = T.match_buffer(var_x, (n,), "float32")
-            out = T.match_buffer(var_out, (n,), "float32")
+        def scale_tir(x: T.Buffer((n,), "float32"), out: T.Buffer((n,), "float32")):
             for i in T.serial(n):
                 out[i] = x[i] * T.float32(2.0)
 
@@ -440,7 +435,6 @@ if RUN_EXAMPLE:
     scaled = mod.call_tir("scale_tir", [x7], relax.TensorType((n,), "float32"))
     print("scale_tir(len=7):", scaled)
     assert torch.allclose(torch.tensor(scaled.numpy()), x7 * 2.0, atol=1e-5)
-
 
 ######################################################################
 # Summary

@@ -91,11 +91,13 @@ def test_mlp_with_tuple():
         )
 
         @Ts.prim_func(private=True)
-        def split1(var_A: T.handle, var_T_split: T.handle, var_T_split_1: T.handle):
+        def split1(
+            A: T.Buffer((128, 128), "float32"),
+            T_split: T.Buffer((64, 128), "float32"),
+            T_split_1: T.Buffer((64, 128), "float32"),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (128, 128), "float32")
-            T_split = T.match_buffer(var_T_split, (64, 128), "float32")
-            T_split_1 = T.match_buffer(var_T_split_1, (64, 128), "float32")
+
             # with Ts.sblock("root"):
             for ax1, ax2 in T.grid(64, 128):
                 with Ts.sblock("T_split"):
@@ -373,12 +375,12 @@ def test_decoder_layer():
 
         @Ts.prim_func
         def rms_norm(
-            var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle
+            A: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
+            B: T.Buffer((T.int64(4096),), "float16"),
+            rms_norm_1: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
 
-            A = T.match_buffer(var_A, (T.int64(1), 256, T.int64(4096)), "float16")
-            rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), 256, T.int64(4096)), "float16")
             # with Ts.sblock("root"):
             Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
@@ -410,17 +412,13 @@ def test_decoder_layer():
 
         @Ts.prim_func
         def rotary_embedding(
-            var_A: T.handle,
+            A: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
             C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            var_rotary: T.handle,
+            rotary: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
 
-            A = T.match_buffer(var_A, (T.int64(1), 256, T.int64(32), T.int64(128)), "float16")
-            rotary = T.match_buffer(
-                var_rotary, (T.int64(1), 256, T.int64(32), T.int64(128)), "float16"
-            )
             # with Ts.sblock("root"):
             for i0, i1, i2, i3 in T.grid(T.int64(1), 256, T.int64(32), T.int64(128)):
                 with Ts.sblock("rotary"):
@@ -1569,13 +1567,12 @@ def test_decoder_layer_dynamic_shape():
 
         @Ts.prim_func
         def rms_norm(
-            var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle
+            A: T.Buffer((T.int64(1), rms_norm_n, T.int64(4096)), "float16"),
+            B: T.Buffer((T.int64(4096),), "float16"),
+            rms_norm_1: T.Buffer((T.int64(1), rms_norm_n, T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (T.int64(1), rms_norm_n, T.int64(4096)), "float16")
-            rms_norm_1 = T.match_buffer(
-                var_rms_norm, (T.int64(1), rms_norm_n, T.int64(4096)), "float16"
-            )
+
             # with Ts.sblock("root"):
             Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), rms_norm_n))
             for bsz, i, k in T.grid(T.int64(1), rms_norm_n, T.int64(4096)):
@@ -1607,19 +1604,16 @@ def test_decoder_layer_dynamic_shape():
 
         @Ts.prim_func
         def rotary_embedding(
-            var_A: T.handle,
+            A: T.Buffer((T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"),
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
             C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
             m: T.int64,
-            var_rotary: T.handle,
+            rotary: T.Buffer(
+                (T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"
+            ),
         ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(
-                var_A, (T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"
-            )
-            rotary = T.match_buffer(
-                var_rotary, (T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"
-            )
+
             # with Ts.sblock("root"):
             for i0, i1, i2, i3 in T.grid(T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)):
                 with Ts.sblock("rotary"):
@@ -1780,13 +1774,12 @@ def test_decoder_layer_dynamic_shape():
 
         @Ts.prim_func
         def rms_norm(
-            var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle
+            A: T.Buffer((T.int64(1), rms_norm_n, T.int64(4096)), "float16"),
+            B: T.Buffer((T.int64(4096),), "float16"),
+            rms_norm_1: T.Buffer((T.int64(1), rms_norm_n, T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (T.int64(1), rms_norm_n, T.int64(4096)), "float16")
-            rms_norm_1 = T.match_buffer(
-                var_rms_norm, (T.int64(1), rms_norm_n, T.int64(4096)), "float16"
-            )
+
             # with Ts.sblock("root"):
             Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), rms_norm_n))
             for bsz, i, k in T.grid(T.int64(1), rms_norm_n, T.int64(4096)):
@@ -1818,19 +1811,16 @@ def test_decoder_layer_dynamic_shape():
 
         @Ts.prim_func
         def rotary_embedding(
-            var_A: T.handle,
+            A: T.Buffer((T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"),
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
             C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
             m: T.int64,
-            var_rotary: T.handle,
+            rotary: T.Buffer(
+                (T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"
+            ),
         ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(
-                var_A, (T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"
-            )
-            rotary = T.match_buffer(
-                var_rotary, (T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"
-            )
+
             # with Ts.sblock("root"):
             for i0, i1, i2, i3 in T.grid(T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)):
                 with Ts.sblock("rotary"):

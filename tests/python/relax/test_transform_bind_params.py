@@ -33,11 +33,9 @@ def test_bind_params(use_np_array):
     @tvm.script.ir_module
     class InputModule:
         @Ts.prim_func
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+        def tir_matmul(A: T.Buffer((16, 16)), B: T.Buffer((16, 16)), C: T.Buffer((16, 16))) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            A = T.match_buffer(x, (16, 16))
-            B = T.match_buffer(y, (16, 16))
-            C = T.match_buffer(z, (16, 16))
+
             for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
                 with Ts.sblock("matmul"):
                     vi = Ts.axis.S(16, i0 * 4 + i1)

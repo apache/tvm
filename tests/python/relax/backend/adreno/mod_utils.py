@@ -751,11 +751,13 @@ def get_dequant_matmul_module(K, N):
             return gv
 
         @Ts.prim_func
-        def dequantize(weight: T.handle, scale: T.handle, var_dequantize: T.handle):
+        def dequantize(
+            lm_head_q_weight1: T.Buffer((T.int64(K // 8), T.int64(N)), "uint32"),
+            lm_head_q_scale1: T.Buffer((T.int64(K // 32), T.int64(N)), "float16"),
+            dequantize: T.Buffer((T.int64(K), T.int64(N)), "float16"),
+        ):
             T.func_attr({"tirx.noalias": T.bool(True)})
-            lm_head_q_weight1 = T.match_buffer(weight, (T.int64(K // 8), T.int64(N)), "uint32")
-            lm_head_q_scale1 = T.match_buffer(scale, (T.int64(K // 32), T.int64(N)), "float16")
-            dequantize = T.match_buffer(var_dequantize, (T.int64(K), T.int64(N)), "float16")
+
             # with Ts.sblock("root"):
             compute = T.alloc_buffer((T.int64(K), T.int64(N)), "float16")
             for i0, i1 in T.grid(T.int64(K), T.int64(N)):
@@ -811,17 +813,13 @@ def get_dequant_vec_matmul_module(K, N):
             return gv
 
         @Ts.prim_func
-        def dequantize(weight: T.handle, scale: T.handle, var_dequantize: T.handle):
+        def dequantize(
+            lm_head_q_weight1: T.Buffer((T.int64(K // 8), vocab_size_dequantize), "uint32"),
+            lm_head_q_scale1: T.Buffer((T.int64(K // 32), vocab_size_dequantize), "float16"),
+            dequantize: T.Buffer((T.int64(K), vocab_size_dequantize), "float16"),
+        ):
             T.func_attr({"tirx.noalias": T.bool(True)})
-            lm_head_q_weight1 = T.match_buffer(
-                weight, (T.int64(K // 8), vocab_size_dequantize), "uint32"
-            )
-            lm_head_q_scale1 = T.match_buffer(
-                scale, (T.int64(K // 32), vocab_size_dequantize), "float16"
-            )
-            dequantize = T.match_buffer(
-                var_dequantize, (T.int64(K), vocab_size_dequantize), "float16"
-            )
+
             # with Ts.sblock("root"):
             compute = T.alloc_buffer((T.int64(K), vocab_size_dequantize), "float16")
             for i0, i1 in T.grid(T.int64(K), vocab_size_dequantize):

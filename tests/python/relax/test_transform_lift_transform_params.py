@@ -1442,9 +1442,9 @@ def test_symbolic_var_2():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def zeros(var_T_full: T.handle):
+        def zeros(T_full: T.Buffer((n_zeros, n_zeros))):
             T.func_attr({"tirx.noalias": True})
-            T_full = T.match_buffer(var_T_full, (n_zeros, n_zeros))
+
             for ax0, ax1 in T.grid(n_zeros, n_zeros):
                 with Ts.sblock("T_full"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -1469,9 +1469,9 @@ def test_symbolic_var_2():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def zeros(var_T_full: T.handle):
+        def zeros(T_full: T.Buffer((n_zeros, n_zeros))):
             T.func_attr({"tirx.noalias": True})
-            T_full = T.match_buffer(var_T_full, (n_zeros, n_zeros))
+
             # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(n_zeros, n_zeros):
                 with Ts.sblock("T_full"):

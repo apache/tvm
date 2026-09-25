@@ -186,8 +186,8 @@ def test_backward_compatibility_shared_a_and_b():
 def test_buffer_a():
     # fmt: off
     @Ts.prim_func
-    def before(p_A: T.handle):
-        A = T.match_buffer(p_A, (T.int64(128), T.int64(32)), "float16")
+    def before(A: T.Buffer((T.int64(128), T.int64(32)), 'float16')):
+
         A_shared_dyn = Ts.sblock_alloc_buffer((T.int64(128), T.int64(32)), "float16", scope="shared.dyn")
         A_warp = Ts.sblock_alloc_buffer((T.int64(4), T.int64(1), T.int64(32), T.int64(8)), "float16", scope="warp")
         for threadIdx_z in T.thread_binding(T.int64(2), thread="threadIdx.z"):
@@ -302,8 +302,8 @@ def test_buffer_b():
 def test_buffer_c_fp32():
     # fmt: off
     @Ts.prim_func
-    def before(p_O: T.handle):
-        O = T.match_buffer(p_O, (T.int64(128), T.int64(128)), "float16")
+    def before(O: T.Buffer((T.int64(128), T.int64(128)), 'float16')):
+
         O_shared_dyn = Ts.sblock_alloc_buffer((T.int64(128), T.int64(128)), scope="shared.dyn")
         O_warp = Ts.sblock_alloc_buffer((T.int64(4), T.int64(4), T.int64(32), T.int64(8)), scope="warp")
         for threadIdx_z in T.thread_binding(T.int64(2), thread="threadIdx.z"):
@@ -320,7 +320,6 @@ def test_buffer_c_fp32():
                             with Ts.sblock("O.dyn"):
                                 Ts.sblock_attr({"permuted_layout": 1})
                                 O[v0 * T.int64(8) + threadIdx_z * T.int64(4) + threadIdx_y * T.int64(2) + threadIdx_x // T.int64(16), threadIdx_x % T.int64(16) * T.int64(8) + v1] = T.Cast("float16", O_shared_dyn[v0 * T.int64(8) + threadIdx_z * T.int64(4) + threadIdx_y * T.int64(2) + threadIdx_x // T.int64(16), threadIdx_x % T.int64(16) * T.int64(8) + v1])
-
 
     @Ts.prim_func
     def expected(O: T.Buffer((T.int64(128), T.int64(128)), "float16")):

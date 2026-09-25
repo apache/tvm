@@ -69,9 +69,10 @@ def test_reduction_shared(
 
     # fmt: off
     @T.prim_func
-    def test_reduction(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, dtype, layout=g_layout_src)
-        B = T.match_buffer(B_ptr, dst_shape, dtype, layout=g_layout_dst)
+    def test_reduction(
+        A: T.Buffer(src_shape, dtype, layout=g_layout_src),
+        B: T.Buffer(dst_shape, dtype, layout=g_layout_dst),
+    ) -> None:
 
         T.device_entry()
         _bx = T.cta_id([1])
@@ -84,11 +85,26 @@ def test_reduction_shared(
             Tx.cta.copy(B_smem[tuple(copy_slice_dst)], B[tuple(copy_slice_dst)])
         T.cuda.cta_sync()
         if op_type == "sum":
-            Tx.cta.sum(B_smem[tuple(reduce_slice_dst)], A_smem[tuple(reduce_slice_src)], axes=axes, accum=accum) # noqa: E501
+            Tx.cta.sum(
+                B_smem[tuple(reduce_slice_dst)],
+                A_smem[tuple(reduce_slice_src)],
+                axes=axes,
+                accum=accum,
+            )
         elif op_type == "max":
-            Tx.cta.max(B_smem[tuple(reduce_slice_dst)], A_smem[tuple(reduce_slice_src)], axes=axes, accum=accum) # noqa: E501
+            Tx.cta.max(
+                B_smem[tuple(reduce_slice_dst)],
+                A_smem[tuple(reduce_slice_src)],
+                axes=axes,
+                accum=accum,
+            )
         elif op_type == "min":
-            Tx.cta.min(B_smem[tuple(reduce_slice_dst)], A_smem[tuple(reduce_slice_src)], axes=axes, accum=accum) # noqa: E501
+            Tx.cta.min(
+                B_smem[tuple(reduce_slice_dst)],
+                A_smem[tuple(reduce_slice_src)],
+                axes=axes,
+                accum=accum,
+            )
         T.cuda.cta_sync()
         Tx.cta.copy(B[tuple(copy_slice_dst)], B_smem[tuple(copy_slice_dst)])
         # fmt: on
@@ -153,9 +169,11 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
     # fmt: off
     if exec_scope == "warp":
         @T.prim_func
-        def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, src_shape, dtype, layout=g_layout_src)
-            B = T.match_buffer(B_ptr, dst_shape, dtype, layout=g_layout_dst)
+        def test_func(
+            A: T.Buffer(src_shape, dtype, layout=g_layout_src),
+            B: T.Buffer(dst_shape, dtype, layout=g_layout_dst),
+        ) -> None:
+
             T.device_entry()
             warp_id = T.warp_id([(256) // 32])
             _bx = T.cta_id([1])
@@ -175,11 +193,14 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
                     Tx.warp.min(B_smem, A_smem, axes=axes, accum=accum)
             T.cuda.cta_sync()
             Tx.cta.copy(B, B_smem)
+
     elif exec_scope == "warpgroup":
         @T.prim_func
-        def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, src_shape, dtype, layout=g_layout_src)
-            B = T.match_buffer(B_ptr, dst_shape, dtype, layout=g_layout_dst)
+        def test_func(
+            A: T.Buffer(src_shape, dtype, layout=g_layout_src),
+            B: T.Buffer(dst_shape, dtype, layout=g_layout_dst),
+        ) -> None:
+
             T.device_entry()
             wg_id = T.warpgroup_id([(256) // 128])
             _bx = T.cta_id([1])
@@ -199,11 +220,14 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
                     Tx.wg.min(B_smem, A_smem, axes=axes, accum=accum)
             T.cuda.cta_sync()
             Tx.cta.copy(B, B_smem)
+
     elif exec_scope == "thread":
         @T.prim_func
-        def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, src_shape, dtype, layout=g_layout_src)
-            B = T.match_buffer(B_ptr, dst_shape, dtype, layout=g_layout_dst)
+        def test_func(
+            A: T.Buffer(src_shape, dtype, layout=g_layout_src),
+            B: T.Buffer(dst_shape, dtype, layout=g_layout_dst),
+        ) -> None:
+
             T.device_entry()
             _bx = T.cta_id([1])
             _tid = T.thread_id([256])
@@ -222,6 +246,7 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
                     Tx.min(B_smem, A_smem, axes=axes, accum=accum)
             T.cuda.cta_sync()
             Tx.cta.copy(B, B_smem)
+
         # fmt: on
 
     target = tvm.target.Target("cuda")
@@ -299,9 +324,10 @@ def test_reduction_local_thread_wise(src_shape, dst_shape, axes, op_type, accum)
 
     # fmt: off
     @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, list(src_shape), dtype, layout=TileLayout(S[src_shape]))
-        B = T.match_buffer(B_ptr, list(dst_shape), dtype, layout=TileLayout(S[dst_shape]))
+    def test_func(
+        A: T.Buffer(list(src_shape), dtype, layout=TileLayout(S[src_shape])),
+        B: T.Buffer(list(dst_shape), dtype, layout=TileLayout(S[dst_shape])),
+    ) -> None:
 
         T.device_entry()
         _bx = T.cta_id([1])
@@ -427,9 +453,10 @@ def test_reduction_local_view_basic(inner_dims, dst_dims, axes, accum, slice_end
 
     # fmt: off
     @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, list(src_shape), dtype, layout=g_layout_a)
-        B = T.match_buffer(B_ptr, list(dst_shape), dtype, layout=g_layout_b)
+    def test_func(
+        A: T.Buffer(list(src_shape), dtype, layout=g_layout_a),
+        B: T.Buffer(list(dst_shape), dtype, layout=g_layout_b),
+    ) -> None:
 
         T.device_entry()
         _bx = T.cta_id([1])
@@ -449,11 +476,17 @@ def test_reduction_local_view_basic(inner_dims, dst_dims, axes, accum, slice_end
         red_view = red.view(*dst_shape, layout=red_view_layout)
         if slice_end is not None:
             if op_type == "sum":
-                Tx.warp.sum(red_view, acc_view[:, slice_end // 2:slice_end], axes=axes, accum=accum)
+                Tx.warp.sum(
+                    red_view, acc_view[:, slice_end // 2 : slice_end], axes=axes, accum=accum
+                )
             elif op_type == "max":
-                Tx.warp.max(red_view, acc_view[:, slice_end // 2:slice_end], axes=axes, accum=accum)
+                Tx.warp.max(
+                    red_view, acc_view[:, slice_end // 2 : slice_end], axes=axes, accum=accum
+                )
             elif op_type == "min":
-                Tx.warp.min(red_view, acc_view[:, slice_end // 2:slice_end], axes=axes, accum=accum)
+                Tx.warp.min(
+                    red_view, acc_view[:, slice_end // 2 : slice_end], axes=axes, accum=accum
+                )
         else:
             if op_type == "sum":
                 Tx.warp.sum(red_view, acc_view, axes=axes, accum=accum)
@@ -523,18 +556,19 @@ def test_reduction_local_view_complex(n_groups, n_warps, op_type, dtype, shuffle
 
     # fmt: off
     @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape_a, dtype, layout=g_layout_a)
-        B = T.match_buffer(B_ptr, g_shape_b, dtype, layout=g_layout_b)
+    def test_func(
+        A: T.Buffer(g_shape_a, dtype, layout=g_layout_a),
+        B: T.Buffer(g_shape_b, dtype, layout=g_layout_b),
+    ) -> None:
 
         T.device_entry()
         _bx = T.cta_id([1])
         wg_id = T.warpgroup_id([n_groups])
         warp_id_in_wg = T.warp_id_in_wg([n_warps // n_groups])
         lane_id = T.lane_id([thread_cnt])
-                # acc layout
+        # acc layout
         atom = T.TileLayout(T.S[(1, 2) : (2, 1)])
-        warp_layout = T.TileLayout(T.S[(8, 4) : (4@laneid, 1@laneid)])
+        warp_layout = T.TileLayout(T.S[(8, 4) : (4 @ laneid, 1 @ laneid)])
         warp_atom = atom.tile(warp_layout, (8, 4), (1, 2))
         tile = T.TileLayout(T.S[(2, NUM_COL // 8) : (1, 2)])
         acc_layout = warp_atom.tile(tile, (2, NUM_COL // 8), (8, 8))
@@ -545,7 +579,7 @@ def test_reduction_local_view_complex(n_groups, n_warps, op_type, dtype, shuffle
             layout=atom.tile(tile, (2, NUM_COL // 8), (1, 2)),
         )
 
-                # red layout
+        # red layout
         red_atom = T.TileLayout(T.S[(1, 1) : (1, 1)])
         red_warp_atom = red_atom.tile(warp_layout, (8, 4), (1, 1))
         red_tile = T.TileLayout(T.S[(2, 1) : (1, 1)])
@@ -579,7 +613,7 @@ def test_reduction_local_view_complex(n_groups, n_warps, op_type, dtype, shuffle
             Tx.warp.max(red_view, acc_view, thread_reduce=shuffle, accum=accum)
         elif op_type == "min":
             Tx.warp.min(red_view, acc_view, thread_reduce=shuffle, accum=accum)
-                # perform an additional shuffle step if not shuffled above
+            # perform an additional shuffle step if not shuffled above
         if not shuffle:
             if op_type == "sum":
                 Tx.warp.sum(red_view, red_view, thread_reduce=True)
@@ -589,9 +623,7 @@ def test_reduction_local_view_complex(n_groups, n_warps, op_type, dtype, shuffle
                 Tx.warp.min(red_view, red_view, thread_reduce=True)
             # Write red into B
         for i in T.unroll(2):
-            B[wg_id * 64 + warp_id_in_wg * 16 + i * 8 + lane_id // 4, lane_id % 4] = (
-                red[i]
-            )
+            B[wg_id * 64 + warp_id_in_wg * 16 + i * 8 + lane_id // 4, lane_id % 4] = red[i]
 
         # fmt: on
 
@@ -650,9 +682,10 @@ def test_reduction_local_optimized_3input_maxmin(reduction_len, op_type, accum):
 
     # fmt: off
     @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, [reduction_len], dtype, layout=TileLayout(S[reduction_len]))
-        B = T.match_buffer(B_ptr, [1], dtype, layout=TileLayout(S[1]))
+    def test_func(
+        A: T.Buffer([reduction_len], dtype, layout=TileLayout(S[reduction_len])),
+        B: T.Buffer([1], dtype, layout=TileLayout(S[1])),
+    ) -> None:
 
         T.device_entry()
         _bx = T.cta_id([1])
@@ -660,21 +693,21 @@ def test_reduction_local_optimized_3input_maxmin(reduction_len, op_type, accum):
         A_local = T.alloc_buffer([reduction_len], dtype, scope="local")
         B_local = T.alloc_buffer([1], dtype, scope="local")
 
-                # Load from global to local
+        # Load from global to local
         for i in T.serial(reduction_len):
             A_local[i] = A[i]
 
-                # Initialize B_local for accum test
+            # Initialize B_local for accum test
         if accum:
             B_local[0] = B[0]
 
-                # Thread-level reduction
+            # Thread-level reduction
         if op_type == "max":
             Tx.max(B_local, A_local, accum=accum)
         elif op_type == "min":
             Tx.min(B_local, A_local, accum=accum)
 
-                # Store result to global
+            # Store result to global
         B[0] = B_local[0]
         # fmt: on
 
@@ -722,9 +755,10 @@ def test_reduction_local_optimized_packed_add_sum(reduction_len, accum):
 
     # fmt: off
     @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, [reduction_len], dtype, layout=TileLayout(S[reduction_len]))
-        B = T.match_buffer(B_ptr, [1], dtype, layout=TileLayout(S[1]))
+    def test_func(
+        A: T.Buffer([reduction_len], dtype, layout=TileLayout(S[reduction_len])),
+        B: T.Buffer([1], dtype, layout=TileLayout(S[1])),
+    ) -> None:
 
         T.device_entry()
         _bx = T.cta_id([1])
@@ -732,22 +766,23 @@ def test_reduction_local_optimized_packed_add_sum(reduction_len, accum):
         A_local = T.alloc_buffer([reduction_len], dtype, scope="local")
         B_local = T.alloc_buffer([1], dtype, scope="local")
 
-                # Load from global to local
+        # Load from global to local
         for i in T.serial(reduction_len):
             A_local[i] = A[i]
 
-                # Initialize B_local for accum test
+            # Initialize B_local for accum test
         if accum:
             B_local[0] = B[0]
 
-                # Thread-level sum reduction
+            # Thread-level sum reduction
         Tx.sum(B_local, A_local, accum=accum)
 
-                # Store result to global
+        # Store result to global
         B[0] = B_local[0]
         # fmt: on
 
         # Compile for the device that will execute the packed SM100+ operation.
+
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": test_func})
@@ -797,9 +832,9 @@ def test_reduction_op_warp_shuffle(op_type, dtype):
 
     # fmt: off
     @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, dtype, layout=g_layout)
-        B = T.match_buffer(B_ptr, g_shape, dtype, layout=g_layout)
+    def test_func(
+        A: T.Buffer(g_shape, dtype, layout=g_layout), B: T.Buffer(g_shape, dtype, layout=g_layout)
+    ) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -865,11 +900,12 @@ def test_reduction_op_warp_shuffle_multi_elem(op_type, dtype):
     dst_layout = TileLayout(S[ELEMS_PER_THREAD:1] + R[N_LANES : 1 @ laneid])
 
     # fmt: off
+    dst_lay = TileLayout(S[ELEMS_PER_THREAD])
     @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, dtype, layout=g_layout)
-        dst_lay = TileLayout(S[ELEMS_PER_THREAD])
-        B = T.match_buffer(B_ptr, [ELEMS_PER_THREAD], dtype, layout=dst_lay)
+    def test_func(
+        A: T.Buffer(g_shape, dtype, layout=g_layout),
+        B: T.Buffer([ELEMS_PER_THREAD], dtype, layout=dst_lay),
+    ) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -935,9 +971,10 @@ def test_reduction_op_warp_shuffle_gapped_permuted_storage():
 
     # fmt: off
     @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, "float32", layout=TileLayout(S[src_shape]))
-        B = T.match_buffer(B_ptr, local_shape, "float32", layout=TileLayout(S[local_shape]))
+    def test_func(
+        A: T.Buffer(src_shape, "float32", layout=TileLayout(S[src_shape])),
+        B: T.Buffer(local_shape, "float32", layout=TileLayout(S[local_shape])),
+    ) -> None:
 
         T.device_entry()
         _cta_id = T.cta_id([1])
@@ -991,9 +1028,10 @@ def test_reduction_warp_shuffle_multi_warp_loop():
 
     # fmt: off
     @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, [N_ITER, N], "float32", scope="global")
-        B = T.match_buffer(B_ptr, [N_ITER], "float32", scope="global")
+    def test_func(
+        A: T.Buffer([N_ITER, N], "float32", scope="global"),
+        B: T.Buffer([N_ITER], "float32", scope="global"),
+    ) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -1016,7 +1054,7 @@ def test_reduction_warp_shuffle_multi_warp_loop():
             sum_smem[ty] = result_buf[0]
             T.cuda.cta_sync()
 
-                    # Phase 4: cross-warp reduction (warp 0 only)
+            # Phase 4: cross-warp reduction (warp 0 only)
             if ty == 0:
                 if tx < BDY:
                     cross_buf[0] = sum_smem[tx]
@@ -1063,10 +1101,10 @@ def test_reduction_warpgroup_wg_local_layout(op_name):
     target = tvm.target.Target("cuda")
 
     @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (rows, cols), dtype, layout=TileLayout(S[(rows, cols)]))
-        B = T.match_buffer(B_ptr, (rows, 1), dtype, layout=TileLayout(S[(rows, 1)]))
-
+    def test_func(
+        A: T.Buffer((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
+        B: T.Buffer((rows, 1), dtype, layout=TileLayout(S[rows, 1])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         wg_id = T.warpgroup_id([1])

@@ -32,11 +32,11 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def transformed_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128, 128], dtype="float32")
-    C = T.match_buffer(c, [128, 128], dtype="float32")
-
+def transformed_matmul(
+    A: T.Buffer([128, 128], dtype="float32"),
+    B: T.Buffer([128, 128], dtype="float32"),
+    C: T.Buffer([128, 128], dtype="float32"),
+) -> None:
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
         with Ts.sblock("update"):
             vi, vj = Ts.axis.remap("SS", [i0, i1])
@@ -49,11 +49,11 @@ def transformed_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def transformed_matmul_with_let(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128, 128], dtype="float32")
-    C = T.match_buffer(c, [128, 128], dtype="float32")
-
+def transformed_matmul_with_let(
+    A: T.Buffer([128, 128], dtype="float32"),
+    B: T.Buffer([128, 128], dtype="float32"),
+    C: T.Buffer([128, 128], dtype="float32"),
+) -> None:
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
         with Ts.sblock("update"):
             vi, vj = Ts.axis.remap("SS", [i0, i1])
@@ -67,10 +67,11 @@ def transformed_matmul_with_let(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul_rfactor(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128, 128], dtype="float32")
-    C = T.match_buffer(c, [128, 128], dtype="float32")
+def matmul_rfactor(
+    A: T.Buffer([128, 128], dtype="float32"),
+    B: T.Buffer([128, 128], dtype="float32"),
+    C: T.Buffer([128, 128], dtype="float32"),
+) -> None:
     C_rf = Ts.sblock_alloc_buffer([4, 128, 128], dtype="float32")
 
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
@@ -96,10 +97,9 @@ def matmul_rfactor(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul_not_stage_pipeline(a: T.handle, b: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, [256, 256])
-    B = T.match_buffer(b, [256, 256])
-    D = T.match_buffer(d, [256, 256])
+def matmul_not_stage_pipeline(
+    A: T.Buffer([256, 256]), B: T.Buffer([256, 256]), D: T.Buffer([256, 256])
+) -> None:
     C = Ts.sblock_alloc_buffer([256, 256])
 
     for i, j, k in T.grid(128, 128, 128):
@@ -116,11 +116,9 @@ def matmul_not_stage_pipeline(a: T.handle, b: T.handle, d: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul_not_same_buffer_access(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128, 128))
-    C = T.match_buffer(c, (128, 128))
-
+def matmul_not_same_buffer_access(
+    A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("C"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -130,12 +128,12 @@ def matmul_not_same_buffer_access(a: T.handle, b: T.handle, c: T.handle) -> None
 
 
 @Ts.prim_func
-def matmul_loop_multiple_children(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-    D = T.match_buffer(d, [128, 128])
-
+def matmul_loop_multiple_children(
+    A: T.Buffer([128, 128]),
+    B: T.Buffer([128, 128]),
+    C: T.Buffer([128, 128]),
+    D: T.Buffer([128, 128]),
+) -> None:
     for k, i, j in T.grid(128, 128, 128):
         with Ts.sblock("C"):
             ck, ci, cj = Ts.axis.remap("RSS", [k, i, j])
@@ -150,10 +148,7 @@ def matmul_loop_multiple_children(a: T.handle, b: T.handle, c: T.handle, d: T.ha
 
 
 @Ts.prim_func
-def square_sum(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [16, 256, 256])
-    C = T.match_buffer(c, [16])
-
+def square_sum(A: T.Buffer([16, 256, 256]), C: T.Buffer([16])) -> None:
     for b0, i0, j0 in T.grid(16, 256, 256):
         with Ts.sblock("C"):
             b, i, j = Ts.axis.remap("SRR", [b0, i0, j0])
@@ -163,9 +158,7 @@ def square_sum(a: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def square_sum_rfactor(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [16, 256, 256])
-    C = T.match_buffer(c, [16])
+def square_sum_rfactor(A: T.Buffer([16, 256, 256]), C: T.Buffer([16])) -> None:
     C_rf = Ts.sblock_alloc_buffer([16, 256])
 
     for i0, i1, i2 in T.grid(16, 256, 256):
@@ -184,9 +177,7 @@ def square_sum_rfactor(a: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def transformed_square_sum_square_root(a: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, [16, 256, 256])
-    D = T.match_buffer(d, [16])
+def transformed_square_sum_square_root(A: T.Buffer([16, 256, 256]), D: T.Buffer([16])) -> None:
     C = Ts.sblock_alloc_buffer([16])
 
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 65536, 1):
@@ -208,9 +199,7 @@ def transformed_square_sum_square_root(a: T.handle, d: T.handle) -> None:
 
 
 @Ts.prim_func
-def square_sum_square_root_rfactor(a: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, [16, 256, 256])
-    D = T.match_buffer(d, [16])
+def square_sum_square_root_rfactor(A: T.Buffer([16, 256, 256]), D: T.Buffer([16])) -> None:
     C = Ts.sblock_alloc_buffer([16])
     C_rf = Ts.sblock_alloc_buffer([1, 16])
 
@@ -237,9 +226,9 @@ def square_sum_square_root_rfactor(a: T.handle, d: T.handle) -> None:
 
 
 @Ts.prim_func
-def transformed_square_sum_square_root_factor_one_1(a: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, [16, 256, 256])
-    D = T.match_buffer(d, [16])
+def transformed_square_sum_square_root_factor_one_1(
+    A: T.Buffer([16, 256, 256]), D: T.Buffer([16])
+) -> None:
     C = Ts.sblock_alloc_buffer([16])
 
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 65536, 1):
@@ -284,9 +273,9 @@ def square_sum_square_root_factor_one_1_rfactor(
 
 
 @Ts.prim_func
-def transformed_square_sum_square_root_factor_one_2(a: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, [16, 256, 256])
-    D = T.match_buffer(d, [16])
+def transformed_square_sum_square_root_factor_one_2(
+    A: T.Buffer([16, 256, 256]), D: T.Buffer([16])
+) -> None:
     C = Ts.sblock_alloc_buffer([16])
 
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 1, 65536):
@@ -331,10 +320,7 @@ def square_sum_square_root_factor_one_2_rfactor(
 
 
 @Ts.prim_func
-def square_sum_with_annotation(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [16, 256, 256])
-    C = T.match_buffer(c, [16])
-
+def square_sum_with_annotation(A: T.Buffer([16, 256, 256]), C: T.Buffer([16])) -> None:
     for b0, i0, j0 in T.grid(16, 256, 256):
         with Ts.sblock("C"):
             Ts.sblock_attr({"test_annotation": 1})
@@ -345,9 +331,7 @@ def square_sum_with_annotation(a: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def square_sum_with_annotation_rfactor(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [16, 256, 256])
-    C = T.match_buffer(c, [16])
+def square_sum_with_annotation_rfactor(A: T.Buffer([16, 256, 256]), C: T.Buffer([16])) -> None:
     C_rf = Ts.sblock_alloc_buffer([16, 256])
 
     for i0, i1, i2 in T.grid(16, 256, 256):
@@ -368,10 +352,7 @@ def square_sum_with_annotation_rfactor(a: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def element_wise(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128, 128))
-
+def element_wise(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -379,10 +360,7 @@ def element_wise(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128,))
-
+def rowsum(A: T.Buffer((128, 128)), B: T.Buffer((128,))) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -392,10 +370,7 @@ def rowsum(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum_not_quasi_affine(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128,))
-
+def rowsum_not_quasi_affine(A: T.Buffer((128, 128)), B: T.Buffer((128,))) -> None:
     for i, k in T.grid(128, 16):
         with Ts.sblock("B"):
             vi = Ts.axis.S(128, i)
@@ -406,10 +381,7 @@ def rowsum_not_quasi_affine(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum_not_dominant(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128, 128))
-
+def rowsum_not_dominant(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -419,10 +391,7 @@ def rowsum_not_dominant(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum_not_serial(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128,))
-
+def rowsum_not_serial(A: T.Buffer((128, 128)), B: T.Buffer((128,))) -> None:
     for i in T.serial(0, 128):
         for k in T.parallel(0, 128):
             with Ts.sblock("B"):
@@ -433,10 +402,7 @@ def rowsum_not_serial(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum_wrong_reduce_pattern1(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128,))
-
+def rowsum_wrong_reduce_pattern1(A: T.Buffer((128, 128)), B: T.Buffer((128,))) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -446,10 +412,7 @@ def rowsum_wrong_reduce_pattern1(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum_wrong_reduce_pattern2(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128,))
-
+def rowsum_wrong_reduce_pattern2(A: T.Buffer((128, 128)), B: T.Buffer((128,))) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -459,10 +422,7 @@ def rowsum_wrong_reduce_pattern2(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum_init_not_bufferstore(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128,))
-
+def rowsum_init_not_bufferstore(A: T.Buffer((128, 128)), B: T.Buffer((128,))) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -473,10 +433,7 @@ def rowsum_init_not_bufferstore(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum_transformed(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128,))
-
+def rowsum_transformed(A: T.Buffer((128, 128)), B: T.Buffer((128,))) -> None:
     for io, ii_ko_fused, ki in T.grid(32, 128, 4):
         with Ts.sblock("B"):
             vi = Ts.axis.S(128, io * 4 + T.floordiv(ii_ko_fused, 32))
@@ -487,10 +444,7 @@ def rowsum_transformed(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum_zero_dim(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128])
-    B = T.match_buffer(b, [])
-
+def rowsum_zero_dim(A: T.Buffer([128]), B: T.Buffer([])) -> None:
     for k0 in range(128):
         with Ts.sblock("B"):
             k = Ts.axis.R(128, k0)
@@ -500,9 +454,7 @@ def rowsum_zero_dim(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum_zero_dim_rfactor(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128])
-    B = T.match_buffer(b, [])
+def rowsum_zero_dim_rfactor(A: T.Buffer([128]), B: T.Buffer([])) -> None:
     B_rf = Ts.sblock_alloc_buffer([128], elem_offset=T.int64(0))
 
     for i in range(128):
@@ -519,9 +471,9 @@ def rowsum_zero_dim_rfactor(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum_predicate(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def rowsum_predicate(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     for i, k_0, k_1 in T.grid(128, 13, 10):
         with Ts.sblock("B"):
             Ts.where(k_0 * 10 + k_1 < 128)
@@ -533,9 +485,9 @@ def rowsum_predicate(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum_predicate_rfactor(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
+def rowsum_predicate_rfactor(
+    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+) -> None:
     B_rf = Ts.sblock_alloc_buffer([128, 13], dtype="float32")
     for i, k_0, k_1 in T.grid(128, 13, 10):
         with Ts.sblock("B_rf"):
@@ -553,12 +505,10 @@ def rowsum_predicate_rfactor(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def multiple_reduction_blocks(a: T.handle, f: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16, 16))
+def multiple_reduction_blocks(A: T.Buffer((16, 16, 16)), F: T.Buffer((16, 16))) -> None:
     C = Ts.sblock_alloc_buffer((16, 16))
     D = Ts.sblock_alloc_buffer((16, 16))
     E = Ts.sblock_alloc_buffer((16, 16))
-    F = T.match_buffer(f, (16, 16))
 
     for i in T.serial(0, 16):
         for j1 in T.serial(0, 16):
@@ -594,12 +544,11 @@ def multiple_reduction_blocks(a: T.handle, f: T.handle) -> None:
 
 
 @Ts.prim_func
-def multiple_reduction_blocks_rfactor(a: T.handle, f: T.handle) -> None:
-    A = T.match_buffer(a, [16, 16, 16])
+def multiple_reduction_blocks_rfactor(A: T.Buffer([16, 16, 16]), F: T.Buffer([16, 16])) -> None:
     C = Ts.sblock_alloc_buffer([16, 16])
     D = Ts.sblock_alloc_buffer([16, 16])
     E = Ts.sblock_alloc_buffer([16, 16])
-    F = T.match_buffer(f, [16, 16])
+
     C_rf = Ts.sblock_alloc_buffer([16, 16, 4])
 
     for i, j1, k1o, k1i in T.grid(16, 16, 4, 4):

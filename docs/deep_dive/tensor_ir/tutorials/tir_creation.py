@@ -169,14 +169,12 @@ class ConciseModuleFromPython:
 
 print(tvm_ffi.structural_equal(ConciseModule, ConciseModuleFromPython))
 
-
 ######################################################################
 # TensorIR Function with Dynamic Shapes
 # *************************************
 # Despite TVMScript not being executed by a Python interpreter, limited
 # interaction with Python is feasible. For instance, Python variables can
 # be used to ascertain the shape and data type of a TensorIR.
-
 
 # Dynamic shape definition
 M = T.dynamic("M", "int32")
@@ -187,11 +185,9 @@ K = T.dynamic("K", "int32")
 @I.ir_module
 class DynamicShapeModule:
     @Ts.prim_func
-    def mm_relu(a: T.handle, b: T.handle, c: T.handle):
+    def mm_relu(A: T.Buffer([M, K], dtype), B: T.Buffer([K, N], dtype), C: T.Buffer([M, N], dtype)):
         # Bind the input buffers with the dynamic shapes
-        A = T.match_buffer(a, [M, K], dtype)
-        B = T.match_buffer(b, [K, N], dtype)
-        C = T.match_buffer(c, [M, N], dtype)
+
         Y = T.alloc_buffer((M, N), dtype)
         for i, j, k in T.grid(M, N, K):
             with Ts.sblock("Y"):

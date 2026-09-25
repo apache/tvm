@@ -42,10 +42,10 @@ from ._kernel_common import (
     _alloc_tile_walk_state,
     _causal_mask,
     _causal_or_sliding_cross_mask,
-    _declare_length_info,
     _get_kv_chunk_len,
     _get_prefill_kernel_config,
     _get_seq_offset,
+    _length_info_buffer,
     _make_prefill_macros,
     _rope,
     _schedule_prefill_kernel,
@@ -81,16 +81,16 @@ def _attention_prefill_cpu(
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
     @Ts.prim_func
     def batch_prefill_paged_kv_cpu(
-        var_q: T.handle, # [total_len, h_q, d]
-        var_q_indptr: T.handle, # [batch_size + 1]
-        var_pages: T.handle, # [max_num_pages, 2, h_kv, page_size, d]
-        var_page_indptr: T.handle, # [batch_size + 1]
-        var_page_values: T.handle, # [nnz_pages]
-        var_length_info: T.handle, # [b] when sliding window = False, or otherwise [3, b]
-        var_k_rope_pos_offset: T.handle, # [b]
-        var_q_rope_position: T.handle, # [total_len]
-        var_output: T.handle, # [total_len, h_q, d]
-        var_lse: T.handle, # [total_len, h_q]
+        q: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        pages: T.Buffer((max_num_pages, 2, h_kv, page_size, d), dtype), # [max_num_pages, 2, h_kv, page_size, d]
+        page_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
+        page_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
+        length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
+        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
+        q_rope_position: T.Buffer((total_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_len]
+        output: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        lse: T.Buffer((total_len, h_q), 'float32'), # [total_len, h_q]
         causal: T.int32,
         rotary_mode: T.int32,
         rope_scale: T.float32,
@@ -99,15 +99,7 @@ def _attention_prefill_cpu(
     ):
         T.func_attr({"global_symbol": global_symbol})
 
-        q = T.match_buffer(var_q, (total_len, h_q, d), dtype)
-        q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
-        pages = T.match_buffer(var_pages, (max_num_pages, 2, h_kv, page_size, d), dtype)
-        page_indptr = T.match_buffer(var_page_indptr, (batch_size + 1,), "int32", elem_offset=page_indptr_elem_offset)
-        page_values = T.match_buffer(var_page_values, (nnz_pages,), "int32", elem_offset=page_values_elem_offset)
-        k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
-        q_rope_position = T.match_buffer(var_q_rope_position, (total_len,), "int32", elem_offset=q_rope_position_elem_offset)
-        output = T.match_buffer(var_output, (total_len, h_q, d), dtype)
-        lse = T.match_buffer(var_lse, (total_len, h_q), "float32")  # pylint: disable=unused-variable
+          # pylint: disable=unused-variable
         # The length information of the sequences.
         # - It is in shape `(3, batch_size)` when sliding window is enabled.
         #   For a sequence "i", location
@@ -116,8 +108,6 @@ def _attention_prefill_cpu(
         #   - "(2, i)" is the attn sink length of the sequence.
         # - It is in shape `(batch_size,)` when sliding window is disabled,
         #   denoting the "last_page_len".
-        length_info = _declare_length_info(var_length_info, batch_size, sliding_window, length_info_elem_offset)
-
 
         for h_qo in T.serial(h_q):
             for b_idx in T.serial(batch_size):
@@ -143,7 +133,6 @@ def _attention_prefill_cpu(
                         _get_kv_chunk_len(cur_page_indptr_end - cur_page_indptr_begin, page_size, b_idx, length_info, sliding_window),
                         0
                     )
-
 
                     for q_idx in T.serial(q_indptr[b_idx + 1] - q_indptr[b_idx]):
                         #init m, d, O
@@ -204,7 +193,6 @@ def _attention_prefill_cpu(
                                 for d_idx in T.serial(d):
                                     O_local[d_idx] = O_local[d_idx] * scale_O[d_idx]
 
-
                                 for d_idx in T.serial(d):
                                     O_local[d_idx] += V_local[d_idx] * factor[0]
                         # Store Output
@@ -213,7 +201,6 @@ def _attention_prefill_cpu(
                             output[curl_q, h_qo, d_idx] = O_local[d_idx]
                         lse[curl_q, h_qo] = m_val[0] + T.log2(d_val[0])
     return batch_prefill_paged_kv_cpu
-
 
 def _attention_prefill(
     h_kv,
@@ -248,16 +235,16 @@ def _attention_prefill(
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
     @Ts.prim_func
     def batch_prefill_paged_kv(
-        var_q: T.handle, # [total_len, h_q, d]
-        var_q_indptr: T.handle, # [batch_size + 1]
-        var_pages: T.handle, # [max_num_pages, 2, h_kv, page_size, d]
-        var_page_indptr: T.handle, # [batch_size + 1]
-        var_page_values: T.handle, # [nnz_pages]
-        var_length_info: T.handle, # [b] when sliding window = False, or otherwise [3, b]
-        var_k_rope_pos_offset: T.handle, # [b]
-        var_q_rope_position: T.handle, # [total_len]
-        var_output: T.handle, # [total_len, h_q, d]
-        var_lse: T.handle, # [total_len, h_q]
+        q: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        pages: T.Buffer((max_num_pages, 2, h_kv, page_size, d), dtype, elem_offset=pages_elem_offset), # [max_num_pages, 2, h_kv, page_size, d]
+        page_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
+        page_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
+        length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
+        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
+        q_rope_position: T.Buffer((total_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_len]
+        output: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        lse: T.Buffer((total_len, h_q), 'float32'), # [total_len, h_q]
         causal: T.int32,
         rotary_mode: T.int32,
         rope_scale: T.float32,
@@ -266,15 +253,7 @@ def _attention_prefill(
     ):
         T.func_attr({"global_symbol": global_symbol})
 
-        q = T.match_buffer(var_q, (total_len, h_q, d), dtype)
-        q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
-        pages = T.match_buffer(var_pages, (max_num_pages, 2, h_kv, page_size, d), dtype, elem_offset=pages_elem_offset)
-        page_indptr = T.match_buffer(var_page_indptr, (batch_size + 1,), "int32", elem_offset=page_indptr_elem_offset)
-        page_values = T.match_buffer(var_page_values, (nnz_pages,), "int32", elem_offset=page_values_elem_offset)
-        k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
-        q_rope_position = T.match_buffer(var_q_rope_position, (total_len,), "int32", elem_offset=q_rope_position_elem_offset)
-        output = T.match_buffer(var_output, (total_len, h_q, d), dtype)
-        lse = T.match_buffer(var_lse, (total_len, h_q), "float32")  # pylint: disable=unused-variable
+          # pylint: disable=unused-variable
         # The length information of the sequences.
         # - It is in shape `(3, batch_size)` when sliding window is enabled.
         #   For a sequence "i", location
@@ -283,7 +262,6 @@ def _attention_prefill(
         #   - "(2, i)" is the attn sink length of the sequence.
         # - It is in shape `(batch_size,)` when sliding window is disabled,
         #   denoting the "last_page_len".
-        length_info = _declare_length_info(var_length_info, batch_size, sliding_window, length_info_elem_offset)
 
         # kernel code
         for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
@@ -391,8 +369,6 @@ def _attention_prefill(
     )
     return sch.mod["main"].with_attr("tirx.is_scheduled", True)
 
-
-
 def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, sm_scale=1.0):
     _, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d, dtype, target)
     init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, tile_y, bdx, num_warps, group_size)
@@ -402,17 +378,14 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
     kv_len = T.dynamic("kv_len", "int32")
     @Ts.prim_func
     def batch_sequence_prefill_kv(  # pylint: disable=too-many-branches
-        var_q: T.handle, # [total_len, h_q, d]
-        var_k: T.handle, # [total_len, h_kv, d]
-        var_v: T.handle, # [total_len, h_kv, d]
-        var_output: T.handle, # [total_len, h_q, d]
-        var_lse: T.handle # [total_len, h_q]
+        q: T.Buffer((batch_size, qo_len, h_q, d), dtype), # [total_len, h_q, d]
+        k: T.Buffer((batch_size, kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
+        v: T.Buffer((batch_size, kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
+        output: T.Buffer((batch_size, qo_len, h_q, d), dtype), # [total_len, h_q, d]
+        lse: T.Buffer((batch_size, qo_len, h_q), dtype) # [total_len, h_q]
     ):
-        q = T.match_buffer(var_q, (batch_size, qo_len, h_q, d), dtype)
-        k = T.match_buffer(var_k, (batch_size, kv_len, h_kv, d), dtype)
-        v = T.match_buffer(var_v, (batch_size, kv_len, h_kv, d), dtype)
-        output = T.match_buffer(var_output, (batch_size, qo_len, h_q, d), dtype)
-        lse = T.match_buffer(var_lse, (batch_size, qo_len, h_q), dtype)  # pylint: disable=unused-variable
+
+          # pylint: disable=unused-variable
 
         batch_tiles: T.let[T.int32] = T.ceildiv(qo_len * group_size, tile_x)
 
@@ -507,8 +480,6 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
     sch = _schedule_prefill_kernel(sch, LOAD_VEC, bdx, num_warps, tile_x, tile_y, tile_z, False, False)
     return sch.mod["main"].with_attr("tirx.is_scheduled", True)
 
-
-
 def _attention_sequence_prefill_with_mask(
     h_kv, h_q, d, dtype, target: Target, sm_scale=1.0, *,
     mask_mode: Literal["padded", "causal_padded_left"] = "padded",
@@ -569,19 +540,13 @@ def _attention_sequence_prefill_with_mask(
     kv_len = T.dynamic("kv_len", "int32")
     @Ts.prim_func
     def batch_sequence_prefill_kv_masked(  # pylint: disable=too-many-branches
-        var_q: T.handle, # [batch_size, qo_len, h_q, d]
-        var_k: T.handle, # [batch_size, kv_len, h_kv, d]
-        var_v: T.handle, # [batch_size, kv_len, h_kv, d]
-        var_valid_lens: T.handle, # [batch_size], int32
-        var_output: T.handle, # [batch_size, qo_len, h_q, d]
-        var_lse: T.handle # [batch_size, qo_len, h_q]
+        q: T.Buffer((batch_size, qo_len, h_q, d), dtype), # [batch_size, qo_len, h_q, d]
+        k: T.Buffer((batch_size, kv_len, h_kv, d), dtype), # [batch_size, kv_len, h_kv, d]
+        v: T.Buffer((batch_size, kv_len, h_kv, d), dtype), # [batch_size, kv_len, h_kv, d]
+        valid_lens: T.Buffer((batch_size,), 'int32'), # [batch_size], int32
+        output: T.Buffer((batch_size, qo_len, h_q, d), dtype), # [batch_size, qo_len, h_q, d]
+        lse: T.Buffer((batch_size, qo_len, h_q), dtype) # [batch_size, qo_len, h_q]
     ):
-        q = T.match_buffer(var_q, (batch_size, qo_len, h_q, d), dtype)
-        k = T.match_buffer(var_k, (batch_size, kv_len, h_kv, d), dtype)
-        v = T.match_buffer(var_v, (batch_size, kv_len, h_kv, d), dtype)
-        valid_lens = T.match_buffer(var_valid_lens, (batch_size,), "int32")
-        output = T.match_buffer(var_output, (batch_size, qo_len, h_q, d), dtype)
-        lse = T.match_buffer(var_lse, (batch_size, qo_len, h_q), dtype)
 
         batch_tiles: T.let[T.int32] = T.ceildiv(qo_len * group_size, tile_x)
 
@@ -673,8 +638,6 @@ def _attention_sequence_prefill_with_mask(
     sch = _schedule_prefill_kernel(sch, LOAD_VEC, bdx, num_warps, tile_x, tile_y, tile_z, False, False)
     return sch.mod["main"].with_attr("tirx.is_scheduled", True)
 
-
-
 def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[str, Any]):
     group_size = h_q // h_kv
 
@@ -687,15 +650,15 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
     @Ts.prim_func
     def batch_prefill_ragged_kv(  # pylint: disable=too-many-branches
-        var_q: T.handle,  # [total_len, h_q, d_qk]
-        var_q_indptr: T.handle,  # [batch_size + 1]
-        var_k: T.handle,  # [total_len, h_kv, d_qk]
-        var_v: T.handle,  # [total_len, h_kv, d_v]
-        var_kv_indptr: T.handle,  # [batch_size + 1]
-        var_q_rope_position: T.handle,  # [total_q_len]
-        var_k_rope_pos_offset: T.handle,  # [b]
-        var_output: T.handle,  # [total_len, h_q, d_v]
-        var_lse: T.handle,  # [total_len, h_q]
+        q: T.Buffer((qo_len, h_q, d_qk), dtype),  # [total_len, h_q, d_qk]
+        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
+        k: T.Buffer((kv_len, h_kv, d_qk), dtype),  # [total_len, h_kv, d_qk]
+        v: T.Buffer((kv_len, h_kv, d_v), dtype),  # [total_len, h_kv, d_v]
+        kv_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=kv_indptr_elem_offset),  # [batch_size + 1]
+        q_rope_position: T.Buffer((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset),  # [total_q_len]
+        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),  # [b]
+        output: T.Buffer((qo_len, h_q, d_v), dtype),  # [total_len, h_q, d_v]
+        lse: T.Buffer((qo_len, h_q), 'float32'),  # [total_len, h_q]
         causal: T.int32,
         rotary_mode: T.int32,
         rope_scale: T.float32,
@@ -703,15 +666,7 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
         sm_scale: T.float32,
     ):
 
-        q = T.match_buffer(var_q, (qo_len, h_q, d_qk), dtype)
-        q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
-        k = T.match_buffer(var_k, (kv_len, h_kv, d_qk), dtype)
-        v = T.match_buffer(var_v, (kv_len, h_kv, d_v), dtype)
-        kv_indptr = T.match_buffer(var_kv_indptr, (batch_size + 1,), "int32", elem_offset=kv_indptr_elem_offset)
-        q_rope_position = T.match_buffer(var_q_rope_position, (qo_len,), "int32", elem_offset=q_rope_position_elem_offset)
-        k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
-        output = T.match_buffer(var_output, (qo_len, h_q, d_v), dtype)
-        lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")  # pylint: disable=unused-variable
+          # pylint: disable=unused-variable
 
         for b in T.serial(batch_size):
             with Ts.sblock("attn"):
@@ -791,8 +746,6 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
                         lse[q_indptr[b] + q_idx, h] = m_new[h] + T.log2(d_new[h])
     return batch_prefill_ragged_kv
 
-
-
 def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[str, Any], target: Target):
     NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d_qk, dtype, target, d_v=d_v)
     init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, _, advance_tile_batch, paged_store_output_lse, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, d_v, bdx, num_warps, group_size)
@@ -806,15 +759,15 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
     @Ts.prim_func
     def batch_prefill_ragged_kv(  # pylint: disable=too-many-branches
-        var_q: T.handle, # [total_len, h_q, d_qk]
-        var_q_indptr: T.handle, # [batch_size + 1]
-        var_k: T.handle, # [total_len, h_kv, d_qk]
-        var_v: T.handle, # [total_len, h_kv, d_v]
-        var_kv_indptr: T.handle, # [batch_size + 1]
-        var_q_rope_position: T.handle, # [total_q_len]
-        var_k_rope_pos_offset: T.handle, # [b]
-        var_output: T.handle, # [total_len, h_q, d_v]
-        var_lse: T.handle, # [total_len, h_q]
+        q: T.Buffer((qo_len, h_q, d_qk), dtype), # [total_len, h_q, d_qk]
+        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        k: T.Buffer((kv_len, h_kv, d_qk), dtype), # [total_len, h_kv, d_qk]
+        v: T.Buffer((kv_len, h_kv, d_v), dtype), # [total_len, h_kv, d_v]
+        kv_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=kv_indptr_elem_offset), # [batch_size + 1]
+        q_rope_position: T.Buffer((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_q_len]
+        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
+        output: T.Buffer((qo_len, h_q, d_v), dtype), # [total_len, h_q, d_v]
+        lse: T.Buffer((qo_len, h_q), 'float32'), # [total_len, h_q]
         causal: T.int32,
         rotary_mode: T.int32,
         rope_scale: T.float32,
@@ -822,15 +775,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
         sm_scale: T.float32
     ):
 
-        q = T.match_buffer(var_q, (qo_len, h_q, d_qk), dtype)
-        q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
-        k = T.match_buffer(var_k, (kv_len, h_kv, d_qk), dtype)
-        v = T.match_buffer(var_v, (kv_len, h_kv, d_v), dtype)
-        kv_indptr = T.match_buffer(var_kv_indptr, (batch_size + 1,), "int32", elem_offset=kv_indptr_elem_offset)
-        q_rope_position = T.match_buffer(var_q_rope_position, (qo_len,), "int32", elem_offset=q_rope_position_elem_offset)
-        k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
-        output = T.match_buffer(var_output, (qo_len, h_q, d_v), dtype)
-        lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")  # pylint: disable=unused-variable
+          # pylint: disable=unused-variable
 
         # kernel code
         for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
@@ -923,8 +868,6 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
     sch = _schedule_prefill_kernel(sch, LOAD_VEC, bdx, num_warps, tile_x, d_v, tile_z, True, False)
     return sch.mod["main"].with_attr("tirx.is_scheduled", True)
 
-
-
 def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, target: Target, page_size: int = 16):
     d_qk = d_latent + d_rope
     NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(1, h_q, d_qk, dtype, target, d_v=d_latent, merged_kv=True)
@@ -946,26 +889,20 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
     @Ts.prim_func
     def batch_prefill_paged_kv_mla(
-        var_q: T.handle, # [total_len, h_q, d_qk]
-        var_q_indptr: T.handle, # [batch_size + 1]
-        var_pages: T.handle, # [max_num_pages, page_size, d_qk]
-        var_page_indptr: T.handle, # [batch_size + 1]
-        var_page_values: T.handle, # [nnz_pages]
-        var_length_info: T.handle, # [b] when sliding window = False, or otherwise [3, b]
-        var_output: T.handle, # [total_len, h_q, d_latent]
-        var_lse: T.handle, # [total_len, h_q]
+        q: T.Buffer((total_len, h_q, d_qk), dtype), # [total_len, h_q, d_qk]
+        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        pages: T.Buffer((max_num_pages, page_size, d_qk), dtype, elem_offset=pages_elem_offset), # [max_num_pages, page_size, d_qk]
+        page_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
+        page_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
+        length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
+        output: T.Buffer((total_len, h_q, d_latent), dtype), # [total_len, h_q, d_latent]
+        lse: T.Buffer((total_len, h_q), 'float32'), # [total_len, h_q]
         causal: T.int32,
         sm_scale: T.float32,
     ):
         T.func_attr({"global_symbol": global_symbol})
 
-        q = T.match_buffer(var_q, (total_len, h_q, d_qk), dtype)
-        q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
-        pages = T.match_buffer(var_pages, (max_num_pages, page_size, d_qk), dtype, elem_offset=pages_elem_offset)
-        page_indptr = T.match_buffer(var_page_indptr, (batch_size + 1,), "int32", elem_offset=page_indptr_elem_offset)
-        page_values = T.match_buffer(var_page_values, (nnz_pages,), "int32", elem_offset=page_values_elem_offset)
-        output = T.match_buffer(var_output, (total_len, h_q, d_latent), dtype)
-        lse = T.match_buffer(var_lse, (total_len, h_q), "float32")  # pylint: disable=unused-variable
+          # pylint: disable=unused-variable
         # The length information of the sequences.
         # - It is in shape `(3, batch_size)` when sliding window is enabled.
         #   For a sequence "i", location
@@ -974,7 +911,6 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
         #   - "(2, i)" is the attn sink length of the sequence.
         # - It is in shape `(batch_size,)` when sliding window is disabled,
         #   denoting the "last_page_len".
-        length_info = _declare_length_info(var_length_info, batch_size, sliding_window, length_info_elem_offset)
 
         # kernel code
         for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):

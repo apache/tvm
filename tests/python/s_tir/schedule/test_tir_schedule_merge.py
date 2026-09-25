@@ -32,10 +32,7 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def elementwise(a: T.handle, c: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    C = T.match_buffer(c, (128, 128))
-    D = T.match_buffer(d, (64, 64))
+def elementwise(A: T.Buffer((128, 128)), C: T.Buffer((128, 128)), D: T.Buffer((64, 64))) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -60,10 +57,9 @@ def elementwise(a: T.handle, c: T.handle, d: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_merged(a: T.handle, c: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    C = T.match_buffer(c, (128, 128))
-    D = T.match_buffer(d, (64, 64))
+def elementwise_merged(
+    A: T.Buffer((128, 128)), C: T.Buffer((128, 128)), D: T.Buffer((64, 64))
+) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -89,10 +85,9 @@ def elementwise_merged(a: T.handle, c: T.handle, d: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_merged2(a: T.handle, c: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    C = T.match_buffer(c, (128, 128))
-    D = T.match_buffer(d, (64, 64))
+def elementwise_merged2(
+    A: T.Buffer((128, 128)), C: T.Buffer((128, 128)), D: T.Buffer((64, 64))
+) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -141,9 +136,7 @@ def test_merge2():
 
 def test_merge_fail_not_only_child():
     @Ts.prim_func
-    def elementwise_with_seq(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128, 128))
-        C = T.match_buffer(c, (128, 128, 128))
+    def elementwise_with_seq(A: T.Buffer((128, 128, 128)), C: T.Buffer((128, 128, 128))) -> None:
         B = Ts.sblock_alloc_buffer((128, 128, 128))
         D = Ts.sblock_alloc_buffer((128, 128, 128))
         for i, j in T.grid(128, 128):
@@ -172,9 +165,9 @@ def test_merge_fail_not_only_child():
 
 def test_merge_fail_not_start_with_zero():
     @Ts.prim_func
-    def elementwise_loops_not_start_with_zero(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128, 128))
-        C = T.match_buffer(c, (128, 128, 128))
+    def elementwise_loops_not_start_with_zero(
+        A: T.Buffer((128, 128, 128)), C: T.Buffer((128, 128, 128))
+    ) -> None:
         B = Ts.sblock_alloc_buffer((128, 128, 128))
         for i, j in T.grid(128, 128):
             for k in T.serial(1, 128):
@@ -198,9 +191,9 @@ def test_merge_fail_not_start_with_zero():
 
 def test_merge_fail_not_same_extent():
     @Ts.prim_func
-    def elementwise_loops_not_same_extent(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128, 128))
-        C = T.match_buffer(c, (128, 128, 128))
+    def elementwise_loops_not_same_extent(
+        A: T.Buffer((128, 128, 128)), C: T.Buffer((128, 128, 128))
+    ) -> None:
         B = Ts.sblock_alloc_buffer((64, 128, 128))
         for i, j in T.grid(64, 128):
             for k in T.serial(0, 128):
@@ -224,9 +217,9 @@ def test_merge_fail_not_same_extent():
 
 def test_merge_fail_not_same_level():
     @Ts.prim_func
-    def elementwise_not_same_level(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128, 128))
-        C = T.match_buffer(c, (128, 128, 128))
+    def elementwise_not_same_level(
+        A: T.Buffer((128, 128, 128)), C: T.Buffer((128, 128, 128))
+    ) -> None:
         B = Ts.sblock_alloc_buffer((128, 128, 128))
         for i, j in T.grid(128, 128):
             for k in T.serial(0, 128):
@@ -250,9 +243,9 @@ def test_merge_fail_not_same_level():
 
 def test_merge_fail_with_different_scope():
     @Ts.prim_func
-    def elementwise_with_different_scope(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128, 128))
-        C = T.match_buffer(c, (128, 128, 128))
+    def elementwise_with_different_scope(
+        A: T.Buffer((128, 128, 128)), C: T.Buffer((128, 128, 128))
+    ) -> None:
         B = Ts.sblock_alloc_buffer((128, 128, 128))
         with Ts.sblock("A"):
             for i, j in T.grid(128, 128):

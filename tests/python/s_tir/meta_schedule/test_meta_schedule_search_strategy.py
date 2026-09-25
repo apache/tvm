@@ -38,11 +38,9 @@ MATMUL_M = 32
 @tvm.script.ir_module
 class Matmul:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None: # type: ignore
+    def main(A: T.Buffer((32, 32), 'float32'), B: T.Buffer((32, 32), 'float32'), C: T.Buffer((32, 32), 'float32')) -> None: # type: ignore
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, (32, 32), "float32")
-        B = T.match_buffer(b, (32, 32), "float32")
-        C = T.match_buffer(c, (32, 32), "float32")
+
         for i, j, k in T.grid(32, 32, 32):
             with Ts.sblock("matmul"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -50,15 +48,12 @@ class Matmul:
                     C[vi, vj] = 0.0 # type: ignore
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-
 @tvm.script.ir_module
 class OtherBlock:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None: # type: ignore
+    def main(A: T.Buffer((32, 32), 'float32'), B: T.Buffer((32, 32), 'float32'), C: T.Buffer((32, 32), 'float32')) -> None: # type: ignore
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, (32, 32), "float32")
-        B = T.match_buffer(b, (32, 32), "float32")
-        C = T.match_buffer(c, (32, 32), "float32")
+
         for i, j, k in T.grid(32, 32, 32):
             with Ts.sblock("other"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])

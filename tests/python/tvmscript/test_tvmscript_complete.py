@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
 import tvm.testing
 from tvm.ir import Range
 from tvm.script import s_tir as Ts
@@ -23,11 +22,7 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
+def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("update"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -37,11 +32,9 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul_original(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
+def matmul_original(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     for i, j in T.grid(32, 32):
         with Ts.sblock("init"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -59,11 +52,9 @@ def matmul_original(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_with_root(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
+def elementwise_with_root(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     with Ts.sblock():
         for i, j in T.grid(128, 128):
             with Ts.sblock():
@@ -75,11 +66,9 @@ def elementwise_with_root(a: T.handle, b: T.handle, c: T.handle) -> None:
                 C[vi, vj] = B[vi, vj] + T.float32(1)
 
 
-def func_with_opaque_block(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
+def func_with_opaque_block(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     with Ts.sblock():
         with Ts.sblock():
             B[0, 0] = A[0, 0] + T.float32(1)
@@ -90,11 +79,9 @@ def func_with_opaque_block(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def func_with_part_access_region(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
+def func_with_part_access_region(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     with Ts.sblock():
         for i, j in T.grid(128, 128):
             with Ts.sblock():
@@ -200,9 +187,9 @@ def test_complete_part_region():
 
 
 @Ts.prim_func
-def func_with_bufferslice_indices(data: T.handle, index: T.handle) -> None:
-    data_buf = T.match_buffer(data, (16, 16), "float32")
-    index_buf = T.match_buffer(index, (1,), "int32")
+def func_with_bufferslice_indices(
+    data_buf: T.Buffer((16, 16), "float32"), index_buf: T.Buffer((1,), "int32")
+) -> None:
     out_buf = Ts.sblock_alloc_buffer((16, 16), "float32")
 
     for i, j in T.grid(16, 16):
@@ -212,9 +199,10 @@ def func_with_bufferslice_indices(data: T.handle, index: T.handle) -> None:
 
 
 @Ts.prim_func
-def expected_bufferslice_indices(data: T.handle, index: T.handle) -> None:
-    index_buf = T.match_buffer(index, [1], dtype="int32", elem_offset=0, align=64, offset_factor=1)
-    data_buf = T.match_buffer(data, [16, 16], elem_offset=0, align=64, offset_factor=1)
+def expected_bufferslice_indices(
+    data_buf: T.Buffer([16, 16], elem_offset=0, align=64, offset_factor=1),
+    index_buf: T.Buffer([1], dtype="int32", elem_offset=0, align=64, offset_factor=1),
+) -> None:
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
@@ -228,9 +216,9 @@ def expected_bufferslice_indices(data: T.handle, index: T.handle) -> None:
 
 
 @Ts.prim_func
-def func_with_recursive_bufferslice_indices(data: T.handle, index: T.handle) -> None:
-    data_buf = T.match_buffer(data, (16, 16), "float32")
-    index_buf = T.match_buffer(index, (1,), "int32")
+def func_with_recursive_bufferslice_indices(
+    data_buf: T.Buffer((16, 16), "float32"), index_buf: T.Buffer((1,), "int32")
+) -> None:
     out_buf = Ts.sblock_alloc_buffer((16, 16), "float32")
 
     for i, j in T.grid(16, 16):
@@ -240,9 +228,10 @@ def func_with_recursive_bufferslice_indices(data: T.handle, index: T.handle) -> 
 
 
 @Ts.prim_func
-def expected_recursive_bufferslice_indices(data: T.handle, index: T.handle) -> None:
-    index_buf = T.match_buffer(index, [1], dtype="int32", elem_offset=0, align=64, offset_factor=1)
-    data_buf = T.match_buffer(data, [16, 16], elem_offset=0, align=64, offset_factor=1)
+def expected_recursive_bufferslice_indices(
+    data_buf: T.Buffer([16, 16], elem_offset=0, align=64, offset_factor=1),
+    index_buf: T.Buffer([1], dtype="int32", elem_offset=0, align=64, offset_factor=1),
+) -> None:
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
@@ -278,26 +267,24 @@ def test_complete_buffer_indices():
 
 
 @Ts.prim_func
-def match_buffer_func(a: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16))
+def match_buffer_func(A: T.Buffer((16, 16))) -> None:
     for i in range(0, 16):
         with Ts.sblock():
-            A0 = T.match_buffer(A[i, 0:16], (16))
+            A0 = Ts.match_buffer(A[i, 0:16], (16))
             with Ts.sblock():
                 for j in range(0, 16):
                     with Ts.sblock():
-                        A1 = T.match_buffer(A0[j], ())
+                        A1 = Ts.match_buffer(A0[j], ())
                         A1[()] = 1.0
 
 
 @Ts.prim_func
-def expected_match_buffer_func(a: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16))
+def expected_match_buffer_func(A: T.Buffer((16, 16))) -> None:
     for i in range(0, 16):
         with Ts.sblock():
             Ts.reads([])
             Ts.writes(A[i, 0:16])
-            A0 = T.match_buffer(A[i, 0:16], (16))
+            A0 = Ts.match_buffer(A[i, 0:16], (16))
             with Ts.sblock():
                 Ts.reads([])
                 Ts.writes(A0[0:16])
@@ -305,7 +292,7 @@ def expected_match_buffer_func(a: T.handle) -> None:
                     with Ts.sblock():
                         Ts.reads([])
                         Ts.writes(A0[j])
-                        A1 = T.match_buffer(A0[j], ())
+                        A1 = Ts.match_buffer(A0[j], ())
                         A1[()] = 1.0
 
 
@@ -317,9 +304,9 @@ def test_complete_match_buffer():
 
 
 @Ts.prim_func
-def alloc_buffer_func(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [2, 2], dtype="float32")
-    B = T.match_buffer(b, [2, 2], dtype="float32")
+def alloc_buffer_func(
+    A: T.Buffer([2, 2], dtype="float32"), B: T.Buffer([2, 2], dtype="float32")
+) -> None:
     C = Ts.sblock_alloc_buffer([2, 2], dtype="float32")
     A[(0, 0)] = T.float32(2)
     C[(0, 0)] = A[(0, 0)] + B[(0, 0)]
@@ -327,9 +314,10 @@ def alloc_buffer_func(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def expect_alloc_buffer_func(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1)
-    B = T.match_buffer(b, [2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1)
+def expect_alloc_buffer_func(
+    A: T.Buffer([2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1),
+    B: T.Buffer([2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1),
+) -> None:
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])

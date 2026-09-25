@@ -73,8 +73,7 @@ def test_ptx_registration():
 
 def test_ptx_prefetch_codegen():
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "float32")
+    def kernel(A: T.Buffer((32,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -88,9 +87,7 @@ def test_ptx_prefetch_codegen():
 
 def test_ptx_ld_st_codegen():
     @T.prim_func
-    def kernel(a_ptr: T.handle, b_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
-        B = T.match_buffer(b_ptr, (32,), "uint32")
+    def kernel(A: T.Buffer((32,), "uint32"), B: T.Buffer((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -115,9 +112,7 @@ def test_ptx_ld_s32_wide_destination_codegen():
     """A signed scalar load may sign-extend into a wider destination register."""
 
     @T.prim_func
-    def kernel(a_ptr: T.handle, out_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "int32")
-        Out = T.match_buffer(out_ptr, (32,), "int64")
+    def kernel(A: T.Buffer((32,), "int32"), Out: T.Buffer((32,), "int64")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -134,8 +129,7 @@ def test_ptx_ld_s32_wide_destination_codegen():
 
 def test_ptx_st_shared_coercion():
     @T.prim_func
-    def kernel(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (1,), "uint32")
+    def kernel(out: T.Buffer((1,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -154,8 +148,7 @@ def test_ptx_st_shared_coercion():
 
 def test_ptx_explicit_cvta():
     @T.prim_func
-    def kernel(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (1,), "uint64")
+    def kernel(out: T.Buffer((1,), "uint64")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -171,8 +164,7 @@ def test_ptx_explicit_cvta():
 
 def test_ptx_red_codegen():
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "uint32")
+    def kernel(A: T.Buffer((1,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -186,8 +178,7 @@ def test_ptx_red_codegen():
 
 def test_ptx_predication_codegen():
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
+    def kernel(A: T.Buffer((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -204,8 +195,7 @@ def test_ptx_predication_codegen():
 
 def test_ptx_red_vector_codegen_and_roundtrip():
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (16,), "uint32")
+    def kernel(A: T.Buffer((16,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -239,8 +229,7 @@ def test_ptx_red_vector_codegen_and_roundtrip():
     with pytest.raises(ValueError, match="already a 32-bit pair"):
 
         @T.prim_func
-        def packed_v8(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        def packed_v8(A: T.Buffer((1,), "uint32")):
             T.device_entry()
             v = T.local_scalar("uint32")
             T.ptx.red.global_.add.noftz.v8.f16x2(A.ptr_to([0]), v, v, v, v, v, v, v, v)
@@ -248,8 +237,7 @@ def test_ptx_red_vector_codegen_and_roundtrip():
     with pytest.raises(AttributeError, match="not a valid modifier"):
 
         @T.prim_func
-        def f32_max(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "float32")
+        def f32_max(A: T.Buffer((1,), "float32")):
             T.device_entry()
             v = T.local_scalar("float32")
             T.ptx.red.global_.max.v2.f32(A.ptr_to([0]), v, v)
@@ -257,8 +245,7 @@ def test_ptx_red_vector_codegen_and_roundtrip():
 
 def test_ptx_atom_bitbucket_codegen_and_roundtrip():
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (16,), "uint32")
+    def kernel(A: T.Buffer((16,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -294,9 +281,7 @@ def test_ptx_atom_bitbucket_codegen_and_roundtrip():
 @requires_nvcc
 def test_ptx_predicated_destination_preserves_old_value():
     @T.prim_func
-    def kernel(a_ptr: T.handle, out_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "float32")
-        Out = T.match_buffer(out_ptr, (32,), "float32")
+    def kernel(A: T.Buffer((1,), "float32"), Out: T.Buffer((32,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -316,9 +301,7 @@ def test_ptx_predicated_destination_preserves_old_value():
 @requires_nvcc
 def test_ptx_predicated_destination_is_undefined_by_default():
     @T.prim_func
-    def kernel(a_ptr: T.handle, out_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "float32")
-        Out = T.match_buffer(out_ptr, (32,), "float32")
+    def kernel(A: T.Buffer((1,), "float32"), Out: T.Buffer((32,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -340,9 +323,7 @@ def test_ptx_string_form_matches_chain():
 
     def make(fn):
         @T.prim_func
-        def kernel(a_ptr: T.handle, b_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (32,), "uint32")
-            B = T.match_buffer(b_ptr, (32,), "uint32")
+        def kernel(A: T.Buffer((32,), "uint32"), B: T.Buffer((32,), "uint32")):
             T.device_entry()
             T.cta_id([1])
             tx = T.thread_id([32])
@@ -699,8 +680,7 @@ def test_ptx_trace_time_errors():
     with pytest.raises(ValueError, match="must have dtype"):
 
         @T.prim_func
-        def bad_value_dtype(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        def bad_value_dtype(A: T.Buffer((1,), "uint32")):
             T.device_entry()
             T.ptx.st.global_.u32(A.ptr_to([0]), T.float64(1.0))
 
@@ -708,8 +688,7 @@ def test_ptx_trace_time_errors():
     with pytest.raises(ValueError, match="missing required modifier"):
 
         @T.prim_func
-        def missing_type(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        def missing_type(A: T.Buffer((1,), "uint32")):
             T.device_entry()
             T.ptx.st.global_(A.ptr_to([0]), T.uint32(0))
 
@@ -718,8 +697,7 @@ def test_ptx_trace_time_errors():
     with pytest.raises(ValueError, match="requires a scope"):
 
         @T.prim_func
-        def acquire_without_scope(out: T.Buffer((1,), "uint32"), a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        def acquire_without_scope(out: T.Buffer((1,), "uint32"), A: T.Buffer((1,), "uint32")):
             T.device_entry()
             T.ptx.ld.global_.acquire.b32(out[0], A.ptr_to([0]))
 
@@ -739,8 +717,7 @@ def test_ptx_destination_errors():
     with pytest.raises(ValueError, match="must have dtype"):
 
         @T.prim_func
-        def wrong_dst_dtype(out: T.Buffer((1,), "float64"), a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        def wrong_dst_dtype(out: T.Buffer((1,), "float64"), A: T.Buffer((1,), "uint32")):
             T.device_entry()
             T.ptx.ld.global_.u32(out[0], A.ptr_to([0]))
 
@@ -749,8 +726,7 @@ def test_ptx_destination_errors():
     with pytest.raises(ValueError, match="writable scalar"):
 
         @T.prim_func
-        def let_destination(out: T.Buffer((1,), "uint32"), a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        def let_destination(out: T.Buffer((1,), "uint32"), A: T.Buffer((1,), "uint32")):
             T.device_entry()
             bound: T.let = out[0] + T.uint32(1)
             T.ptx.ld.global_.b32(bound, A.ptr_to([0]))
@@ -759,8 +735,7 @@ def test_ptx_destination_errors():
     with pytest.raises(ValueError, match="writable scalar"):
 
         @T.prim_func
-        def rvalue_destination(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        def rvalue_destination(A: T.Buffer((1,), "uint32")):
             T.device_entry()
             T.ptx.ld.global_.b32(T.uint32(0), A.ptr_to([0]))
 
@@ -774,8 +749,7 @@ def test_ptx_register_group_codegen():
     """
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "float32")
+    def kernel(A: T.Buffer((4,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -801,8 +775,7 @@ def test_ptx_register_group_errors():
     with pytest.raises(ValueError, match=r"expects \d+ operand"):
 
         @T.prim_func
-        def wrong_arity(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (4,), "uint32")
+        def wrong_arity(A: T.Buffer((4,), "uint32")):
             T.device_entry()
             packed = T.local_scalar("uint64")
             T.ptx.mov.b64(packed, A[0])
@@ -813,8 +786,7 @@ def test_ptx_register_group_errors():
     with pytest.raises(ValueError, match="writable scalar"):
 
         @T.prim_func
-        def non_lvalue_lane(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (4,), "uint32")
+        def non_lvalue_lane(A: T.Buffer((4,), "uint32")):
             T.device_entry()
             packed = T.local_scalar("uint64")
             lo = T.local_scalar("uint32")
@@ -827,8 +799,7 @@ def test_ptx_register_group_errors():
     with pytest.raises(ValueError, match="must have one dtype"):
 
         @T.prim_func
-        def mixed_lane_dtypes(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (4,), "uint32")
+        def mixed_lane_dtypes(A: T.Buffer((4,), "uint32")):
             T.device_entry()
             packed = T.local_scalar("uint64")
             f = T.local_scalar("float32")
@@ -841,8 +812,7 @@ def test_ptx_register_group_errors():
     with pytest.raises(ValueError, match="is ambiguous"):
 
         @T.prim_func
-        def bare_float_literal(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (4,), "uint32")
+        def bare_float_literal(A: T.Buffer((4,), "uint32")):
             T.device_entry()
             packed = T.local_scalar("uint64")
             T.ptx.mov.b64(packed, 1.5, 2.5)
@@ -850,8 +820,7 @@ def test_ptx_register_group_errors():
 
     # An explicit constant is accepted and picks the float32 helper.
     @T.prim_func
-    def typed_literal(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "float32")
+    def typed_literal(A: T.Buffer((4,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -873,8 +842,7 @@ def test_ptx_optional_operand_arity_dispatch():
     """
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "uint32")
+    def kernel(A: T.Buffer((4,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -906,8 +874,7 @@ def test_ptx_mbarrier_92_shapes_render_and_roundtrip():
     """PTX 9.2 noComplete sink/state and wait shapes render exactly."""
 
     @T.prim_func
-    def kernel(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (4,), "uint32")
+    def kernel(out: T.Buffer((4,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -994,9 +961,7 @@ def test_ptx_bit_width_axis():
     """
 
     @T.prim_func
-    def kernel(a_ptr: T.handle, o_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "float32")
-        Out = T.match_buffer(o_ptr, (4,), "float32")
+    def kernel(A: T.Buffer((4,), "float32"), Out: T.Buffer((4,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1030,8 +995,7 @@ def test_ptx_relaxed_load_store_typing():
     """Scalar/vector ld, st and ldu accept ISA section 9.4.1's wider register carriers."""
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (8,), "uint64")
+    def kernel(A: T.Buffer((8,), "uint64")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1065,8 +1029,7 @@ def test_ptx_relaxed_load_store_typing():
     with pytest.raises(ValueError, match="must have dtype"):
 
         @T.prim_func
-        def floating_source_for_integer_type(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint16")
+        def floating_source_for_integer_type(A: T.Buffer((1,), "uint16")):
             T.device_entry()
             T.ptx.st.global_.u16(A.ptr_to([0]), T.float32(1))
 
@@ -1115,8 +1078,7 @@ def test_ptx_vec256_cache_policy():
     )
 
     @T.prim_func
-    def vec256_calls(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (8,), "uint32")
+    def vec256_calls(A: T.Buffer((8,), "uint32")):
         T.device_entry()
         policy = T.local_scalar("uint64")
         x0 = T.local_scalar("uint32")
@@ -1178,8 +1140,7 @@ def test_ptx_st_bulk_size_carriers_and_st_async_byte_bridge():
         assert (signed_value & 0xFF) == bits
 
     @T.prim_func
-    def carrier_calls(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (8,), "uint8")
+    def carrier_calls(A: T.Buffer((8,), "uint8")):
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
@@ -1223,8 +1184,7 @@ def test_ptx_integer_arithmetic_dispatch():
     """
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "int32")
+    def kernel(A: T.Buffer((4,), "int32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1314,8 +1274,7 @@ def test_ptx_floating_point_dispatch():
     """
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "float32")
+    def kernel(A: T.Buffer((4,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1402,8 +1361,7 @@ def test_ptx_half_precision_dispatch():
     """
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "uint32")
+    def kernel(A: T.Buffer((4,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1489,8 +1447,7 @@ def test_ptx_mixed_precision_dispatch():
     """
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "float32")
+    def kernel(A: T.Buffer((4,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1555,8 +1512,7 @@ def test_ptx_comparison_selection_dispatch():
     """
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "int32")
+    def kernel(A: T.Buffer((4,), "int32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1698,8 +1654,7 @@ def test_ptx_half_comparison_dispatch():
     """
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "uint32")
+    def kernel(A: T.Buffer((4,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1810,8 +1765,7 @@ def test_ptx_logic_shift_dispatch():
     """
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "uint32")
+    def kernel(A: T.Buffer((4,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1888,8 +1842,7 @@ def test_ptx_logic_shift_dispatch():
     # can specialize, but a runtime LUT byte still has no register form and is
     # rejected at CUDA codegen.
     @T.prim_func
-    def lut_runtime(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "uint32")
+    def lut_runtime(A: T.Buffer((1,), "uint32")):
         T.device_entry()
         tx = T.thread_id([32])
         if tx == 0:
@@ -1900,8 +1853,7 @@ def test_ptx_logic_shift_dispatch():
         _cuda_source(lut_runtime)
 
     @T.prim_func
-    def lut_unrolled(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "uint32")
+    def lut_unrolled(A: T.Buffer((1,), "uint32")):
         T.device_entry()
         tx = T.thread_id([32])
         if tx == 0:
@@ -1914,8 +1866,7 @@ def test_ptx_logic_shift_dispatch():
     assert "lop3.b32 %0, %1, %2, %3, 128;" in unrolled_src
 
     @T.prim_func
-    def lut_boundaries(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "uint32")
+    def lut_boundaries(A: T.Buffer((1,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
@@ -1930,8 +1881,7 @@ def test_ptx_logic_shift_dispatch():
     with pytest.raises(ValueError, match=r"inclusive range 0\.\.255, got -1"):
 
         @T.prim_func
-        def lut_below_range(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        def lut_below_range(A: T.Buffer((1,), "uint32")):
             T.device_entry()
             d = T.local_scalar("uint32")
             T.ptx.lop3.b32(d, A[0], A[0], A[0], -1)
@@ -1939,15 +1889,13 @@ def test_ptx_logic_shift_dispatch():
     with pytest.raises(ValueError, match=r"inclusive range 0\.\.255, got 256"):
 
         @T.prim_func
-        def lut_above_range(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        def lut_above_range(A: T.Buffer((1,), "uint32")):
             T.device_entry()
             d = T.local_scalar("uint32")
             T.ptx.lop3.b32(d, A[0], A[0], A[0], 256)
 
     @T.prim_func
-    def lut_unrolled_out_of_range(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "uint32")
+    def lut_unrolled_out_of_range(A: T.Buffer((1,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
@@ -1970,8 +1918,7 @@ def test_ptx_data_movement_dispatch():
     """
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (8,), "uint32")
+    def kernel(A: T.Buffer((8,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2043,8 +1990,7 @@ def test_ptx_data_movement_dispatch():
     with pytest.raises(ValueError, match="go together"):
 
         @T.prim_func
-        def sem_without_scope(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        def sem_without_scope(A: T.Buffer((1,), "uint32")):
             T.device_entry()
             v = T.local_scalar("uint32")
             T.ptx.multimem_ld_reduce.relaxed.add.u32(v, A.ptr_to([0]))
@@ -2053,8 +1999,7 @@ def test_ptx_data_movement_dispatch():
     with pytest.raises(ValueError, match="takes no scope"):
 
         @T.prim_func
-        def weak_with_scope(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        def weak_with_scope(A: T.Buffer((1,), "uint32")):
             T.device_entry()
             v = T.local_scalar("uint32")
             T.ptx.multimem_ld_reduce.weak.gpu.add.u32(v, A.ptr_to([0]))
@@ -2063,8 +2008,7 @@ def test_ptx_data_movement_dispatch():
     with pytest.raises(ValueError, match=r"\.add takes"):
 
         @T.prim_func
-        def add_s64(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "int64")
+        def add_s64(A: T.Buffer((1,), "int64")):
             T.device_entry()
             v = T.local_scalar("int64")
             T.ptx.multimem_ld_reduce.add.s64(v, A.ptr_to([0]))
@@ -2073,8 +2017,7 @@ def test_ptx_data_movement_dispatch():
     with pytest.raises(ValueError, match="the scalar line takes"):
 
         @T.prim_func
-        def scalar_f16(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint16")
+        def scalar_f16(A: T.Buffer((1,), "uint16")):
             T.device_entry()
             v = T.local_scalar("uint16")
             T.ptx.multimem_ld_reduce.add.f16(v, A.ptr_to([0]))
@@ -2083,8 +2026,7 @@ def test_ptx_data_movement_dispatch():
     with pytest.raises(ValueError, match="applies to .add"):
 
         @T.prim_func
-        def acc_on_min(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        def acc_on_min(A: T.Buffer((1,), "uint32")):
             T.device_entry()
             v = T.local_scalar("uint32")
             T.ptx.multimem_ld_reduce.min.acc__f32.f16x2(v, A.ptr_to([0]))
@@ -2093,8 +2035,7 @@ def test_ptx_data_movement_dispatch():
     with pytest.raises(ValueError, match="requires .sys"):
 
         @T.prim_func
-        def mmio_gpu(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        def mmio_gpu(A: T.Buffer((1,), "uint32")):
             T.device_entry()
             T.ptx.st_async.mmio.release.gpu.global_.u32(A.ptr_to([0]), T.uint32(1))
 
@@ -2110,8 +2051,7 @@ def test_ptx_parallel_sync_dispatch():
     """
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (8,), "uint32")
+    def kernel(A: T.Buffer((8,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2175,8 +2115,7 @@ def test_ptx_parallel_sync_dispatch():
     with pytest.raises(ValueError, match="already a 32-bit pair"):
 
         @T.prim_func
-        def packed_v8(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        def packed_v8(A: T.Buffer((1,), "uint32")):
             T.device_entry()
             v = T.local_scalar("uint32")
             T.ptx.atom.global_.add.noftz.v8.f16x2(
@@ -2187,8 +2126,7 @@ def test_ptx_parallel_sync_dispatch():
     with pytest.raises(ValueError, match=r"\.and takes"):
 
         @T.prim_func
-        def red_async_and_u64(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint64")
+        def red_async_and_u64(A: T.Buffer((1,), "uint64")):
             T.device_entry()
             v = T.local_scalar("uint64")
             T.ptx.red_async.relaxed.cluster.shared__cluster.mbarrier__complete_tx__bytes.and_.u64(
@@ -2200,8 +2138,7 @@ def test_ptx_lazy_subscript_operands_realize():
     """Raw buffer elements realize before PTX predicate operand validation."""
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "uint32")
+    def kernel(A: T.Buffer((1,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -2222,9 +2159,7 @@ def test_ptx_parser_roundtrip():
     """script() output re-parses to a structurally equal PrimFunc."""
 
     @T.prim_func
-    def kernel(a_ptr: T.handle, b_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
-        B = T.match_buffer(b_ptr, (32,), "uint32")
+    def kernel(A: T.Buffer((32,), "uint32"), B: T.Buffer((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2264,8 +2199,7 @@ def test_ptx_pred_operand_roundtrip():
     """
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
+    def kernel(A: T.Buffer((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2289,8 +2223,7 @@ def test_ptx_wgmma_scale_d_runtime_predicate_roundtrip():
     """WGMMA scale-d is a runtime predicate, not a 0/1 text immediate."""
 
     @T.prim_func
-    def kernel(out_ptr: T.handle):
-        Out = T.match_buffer(out_ptr, (128,), "uint32")
+    def kernel(Out: T.Buffer((128,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([128])
@@ -2452,8 +2385,7 @@ def test_ptx_codegen_rejects_stale_table_layout(mismatch):
 @requires_nvcc
 def test_ptx_tcgen05_mma_block_size_form():
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
+    def kernel(A: T.Buffer((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2494,8 +2426,7 @@ def test_ptx_tcgen05_mma_block_size_collector_form():
     """PTX 9.4 collector qualifiers on block-scaled MMA certify at their sm_107f floor."""
 
     @T.prim_func
-    def sm107_collector_kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
+    def sm107_collector_kernel(A: T.Buffer((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2539,8 +2470,7 @@ def test_ptx_tcgen05_mma_block_scale_collector_a_without_block_size():
     """SM107 activation-stationary FP8 accepts collector A without `.block*`."""
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
+    def kernel(A: T.Buffer((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2652,8 +2582,7 @@ def test_ptx_pred_operand_rejects_untagged_integer():
 
     # A bool expression carries the class in its own dtype, so it needs no tag.
     @T.prim_func
-    def bool_needs_no_tag(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
+    def bool_needs_no_tag(A: T.Buffer((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2679,8 +2608,7 @@ def test_ptx_sink_lane_codegen_and_roundtrip():
     """
 
     @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
+    def kernel(A: T.Buffer((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2730,9 +2658,7 @@ def test_ptx_sink_rejected_where_the_isa_has_no_underscore():
 
 def test_ptx_printer_form():
     @T.prim_func
-    def kernel(a_ptr: T.handle, b_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
-        B = T.match_buffer(b_ptr, (32,), "uint32")
+    def kernel(A: T.Buffer((32,), "uint32"), B: T.Buffer((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -3283,8 +3209,7 @@ def test_ptx_tcgen05_mapa_address_roundtrip():
     """The generic/shared split remains exact through TVMScript print and parse."""
 
     @T.prim_func
-    def kernel(ptr: T.handle):
-        generic = T.match_buffer(ptr, (4,), "uint64")
+    def kernel(generic: T.Buffer((4,), "uint64")):
         T.device_entry()
         mapped32 = T.local_scalar("uint32")
         mapped64 = T.local_scalar("uint64")
@@ -4614,9 +4539,7 @@ def test_ptx_all_helpers_certify(shard):
 @requires_nvcc
 def test_ptx_nvcc_smoke():
     @T.prim_func
-    def kernel(a_ptr: T.handle, b_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
-        B = T.match_buffer(b_ptr, (32,), "uint32")
+    def kernel(A: T.Buffer((32,), "uint32"), B: T.Buffer((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -4637,9 +4560,7 @@ def test_ptx_nvcc_smoke():
 @pytest.mark.skipif(not env.has_cuda(), reason="CUDA GPU not available")
 def test_ptx_ld_st_gpu_roundtrip():
     @T.prim_func
-    def kernel(a_ptr: T.handle, b_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
-        B = T.match_buffer(b_ptr, (32,), "uint32")
+    def kernel(A: T.Buffer((32,), "uint32"), B: T.Buffer((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])

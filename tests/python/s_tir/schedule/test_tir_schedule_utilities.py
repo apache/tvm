@@ -35,10 +35,7 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -50,11 +47,11 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul_relu(a: T.handle, b: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (1024, 1024))
-    B = T.match_buffer(b, (1024, 1024))
+def matmul_relu(
+    A: T.Buffer((1024, 1024)), B: T.Buffer((1024, 1024)), D: T.Buffer((1024, 1024))
+) -> None:
     C = Ts.sblock_alloc_buffer((1024, 1024))
-    D = T.match_buffer(d, (1024, 1024))
+
     for i, j, k in T.grid(1024, 1024, 1024):
         with Ts.sblock("matmul"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -68,11 +65,11 @@ def matmul_relu(a: T.handle, b: T.handle, d: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul_relu_ann1(a: T.handle, b: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (1024, 1024))
-    B = T.match_buffer(b, (1024, 1024))
+def matmul_relu_ann1(
+    A: T.Buffer((1024, 1024)), B: T.Buffer((1024, 1024)), D: T.Buffer((1024, 1024))
+) -> None:
     C = Ts.sblock_alloc_buffer((1024, 1024))
-    D = T.match_buffer(d, (1024, 1024))
+
     for i in T.serial(0, 1024, annotations={"test1": "aaa", "test4": {"arr": [0, 0], "key": 3}}):
         for j in T.serial(0, 1024, annotations={"test2": 612, "test3": ["aa", 1]}):
             for k in T.serial(0, 1024):
@@ -88,11 +85,11 @@ def matmul_relu_ann1(a: T.handle, b: T.handle, d: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul_relu_ann2(a: T.handle, b: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (1024, 1024))
-    B = T.match_buffer(b, (1024, 1024))
+def matmul_relu_ann2(
+    A: T.Buffer((1024, 1024)), B: T.Buffer((1024, 1024)), D: T.Buffer((1024, 1024))
+) -> None:
     C = Ts.sblock_alloc_buffer((1024, 1024))
-    D = T.match_buffer(d, (1024, 1024))
+
     for i, j, k in T.grid(1024, 1024, 1024):
         with Ts.sblock("matmul"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])

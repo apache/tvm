@@ -47,6 +47,26 @@ PrimFuncFrame DeclFunction(bool is_private, bool persistent) {
   return frame;
 }
 
+BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType dtype,
+                      ffi::Optional<Expr> data, ffi::Array<PrimExpr> strides, PrimExpr elem_offset,
+                      ffi::String storage_scope, int align, int offset_factor,
+                      ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr) {
+  BufferVar buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
+                                offset_factor, layout, allocated_addr);
+  tvm::TensorRegion region;
+  if (auto load = param.as<TensorLoad>()) {
+    region = BufferRegionFromLoad(load.value());
+  } else if (auto view = param.as<tvm::TensorRegion>()) {
+    region = view.value();
+  } else {
+    TVM_FFI_THROW(ValueError) << "Unexpected type for MatchBuffer";
+  }
+  auto frame = IRBuilder::Current()->GetLastFrame<tirx::TIRFrame>();
+  TVM_FFI_CHECK(frame.has_value(), ValueError) << "match_buffer requires a statement frame";
+  frame.value()->BindBufferRegion(buffer, region);
+  return buffer;
+}
+
 SBlockFrame Block(ffi::String name, bool no_realize, ffi::String exec_scope) {
   ffi::ObjectPtr<SBlockFrameNode> n = ffi::make_object<SBlockFrameNode>();
   n->name = name;
@@ -289,6 +309,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("script.ir_builder.s_tir.PrimFunc", PrimFunc)
       .def("script.ir_builder.s_tir.DeclFunction", DeclFunction)
+      .def("script.ir_builder.s_tir.MatchBuffer", MatchBuffer)
       .def("script.ir_builder.s_tir.Block", Block)
       .def("script.ir_builder.s_tir.Init", Init)
       .def("script.ir_builder.s_tir.Where", Where)

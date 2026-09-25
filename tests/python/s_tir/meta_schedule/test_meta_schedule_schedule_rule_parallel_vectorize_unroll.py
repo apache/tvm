@@ -32,11 +32,9 @@ from tvm.target import Target
 @tvm.script.ir_module
 class Matmul:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    def main(A: T.Buffer((1024, 1024), 'float32'), B: T.Buffer((1024, 1024), 'float32'), C: T.Buffer((1024, 1024), 'float32')) -> None:
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.match_buffer(b, (1024, 1024), "float32")
-        C = T.match_buffer(c, (1024, 1024), "float32")
+
         for i, j, k in T.grid(1024, 1024, 1024):
             with Ts.sblock("matmul"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -44,15 +42,12 @@ class Matmul:
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-
 @tvm.script.ir_module
 class ParallelizeVectorizeUnroll:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    def main(A: T.Buffer((1024, 1024), 'float32'), B: T.Buffer((1024, 1024), 'float32'), C: T.Buffer((1024, 1024), 'float32')) -> None:
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.match_buffer(b, (1024, 1024), "float32")
-        C = T.match_buffer(c, (1024, 1024), "float32")
+
         with Ts.sblock("root"):
             Ts.reads([])
             Ts.writes([])
@@ -63,7 +58,6 @@ class ParallelizeVectorizeUnroll:
                     with Ts.init():
                         C[vi, vj] = 0.0
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
-
 
 # from tvm.script import tirx as T
 @tvm.script.ir_module
@@ -217,7 +211,6 @@ class PureSpatial:
                 Ts.reads(T_transpose[ax1, ax2])
                 Ts.writes(T_expand_dims[ax0, ax1, ax2])
                 T_expand_dims[ax0, ax1, ax2] = T_transpose[ax1, ax2]
-
 
 # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on

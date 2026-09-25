@@ -32,16 +32,16 @@ def test_one_alloc():
 
     # fmt: off
     @T.prim_func
-    def copy(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, "float32", layout=src_layout)
+    def copy(A: T.Buffer(src_shape, 'float32', layout=src_layout)) -> None:
+
         T.device_entry()
         A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.copy(A_sbuf, A)
 
     @T.prim_func
-    def expected(A_ptr: T.handle) -> None:
+    def expected(A: T.Buffer(src_shape, 'float32', layout=src_layout)) -> None:
         T.func_attr({"global_symbol": "copy"})
-        A = T.match_buffer(A_ptr, src_shape, "float32", layout=src_layout)
+
         T.device_entry()
         A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout, allocated_addr=[0])  # noqa: E501
         Tx.copy(A_sbuf, A)

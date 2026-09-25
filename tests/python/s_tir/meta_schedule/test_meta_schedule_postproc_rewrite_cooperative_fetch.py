@@ -54,12 +54,10 @@ def _create_context(mod, target) -> ms.TuneContext:
 @tvm.script.ir_module
 class AfterRewrite0:
     @Ts.prim_func
-    def main(var_A: T.handle, var_B: T.handle, var_C: T.handle) -> None:
+    def main(A: T.Buffer([512, 512], dtype='float32'), B: T.Buffer([512, 512], dtype='float32'), C: T.Buffer([512, 512], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(var_A, [512, 512], dtype="float32")
-        B = T.match_buffer(var_B, [512, 512], dtype="float32")
-        C = T.match_buffer(var_C, [512, 512], dtype="float32")
+
         # body
         # with Ts.sblock("root")
         C_local = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
@@ -103,7 +101,6 @@ class AfterRewrite0:
                             Ts.reads([C_local[v0, v1]])
                             Ts.writes([C[v0, v1]])
                             C[v0, v1] = C_local[v0, v1]
-
 
 @tvm.script.ir_module
 class WarpExecutionAfterRewrite:
@@ -205,7 +202,6 @@ class WarpExecutionAfterRewrite:
                             Ts.reads([C_local[v0, v1]])
                             Ts.writes([C[v0, v1]])
                             C[v0, v1] = C_local[v0, v1]
-
 
 # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on

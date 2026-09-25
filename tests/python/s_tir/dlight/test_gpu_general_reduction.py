@@ -97,10 +97,9 @@ def test_softmax_1():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(p_lv44: T.handle, p_output0: T.handle):
+        def main(lv44: T.Buffer((T.int64(1), T.int64(32), n, m)), var_compute_intermediate: T.Buffer((T.int64(1), T.int64(32), n, m), 'float16')):
             T.func_attr({"tirx.noalias": True})
-            lv44 = T.match_buffer(p_lv44, (T.int64(1), T.int64(32), n, m))
-            var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), n, m), "float16")
+
             # with Ts.sblock("root"):
             T_softmax_maxelem = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), n))
             T_softmax_exp = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), n, m))
@@ -148,10 +147,9 @@ def test_softmax_1():
     @I.ir_module
     class After:
         @Ts.prim_func
-        def main(p_lv44: T.handle, p_output0: T.handle):
+        def main(lv44: T.Buffer((T.int64(1), T.int64(32), n, m)), var_compute_intermediate: T.Buffer((T.int64(1), T.int64(32), n, m), 'float16')):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            lv44 = T.match_buffer(p_lv44, (T.int64(1), T.int64(32), n, m))
-            var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), n, m), "float16")
+
             # with Ts.sblock("root"):
             T_softmax_maxelem_shared = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), n), scope="shared")
             T_softmax_expsum_shared = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), n), scope="shared")
@@ -235,7 +233,6 @@ def test_softmax_2():
                     Ts.writes(T_softmax_norm[v_i0, v_i1, v_i2])
                     Ts.sblock_attr({"axis": 2})
                     T_softmax_norm[v_i0, v_i1, v_i2] = T_softmax_exp[v_i0, v_i1, v_i2] / T_softmax_expsum[v_i0, v_i1]
-
 
     @I.ir_module
     class After:
@@ -322,7 +319,6 @@ def test_softmax_3():
                     Ts.sblock_attr({"axis": 2})
                     T_softmax_norm[v_i0, v_i1, v_i2, v_i3] = T_softmax_exp[v_i0, v_i1, v_i2, v_i3] / T_softmax_expsum[v_i0, v_i1, v_i3]
 
-
     @I.ir_module
     class After:
         @Ts.prim_func
@@ -380,10 +376,9 @@ def test_layer_norm():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(p_lv6: T.handle, weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), p_output0: T.handle):
+        def main(lv6: T.Buffer((T.int64(1), n, T.int64(2560))), weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), var_compute_intermediate: T.Buffer((T.int64(1), n, T.int64(2560)), 'float16')):
             T.func_attr({"tirx.noalias": True})
-            lv6 = T.match_buffer(p_lv6, (T.int64(1), n, T.int64(2560)))
-            var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), n, T.int64(2560)), "float16")
+
             # with Ts.sblock("root"):
             A_red_temp_v0 = Ts.sblock_alloc_buffer((T.int64(1), n))
             A_red_temp_v1 = Ts.sblock_alloc_buffer((T.int64(1), n))
@@ -418,10 +413,9 @@ def test_layer_norm():
     @I.ir_module
     class After:
         @Ts.prim_func
-        def main(p_lv6: T.handle, weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), p_output0: T.handle):
+        def main(lv6: T.Buffer((T.int64(1), n, T.int64(2560))), weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), var_compute_intermediate: T.Buffer((T.int64(1), n, T.int64(2560)), 'float16')):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            lv6 = T.match_buffer(p_lv6, (T.int64(1), n, T.int64(2560)))
-            var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), n, T.int64(2560)), "float16")
+
             # with Ts.sblock("root"):
             A_red_temp_v0_shared = Ts.sblock_alloc_buffer((T.int64(1), n), scope="shared")
             A_red_temp_v1_shared = Ts.sblock_alloc_buffer((T.int64(1), n), scope="shared")
@@ -460,10 +454,9 @@ def test_rms_norm():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle):
+        def main(A: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16'), B: T.Buffer((T.int64(4096),), "float16"), rms_norm_1: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16')):
             T.func_attr({"op_pattern": 4, "tirx.noalias": True})
-            A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)), "float16")
-            rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), n, T.int64(4096)), "float16")
+
             # with Ts.sblock("root"):
             Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), n))
             for bsz, i, k in T.grid(T.int64(1), n, T.int64(4096)):
@@ -486,10 +479,9 @@ def test_rms_norm():
     @I.ir_module
     class After:
         @Ts.prim_func
-        def main(var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle):
+        def main(A: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16'), B: T.Buffer((T.int64(4096),), "float16"), rms_norm_1: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16')):
             T.func_attr({"op_pattern": 4, "tirx.is_scheduled": True, "tirx.noalias": True})
-            A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)), "float16")
-            rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), n, T.int64(4096)), "float16")
+
             # with Ts.sblock("root"):
             Ared_temp_shared = Ts.sblock_alloc_buffer((T.int64(1), n), scope="shared")
             for ax0_fused in T.thread_binding(n, thread="blockIdx.x"):
@@ -616,10 +608,12 @@ def test_logsumexp():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def compute_lse(var_A: T.handle, var_blocked_lse: T.handle):
+        def compute_lse(
+            A: T.Buffer((batch_size, vocab_size), dtype="float32"),
+            blocked_lse: T.Buffer((batch_size, num_chunks), dtype="float32"),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (batch_size, vocab_size), dtype="float32")
-            blocked_lse = T.match_buffer(var_blocked_lse, (batch_size, num_chunks), dtype="float32")
+
             A_pad = Ts.sblock_alloc_buffer((batch_size, num_chunks, T.int64(4096)), dtype="float32")
             temp_max = Ts.sblock_alloc_buffer((batch_size, num_chunks), dtype="float32")
             temp_sum = Ts.sblock_alloc_buffer((batch_size, num_chunks), dtype="float32")
@@ -663,10 +657,11 @@ def test_logsumexp():
     @I.ir_module
     class After:
         @Ts.prim_func
-        def compute_lse(var_A: T.handle, var_blocked_lse: T.handle):
+        def compute_lse(
+            A: T.Buffer((batch_size, vocab_size)), blocked_lse: T.Buffer((batch_size, num_chunks))
+        ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            A = T.match_buffer(var_A, (batch_size, vocab_size))
-            blocked_lse = T.match_buffer(var_blocked_lse, (batch_size, num_chunks))
+
             temp_max_shared = Ts.sblock_alloc_buffer((batch_size, num_chunks), scope="shared")
             temp_sum_shared = Ts.sblock_alloc_buffer((batch_size, num_chunks), scope="shared")
             for ax0_ax1_fused in T.thread_binding(batch_size * num_chunks, thread="blockIdx.x"):

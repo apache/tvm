@@ -146,9 +146,7 @@ def test_call_tir_rewrite():
     @tvm.script.ir_module
     class TestCallTIRRewrite:
         @Ts.prim_func
-        def exp(A_handle: T.handle, B_handle: T.handle):
-            A = T.match_buffer(A_handle, (m_exp, n_exp), "float32")
-            B = T.match_buffer(B_handle, (m_exp, n_exp), "float32")
+        def exp(A: T.Buffer((m_exp, n_exp), "float32"), B: T.Buffer((m_exp, n_exp), "float32")):
             T.evaluate(0)
 
         @R.function

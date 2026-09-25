@@ -232,11 +232,12 @@ def test_vm_compile_e2e_func_param_with_shape(exec_mode):
     @tvm.script.ir_module
     class TestVMCompileE2E2:
         @Ts.prim_func
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+        def tir_matmul(
+            A: T.Buffer((m_tir_matmul, n_tir_matmul)),
+            B: T.Buffer((n_tir_matmul, k_tir_matmul)),
+            C: T.Buffer((m_tir_matmul, k_tir_matmul)),
+        ) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            A = T.match_buffer(x, (m_tir_matmul, n_tir_matmul))
-            B = T.match_buffer(y, (n_tir_matmul, k_tir_matmul))
-            C = T.match_buffer(z, (m_tir_matmul, k_tir_matmul))
 
             for i, j, k_tir_matmul_index in T.grid(m_tir_matmul, k_tir_matmul, n_tir_matmul):
                 with Ts.sblock("matmul"):
@@ -720,11 +721,8 @@ def test_sub_func_call(exec_mode):
     @tvm.script.ir_module
     class TestVMSubFunction:
         @Ts.prim_func
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+        def tir_matmul(A: T.Buffer((m, n)), B: T.Buffer((n, k)), C: T.Buffer((m, k))) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            A = T.match_buffer(x, (m, n))
-            B = T.match_buffer(y, (n, k))
-            C = T.match_buffer(z, (m, k))
 
             for i, j, k_index in T.grid(m, k, n):
                 with Ts.sblock("matmul"):
@@ -902,11 +900,8 @@ n = T.dynamic("n", "int32")
 @tvm.script.ir_module
 class TestVMSetInput:
     @Ts.prim_func
-    def test_vm_mul(x: T.handle, y: T.handle, z: T.handle):
+    def test_vm_mul(A: T.Buffer((m, n)), B: T.Buffer((m, n)), C: T.Buffer((m, n))):
         T.func_attr({"global_symbol": "test_vm_mul"})
-        A = T.match_buffer(x, (m, n))
-        B = T.match_buffer(y, (m, n))
-        C = T.match_buffer(z, (m, n))
 
         for i, j in T.grid(m, n):
             with Ts.sblock("mul"):
@@ -954,8 +949,7 @@ def test_multi_systemlib(exec_mode):
         I.module_attrs({"system_lib_prefix": "libA_"})
 
         @Ts.prim_func
-        def tir_init(x_handle: T.handle):
-            x = T.match_buffer(x_handle, [N], "float32")
+        def tir_init(x: T.Buffer([N], "float32")):
             for i in range(N):
                 x[i] = T.float32(0)
 
@@ -972,8 +966,7 @@ def test_multi_systemlib(exec_mode):
         I.module_attrs({"system_lib_prefix": "libB_"})
 
         @Ts.prim_func
-        def tir_init(x_handle: T.handle):
-            x = T.match_buffer(x_handle, [N], "float32")
+        def tir_init(x: T.Buffer([N], "float32")):
             for i in range(N):
                 x[i] = T.float32(1)
 

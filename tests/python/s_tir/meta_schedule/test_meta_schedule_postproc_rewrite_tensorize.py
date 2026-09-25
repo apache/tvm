@@ -211,7 +211,7 @@ class Conv2dNCHWcVNNIModuleTensorized:
                         placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:16, 0:4],
                     )
                     Ts.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0:16])
-                    A = T.match_buffer(
+                    A = Ts.match_buffer(
                         placeholder[
                             n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4
                         ],
@@ -219,13 +219,13 @@ class Conv2dNCHWcVNNIModuleTensorized:
                         dtype="uint8",
                         offset_factor=1,
                     )
-                    B = T.match_buffer(
+                    B = Ts.match_buffer(
                         placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:16, 0:4],
                         [16, 4],
                         dtype="int8",
                         offset_factor=1,
                     )
-                    C = T.match_buffer(
+                    C = Ts.match_buffer(
                         conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0:16],
                         [16],
                         dtype="int32",
@@ -412,7 +412,7 @@ class DenseDP4ATensorized:
                                     W_shared[j, k_o * 4 : k_o * 4 + 4],
                                 )
                                 Ts.writes(compute_local[i, j])
-                                A = T.match_buffer(
+                                A = Ts.match_buffer(
                                     X_shared[i, k_o * 4 : k_o * 4 + 4],
                                     [4],
                                     dtype="int8",
@@ -420,7 +420,7 @@ class DenseDP4ATensorized:
                                     align=4,
                                     offset_factor=1,
                                 )
-                                B = T.match_buffer(
+                                B = Ts.match_buffer(
                                     W_shared[j, k_o * 4 : k_o * 4 + 4],
                                     [4],
                                     dtype="int8",
@@ -428,7 +428,7 @@ class DenseDP4ATensorized:
                                     align=4,
                                     offset_factor=1,
                                 )
-                                C = T.match_buffer(
+                                C = Ts.match_buffer(
                                     compute_local[i, j],
                                     [1],
                                     dtype="int32",

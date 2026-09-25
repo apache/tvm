@@ -178,10 +178,9 @@ def gpu_2d_continuous_cumsum(
     n = T.dynamic("n")
 
     @Ts.prim_func(private=True)
-    def cumsum(var_a: T.handle, var_out: T.handle):
+    def cumsum(A: T.Buffer([m, n], dtype=in_dtype), Out: T.Buffer([m, n], dtype=out_dtype)):
         T.func_attr({"tirx.is_scheduled": True})  # prevent further scheduling
-        A = T.match_buffer(var_a, [m, n], dtype=in_dtype)
-        Out = T.match_buffer(var_out, [m, n], dtype=out_dtype)
+
         Tmp = T.alloc_buffer([m, n], dtype=out_dtype)
         # LowerIntrin may implement signed FloorDiv using a sign-bit shift.  Keep
         # hierarchy counting division-free so WebGPU can narrow indices to int32.
@@ -260,10 +259,11 @@ def gpu_3d_axis_1_cumsum(
     inner = T.dynamic("inner")
 
     @Ts.prim_func(private=True)
-    def cumsum(var_a: T.handle, var_out: T.handle):
+    def cumsum(
+        A: T.Buffer([outer, scan, inner], dtype=in_dtype),
+        Out: T.Buffer([outer, scan, inner], dtype=out_dtype),
+    ):
         T.func_attr({"tirx.is_scheduled": True})
-        A = T.match_buffer(var_a, [outer, scan, inner], dtype=in_dtype)
-        Out = T.match_buffer(var_out, [outer, scan, inner], dtype=out_dtype)
 
         for bx in T.thread_binding(T.ceildiv(outer * inner, TX), thread="blockIdx.x"):
             for tx in T.thread_binding(TX, thread="threadIdx.x"):

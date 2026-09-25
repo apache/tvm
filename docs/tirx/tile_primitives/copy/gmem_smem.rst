@@ -90,16 +90,18 @@ A warp (32 threads) copies a ``32×32`` ``float32`` tile global → shared and b
     s_layout = TileLayout(S[shape])
     fs = (slice(0, 32), slice(0, 32))
 
+
     @Tx.prim_func
-    def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, shape, dtype)
-        B = Tx.match_buffer(B_ptr, shape, dtype)
+    def kernel(A: Tx.Buffer(shape, dtype), B: Tx.Buffer(shape, dtype)):
+
         Tx.device_entry()
-        Tx.cta_id([1]); Tx.lane_id([32]); Tx.thread_id([32])
+        Tx.cta_id([1])
+        Tx.lane_id([32])
+        Tx.thread_id([32])
         A_smem = Tx.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
-        Tx.tile.warp.copy(A_smem[fs], A[fs])   # global -> shared  (this dispatch)
+        Tx.tile.warp.copy(A_smem[fs], A[fs])  # global -> shared  (this dispatch)
         Tx.cuda.cta_sync()
-        Tx.tile.warp.copy(B[fs], A_smem[fs])   # shared -> global  (this dispatch)
+        Tx.tile.warp.copy(B[fs], A_smem[fs])  # shared -> global  (this dispatch)
 
 Algorithm
 ---------

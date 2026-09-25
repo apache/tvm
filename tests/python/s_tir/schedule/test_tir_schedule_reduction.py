@@ -36,9 +36,7 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def rowsum_blockized(a: T.handle, b: T.handle) -> None:
-    B = T.match_buffer(b, [32, 4])
-    A = T.match_buffer(a, [32, 4, 128])
+def rowsum_blockized(A: T.Buffer([32, 4, 128]), B: T.Buffer([32, 4])) -> None:
     for i0, i2_0 in T.grid(32, 16):
         with Ts.sblock("blockized_B"):
             io, ko = Ts.axis.remap("SR", [i0, i2_0])
@@ -55,10 +53,7 @@ def rowsum_blockized(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("update"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -68,11 +63,9 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul_decompose0(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
+def matmul_decompose0(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -85,10 +78,10 @@ def matmul_decompose0(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul_decompose1(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [32, 4, 128], elem_offset=0, align=64, offset_factor=1)
-    B = T.match_buffer(b, [32, 4], elem_offset=0, align=64, offset_factor=1)
-
+def matmul_decompose1(
+    A: T.Buffer([32, 4, 128], elem_offset=0, align=64, offset_factor=1),
+    B: T.Buffer([32, 4], elem_offset=0, align=64, offset_factor=1),
+) -> None:
     for i0 in T.serial(0, 32):
         with Ts.sblock("blockized_B_init"):
             io = Ts.axis.S(32, i0)
@@ -107,11 +100,11 @@ def matmul_decompose1(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul_decompose2(a: T.handle, b: T.handle, c: T.handle) -> None:
-    C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
-    B = T.match_buffer(b, [128, 128], elem_offset=0, align=64, offset_factor=1)
-    A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
-
+def matmul_decompose2(
+    A: T.Buffer([128, 128], elem_offset=0, align=64, offset_factor=1),
+    B: T.Buffer([128, 128], elem_offset=0, align=64, offset_factor=1),
+    C: T.Buffer([128, 128], elem_offset=0, align=64, offset_factor=1),
+) -> None:
     for i0, i1 in T.grid(128, 128):
         with Ts.sblock("update_init"):
             vi_init, vj_init = Ts.axis.remap("SS", [i0, i1])
@@ -123,11 +116,9 @@ def matmul_decompose2(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul_decompose_fail3(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
+def matmul_decompose_fail3(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     for i, k, j in T.grid(128, 128, 128):
         with Ts.sblock("update"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -137,10 +128,11 @@ def matmul_decompose_fail3(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul_decompose4(a: T.handle, b: T.handle, c: T.handle) -> None:
-    C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
-    B = T.match_buffer(b, [128, 128], elem_offset=0, align=64, offset_factor=1)
-    A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
+def matmul_decompose4(
+    A: T.Buffer([128, 128], elem_offset=0, align=64, offset_factor=1),
+    B: T.Buffer([128, 128], elem_offset=0, align=64, offset_factor=1),
+    C: T.Buffer([128, 128], elem_offset=0, align=64, offset_factor=1),
+) -> None:
     # body
     with Ts.sblock("root"):
         Ts.reads([])
@@ -161,10 +153,9 @@ def matmul_decompose4(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul_with_annotation(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+def matmul_with_annotation(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("update"):
             Ts.sblock_attr({"test_annotation": 1})
@@ -175,11 +166,9 @@ def matmul_with_annotation(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul_decompose_with_annotation(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
+def matmul_decompose_with_annotation(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
             Ts.sblock_attr({"test_annotation": 1})
@@ -194,9 +183,9 @@ def matmul_decompose_with_annotation(a: T.handle, b: T.handle, c: T.handle) -> N
 
 
 @Ts.prim_func
-def colsum_with_vectorization(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 32], dtype="float32")
-    B = T.match_buffer(b, [32], dtype="float32")
+def colsum_with_vectorization(
+    A: T.Buffer([128, 32], dtype="float32"), B: T.Buffer([32], dtype="float32")
+) -> None:
     for k in T.serial(0, 128):
         for i in T.vectorized(0, 32):
             with Ts.sblock("B"):
@@ -207,9 +196,9 @@ def colsum_with_vectorization(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def colsum_decompose_with_vectorization(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 32], dtype="float32")
-    B = T.match_buffer(b, [32], dtype="float32")
+def colsum_decompose_with_vectorization(
+    A: T.Buffer([128, 32], dtype="float32"), B: T.Buffer([32], dtype="float32")
+) -> None:
     for i in T.vectorized(0, 32):
         with Ts.sblock("B_init"):
             vi = Ts.axis.S(32, i)

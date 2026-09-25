@@ -16,7 +16,6 @@
 # under the License.
 # ruff: noqa: E501, E731, F841
 
-
 import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
@@ -300,10 +299,9 @@ def test_supported_implicit_padding():
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
         @Ts.prim_func(private=True)
-        def remove_pad(var_input: T.handle, var_output: T.handle):
+        def remove_pad(input: T.Buffer((p0,)), output: T.Buffer((i0,))):
             T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
-            input = T.match_buffer(var_input, (p0,))
-            output = T.match_buffer(var_output, (i0,))
+
             # with Ts.sblock("root"):
             for ax0 in range(i0):
                 with Ts.sblock("output"):

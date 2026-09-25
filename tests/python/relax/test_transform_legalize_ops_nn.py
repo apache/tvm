@@ -16,7 +16,6 @@
 # under the License.
 # ruff: noqa: E501, F821, F841
 
-
 import pytest
 
 import tvm
@@ -186,11 +185,9 @@ def test_conv1d_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def conv1d(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_conv1d_ncw: T.handle):
+        def conv1d(rxplaceholder: T.Buffer((n_conv1d, c_conv1d, w_conv1d)), rxplaceholder_1: T.Buffer((f_conv1d, c_conv1d, kw_conv1d)), conv1d_ncw: T.Buffer((n_conv1d, f_conv1d, w_conv1d + T.int64(1) - kw_conv1d))):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (n_conv1d, c_conv1d, w_conv1d))
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (f_conv1d, c_conv1d, kw_conv1d))
-            conv1d_ncw = T.match_buffer(var_conv1d_ncw, (n_conv1d, f_conv1d, w_conv1d + T.int64(1) - kw_conv1d))
+
             # with Ts.sblock("root"):
             pad_temp = Ts.sblock_alloc_buffer((n_conv1d, c_conv1d, w_conv1d))
             for i0, i1, i2 in T.grid(n_conv1d, c_conv1d, w_conv1d):
@@ -420,11 +417,9 @@ def test_conv2d_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def conv2d(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_conv2d_nchw: T.handle):
+        def conv2d(rxplaceholder: T.Buffer([n_conv2d, c_conv2d, h_conv2d, w_conv2d], dtype='float32'), rxplaceholder_1: T.Buffer([f_conv2d, c_conv2d, kh_conv2d, kw_conv2d], dtype='float32'), conv2d_nchw: T.Buffer([n_conv2d, f_conv2d, h_conv2d + T.int64(1) - kh_conv2d, w_conv2d + T.int64(1) - kw_conv2d], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [n_conv2d, c_conv2d, h_conv2d, w_conv2d], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [f_conv2d, c_conv2d, kh_conv2d, kw_conv2d], dtype="float32")
-            conv2d_nchw = T.match_buffer(var_conv2d_nchw, [n_conv2d, f_conv2d, h_conv2d + T.int64(1) - kh_conv2d, w_conv2d + T.int64(1) - kw_conv2d], dtype="float32")
+
             pad_temp = Ts.sblock_alloc_buffer([n_conv2d, c_conv2d, h_conv2d, w_conv2d], dtype="float32")
             for i0, i1, i2, i3 in T.grid(n_conv2d, c_conv2d, h_conv2d, w_conv2d):
                 with Ts.sblock("pad_temp"):
@@ -477,11 +472,9 @@ def test_conv2d_symbolic_group():
             return gv
 
         @Ts.prim_func(private=True)
-        def conv2d(var_x: T.handle, var_w: T.handle, var_group_conv2d_nchw: T.handle):
+        def conv2d(x: T.Buffer((n_conv2d, c_conv2d, T.int64(28), T.int64(28))), w: T.Buffer((f_conv2d, c_div_8_conv2d, T.int64(3), T.int64(3))), group_conv2d_nchw: T.Buffer((n_conv2d, f_conv2d, T.int64(26), T.int64(26)))):
             T.func_attr({"tirx.noalias": True})
-            x = T.match_buffer(var_x, (n_conv2d, c_conv2d, T.int64(28), T.int64(28)))
-            w = T.match_buffer(var_w, (f_conv2d, c_div_8_conv2d, T.int64(3), T.int64(3)))
-            group_conv2d_nchw = T.match_buffer(var_group_conv2d_nchw, (n_conv2d, f_conv2d, T.int64(26), T.int64(26)))
+
             pad_temp = Ts.sblock_alloc_buffer((n_conv2d, c_conv2d, T.int64(28), T.int64(28)))
             for i0, i1, i2, i3 in T.grid(n_conv2d, c_conv2d, T.int64(28), T.int64(28)):
                 with Ts.sblock("pad_temp"):
@@ -761,11 +754,9 @@ def test_conv2d_transpose_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def conv2d_transpose(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_compute: T.handle):
+        def conv2d_transpose(rxplaceholder: T.Buffer((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose, w_conv2d_transpose)), rxplaceholder_1: T.Buffer((f_conv2d_transpose, c_conv2d_transpose, kh_conv2d_transpose, kw_conv2d_transpose)), compute: T.Buffer((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose * T.int64(3) + kh_conv2d_transpose - T.int64(3), w_conv2d_transpose * T.int64(3) + kw_conv2d_transpose - T.int64(3)))):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose, w_conv2d_transpose))
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (f_conv2d_transpose, c_conv2d_transpose, kh_conv2d_transpose, kw_conv2d_transpose))
-            compute = T.match_buffer(var_compute, (n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose * T.int64(3) + kh_conv2d_transpose - T.int64(3), w_conv2d_transpose * T.int64(3) + kw_conv2d_transpose - T.int64(3)))
+
             # with Ts.sblock("root"):
             data_dilate = Ts.sblock_alloc_buffer((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose * T.int64(3) - T.int64(2), w_conv2d_transpose * T.int64(3) - T.int64(2)))
             data_pad = Ts.sblock_alloc_buffer((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose * T.int64(3) + kh_conv2d_transpose * T.int64(2) - T.int64(4), w_conv2d_transpose * T.int64(3) + kw_conv2d_transpose * T.int64(2) - T.int64(4)))
@@ -1316,10 +1307,9 @@ def test_relu_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def relu(var_rxplaceholder: T.handle, var_compute: T.handle):
+        def relu(rxplaceholder: T.Buffer([m_relu, n_relu], dtype='float32'), compute: T.Buffer([m_relu, n_relu], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [m_relu, n_relu], dtype="float32")
-            compute = T.match_buffer(var_compute, [m_relu, n_relu], dtype="float32")
+
             for i0, i1 in T.grid(m_relu, n_relu):
                 with Ts.sblock("compute"):
                     i0_1, i1_1 = Ts.axis.remap("SS", [i0, i1])
@@ -1340,7 +1330,6 @@ def test_leakyrelu():
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
             gv: R.Tensor((2, 3), "float32") = R.nn.leakyrelu(x, 0.02)
             return gv
-
 
     @tvm.script.ir_module
     class Expected:
@@ -1389,10 +1378,9 @@ def test_leakyrelu_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def leaky_relu(var_x: T.handle, var_compute: T.handle):
+        def leaky_relu(x: T.Buffer((m_leaky_relu, n_leaky_relu)), compute: T.Buffer((m_leaky_relu, n_leaky_relu))):
             T.func_attr({"tirx.noalias": True})
-            x = T.match_buffer(var_x, (m_leaky_relu, n_leaky_relu))
-            compute = T.match_buffer(var_compute, (m_leaky_relu, n_leaky_relu))
+
             for i0, i1 in T.grid(m_leaky_relu, n_leaky_relu):
                 with Ts.sblock("compute"):
                     v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
@@ -1466,10 +1454,9 @@ def test_prelu_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def prelu(var_x: T.handle, y: T.Buffer((T.int64(1),), "float32"), var_compute: T.handle):
+        def prelu(x: T.Buffer((m_prelu, T.int64(7))), y: T.Buffer((T.int64(1),), "float32"), compute: T.Buffer((m_prelu, T.int64(7)))):
             T.func_attr({"tirx.noalias": True})
-            x = T.match_buffer(var_x, (m_prelu, T.int64(7)))
-            compute = T.match_buffer(var_compute, (m_prelu, T.int64(7)))
+
             # with Ts.sblock("root"):
             slope_broadcasted = Ts.sblock_alloc_buffer((T.int64(7),))
             for c_index in range(T.int64(7)):
@@ -1574,10 +1561,9 @@ def test_gelu_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def gelu(var_x: T.handle, var_T_multiply: T.handle):
+        def gelu(x: T.Buffer((m_gelu, n_gelu)), T_multiply: T.Buffer((m_gelu, n_gelu))):
             T.func_attr({"tirx.noalias": True})
-            x = T.match_buffer(var_x, (m_gelu, n_gelu))
-            T_multiply = T.match_buffer(var_T_multiply, (m_gelu, n_gelu))
+
             T_multiply_1 = Ts.sblock_alloc_buffer((m_gelu, n_gelu))
             compute = Ts.sblock_alloc_buffer((m_gelu, n_gelu))
             T_multiply_2 = Ts.sblock_alloc_buffer((m_gelu, n_gelu))
@@ -1729,10 +1715,9 @@ def test_gelu_tanh_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def gelu_tanh(var_A: T.handle, var_T_multiply: T.handle):
+        def gelu_tanh(A: T.Buffer((m_gelu_tanh, n_gelu_tanh)), T_multiply: T.Buffer((m_gelu_tanh, n_gelu_tanh))):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m_gelu_tanh, n_gelu_tanh))
-            T_multiply = T.match_buffer(var_T_multiply, (m_gelu_tanh, n_gelu_tanh))
+
             # with Ts.sblock("root"):
             T_multiply_1 = Ts.sblock_alloc_buffer((m_gelu_tanh, n_gelu_tanh))
             T_multiply_2 = Ts.sblock_alloc_buffer((m_gelu_tanh, n_gelu_tanh))
@@ -1796,7 +1781,6 @@ def test_gelu_tanh_symbolic():
                     Ts.reads(T_multiply_1[v_ax0, v_ax1], T_add_1[v_ax0, v_ax1])
                     Ts.writes(T_multiply[v_ax0, v_ax1])
                     T_multiply[v_ax0, v_ax1] = T_multiply_1[v_ax0, v_ax1] * T_add_1[v_ax0, v_ax1]
-
 
     mod = LegalizeOps()(GeluTanh)
     tvm.ir.assert_structural_equal(mod, Expected)
@@ -1865,10 +1849,9 @@ def test_silu_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def silu(var_rxplaceholder: T.handle, var_T_multiply: T.handle):
+        def silu(rxplaceholder: T.Buffer([m_silu, n_silu], dtype='float32'), T_multiply: T.Buffer([m_silu, n_silu], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [m_silu, n_silu], dtype="float32")
-            T_multiply = T.match_buffer(var_T_multiply, [m_silu, n_silu], dtype="float32")
+
             compute = Ts.sblock_alloc_buffer([m_silu, n_silu], dtype="float32")
             for i0, i1 in T.grid(m_silu, n_silu):
                 with Ts.sblock("compute"):
@@ -1973,10 +1956,9 @@ def test_softmax_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def softmax(var_rxplaceholder: T.handle, var_T_softmax_norm: T.handle):
+        def softmax(rxplaceholder: T.Buffer([a_softmax, b_softmax, c_softmax], dtype='float32'), T_softmax_norm: T.Buffer([a_softmax, b_softmax, c_softmax], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [a_softmax, b_softmax, c_softmax], dtype="float32")
-            T_softmax_norm = T.match_buffer(var_T_softmax_norm, [a_softmax, b_softmax, c_softmax], dtype="float32")
+
             T_softmax_maxelem = Ts.sblock_alloc_buffer([a_softmax, b_softmax], dtype="float32")
             T_softmax_exp = Ts.sblock_alloc_buffer([a_softmax, b_softmax, c_softmax], dtype="float32")
             T_softmax_expsum = Ts.sblock_alloc_buffer([a_softmax, b_softmax], dtype="float32")
@@ -2094,10 +2076,9 @@ def test_log_softmax_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def log_softmax(var_rxplaceholder: T.handle, var_compute: T.handle):
+        def log_softmax(rxplaceholder: T.Buffer([a_log_softmax, b_log_softmax, c_log_softmax], dtype='float32'), compute: T.Buffer([a_log_softmax, b_log_softmax, c_log_softmax], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [a_log_softmax, b_log_softmax, c_log_softmax], dtype="float32")
-            compute = T.match_buffer(var_compute, [a_log_softmax, b_log_softmax, c_log_softmax], dtype="float32")
+
             T_softmax_maxelem = Ts.sblock_alloc_buffer([a_log_softmax, b_log_softmax], dtype="float32")
             compute_1 = Ts.sblock_alloc_buffer([a_log_softmax, b_log_softmax], dtype="float32")
             for i0, i1, k in T.grid(a_log_softmax, b_log_softmax, c_log_softmax):
@@ -2252,10 +2233,9 @@ def test_cross_entropy_with_logits_batch_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def cross_entropy_with_logits(var_x: T.handle, var_y: T.handle, T_divide: T.Buffer((), "float32")):
+        def cross_entropy_with_logits(x: T.Buffer((n_cross_entropy_with_logits, m_cross_entropy_with_logits)), y: T.Buffer((n_cross_entropy_with_logits, m_cross_entropy_with_logits)), T_divide: T.Buffer((), "float32")):
             T.func_attr({"tirx.noalias": True})
-            x = T.match_buffer(var_x, (n_cross_entropy_with_logits, m_cross_entropy_with_logits))
-            y = T.match_buffer(var_y, (n_cross_entropy_with_logits, m_cross_entropy_with_logits))
+
             T_multiply = Ts.sblock_alloc_buffer((n_cross_entropy_with_logits, m_cross_entropy_with_logits))
             T_multiply_red = Ts.sblock_alloc_buffer(())
             T_multiply_1 = Ts.sblock_alloc_buffer(())
@@ -2301,16 +2281,9 @@ def test_batch_norm():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def batch_norm(var_x: T.handle, var_gamma: T.handle, var_beta: T.handle, var_moving_mean: T.handle, var_moving_var: T.handle, var_T_add: T.handle, var_T_add_1: T.handle, var_T_add_2: T.handle):
+        def batch_norm(x: T.Buffer((T.int64(2), T.int64(3), T.int64(28), T.int64(28))), gamma: T.Buffer((T.int64(3),)), beta: T.Buffer((T.int64(3),)), moving_mean: T.Buffer((T.int64(3),)), moving_var: T.Buffer((T.int64(3),)), T_add: T.Buffer((T.int64(2), T.int64(3), T.int64(28), T.int64(28))), T_add_1: T.Buffer((T.int64(3),)), T_add_2: T.Buffer((T.int64(3),))):
             T.func_attr({"tirx.noalias": True})
-            x = T.match_buffer(var_x, (T.int64(2), T.int64(3), T.int64(28), T.int64(28)))
-            gamma = T.match_buffer(var_gamma, (T.int64(3),))
-            beta = T.match_buffer(var_beta, (T.int64(3),))
-            moving_mean = T.match_buffer(var_moving_mean, (T.int64(3),))
-            moving_var = T.match_buffer(var_moving_var, (T.int64(3),))
-            T_add = T.match_buffer(var_T_add, (T.int64(2), T.int64(3), T.int64(28), T.int64(28)))
-            T_add_1 = T.match_buffer(var_T_add_1, (T.int64(3),))
-            T_add_2 = T.match_buffer(var_T_add_2, (T.int64(3),))
+
             with Ts.sblock("root"):
                 Ts.reads()
                 Ts.writes()
@@ -2604,16 +2577,9 @@ def test_batch_norm_symbolic():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def batch_norm(var_x: T.handle, var_gamma: T.handle, var_beta: T.handle, var_moving_mean: T.handle, var_moving_var: T.handle, var_T_add: T.handle, var_T_add_1: T.handle, var_T_add_2: T.handle):
+        def batch_norm(x: T.Buffer((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm)), gamma: T.Buffer((c_batch_norm,)), beta: T.Buffer((c_batch_norm,)), moving_mean: T.Buffer((c_batch_norm,)), moving_var: T.Buffer((c_batch_norm,)), T_add: T.Buffer((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm)), T_add_1: T.Buffer((T.max(c_batch_norm, h_batch_norm),)), T_add_2: T.Buffer((T.max(c_batch_norm, h_batch_norm),))):
             T.func_attr({"tirx.noalias": True})
-            x = T.match_buffer(var_x, (n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm))
-            gamma = T.match_buffer(var_gamma, (c_batch_norm,))
-            beta = T.match_buffer(var_beta, (c_batch_norm,))
-            moving_mean = T.match_buffer(var_moving_mean, (c_batch_norm,))
-            moving_var = T.match_buffer(var_moving_var, (c_batch_norm,))
-            T_add = T.match_buffer(var_T_add, (n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm))
-            T_add_1 = T.match_buffer(var_T_add_1, (T.max(c_batch_norm, h_batch_norm),))
-            T_add_2 = T.match_buffer(var_T_add_2, (T.max(c_batch_norm, h_batch_norm),))
+
             with Ts.sblock("root"):
                 Ts.reads()
                 Ts.writes()
@@ -3089,12 +3055,9 @@ def test_layer_norm_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def layer_norm(var_x: T.handle, var_gamma: T.handle, var_beta: T.handle, var_T_layer_norm: T.handle):
+        def layer_norm(x: T.Buffer((n_layer_norm, s_layer_norm, f_layer_norm)), gamma: T.Buffer((s_layer_norm, f_layer_norm)), beta: T.Buffer((s_layer_norm, f_layer_norm)), T_layer_norm: T.Buffer((n_layer_norm, s_layer_norm, f_layer_norm))):
             T.func_attr({"tirx.noalias": True})
-            x = T.match_buffer(var_x, (n_layer_norm, s_layer_norm, f_layer_norm))
-            gamma = T.match_buffer(var_gamma, (s_layer_norm, f_layer_norm))
-            beta = T.match_buffer(var_beta, (s_layer_norm, f_layer_norm))
-            T_layer_norm = T.match_buffer(var_T_layer_norm, (n_layer_norm, s_layer_norm, f_layer_norm))
+
             # with Ts.sblock("root"):
             x_sum = Ts.sblock_alloc_buffer((n_layer_norm,))
             x_mean = Ts.sblock_alloc_buffer((n_layer_norm,))
@@ -3309,13 +3272,12 @@ def test_group_norm_symbolic():
 
     @tvm.script.ir_module
     class Expected:
+        group_norm_c = T.int64()
+
         @Ts.prim_func(private=True)
-        def group_norm(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, c: T.int64, var_T_reshape: T.handle):
+        def group_norm(rxplaceholder: T.Buffer((n_group_norm, T.int64(4) * group_norm_c, h_group_norm, w_group_norm)), rxplaceholder_1: T.Buffer((T.int64(4) * group_norm_c,)), rxplaceholder_2: T.Buffer((T.int64(4) * group_norm_c,)), c: group_norm_c, T_reshape: T.Buffer((n_group_norm, T.int64(4) * group_norm_c, h_group_norm, w_group_norm))):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (n_group_norm, T.int64(4) * c, h_group_norm, w_group_norm))
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (T.int64(4) * c,))
-            rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, (T.int64(4) * c,))
-            T_reshape = T.match_buffer(var_T_reshape, (n_group_norm, T.int64(4) * c, h_group_norm, w_group_norm))
+
             # with Ts.sblock("root"):
             T_reshape_1 = Ts.sblock_alloc_buffer((n_group_norm, T.int64(4), T.int64(4) * c // T.int64(4), h_group_norm, w_group_norm))
             rxplaceholder_red_temp_v0 = Ts.sblock_alloc_buffer((n_group_norm, T.int64(4)))
@@ -3550,11 +3512,9 @@ def test_rms_norm_symbolic():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def rms_norm(var_A: T.handle, var_B: T.handle, var_T_cast: T.handle):
+        def rms_norm(A: T.Buffer((n_rms_norm, s_rms_norm, f_rms_norm)), B: T.Buffer((s_rms_norm, f_rms_norm)), T_cast: T.Buffer((n_rms_norm, s_rms_norm, f_rms_norm))):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (n_rms_norm, s_rms_norm, f_rms_norm))
-            B = T.match_buffer(var_B, (s_rms_norm, f_rms_norm))
-            T_cast = T.match_buffer(var_T_cast, (n_rms_norm, s_rms_norm, f_rms_norm))
+
             # with Ts.sblock("root"):
             T_cast_1 = Ts.sblock_alloc_buffer((n_rms_norm, s_rms_norm, f_rms_norm))
             T_multiply = Ts.sblock_alloc_buffer((n_rms_norm, s_rms_norm, f_rms_norm))
@@ -4115,10 +4075,9 @@ def test_nll_no_batch():
             return gv
 
         @Ts.prim_func(private=True)
-        def nll_loss(var_rxplaceholder: T.handle, rxplaceholder: T.Buffer((), "int64"), var_rxplaceholder_1: T.handle, T_divide: T.Buffer((), "float32")):
+        def nll_loss(rxplaceholder_1: T.Buffer((C_nll_loss,)), rxplaceholder: T.Buffer((), "int64"), rxplaceholder_2: T.Buffer((C_nll_loss,)), T_divide: T.Buffer((), "float32")):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder, (C_nll_loss,))
-            rxplaceholder_2 = T.match_buffer(var_rxplaceholder_1, (C_nll_loss,))
+
             # with Ts.sblock("root"):
             nll_loss = Ts.sblock_alloc_buffer(())
             nll_loss_1 = Ts.sblock_alloc_buffer(())
@@ -4175,12 +4134,10 @@ def test_nll_loss_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def nll_loss(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, T_divide: T.Buffer((), "float32"),):
+        def nll_loss(rxplaceholder: T.Buffer([N_nll_loss, C_nll_loss, d1_nll_loss, d2_nll_loss], dtype='float32'), rxplaceholder_1: T.Buffer([N_nll_loss, d1_nll_loss, d2_nll_loss], dtype='int64'), rxplaceholder_2: T.Buffer([C_nll_loss], dtype='float32'), T_divide: T.Buffer((), "float32"),):
             # function attr dict
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [N_nll_loss, C_nll_loss, d1_nll_loss, d2_nll_loss], dtype="float32")
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [N_nll_loss, d1_nll_loss, d2_nll_loss], dtype="int64")
-            rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, [C_nll_loss], dtype="float32")
+
             # body
             # with Ts.sblock("root")
             nll_loss = Ts.sblock_alloc_buffer([N_nll_loss, d1_nll_loss, d2_nll_loss], dtype="float32")

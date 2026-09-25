@@ -30,9 +30,7 @@ from tvm.script import tirx as T
 
 def test_tir_print_all_passes(capsys):
     @Ts.prim_func
-    def func(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128, 128, 128))
-        B = T.match_buffer(b, (128, 128, 128, 128))
+    def func(A: T.Buffer((128, 128, 128, 128)), B: T.Buffer((128, 128, 128, 128))) -> None:
         for i, j, k, l in T.grid(128, 128, 128, 128):
             with Ts.sblock("B"):
                 vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])

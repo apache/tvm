@@ -623,10 +623,10 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_merge(a: T.handle, b: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
-                C = T.match_buffer(c, (128, 128))
+            def before_merge(
+                A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+            ) -> None:
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -651,10 +651,10 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_fuse(a: T.handle, b: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
-                C = T.match_buffer(c, (128, 128))
+            def after_fuse(
+                A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+            ) -> None:
+
                 # the 2 loops are merged into 1
                 for i_m in range(128):
                     for j in range(128):
@@ -669,6 +669,7 @@ class Schedule(Object):
                             Ts.reads(A[vi, vj])
                             Ts.writes(C[vi, vj])
                             C[vi, vj] = A[vi, vj] * T.float32(2)
+
         """
         return _ffi_api.ScheduleMerge(self, loops)  # type: ignore # pylint: disable=no-member
 
@@ -699,9 +700,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_fuse(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def before_fuse(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -721,9 +722,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_fuse(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def after_fuse(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 # the 2 loops are fused into 1
                 for i_j_fused in T.serial(0, 16384):
                     with Ts.sblock("B"):
@@ -789,9 +790,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_split(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def before_split(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -811,9 +812,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_split(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def after_split(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 # the original loop is split into 2 loops
                 for i0, i1, j in T.grid(2, 64, 128):
                     with Ts.sblock("B"):
@@ -876,9 +877,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_partition(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def before_partition(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -897,9 +898,9 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            def after_partition(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def after_partition(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 # the original loop is partition into 3 loops
                 with Ts.sblock("root"):
                     Ts.reads()
@@ -970,9 +971,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_reorder(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def before_reorder(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -992,9 +993,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_reorder(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def after_reorder(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 # Here j and i are reordered
                 for j, i in T.grid(128, 128):
                     with Ts.sblock("B"):
@@ -1151,9 +1152,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_parallel(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def before_parallel(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1172,9 +1173,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_parallel(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def after_parallel(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i in T.parallel(0, 128):
                     for j in T.serial(0, 128):
                         with Ts.sblock("B"):
@@ -1207,9 +1208,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_vectorize(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def before_vectorize(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1228,9 +1229,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_vectorize(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def after_vectorize(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i in T.serial(0, 128):
                     for j in T.vectorized(0, 128):
                         with Ts.sblock("B"):
@@ -1268,9 +1269,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_bind(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def before_bind(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1290,9 +1291,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_bind(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def after_bind(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i in T.thread_binding(0, 128, thread = "blockIdx.x"):
                     for j in T.thread_binding(0, 128, thread = "threadIdx.x"):
                         with Ts.sblock("B"):
@@ -1319,9 +1320,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_unroll(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def before_unroll(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1340,9 +1341,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_unroll(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def after_unroll(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i in T.unroll(0, 128):
                     for j in T.serial(0, 128):
                         with Ts.sblock("B"):
@@ -1398,9 +1399,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_cache_read(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def before_cache_read(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1420,9 +1421,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_cache_read(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def after_cache_read(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 A_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("A_local"):
@@ -1493,9 +1494,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_cache_write(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def before_cache_write(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1515,9 +1516,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_cache_write(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def after_cache_write(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 B_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("A_local"):
@@ -1586,9 +1587,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_reindex_cache_read(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def before_reindex_cache_read(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1608,9 +1609,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_reindex_cache_read(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def after_reindex_cache_read(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 A_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("A_local"):
@@ -1686,9 +1687,10 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_reindex_cache_write(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def before_reindex_cache_write(
+                A: T.Buffer((128, 128)), B: T.Buffer((128, 128))
+            ) -> None:
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1708,9 +1710,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_cache_write(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (64, 2, 128))
+            def after_cache_write(A: T.Buffer((128, 128)), B: T.Buffer((64, 2, 128))) -> None:
+
+
                 B_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("A_local"):
@@ -1862,9 +1864,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def resize(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (1, 3, 40, 40))
-                B = T.match_buffer(b, (1, 3, 80, 80))
+            def resize(A: T.Buffer((1, 3, 40, 40)), B: T.Buffer((1, 3, 80, 80))) -> None:
+
+
                 for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
                     with Ts.sblock("A"):
                         n, c, vi, vj = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -2076,10 +2078,12 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_compute_at(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
+            def before_compute_at(
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+            ) -> None:
+
                 B = Ts.sblock_alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -2104,10 +2108,12 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_compute_at(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
+            def after_compute_at(
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+            ) -> None:
+
                 B = Ts.sblock_alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+
                 for i in T.serial(0, 128):
                     for j in T.serial(0, 128):
                         with Ts.sblock("B"):
@@ -2172,10 +2178,12 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_reverse_compute_at(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
+            def before_reverse_compute_at(
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+            ) -> None:
+
                 B = Ts.sblock_alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -2200,10 +2208,12 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
+            def after_reverse_compute_at(
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+            ) -> None:
+
                 B = Ts.sblock_alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+
                 for i in T.serial(0, 128):
                     for j in T.serial(0, 128):
                         with Ts.sblock("B"):
@@ -2248,10 +2258,10 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_inline(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
+            def before_inline(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+
                 B = Ts.sblock_alloc_buffer((128, 128))
-                C = T.match_buffer(c, (128, 128))
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -2274,9 +2284,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_inline(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                C = T.match_buffer(c, (128, 128))
+            def after_inline(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("C"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -2317,10 +2327,10 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_inline(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
+            def before_inline(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+
                 B = Ts.sblock_alloc_buffer((128, 128))
-                C = T.match_buffer(c, (128, 128))
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -2343,9 +2353,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_inline(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                C = T.match_buffer(c, (128, 128))
+            def after_inline(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("C"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -2450,10 +2460,10 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_decompose(a: T.handle, b: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, [128, 128])
-                B = T.match_buffer(b, [128, 128])
-                C = T.match_buffer(c, [128, 128])
+            def before_decompose(
+                A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+            ) -> None:
+
                 for i, j, k in T.grid(128, 128, 128):
                     with Ts.sblock("C"):
                         vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -2476,10 +2486,10 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_decompose(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-                A = tirx.match_buffer(a, [128, 128])
-                B = tirx.match_buffer(b, [128, 128])
-                C = tirx.match_buffer(c, [128, 128])
+            def after_decompose(
+                A: tirx.Buffer([128, 128]), B: tirx.Buffer([128, 128]), C: tirx.Buffer([128, 128])
+            ) -> None:
+
                 for i in tirx.serial(128):
                     for j in tirx.serial(128):
                         with tirx.block([128, 128]) as [vi, vj]:
@@ -2575,15 +2585,13 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_rfactor(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128, 128))
-                B = T.match_buffer(b, (128,))
+            def before_rfactor(A: T.Buffer((128, 128, 128)), B: T.Buffer((128,))) -> None:
                 for ii, i, j in T.grid(128, 128, 128):
-                with Ts.sblock("B"):
-                    vii, vi, vj = Ts.axis.remap("SRR", [ii, i, j])
-                    with Ts.init():
-                        B[vii] = 0.0
-                    B[vii] = B[vii] + A[vii, vi, vj]
+                    with Ts.sblock("B"):
+                        vii, vi, vj = Ts.axis.remap("SRR", [ii, i, j])
+                        with Ts.init():
+                            B[vii] = 0.0
+                        B[vii] = B[vii] + A[vii, vi, vj]
 
         Create the schedule and do rfactor:
 
@@ -2599,9 +2607,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_rfactor(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, [128, 128, 128])
-                B = T.match_buffer(b, [128])
+            def after_rfactor(A: T.Buffer([128, 128, 128]), B: T.Buffer([128])) -> None:
+
+
                 B_rf = Ts.sblock_alloc_buffer([128, 128])
                 for i2, ii, i in T.grid(128, 128, 128):
                     with Ts.sblock("B_rf"):
@@ -2675,10 +2683,10 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_storage_align(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
+            def before_storage_align(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+
                 B = Ts.sblock_alloc_buffer((128, 128))
-                C = T.match_buffer(c, (128, 128))
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -2701,10 +2709,10 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_storage_align(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
+            def after_storage_align(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+
                 B = Ts.sblock_alloc_buffer((128, 128))
-                C = T.match_buffer(c, (128, 128))
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         Ts.sblock_attr({"buffer_dim_align": [[[0, 128, 1]]]})
@@ -3008,29 +3016,30 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
-                B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
-                C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
+            def mma_desc(
+                A: T.Buffer((16, 16), align=128, offset_factor=1),
+                B: T.Buffer((16, 16), align=128, offset_factor=1),
+                C: T.Buffer((16, 16), align=128, offset_factor=1),
+            ) -> None:
 
                 with Ts.sblock("root"):
-                    Ts.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
-                    Ts.writes(C[0 : 16, 0 : 16])
+                    Ts.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
+                    Ts.writes(C[0:16, 0:16])
                     for i, j, k in T.grid(16, 16, 16):
                         with Ts.sblock("update"):
                             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
-
             @Ts.prim_func
-            def mma_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
-                B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
-                C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
+            def mma_intrin(
+                A: T.Buffer((16, 16), align=128, offset_factor=1),
+                B: T.Buffer((16, 16), align=128, offset_factor=1),
+                C: T.Buffer((16, 16), align=128, offset_factor=1),
+            ) -> None:
 
                 with Ts.sblock("root"):
-                    Ts.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
-                    Ts.writes(C[0 : 16, 0 : 16])
+                    Ts.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
+                    Ts.writes(C[0:16, 0:16])
                     T.evaluate(
                         T.tvm_mma_sync(
                             C.data,
@@ -3078,19 +3087,19 @@ class Schedule(Object):
                             B[vjo * 16 : vjo * 16 + 16, vko * 16 : vko * 16 + 16],
                         )
                         Ts.writes(C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
-                        A_1 = T.match_buffer(
+                        A_1 = Ts.match_buffer(
                             A[vio * 16 : vio * 16 + 16, vko * 16 : vko * 16 + 16],
                             [16, 16],
                             dtype="float32",
                             offset_factor=1,
                         )
-                        B_1 = T.match_buffer(
+                        B_1 = Ts.match_buffer(
                             B[vjo * 16 : vjo * 16 + 16, vko * 16 : vko * 16 + 16],
                             [16, 16],
                             dtype="float32",
                             offset_factor=1,
                         )
-                        C_1 = T.match_buffer(
+                        C_1 = Ts.match_buffer(
                             C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16],
                             [16, 16],
                             dtype="float32",
@@ -3146,9 +3155,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_annotate(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def before_annotate(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -3167,9 +3176,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_annotate(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def after_annotate(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -3200,9 +3209,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_unannotate(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def before_unannotate(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -3222,9 +3231,9 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def after_unannotate(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def after_unannotate(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -3395,10 +3404,12 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def before_transform_layout(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
+            def before_transform_layout(
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+            ) -> None:
+
                 B = Ts.sblock_alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
@@ -3422,10 +3433,12 @@ class Schedule(Object):
         .. code-block:: python
 
             @Ts.prim_func
-            def two_elementwise_transformed_intermediate_buffer(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
+            def two_elementwise_transformed_intermediate_buffer(
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+            ) -> None:
+
                 B = Ts.sblock_alloc_buffer((8, 8, 16, 16), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])

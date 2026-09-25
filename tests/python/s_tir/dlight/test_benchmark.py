@@ -51,9 +51,9 @@ _test_n = T.dynamic("n")
 @I.ir_module(check_well_formed=False)
 class Module:
     @Ts.prim_func
-    def full1(var_T_full: T.handle):
+    def full1(T_full: T.Buffer((T.int64(1), T.int64(32), T.int64(1), full1_n), 'float16')):
         T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-        T_full = T.match_buffer(var_T_full, (T.int64(1), T.int64(32), T.int64(1), full1_n), "float16")
+
         # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), T.int64(1), full1_n):
             with Ts.sblock("T_full"):
@@ -63,9 +63,9 @@ class Module:
                 T_full[v_ax0, v_ax1, v_ax2, v_ax3] = T.float16(1.0)
 
     @Ts.prim_func
-    def full2(var_T_full: T.handle):
+    def full2(T_full: T.Buffer((T.int64(1), T.int64(32), full2_n, T.int64(128)), 'float16')):
         T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-        T_full = T.match_buffer(var_T_full, (T.int64(1), T.int64(32), full2_n, T.int64(128)), "float16")
+
         # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), full2_n, T.int64(128)):
             with Ts.sblock("T_full"):
@@ -75,10 +75,9 @@ class Module:
                 T_full[v_ax0, v_ax1, v_ax2, v_ax3] = T.float16(1.0)
 
     @Ts.prim_func
-    def matmul1(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
+    def matmul1(A: T.Buffer((T.int64(1), T.int64(32), T.int64(1), matmul1_n), 'float16'), B: T.Buffer((T.int64(1), T.int64(32), matmul1_n, T.int64(128)), 'float16'), matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})
-        A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), matmul1_n), "float16")
-        B = T.match_buffer(var_B, (T.int64(1), T.int64(32), matmul1_n, T.int64(128)), "float16")
+
         # with Ts.sblock("root"):
         for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(32), T.int64(1), T.int64(128), matmul1_n):
             with Ts.sblock("matmul"):
@@ -106,10 +105,9 @@ class Module:
 m = T.dynamic("m")
 
 @Ts.prim_func
-def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
+def cuda_workload(inp0: T.Buffer((T.int64(1), m, T.int64(4096))), inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Buffer((T.int64(1), m, T.int64(4096)))):
     T.func_attr({"tirx.is_scheduled": True})
-    inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
-    matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
+
     # with Ts.sblock("root"):
     matmul_reindex_pad_local = Ts.sblock_alloc_buffer((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="local")
     inp0_reindex_pad_shared = Ts.sblock_alloc_buffer((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="shared")

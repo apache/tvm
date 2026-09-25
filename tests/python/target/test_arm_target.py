@@ -59,8 +59,7 @@ def test_scalable_div(sve_device_vector_length):
     dev = tvm.cpu(0)
 
     @Ts.prim_func
-    def my_func(a: T.handle):
-        A = T.match_buffer(a, (1,), "int32")
+    def my_func(A: T.Buffer((1,), "int32")):
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
         A[0] = T.Div(10000, 4 * T.vscale())
 
@@ -81,9 +80,7 @@ def test_scalable_buffer_load_store(sve_device_vector_length):
     dev = tvm.cpu(0)
 
     @Ts.prim_func
-    def my_func(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (num_elements,), "float32")
-        B = T.match_buffer(b, (num_elements,), "float32")
+    def my_func(A: T.Buffer((num_elements,), "float32"), B: T.Buffer((num_elements,), "float32")):
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
         B[T.ramp(0, 1, 4 * T.vscale())] = A[T.ramp(0, 1, 4 * T.vscale())]
 
@@ -108,9 +105,7 @@ def test_scalable_loop_bound(sve_device_vector_length):
     dev = tvm.cpu(0)
 
     @Ts.prim_func
-    def my_func(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (num_elements,), "float32")
-        B = T.match_buffer(b, (num_elements,), "float32")
+    def my_func(A: T.Buffer((num_elements,), "float32"), B: T.Buffer((num_elements,), "float32")):
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
         for i in T.serial(0, 4 * T.vscale()):
             B[i] = A[i]
@@ -133,8 +128,7 @@ def test_scalable_broadcast(sve_device_vector_length):
     dev = tvm.cpu(0)
 
     @Ts.prim_func
-    def my_func(a: T.handle):
-        A = T.match_buffer(a, (num_elements,), "float32")
+    def my_func(A: T.Buffer((num_elements,), "float32")):
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
         A[T.ramp(0, 1, 4 * T.vscale())] = T.broadcast(1, 4 * T.vscale())
 

@@ -40,7 +40,6 @@ from tvm.target import Target
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,
 # fmt: off
 
-
 def get_matmul_packed(m, n, k, lhs_type="int8", rhs_dtype="int8", acc_dtype="int32"):
     X = te.placeholder((m, k), name="X", dtype=lhs_type)
     W = te.placeholder((n, k), name="W", dtype=rhs_dtype)
@@ -56,31 +55,33 @@ def get_matmul_packed(m, n, k, lhs_type="int8", rhs_dtype="int8", acc_dtype="int
     )
     return te.create_prim_func([X, W, matmul])
 
-
 @tvm.script.ir_module
 class Matmul:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    def main(
+        A: T.Buffer((1024, 1024), "float32"),
+        B: T.Buffer((1024, 1024), "float32"),
+        C: T.Buffer((1024, 1024), "float32"),
+    ) -> None:
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.match_buffer(b, (1024, 1024), "float32")
-        C = T.match_buffer(c, (1024, 1024), "float32")
+
         for i, j, k in T.grid(1024, 1024, 1024):
             with Ts.sblock("matmul"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 with Ts.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
-
 
 @tvm.script.ir_module
 class DuplicateMatmul:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    def main(
+        A: T.Buffer((1024, 1024), "float32"),
+        B: T.Buffer((1024, 1024), "float32"),
+        C: T.Buffer((1024, 1024), "float32"),
+    ) -> None:
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.match_buffer(b, (1024, 1024), "float32")
-        C = T.match_buffer(c, (1024, 1024), "float32")
+
         for i, j, k in T.grid(1024, 1024, 1024):
             with Ts.sblock("matmul"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -92,16 +93,15 @@ class DuplicateMatmul:
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-
 @tvm.script.ir_module
 class TrinityMatmul:
     @Ts.prim_func
-    def main(a: T.handle, d: T.handle) -> None:
+    def main(A: T.Buffer((1024, 1024), 'float32'), D: T.Buffer((1024, 1024), 'float32')) -> None:
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, (1024, 1024), "float32")
+
         B = Ts.sblock_alloc_buffer((1024, 1024), "float32")
         C = Ts.sblock_alloc_buffer((1024, 1024), "float32")
-        D = T.match_buffer(d, (1024, 1024), "float32")
+
         for i, j in T.grid(1024, 1024):
             with Ts.sblock("A"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -115,15 +115,15 @@ class TrinityMatmul:
                 vi, vj = Ts.axis.remap("SS", [i, j])
                 D[vi, vj] = C[vi, vj] * 5.0
 
-
 @tvm.script.ir_module
 class TrinityMatmulProcessedForReference:
     @Ts.prim_func
-    def main(a: T.handle, d: T.handle) -> None:
+    def main(
+        A: T.Buffer([1024, 1024], dtype="float32"), D: T.Buffer([1024, 1024], dtype="float32")
+    ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, [1024, 1024], dtype="float32")
-        D = T.match_buffer(d, [1024, 1024], dtype="float32")
+
         # body
         # with tirx.block("root")
         B = Ts.sblock_alloc_buffer([1024, 1024], dtype="float32")
@@ -141,7 +141,6 @@ class TrinityMatmulProcessedForReference:
                 Ts.reads([B[vi, vj]])
                 Ts.writes([D[vi, vj]])
                 D[vi, vj] = (B[vi, vj] + T.float32(3)) * T.float32(5)
-
 
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument

@@ -85,7 +85,7 @@ class MatchBufferRegion : public ffi::ObjectRef {
  *      T.writes([buffer1[start:end, ...], ...])
  *      T.where(predicate)
  *      buffer2 = T.alloc_buffer(shape, dtype)
- *      buffer3 = T.match_buffer(source_buffer[start:end, ...])
+ *      buffer3 = Ts.match_buffer(source_buffer[start:end, ...])
  *      T.attr({attr_key: attr_value, ...})
  *      with T.init():
  *          // init body

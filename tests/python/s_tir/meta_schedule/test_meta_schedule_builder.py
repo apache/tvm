@@ -43,11 +43,13 @@ from tvm.target import Target
 @script.ir_module
 class MatmulModule:
     @Ts.prim_func
-    def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    def matmul(
+        A: T.Buffer((1024, 1024), "float32"),
+        B: T.Buffer((1024, 1024), "float32"),
+        C: T.Buffer((1024, 1024), "float32"),
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "matmul", "tirx.noalias": True})
-        A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.match_buffer(b, (1024, 1024), "float32")
-        C = T.match_buffer(c, (1024, 1024), "float32")
+
         for i, j, k in T.grid(1024, 1024, 1024):
             with Ts.sblock("matmul"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -60,12 +62,12 @@ class MatmulModule:
 class MatmulReluModule:
     @Ts.prim_func
     def matmul_relu(  # pylint: disable=no-self-argument
-        a: T.handle, b: T.handle, d: T.handle
+        A: T.Buffer((1024, 1024), "float32"),
+        B: T.Buffer((1024, 1024), "float32"),
+        D: T.Buffer((1024, 1024), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "matmul_relu", "tirx.noalias": True})
-        A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.match_buffer(b, (1024, 1024), "float32")
-        D = T.match_buffer(d, (1024, 1024), "float32")
+
         C = Ts.sblock_alloc_buffer((1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
             with Ts.sblock("matmul"):
@@ -83,12 +85,10 @@ class MatmulReluModule:
 class BatchMatmulModule:
     @Ts.prim_func
     def batch_matmul(  # pylint: disable=no-self-argument
-        a: T.handle, b: T.handle, c: T.handle
+        A: T.Buffer([16, 128, 128]), B: T.Buffer([16, 128, 128]), C: T.Buffer([16, 128, 128])
     ) -> None:
         T.func_attr({"global_symbol": "batch_matmul", "tirx.noalias": True})
-        A = T.match_buffer(a, [16, 128, 128])
-        B = T.match_buffer(b, [16, 128, 128])
-        C = T.match_buffer(c, [16, 128, 128])
+
         for n, i, j, k in T.grid(16, 128, 128, 128):
             with Ts.sblock("update"):
                 vn, vi, vj, vk = Ts.axis.remap("SSSR", [n, i, j, k])

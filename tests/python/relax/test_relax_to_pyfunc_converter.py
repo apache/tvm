@@ -47,20 +47,22 @@ class ComprehensiveTestModule:
     """Test module covering all converter features."""
 
     @Ts.prim_func
-    def add_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
+    def add_tir(
+        x: T.Buffer((5,), "float32"), y: T.Buffer((5,), "float32"), out: T.Buffer((5,), "float32")
+    ):
         """TIR function for addition."""
-        x = T.match_buffer(var_x, (5,), "float32")
-        y = T.match_buffer(var_y, (5,), "float32")
-        out = T.match_buffer(var_out, (5,), "float32")
+
         for i in range(5):
             out[i] = x[i] + y[i]
 
     @Ts.prim_func
-    def mul_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
+    def mul_tir(
+        x: T.Buffer((3, 4), "float32"),
+        y: T.Buffer((3, 4), "float32"),
+        out: T.Buffer((3, 4), "float32"),
+    ):
         """TIR function for multiplication."""
-        x = T.match_buffer(var_x, (3, 4), "float32")
-        y = T.match_buffer(var_y, (3, 4), "float32")
-        out = T.match_buffer(var_out, (3, 4), "float32")
+
         for i in range(3):
             for j in range(4):
                 out[i, j] = x[i, j] * y[i, j]
@@ -880,10 +882,11 @@ class TestDLPackAndTupleSupport:
         @I.ir_module
         class DLPackTestModule:
             @Ts.prim_func
-            def test_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
-                x = T.match_buffer(var_x, (4,), "float32")
-                y = T.match_buffer(var_y, (4,), "float32")
-                out = T.match_buffer(var_out, (4,), "float32")
+            def test_tir(
+                x: T.Buffer((4,), "float32"),
+                y: T.Buffer((4,), "float32"),
+                out: T.Buffer((4,), "float32"),
+            ):
                 for i in range(4):
                     out[i] = x[i] + y[i]
 
@@ -933,10 +936,11 @@ class TestDLPackAndTupleSupport:
         @I.ir_module
         class RuntimeAPITestModule:
             @Ts.prim_func
-            def test_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
-                x = T.match_buffer(var_x, (3,), "float32")
-                y = T.match_buffer(var_y, (3,), "float32")
-                out = T.match_buffer(var_out, (3,), "float32")
+            def test_tir(
+                x: T.Buffer((3,), "float32"),
+                y: T.Buffer((3,), "float32"),
+                out: T.Buffer((3,), "float32"),
+            ):
                 for i in range(3):
                     out[i] = x[i] * y[i]
 
@@ -991,10 +995,11 @@ class TestDLPackAndTupleSupport:
         @I.ir_module
         class MixedOpsTestModule:
             @Ts.prim_func
-            def add_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
-                x = T.match_buffer(var_x, (4,), "float32")
-                y = T.match_buffer(var_y, (4,), "float32")
-                out = T.match_buffer(var_out, (4,), "float32")
+            def add_tir(
+                x: T.Buffer((4,), "float32"),
+                y: T.Buffer((4,), "float32"),
+                out: T.Buffer((4,), "float32"),
+            ):
                 for i in range(4):
                     out[i] = x[i] + y[i]
 

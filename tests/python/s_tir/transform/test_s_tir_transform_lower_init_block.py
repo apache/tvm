@@ -26,10 +26,7 @@ from tvm.script import tirx as T
 @tvm.script.ir_module
 class WithInit:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [64, 64, 64])
-        B = T.match_buffer(b, [64])
-
+    def main(A: T.Buffer([64, 64, 64]), B: T.Buffer([64])) -> None:
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):
                 with Ts.sblock():
@@ -42,10 +39,7 @@ class WithInit:
 @tvm.script.ir_module
 class WithBranch:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [64, 64, 64])
-        B = T.match_buffer(b, [64])
-
+    def main(A: T.Buffer([64, 64, 64]), B: T.Buffer([64])) -> None:
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):
                 with Ts.sblock():
@@ -60,16 +54,13 @@ class WithBranch:
 @tvm.script.ir_module
 class InitWithMatchBuffer:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [64, 64, 64])
-        B = T.match_buffer(b, [64])
-
+    def main(A: T.Buffer([64, 64, 64]), B: T.Buffer([64])) -> None:
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):
                 with Ts.sblock():
                     i, j, k = Ts.axis.remap("SRR", [i0, j0, k0])
-                    BB = T.match_buffer(B[i], ())
-                    AA = T.match_buffer(A[i, 0:64, 0:64], (64, 64))
+                    BB = Ts.match_buffer(B[i], ())
+                    AA = Ts.match_buffer(A[i, 0:64, 0:64], (64, 64))
                     with Ts.init():
                         BB[()] = T.float32(0)
                     BB[()] += AA[j, k]
@@ -78,18 +69,15 @@ class InitWithMatchBuffer:
 @tvm.script.ir_module
 class BranchWithMatchBuffer:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [64, 64, 64])
-        B = T.match_buffer(b, [64])
-
+    def main(A: T.Buffer([64, 64, 64]), B: T.Buffer([64])) -> None:
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):
                 with Ts.sblock():
                     i, j, k = Ts.axis.remap("SRR", [i0, j0, k0])
                     Ts.reads(A[i, j, k])
                     Ts.writes(B[i])
-                    BB = T.match_buffer(B[i], ())
-                    AA = T.match_buffer(A[i, 0:64, 0:64], (64, 64))
+                    BB = Ts.match_buffer(B[i], ())
+                    AA = Ts.match_buffer(A[i, 0:64, 0:64], (64, 64))
                     if (j == 0) and (k == 32):
                         BB[()] = T.float32(0)
                     BB[()] += AA[j, k]

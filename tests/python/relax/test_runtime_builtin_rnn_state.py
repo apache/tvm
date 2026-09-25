@@ -216,16 +216,11 @@ def rnn_state_get(
 
     @Ts.prim_func
     def _rnn_state_get(
-        var_storage: T.handle,
-        var_seq_slot_ids: T.handle,
-        var_history_slot_ids: T.handle,
-        var_output: T.handle,
+        storage: T.Buffer((reserved_nseq, max_history, *shape), dtype),
+        seq_slot_ids: T.Buffer((batch_size,), 'int32'),
+        history_slot_ids: T.Buffer((batch_size,), 'int32'),
+        output: T.Buffer((batch_size, *shape), dtype),
     ):
-
-        storage = T.match_buffer(var_storage, (reserved_nseq, max_history, *shape), dtype)
-        seq_slot_ids = T.match_buffer(var_seq_slot_ids, (batch_size,), "int32")
-        history_slot_ids = T.match_buffer(var_history_slot_ids, (batch_size,), "int32")
-        output = T.match_buffer(var_output, (batch_size, *shape), dtype)
 
         for i in range(batch_size):
             for (*s,) in T.grid(*shape):
@@ -252,16 +247,11 @@ def rnn_state_set(
 
     @Ts.prim_func
     def _rnn_state_set(
-        var_storage: T.handle,
-        var_seq_slot_ids: T.handle,
-        var_history_slot_ids: T.handle,
-        var_data: T.handle,
+        storage: T.Buffer((reserved_nseq, max_history, *shape), dtype),
+        seq_slot_ids: T.Buffer((batch_size,), 'int32'),
+        history_slot_ids: T.Buffer((batch_size,), 'int32'),
+        data: T.Buffer((batch_size, *shape), dtype),
     ):
-
-        storage = T.match_buffer(var_storage, (reserved_nseq, max_history, *shape), dtype)
-        seq_slot_ids = T.match_buffer(var_seq_slot_ids, (batch_size,), "int32")
-        history_slot_ids = T.match_buffer(var_history_slot_ids, (batch_size,), "int32")
-        data = T.match_buffer(var_data, (batch_size, *shape), dtype)
 
         for i in range(batch_size):
             for (*s,) in T.grid(*shape):

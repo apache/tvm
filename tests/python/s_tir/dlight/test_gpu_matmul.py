@@ -29,9 +29,8 @@ def test_matmul():
     m = T.dynamic("m")
 
     @Ts.prim_func(private=True)
-    def before(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
-        inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
-        matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
+    def before(inp0: T.Buffer((T.int64(1), m, T.int64(4096))), inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Buffer((T.int64(1), m, T.int64(4096)))):
+
         for i0, i1, i2, k in T.grid(T.int64(1), m, T.int64(4096), T.int64(4096)):
             with Ts.sblock("matmul"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -42,10 +41,9 @@ def test_matmul():
     m = T.dynamic("m")
 
     @Ts.prim_func(private=True)
-    def expected(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
+    def expected(inp0: T.Buffer((T.int64(1), m, T.int64(4096))), inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Buffer((T.int64(1), m, T.int64(4096)))):
         T.func_attr({"tirx.is_scheduled": True})
-        inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
-        matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
+
         # with Ts.sblock("root"):
         matmul_reindex_pad_local = Ts.sblock_alloc_buffer((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="local")
         inp0_reindex_pad_shared = Ts.sblock_alloc_buffer((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="shared")
@@ -123,9 +121,8 @@ def test_matmul_int32():
     m = T.dynamic("m", "int32")
 
     @Ts.prim_func(private=True)
-    def func(var_inp0: T.handle, inp1: T.Buffer((4096, 4096), "float32"), var_matmul: T.handle):
-        inp0 = T.match_buffer(var_inp0, (1, m, 4096))
-        matmul = T.match_buffer(var_matmul, (1, m, 4096))
+    def func(inp0: T.Buffer((1, m, 4096)), inp1: T.Buffer((4096, 4096), "float32"), matmul: T.Buffer((1, m, 4096))):
+
         for i0, i1, i2, k in T.grid(1, m, 4096, 4096):
             with Ts.sblock("matmul"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -136,10 +133,9 @@ def test_matmul_int32():
     m = T.dynamic("m", "int32")
 
     @Ts.prim_func(private=True)
-    def expected(var_inp0: T.handle, inp1: T.Buffer((4096, 4096), "float32"), var_matmul: T.handle):
+    def expected(inp0: T.Buffer((1, m, 4096)), inp1: T.Buffer((4096, 4096), "float32"), matmul: T.Buffer((1, m, 4096))):
         T.func_attr({"tirx.is_scheduled": True})
-        inp0 = T.match_buffer(var_inp0, (1, m, 4096))
-        matmul = T.match_buffer(var_matmul, (1, m, 4096))
+
         # with Ts.sblock("root"):
         matmul_reindex_pad_local = Ts.sblock_alloc_buffer((1, (m + 31) // 32 * 32, 4096), scope="local")
         inp0_reindex_pad_shared = Ts.sblock_alloc_buffer((1, (m + 31) // 32 * 32, 4096), scope="shared")
@@ -357,11 +353,9 @@ def test_output_fp32():
     n = T.dynamic("n")
 
     @Ts.prim_func(private=True)
-    def before(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), p_lv48: T.handle, lv13_1: T.Buffer((T.int64(4096),), "float16"), p_lv3: T.handle, p_output0: T.handle):
+    def before(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), lv48: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16'), lv13_1: T.Buffer((T.int64(4096),), "float16"), lv3: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16'), p_output0_intermediate: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16')):
         T.func_attr({"tirx.noalias": True})
-        lv48 = T.match_buffer(p_lv48, (T.int64(1), n, T.int64(4096)), "float16")
-        lv3 = T.match_buffer(p_lv3, (T.int64(1), n, T.int64(4096)), "float16")
-        p_output0_intermediate = T.match_buffer(p_output0, (T.int64(1), n, T.int64(4096)), "float16")
+
         # with Ts.sblock("root"):
         p_output0_intermediate_1 = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
         var_matmul_intermediate = Ts.sblock_alloc_buffer((T.int64(1), n, T.int64(4096)))
@@ -410,11 +404,9 @@ def test_output_fp32():
     n = T.dynamic("n")
 
     @Ts.prim_func(private=True)
-    def expected(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), p_lv48: T.handle, lv13_1: T.Buffer((T.int64(4096),), "float16"), p_lv3: T.handle, p_output0: T.handle):
+    def expected(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), lv48: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16'), lv13_1: T.Buffer((T.int64(4096),), "float16"), lv3: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16'), p_output0_intermediate: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16')):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-        lv48 = T.match_buffer(p_lv48, (T.int64(1), n, T.int64(4096)), "float16")
-        lv3 = T.match_buffer(p_lv3, (T.int64(1), n, T.int64(4096)), "float16")
-        p_output0_intermediate = T.match_buffer(p_output0, (T.int64(1), n, T.int64(4096)), "float16")
+
         # with Ts.sblock("root"):
         var_matmul_intermediate_reindex_pad_local = Ts.sblock_alloc_buffer((T.int64(1), (n + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="local")
         lv48_reindex_pad_shared = Ts.sblock_alloc_buffer((T.int64(1), (n + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), "float16", scope="shared")
@@ -493,11 +485,9 @@ def test_inline_consumer_chain():
     n = T.dynamic("n")
 
     @Ts.prim_func(private=True)
-    def before(p_lv26: T.handle, lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), p_lv52: T.handle, p_output0: T.handle):
+    def before(lv26: T.Buffer((n, T.int64(2048)), 'float16'), lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Buffer((T.int64(1), n, T.int64(2048))), var_T_multiply_intermediate: T.Buffer((n, T.int64(2048)), 'float16')):
         T.func_attr({"tirx.noalias": True})
-        lv26 = T.match_buffer(p_lv26, (n, T.int64(2048)), "float16")
-        lv52 = T.match_buffer(p_lv52, (T.int64(1), n, T.int64(2048)))
-        var_T_multiply_intermediate = T.match_buffer(p_output0, (n, T.int64(2048)), "float16")
+
         # with Ts.sblock("root"):
         var_NT_matmul_intermediate = Ts.sblock_alloc_buffer((n, T.int64(2048)), "float16")
         compute = Ts.sblock_alloc_buffer((n, T.int64(2048)), "float16")
@@ -546,11 +536,9 @@ def test_inline_consumer_chain():
     n = T.dynamic("n")
 
     @Ts.prim_func(private=True)
-    def expected(p_lv26: T.handle, lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), p_lv52: T.handle, p_output0: T.handle):
+    def expected(lv26: T.Buffer((n, T.int64(2048)), 'float16'), lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Buffer((T.int64(1), n, T.int64(2048))), var_T_multiply_intermediate: T.Buffer((n, T.int64(2048)), 'float16')):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-        lv26 = T.match_buffer(p_lv26, (n, T.int64(2048)), "float16")
-        lv52 = T.match_buffer(p_lv52, (T.int64(1), n, T.int64(2048)))
-        var_T_multiply_intermediate = T.match_buffer(p_output0, (n, T.int64(2048)), "float16")
+
         # with Ts.sblock("root"):
         var_NT_matmul_intermediate_reindex_pad_local = Ts.sblock_alloc_buffer((T.int64(1), (n + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(2048)), "float16", scope="local")
         lv26_reindex_pad_shared = Ts.sblock_alloc_buffer((T.int64(1), (n + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(2048)), "float16", scope="shared")
@@ -629,9 +617,8 @@ def test_matmul_android():
     m = T.dynamic("m")
 
     @Ts.prim_func(private=True)
-    def before(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
-        inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
-        matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
+    def before(inp0: T.Buffer((T.int64(1), m, T.int64(4096))), inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Buffer((T.int64(1), m, T.int64(4096)))):
+
         for i0, i1, i2, k in T.grid(T.int64(1), m, T.int64(4096), T.int64(4096)):
             with Ts.sblock("matmul"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -642,10 +629,9 @@ def test_matmul_android():
     m = T.dynamic("m")
 
     @Ts.prim_func(private=True)
-    def expected(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
+    def expected(inp0: T.Buffer((T.int64(1), m, T.int64(4096))), inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Buffer((T.int64(1), m, T.int64(4096)))):
         T.func_attr({"tirx.is_scheduled": True})
-        inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
-        matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
+
         # with Ts.sblock("root"):
         inp0_reindex_pad = Ts.sblock_alloc_buffer((T.int64(1), (m + T.int64(15)) // T.int64(16), T.int64(4096), T.int64(16)))
         matmul_pad_local = Ts.sblock_alloc_buffer((T.int64(1), (m + T.int64(15)) // T.int64(16) * T.int64(16), T.int64(4096)), scope="local")
@@ -724,10 +710,9 @@ def test_fused_dequant_matmul_android():
     seq_len = T.dynamic("seq_len")
 
     @Ts.prim_func(private=True)
-    def before(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), p_rms_norm130: T.handle, transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), p_output0: T.handle):
+    def before(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), rms_norm130: T.Buffer((T.int64(1), seq_len, T.int64(4096)), 'float16'), transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), T_add_intermediate_intermediate: T.Buffer((T.int64(1), seq_len, T.int64(12288)), 'float16')):
         T.func_attr({"tirx.noalias": True})
-        rms_norm130 = T.match_buffer(p_rms_norm130, (T.int64(1), seq_len, T.int64(4096)), "float16")
-        T_add_intermediate_intermediate = T.match_buffer(p_output0, (T.int64(1), seq_len, T.int64(12288)), "float16")
+
         # with Ts.sblock("root"):
         compute = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(12288)), "float16")
         dequantize_intermediate_intermediate = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(12288)), "float16")
@@ -762,10 +747,9 @@ def test_fused_dequant_matmul_android():
     seq_len = T.dynamic("seq_len")
 
     @Ts.prim_func(private=True)
-    def expected(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), p_rms_norm130: T.handle, transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), p_output0: T.handle):
+    def expected(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), rms_norm130: T.Buffer((T.int64(1), seq_len, T.int64(4096)), 'float16'), transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), T_add_intermediate_intermediate: T.Buffer((T.int64(1), seq_len, T.int64(12288)), 'float16')):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-        rms_norm130 = T.match_buffer(p_rms_norm130, (T.int64(1), seq_len, T.int64(4096)), "float16")
-        T_add_intermediate_intermediate = T.match_buffer(p_output0, (T.int64(1), seq_len, T.int64(12288)), "float16")
+
         # with Ts.sblock("root"):
         dequantize_intermediate_intermediate_local = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(12288)), "float16", scope="local")
         rms_norm130_reindex_pad = Ts.sblock_alloc_buffer((T.int64(1), (seq_len + T.int64(15)) // T.int64(16), T.int64(4096), T.int64(16)), "float16")

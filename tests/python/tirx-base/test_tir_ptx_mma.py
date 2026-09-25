@@ -25,11 +25,13 @@ from tvm.testing import env
 
 
 @T.prim_func
-def gemm_mma_m8n8k4_row_col_fp64pf64fp64(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m8n8k4_row_col_fp64pf64fp64(
+    A: T.Buffer([8, 4], dtype="float64"),
+    B: T.Buffer([8, 4], dtype="float64"),
+    C: T.Buffer([8, 8], dtype="float64"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [8, 4], dtype="float64")
-    B = T.match_buffer(b, [8, 4], dtype="float64")
-    C = T.match_buffer(c, [8, 8], dtype="float64")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -91,11 +93,13 @@ def test_gemm_mma_m8n8k4_row_col_fp64pf64fp64():
 
 
 @T.prim_func
-def gemm_mma_m8n8k4_row_row_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m8n8k4_row_row_fp16fp16fp16(
+    A: T.Buffer([16, 4], dtype="float16"),
+    B: T.Buffer([4, 16], dtype="float16"),
+    C: T.Buffer([16, 16], dtype="float16"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 4], dtype="float16")
-    B = T.match_buffer(b, [4, 16], dtype="float16")
-    C = T.match_buffer(c, [16, 16], dtype="float16")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -168,11 +172,13 @@ def test_gemm_mma_m8n8k4_row_row_fp16fp16fp16():
 
 
 @T.prim_func
-def gemm_mma_m8n8k4_row_row_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m8n8k4_row_row_fp16fp16fp32(
+    A: T.Buffer([16, 4], dtype="float16"),
+    B: T.Buffer([4, 16], dtype="float16"),
+    C: T.Buffer([16, 16], dtype="float32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 4], dtype="float16")
-    B = T.match_buffer(b, [4, 16], dtype="float16")
-    C = T.match_buffer(c, [16, 16], dtype="float32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -252,11 +258,13 @@ def test_gemm_mma_m8n8k4_row_row_fp16fp16fp32():
 
 
 @T.prim_func
-def gemm_mma_m8n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m8n8k16_row_col_s8s8s32(
+    A: T.Buffer([8, 16], dtype="int8"),
+    B: T.Buffer([8, 16], dtype="int8"),
+    C: T.Buffer([8, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [8, 16], dtype="int8")
-    B = T.match_buffer(b, [8, 16], dtype="int8")
-    C = T.match_buffer(c, [8, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -324,11 +332,13 @@ def test_gemm_mma_m8n8k16_row_col_s8s8s32():
 
 
 @T.prim_func
-def gemm_mma_m8n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m8n8k16_row_col_s8u8s32(
+    A: T.Buffer([8, 16], dtype="int8"),
+    B: T.Buffer([8, 16], dtype="uint8"),
+    C: T.Buffer([8, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [8, 16], dtype="int8")
-    B = T.match_buffer(b, [8, 16], dtype="uint8")
-    C = T.match_buffer(c, [8, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -396,11 +406,13 @@ def test_gemm_mma_m8n8k16_row_col_s8u8s32():
 
 
 @T.prim_func
-def gemm_mma_m8n8k32_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m8n8k32_row_col_s4s4s32(
+    A: T.Buffer([8, 32], dtype="int4"),
+    B: T.Buffer([8, 32], dtype="int4"),
+    C: T.Buffer([8, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [8, 32], dtype="int4")
-    B = T.match_buffer(b, [8, 32], dtype="int4")
-    C = T.match_buffer(c, [8, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -462,11 +474,13 @@ def test_gemm_mma_m8n8k32_row_col_s4s4s32():
 
 
 @T.prim_func
-def gemm_mma_m8n8k32_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m8n8k32_row_col_s4u4s32(
+    A: T.Buffer([8, 32], dtype="int4"),
+    B: T.Buffer([8, 32], dtype="uint4"),
+    C: T.Buffer([8, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [8, 32], dtype="int4")
-    B = T.match_buffer(b, [8, 32], dtype="uint4")
-    C = T.match_buffer(c, [8, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -528,11 +542,13 @@ def test_gemm_mma_m8n8k32_row_col_s4u4s32():
 
 
 @T.prim_func
-def gemm_mma_m16n8k8_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m16n8k8_row_col_fp16fp16fp32(
+    A: T.Buffer([16, 8], dtype="float16"),
+    B: T.Buffer([8, 8], dtype="float16"),
+    C: T.Buffer([16, 8], dtype="float32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 8], dtype="float16")
-    B = T.match_buffer(b, [8, 8], dtype="float16")
-    C = T.match_buffer(c, [16, 8], dtype="float32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -602,11 +618,13 @@ def test_gemm_mma_m16n8k8_row_col_fp16fp16fp32():
 
 
 @T.prim_func
-def gemm_mma_m16n8k16_row_col_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m16n8k16_row_col_fp16fp16fp16(
+    A: T.Buffer([16, 16], dtype="float16"),
+    B: T.Buffer([8, 16], dtype="float16"),
+    C: T.Buffer([16, 8], dtype="float16"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 16], dtype="float16")
-    B = T.match_buffer(b, [8, 16], dtype="float16")
-    C = T.match_buffer(c, [16, 8], dtype="float16")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -679,11 +697,13 @@ def test_gemm_mma_m16n8k16_row_col_fp16fp16fp16():
 
 
 @T.prim_func
-def gemm_mma_m16n8k16_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m16n8k16_row_col_fp16fp16fp32(
+    A: T.Buffer([16, 16], dtype="float16"),
+    B: T.Buffer([8, 16], dtype="float16"),
+    C: T.Buffer([16, 8], dtype="float32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 16], dtype="float16")
-    B = T.match_buffer(b, [8, 16], dtype="float16")
-    C = T.match_buffer(c, [16, 8], dtype="float32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -756,11 +776,13 @@ def test_gemm_mma_m16n8k16_row_col_fp16fp16fp32():
 
 
 @T.prim_func
-def gemm_mma_m16n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m16n8k16_row_col_s8s8s32(
+    A: T.Buffer([16, 16], dtype="int8"),
+    B: T.Buffer([8, 16], dtype="int8"),
+    C: T.Buffer([16, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 16], dtype="int8")
-    B = T.match_buffer(b, [8, 16], dtype="int8")
-    C = T.match_buffer(c, [16, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -833,11 +855,13 @@ def test_gemm_mma_m16n8k16_row_col_s8s8s32():
 
 
 @T.prim_func
-def gemm_mma_m16n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m16n8k16_row_col_s8u8s32(
+    A: T.Buffer([16, 16], dtype="int8"),
+    B: T.Buffer([8, 16], dtype="uint8"),
+    C: T.Buffer([16, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 16], dtype="int8")
-    B = T.match_buffer(b, [8, 16], dtype="uint8")
-    C = T.match_buffer(c, [16, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -910,11 +934,13 @@ def test_gemm_mma_m16n8k16_row_col_s8u8s32():
 
 
 @T.prim_func
-def gemm_mma_m16n8k32_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m16n8k32_row_col_s8s8s32(
+    A: T.Buffer([16, 32], dtype="int8"),
+    B: T.Buffer([8, 32], dtype="int8"),
+    C: T.Buffer([16, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 32], dtype="int8")
-    B = T.match_buffer(b, [8, 32], dtype="int8")
-    C = T.match_buffer(c, [16, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -987,11 +1013,13 @@ def test_gemm_mma_m16n8k32_row_col_s8s8s32():
 
 
 @T.prim_func
-def gemm_mma_m16n8k32_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m16n8k32_row_col_s8u8s32(
+    A: T.Buffer([16, 32], dtype="int8"),
+    B: T.Buffer([8, 32], dtype="uint8"),
+    C: T.Buffer([16, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 32], dtype="int8")
-    B = T.match_buffer(b, [8, 32], dtype="uint8")
-    C = T.match_buffer(c, [16, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -1064,11 +1092,13 @@ def test_gemm_mma_m16n8k32_row_col_s8u8s32():
 
 
 @T.prim_func
-def gemm_mma_m16n8k64_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m16n8k64_row_col_s4s4s32(
+    A: T.Buffer([16, 64], dtype="int4"),
+    B: T.Buffer([8, 64], dtype="int4"),
+    C: T.Buffer([16, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 64], dtype="int4")
-    B = T.match_buffer(b, [8, 64], dtype="int4")
-    C = T.match_buffer(c, [16, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -1135,11 +1165,13 @@ def test_gemm_mma_m16n8k64_row_col_s4s4s32():
 
 
 @T.prim_func
-def gemm_mma_m16n8k64_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m16n8k64_row_col_s4u4s32(
+    A: T.Buffer([16, 64], dtype="int4"),
+    B: T.Buffer([8, 64], dtype="uint4"),
+    C: T.Buffer([16, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 64], dtype="int4")
-    B = T.match_buffer(b, [8, 64], dtype="uint4")
-    C = T.match_buffer(c, [16, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -1206,11 +1238,13 @@ def test_gemm_mma_m16n8k64_row_col_s4u4s32():
 
 
 @T.prim_func
-def gemm_mma_m16n8k256_row_col_b1b1s32(a: T.handle, b: T.handle, c: T.handle):
+def gemm_mma_m16n8k256_row_col_b1b1s32(
+    A: T.Buffer([16, 256], dtype="int1"),
+    B: T.Buffer([8, 256], dtype="int1"),
+    C: T.Buffer([16, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 256], dtype="int1")
-    B = T.match_buffer(b, [8, 256], dtype="int1")
-    C = T.match_buffer(c, [16, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")

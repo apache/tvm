@@ -26,33 +26,16 @@ pass, symbolic shapes, and the ``prim_func`` / ``jit`` distinction.
 Declaring buffer parameters
 ---------------------------
 
-There are two equivalent ways to take a tensor parameter:
+Declare tensor parameters with ``Tx.Buffer`` annotations. The annotation accepts
+shape, dtype, layout, offset, scope, and alignment metadata:
 
-- **Handle + match_buffer.** Take a ``Tx.handle`` (an opaque data pointer) and bind
-  it in the body with ``Tx.match_buffer``. This is the explicit form and the one
-  that exposes every descriptor field — ``layout``, ``elem_offset``, ``scope``,
-  ``align``, and symbolic shapes:
+.. code-block:: python
 
-  .. code-block:: python
+    @Tx.prim_func
+    def f(A: Tx.Buffer((256,), "float32", align=16), B: Tx.Buffer((256,), "float32")): ...
 
-      @Tx.prim_func
-      def f(A_ptr: Tx.handle, B_ptr: Tx.handle):
-          A = Tx.match_buffer(A_ptr, (256,), "float32", align=16)
-          B = Tx.match_buffer(B_ptr, (256,), "float32")
-          ...
-
-- **Tx.Buffer annotation.** Annotate the parameter directly. This is the concise
-  form — equivalent to a handle bound with ``match_buffer`` using the defaults:
-
-  .. code-block:: python
-
-      @Tx.prim_func
-      def f(A: Tx.Buffer((256,), "float32"), B: Tx.Buffer((256,), "float32")):
-          ...
-
-Both give you a ``Buffer`` you index with ``A[i]`` / ``A[i, j]``. Use ``Tx.Buffer``
-for the common case; drop to ``Tx.handle`` + ``match_buffer`` when you need a custom
-layout/offset/scope/alignment or a :ref:`symbolic shape <symbolic-shapes>`.
+The parameters are buffers that you index with ``A[i]`` or ``A[i, j]``.
+Annotations also support :ref:`symbolic shapes <symbolic-shapes>`.
 
 What the parameter list accepts
 -------------------------------
@@ -71,8 +54,8 @@ pass on the Python side when you call the compiled ``Executable``:
      - a tensor parameter (shape + dtype fixed)
      - a tensor on the right device
    * - ``Tx.handle``
-     - an opaque data pointer (bind with ``match_buffer``)
-     - a tensor
+     - an opaque handle
+     - a handle value
    * - ``Tx.int32`` / ``Tx.float32`` / …
      - a runtime scalar
      - a Python ``int`` / ``float``
@@ -86,9 +69,9 @@ interop) or
 order. For example, a kernel with a scalar parameter::
 
     @Tx.prim_func
-    def scal(A_ptr: Tx.handle, B_ptr: Tx.handle, s: Tx.float32):
-        A = Tx.match_buffer(A_ptr, (256,), "float32")
-        B = Tx.match_buffer(B_ptr, (256,), "float32")
+    def scal(A: Tx.Buffer((256,), 'float32'), B: Tx.Buffer((256,), 'float32'), s: Tx.float32):
+
+
         Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
         B[tx] = A[tx] * s
 
@@ -105,22 +88,25 @@ passed tensor** at run time, so a *single compiled kernel* handles any size:
 
 .. code-block:: python
 
+    n = Tx.int32()  # free symbolic extent
+
+
     @Tx.prim_func
-    def scale_dyn(a: Tx.handle, b: Tx.handle):
-        n = Tx.int32()                          # free symbolic extent
-        A = Tx.match_buffer(a, (n,), "float32")
-        B = Tx.match_buffer(b, (n,), "float32")
+    def scale_dyn(A: Tx.Buffer((n,), "float32"), B: Tx.Buffer((n,), "float32")):
         Tx.device_entry()
-        bx = Tx.cta_id([1]); tx = Tx.thread_id([1])
-        for i in range(n):                     # loop / launch bounds may use n
+        bx = Tx.cta_id([1])
+        tx = Tx.thread_id([1])
+        for i in range(n):  # loop / launch bounds may use n
             B[i] = A[i] * Tx.float32(2.0)
 
-    exe = tvm.compile(tvm.IRModule({"main": scale_dyn}),
-                      target=tvm.target.Target("cuda"), tir_pipeline="tirx")
-    exe(torch.rand(100, device="cuda"), torch.empty(100, device="cuda"))   # n = 100
-    exe(torch.rand(200, device="cuda"), torch.empty(200, device="cuda"))   # n = 200, same kernel
 
-Both ``match_buffer`` calls share ``n``, so the two shapes are constrained equal;
+    exe = tvm.compile(
+        tvm.IRModule({"main": scale_dyn}), target=tvm.target.Target("cuda"), tir_pipeline="tirx"
+    )
+    exe(torch.rand(100, device="cuda"), torch.empty(100, device="cuda"))  # n = 100
+    exe(torch.rand(200, device="cuda"), torch.empty(200, device="cuda"))  # n = 200, same kernel
+
+Both buffer annotations share ``n``, so the two shapes are constrained equal;
 ``n`` is never passed explicitly — it comes from the tensor.
 
 In the generated CUDA, ``n`` is just a runtime kernel argument; the host launcher
@@ -154,11 +140,12 @@ merged function (trimmed):
 
 .. code-block:: python
 
+    n = Tx.int32()  # free symbolic extent
+
+
     @Tx.prim_func
-    def main(a: Tx.handle, b: Tx.handle):
-        n = Tx.int32()
-        A = Tx.match_buffer(a, (n,))
-        B = Tx.match_buffer(b, (n,))
+    def main(A: Tx.Buffer((n,)), B: Tx.Buffer((n,))):
+
         with Tx.launch_thread("blockIdx.x", 1), Tx.launch_thread("threadIdx.x", 1):
             for i in range(n):
                 B[i] = A[i] * Tx.float32(2.0)
@@ -169,18 +156,20 @@ trailing ``1, 1`` are the grid/block launch dims):
 
 .. code-block:: python
 
-    @Tx.prim_func   # device
+    @Tx.prim_func  # device
     def scale_dyn_kernel(A_ptr: Tx.handle("float32"), B_ptr: Tx.handle("float32"), n: Tx.int32):
         ...
         for i in range(n):
             B[i] = A[i] * Tx.float32(2.0)
 
-    @Tx.prim_func   # host
-    def main(a: Tx.handle, b: Tx.handle):
-        n = Tx.int32()
-        A = Tx.match_buffer(a, (n,))
-        B = Tx.match_buffer(b, (n,))
-        Tx.call_packed("scale_dyn_kernel", A.data, B.data, n, 1, 1)   # n forwarded
+
+    n = Tx.int32()  # free symbolic extent
+
+
+    @Tx.prim_func  # host
+    def main(A: Tx.Buffer((n,)), B: Tx.Buffer((n,))):
+
+        Tx.call_packed("scale_dyn_kernel", A.data, B.data, n, 1, 1)  # n forwarded
 
 ``MakePackedAPI`` then fills in where ``n`` comes from — reading it from the
 argument's shape (essentially ``n = a.shape[0]``) — and adds the dtype / shape /
@@ -202,13 +191,24 @@ device checks (e.g. asserting ``B.shape[0] == n``)::
 
 .. code-block:: python
 
+    from __future__ import annotations
+
+
     @Tx.jit
-    def add(A: Tx.Buffer((N,), "float32"), B: Tx.Buffer((N,), "float32"),
-            C: Tx.Buffer((N,), "float32"), *, N: Tx.constexpr):
-        Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([N])
+    def add(
+        A: Tx.Buffer((N,), "float32"),
+        B: Tx.Buffer((N,), "float32"),
+        C: Tx.Buffer((N,), "float32"),
+        *,
+        N: Tx.constexpr,
+    ):
+        Tx.device_entry()
+        bx = Tx.cta_id([1])
+        tx = Tx.thread_id([N])
         C[tx] = A[tx] + B[tx]
 
-    kernel = add.specialize(N=256)   # -> a PrimFunc with N = 256 baked in
+
+    kernel = add.specialize(N=256)  # -> a PrimFunc with N = 256 baked in
 
 So: a **symbolic shape** is one kernel whose size is resolved at run time; a
 **constexpr + jit** produces a specialized kernel per value, resolved at compile
