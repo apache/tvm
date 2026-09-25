@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_IR_BUILDER_TIR_IR_H_
-#define TVM_SCRIPT_IR_BUILDER_TIR_IR_H_
+#ifndef TVM_TIRX_SCRIPT_IR_BUILDER_IR_H_
+#define TVM_TIRX_SCRIPT_IR_BUILDER_IR_H_
 
 #include <tvm/ffi/container/tuple.h>
 #include <tvm/ffi/container/variant.h>
@@ -26,7 +26,7 @@
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/script/builder/frame.h>
+#include <tvm/tirx/script/ir_builder/frame.h>
 #include <tvm/tirx/tile_primitive.h>
 #include <tvm/tirx/type.h>
 
@@ -485,4 +485,4 @@ TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(Void, PrimType::Void());
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_TIRX_SCRIPT_BUILDER_IR_H_
+#endif  // TVM_TIRX_SCRIPT_IR_BUILDER_IR_H_

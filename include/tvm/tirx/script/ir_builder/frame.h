@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
-#define TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
+#ifndef TVM_TIRX_SCRIPT_IR_BUILDER_FRAME_H_
+#define TVM_TIRX_SCRIPT_IR_BUILDER_FRAME_H_
 
 #include <tvm/script/ir_builder/base.h>
-#include <tvm/script/ir_builder/ir/frame.h>
+#include <tvm/script/ir_builder/frame.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
@@ -581,4 +581,4 @@ class HintFrame : public TIRFrame {
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_TIRX_SCRIPT_BUILDER_FRAME_H_
+#endif  // TVM_TIRX_SCRIPT_IR_BUILDER_FRAME_H_

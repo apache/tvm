@@ -20,12 +20,12 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/script/ir_builder/ir/ir.h>
+#include <tvm/script/ir_builder/ir.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/script/builder/frame.h>
+#include <tvm/tirx/script/ir_builder/frame.h>
 
 #include <map>
 

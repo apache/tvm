@@ -16,14 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_TIRX_SCRIPT_BUILDER_UTILS_H_
-#define TVM_TIRX_SCRIPT_BUILDER_UTILS_H_
+#ifndef TVM_TIRX_SCRIPT_IR_BUILDER_UTILS_H_
+#define TVM_TIRX_SCRIPT_IR_BUILDER_UTILS_H_
 
 #include <tvm/ffi/cast.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/script/builder/frame.h>
-#include <tvm/tirx/script/builder/ir.h>
+#include <tvm/tirx/script/ir_builder/frame.h>
+#include <tvm/tirx/script/ir_builder/ir.h>
 #include <tvm/tirx/stmt.h>
 
 namespace tvm {
@@ -130,4 +130,4 @@ inline tvm::TensorRegion BufferRegionFromLoad(tvm::TensorLoad buffer_load) {
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_TIRX_SCRIPT_BUILDER_UTILS_H_
+#endif  // TVM_TIRX_SCRIPT_IR_BUILDER_UTILS_H_

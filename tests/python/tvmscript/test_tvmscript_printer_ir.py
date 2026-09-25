@@ -17,8 +17,10 @@
 # pylint: disable=missing-docstring
 
 import pytest
+from tvm_ffi import get_global_func
 
-from tvm import IRModule
+from tvm import IRModule, tirx
+from tvm.runtime.script_printer import _script
 from tvm.s_tir.script.ir_builder import prim_func as build_prim_func
 from tvm.script import ir_builder as I
 from tvm.script.ir_builder import IRBuilder
@@ -63,6 +65,57 @@ def test_failed_invalid_prefix():
 
     with pytest.raises(RuntimeError):
         mod.script(ir_prefix="2I")
+
+
+def test_config_extension_passthrough():
+    make_config = get_global_func("node.PrinterConfig")
+    cfg = make_config(
+        {
+            "extension.option": 7,
+            "custom_key": "value",
+            "syntax_sugar": False,
+            "render_invisible_path_info": True,
+            "tirx.prefix": "invalid-prefix",
+            "extra_config": {
+                "extension.option": 9,
+                "render_invisible_path_info": False,
+                "tirx.prefix": "Custom",
+            },
+        }
+    )
+    assert cfg.extra_config["extension.option"] == 9
+    assert cfg.extra_config["custom_key"] == "value"
+    assert "syntax_sugar" not in cfg.extra_config
+    assert "extra_config" not in cfg.extra_config
+    assert not cfg.syntax_sugar
+    assert not cfg.render_invisible_path_info
+    assert make_config({}).syntax_sugar
+    assert _script(tirx.Var("Custom", "int32"), cfg) == "Custom_1"
+
+
+@pytest.mark.parametrize("key", ["tirx.prefix", "relax.prefix", "s_tir.prefix"])
+@pytest.mark.parametrize("value", ["2prefix", 17])
+@pytest.mark.parametrize("nested", [False, True])
+def test_config_validates_dialect_prefixes(key, value, nested):
+    config = {key: value}
+    if nested:
+        config = {"extra_config": config}
+    with pytest.raises((RuntimeError, TypeError)):
+        get_global_func("node.PrinterConfig")(config)
+
+
+@pytest.mark.parametrize(
+    "prefixes",
+    [{}, {"tirx.prefix": "CustomT", "relax.prefix": "CustomR", "s_tir.prefix": "CustomTs"}],
+)
+def test_config_reserves_dialect_prefixes_before_variable_definition(prefixes):
+    tir_prefix = prefixes.get("tirx.prefix", "T")
+    relax_prefix = prefixes.get("relax.prefix", "R")
+    for name in [tir_prefix, relax_prefix, prefixes.get("s_tir.prefix", "Ts")]:
+        var = tirx.Var(name, "int32")
+        assert var.script(verbose_expr=True, extra_config=prefixes).strip() == (
+            f"{name}_1 = {tir_prefix}.int32()\n{name}_1"
+        )
 
 
 if __name__ == "__main__":

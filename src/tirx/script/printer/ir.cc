@@ -19,6 +19,7 @@
 #include <tvm/target/target.h>
 #include <tvm/tirx/type.h>
 
+#include "../../../script/printer/dialect_prefix.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -27,33 +28,7 @@ namespace printer {
 
 TVM_FFI_STATIC_INIT_BLOCK() { TIRFrameNode::RegisterReflection(); }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<IntImm>(
-      "", [](IntImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
-        DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
-        if (dtype == d->cfg->int_dtype) {
-          return LiteralDoc::Int(imm, imm_p->Attr("value"));
-        } else if (dtype == DLDataType{kDLBool, 8, 1}) {
-          return TIR(d, DType2Str(dtype))
-              ->Call({LiteralDoc::Boolean(static_cast<bool>(imm->value), imm_p->Attr("value"))});
-        } else {
-          return TIR(d, DType2Str(dtype))->Call({LiteralDoc::Int(imm, imm_p->Attr("value"))});
-        }
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<FloatImm>(
-      "", [](FloatImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
-        DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
-        if (dtype == d->cfg->float_dtype) {
-          return LiteralDoc::Float(imm->value, imm_p->Attr("value"));
-        } else {
-          return TIR(d, DType2Str(dtype))
-              ->Call({LiteralDoc::Float(imm->value, imm_p->Attr("value"))});
-        }
-      });
-}
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterDialectPrefix("tirx.prefix", "T"); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<Range>(
@@ -63,19 +38,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                 d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
                 d->AsDoc<ExprDoc>(range->extent + range->min, p->Attr("extent")),
             });
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<PrimType>(
-      "",
-      [](PrimType ty, AccessPath p, IRDocsifier d) -> Doc { return TIR(d, DType2Str(ty->dtype)); });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<StringType>(
-      "", [](StringType ty, AccessPath p, IRDocsifier d) -> Doc {
-        return IR(d, "StringType")->Call({});
       });
 }
 
@@ -108,16 +70,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               ->Call(
                   {element_type, LiteralDoc::Str(ty->storage_scope, ty_p->Attr("storage_scope"))});
         }
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<TupleType>(
-      "", [](TupleType ty, AccessPath p, IRDocsifier d) -> Doc {
-        if (ty->fields.empty()) {
-          return LiteralDoc::None(p);
-        }
-        return TIR(d, "Tuple")->Call(d->AsDoc<ListDoc>(ty->fields, p->Attr("fields"))->elements);
       });
 }
 
