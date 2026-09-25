@@ -24,5 +24,4 @@ from . import register_namespace
 from .entry import ir_module as ir_module
 from .entry import pyfunc as pyfunc
 
-register_namespace("I", _sys.modules[__name__])
 register_namespace("ir", _sys.modules[__name__])

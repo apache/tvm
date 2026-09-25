@@ -461,7 +461,9 @@ def test_tensor_attr():
         attrs={"layout_free_placeholders": [B]},
     )
     func = te.create_prim_func([A, B, C])
-    rt_func = tvm.script.from_source(func.script())
+    rt_func = tvm.script.from_source(
+        func.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+    )
     tvm.ir.assert_structural_equal(func, rt_func)
 
 

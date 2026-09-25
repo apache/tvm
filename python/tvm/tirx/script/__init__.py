@@ -43,21 +43,20 @@ def _initialize() -> None:
         )
         globals().update(
             bind=builder.bind,
-            prim_func=entry.make_decorator(builder, namespace_path="T.prim_func"),
+            prim_func=entry.make_decorator(builder, namespace_path="tirx.prim_func"),
             inline=entry.make_macro_decorator(
-                builder, namespace_path="T.inline", preserve_return=True, late_binding=True
+                builder, namespace_path="tirx.inline", preserve_return=True, late_binding=True
             ),
             macro=entry.make_macro_decorator(
-                builder, namespace_path="T.macro", preserve_return=False
+                builder, namespace_path="tirx.macro", preserve_return=False
             ),
-            jit=make_jit(builder, namespace_path="T.jit"),
+            jit=make_jit(builder, namespace_path="tirx.jit"),
             tile=tile,
         )
         for name in ("cluster", "cta", "thread", "warp", "warpgroup", "wg"):
             globals()[name] = getattr(tile, name)
         namespace = _sys.modules[__name__]
-        for alias in ("T", "tir", "tirx"):
-            register_namespace(alias, namespace)
+        register_namespace("tirx", namespace)
         register_namespace("Tx", tile)
         register_namespace("Axis", Axis)
         globals()["__all__"] = sorted(name for name in globals() if not name.startswith("_"))

@@ -39,7 +39,15 @@ def _check(
     expect: relax.Function | IRModule | None = None,
 ):
     test = parsed.script(show_meta=True)
-    roundtrip_mod = tvm.script.from_source(test)
+    roundtrip_mod = tvm.script.from_source(
+        test,
+        extra_vars={
+            "I": tvm.script.ir,
+            "R": tvm.script.relax,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+        },
+    )
     tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
     if isinstance(parsed, IRModule) and isinstance(roundtrip_mod, IRModule):
         relax.analysis.well_formed(parsed)
@@ -1030,7 +1038,18 @@ def test_call_tir_with_tir_var():
 
     _check(Module)
     portable = Module.script(show_meta=True, extra_config={"script.use_pep695": False})
-    tvm.ir.assert_structural_equal(Module, tvm.script.from_source(portable))
+    tvm.ir.assert_structural_equal(
+        Module,
+        tvm.script.from_source(
+            portable,
+            extra_vars={
+                "I": tvm.script.ir,
+                "R": tvm.script.relax,
+                "T": tvm.script.tirx,
+                "Ts": tvm.script.s_tir,
+            },
+        ),
+    )
 
 
 def test_call_tir_with_grad():
@@ -1632,7 +1651,13 @@ def main(
     compound: R.Tensor([n + 1], "float32"),
 ) -> R.Tensor([n + 1], "float32"):
     return compound
-"""
+""",
+        extra_vars={
+            "I": tvm.script.ir,
+            "R": tvm.script.relax,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+        },
     )
 
     n, direct, repeated, shape, compound = func.params
@@ -1654,7 +1679,13 @@ class Module:
         [n + 1], "float32"
     ):
         return x
-"""
+""",
+        extra_vars={
+            "I": tvm.script.ir,
+            "R": tvm.script.relax,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+        },
     )
 
     func = mod["main"]
@@ -1671,7 +1702,13 @@ def test_later_prim_param_requires_external_shape_symbol():
 @R.function
 def main(x: R.Tensor([n], "float32"), n: T.int64):
     return x
-"""
+""",
+            extra_vars={
+                "I": tvm.script.ir,
+                "R": tvm.script.relax,
+                "T": tvm.script.tirx,
+                "Ts": tvm.script.s_tir,
+            },
         )
 
 
@@ -1682,7 +1719,13 @@ def test_non_int64_prim_param_rejected_in_shape_annotation():
 @R.function
 def main(n: T.int32, x: R.Tensor([n], "float32")):
     return x
-"""
+""",
+            extra_vars={
+                "I": tvm.script.ir,
+                "R": tvm.script.relax,
+                "T": tvm.script.tirx,
+                "Ts": tvm.script.s_tir,
+            },
         )
 
 
@@ -1698,7 +1741,13 @@ def main(n: T.int64, x: R.Tensor([n], "float32")):
         return recurse(current, value)
 
     return recurse(n, x)
-"""
+""",
+        extra_vars={
+            "I": tvm.script.ir,
+            "R": tvm.script.relax,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+        },
     )
 
     recursive_binding = next(

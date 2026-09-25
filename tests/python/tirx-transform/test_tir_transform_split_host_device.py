@@ -441,7 +441,12 @@ def test_cuda_launch_preserves_flag_metadata():
     assert len(launch.args) == 3
     assert int(launch.args[-1]) == 16
     tvm.ir.assert_structural_equal(after, tvm.ir.load_json(tvm.ir.save_json(after)))
-    tvm.ir.assert_structural_equal(after, tvm.script.from_source(after.script()))
+    tvm.ir.assert_structural_equal(
+        after,
+        tvm.script.from_source(
+            after.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+        ),
+    )
 
 
 def test_cuda_required_block_size_coexists_with_launch_bounds():

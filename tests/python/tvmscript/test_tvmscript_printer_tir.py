@@ -74,7 +74,12 @@ def test_prim_func_symbolic_buffer_param_roundtrip():
     source = func.script(extra_config={"script.use_pep695": False})
     assert "T.Buffer((n + 1, n)" in source
     assert source.index('n = I.dynamic("n", dtype="int32")') < source.index("T.evaluate(n)")
-    tvm.ir.assert_structural_equal(tvm.script.from_source(source), func)
+    tvm.ir.assert_structural_equal(
+        tvm.script.from_source(
+            source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+        ),
+        func,
+    )
 
 
 def test_prim_func_compound_buffer_shape_first_use_roundtrip():
@@ -89,7 +94,12 @@ def test_prim_func_compound_buffer_shape_first_use_roundtrip():
     source = func.script(extra_config={"script.use_pep695": False})
     assert "T.Buffer((T.max(n, 1),)" in source
     assert source.index('n = I.dynamic("n", dtype="int32")') < source.index("T.evaluate(n)")
-    tvm.ir.assert_structural_equal(tvm.script.from_source(source), func)
+    tvm.ir.assert_structural_equal(
+        tvm.script.from_source(
+            source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+        ),
+        func,
+    )
 
 
 def test_prim_func_symbolic_alloc_buffer_roundtrip():
@@ -102,7 +112,14 @@ def test_prim_func_symbolic_alloc_buffer_roundtrip():
 
     source = func.script()
     assert "T.alloc_buffer((size,))" in source
-    tvm.ir.assert_structural_equal(tvm.script.from_source(source, check_well_formed=False), func)
+    tvm.ir.assert_structural_equal(
+        tvm.script.from_source(
+            source,
+            check_well_formed=False,
+            extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+        ),
+        func,
+    )
 
 
 def test_prim_func_buffer_data_use():
@@ -1143,7 +1160,12 @@ def test_masked_load_prevents_scalar_allocation_init_fusion():
     source = main.script()
     assert "A = T.alloc_buffer" in source
     assert "A[0] = T.masked_load" in source
-    tvm.ir.assert_structural_equal(tvm.script.from_source(source), main)
+    tvm.ir.assert_structural_equal(
+        tvm.script.from_source(
+            source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+        ),
+        main,
+    )
 
 
 def test_vload_with_explicit_scalable_data_type():

@@ -34,8 +34,7 @@ from tvm.script import ir_builder as builder_ir
 from tvm.script.ir_builder import base
 from tvm.script.ir_builder.base import SpanEntry
 
-from . import _NAMESPACES, _initialize, jit_support
-from . import protocol_registry as syntax_protocol
+from . import _NAMESPACES, _initialize, jit_support, protocol_registry
 from . import register_namespace as register_namespace
 from .inspect_source import (
     _AnnotationScope,
@@ -284,7 +283,7 @@ def make_decorator(builder: object, *, namespace_path: str) -> Callable[..., Any
     builder : object
         Namespace implementing the function construction protocol.
     namespace_path : str
-        Canonical registered syntax key, such as "T.prim_func".
+        Canonical registered syntax key, such as "tirx.prim_func".
 
     Returns
     -------
@@ -313,7 +312,7 @@ def make_decorator(builder: object, *, namespace_path: str) -> Callable[..., Any
     pass directly to ``builder.function_``; the language variant hook owns their defaults.
     """
 
-    syntax_protocol.DEFINITION_KIND[namespace_path] = syntax_protocol.DefinitionKind.FUNCTION
+    protocol_registry.DEFINITION_KIND[namespace_path] = protocol_registry.DefinitionKind.FUNCTION
 
     def decorator(function: FunctionType | None = None, **options: Any) -> Any:
         """Parse a Python function into a function of the selected IR language variant.
@@ -398,7 +397,7 @@ def make_macro_decorator(
     builder : object
         Namespace implementing construction operations for the helper body.
     namespace_path : str
-        Canonical registered syntax key, such as "T.inline".
+        Canonical registered syntax key, such as "tirx.inline".
     preserve_return : bool, optional
         Keep helper returns as ordinary Python control flow. Default is True.
     late_binding : bool, optional
@@ -433,7 +432,7 @@ def make_macro_decorator(
     compilation, and builder exceptions propagate to the caller.
     """
 
-    syntax_protocol.DEFINITION_KIND[namespace_path] = syntax_protocol.DefinitionKind.MACRO
+    protocol_registry.DEFINITION_KIND[namespace_path] = protocol_registry.DefinitionKind.MACRO
 
     def decorator(function: FunctionType | None = None, **options: Any) -> Callable[..., Any]:
         """Decorate a helper that constructs IR in its caller's active frames.
@@ -525,7 +524,7 @@ def make_macro_decorator(
     return decorator
 
 
-syntax_protocol.DEFINITION_KIND["I.pyfunc"] = syntax_protocol.DefinitionKind.PYTHON
+protocol_registry.DEFINITION_KIND["ir.pyfunc"] = protocol_registry.DefinitionKind.PYTHON
 
 
 def pyfunc(function: _Callable) -> _Callable:
@@ -795,6 +794,10 @@ def parse(
 
     Notes
     -----
+    Source text supplies namespace aliases through imports or ``extra_vars``;
+    conventional names such as T, R and I are not implicitly available. Printed
+    scripts display suggested imports as comments; execute those imports in the
+    source text or supply equivalent ``extra_vars`` for a round trip.
     Each call owns its freshly acquired AST and a fresh lexical environment. Declaration and
     definition frames are entered only during generated execution. Source
     acquisition, host and builder errors propagate with their original type,

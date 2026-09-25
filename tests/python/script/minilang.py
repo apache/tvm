@@ -31,8 +31,7 @@ from types import SimpleNamespace
 from tvm.script.ir_builder import IRBuilder, resolve_global_info_args
 from tvm.script.ir_builder.base import MISSING, AlreadyEmitted
 from tvm.script.ir_builder.ir import constexpr
-from tvm.script.parser import entry
-from tvm.script.parser import protocol_registry as registry
+from tvm.script.parser import entry, protocol_registry
 
 
 @dataclass(eq=False)
@@ -226,8 +225,10 @@ class Language:
 
         self.M.Tensor = Tensor
         self.M.dynamic = dynamic
-        self.M.int32 = registry.register_scalar_annotation("M.int32", lambda: None, dtype="int32")
-        self.M.cell = registry.register_mutable_decl("M.cell")(cell)
+        self.M.int32 = protocol_registry.register_scalar_annotation(
+            "M.int32", lambda: None, dtype="int32"
+        )
+        self.M.cell = protocol_registry.register_mutable_decl("M.cell")(cell)
 
     @contextmanager
     def context(self):

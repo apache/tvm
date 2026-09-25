@@ -25,6 +25,8 @@ from __future__ import annotations
 import ast
 from textwrap import dedent
 
+import pytest
+
 from tvm.script.parser import entry
 
 
@@ -101,7 +103,7 @@ def test_source_prefix_and_lazy_annotation_capture(language):
     source = """
 extent = 3
 @M.function
-def main(x: M.Tensor((missing if I.constexpr(False) else extent,))):
+def main(x: M.Tensor((missing if M.constexpr(False) else extent,))):
     extent = 5
     M.record(extent)
 """
@@ -155,6 +157,7 @@ def test_python_helpers_retain_quoted_annotations(language):
     module = entry.parse(
         "\n".join(
             [
+                "from tvm.script import ir as I",
                 "@I.ir_module",
                 "class Module:",
                 "    @I.pyfunc",
@@ -181,3 +184,14 @@ def test_python_helpers_retain_quoted_annotations(language):
         extra_vars={"M": language.M},
     )
     assert function.body == [("emit", 5)]
+
+
+@pytest.mark.parametrize("name", ["T", "R", "I", "Ts"])
+def test_conventional_letters_require_source_bindings(name):
+    prefix = "from tvm.script import tirx as X\n@X.prim_func\n"
+    with pytest.raises(NameError, match=f"name '{name}' is not defined"):
+        entry.parse(prefix + f"def main():\n    X.evaluate({name})\n")
+    # Unselected letters are ordinary parameters, while X keeps its syntax policy.
+    function = entry.parse(prefix + f"def main({name}: X.int32):\n    X.evaluate({name})\n")
+    assert function.params[0].name == name
+    assert function.body.value.same_as(function.params[0])

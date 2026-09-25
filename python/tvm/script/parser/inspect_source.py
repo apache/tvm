@@ -39,7 +39,7 @@ from tvm_ffi.dataclasses import MISSING
 
 from tvm.ir import SourceName, Span
 
-from . import protocol_registry as protocol
+from . import protocol_registry
 from .prescan import collect_annotation_free_names, resolve_namespace_key, resolve_namespace_value
 
 
@@ -231,12 +231,12 @@ def capture_annotation_bindings(
     environment = ChainMap(definition_scope, source.__globals__)
     for decorator in tree.body[-1].decorator_list:
         target = decorator.func if isinstance(decorator, ast.Call) else decorator
-        if isinstance(target, ast.Attribute) and protocol.DEFINITION_KIND.get(
+        if isinstance(target, ast.Attribute) and protocol_registry.DEFINITION_KIND.get(
             resolve_namespace_key(target, environment)
         ) in (
-            protocol.DefinitionKind.FUNCTION,
-            protocol.DefinitionKind.MACRO,
-            protocol.DefinitionKind.PYTHON,
+            protocol_registry.DefinitionKind.FUNCTION,
+            protocol_registry.DefinitionKind.MACRO,
+            protocol_registry.DefinitionKind.PYTHON,
         ):
             names.update(collect_annotation_free_names(target.value))
     for node in ast.walk(tree):

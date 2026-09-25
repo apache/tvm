@@ -17,7 +17,7 @@
 """Static syntax policies keyed by registered builder namespace paths.
 
 Each language variant registers its namespace through ``register_namespace`` and supplies
-explicit canonical keys such as ``T.int32`` or ``R.Tensor`` at its marker sites.
+explicit canonical keys such as ``tirx.int32`` or ``relax.Tensor`` at its marker sites.
 The first registered alias names that namespace. Source aliases normalize to this
 same root; only direct root members select special syntax. Parser consumers read
 the internal metadata tables directly. Ordinary captured callables, local aliases,
@@ -67,7 +67,7 @@ def register_scalar_annotation(
     ----------
     namespace_path : str
         Canonical registered namespace alias and exported callable path, such
-        as ``"T.int32"``. A later registration at this path replaces its dtype.
+        as ``"tirx.int32"``. A later registration at this path replaces its dtype.
     constructor : Callable
         Callable providing the eager construction operation. Registration
         records its syntax path without invoking or wrapping this callable.
@@ -87,7 +87,7 @@ def register_scalar_annotation(
 
     .. code:: python
 
-        register_scalar_annotation("T.int32", T.int32, dtype="int32")
+        register_scalar_annotation("tirx.int32", T.int32, dtype="int32")
         # Source: def f[n: T.int32](...):
         # Builder: n = X.resolve_type_var_("n", dtype="int32")
     """
@@ -127,7 +127,7 @@ def register_mutable_decl(
 
     .. code:: python
 
-        register_mutable_decl("T.int32", syntax="annotation")(T.int32)
+        register_mutable_decl("tirx.int32", syntax="annotation")(T.int32)
         # Source: x: T.int32 = 0
         # Builder: x = X.decl_mutable_cell_(0, ty=X.int32, name="x")
     """

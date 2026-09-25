@@ -25,7 +25,7 @@ from collections.abc import Mapping
 from types import ModuleType
 from typing import NamedTuple, NoReturn
 
-from . import protocol_registry as protocol
+from . import protocol_registry
 
 
 def collect_annotation_free_names(node: ast.expr) -> dict[str, ast.Name]:
@@ -317,8 +317,11 @@ class PrescanCollector(ast.NodeVisitor):
                 for decorator in self.functions[-1].decorator_list
             )
             if not any(
-                protocol.DEFINITION_KIND.get(path)
-                in (protocol.DefinitionKind.FUNCTION, protocol.DefinitionKind.MACRO)
+                protocol_registry.DEFINITION_KIND.get(path)
+                in (
+                    protocol_registry.DefinitionKind.FUNCTION,
+                    protocol_registry.DefinitionKind.MACRO,
+                )
                 for path in paths
             ):
                 return
@@ -474,12 +477,12 @@ class PrescanCollector(ast.NodeVisitor):
         self.bindings[node] = []
         for decorator in node.decorator_list:
             target = decorator.func if isinstance(decorator, ast.Call) else decorator
-            if isinstance(target, ast.Attribute) and protocol.DEFINITION_KIND.get(
+            if isinstance(target, ast.Attribute) and protocol_registry.DEFINITION_KIND.get(
                 _match_special_func(target, self.namespaces)
             ) in (
-                protocol.DefinitionKind.FUNCTION,
-                protocol.DefinitionKind.MACRO,
-                protocol.DefinitionKind.PYTHON,
+                protocol_registry.DefinitionKind.FUNCTION,
+                protocol_registry.DefinitionKind.MACRO,
+                protocol_registry.DefinitionKind.PYTHON,
             ):
                 namespace = resolve_namespace_value(target.value, self.environment)
                 if namespace is not None:
@@ -498,7 +501,7 @@ class PrescanCollector(ast.NodeVisitor):
             dtype = (
                 "int64"
                 if bound is None or (isinstance(bound, ast.Name) and bound.id == "int")
-                else protocol.SCALAR_ANNOTATION_DTYPE.get(
+                else protocol_registry.SCALAR_ANNOTATION_DTYPE.get(
                     _match_special_func(bound, self.namespaces)
                 )
             )
@@ -526,7 +529,7 @@ class PrescanCollector(ast.NodeVisitor):
                 "mutable_parameter"
                 if inspect.getattr_static(self.builder, "supports_mutable_declarations", True)
                 is True
-                and "parameter" in protocol.MUTABLE_CELL_DECL.get(constructor, ())
+                and "parameter" in protocol_registry.MUTABLE_CELL_DECL.get(constructor, ())
                 else "parameter",
                 arg.annotation,
             )
@@ -607,11 +610,11 @@ class PrescanCollector(ast.NodeVisitor):
         )
         if isinstance(target, ast.Name):
             if getattr(self.builder, "supports_mutable_declarations", True) and (
-                "call" in protocol.MUTABLE_CELL_DECL.get(constructor, ())
+                "call" in protocol_registry.MUTABLE_CELL_DECL.get(constructor, ())
                 or (
                     annotation is not None
                     and "annotation"
-                    in protocol.MUTABLE_CELL_DECL.get(
+                    in protocol_registry.MUTABLE_CELL_DECL.get(
                         _match_special_func(
                             annotation.value
                             if isinstance(annotation, ast.Subscript)

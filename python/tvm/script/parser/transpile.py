@@ -43,7 +43,7 @@ from contextlib import contextmanager
 from types import FunctionType
 from typing import Any, NamedTuple, NoReturn, TypeVar
 
-from . import protocol_registry as protocol
+from . import protocol_registry
 from .inspect_source import _AnnotationScope
 from .prescan import (
     Binding,
@@ -1568,10 +1568,13 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             key = self.module.prescan_ctx._match_special_func(target)
             if key is None:
                 continue
-            kind = protocol.DEFINITION_KIND.get(key)
-            if kind in (protocol.DefinitionKind.MACRO, protocol.DefinitionKind.PYTHON):
+            kind = protocol_registry.DEFINITION_KIND.get(key)
+            if kind in (
+                protocol_registry.DefinitionKind.MACRO,
+                protocol_registry.DefinitionKind.PYTHON,
+            ):
                 return None, ast.Dict([], [])
-            if kind != protocol.DefinitionKind.FUNCTION:
+            if kind != protocol_registry.DefinitionKind.FUNCTION:
                 continue
             # A matched decorator is a direct member of a fixed root. Construction
             # needs that root's actual builder, not another syntax/value resolution.
@@ -1748,7 +1751,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             dtype = self.module.prescan_ctx.sites[parameter].dtype
             if bound is not None and not (isinstance(bound, ast.Name) and bound.id == "int"):
                 if (
-                    protocol.SCALAR_ANNOTATION_DTYPE.get(
+                    protocol_registry.SCALAR_ANNOTATION_DTYPE.get(
                         self.module.prescan_ctx._match_special_func(bound)
                     )
                     is None

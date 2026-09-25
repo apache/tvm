@@ -25,7 +25,7 @@ from types import FunctionType
 from typing import Any
 
 from tvm.script.ir_builder.ir import constexpr
-from tvm.script.parser import protocol_registry as protocol
+from tvm.script.parser import protocol_registry
 from tvm.tirx import PrimFunc
 
 
@@ -49,7 +49,7 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
         must name its registered namespace; parsing selects construction hooks
         from that syntax rather than accepting a root namespace override.
     namespace_path : str
-        Canonical registered syntax key, such as "T.jit".
+        Canonical registered syntax key, such as "tirx.jit".
 
     Returns
     -------
@@ -58,7 +58,7 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
         for that application. Its result defers construction until specialization.
     """
 
-    protocol.DEFINITION_KIND[namespace_path] = protocol.DefinitionKind.FUNCTION
+    protocol_registry.DEFINITION_KIND[namespace_path] = protocol_registry.DefinitionKind.FUNCTION
 
     def jit(
         func: FunctionType | None = None,

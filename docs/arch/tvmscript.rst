@@ -92,7 +92,14 @@ decorator options. Builder hooks own option defaults; ``check_well_formed`` rema
 separate parser setting.
 
 ``tvm.script.parser.protocol_registry`` records syntax policies under registered
-namespace paths. The public registration helpers identify scalar annotations and mutable
+canonical namespace paths rooted at ``tirx``, ``relax``, ``ir`` and ``s_tir``.
+Source code selects its own aliases through imports or explicit environments; the parser
+does not provide implicit ``T``, ``R``, ``I`` or ``Ts`` bindings. For example,
+``from tvm.script import tirx as X`` makes ``X.prim_func`` resolve to
+``tirx.prim_func`` without changing the callable. Printed scripts show suggested imports
+as comments: include those imports in executable source or pass equivalent
+``extra_vars`` when parsing a printed script. The public registration helpers
+identify scalar annotations and mutable
 declarations. Entry factories populate ``DEFINITION_KIND`` with ``DefinitionKind``
 values: ``FUNCTION`` for regular and JIT IR definitions, ``MACRO`` for inline and macro
 expansion, and ``PYTHON`` for retained ``I.pyfunc`` runtime callables. Macro bodies

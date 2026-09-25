@@ -40,7 +40,9 @@ def test_cp_async_raw_dtype_round_trips():
         for i in T.serial(8):
             T.s_tir.cp_async_raw("float16", B.data, i * 16, A.data, i * 16, 16)
 
-    reparsed = tvm.script.from_source(f.script())
+    reparsed = tvm.script.from_source(
+        f.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+    )
     tvm.ir.assert_structural_equal(f, reparsed)
 
 

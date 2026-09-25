@@ -94,7 +94,10 @@ def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
 
 
 def replace_ir_builder(deep_copy=False, realize=False):
-    new_func = tvm.script.from_source(elementwise.script())
+    new_func = tvm.script.from_source(
+        elementwise.script(),
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+    )
     s = tvm.s_tir.ScheduleState(new_func, debug_mask="all")
     target = tvm.s_tir.SBlock(
         iter_vars=[],
@@ -120,8 +123,14 @@ def replace_ir_builder(deep_copy=False, realize=False):
 
 
 def replace_ir_builder_module(deep_copy=False, realize=False):
-    new_func = tvm.script.from_source(elementwise.script())
-    other_func = tvm.script.from_source(elementwise.script())
+    new_func = tvm.script.from_source(
+        elementwise.script(),
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+    )
+    other_func = tvm.script.from_source(
+        elementwise.script(),
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+    )
     mod = IRModule(functions={"main": new_func, "other": other_func})
     s = tvm.s_tir.ScheduleState(mod, debug_mask="all")
     target = tvm.s_tir.SBlock(
@@ -148,7 +157,10 @@ def replace_ir_builder_module(deep_copy=False, realize=False):
 
 
 def replace_ir_builder_with_opaque():
-    func = tvm.script.from_source(block_in_opaque_block.script())
+    func = tvm.script.from_source(
+        block_in_opaque_block.script(),
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+    )
     s = tvm.s_tir.ScheduleState(func, debug_mask="all")
     gc.collect()
     return s
