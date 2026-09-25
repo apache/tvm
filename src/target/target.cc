@@ -66,11 +66,6 @@ Target Target::WithHost(const Target& target, const Target& host) {
   return TargetInternal::WithHost(target, host);
 }
 
-void CheckAndUpdateHostConsistency(Target* target, Target* host) {
-  *target = Target(*target, *host);
-  *host = (*target)->GetHost().value_or(Target());
-}
-
 static std::vector<ffi::String> DeduplicateKeys(const std::vector<ffi::String>& keys) {
   std::vector<ffi::String> new_keys;
   for (size_t i = 0; i < keys.size(); ++i) {

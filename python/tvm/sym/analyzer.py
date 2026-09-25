@@ -117,21 +117,6 @@ class ConstraintScope:
         self._fexit()
 
 
-class Z3ContextScope:
-    """Deprecated no-op retained for compatibility.
-
-    Every materialized Z3 solver now owns a private context, which provides
-    per-analyzer isolation without an explicit compilation scope.
-    """
-
-    def __enter__(self):
-        _ffi_api.EnterZ3ContextScope()
-        return self
-
-    def __exit__(self, ptype, value, trace):
-        _ffi_api.ExitZ3ContextScope()
-
-
 @tvm_ffi.register_object("sym.Analyzer")
 class Analyzer(Object):
     """Integer arithmetic analyzer
