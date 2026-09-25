@@ -62,7 +62,7 @@ from . import target
 from . import te
 
 # tvm.driver
-from .driver import build, compile
+from .driver import compile
 
 # others
 from . import sym
