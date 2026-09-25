@@ -31,7 +31,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from tvm import ir
 from tvm.script import ir as I
 from tvm.script.parser import entry, protocol_registry
 
@@ -331,25 +330,25 @@ def test_body_preserves_capture_and_parameter_identity(language):
 
 
 def _build_symbolic_functions(M):
+    first_n = M.dynamic("n")
+    second_n = M.dynamic("n")
+
     @I.ir_module
     class Module:
         @M.function
-        def first(x: M.Tensor(("n",), "float32")):
-            n = M.symbol()  # noqa: F841
+        def first(x: M.Tensor((first_n,), "float32")):
             return x
 
         @M.function
-        def second(x: M.Tensor(("n",), "float32")):
-            n = M.symbol()  # noqa: F841
+        def second(x: M.Tensor((second_n,), "float32")):
             return x
 
     return Module
 
 
 def test_dynamic_caller_symbol_does_not_join_function_declarations(language):
-    # Before: two function signatures declare "n" while a caller has its own n.
-    # Expected builder: each function frame resolves its own n, independent of the caller.
-    n = ir.Var("n", "int64")
+    # Two independently constructed symbols remain distinct from an unrelated caller capture.
+    n = I.dynamic("n")
     module = _build_symbolic_functions(language.M)
     first = module["first"].params[0].args[0].args[0][0]
     second = module["second"].params[0].args[0].args[0][0]

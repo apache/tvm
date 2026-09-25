@@ -32,7 +32,7 @@ from tvm.script.parser import entry
 def test_parse_string_returns_fresh_symbols(language):
     # The direct string API must create independent symbol/parameter objects on repeated calls.
     # This is the suite's single dedicated parse(str) API case.
-    source = '@M.function\ndef main(x: M.Tensor(("n + 1",))):\n    M.record(x)\n'
+    source = '@M.function\ndef main(x: M.Tensor((M.dynamic("n") + 1,))):\n    M.record(x)\n'
     first = entry.parse(source, extra_vars={"M": language.M}, root_builder=language.M)
     second = entry.parse(source, extra_vars={"M": language.M}, root_builder=language.M)
     assert first.params[0] is not second.params[0]

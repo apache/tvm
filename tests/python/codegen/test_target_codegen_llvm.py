@@ -205,12 +205,13 @@ def test_llvm_flip_pipeline():
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_vadd_pipeline():
+    n = T.dynamic("n", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
             C = T.match_buffer(var_C, (n,))
@@ -284,26 +285,27 @@ def test_llvm_temp_space():
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_multiple_func():
+    fadd1_n = T.dynamic("n", "int32")
+    fadd2_n = T.dynamic("n", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def fadd1(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32()
-            A = T.match_buffer(var_A, (n,))
-            B = T.match_buffer(var_B, (n,))
-            C = T.match_buffer(var_C, (n,))
-            for i in range(n):
+            A = T.match_buffer(var_A, (fadd1_n,))
+            B = T.match_buffer(var_B, (fadd1_n,))
+            C = T.match_buffer(var_C, (fadd1_n,))
+            for i in range(fadd1_n):
                 C[i] = A[i] + B[i]
 
         @T.prim_func
         def fadd2(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32()
-            A = T.match_buffer(var_A, (n,))
-            B = T.match_buffer(var_B, (n,))
-            C = T.match_buffer(var_C, (n,))
-            for i in range(n):
+            A = T.match_buffer(var_A, (fadd2_n,))
+            B = T.match_buffer(var_B, (fadd2_n,))
+            C = T.match_buffer(var_C, (fadd2_n,))
+            for i in range(fadd2_n):
                 C[i] = A[i] + B[i]
 
     f = tvm.compile(Module, target="llvm")
@@ -645,12 +647,13 @@ def test_llvm_div(start, end, dstart, dend, dtype, floor_div):
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_fp_math():
+    n = T.dynamic("n", "int32")
+
     @I.ir_module
     class RecipModule:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
             for i in range(n):
@@ -664,12 +667,13 @@ def test_llvm_fp_math():
         f_recip(a, b)
         tvm.testing.assert_allclose(b.numpy(), np.zeros((n,), "float32"))
 
+    n = T.dynamic("n", "int32")
+
     @I.ir_module
     class SigmoidModule:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
             for i in range(n):

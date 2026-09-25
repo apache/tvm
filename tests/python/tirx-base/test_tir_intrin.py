@@ -308,17 +308,19 @@ def test_clz(target, dtype):
         tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+n = T.dynamic("n", "int32")
+stride = T.dynamic("stride", "int32")
+stride_1 = T.dynamic("stride_1", "int32")
+stride_2 = T.dynamic("stride_2", "int32")
+stride_3 = T.dynamic("stride_3", "int32")
+
+
 @tvm.script.ir_module
 class Module:
     @T.prim_func
     def test_tir_fma(A: T.handle, B: T.handle, C: T.handle, d: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "test_fma", "tirx.noalias": True})
-        n = T.int32()
-        stride = T.int32()
-        stride_1 = T.int32()
-        stride_2 = T.int32()
-        stride_3 = T.int32()
         A_1 = T.match_buffer(
             A,
             [n],

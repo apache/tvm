@@ -60,12 +60,13 @@ def test_large_uint_imm():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_add_pipeline():
+    n = T.dynamic("n", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, B: T.Buffer((), "float32"), var_D: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             D = T.match_buffer(var_D, (n,))
             C = T.alloc_buffer((n,))

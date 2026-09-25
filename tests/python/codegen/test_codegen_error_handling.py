@@ -41,9 +41,10 @@ codegen_target = tvm.testing.parameter("llvm", "c")
 def test_wrong_argument_count_error(codegen_target):
     """Wrong argument count produces TypeError with function signature."""
 
+    n0 = T.dynamic("n0")
+
     @T.prim_func
     def func(a: T.handle, b: T.handle):
-        n0 = T.int64()
         A = T.match_buffer(a, (n0,), "float32")
         B = T.match_buffer(b, (n0,), "float32")
         for i in range(n0):
@@ -70,9 +71,10 @@ def test_wrong_argument_count_error(codegen_target):
 def test_type_mismatch_non_tensor(codegen_target):
     """Passing a non-tensor where a tensor is expected raises TypeError."""
 
+    n0 = T.dynamic("n0")
+
     @T.prim_func
     def func(a: T.handle, b: T.handle):
-        n0 = T.int64()
         A = T.match_buffer(a, (n0,), "float32")
         B = T.match_buffer(b, (n0,), "float32")
         for i in range(n0):
@@ -100,9 +102,10 @@ def test_type_mismatch_non_tensor(codegen_target):
 def test_shape_mismatch_shared_variable(codegen_target):
     """b has different shape than a when they share symbolic variable n0."""
 
+    n0 = T.dynamic("n0")
+
     @T.prim_func
     def func(a: T.handle, b: T.handle):
-        n0 = T.int64()
         A = T.match_buffer(a, (n0,), "float32")
         B = T.match_buffer(b, (n0,), "float32")
         for i in range(n0):
@@ -393,9 +396,10 @@ def test_forward_reference_symbolic_shape(codegen_target):
     message uses rendered access paths (e.g. "B.shape[0] + 1") for shape checks.
     """
 
+    batch_size = T.dynamic("batch_size")
+
     @T.prim_func
     def func(a: T.handle, b: T.handle):
-        batch_size = T.int64()
         A = T.match_buffer(a, (batch_size + 1,), "int32")
         B = T.match_buffer(b, (batch_size,), "int32")
         for i in range(batch_size):

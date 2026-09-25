@@ -19,14 +19,35 @@
 import inspect
 from typing import TypeVar
 
-from tvm.ir import BaseFunc, GlobalInfo, GlobalVar
+from tvm.ir import BaseFunc, GlobalInfo, GlobalVar, Var
 from tvm.runtime import Object as tvm_Object
 
 from . import _ffi_api
-from .base import IRBuilder
+from .base import IRBuilder, source_span
 from .frame import IRModuleFrame
 
 T = TypeVar("T")
+
+
+def dynamic(name: str, dtype: str = "int64", *, span=None) -> Var:
+    """Create a fresh primitive symbolic variable, independently of builder scope.
+
+    Parameters
+    ----------
+    name : str
+        The symbol's display name. Repeated names do not share identity.
+    dtype : str
+        Primitive dtype, defaulting to int64.
+    span : Optional[Span]
+        Source location of the symbol.
+
+    Returns
+    -------
+    Var
+        A fresh symbol. Reuse this object to share dimensions across annotations
+        and function bodies, including outside an ``I.ir_module`` definition.
+    """
+    return Var(name, dtype, source_span(span))
 
 
 def meta_var(value: T) -> T:
