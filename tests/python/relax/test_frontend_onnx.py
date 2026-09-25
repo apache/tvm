@@ -1466,6 +1466,19 @@ def test_hardmax_ir():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+@pytest.mark.parametrize("opset", [11, 13])
+@pytest.mark.parametrize("axis", [0, 1, -1])
+@pytest.mark.parametrize("symbolic", [False, True], ids=["static", "symbolic"])
+def test_hardmax(opset, axis, symbolic):
+    shape = [2, 3, 4]
+    model = make_unary_model(
+        "Hardmax", ["N", "C", "W"] if symbolic else shape, attrs={"axis": axis}
+    )
+    # Few distinct values, so rows tie and the first maximum must win.
+    x = rg.integers(0, 3, size=shape).astype("float32")
+    check_correctness(model, inputs={"x": x}, opset=opset)
+
+
 def test_legacy_softmax_family_opset11_axis_semantics():
     def verify_legacy_softmax_family_axis_ir(op_name: str, expected, axis_attr: int | None = None):
         attrs = {} if axis_attr is None else {"axis": axis_attr}
