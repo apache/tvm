@@ -39,7 +39,6 @@ from tvm import DataType, ir
 from tvm import tirx as tir
 from tvm.ir import Call, TensorLoad, Type, is_prim_expr
 from tvm.ir import register_op_attr as _register_op_attr
-from tvm.ir.base import deprecated
 from tvm.ir.prim import _ffi_api as _prim_ffi_api
 from tvm.runtime import convert
 from tvm.script.ir_builder import meta_var
@@ -345,11 +344,6 @@ def buffer(
         allocated_addr,
     )
     return result
-
-
-@deprecated("T.buffer_decl(...)", "T.Buffer(...)")
-def buffer_decl(*args, **kwargs):
-    return buffer(*args, **kwargs)
 
 
 def prim_func(
@@ -2319,47 +2313,7 @@ def void(expr: Expr | None = None) -> Expr:
     return _ffi_api.Void(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-@deprecated("T.var", "T.{dtype}")
-def var(dtype: str, name: str = "") -> Var:
-    """Construct a new tirx.Var.
-
-    Parameters
-    ----------
-    dtype: str
-        The dtype of the Var.
-
-    name: str
-        The name of the Var.
-
-    Returns
-    -------
-    res : Var
-        The result tirx.Var.
-    """
-    return Var(name, dtype)  # pylint: disable=no-member
-
-
 def ptr(dtype: str, storage_scope: str = "global") -> Var:
-    """The pointer declaration function.
-
-    Parameters
-    ----------
-    dtype : str
-        The data type of the pointer.
-
-    storage_scope : str
-        The storage scope of the pointer.
-
-    Returns
-    -------
-    res : Var
-        The pointer.
-    """
-    return _ffi_api.Ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-@deprecated("T.buffer_var", "T.handle")
-def buffer_var(dtype: str, storage_scope: str = "global") -> Var:
     """The pointer declaration function.
 
     Parameters
@@ -2999,7 +2953,6 @@ __all__ = [
     "float64x64",
     "bfloat16",
     "buffer",
-    "buffer_decl",
     "prim_func",
     "arg",
     "func_name",
@@ -3033,7 +2986,6 @@ __all__ = [
     "boolean",
     "handle",
     "void",
-    "var",
     "ptr",
     "min",
     "max",
@@ -3041,7 +2993,6 @@ __all__ = [
     "comm_reducer",
     "index_map",
     "target",
-    "buffer_var",
     "abs",
     "fabs",
     "acos",

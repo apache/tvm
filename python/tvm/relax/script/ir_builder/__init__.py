@@ -312,9 +312,6 @@ def type_var(name, *, dtype=None, span=None):
     return _ir.Var(name, "int64" if dtype is None else dtype, _source_span(span))
 
 
-func_ret_ty = func_ret_type
-
-
 def dataflow(*, span=None):
     """Create a dataflow context with explicit finalized exports.
 

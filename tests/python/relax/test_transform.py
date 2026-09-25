@@ -579,12 +579,12 @@ def test_call_tir_inplace_some_new():
             R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32"), R.Tensor((2, 3), dtype="int32")
         ):
             R.func_attr({"relax.force_pure": True})
-            gv0: R.Tensor((2, 3), dtype="int32") = R.emit_with_ty(
+            gv0: R.Tensor((2, 3), dtype="int32") = R.emit_with_type(
                 "relax.builtin.alloc_tensor",
                 (R.shape([2, 3]), R.dtype("int32"), R.prim_value(0), R.str("global")),
                 (R.Tensor((2, 3), dtype="int32"),),
             )
-            gv1: R.Tensor((2, 3), dtype="int32") = R.emit_with_ty(
+            gv1: R.Tensor((2, 3), dtype="int32") = R.emit_with_type(
                 "relax.builtin.alloc_tensor",
                 (R.shape([2, 3]), R.dtype("int32"), R.prim_value(0), R.str("global")),
                 (R.Tensor((2, 3), dtype="int32"),),
