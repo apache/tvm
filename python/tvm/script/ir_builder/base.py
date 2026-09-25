@@ -18,6 +18,7 @@
 
 from collections.abc import Callable
 from contextlib import contextmanager, nullcontext
+from functools import wraps
 from inspect import signature
 from typing import Any, Generic, TypeVar
 
