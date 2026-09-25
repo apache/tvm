@@ -18,7 +18,6 @@
 # pylint: disable=invalid-name
 """The build utils in python."""
 
-import warnings
 from collections.abc import Callable
 
 import tvm
@@ -26,38 +25,6 @@ from tvm.ir.module import IRModule
 from tvm.runtime import Executable
 from tvm.target import Target
 from tvm.tirx import PrimFunc
-
-
-def build(
-    mod: PrimFunc | IRModule,
-    target: str | Target | None = None,
-    pipeline: str | tvm.transform.Pass | None = "default",
-):
-    """
-    Build a function with a signature, generating code for devices
-    coupled with target information.
-
-    This function is deprecated. Use `tvm.compile` or `tvm.tirx.build` instead.
-
-    Parameters
-    ----------
-    mod : Union[PrimFunc, IRModule]
-        The input to be built.
-    target : Optional[Union[str, Target]]
-        The target for compilation.
-    pipeline : Optional[Union[str, tvm.transform.Pass]]
-        The pipeline to use for compilation.
-
-    Returns
-    -------
-    tvm.runtime.Module
-        A module combining both host and device code.
-    """
-    warnings.warn(
-        "build is deprecated. Use `tvm.compile` or `tvm.tirx.build` instead.",
-        DeprecationWarning,
-    )
-    return tvm.tirx.build(mod, target, pipeline)
 
 
 def _contains_relax(mod: PrimFunc | IRModule) -> bool:

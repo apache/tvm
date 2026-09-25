@@ -259,12 +259,12 @@ def default_build(mod: IRModule, target: Target, _params: dict[str, Tensor] | No
     """
     # pylint: disable=import-outside-toplevel
     import tvm.s_tir.tensor_intrin  # pylint: disable=unused-import
-    from tvm.driver import build as tvm_build
     from tvm.s_tir.transform import RemoveWeightLayoutRewriteBlock
+    from tvm.tirx import build as tirx_build
 
     # pylint: enable=import-outside-toplevel
     mod = RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite=True)(mod)
-    return tvm_build(mod, target=target)
+    return tirx_build(mod, target=target)
 
 
 @register_global_func("s_tir.meta_schedule.builder.default_export")
