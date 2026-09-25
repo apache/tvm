@@ -22,6 +22,8 @@ import pytest
 import tvm
 from tvm.script import tirx as T
 
+m = T.dynamic("m", "int32")
+
 
 def assert_structural_equal_ignore_global_symbol(lhs, rhs):
     tvm.ir.assert_structural_equal(
@@ -31,7 +33,6 @@ def assert_structural_equal_ignore_global_symbol(lhs, rhs):
 
 @T.prim_func
 def matmul(a: T.handle, b: T.handle, c: T.handle, n: T.int32) -> None:
-    m = T.int32()
     A = T.match_buffer(a, [m, n])
     B = T.match_buffer(b, [m, n])
     C = T.match_buffer(c, [m, m])
@@ -54,9 +55,11 @@ def matmul_128(a: T.handle, b: T.handle, c: T.handle) -> None:
         C[i, j] = C[i, j] + A[i, k] * B[j, k]
 
 
+m = T.dynamic("m", "int32")
+
+
 @T.prim_func
 def matmul_m_128(a: T.handle, b: T.handle, c: T.handle) -> None:
-    m = T.int32()
     A = T.match_buffer(a, [m, 128])
     B = T.match_buffer(b, [m, 128])
     C = T.match_buffer(c, [m, m])
@@ -69,10 +72,12 @@ def matmul_m_128(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 # x is considered undefined because it appears as part of x*8,
 # but not on its own
+x = T.dynamic("x", "int32")
+m = T.dynamic("m", "int32")
+
+
 @T.prim_func(check_well_formed=False)
 def matmul_m_8x(a: T.handle, b: T.handle, c: T.handle) -> None:
-    x = T.int32()
-    m = T.int32()
     A = T.match_buffer(a, [m, x * 8])
     B = T.match_buffer(b, [m, x * 8])
     C = T.match_buffer(c, [m, m])
@@ -83,10 +88,12 @@ def matmul_m_8x(a: T.handle, b: T.handle, c: T.handle) -> None:
         C[i, j] = C[i, j] + A[i, k] * B[j, k]
 
 
+m = T.dynamic("m", "int32")
+n = T.dynamic("n", "int32")
+
+
 @T.prim_func
 def element_wise(a: T.handle, c: T.handle) -> None:
-    m = T.int32()
-    n = T.int32()
     A = T.match_buffer(a, (m, n), "float32")
     C = T.match_buffer(c, (m, n), "float32")
 
@@ -112,9 +119,11 @@ def element_wise_128_64(a: T.handle, c: T.handle) -> None:
         C[i, j] = B[i, j] + 1.0
 
 
+n = T.dynamic("n", "int32")
+
+
 @T.prim_func
 def element_wise_128_n(a: T.handle, c: T.handle) -> None:
-    n = T.int32()
     A = T.match_buffer(a, (128, n), "float32")
     C = T.match_buffer(c, (128, n), "float32")
     B = T.alloc_buffer((128, n), "float32")
@@ -200,9 +209,10 @@ def test_specialize_recursive_load():
 
 
 def test_specialize_with_const_folding():
+    n = T.dynamic("n", "int32")
+
     @T.prim_func
     def before(a: T.handle, b: T.handle):
-        n = T.int32()
         A = T.match_buffer(a, [n // 8, 8], "int32")
         B = T.match_buffer(b, [n], "int32")
         for i in range(n - 1):

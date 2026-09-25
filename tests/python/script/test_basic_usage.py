@@ -179,6 +179,7 @@ def test_nested_policy_and_starred_calls_are_evaluated_once(language):
     mesh = object()
     language.global_infos["mesh[0]"] = mesh
     values = (1, 2)
+    n = M.dynamic("n")
 
     def outer(value):
         seen.append(value)
@@ -189,7 +190,7 @@ def test_nested_policy_and_starred_calls_are_evaluated_once(language):
 
     @M.function
     def main():
-        outer(M.Tensor(("n",), device="mesh[0]"))
+        outer(M.Tensor((n,), device="mesh[0]"))
         collect(*values, other=3)
 
     assert len(seen) == 1 and seen[0].args[2] is mesh

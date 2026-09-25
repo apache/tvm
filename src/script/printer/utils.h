@@ -134,9 +134,6 @@ inline std::string DType2Str(DLDataType dtype) {
 inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
   if (d->ir_usage.size()) {
     ffi::Array<StmtDoc> stmts;
-    if (d->ir_usage.count("type_var")) {
-      stmts.push_back(CommentDoc("from typing import TypeVar"));
-    }
     if (d->ir_usage.count("ir")) {
       stmts.push_back(CommentDoc("from tvm.script import ir as " + d->cfg->ir_prefix));
     }
@@ -168,7 +165,7 @@ inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
 }
 
 inline std::vector<std::pair<Var, ExprDoc>> DefineTypeVarDocs(
-    const std::unordered_set<const VarNode*>& type_vars, const Frame& frame, const IRDocsifier& d) {
+    const std::unordered_set<const VarNode*>& type_vars, const IRDocsifier& d) {
   std::vector<std::pair<Var, ExprDoc>> type_var_docs;
   type_var_docs.reserve(type_vars.size());
   for (const VarNode* var_node : type_vars) {
@@ -176,7 +173,7 @@ inline std::vector<std::pair<Var, ExprDoc>> DefineTypeVarDocs(
     ffi::Optional<ExprDoc> existing_doc = d->GetVarDoc(var);
     ExprDoc var_doc = existing_doc.has_value()
                           ? existing_doc.value()
-                          : d->Define(var, frame, var->name.empty() ? "v" : var->name);
+                          : d->Define(var, d->frames.front(), var->name.empty() ? "v" : var->name);
     const auto* id_doc = var_doc.as<IdDocNode>();
     TVM_FFI_ICHECK(id_doc != nullptr);
     type_var_docs.emplace_back(var, var_doc);
@@ -188,6 +185,13 @@ inline std::vector<std::pair<Var, ExprDoc>> DefineTypeVarDocs(
 }
 
 inline bool UsePEP695TypeVars(const IRDocsifier& d) {
+  // Module symbols may be shared by multiple functions.  Function-local
+  // generic parameters would create fresh identities on every definition.
+  for (const Frame& frame : d->frames) {
+    if (std::string(frame->GetTypeKey()) == "script.printer.IRFrame") {
+      return false;
+    }
+  }
   return d->cfg->GetExtraConfig<bool>("script.use_pep695",
                                       d->cfg->GetExtraConfig<bool>("relax.use_pep695", false));
 }
@@ -200,26 +204,27 @@ inline Doc WrapFunctionDocWithTypeVars(const IRDocsifier& d, FunctionDoc functio
   if (UsePEP695TypeVars(d)) {
     d->ir_usage.insert("future_annotations");
     for (const auto& type_var_doc : type_var_docs) {
-      function_doc->type_params.push_back(type_var_doc.second);
+      PrimType dtype = type_var_doc.first->ty.as_or_throw<PrimType>();
+      if (DType2Str(dtype->dtype) == "int64") {
+        function_doc->type_params.push_back(type_var_doc.second);
+      } else {
+        function_doc->type_params.push_back(
+            AssignDoc(type_var_doc.second, std::nullopt, TIR(d, DType2Str(dtype->dtype))));
+      }
     }
     return HeaderWrapper(d, function_doc);
   }
 
-  d->ir_usage.insert("type_var");
   ffi::Array<StmtDoc> stmts;
-  ffi::Array<StmtDoc> body;
   for (const auto& [var, var_doc] : type_var_docs) {
-    const ffi::String& name = var_doc.as<IdDocNode>()->name;
-    stmts.push_back(AssignDoc(
-        var_doc, IdDoc("TypeVar")->Call({LiteralDoc::Str(name, ffi::Optional<AccessPath>())}),
-        std::nullopt));
-    // TypeVar supplies the eager annotation's real Python binding. The body
-    // explicitly declares its native symbol instead of capturing that metadata.
     PrimType dtype = var->ty.as_or_throw<PrimType>();
-    body.push_back(AssignDoc(var_doc, TIR(d, DType2Str(dtype->dtype))->Call({}), std::nullopt));
+    stmts.push_back(AssignDoc(
+        var_doc,
+        IR(d, "dynamic")
+            ->Call({LiteralDoc::Str(var->name, ffi::Optional<AccessPath>())}, {"dtype"},
+                   {LiteralDoc::Str(DType2Str(dtype->dtype), ffi::Optional<AccessPath>())}),
+        std::nullopt));
   }
-  body.insert(body.end(), function_doc->body.begin(), function_doc->body.end());
-  function_doc->body = std::move(body);
   stmts.push_back(function_doc);
   return HeaderWrapper(d, StmtBlockDoc(stmts));
 }

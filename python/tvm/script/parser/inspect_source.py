@@ -36,7 +36,7 @@ from typing import Any
 
 from tvm.ir import SourceName, Span
 
-from .expr_str_handling import parse_annotation
+from .annotation import parse_annotation
 from .prescan import collect_annotation_free_names
 
 

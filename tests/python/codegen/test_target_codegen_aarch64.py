@@ -39,12 +39,13 @@ from tvm.target.codegen import llvm_version_major
 def test_mul(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
+    m = T.dynamic("m", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
@@ -74,12 +75,13 @@ def test_mul(dtype):
 def test_add(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
+    m = T.dynamic("m", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
@@ -109,12 +111,13 @@ def test_add(dtype):
 def test_sub(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
+    m = T.dynamic("m", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
@@ -144,12 +147,13 @@ def test_sub(dtype):
 def test_muladd(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
+    m = T.dynamic("m", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle, var_D: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
@@ -190,12 +194,13 @@ def test_muladd(dtype):
 def test_max(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
+    m = T.dynamic("m", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
@@ -229,12 +234,13 @@ def test_max(dtype):
 def test_min(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
+    m = T.dynamic("m", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
@@ -268,12 +274,13 @@ def test_min(dtype):
 def test_div(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
+    m = T.dynamic("m", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
@@ -302,12 +309,13 @@ def test_div(dtype):
 def test_mod(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
+    m = T.dynamic("m", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
@@ -337,12 +345,13 @@ def test_mod(dtype):
 def test_eq(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
+    m = T.dynamic("m", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), "bool")
@@ -375,12 +384,13 @@ def test_eq(dtype):
 def test_neq(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
+    m = T.dynamic("m", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), "bool")
@@ -412,12 +422,13 @@ def test_neq(dtype):
 def test_or(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
+    m = T.dynamic("m", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
@@ -446,12 +457,13 @@ def test_or(dtype):
 def test_and(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
+    m = T.dynamic("m", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
@@ -480,12 +492,13 @@ def test_and(dtype):
 def test_not(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
+    m = T.dynamic("m", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
             for i in range(m):
@@ -517,12 +530,13 @@ def test_not(dtype):
 def test_memcpy(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
+    m = T.dynamic("m", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), "int32")
             C = T.match_buffer(var_C, (m,), dtype=dtype)
@@ -557,12 +571,13 @@ def test_memcpy(dtype):
 def test_vscale_range_function_attribute(mattr, expect_attr):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": [mattr]}
 
+    m = T.dynamic("m", "int32")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m = T.int32()
             A = T.match_buffer(var_A, (m,))
             C = T.match_buffer(var_C, (m,))
             for i in range(m):

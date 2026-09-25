@@ -159,11 +159,13 @@ def test_match_buffer_1d():
 
 
 # dynamic shape gemm
+N = T.dynamic("N", "int32")
+M = T.dynamic("M", "int32")
+K = T.dynamic("K", "int32")
+
+
 @Ts.prim_func
 def gemm_dyn_shape(a: T.handle, b: T.handle, c: T.handle):
-    N = T.int32()
-    M = T.int32()
-    K = T.int32()
     A = T.match_buffer(a, (N, K), "float32")
     B = T.match_buffer(b, (K, M), "float32")
     C = T.match_buffer(c, (N, M), "float32")
@@ -415,9 +417,10 @@ def test_preserve_trivial_let_binding():
     builder API and the `j: T.let[T.dtype]` annotation produce the same LetStmt IR.
     """
 
+    j = T.dynamic("j", "int32")
+
     @Ts.prim_func
     def explicit(i: T.int32):
-        j = T.int32()
         T.bind(i, var=j)
         T.evaluate(j)
 
@@ -432,9 +435,10 @@ def test_preserve_trivial_let_binding():
 def test_preserve_trivial_let_binding_of_value():
     """Same as test_preserve_trivial_let_binding but with a constant RHS."""
 
+    j = T.dynamic("j", "int32")
+
     @Ts.prim_func
     def explicit(i: T.int32):
-        j = T.int32()
         T.bind(42, var=j)
         T.evaluate(j)
 

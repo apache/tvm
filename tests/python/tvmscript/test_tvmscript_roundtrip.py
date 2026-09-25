@@ -2033,12 +2033,13 @@ def constant_folding():
 
 def simplify_bracket():
     # uninitialized variables
+    a = T.dynamic("a", "int32")
+    b = T.dynamic("b", "int32")
+    c = T.dynamic("c", "int32")
+    d = T.dynamic("d", "int32")
+
     @Ts.prim_func(check_well_formed=False)
     def simplify_bracket() -> None:
-        a = T.int32()
-        b = T.int32()
-        c = T.int32()
-        d = T.int32()
         T.evaluate(a + b * (c + d))
 
     return simplify_bracket
@@ -2165,10 +2166,11 @@ def multiple_commreducer():
 
 def func_div_mod():
     # not well-formed: free variables
+    a = T.dynamic("a", "int32")
+    b = T.dynamic("b", "int32")
+
     @Ts.prim_func(check_well_formed=False)
     def func_div_mod():
-        a = T.int32()
-        b = T.int32()
         T.evaluate(a // b)
         T.evaluate(a % b)
         T.evaluate(T.truncmod(a, b))
@@ -2480,9 +2482,10 @@ def predicated_buffer_load_store():
 
 
 def let_expression():
+    x = T.dynamic("x", "int32")
+
     @Ts.prim_func
     def func():
-        x = T.int32()
         T.evaluate(T.Let(x + 1, where={x: 1}))
 
     return func
@@ -2640,9 +2643,10 @@ def bool_primitive():
 
 def bool_cast():
     # uninitialized var
+    a = T.dynamic("a", "bool")
+
     @Ts.prim_func(check_well_formed=False)
     def func() -> None:
-        a = T.bool()
         T.evaluate(T.bool(T.int32(0)))
         T.evaluate(a == T.bool(False))
 
@@ -2966,9 +2970,10 @@ def undefined_data_ptr_in_decl_buffer():
 
 def undefined_shape_in_decl_buffer():
     # uninitialized var
+    size = T.dynamic("size", "int32")
+
     @Ts.prim_func(check_well_formed=False)
     def func():
-        size = T.int32()
         buf = T.decl_buffer(shape=[size], dtype="float32")
         T.evaluate(buf[0])
 
@@ -2977,9 +2982,10 @@ def undefined_shape_in_decl_buffer():
 
 def undefined_stride_in_decl_buffer():
     # uninitialized var
+    stride = T.dynamic("stride", "int32")
+
     @Ts.prim_func(check_well_formed=False)
     def func():
-        stride = T.int32()
         data_ptr = T.handle("float32")
         buf = T.decl_buffer(shape=[1], dtype="float32", data=data_ptr, strides=[stride])
         T.evaluate(buf[0])
@@ -2989,9 +2995,10 @@ def undefined_stride_in_decl_buffer():
 
 def undefined_elem_offset_in_decl_buffer():
     # uninitialized var
+    elem_offset = T.dynamic("elem_offset", "int32")
+
     @Ts.prim_func(check_well_formed=False)
     def func():
-        elem_offset = T.int32()
         data_ptr = T.handle("float32")
         buf = T.decl_buffer(shape=[1], dtype="float32", data=data_ptr, elem_offset=elem_offset)
         T.evaluate(buf[0])
@@ -3199,7 +3206,7 @@ def relax_match_cast_ty_proxy():
 
 def relax_symbolic_var():
     """Relax tensors may use symbolic variables."""
-    N = tvm.tirx.Var("N", "int64")
+    N = T.dynamic("N", "int64")
 
     @R.function
     def func(A: R.Tensor([N], "float16")):

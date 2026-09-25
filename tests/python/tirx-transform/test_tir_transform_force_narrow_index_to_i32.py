@@ -478,21 +478,23 @@ def test_left_shift_dynamic_and_vector_amounts_remain_valid():
 
 
 def test_let_binding():
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class Before:
         @T.prim_func
         def main(buf: T.handle):
-            n = T.int64()
             Buf = T.match_buffer(buf, [n], "int32")
             ceil_log2: T.int64 = T.Cast("int64", T.ceil(T.log2(T.Cast("float32", n))))
             for i in T.serial(ceil_log2):
                 T.evaluate(0)
 
+    n = T.dynamic("n", "int32")
+
     @tvm.script.ir_module
     class Expected:
         @T.prim_func
         def main(buf: T.handle):
-            n = T.int32()
             Buf = T.match_buffer(buf, [n], "int32")
             # The pass narrows indexing variables (n, the For extent) but leaves
             # an explicitly-typed `T.Cast("int64", ...)` storage alone; a Cast to

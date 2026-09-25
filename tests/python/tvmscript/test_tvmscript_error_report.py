@@ -64,7 +64,7 @@ def test_buffer_bind():
     def buffer_bind_missing_args(a: T.handle) -> None:
         A = T.match_buffer((16, 16), "float32")  # error
 
-    check_error(buffer_bind_missing_args, 2, ValueError)
+    check_error(buffer_bind_missing_args, 2, TypeError)
 
 
 def test_undefined_buffer():
@@ -574,26 +574,26 @@ def test_non_integer_typed_block_iter():
 def test_illegal_buffer_slice():
     def strided_buffer_region(A: T.handle):
         # do not allow stride in buffer region
-        A = T.match_buffer((128, 128), "int32")
-        with Ts.sblock():
+        A = T.match_buffer(A, (128, 128), "int32")
+        with Ts.sblock("block"):
             Ts.reads([])
             Ts.writes([A[0:128:2, 0:128:3]])  # error
             T.evaluate(T.call_extern("strided_compute", dtype=""))
 
     def access_reversed_slice(A: T.handle):
         # do not allow reversed slice step
-        A = T.match_buffer((128,), "int32")
+        A = T.match_buffer(A, (128,), "int32")
         A[0:128:-1] = T.broadcast(1, 128)  # error
 
     def access_non_const_slice_length(A: T.handle):
         # do not allow non-constant slice length
-        A = T.match_buffer((128,), "int32")
+        A = T.match_buffer(A, (128,), "int32")
         for i in range(4):
             T.evaluate(A[0:i:1])  # error
 
-    check_error(strided_buffer_region, 3, ValueError)
-    check_error(access_reversed_slice, 3, ValueError)
-    check_error(access_non_const_slice_length, 3, ValueError)
+    check_error(strided_buffer_region, 6, ValueError)
+    check_error(access_reversed_slice, 4, tvm.error.InternalError)
+    check_error(access_non_const_slice_length, 5, TypeError)
 
 
 def test_syntax_sugar_fail():

@@ -473,52 +473,53 @@ def _current_function_frame():
     raise ValueError("Symbol resolution requires an active function frame")
 
 
-def wrap_expression_constructor(constructor, call_signature, policy, *, as_type=False):
-    """Adapt an eager constructor using parser-owned expression-string metadata."""
-    fields = policy.fields
+def annotation_constructor(*fields: str, as_type: bool = False):
+    """Adapt eager Python type parameters on concrete annotation constructors.
 
-    def unresolved(value, nested=False):
-        if isinstance(value, str):
-            return nested or policy.scalar_strings
-        if isinstance(value, TypeVar):
-            return True
-        if isinstance(value, tuple | list):
-            return any(unresolved(item, True) for item in value)
-        return False
+    Unresolved ``typing.TypeVar`` values defer annotations outside a builder;
+    an active native function owns their resolution. Ordinary values, including
+    strings, are passed unchanged to the concrete API.
+    """
 
-    @wraps(constructor)
-    def invoke(*args, **kwargs):
-        bound = call_signature.bind(*args, **kwargs)
-        if IRBuilder.is_in_scope():
-            # typing.TypeVar is ordinary eager Python metadata. Resolve it
-            # here, never in the syntax-only transpiler.
-            def resolve(value):
-                if isinstance(value, TypeVar):
-                    if value.__bound__ is not None or value.__constraints__:
-                        raise TypeError("A symbolic TypeVar cannot have constraints or a bound")
-                    return _current_function_frame().resolve_type_var(value.__name__)
-                if isinstance(value, tuple):
-                    return tuple(resolve(item) for item in value)
-                if isinstance(value, list):
-                    return [resolve(item) for item in value]
-                return value
+    def decorate(constructor):
+        call_signature = signature(constructor)
 
+        def unresolved(value):
+            if isinstance(value, TypeVar):
+                return True
+            if isinstance(value, tuple | list):
+                return any(unresolved(item) for item in value)
+            return False
+
+        def resolve(value):
+            if isinstance(value, TypeVar):
+                if value.__bound__ is not None or value.__constraints__:
+                    raise TypeError("A symbolic TypeVar cannot have constraints or a bound")
+                return _current_function_frame().resolve_type_var(value.__name__)
+            if isinstance(value, tuple):
+                return tuple(resolve(item) for item in value)
+            if isinstance(value, list):
+                return [resolve(item) for item in value]
+            return value
+
+        @wraps(constructor)
+        def invoke(*args, **kwargs):
+            bound = call_signature.bind(*args, **kwargs)
             for field in fields:
-                if field in bound.arguments:
-                    bound.arguments[field] = resolve(bound.arguments[field])
-        if any(unresolved(bound.arguments[field]) for field in fields if field in bound.arguments):
-            if IRBuilder.is_in_scope():
-                raise TypeError(
-                    "Builder expression arguments require concrete symbols, not strings"
-                )
-            return ir.Type.missing()
-        return constructor(*bound.args, **bound.kwargs)
+                if field not in bound.arguments:
+                    continue
+                value = bound.arguments[field]
+                if IRBuilder.is_in_scope():
+                    bound.arguments[field] = resolve(value)
+                elif unresolved(value):
+                    return ir.Type.missing()
+            return constructor(*bound.args, **bound.kwargs)
 
-    result = invoke
-    if as_type:
-        # The class is an annotation surface, not an IR or proxy type.
-        # __new__ returns the concrete construction result (or MissingType).
-        result = type(
+        if not as_type:
+            return invoke
+        # A real annotation class supports Python unions while constructing
+        # ordinary native types, with no proxy values or parser policy state.
+        return type(
             constructor.__name__,
             (),
             {
@@ -528,7 +529,8 @@ def wrap_expression_constructor(constructor, call_signature, policy, *, as_type=
                 "__module__": constructor.__module__,
             },
         )
-    return result
+
+    return decorate
 
 
 def _return_annotation(annotation):

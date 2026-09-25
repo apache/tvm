@@ -64,7 +64,7 @@ struct SortableFunction {
   }
 };
 
-ffi::Optional<ffi::String> GetTypeVarDeclarationName(const StmtDoc& stmt) {
+ffi::Optional<ffi::String> GetDynamicDeclarationName(const StmtDoc& stmt) {
   const auto* assign = stmt.as<AssignDocNode>();
   if (assign == nullptr || !assign->rhs.has_value()) {
     return std::nullopt;
@@ -74,8 +74,8 @@ ffi::Optional<ffi::String> GetTypeVarDeclarationName(const StmtDoc& stmt) {
   if (lhs == nullptr || call == nullptr) {
     return std::nullopt;
   }
-  const auto* callee = call->callee.as<IdDocNode>();
-  if (callee == nullptr || callee->name != "TypeVar") {
+  const auto* callee = call->callee.as<AttrAccessDocNode>();
+  if (callee == nullptr || callee->name != "dynamic") {
     return std::nullopt;
   }
   return lhs->name;
@@ -85,8 +85,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<IRModule>(
       "", [](IRModule mod, AccessPath p, IRDocsifier d) -> Doc {
         std::vector<SortableFunction> functions;
-        ffi::Array<StmtDoc> type_var_decls;
-        std::unordered_set<ffi::String> declared_type_vars;
+        ffi::Array<StmtDoc> dynamic_decls;
+        std::unordered_set<ffi::String> declared_dynamic_names;
         for (const auto& kv : mod->functions) {
           functions.push_back(SortableFunction(kv));
         }
@@ -123,10 +123,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           d->cfg->binding_names.pop_back();
           if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
             for (const StmtDoc& stmt : stmt_block->stmts) {
-              if (ffi::Optional<ffi::String> name = GetTypeVarDeclarationName(stmt)) {
-                if (!declared_type_vars.count(name.value())) {
-                  declared_type_vars.insert(name.value());
-                  type_var_decls.push_back(stmt);
+              if (ffi::Optional<ffi::String> name = GetDynamicDeclarationName(stmt)) {
+                if (!declared_dynamic_names.count(name.value())) {
+                  declared_dynamic_names.insert(name.value());
+                  dynamic_decls.push_back(stmt);
                 }
               }
             }
@@ -148,11 +148,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           }
         }
         ClassDoc class_doc(module_doc, {IR(d, "ir_module")}, (*f)->stmts);
-        if (type_var_decls.empty()) {
+        if (dynamic_decls.empty()) {
           return HeaderWrapper(d, class_doc);
         }
-        type_var_decls.push_back(class_doc);
-        return HeaderWrapper(d, StmtBlockDoc(type_var_decls));
+        dynamic_decls.push_back(class_doc);
+        return HeaderWrapper(d, StmtBlockDoc(dynamic_decls));
       });
 }
 

@@ -78,9 +78,9 @@ ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IR
       rhs = TIR(d, "TensorMap")->Call({}, {}, {});
     }
   } else {
-    rhs = TIR(d, DType2Str(var->ty.as_or_throw<PrimType>()->dtype));
-    rhs->source_paths.push_back(var_p->Attr("dtype"));
-    rhs = rhs->Call({}, kwargs_keys, kwargs_values);
+    rhs = IR(d, "dynamic")
+              ->Call({LiteralDoc::Str(var->name, var_p->Attr("name"))}, {"dtype"},
+                     {LiteralDoc::Str(DType2Str(var->ty.as_or_throw<PrimType>()->dtype), type_p)});
   }
   rhs->source_paths.push_back(type_p);
   return rhs;
@@ -89,9 +89,10 @@ ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IR
 Doc PrintVar(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d) {
   if (!d->IsVarDefined(var)) {
     if (ffi::Optional<Frame> opt_f = FindLowestVarDef(var, d)) {
-      ExprDoc lhs = DefineVar(var, opt_f.value(), d);
+      Frame frame = var->ty.as<PrimTypeNode>() ? d->frames.front() : opt_f.value();
+      ExprDoc lhs = DefineVar(var, frame, d);
       ExprDoc rhs = PrintVarCreation(var, var_p, d);
-      opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
+      frame->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
     } else {
       LOG(WARNING) << "Didn't find variable definition for: " << var->name;
     }

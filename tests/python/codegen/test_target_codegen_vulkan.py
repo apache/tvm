@@ -581,11 +581,12 @@ def test_unary():
     def run_test(tvm_intrin, np_func):
         n = 16
 
+        m = T.dynamic("m", "int32")
+
         @I.ir_module
         class Module:
             @T.prim_func
             def main(var_A: T.handle, var_B: T.handle):
-                m = T.int32()
                 A = T.match_buffer(var_A, (m,), "float32")
                 B = T.match_buffer(var_B, (m,), "float32")
                 for i_0 in T.thread_binding((m + 63) // 64, thread="blockIdx.x"):
