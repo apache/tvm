@@ -51,7 +51,7 @@ def test_fail_use_out_loop_var():
 
 
 def test_block_match_buffer_defines_buffer_obj():
-    """In a block, T.match_buffer defines a buffer view"""
+    """In a block, Ts.match_buffer defines a buffer view"""
 
     @I.ir_module
     class mod:
@@ -60,7 +60,7 @@ def test_block_match_buffer_defines_buffer_obj():
             for (*iters,) in T.grid(16, 16, 16, 16):
                 with Ts.sblock("compute"):
                     tile_i, tile_j, i, j = Ts.axis.remap("SSSS", iters)
-                    B = T.match_buffer(
+                    B = Ts.match_buffer(
                         A[tile_i * 16 : (tile_i + 1) * 16, tile_j * 16 : (tile_j + 1) * 16],
                         dtype="float32",
                     )
@@ -70,7 +70,7 @@ def test_block_match_buffer_defines_buffer_obj():
 
 
 def test_block_match_buffer_defines_symbolic_variables():
-    """In a block, T.match_buffer may define symbolic variables"""
+    """In a block, Ts.match_buffer may define symbolic variables"""
 
     elem_offset = T.dynamic("elem_offset", "int32")
 
@@ -82,7 +82,7 @@ def test_block_match_buffer_defines_symbolic_variables():
                 with Ts.sblock("compute"):
                     tile_i, tile_j, i, j = Ts.axis.remap("SSSS", iters)
 
-                    B = T.match_buffer(
+                    B = Ts.match_buffer(
                         A[tile_i * 16 : (tile_i + 1) * 16, tile_j * 16 : (tile_j + 1) * 16],
                         dtype="float32",
                         elem_offset=elem_offset,
@@ -103,7 +103,7 @@ def test_match_buffer_in_block_is_well_formed():
             for (*iters,) in T.grid(8, 8, 16, 16):
                 with Ts.sblock("compute"):
                     ti, tj, i, j = Ts.axis.remap("SSSS", iters)
-                    A_tile = T.match_buffer(
+                    A_tile = Ts.match_buffer(
                         A[ti * 16 : (ti + 1) * 16, tj * 16 : (tj + 1) * 16],
                         dtype="float32",
                     )

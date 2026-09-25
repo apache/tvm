@@ -30,14 +30,12 @@ def test_highlight_script():
     class Module:
         @Ts.prim_func
         def main(  # type: ignore
-            a: T.handle,
-            b: T.handle,
-            c: T.handle,
+            A: T.Buffer([16, 128, 128]),
+            B: T.Buffer([16, 128, 128]),
+            C: T.Buffer([16, 128, 128]),
         ) -> None:  # pylint: disable=no-self-argument
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-            A = T.match_buffer(a, [16, 128, 128])
-            B = T.match_buffer(b, [16, 128, 128])
-            C = T.match_buffer(c, [16, 128, 128])
+
             for n, i, j, k in T.grid(16, 128, 128, 128):
                 with Ts.sblock("matmul"):
                     vn, vi, vj, vk = Ts.axis.remap("SSSR", [n, i, j, k])

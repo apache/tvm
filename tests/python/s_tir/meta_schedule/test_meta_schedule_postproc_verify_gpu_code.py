@@ -50,7 +50,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 @tvm.script.ir_module
 class Conv2dCuda0:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle) -> None:
+    def main(A: T.Buffer([14 * 14 * 256 * 256], dtype='float32'), B: T.Buffer([14 * 14 * 512 * 256], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
         # var definition
@@ -59,8 +59,7 @@ class Conv2dCuda0:
         blockIdx_x = T.env_thread("blockIdx.x")
         blockIdx_y = T.env_thread("blockIdx.y")
         blockIdx_z = T.env_thread("blockIdx.z")
-        A = T.match_buffer(a, [14*14*256*256], dtype="float32")
-        B = T.match_buffer(b, [14*14*512*256], dtype="float32")
+
         # body
         T.launch_thread(blockIdx_z, 196)
         B_local = T.decl_buffer([64], "float32", scope="local")
@@ -88,11 +87,10 @@ class Conv2dCuda0:
         for ff_inner_inner_inner, nn_inner_inner_inner in T.grid(8, 8):
             B[blockIdx_z * 131072 + blockIdx_y * 16384 + threadIdx_y * 2048 + ff_inner_inner_inner * 256 + blockIdx_x * 64 + threadIdx_x * 8 + nn_inner_inner_inner] = B_local[ff_inner_inner_inner * 8 + nn_inner_inner_inner]
 
-
 @tvm.script.ir_module
 class Conv2dCuda1:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle) -> None:
+    def main(A: T.Buffer([14 * 14 * 256 * 256], dtype='float32'), B: T.Buffer([14 * 14 * 512 * 256], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
         # var definition
@@ -101,8 +99,7 @@ class Conv2dCuda1:
         blockIdx_x = T.env_thread("blockIdx.x")
         blockIdx_y = T.env_thread("blockIdx.y")
         blockIdx_z = T.env_thread("blockIdx.z")
-        A = T.match_buffer(a, [14*14*256*256], dtype="float32")
-        B = T.match_buffer(b, [14*14*512*256], dtype="float32")
+
         # body
         T.launch_thread(blockIdx_z, 196)
         B_local = T.decl_buffer([6400000], "float32", scope="local")
@@ -134,11 +131,10 @@ class Conv2dCuda1:
         for ff_inner_inner_inner, nn_inner_inner_inner in T.grid(8, 8):
             B[blockIdx_z * 131072 + blockIdx_y * 16384 + threadIdx_y * 2048 + ff_inner_inner_inner * 256 + blockIdx_x * 64 + threadIdx_x * 8 + nn_inner_inner_inner] = B_local[ff_inner_inner_inner * 8 + nn_inner_inner_inner]
 
-
 @tvm.script.ir_module
 class Conv2dCuda2:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle) -> None:
+    def main(A: T.Buffer([14 * 14 * 256 * 256], dtype='float32'), B: T.Buffer([14 * 14 * 512 * 256], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
         # var definition
@@ -147,8 +143,7 @@ class Conv2dCuda2:
         blockIdx_x = T.env_thread("blockIdx.x")
         blockIdx_y = T.env_thread("blockIdx.y")
         blockIdx_z = T.env_thread("blockIdx.z")
-        A = T.match_buffer(a, [14*14*256*256], dtype="float32")
-        B = T.match_buffer(b, [14*14*512*256], dtype="float32")
+
         # body
         T.launch_thread(blockIdx_z, 196)
         B_local = T.decl_buffer([64], "float32", scope="local")
@@ -180,11 +175,10 @@ class Conv2dCuda2:
         for ff_inner_inner_inner, nn_inner_inner_inner in T.grid(8, 8):
             B[blockIdx_z * 131072 + blockIdx_y * 16384 + threadIdx_y * 2048 + ff_inner_inner_inner * 256 + blockIdx_x * 64 + threadIdx_x * 8 + nn_inner_inner_inner] = B_local[ff_inner_inner_inner * 8 + nn_inner_inner_inner]
 
-
 @tvm.script.ir_module
 class Conv2dCuda3:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle) -> None:
+    def main(A: T.Buffer([14 * 14 * 256 * 256], dtype='float32'), B: T.Buffer([14 * 14 * 512 * 256], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
         # var definition
@@ -193,8 +187,7 @@ class Conv2dCuda3:
         blockIdx_x = T.env_thread("blockIdx.x")
         blockIdx_y = T.env_thread("blockIdx.y")
         blockIdx_z = T.env_thread("blockIdx.z")
-        A = T.match_buffer(a, [14*14*256*256], dtype="float32")
-        B = T.match_buffer(b, [14*14*512*256], dtype="float32")
+
         # body
         T.launch_thread(blockIdx_z, 196)
         B_local = T.decl_buffer([64], "float32", scope="local")
@@ -334,7 +327,6 @@ def GmmCuda1(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "
                         Ts.writes(Z[v0, v1, v2])
                         Z[v0, v1, v2] = Z_local[v0, v1, v2]
 
-
 @Ts.prim_func
 def GmmCuda2(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
     Z_local = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
@@ -393,7 +385,6 @@ def GmmCuda2(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "
                         Ts.writes(Z[v0, v1, v2])
                         Z[v0, v1, v2] = Z_local[v0, v1, v2]
 
-
 s0 = T.dynamic("s0", "int32")
 s0_1 = T.dynamic("s0_1", "int32")
 s0_2 = T.dynamic("s0_2", "int32")
@@ -448,7 +439,7 @@ def GMMCUDATensorCore(
                                 "warp_execution": 1,
                             }
                         )
-                        C = T.match_buffer(
+                        C = Ts.match_buffer(
                             Z_wmma_accumulator[
                                 v1_o * 16 : v1_o * 16 + 16, v2_o * 16 : v2_o * 16 + 16
                             ],
@@ -551,7 +542,7 @@ def GMMCUDATensorCore(
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ]
                                 )
-                                A = T.match_buffer(
+                                A = Ts.match_buffer(
                                     X_shared[
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ],
@@ -561,7 +552,7 @@ def GMMCUDATensorCore(
                                     scope="shared",
                                     offset_factor=16,
                                 )
-                                C_1 = T.match_buffer(
+                                C_1 = Ts.match_buffer(
                                     X_shared_wmma_matrix_a[
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ],
@@ -604,7 +595,7 @@ def GMMCUDATensorCore(
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ]
                                 )
-                                A_1 = T.match_buffer(
+                                A_1 = Ts.match_buffer(
                                     Y_shared[
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ],
@@ -614,7 +605,7 @@ def GMMCUDATensorCore(
                                     scope="shared",
                                     offset_factor=16,
                                 )
-                                C_2 = T.match_buffer(
+                                C_2 = Ts.match_buffer(
                                     Y_shared_wmma_matrix_b[
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ],
@@ -685,7 +676,7 @@ def GMMCUDATensorCore(
                                         "warp_execution": 1,
                                     }
                                 )
-                                A_2 = T.match_buffer(
+                                A_2 = Ts.match_buffer(
                                     X_shared_wmma_matrix_a[
                                         v1_o * 16 : v1_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16
                                     ],
@@ -694,7 +685,7 @@ def GMMCUDATensorCore(
                                     scope="wmma.matrix_a",
                                     offset_factor=16,
                                 )
-                                B = T.match_buffer(
+                                B = Ts.match_buffer(
                                     Y_shared_wmma_matrix_b[
                                         v3_o * 16 : v3_o * 16 + 16, v2_o * 16 : v2_o * 16 + 16
                                     ],
@@ -703,7 +694,7 @@ def GMMCUDATensorCore(
                                     scope="wmma.matrix_b",
                                     offset_factor=16,
                                 )
-                                C_3 = T.match_buffer(
+                                C_3 = Ts.match_buffer(
                                     Z_wmma_accumulator[
                                         v1_o * 16 : v1_o * 16 + 16, v2_o * 16 : v2_o * 16 + 16
                                     ],
@@ -741,7 +732,7 @@ def GMMCUDATensorCore(
                             ]
                         )
                         Ts.writes(Z[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
-                        A_3 = T.match_buffer(
+                        A_3 = Ts.match_buffer(
                             Z_wmma_accumulator[
                                 v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                             ],
@@ -750,7 +741,7 @@ def GMMCUDATensorCore(
                             scope="wmma.accumulator",
                             offset_factor=16,
                         )
-                        C_4 = T.match_buffer(
+                        C_4 = Ts.match_buffer(
                             Z[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16],
                             [16, 16],
                             dtype="float32",
@@ -777,7 +768,6 @@ def GMMCUDATensorCore(
                                 dtype="handle",
                             )
                         )
-
 
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,not-callable,misplaced-comparison-constant

@@ -452,10 +452,9 @@ def test_forward_reference_symbolic_variable():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(a: T.handle, b: T.handle):
+        def main(A: T.Buffer((batch_size + 1,), "int32"), B: T.Buffer((batch_size,), "int32")):
             T.func_attr({"target": T.target("llvm", host="llvm")})
-            A = T.match_buffer(a, (batch_size + 1,), "int32")
-            B = T.match_buffer(b, (batch_size,), "int32")
+
             for i in range(batch_size):
                 B[i] = A[i] + A[i + 1]
 

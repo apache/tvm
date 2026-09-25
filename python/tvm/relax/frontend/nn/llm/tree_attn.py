@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-# ruff: noqa: E501, F841
+# ruff: noqa: E501
 
 """Operators for tree attention."""
 
@@ -34,10 +34,10 @@ from ._kernel_common import (
     _alloc_mha_qkvo_buffers,
     _alloc_softmax_state_buffers,
     _alloc_tile_walk_state,
-    _declare_length_info,
     _get_kv_chunk_len,
     _get_prefill_kernel_config,
     _get_seq_offset,
+    _length_info_buffer,
     _rope,
 )
 
@@ -100,40 +100,23 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any]):
     batch_size_plus_1 = T.dynamic("batch_size_plus_1", "int32")
     @Ts.prim_func
     def batch_tree_attn(  # pylint: disable=too-many-branches,line-too-long
-        var_q: T.handle,  # [total_len, h_q, d]
-        var_q_indptr: T.handle,  # [batch_size + 1]
-        var_k: T.handle,  # [total_len, h_kv, d]
-        var_v: T.handle,  # [total_len, h_kv, d]
-        var_kv_indptr: T.handle,  # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
-        var_q_rope_position: T.handle,  # [total_q_len]
-        var_mn_indptr: T.handle,  # [batch_size + 1]
-        var_mask: T.handle,  # [mn_indptr[batch_size]]
-        var_output: T.handle,  # [total_len, h_q, d]
-        var_lse: T.handle,  # [total_len, h_q]
+        q: T.Buffer((qo_len, h_q, d), dtype),  # [total_len, h_q, d]
+        q_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
+        k: T.Buffer((kv_len, h_kv, d), dtype),  # [total_len, h_kv, d]
+        v: T.Buffer((kv_len, h_kv, d), dtype),  # [total_len, h_kv, d]
+        kv_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=kv_indptr_elem_offset),  # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
+        q_rope_position: T.Buffer((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset),  # [total_q_len]
+        mn_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=mn_indptr_elem_offset),  # [batch_size + 1]
+        mask: T.Buffer((tree_size, 2), 'int32', elem_offset=mask_elem_offset),  # [mn_indptr[batch_size]]
+        output: T.Buffer((qo_len, h_q, d), dtype),  # [total_len, h_q, d]
+        lse: T.Buffer((qo_len, h_q), 'float32'),  # [total_len, h_q]
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
     ):
 
-        q = T.match_buffer(var_q, (qo_len, h_q, d), dtype)
-        q_indptr = T.match_buffer(
-            var_q_indptr, (batch_size_plus_1,), "int32", elem_offset=q_indptr_elem_offset
-        )
-        k = T.match_buffer(var_k, (kv_len, h_kv, d), dtype)
-        v = T.match_buffer(var_v, (kv_len, h_kv, d), dtype)
-        kv_indptr = T.match_buffer(
-            var_kv_indptr, (batch_size_plus_1,), "int32", elem_offset=kv_indptr_elem_offset
-        )
-        q_rope_position = T.match_buffer(
-            var_q_rope_position, (qo_len,), "int32", elem_offset=q_rope_position_elem_offset
-        )
-        mn_indptr = T.match_buffer(
-            var_mn_indptr, (batch_size_plus_1,), "int32", elem_offset=mn_indptr_elem_offset
-        )
-        mask = T.match_buffer(var_mask, (tree_size, 2), "int32", elem_offset=mask_elem_offset)
-        output = T.match_buffer(var_output, (qo_len, h_q, d), dtype)
-        lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")  # pylint: disable=unused-variable
+          # pylint: disable=unused-variable
 
         for b in T.serial(batch_size_plus_1 - 1):
             with Ts.sblock("attn"):
@@ -299,32 +282,23 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
     batch_size_plus_1 = T.dynamic("batch_size_plus_1", "int32")
     @Ts.prim_func
     def batch_tree_attn(  # pylint: disable=too-many-branches
-        var_q: T.handle, # [total_len, h_q, d]
-        var_q_indptr: T.handle, # [batch_size + 1]
-        var_k: T.handle, # [total_len, h_kv, d]
-        var_v: T.handle, # [total_len, h_kv, d]
-        var_kv_indptr: T.handle, # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
-        var_q_rope_position: T.handle, # [total_q_len]
-        var_mn_indptr: T.handle, # [batch_size + 1]
-        var_mask: T.handle, # [mn_indptr[batch_size]]
-        var_output: T.handle, # [total_len, h_q, d]
-        var_lse: T.handle, # [total_len, h_q]
+        q: T.Buffer((qo_len, h_q, d), dtype), # [total_len, h_q, d]
+        q_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        k: T.Buffer((kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
+        v: T.Buffer((kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
+        kv_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=kv_indptr_elem_offset), # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
+        q_rope_position: T.Buffer((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_q_len]
+        mn_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=mn_indptr_elem_offset), # [batch_size + 1]
+        mask: T.Buffer((tree_size, 2), 'int32', elem_offset=mask_elem_offset), # [mn_indptr[batch_size]]
+        output: T.Buffer((qo_len, h_q, d), dtype), # [total_len, h_q, d]
+        lse: T.Buffer((qo_len, h_q), 'float32'), # [total_len, h_q]
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
     ):
 
-        q = T.match_buffer(var_q, (qo_len, h_q, d), dtype)
-        q_indptr = T.match_buffer(var_q_indptr, (batch_size_plus_1,), "int32", elem_offset=q_indptr_elem_offset)
-        k = T.match_buffer(var_k, (kv_len, h_kv, d), dtype)
-        v = T.match_buffer(var_v, (kv_len, h_kv, d), dtype)
-        kv_indptr = T.match_buffer(var_kv_indptr, (batch_size_plus_1,), "int32", elem_offset=kv_indptr_elem_offset)
-        q_rope_position = T.match_buffer(var_q_rope_position, (qo_len,), "int32", elem_offset=q_rope_position_elem_offset)
-        mn_indptr = T.match_buffer(var_mn_indptr, (batch_size_plus_1,), "int32", elem_offset=mn_indptr_elem_offset)
-        mask = T.match_buffer(var_mask, (tree_size, 2), "int32", elem_offset=mask_elem_offset)
-        output = T.match_buffer(var_output, (qo_len, h_q, d), dtype)
-        lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")  # pylint: disable=unused-variable
+          # pylint: disable=unused-variable
 
         # kernel code
         for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
@@ -623,46 +597,27 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
     total_tree_order_len = T.dynamic("total_tree_order_len", "int32")
     @Ts.prim_func
     def tree_attn_paged_kv_cpu(
-        var_q: T.handle, # [total_len, h_q, d]
-        var_q_indptr: T.handle, # [batch_size + 1]
-        var_pages: T.handle, # [max_num_pages, 2, h_kv, page_size, d]
-        var_page_indptr: T.handle, # [batch_size + 1]
-        var_page_values: T.handle, # [nnz_pages]
-        var_length_info: T.handle, # [b] when sliding window = False, or otherwise [3, b]
-        var_k_rope_pos_offset: T.handle, # [b]
-        var_q_rope_position: T.handle, # [total_len]
-        var_output: T.handle, # [total_len, h_q, d]
-        var_lse: T.handle, # [total_len, h_q]
+        q: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        pages: T.Buffer((max_num_pages, 2, h_kv, 16, d), dtype), # [max_num_pages, 2, h_kv, page_size, d]
+        page_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
+        page_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
+        length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
+        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
+        q_rope_position: T.Buffer((total_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_len]
+        output: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        lse: T.Buffer((total_len, h_q), 'float32'), # [total_len, h_q]
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
-        tree_order_indptr_handle: T.handle,  # [batch_size + 1]
-        tree_order_handle: T.handle,  # [total_len, 2]
+        tree_order_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=tree_order_indptr_elem_offset),  # [batch_size + 1]
+        tree_order: T.Buffer((total_tree_order_len, 2), 'int32', elem_offset=tree_order_elem_offset),  # [total_len, 2]
     ):
         T.func_attr({"global_symbol": global_symbol})
 
-        q = T.match_buffer(var_q, (total_len, h_q, d), dtype)
-        q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
-        pages = T.match_buffer(var_pages, (max_num_pages, 2, h_kv, 16, d), dtype)
-        page_indptr = T.match_buffer(var_page_indptr, (batch_size + 1,), "int32", elem_offset=page_indptr_elem_offset)
-        page_values = T.match_buffer(var_page_values, (nnz_pages,), "int32", elem_offset=page_values_elem_offset)
-        k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
-        q_rope_position = T.match_buffer(var_q_rope_position, (total_len,), "int32", elem_offset=q_rope_position_elem_offset)
-        output = T.match_buffer(var_output, (total_len, h_q, d), dtype)
-        lse = T.match_buffer(var_lse, (total_len, h_q), "float32")  # pylint: disable=unused-variable
-        tree_order_indptr = T.match_buffer(
-            tree_order_indptr_handle,
-            (batch_size + 1,),
-            "int32",
-            elem_offset=tree_order_indptr_elem_offset,
-        )
-        tree_order = T.match_buffer(
-            tree_order_handle,
-            (total_tree_order_len, 2),
-            "int32",
-            elem_offset=tree_order_elem_offset,
-        )
+          # pylint: disable=unused-variable
+
         # The length information of the sequences.
         # - It is in shape `(3, batch_size)` when sliding window is enabled.
         #   For a sequence "i", location
@@ -671,8 +626,6 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
         #   - "(2, i)" is the attn sink length of the sequence.
         # - It is in shape `(batch_size,)` when sliding window is disabled,
         #   denoting the "last_page_len".
-        length_info = _declare_length_info(var_length_info, batch_size, sliding_window, length_info_elem_offset)
-
 
         T.assert_(
             rotary_mode == T.int32(0), "Inline rotary mode is not supported in tree attention."
@@ -762,7 +715,6 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
                                 for d_idx in T.serial(d):
                                     O_local[d_idx] = O_local[d_idx] * scale_O[d_idx]
 
-
                                 for d_idx in T.serial(d):
                                     O_local[d_idx] += V_local[d_idx] * factor[0]
                         # Store Output
@@ -820,59 +772,28 @@ def tree_attn_with_paged_kv_cache(
     total_tree_order_len = T.dynamic("total_tree_order_len", "int32")
     @Ts.prim_func
     def tree_attn_paged_kv(
-        var_q: T.handle,  # [total_len, h_q, d]
-        var_q_indptr: T.handle,  # [batch_size + 1]
-        var_pages: T.handle,  # [max_num_pages, 2, h_kv, page_size, d]
-        var_page_indptr: T.handle,  # [batch_size + 1]
-        var_page_values: T.handle,  # [nnz_pages]
-        var_length_info: T.handle,  # [b] when sliding window = False, or otherwise [3, b]
-        var_k_rope_pos_offset: T.handle,  # [b]
-        var_q_rope_position: T.handle,  # [total_len]
-        var_output: T.handle,  # [total_len, h_q, d]
-        var_lse: T.handle,  # [total_len, h_q]
+        q: T.Buffer((total_len, h_q, d), dtype),  # [total_len, h_q, d]
+        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
+        pages: T.Buffer((max_num_pages, 2, h_kv, 16, d), dtype),  # [max_num_pages, 2, h_kv, page_size, d]
+        page_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset),  # [batch_size + 1]
+        page_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),  # [nnz_pages]
+        length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset),  # [b] when sliding window = False, or otherwise [3, b]
+        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),  # [b]
+        q_rope_position: T.Buffer((total_len,), 'int32', elem_offset=q_rope_position_elem_offset),  # [total_len]
+        output: T.Buffer((total_len, h_q, d), dtype),  # [total_len, h_q, d]
+        lse: T.Buffer((total_len, h_q), 'float32'),  # [total_len, h_q]
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
-        tree_order_indptr_handle: T.handle,  # [batch_size + 1]
-        tree_order_handle: T.handle,  # [total_len, 2]
+        tree_order_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=tree_order_indptr_elem_offset),  # [batch_size + 1]
+        tree_order: T.Buffer((total_tree_order_len, 2), 'int32', elem_offset=tree_order_elem_offset),  # [total_len, 2]
     ):
         # pylint: disable=unused-variable, too-many-branches
         T.func_attr({"global_symbol": global_symbol})
 
-        q = T.match_buffer(var_q, (total_len, h_q, d), dtype)
-        q_indptr = T.match_buffer(
-            var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset
-        )
-        pages = T.match_buffer(var_pages, (max_num_pages, 2, h_kv, 16, d), dtype)
-        page_indptr = T.match_buffer(
-            var_page_indptr, (batch_size + 1,), "int32", elem_offset=page_indptr_elem_offset
-        )
-        page_values = T.match_buffer(
-            var_page_values, (nnz_pages,), "int32", elem_offset=page_values_elem_offset
-        )
-        k_rope_pos_offset = T.match_buffer(
-            var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset
-        )
-        q_rope_position = T.match_buffer(
-            var_q_rope_position, (total_len,), "int32", elem_offset=q_rope_position_elem_offset
-        )
-        output = T.match_buffer(var_output, (total_len, h_q, d), dtype)
-        lse = T.match_buffer(
-            var_lse, (total_len, h_q), "float32"
-        )  # pylint: disable=unused-variable
-        tree_order_indptr = T.match_buffer(
-            tree_order_indptr_handle,
-            (batch_size + 1,),
-            "int32",
-            elem_offset=tree_order_indptr_elem_offset,
-        )
-        tree_order = T.match_buffer(
-            tree_order_handle,
-            (total_tree_order_len, 2),
-            "int32",
-            elem_offset=tree_order_elem_offset,
-        )
+    # pylint: disable=unused-variable
+
         # The length information of the sequences.
         # - It is in shape `(3, batch_size)` when sliding window is enabled.
         #   For a sequence "i", location
@@ -881,9 +802,6 @@ def tree_attn_with_paged_kv_cache(
         #   - "(2, i)" is the attn sink length of the sequence.
         # - It is in shape `(batch_size,)` when sliding window is disabled,
         #   denoting the "last_page_len".
-        length_info = _declare_length_info(
-            var_length_info, batch_size, sliding_window, length_info_elem_offset
-        )
 
         T.assert_(
             rotary_mode == T.int32(0), "Inline rotary mode is not supported in tree attention."

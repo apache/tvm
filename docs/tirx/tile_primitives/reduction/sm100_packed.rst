@@ -72,15 +72,21 @@ A single thread sums a 32-element ``float32`` local vector on ``sm_100a`` (from
 .. code-block:: python
 
     @Tx.prim_func
-    def test_func(A_ptr: Tx.handle, B_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, [32], "float32", layout=TileLayout(S[(32,)]))
-        B = Tx.match_buffer(B_ptr, [1], "float32", layout=TileLayout(S[(1,)]))
-        Tx.device_entry(); Tx.cta_id([1]); Tx.thread_id([1])
+    def test_func(
+        A: Tx.Buffer([32], "float32", layout=TileLayout(S[32,])),
+        B: Tx.Buffer([1], "float32", layout=TileLayout(S[1,])),
+    ):
+
+        Tx.device_entry()
+        Tx.cta_id([1])
+        Tx.thread_id([1])
         A_local = Tx.alloc_buffer([32], "float32", scope="local")
         B_local = Tx.alloc_buffer([1], "float32", scope="local")
-        for i in Tx.serial(32): A_local[i] = A[i]
-        Tx.tile.sum(B_local, A_local, accum=False)     # -> packed_add_sum
+        for i in Tx.serial(32):
+            A_local[i] = A[i]
+        Tx.tile.sum(B_local, A_local, accum=False)  # -> packed_add_sum
         B[0] = B_local[0]
+
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
 

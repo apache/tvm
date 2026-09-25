@@ -71,19 +71,22 @@ divisible by ``32``, so this falls through to ``fallback`` (from
 
 .. code-block:: python
 
-    shape, dtype = (4, 6), "float32"            # 24 elements, 32 threads -> 24 ∤ 32
+    shape, dtype = (4, 6), "float32"  # 24 elements, 32 threads -> 24 ∤ 32
     s_layout = TileLayout(S[shape])
     full = (slice(0, 4), slice(0, 6))
 
+
     @Tx.prim_func
-    def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, shape, dtype)
-        B = Tx.match_buffer(B_ptr, shape, dtype)
-        Tx.device_entry(); Tx.cta_id([1]); Tx.lane_id([32]); Tx.thread_id([32])
+    def kernel(A: Tx.Buffer(shape, dtype), B: Tx.Buffer(shape, dtype)):
+
+        Tx.device_entry()
+        Tx.cta_id([1])
+        Tx.lane_id([32])
+        Tx.thread_id([32])
         A_smem = Tx.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
-        Tx.tile.warp.copy(A_smem[full], A[full])    # fallback
+        Tx.tile.warp.copy(A_smem[full], A[full])  # fallback
         Tx.cuda.cta_sync()
-        Tx.tile.warp.copy(B[full], A_smem[full])    # fallback
+        Tx.tile.warp.copy(B[full], A_smem[full])  # fallback
 
 Algorithm
 ---------

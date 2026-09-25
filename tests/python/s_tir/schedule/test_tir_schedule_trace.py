@@ -33,10 +33,9 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def elementwise(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
+def elementwise(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
-    C = T.match_buffer(c, (128, 128))
+
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -48,9 +47,7 @@ def elementwise(a: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_inlined(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    C = T.match_buffer(c, (128, 128))
+def elementwise_inlined(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -365,10 +362,9 @@ def _test_apply_annotation_trace_from_json(annotation: str):
     Trace.apply_json_to_schedule(json_obj, sch)
 
     @Ts.prim_func
-    def elementwise_expected(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128))
+    def elementwise_expected(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
         B = Ts.sblock_alloc_buffer((128, 128))
-        C = T.match_buffer(c, (128, 128))
+
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):
                 Ts.sblock_attr({"meta_schedule.auto_tensorize": annotation})

@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
+
+from __future__ import annotations
 
 import json
 from concurrent.futures import ThreadPoolExecutor
@@ -212,7 +213,7 @@ def test_reuse_of_env_thread_across_functions_is_ill_formed():
 
 
 def test_multiple_buffer_arguments_may_share_allocation():
-    """T.match_buffer may re-use a data argument
+    """Buffer signatures may re-use a data argument
 
     Like the shape/strides/elem_offset fields in a buffer, the first
     occurrence of a `buffer->data` field defines it, and the
@@ -222,10 +223,7 @@ def test_multiple_buffer_arguments_may_share_allocation():
     @I.ir_module
     class mod:
         @T.prim_func
-        def func(A_handle: T.handle, B_handle: T.handle):
-            A = T.match_buffer(A_handle, [256], "float32")
-            B = T.match_buffer(B_handle, [256], "float32", data=A.data)
-
+        def func(A: T.Buffer([256], "float32"), B: T.Buffer([256], "float32", data=A.data)):  # noqa: F821
             pass
 
     tvm.tirx.analysis.verify_well_formed(mod)

@@ -265,17 +265,14 @@ def gpu_multinomial_from_uniform(
 
     @Ts.prim_func
     def parallel_sampling_from_prob(
-        var_prob: T.handle,
-        var_uniform_samples: T.handle,
-        var_row_indices: T.handle,
-        var_sampled_token_ids: T.handle,
+        prob: T.Buffer((n, vocab_size), prob_dtype),
+        uniform_samples: T.Buffer((batch_size, 1), sample_dtype),
+        row_indices: T.Buffer((batch_size, 1), sample_indices_dtype),
+        token_ids: T.Buffer((batch_size, 1), dtype),
     ):
         T.func_attr({"tirx.is_scheduled": True})
         # match buffers
-        prob = T.match_buffer(var_prob, (n, vocab_size), prob_dtype)
-        uniform_samples = T.match_buffer(var_uniform_samples, (batch_size, 1), sample_dtype)
-        row_indices = T.match_buffer(var_row_indices, (batch_size, 1), sample_indices_dtype)
-        token_ids = T.match_buffer(var_sampled_token_ids, (batch_size, 1), dtype)
+
         # local buffers
         aggregate = Ts.sblock_alloc_buffer((), prob_dtype, scope="local")
         sample_id_local = Ts.sblock_alloc_buffer((), dtype, scope="local")
@@ -326,12 +323,12 @@ def generic_get_sample_index(
     out_batch = T.dynamic("out_batch")
 
     @Ts.prim_func(private=True)
-    def _get_sample_index(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
-        prob = T.match_buffer(A, (batch, vocab_size), prob_dtype)
-        usample = T.match_buffer(B, (out_batch, 1), sample_dtype)
-        sample_indices = T.match_buffer(C, (out_batch, 1), sample_indices_dtype)
-        output_index = T.match_buffer(D, (out_batch, 1), dtype)
-
+    def _get_sample_index(
+        prob: T.Buffer((batch, vocab_size), prob_dtype),
+        usample: T.Buffer((out_batch, 1), sample_dtype),
+        sample_indices: T.Buffer((out_batch, 1), sample_indices_dtype),
+        output_index: T.Buffer((out_batch, 1), dtype),
+    ):
         for ax0, ax1 in T.grid(out_batch, vocab_size):
             with Ts.sblock("T_get_sample_index"):
                 v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])

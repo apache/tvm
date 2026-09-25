@@ -161,9 +161,7 @@ k = T.dynamic("k", "int32")
 
 
 @Ts.prim_func
-def dynamic_compute(a_handle: T.handle, c_handle: T.handle):
-    A = T.match_buffer(a_handle, (16, k), "float32")
-    C = T.match_buffer(c_handle, (16, k), "float32")
+def dynamic_compute(A: T.Buffer((16, k), "float32"), C: T.Buffer((16, k), "float32")):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
             0,
@@ -191,9 +189,7 @@ k = T.dynamic("k", "int32")
 
 
 @Ts.prim_func
-def transformed_dynamic_compute(a_handle: T.handle, c_handle: T.handle):
-    A = T.match_buffer(a_handle, (16, k), "float32")
-    C = T.match_buffer(c_handle, (16, k), "float32")
+def transformed_dynamic_compute(A: T.Buffer((16, k), "float32"), C: T.Buffer((16, k), "float32")):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         with Ts.sblock():
             Ts.reads(A[tx, 0 : T.max(1, k)])
@@ -1726,9 +1722,7 @@ def test_less_loop_than_num_stage_dynamic():
     K = T.dynamic("K", "int32")
 
     @Ts.prim_func
-    def before(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, [K], "float32")
-        E = T.match_buffer(b, [K], "float32")
+    def before(A: T.Buffer([K], "float32"), E: T.Buffer([K], "float32")):
         for i in T.serial(
             0,
             K,
@@ -1753,9 +1747,7 @@ def test_less_loop_than_num_stage_dynamic():
     K = T.dynamic("K", "int32")
 
     @Ts.prim_func
-    def after(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, [K], "float32")
-        E = T.match_buffer(b, [K], "float32")
+    def after(A: T.Buffer([K], "float32"), E: T.Buffer([K], "float32")):
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes()

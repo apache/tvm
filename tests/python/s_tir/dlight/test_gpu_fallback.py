@@ -142,17 +142,12 @@ def test_fallback_irregular_spatial():
 
     @Ts.prim_func(private=True)
     def func(
-        var_pages: T.handle,
-        var_page_table_indptr: T.handle,
-        var_page_table_values: T.handle,
-        var_values: T.handle,
+        pages: T.Buffer((num_total_pages, nlayer, nhead, page_size), "float16"),
+        page_table_indptr: T.Buffer((num_total_seqs_plus_1,), "int32"),
+        page_table_values: T.Buffer((npage,), "int32"),
+        values: T.Buffer((nlayer, nhead, seqlen), "float16"),
         seq_id: T.int32,
     ):
-        pages = T.match_buffer(var_pages, (num_total_pages, nlayer, nhead, page_size), "float16")
-        page_table_indptr = T.match_buffer(var_page_table_indptr, (num_total_seqs_plus_1,), "int32")
-        page_table_values = T.match_buffer(var_page_table_values, (npage,), "int32")
-        values = T.match_buffer(var_values, (nlayer, nhead, seqlen), "float16")
-
         for l, h, pos in T.grid(nlayer, nhead, seqlen):
             with Ts.sblock("block"):
                 vl, vh, vp = Ts.axis.remap("SSS", [l, h, pos])
@@ -173,13 +168,8 @@ def test_fallback_irregular_spatial():
     num_total_seqs_plus_1 = T.dynamic("num_total_seqs_plus_1", "int32")
 
     @Ts.prim_func(private=True)
-    def expected(var_pages: T.handle, var_page_table_indptr: T.handle, var_page_table_values: T.handle, var_values: T.handle, seq_id: T.int32):
+    def expected(pages: T.Buffer((num_total_pages, nlayer, nhead, page_size), 'float16'), page_table_indptr: T.Buffer((num_total_seqs_plus_1,), 'int32'), page_table_values: T.Buffer((npage,), 'int32'), values: T.Buffer((nlayer, nhead, seqlen), 'float16'), seq_id: T.int32):
         T.func_attr({"tirx.is_scheduled": True})
-
-        pages = T.match_buffer(var_pages, (num_total_pages, nlayer, nhead, page_size), "float16")
-        page_table_indptr = T.match_buffer(var_page_table_indptr, (num_total_seqs_plus_1,), "int32")
-        page_table_values = T.match_buffer(var_page_table_values, (npage,), "int32")
-        values = T.match_buffer(var_values, (nlayer, nhead, seqlen), "float16")
 
         for ax0_ax1_ax2_fused_0 in T.thread_binding((nlayer * nhead * seqlen + 1023) // 1024, thread="blockIdx.x"):
             for ax0_ax1_ax2_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):

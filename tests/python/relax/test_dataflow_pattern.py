@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F403, F405, F841
 
+from __future__ import annotations
+
 import functools
 import math
 
@@ -35,11 +37,8 @@ from tvm.script import tirx as T
 @tvm.script.ir_module
 class Module:
     @Ts.prim_func
-    def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+    def tir_matmul(A: T.Buffer((32, 32)), B: T.Buffer((32, 32)), C: T.Buffer((32, 32))) -> None:
         T.func_attr({"global_symbol": "tir_matmul"})
-        A = T.match_buffer(x, (32, 32))
-        B = T.match_buffer(y, (32, 32))
-        C = T.match_buffer(z, (32, 32))
 
         for i0, j0, k0 in T.grid(32, 32, 32):
             with Ts.sblock():
@@ -49,19 +48,18 @@ class Module:
                 C[i, j] += A[i, k] * B[j, k]
 
     @Ts.prim_func
-    def tir_relu(x: T.handle, y: T.handle):
+    def tir_relu(A: T.Buffer((32, 32)), B: T.Buffer((32, 32))):
         T.func_attr({"global_symbol": "tir_relu"})
-        A = T.match_buffer(x, (32, 32))
-        B = T.match_buffer(y, (32, 32))
+
         for i, j in T.grid(32, 32):
             with Ts.sblock():
                 vi, vj = Ts.axis.remap("SS", [i, j])
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
     @Ts.prim_func
-    def tir_zeros(n: T.int64, x: T.handle):
+    def tir_zeros(n: T.int64, A: T.Buffer([n])):
         T.func_attr({"global_symbol": "tir_zeros"})
-        A = T.match_buffer(x, [n])
+
         for i in range(n):
             with Ts.sblock():
                 vi = Ts.axis.remap("S", [i])

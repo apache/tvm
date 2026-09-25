@@ -27,9 +27,9 @@ from tvm.target import Target
 
 
 @Ts.prim_func
-def element_wise(var_A: T.handle, var_B: T.handle) -> None:
-    A = T.match_buffer(var_A, [512, 512], dtype="float32")
-    B = T.match_buffer(var_B, [512, 512], dtype="float32")
+def element_wise(
+    A: T.Buffer([512, 512], dtype="float32"), B: T.Buffer([512, 512], dtype="float32")
+) -> None:
     for i, j in T.grid(512, 512):
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])

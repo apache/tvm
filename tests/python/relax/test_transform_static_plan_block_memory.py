@@ -689,9 +689,7 @@ def test_symbolic_shape():
     @tvm.script.ir_module
     class Module:
         @Ts.prim_func
-        def exp(var_A: T.handle, var_B: T.handle):
-            A = T.match_buffer(var_A, (m_exp, n_exp), "float32")
-            B = T.match_buffer(var_B, (m_exp, n_exp), "float32")
+        def exp(A: T.Buffer((m_exp, n_exp), "float32"), B: T.Buffer((m_exp, n_exp), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -712,9 +710,7 @@ def test_symbolic_shape():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func
-        def exp(var_A: T.handle, var_B: T.handle):
-            A = T.match_buffer(var_A, (m_exp, n_exp), "float32")
-            B = T.match_buffer(var_B, (m_exp, n_exp), "float32")
+        def exp(A: T.Buffer((m_exp, n_exp), "float32"), B: T.Buffer((m_exp, n_exp), "float32")):
             T.evaluate(0)
 
         @R.function

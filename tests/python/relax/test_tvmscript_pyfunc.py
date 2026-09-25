@@ -63,12 +63,10 @@ class TestPyFuncModule(BasePyModule):
 
     @Ts.prim_func
     def simple_tir_func(
-        var_A: T.handle,
-        var_B: T.handle,
+        A: T.Buffer((n,), "float32"),
+        B: T.Buffer((n,), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
-        A = T.match_buffer(var_A, (n,), "float32")
-        B = T.match_buffer(var_B, (n,), "float32")
 
         for i in T.grid(n):
             with Ts.sblock("copy"):

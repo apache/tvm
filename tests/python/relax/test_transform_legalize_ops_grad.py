@@ -312,11 +312,9 @@ def test_take_backward():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def take_backward(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, out_buf: T.Buffer((T.int64(3), T.int64(4), T.int64(5)), "float32")):
+        def take_backward(rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(5)), offset_factor=1), rxplaceholder_1: T.Buffer((T.int64(3), T.int64(4), T.int64(5)), offset_factor=1), rxplaceholder_2: T.Buffer((T.int64(2),), 'int32', offset_factor=1), out_buf: T.Buffer((T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(3), T.int64(2), T.int64(5)), offset_factor=1)
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (T.int64(3), T.int64(4), T.int64(5)), offset_factor=1)
-            rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, (T.int64(2),), "int32", offset_factor=1)
+
             with Ts.sblock("take_backward"):
                 T.attr(0, "pragma_scope", "seq")
                 for i_index in range(T.int64(60)):
@@ -358,12 +356,9 @@ def test_take_backward_symbolic():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def take_backward(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, var_take_backward: T.handle):
+        def take_backward(rxplaceholder: T.Buffer((m_take_backward, i_take_backward), offset_factor=1), rxplaceholder_1: T.Buffer((m_take_backward, n_take_backward), offset_factor=1), rxplaceholder_2: T.Buffer((i_take_backward,), 'int32', offset_factor=1), out_buf: T.Buffer((m_take_backward, n_take_backward))):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (m_take_backward, i_take_backward), offset_factor=1)
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (m_take_backward, n_take_backward), offset_factor=1)
-            rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, (i_take_backward,), "int32", offset_factor=1)
-            out_buf = T.match_buffer(var_take_backward, (m_take_backward, n_take_backward))
+
             with Ts.sblock("take_backward"):
                 T.attr(0, "pragma_scope", "seq")
                 for i_1 in range(m_take_backward * n_take_backward):

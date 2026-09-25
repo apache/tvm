@@ -385,10 +385,9 @@ def test_crossthread_reduction1(target):
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(var_A: T.handle, var_B: T.handle):
+            def main(A: T.Buffer((n, m)), B: T.Buffer((n,))):
                 T.func_attr({"tirx.noalias": True})
-                A = T.match_buffer(var_A, (n, m))
-                B = T.match_buffer(var_B, (n,))
+
                 for i in T.thread_binding(n, thread="blockIdx.x"):
                     for m_0 in T.thread_binding(nthd, thread="threadIdx.x"):
                         partial = T.alloc_buffer((1,), "float32", scope="local")
@@ -448,10 +447,9 @@ def test_crossthread_reduction2(target):
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(var_A: T.handle, var_B: T.handle):
+            def main(A: T.Buffer((n, k0, k1)), B: T.Buffer((n,))):
                 T.func_attr({"tirx.noalias": True})
-                A = T.match_buffer(var_A, (n, k0, k1))
-                B = T.match_buffer(var_B, (n,))
+
                 for i in T.thread_binding(n, thread="blockIdx.x"):
                     for k0_0 in T.thread_binding(nthdx, thread="threadIdx.x"):
                         for k1_0 in T.thread_binding(nthdy, thread="threadIdx.y"):
@@ -1040,8 +1038,7 @@ def test_invalid_reinterpret():
 def test_cuda_tensormap():
     # fmt: off
     @T.prim_func
-    def main(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (16, 16), dtype="float32", align=16)
+    def main(A: T.Buffer((16, 16), dtype='float32', align=16)):
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         T.call_packed("runtime.cuTensorMapInit", A_map, "float32", 2, A.data,

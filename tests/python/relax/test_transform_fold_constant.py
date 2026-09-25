@@ -191,9 +191,7 @@ def test_fold_mixed_case():
     class Module:
         # TIR function can handle different cases.
         @Ts.prim_func
-        def addone(a: T.handle, b: T.handle) -> None:
-            A = T.match_buffer(a, (n_addone, m_addone))
-            B = T.match_buffer(b, (n_addone, m_addone))
+        def addone(A: T.Buffer((n_addone, m_addone)), B: T.Buffer((n_addone, m_addone))) -> None:
             for i, j in T.grid(n_addone, m_addone):
                 with Ts.sblock("addone"):
                     vi, vj = Ts.axis.remap("SS", [i, j])

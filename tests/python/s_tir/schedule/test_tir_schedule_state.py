@@ -33,9 +33,7 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def elementwise(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
-    C = T.match_buffer(c, (128, 128), "float32")
+def elementwise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
     B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -48,10 +46,7 @@ def elementwise(a: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -63,9 +58,9 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
-    B = T.match_buffer(b, (128, 128), "float32")
+def block_in_opaque_block(
+    A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")
+) -> None:
     for i in range(128):
         with Ts.sblock("B"):
             vi = Ts.axis.S(128, i)

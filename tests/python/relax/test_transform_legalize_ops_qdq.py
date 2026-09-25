@@ -151,12 +151,14 @@ def test_quantize_fp32_to_int8_symbolic():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def quantize(var_A: T.handle, var_B: T.handle, var_C: T.handle, var_quantized: T.handle):
+        def quantize(
+            A: T.Buffer((T.int64(4), n_quantize)),
+            B: T.Buffer((n_quantize,)),
+            C: T.Buffer((n_quantize,), "int8"),
+            quantized: T.Buffer((T.int64(4), n_quantize), "int8"),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (T.int64(4), n_quantize))
-            B = T.match_buffer(var_B, (n_quantize,))
-            C = T.match_buffer(var_C, (n_quantize,), "int8")
-            quantized = T.match_buffer(var_quantized, (T.int64(4), n_quantize), "int8")
+
             # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(4), n_quantize):
                 with Ts.sblock("quantized"):
@@ -439,13 +441,13 @@ def test_dequantize_int8_to_fp32_symbolic():
     class Expected:
         @Ts.prim_func(private=True)
         def dequantize(
-            var_A: T.handle, var_B: T.handle, var_C: T.handle, var_dequantized: T.handle
+            A: T.Buffer((T.int64(2), n_dequantize), "int8"),
+            B: T.Buffer((n_dequantize,)),
+            C: T.Buffer((n_dequantize,), "int8"),
+            dequantized: T.Buffer((T.int64(2), n_dequantize)),
         ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (T.int64(2), n_dequantize), "int8")
-            B = T.match_buffer(var_B, (n_dequantize,))
-            C = T.match_buffer(var_C, (n_dequantize,), "int8")
-            dequantized = T.match_buffer(var_dequantized, (T.int64(2), n_dequantize))
+
             # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), n_dequantize):
                 with Ts.sblock("dequantized"):

@@ -18,8 +18,8 @@
 Buffers and memory
 ==================
 
-Parameter buffers are bound with ``Tx.match_buffer``; scratch buffers are created
-in the body with one of two declaration APIs (below). Index a buffer with
+Parameter buffers use ``Tx.Buffer`` signature annotations; scratch buffers are
+created in the body with one of two declaration APIs (below). Index a buffer with
 ``A[i, j]``, slice it with ``A[m0:m0+BM, 0:BK]`` (a ``BufferRegion``), and take a
 pointer with ``A.ptr_to([i, j])`` or the raw data pointer ``A.data``.
 
@@ -90,10 +90,11 @@ The ``scope`` argument selects the memory space:
 
 .. code-block:: python
 
-    A = Tx.match_buffer(A_ptr, (M, K), "float16", align=16)   # parameter buffer
-    As = Tx.alloc_shared((BM, BK), "float16")                 # new shared tile
-    acc = Tx.alloc_local((4,), "float32")                     # per-thread accumulator
-    view = Tx.decl_buffer((BM, BK), "float16", data=As.data)  # a view over As
+    @Tx.prim_func
+    def kernel(A: Tx.Buffer((M, K), "float16", align=16)):
+        As = Tx.alloc_shared((BM, BK), "float16")  # new shared tile
+        acc = Tx.alloc_local((4,), "float32")  # per-thread accumulator
+        view = Tx.decl_buffer((BM, BK), "float16", data=As.data)  # a view over As
 
 **A ptr-based buffer is just metadata over a pointer.** For any non-tmem buffer,
 the declaration is a pointer plus a layout, and indexing resolves to an address::
@@ -103,16 +104,17 @@ the declaration is a pointer plus a layout, and indexing resolves to an address:
 (``layout.apply`` returns the per-axis mapping; its ``"m"`` component is the
 element offset.) So the *same* logical access compiles to different address
 arithmetic depending purely on the buffer's metadata. Writing
-``B[i, j] = A[i, j] + 1`` over a 4×8 region, with ``B`` declared four ways:
+``B[i, j] = A[i, j] + 1`` over a 4×8 region, with ``B`` annotated four ways in
+the function signature:
 
 .. code-block:: python
 
     from tvm.tirx.layout import TileLayout, S
 
-    B = Tx.match_buffer(p, (4, 8), "float32")                                       # row-major
-    B = Tx.match_buffer(p, (4, 8), "float32", layout=TileLayout(S[(4, 8):(1, 4)]))  # column-major
-    B = Tx.match_buffer(p, (4, 8), "float32", elem_offset=64)                       # shifted view
-    B = Tx.match_buffer(p, (4, 8), "float32", layout=TileLayout(S[(4, 8):(16, 1)])) # row stride 16
+    B: Tx.Buffer((4, 8), "float32")  # row-major
+    B: Tx.Buffer((4, 8), "float32", layout=TileLayout(S[(4, 8) : (1, 4)]))  # column-major
+    B: Tx.Buffer((4, 8), "float32", elem_offset=64)  # shifted view
+    B: Tx.Buffer((4, 8), "float32", layout=TileLayout(S[(4, 8) : (16, 1)]))  # row stride 16
 
 each makes ``B[i, j]`` lower to a different index in the generated CUDA (the
 ``A[i, j]`` load stays ``i*8 + j`` — only ``B``'s metadata changed):
@@ -140,13 +142,12 @@ whole block sees the writes, then read it back:
 .. code-block:: python
 
     @Tx.prim_func
-    def smem_demo(A_ptr: Tx.handle, B_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, (128,), "float32")
-        B = Tx.match_buffer(B_ptr, (128,), "float32")
+    def smem_demo(A: Tx.Buffer((128,), "float32"), B: Tx.Buffer((128,), "float32")):
+
         Tx.device_entry()
         bx = Tx.cta_id([1])
         tx = Tx.thread_id([128])
-        sm = Tx.alloc_shared((128,), "float32")   # static shared memory
+        sm = Tx.alloc_shared((128,), "float32")  # static shared memory
         sm[tx] = A[tx]
         Tx.cuda.cta_sync()
         B[tx] = sm[tx] * Tx.float32(2.0)

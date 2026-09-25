@@ -46,11 +46,14 @@ A complete, runnable example — a warp all-reduce via ``Tx.tvm_warp_shuffle_xor
 .. code-block:: python
 
     @Tx.prim_func
-    def warp_reduce(A_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, (32,), "float32", align=16)
+    def warp_reduce(A: Tx.Buffer((32,), "float32", align=16)):
+
         Tx.device_entry()
-        cta_id = Tx.cta_id([1]); warp_id = Tx.warp_id([1]); lane_id = Tx.lane_id([32])
-        v = Tx.alloc_local((1,), "float32"); i = Tx.alloc_local((1,), "int32")
+        cta_id = Tx.cta_id([1])
+        warp_id = Tx.warp_id([1])
+        lane_id = Tx.lane_id([32])
+        v = Tx.alloc_local((1,), "float32")
+        i = Tx.alloc_local((1,), "int32")
         v[0] = Tx.float32(31 - lane_id)
         i[0] = 16
         while i[0] >= 1:
@@ -81,11 +84,13 @@ source string with ``Tx.cuda.func_call(name, *args, source_code=..., return_type
     __device__ __forceinline__ float my_relu(float x) { return x > 0.f ? x : 0.f; }
     """
 
+
     @Tx.prim_func
-    def k(A_ptr: Tx.handle, B_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, (256,), "float32")
-        B = Tx.match_buffer(B_ptr, (256,), "float32")
-        Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
+    def k(A: Tx.Buffer((256,), "float32"), B: Tx.Buffer((256,), "float32")):
+
+        Tx.device_entry()
+        bx = Tx.cta_id([1])
+        tx = Tx.thread_id([256])
         B[tx] = Tx.cuda.func_call("my_relu", A[tx], source_code=SRC, return_type="float32")
 
 The source is emitted verbatim and the call is wired in:

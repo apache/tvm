@@ -70,11 +70,12 @@ n_main_relax = T.dynamic("n")
 @R.py_module
 class AddModuleSymbolic(BasePyModule):
     @Ts.prim_func
-    def add_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
+    def add_tir(
+        x: T.Buffer((n_add_tir,), dtype="float32"),
+        y: T.Buffer((n_add_tir,), dtype="float32"),
+        out: T.Buffer((n_add_tir,), dtype="float32"),
+    ):
         T.func_attr({"global_symbol": "add_tir"})
-        x = T.match_buffer(var_x, (n_add_tir,), dtype="float32")
-        y = T.match_buffer(var_y, (n_add_tir,), dtype="float32")
-        out = T.match_buffer(var_out, (n_add_tir,), dtype="float32")
 
         for i in T.serial(n_add_tir):
             out[i] = x[i] + y[i]
@@ -207,11 +208,12 @@ n_matmul_relax = T.dynamic("n")
 @R.py_module
 class MatrixModuleSymbolic(BasePyModule):
     @Ts.prim_func
-    def matmul_tir(var_a: T.handle, var_b: T.handle, var_c: T.handle):
+    def matmul_tir(
+        a: T.Buffer((m_matmul_tir, k_matmul_tir), dtype="float32"),
+        b: T.Buffer((k_matmul_tir, n_matmul_tir), dtype="float32"),
+        c: T.Buffer((m_matmul_tir, n_matmul_tir), dtype="float32"),
+    ):
         T.func_attr({"global_symbol": "matmul_tir"})
-        a = T.match_buffer(var_a, (m_matmul_tir, k_matmul_tir), dtype="float32")
-        b = T.match_buffer(var_b, (k_matmul_tir, n_matmul_tir), dtype="float32")
-        c = T.match_buffer(var_c, (m_matmul_tir, n_matmul_tir), dtype="float32")
 
         for i in T.serial(m_matmul_tir):
             for j in T.serial(n_matmul_tir):

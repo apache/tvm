@@ -41,10 +41,9 @@ def test_rms_norm_with_casting():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(var_data: T.handle, weight: T.Buffer((4096,), "float16"), var_T_cast: T.handle):
+        def main(data: T.Buffer((1, n, 4096), 'float16'), weight: T.Buffer((4096,), "float16"), T_cast: T.Buffer((1, n, 4096), 'float16')):
             T.func_attr({"tirx.noalias": True})
-            data = T.match_buffer(var_data, (1, n, 4096), "float16")
-            T_cast = T.match_buffer(var_T_cast, (1, n, 4096), "float16")
+
             # with Ts.sblock("root"):
             T_cast_1 = Ts.sblock_alloc_buffer((1, n, 4096))
             T_multiply = Ts.sblock_alloc_buffer((1, n, 4096))
@@ -102,10 +101,9 @@ def test_rms_norm_with_casting():
     @I.ir_module
     class After:
         @Ts.prim_func
-        def main(var_data: T.handle, weight: T.Buffer((4096,), "float16"), var_T_cast: T.handle):
+        def main(data: T.Buffer((1, n, 4096), 'float16'), weight: T.Buffer((4096,), "float16"), T_cast: T.Buffer((1, n, 4096), 'float16')):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            data = T.match_buffer(var_data, (1, n, 4096), "float16")
-            T_cast = T.match_buffer(var_T_cast, (1, n, 4096), "float16")
+
             # with Ts.sblock("root"):
             T_multiply_local = Ts.sblock_alloc_buffer((1, n, 4096), scope="local")
             T_multiply_red_local = Ts.sblock_alloc_buffer((1, n), scope="local")
@@ -175,10 +173,9 @@ def test_rms_norm_without_casting():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(var_data: T.handle, weight: T.Buffer((4096,), "float32"), var_T_cast: T.handle):
+        def main(data: T.Buffer((1, n, 4096)), weight: T.Buffer((4096,), "float32"), T_cast: T.Buffer((1, n, 4096))):
             T.func_attr({"tirx.noalias": True})
-            data = T.match_buffer(var_data, (1, n, 4096))
-            T_cast = T.match_buffer(var_T_cast, (1, n, 4096))
+
             # with Ts.sblock("root"):
             T_multiply = Ts.sblock_alloc_buffer((1, n, 4096))
             T_multiply_red = Ts.sblock_alloc_buffer((1, n))
@@ -222,10 +219,9 @@ def test_rms_norm_without_casting():
     @I.ir_module
     class After:
         @Ts.prim_func
-        def main(var_data: T.handle, weight: T.Buffer((4096,), "float32"), var_T_cast: T.handle):
+        def main(data: T.Buffer((1, n, 4096)), weight: T.Buffer((4096,), "float32"), T_cast: T.Buffer((1, n, 4096))):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            data = T.match_buffer(var_data, (1, n, 4096))
-            T_cast = T.match_buffer(var_T_cast, (1, n, 4096))
+
             # with Ts.sblock("root"):
             T_multiply_local = Ts.sblock_alloc_buffer((1, n, 4096), scope="local")
             T_multiply_red_local = Ts.sblock_alloc_buffer((1, n), scope="local")

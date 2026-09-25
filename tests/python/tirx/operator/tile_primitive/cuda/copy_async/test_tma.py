@@ -391,7 +391,6 @@ _BASELINE_AUTO_CASES = [
     ("g2s-2d-8x256-fp8e5m2", "float8_e5m2", 3),
 ]
 
-
 TMA_CASES = [
     *[
         _tma_case(
@@ -907,7 +906,6 @@ _TMA_CASE_GOLDENS = {
     "s2g-oob-none": _tma_golden("float16", (64, 256), (128,), (64, 128)),
 }
 
-
 _TMA_EXPLICIT_CASES = {
     "g2s-oob-zero",
     "g2s-oob-nan",
@@ -917,7 +915,6 @@ _TMA_EXPLICIT_CASES = {
     "reject-g2s-nan-on-non-float",
     "reject-s2g-nan-on-non-float",
 }
-
 
 _TMA_CASE_ERRORS = {
     "g2s-2d-32x512-atom": r"stage=prefix-search: rank: .*got 6",
@@ -1121,8 +1118,8 @@ def test_dispatch_propagates_flat_bind_to_auto_coordinate_proof():
     func = _from_source(
         """
 @T.prim_func
-def bind_coordinate(D_ptr: T.handle):
-    D = T.match_buffer(D_ptr, (33360, 6144), "bfloat16")
+def bind_coordinate(D: T.Buffer((33360, 6144), 'bfloat16')):
+
     T.device_entry()
     block = T.cta_id([192])
     tid = T.thread_id([1])
@@ -1529,8 +1526,8 @@ def test_explicit_allows_different_operand_ranks_with_equal_payload_bytes():
     source = _from_source(
         """
 @T.prim_func
-def rank_change(A_ptr: T.handle):
-    A = T.match_buffer(A_ptr, (8, 8), "float16")
+def rank_change(A: T.Buffer((8, 8), 'float16')):
+
     T.device_entry()
     T.cta_id([1])
     tid = T.thread_id([1])
@@ -1551,12 +1548,12 @@ def rank_change(A_ptr: T.handle):
 _SELECTOR_SOURCE = """
 @T.prim_func
 def selector_gather(
-    A_ptr: T.handle,
-    B_ptr: T.handle,
+    A: T.Buffer((256, 64), 'bfloat16'),
+    B: T.Buffer((512, 80), 'bfloat16'),
     flag: T.int32,
 ):
-    A = T.match_buffer(A_ptr, (256, 64), "bfloat16")
-    B = T.match_buffer(B_ptr, (512, 80), "bfloat16")
+
+
     B_view = B.sub[16:512, 8:72]
     T.device_entry()
     T.cta_id([1])
@@ -1701,8 +1698,8 @@ def _build_sparse_decode_qo_tma_regression():
     # fmt: off
     @T.prim_func
     def kernel(
-        Q_ptr: T.handle,
-        O_ptr: T.handle,
+        Q_storage: T.Buffer((64 * 576,), 'bfloat16'),
+        O_storage: T.Buffer((64 * 512,), 'bfloat16'),
         q_stride_b: T.int64,
         q_stride_s: T.int64,
         q_stride_h: T.int64,
@@ -1710,8 +1707,7 @@ def _build_sparse_decode_qo_tma_regression():
         o_stride_s: T.int64,
         o_stride_h: T.int64,
     ):
-        Q_storage = T.match_buffer(Q_ptr, (64 * 576,), "bfloat16")
-        O_storage = T.match_buffer(O_ptr, (64 * 512,), "bfloat16")
+
         Q = Q_storage.view(
             1,
             1,
@@ -1998,14 +1994,12 @@ def _build_selector_gather_gpu_kernel(dtype="float16"):
     # fmt: off
     @T.prim_func
     def kernel(
-        A_ptr: T.handle,
-        B_ptr: T.handle,
+        A: T.Buffer((rows, cols), dtype),
+        B: T.Buffer((rows, cols), dtype),
         flag: T.int32,
-        Out_ptr: T.handle,
+        Out: T.Buffer((4, cols), dtype),
     ):
-        A = T.match_buffer(A_ptr, (rows, cols), dtype)
-        B = T.match_buffer(B_ptr, (rows, cols), dtype)
-        Out = T.match_buffer(Out_ptr, (4, cols), dtype)
+
         T.device_entry()
         T.cta_id([1])
         tid = T.thread_id([128])

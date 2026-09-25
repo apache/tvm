@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E741, F821, F841, RUF005
+from __future__ import annotations
+
 import ast
 import inspect
 import re
@@ -61,32 +63,28 @@ def check_error(func, rel_lineno, error_type):
 
 
 def test_buffer_bind():
-    def buffer_bind_missing_args(a: T.handle) -> None:
-        A = T.match_buffer((16, 16), "float32")  # error
+    def buffer_bind_missing_args(A: T.Buffer(dtype="float32")) -> None:  # error
+        T.evaluate(0)
 
-    check_error(buffer_bind_missing_args, 2, TypeError)
+    check_error(buffer_bind_missing_args, 1, TypeError)
 
 
 def test_undefined_buffer():
-    def undefined_buffer(a: T.handle) -> None:
-        A = T.match_buffer(a, (16, 16), "float32")
-
+    def undefined_buffer(A: T.Buffer((16, 16), "float32")) -> None:
         for i in T.serial(16):
             for j in T.serial(0, 16):
                 C[i, j] = 0.0  # error
 
-    check_error(undefined_buffer, 6, NameError)
+    check_error(undefined_buffer, 4, NameError)
 
 
 def test_unsupported_function_call():
-    def unsupported_function_call(a: T.handle) -> None:
-        A = T.match_buffer(a, (16, 16), "float32")
-
+    def unsupported_function_call(A: T.Buffer((16, 16), "float32")) -> None:
         for i in T.const_range(16):  # error
             for j in T.serial(0, 16):
                 A[i, j] = 0.0
 
-    check_error(unsupported_function_call, 4, AttributeError)
+    check_error(unsupported_function_call, 2, AttributeError)
 
 
 def test_missing_type_annotation():
@@ -97,25 +95,22 @@ def test_missing_type_annotation():
 
 
 def test_invalid_for_function():
-    def invalid_for_function(a: T.handle) -> None:
-        A = T.match_buffer(a, (16, 16), "float32")
+    def invalid_for_function(A: T.Buffer((16, 16), "float32")) -> None:
         for i in T.evaluate(0.0):  # error
             for j in T.serial(0, 16):
                 A[i, j] = 0.0
 
-    check_error(invalid_for_function, 3, TypeError)
+    check_error(invalid_for_function, 2, TypeError)
 
 
 def test_invalid_block_function():
-    def invalid_block_function(a: T.handle) -> None:
-        A = T.match_buffer(a, (16, 16), "float32")
-
+    def invalid_block_function(A: T.Buffer((16, 16), "float32")) -> None:
         with T.evaluate(0.0):  # error
             T.evaluate(1.0)
 
     # Ordinary Python reports a missing context-manager protocol differently before 3.11.
     error_type = AttributeError if sys.version_info < (3, 11) else TypeError
-    check_error(invalid_block_function, 4, error_type)
+    check_error(invalid_block_function, 2, error_type)
 
 
 def test_return_not_allowed():
@@ -126,11 +121,10 @@ def test_return_not_allowed():
 
 
 def test_no_body():
-    def no_body(a: T.handle) -> None:
-        A = T.match_buffer(a, (16, 16), "float32")
+    def no_body(A: T.Buffer((16, 16), "float32")) -> None:
         T.realize(A, "")  # error
 
-    check_error(no_body, 3, AttributeError)
+    check_error(no_body, 2, AttributeError)
 
 
 def test_inconsistent_binding():
@@ -166,14 +160,13 @@ def test_error_remap_args():
 
 
 def test_invalid_block_axes():
-    def invalid_block_axes(a: T.handle) -> None:
-        A = T.match_buffer(a, (16, 16), "float32")
+    def invalid_block_axes(A: T.Buffer((16, 16), "float32")) -> None:
         for i, j in T.grid(16, 16):
             with Ts.sblock():
                 vi = Ts.axis.S(i, A)  # error
                 T.evaluate(1.0)
 
-    check_error(invalid_block_axes, 5, TypeError)
+    check_error(invalid_block_axes, 4, TypeError)
 
 
 def test_duplicate_block_axes():
@@ -232,10 +225,10 @@ def test_invalid_match_buffer_region():
         for i, j in T.grid(128, 128):
             with Ts.sblock():
                 vi, vj = Ts.axis.remap("SS", [i, j])
-                A = T.match_buffer(vi)  # error
+                A = Ts.match_buffer(vi)  # error
                 T.evaluate(1.0)
 
-    check_error(invalid_match_buffer_region, 5, ValueError)
+    check_error(invalid_match_buffer_region, 5, TypeError)
 
 
 def test_buffer_rebinding_preserves_distinct_allocations():
@@ -319,8 +312,7 @@ def test_duplicate_block_signature():
 
 
 def test_opaque_access_during_complete():
-    def opaque_access_during_complete(a: T.handle) -> None:  # error
-        A = T.match_buffer(a, (16, 16), "float32")
+    def opaque_access_during_complete(A: T.Buffer((16, 16), "float32")) -> None:  # error
         for i, j in T.grid(16, 16):
             with Ts.sblock():
                 T.evaluate(T.call_extern("dummy_extern_function", A.data, dtype="int32"))
@@ -356,35 +348,32 @@ def test_tvm_exception_catch_from_scope_handler():
 
 
 def test_tvm_exception_catch_from_bare_intrin():
-    def intrin_except_unassign(a: T.handle) -> None:
-        A = T.match_buffer(a, (16, 16), "float32")
+    def intrin_except_unassign(A: T.Buffer((16, 16), "float32")) -> None:
         T.evaluate(A)  # error
 
-    check_error(intrin_except_unassign, 3, tvm.error.InternalError)
+    check_error(intrin_except_unassign, 2, tvm.error.InternalError)
 
 
 def test_tvm_exception_catch_from_assigned_intrin():
-    def intrin_except_assign(a: T.handle) -> None:
-        A = T.match_buffer(a, (16, 16), "float32")
+    def intrin_except_assign(A: T.Buffer((16, 16), "float32")) -> None:
         A[0, 0] = A[A]  # error
 
-    check_error(intrin_except_assign, 3, tvm.error.InternalError)
+    check_error(intrin_except_assign, 2, tvm.error.InternalError)
 
 
 def test_match_buffer_shape_mismatch():
-    def buffer_shape_mismatch(a: T.handle) -> None:
-        A = T.match_buffer(a, (8, 8))
+    def buffer_shape_mismatch(A: T.Buffer((8, 8))) -> None:
         for i, j in T.grid(8, 2):
             with Ts.sblock():
                 Ts.reads([])
                 Ts.writes([A[i, j * 4 : j * 4 + 4]])
-                sub_A = T.match_buffer(
+                sub_A = Ts.match_buffer(
                     A[i, j * 4 : j * 4 + 4], (5)
                 )  # error: shape mismatched between 4 and 5
                 for jj in range(0, 4):
                     sub_A[i, j * 4 + jj] = 1
 
-    check_error(buffer_shape_mismatch, 7, tvm.error.InternalError)
+    check_error(buffer_shape_mismatch, 6, tvm.error.InternalError)
 
 
 def test_high_dim_store():
@@ -434,9 +423,9 @@ def test_implicit_root_has_attrs():
 
 
 @Ts.prim_func
-def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128, 128))
+def elementwise_not_affine(
+    A: T.Buffer((128, 128, 128, 128)), B: T.Buffer((128, 128, 128, 128))
+) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 8):
         with Ts.sblock("B"):
             vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
@@ -445,10 +434,11 @@ def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_non_single_branch(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128))
+def elementwise_non_single_branch(
+    A: T.Buffer((128, 128, 128)), B: T.Buffer((128, 128, 128))
+) -> None:
     C = Ts.sblock_alloc_buffer((128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128))
+
     for i, j in T.grid(128, 128):
         for k in T.serial(0, 128):
             with Ts.sblock("C"):
@@ -534,35 +524,31 @@ def test_store_var():
 
 
 def test_load_handle():
-    def load_handle(h: T.handle) -> None:
-        h_ = T.match_buffer(h, [1])
+    def load_handle(h: T.handle, h_: T.Buffer([1])) -> None:
         h_[0] = h[0]  # error cannot load from handle
 
-    check_error(load_handle, 3, TypeError)
+    check_error(load_handle, 2, TypeError)
 
 
 def test_store_handle():
-    def store_handle(h: T.handle) -> None:
-        h_ = T.match_buffer(h, [1])
+    def store_handle(h: T.handle, h_: T.Buffer([1])) -> None:
         h[0] = h_[0]  # error cannot store to handle
 
-    check_error(store_handle, 3, TypeError)
+    check_error(store_handle, 2, TypeError)
 
 
 def test_binop_bad_ast_type():
-    def binop_bad_ast_type(h: T.handle):
-        h_ = T.match_buffer(h, [1])
+    def binop_bad_ast_type(h: T.handle, h_: T.Buffer([1])):
         h_[0] = h + [2]  # error rhs should be a primexpr
 
-    check_error(binop_bad_ast_type, 3, TypeError)
+    check_error(binop_bad_ast_type, 2, TypeError)
 
 
 def test_binop_bad_type():
-    def binop_bad_type(h: T.handle):
-        h_ = T.match_buffer(h, [1])
+    def binop_bad_type(h: T.handle, h_: T.Buffer([1])):
         h_[0] = h + 2  # error lhs and rhs should be the same type
 
-    check_error(binop_bad_type, 3, TypeError)
+    check_error(binop_bad_type, 2, TypeError)
 
 
 def test_non_integer_typed_block_iter():
@@ -574,22 +560,22 @@ def test_non_integer_typed_block_iter():
 
 
 def test_illegal_buffer_slice():
-    def strided_buffer_region(A: T.handle):
+    def strided_buffer_region(A: T.Buffer((128, 128), "int32")):
         # do not allow stride in buffer region
-        A = T.match_buffer(A, (128, 128), "int32")
+
         with Ts.sblock("block"):
             Ts.reads([])
             Ts.writes([A[0:128:2, 0:128:3]])  # error
             T.evaluate(T.call_extern("strided_compute", dtype=""))
 
-    def access_reversed_slice(A: T.handle):
+    def access_reversed_slice(A: T.Buffer((128,), "int32")):
         # do not allow reversed slice step
-        A = T.match_buffer(A, (128,), "int32")
+
         A[0:128:-1] = T.broadcast(1, 128)  # error
 
-    def access_non_const_slice_length(A: T.handle):
+    def access_non_const_slice_length(A: T.Buffer((128,), "int32")):
         # do not allow non-constant slice length
-        A = T.match_buffer(A, (128,), "int32")
+
         for i in range(4):
             T.evaluate(A[0:i:1])  # error
 
@@ -599,12 +585,11 @@ def test_illegal_buffer_slice():
 
 
 def test_syntax_sugar_fail():
-    def loop_syntax_sugar_fail(a: T.handle) -> None:
-        A = T.match_buffer(a, (128,))
+    def loop_syntax_sugar_fail(A: T.Buffer((128,))) -> None:
         for i in T.thread_binding(128, 128):
             A[i] = A[i] * 2.0
 
-    check_error(loop_syntax_sugar_fail, 3, ValueError)
+    check_error(loop_syntax_sugar_fail, 2, ValueError)
 
 
 def test_multi_line_error_report():

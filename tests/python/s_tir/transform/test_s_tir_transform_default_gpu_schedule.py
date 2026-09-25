@@ -34,10 +34,10 @@ def test_broadcast_to_symbolic():
         @Ts.prim_func
         def broadcast_to(
             rxplaceholder: T.Buffer((T.int64(3), T.int64(1)), "float32"),
-            var_T_broadcast_to: T.handle,
+            T_broadcast_to: T.Buffer((x_0, x_1)),
         ):
             T.func_attr({"tirx.noalias": True})
-            T_broadcast_to = T.match_buffer(var_T_broadcast_to, (x_0, x_1))
+
             # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(x_0, x_1):
                 with Ts.sblock("T_broadcast_to"):
@@ -52,9 +52,9 @@ def test_broadcast_to_symbolic():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func
-        def broadcast_to(rxplaceholder: T.Buffer((T.int64(3), T.int64(1)), "float32"), var_T_broadcast_to: T.handle):
+        def broadcast_to(rxplaceholder: T.Buffer((T.int64(3), T.int64(1)), "float32"), T_broadcast_to: T.Buffer((x_0, x_1))):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            T_broadcast_to = T.match_buffer(var_T_broadcast_to, (x_0, x_1))
+
             for ax0_ax1_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
                 for ax0_ax1_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
                     for ax0_ax1_fused_0 in range((x_0 * x_1 + T.int64(262143)) // T.int64(262144)):

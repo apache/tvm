@@ -49,20 +49,16 @@ class SimplePyFuncModule(BasePyModule):
         return self._convert_tvm_to_pytorch(result)
 
     @Ts.prim_func
-    def add_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
-        x = T.match_buffer(var_x, (5,), "float32")
-        y = T.match_buffer(var_y, (5,), "float32")
-        out = T.match_buffer(var_out, (5,), "float32")
-
+    def add_tir(
+        x: T.Buffer((5,), "float32"), y: T.Buffer((5,), "float32"), out: T.Buffer((5,), "float32")
+    ):
         for i in range(5):
             out[i] = x[i] + y[i]
 
     @Ts.prim_func
-    def multiply_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
-        x = T.match_buffer(var_x, (5,), "float32")
-        y = T.match_buffer(var_y, (5,), "float32")
-        out = T.match_buffer(var_out, (5,), "float32")
-
+    def multiply_tir(
+        x: T.Buffer((5,), "float32"), y: T.Buffer((5,), "float32"), out: T.Buffer((5,), "float32")
+    ):
         for i in range(5):
             out[i] = x[i] * y[i]
 
@@ -128,38 +124,33 @@ class ComplexPyFuncModule(BasePyModule):
         return self._convert_tvm_to_pytorch(result)
 
     @Ts.prim_func
-    def extract_features(data: T.handle, features: T.handle):
+    def extract_features(Data: T.Buffer((10,), "float32"), Features: T.Buffer((10,), "float32")):
         T.func_attr({"tirx.noalias": True})
-        Data = T.match_buffer(data, (10,), "float32")
-        Features = T.match_buffer(features, (10,), "float32")
 
         for i in range(10):
             Features[i] = T.sqrt(Data[i])
 
     @Ts.prim_func
-    def ml_inference(features: T.handle, params: T.handle, output: T.handle):
+    def ml_inference(
+        Features: T.Buffer((10,), "float32"),
+        Params: T.Buffer((10,), "float32"),
+        Output: T.Buffer((5,), "float32"),
+    ):
         T.func_attr({"tirx.noalias": True})
-        Features = T.match_buffer(features, (10,), "float32")
-        Params = T.match_buffer(params, (10,), "float32")
-        Output = T.match_buffer(output, (5,), "float32")
 
         for i in range(5):
             Output[i] = Features[i] * Params[i] + Features[i + 5] * Params[i + 5]
 
     @Ts.prim_func
-    def post_process(predictions: T.handle, final: T.handle):
+    def post_process(Predictions: T.Buffer((5,), "float32"), Final: T.Buffer((5,), "float32")):
         T.func_attr({"tirx.noalias": True})
-        Predictions = T.match_buffer(predictions, (5,), "float32")
-        Final = T.match_buffer(final, (5,), "float32")
 
         for i in range(5):
             Final[i] = T.max(Predictions[i], 0.0)
 
     @Ts.prim_func
-    def normalize_data(data: T.handle, normalized: T.handle):
+    def normalize_data(Data: T.Buffer((10,), "float32"), Normalized: T.Buffer((10,), "float32")):
         T.func_attr({"tirx.noalias": True})
-        Data = T.match_buffer(data, (10,), "float32")
-        Normalized = T.match_buffer(normalized, (10,), "float32")
 
         for i in range(10):
             Normalized[i] = Data[i] / 255.0
@@ -212,10 +203,9 @@ class EdgeCasePyFuncModule(BasePyModule):
         return result
 
     @Ts.prim_func
-    def dummy_tir(data: T.handle, output: T.handle):
+    def dummy_tir(Data: T.Buffer((1,), "float32"), Output: T.Buffer((1,), "float32")):
         T.func_attr({"tirx.noalias": True})
-        Data = T.match_buffer(data, (1,), "float32")
-        Output = T.match_buffer(output, (1,), "float32")
+
         Output[0] = Data[0]
 
 
@@ -272,11 +262,10 @@ class PerformancePyFuncModule(BasePyModule):
             return large_tensor + 1.0
 
     @Ts.prim_func
-    def vectorized_add(a: T.handle, b: T.handle, c: T.handle):
+    def vectorized_add(
+        A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32"), C: T.Buffer((10,), "float32")
+    ):
         T.func_attr({"tirx.noalias": True})
-        A = T.match_buffer(a, (10,), "float32")
-        B = T.match_buffer(b, (10,), "float32")
-        C = T.match_buffer(c, (10,), "float32")
 
         for i in range(10):
             C[i] = A[i] + B[i]
@@ -344,10 +333,8 @@ class IntegrationPyFuncModule(BasePyModule):
         return final_result
 
     @Ts.prim_func
-    def final_transform(data: T.handle, output: T.handle):
+    def final_transform(Data: T.Buffer((10, 10), "float32"), Output: T.Buffer((10, 10), "float32")):
         T.func_attr({"tirx.noalias": True})
-        Data = T.match_buffer(data, (10, 10), "float32")
-        Output = T.match_buffer(output, (10, 10), "float32")
 
         for i in range(10):
             for j in range(10):
@@ -409,10 +396,8 @@ class ErrorHandlingPyFuncModule(BasePyModule):
                 return self._get_safe_default()
 
     @Ts.prim_func
-    def safe_transform(data: T.handle, output: T.handle):
+    def safe_transform(Data: T.Buffer((5,), "float32"), Output: T.Buffer((5,), "float32")):
         T.func_attr({"tirx.noalias": True})
-        Data = T.match_buffer(data, (5,), "float32")
-        Output = T.match_buffer(output, (5,), "float32")
 
         for i in range(5):
             # Safe operation that handles edge cases

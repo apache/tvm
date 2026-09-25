@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations
 
 import tvm
 import tvm.testing
@@ -760,10 +761,7 @@ def test_fuse_of_dynamic_kernel_with_var_params_and_static_args():
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
-        def dynamic_tir_kernel(a: T.handle, b: T.handle):
-            A = T.match_buffer(a, [m, n], "float32")
-            B = T.match_buffer(b, [m, n], "float32")
-
+        def dynamic_tir_kernel(A: T.Buffer([m, n], "float32"), B: T.Buffer([m, n], "float32")):
             for (*iters,) in T.grid(m, n):
                 with Ts.sblock("compute"):
                     i, j = Ts.axis.remap("SS", iters)
@@ -829,12 +827,12 @@ def test_fuse_of_dynamic_kernel_with_expression_params_and_static_args():
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
-        def dynamic_tir_kernel(a: T.handle, b: T.handle, c: T.handle, d: T.handle):
-            A = T.match_buffer(a, [m * n], "float32")
-            B = T.match_buffer(b, [m], "float32")
-            C = T.match_buffer(c, [n], "float32")
-            D = T.match_buffer(d, [m * n], "float32")
-
+        def dynamic_tir_kernel(
+            A: T.Buffer([m * n], "float32"),
+            B: T.Buffer([m], "float32"),
+            C: T.Buffer([n], "float32"),
+            D: T.Buffer([m * n], "float32"),
+        ):
             for i, j in T.grid(m, n):
                 with Ts.sblock("compute"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1216,16 +1214,19 @@ def test_tir_expression_in_shape():
 
     @I.ir_module
     class Expected:
+        fused_transpose_matmul_n = T.int64()
+
         @Ts.prim_func(private=True)
         def fused_transpose_matmul(
             x: T.Buffer((T.int64(3), T.int64(4)), "float32"),
-            p_y: T.handle,
-            n: T.int64,
-            p_output0: T.handle,
+            y: T.Buffer((fused_transpose_matmul_n - T.int64(1), T.int64(4))),
+            n: fused_transpose_matmul_n,
+            var_T_matmul_intermediate: T.Buffer(
+                (fused_transpose_matmul_n - T.int64(1), T.int64(3))
+            ),
         ):
             T.func_attr({"tirx.noalias": True})
-            y = T.match_buffer(p_y, (n - T.int64(1), T.int64(4)))
-            var_T_matmul_intermediate = T.match_buffer(p_output0, (n - T.int64(1), T.int64(3)))
+
             var_T_transpose_intermediate = Ts.sblock_alloc_buffer((T.int64(4), T.int64(3)))
             for ax0, ax1 in T.grid(T.int64(4), T.int64(3)):
                 with Ts.sblock("T_transpose"):
@@ -1492,20 +1493,13 @@ def test_symbolic_var_in_buffer_shape():
     class Before:
         @Ts.prim_func(private=True)
         def foo(
-            X_handle: T.handle,
+            X: T.Buffer([T.int64(1), sequence_length_foo, T.int64(32), T.int64(128)], "float32"),
             Y: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
             m: T.int64,
-            rotary_handle: T.handle,
+            rotary: T.Buffer(
+                [T.int64(1), sequence_length_foo, T.int64(32), T.int64(128)], "float32"
+            ),
         ):
-            X = T.match_buffer(
-                X_handle, [T.int64(1), sequence_length_foo, T.int64(32), T.int64(128)], "float32"
-            )
-            rotary = T.match_buffer(
-                rotary_handle,
-                [T.int64(1), sequence_length_foo, T.int64(32), T.int64(128)],
-                "float32",
-            )
-
             for i0, i1, i2, i3 in T.grid(
                 T.int64(1), sequence_length_foo, T.int64(32), T.int64(128)
             ):
@@ -1551,21 +1545,14 @@ def test_symbolic_var_in_buffer_shape():
     class Expected:
         @Ts.prim_func(private=True)
         def fused(
-            X_handle: T.handle,
+            X: T.Buffer([T.int64(1), sequence_length_fused, T.int64(32), T.int64(128)], "float32"),
             Y: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
             m: T.int64,
-            rotary_handle: T.handle,
+            rotary: T.Buffer(
+                [T.int64(1), sequence_length_fused, T.int64(32), T.int64(128)], "float32"
+            ),
         ):
             T.func_attr({"tirx.noalias": True})
-
-            X = T.match_buffer(
-                X_handle, [T.int64(1), sequence_length_fused, T.int64(32), T.int64(128)], "float32"
-            )
-            rotary = T.match_buffer(
-                rotary_handle,
-                [T.int64(1), sequence_length_fused, T.int64(32), T.int64(128)],
-                "float32",
-            )
 
             T_add = Ts.sblock_alloc_buffer(
                 (T.int64(1), sequence_length_fused, T.int64(32), T.int64(128))
@@ -1613,11 +1600,9 @@ def test_symbolic_var_called_with_static_shape():
     class Before:
         @Ts.prim_func(private=True)
         def sum_1d(
-            X_handle: T.handle,
+            X: T.Buffer([num_elements], "float32"),
             Y: T.Buffer([T.int64(1)], "float32"),
         ):
-            X = T.match_buffer(X_handle, [num_elements], "float32")
-
             for i in range(num_elements):
                 with Ts.sblock("sum"):
                     vi = Ts.axis.remap("R", [i])
@@ -1688,11 +1673,9 @@ def test_symbolic_var_called_with_multiple_static_shapes():
     class Before:
         @Ts.prim_func(private=True)
         def sum_1d(
-            X_handle: T.handle,
+            X: T.Buffer([num_elements], "float32"),
             Sum: T.Buffer([T.int64(1)], "float32"),
         ):
-            X = T.match_buffer(X_handle, [num_elements], "float32")
-
             for i in range(num_elements):
                 with Ts.sblock("sum"):
                     vi = Ts.axis.remap("R", [i])
@@ -1810,12 +1793,10 @@ def test_symbolic_var_called_with_static_argument():
     class Before:
         @Ts.prim_func(private=True)
         def sum_1d(
-            X_handle: T.handle,
+            X: T.Buffer([num_elements], "float32"),  # noqa: F821
             num_elements: T.int64,
             Y: T.Buffer([T.int64(1)], "float32"),
         ):
-            X = T.match_buffer(X_handle, [num_elements], "float32")
-
             for i in range(num_elements):
                 with Ts.sblock("sum"):
                     vi = Ts.axis.remap("R", [i])
@@ -2392,10 +2373,12 @@ def test_block_name_numeric_suffix_deduplication():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def fused_add_mul(p_x: T.handle, p_output0: T.handle):
+        def fused_add_mul(
+            x: T.Buffer((T.int64(10),)),
+            y_intermediate_1: T.Buffer((T.int64(10),), elem_offset=T.int32(0)),
+        ):
             T.func_attr({"tirx.noalias": True})
-            x = T.match_buffer(p_x, (T.int64(10),))
-            y_intermediate_1 = T.match_buffer(p_output0, (T.int64(10),), elem_offset=T.int32(0))
+
             with Ts.sblock("root"):
                 Ts.reads()
                 Ts.writes()

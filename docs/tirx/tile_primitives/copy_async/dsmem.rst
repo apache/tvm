@@ -82,32 +82,53 @@ mbarrier and writes the result out (from ``test_dsmem.py``):
     copy_bytes = 128 * 64 * 2
     r = (slice(0, 128), slice(0, 64))
 
+
     @Tx.prim_func
-    def dsmem_copy(A_ptr: Tx.handle, B_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, shape, dtype); B = Tx.match_buffer(B_ptr, shape, dtype)
+    def dsmem_copy(A: Tx.Buffer(shape, dtype), B: Tx.Buffer(shape, dtype)):
+
         Tx.device_entry()
-        cbx = Tx.cta_id_in_cluster([CLUSTER_N]); Tx.cta_id([CLUSTER_N]); tid = Tx.thread_id([1])
+        cbx = Tx.cta_id_in_cluster([CLUSTER_N])
+        Tx.cta_id([CLUSTER_N])
+        tid = Tx.thread_id([1])
         pool = Tx.SMEMPool()
         src_raw = pool.alloc([8192], dtype, align=128)
-        src_smem = Tx.decl_buffer(list(shape), dtype, src_raw.data,
-                                 byte_offset=src_raw.byte_offset,
-                                 scope="shared.dyn", layout=src_layout)
+        src_smem = Tx.decl_buffer(
+            list(shape),
+            dtype,
+            src_raw.data,
+            byte_offset=src_raw.byte_offset,
+            scope="shared.dyn",
+            layout=src_layout,
+        )
         dst_raw = pool.alloc([8192], dtype, align=128)
-        dst_smem = Tx.decl_buffer(list(shape), dtype, dst_raw.data,
-                                 byte_offset=dst_raw.byte_offset,
-                                 scope="shared.dyn", layout=dst_layout)
-        mbar = MBarrier(pool, 1); pool.commit()
-        mbar.init(1); Tx.ptx.fence.mbarrier_init.release.cluster(); Tx.cuda.cluster_sync()
+        dst_smem = Tx.decl_buffer(
+            list(shape),
+            dtype,
+            dst_raw.data,
+            byte_offset=dst_raw.byte_offset,
+            scope="shared.dyn",
+            layout=dst_layout,
+        )
+        mbar = MBarrier(pool, 1)
+        pool.commit()
+        mbar.init(1)
+        Tx.ptx.fence.mbarrier_init.release.cluster()
+        Tx.cuda.cluster_sync()
         if tid == 0:
-            if cbx == 0:                                      # source CTA
-                Tx.tile.copy(src_smem[r], A[r])                    # global -> local shared
+            if cbx == 0:  # source CTA
+                Tx.tile.copy(src_smem[r], A[r])  # global -> local shared
                 Tx.ptx.fence.proxy.async_.shared__cta()
-                Tx.tile.copy_async(dst_smem[r], src_smem[r], dispatch="dsmem",
-                              mbar=mbar.ptr_to([0]), remote_cta_id=Tx.int32(1))   # -> CTA 1
-            else:                                             # destination CTA
+                Tx.tile.copy_async(
+                    dst_smem[r],
+                    src_smem[r],
+                    dispatch="dsmem",
+                    mbar=mbar.ptr_to([0]),
+                    remote_cta_id=Tx.int32(1),
+                )  # -> CTA 1
+            else:  # destination CTA
                 Tx.ptx.mbarrier.arrive.expect_tx.shared.b64(mbar.ptr_to([0]), Tx.uint32(copy_bytes))
                 mbar.wait(0, 0)
-                Tx.tile.copy(B[r], dst_smem[r])                    # remote shared -> global
+                Tx.tile.copy(B[r], dst_smem[r])  # remote shared -> global
         Tx.cuda.cluster_sync()
 
 Algorithm

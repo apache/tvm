@@ -42,10 +42,9 @@ def _check_fail(original):
 
 
 @Ts.prim_func
-def element_wise_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+def element_wise_thread_x(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     for i in T.thread_binding(0, 128, "blockIdx.x"):
         for j0_0 in T.thread_binding(0, 4, "threadIdx.x"):
             for j0_1 in T.serial(0, 32):
@@ -58,11 +57,9 @@ def element_wise_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def unified_element_wise_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
+def unified_element_wise_thread_x(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     for blockIdx_x in T.thread_binding(0, 128, "blockIdx.x"):
         for threadIdx_x in T.thread_binding(0, 4, "threadIdx.x"):
             for j0_1 in T.serial(0, 32):
@@ -115,13 +112,13 @@ def unified_element_wise_thread_x_different_dtype(
 
 
 @Ts.prim_func
-def element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
+def element_wise_env_thread_x(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     j1_0 = T.env_thread("threadIdx.x")
     j0_0 = T.env_thread("threadIdx.x")
     i = T.env_thread("blockIdx.x")
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+
     T.launch_thread(i, 128)
     T.launch_thread(j0_0, 4)
     T.launch_thread(j1_0, 4)
@@ -135,11 +132,9 @@ def element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def unified_element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
+def unified_element_wise_env_thread_x(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     for blockIdx_x in T.thread_binding(0, 128, "blockIdx.x"):
         for threadIdx_x in T.thread_binding(0, 4, "threadIdx.x"):
             for j0_1 in T.serial(0, 32):
@@ -155,9 +150,7 @@ def unified_element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> 
 
 
 @Ts.prim_func
-def element_wise_vthread_x(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
+def element_wise_vthread_x(A: T.Buffer([128, 128]), B: T.Buffer([128, 128])) -> None:
     for i_0 in T.thread_binding(0, 2, "vthread.x"):
         for i_1 in T.thread_binding(0, 64, "threadIdx.x"):
             for j_0 in T.thread_binding(0, 2, "vthread.x"):
@@ -167,9 +160,7 @@ def element_wise_vthread_x(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def unified_element_wise_vthread_x(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
+def unified_element_wise_vthread_x(A: T.Buffer([128, 128]), B: T.Buffer([128, 128])) -> None:
     for vthread_x in T.thread_binding(0, 2, "vthread.x"):
         for threadIdx_x in T.thread_binding(0, 64, "threadIdx.x"):
             for j_1 in T.serial(0, 64):
@@ -181,11 +172,8 @@ def unified_element_wise_vthread_x(a: T.handle, b: T.handle) -> None:
 
 @Ts.prim_func
 def element_wise_two_thread_x_in_same_kernel_not_equal(
-    a: T.handle, b: T.handle, c: T.handle
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 64])
 ) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 64])
     for i in T.thread_binding(0, 128, "blockIdx.x"):
         for j0 in T.thread_binding(0, 128, "threadIdx.x"):
             B[i, j0] = A[i, j0] * 2.0
@@ -195,12 +183,11 @@ def element_wise_two_thread_x_in_same_kernel_not_equal(
 
 @Ts.prim_func
 def element_wise_kernels_with_different_size(
-    a: T.handle, b: T.handle, c: T.handle, d: T.handle
+    A: T.Buffer([128, 128]),
+    B: T.Buffer([128, 128]),
+    C: T.Buffer([256, 256]),
+    D: T.Buffer([256, 256]),
 ) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [256, 256])
-    D = T.match_buffer(d, [256, 256])
     for i0 in T.thread_binding(0, 128, "blockIdx.x"):
         for j0 in T.thread_binding(0, 128, "threadIdx.x"):
             B[i0, j0] = A[i0, j0] * 2.0
@@ -211,12 +198,11 @@ def element_wise_kernels_with_different_size(
 
 @Ts.prim_func
 def unified_element_wise_kernels_with_different_size(
-    a: T.handle, b: T.handle, c: T.handle, d: T.handle
+    A: T.Buffer([128, 128]),
+    B: T.Buffer([128, 128]),
+    C: T.Buffer([256, 256]),
+    D: T.Buffer([256, 256]),
 ) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [256, 256])
-    D = T.match_buffer(d, [256, 256])
     for blockIdx_x in T.thread_binding(0, 128, "blockIdx.x"):
         for threadIdx_x in T.thread_binding(0, 128, "threadIdx.x"):
             B[blockIdx_x, threadIdx_x] = A[blockIdx_x, threadIdx_x] * 2.0
@@ -226,10 +212,9 @@ def unified_element_wise_kernels_with_different_size(
 
 
 @Ts.prim_func
-def element_wise_implicit_block(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+def element_wise_implicit_block(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     for i in T.thread_binding(0, 128, "threadIdx.y"):
         for j0_0 in T.thread_binding(0, 4, "threadIdx.x"):
             for j0_1 in T.serial(0, 32):
@@ -242,11 +227,9 @@ def element_wise_implicit_block(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def unified_element_wise_implicit_block(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
+def unified_element_wise_implicit_block(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     for blockIdx_x in T.thread_binding(0, 128, "threadIdx.y"):
         for threadIdx_x in T.thread_binding(0, 4, "threadIdx.x"):
             for j0_1 in T.serial(0, 32):

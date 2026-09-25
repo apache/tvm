@@ -30,11 +30,10 @@ from tvm.script import tirx as T
 @tvm.script.ir_module
 class Move_PUV:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle) -> None:
+    def main(A: T.Buffer([1024, 1024, 1024], dtype='float32'), B: T.Buffer([1024, 1024, 1024], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, [1024, 1024, 1024], dtype="float32")
-        B = T.match_buffer(b, [1024, 1024, 1024], dtype="float32")
+
         # body
         with Ts.sblock("root"):
             Ts.sblock_attr({"meta_schedule.parallel":128, "meta_schedule.vectorize":32})
@@ -48,13 +47,11 @@ class Move_PUV:
                     Ts.writes([B[vi, vj, vk]])
                     B[vi, vj, vk] = A[vi, vj, vk]
 
-
 @Ts.prim_func
-def Move_PUV0(a: T.handle, b: T.handle) -> None:
+def Move_PUV0(A: T.Buffer([1024, 1024, 1024], dtype='float32'), B: T.Buffer([1024, 1024, 1024], dtype='float32')) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main"})
-    A = T.match_buffer(a, [1024, 1024, 1024], dtype="float32")
-    B = T.match_buffer(b, [1024, 1024, 1024], dtype="float32")
+
     # body
     with Ts.sblock("root"):
         for i0_j0_fused in T.parallel(0, 8192):
@@ -72,7 +69,6 @@ def Move_PUV0(a: T.handle, b: T.handle) -> None:
                         Ts.reads([A[vi, vj, vk]])
                         Ts.writes([B[vi, vj, vk]])
                         B[vi, vj, vk] = A[vi, vj, vk]
-
 
 @tvm.script.ir_module
 class Fused_NN_Dense:
@@ -145,7 +141,6 @@ def after_matmul_vectorize(
                     Ts.writes(T_matmul_NT[v0, v1])
                     T_matmul_NT[v0, v1] = T_matmul_NT_global[v0, v1]
 
-
 @Ts.prim_func
 def before_postproc_add(
     lhs: T.Buffer((1, 8, 56, 56, 32), "uint8"),
@@ -160,7 +155,6 @@ def before_postproc_add(
                 Ts.reads(lhs[v0, v1, v2, v3, v4], rhs[v0, v1, v2, v3, v4])
                 Ts.writes(add_compute[v0, v1, v2, v3, v4])
                 add_compute[v0, v1, v2, v3, v4] = lhs[v0, v1, v2, v3, v4] + rhs[v0, v1, v2, v3, v4]
-
 
 @Ts.prim_func
 def after_postproc_add(
@@ -181,16 +175,14 @@ def after_postproc_add(
                     Ts.writes(add_compute[v0, v1, v2, v3, v4])
                     add_compute[v0, v1, v2, v3, v4] = lhs[v0, v1, v2, v3, v4] + rhs[v0, v1, v2, v3, v4]
 
-
 n = T.dynamic("n")
 
 @Ts.prim_func
 def before_postproc_dynamic_shape_vectorize(
-    a: T.handle,
-    b: T.handle,
+    A: T.Buffer((n,), dtype='float32'),
+    B: T.Buffer((n,), dtype='float32'),
 ) -> None:
-    A = T.match_buffer(a, (n,), dtype="float32")
-    B = T.match_buffer(b, (n,), dtype="float32")
+
     with Ts.sblock("root"):
         Ts.sblock_attr({"meta_schedule.vectorize": 64})
         for i in T.serial(0, n):
@@ -199,7 +191,6 @@ def before_postproc_dynamic_shape_vectorize(
                 Ts.reads(A[vi])
                 Ts.writes(B[vi])
                 B[vi] = A[vi]
-
 
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,not-callable

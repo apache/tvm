@@ -21,9 +21,9 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def buffer_load_store_func(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
-    B = T.match_buffer(b, (128, 128), "float32")
+def buffer_load_store_func(
+    A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")
+) -> None:
     C = Ts.sblock_alloc_buffer((128, 128), "float32")
     D = Ts.sblock_alloc_buffer((128, 128), "float32")
     for ii, jj in T.grid(128, 128):
@@ -46,10 +46,9 @@ def buffer_load_store_func(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def buffer_opaque_access(b: T.handle, c: T.handle) -> None:
-    B = T.match_buffer(b, [16, 16], "float32")
-    C = T.match_buffer(c, [16, 16], "float32")
-
+def buffer_opaque_access(
+    B: T.Buffer([16, 16], "float32"), C: T.Buffer([16, 16], "float32")
+) -> None:
     with Ts.sblock():
         Ts.reads([])
         Ts.writes(B[0:16, 0:16])
@@ -69,26 +68,25 @@ def buffer_opaque_access(b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def lca_is_func_root(a: T.handle) -> None:
-    A = T.match_buffer(a, [0, 0], "float32")
+def lca_is_func_root(A: T.Buffer([0, 0], "float32")) -> None:
     A[0, 0] = 1.0
 
 
 @Ts.prim_func
-def match_buffer_func(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
-    B = T.match_buffer(b, (128, 128), "float32")
+def match_buffer_func(
+    A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")
+) -> None:
     for i, j in T.grid(8, 8):
         with Ts.sblock("block"):
             vi, vj = Ts.axis.remap("SS", [i, j])
             Ts.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
             Ts.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-            B0 = T.match_buffer(B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4))
-            B1 = T.match_buffer(B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8))
+            B0 = Ts.match_buffer(B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4))
+            B1 = Ts.match_buffer(B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8))
             for ii, jj in T.grid(16, 16):
                 with Ts.sblock("AAA"):
                     vii, vjj = Ts.axis.remap("SS", [ii, jj])
-                    AA = T.match_buffer(A[vii, vjj], ())
+                    AA = Ts.match_buffer(A[vii, vjj], ())
                     AA[()] = 1.0
             T.evaluate(B0.data)
             T.evaluate(B1.data)

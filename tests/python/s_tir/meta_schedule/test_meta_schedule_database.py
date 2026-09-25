@@ -44,11 +44,13 @@ from tvm.target import Target
 @tvm.script.ir_module
 class Matmul:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    def main(
+        A: T.Buffer((1024, 1024), "float32"),
+        B: T.Buffer((1024, 1024), "float32"),
+        C: T.Buffer((1024, 1024), "float32"),
+    ) -> None:
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.match_buffer(b, (1024, 1024), "float32")
-        C = T.match_buffer(c, (1024, 1024), "float32")
+
         for i, j, k in T.grid(1024, 1024, 1024):
             with Ts.sblock("matmul"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -56,15 +58,16 @@ class Matmul:
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-
 @tvm.script.ir_module
 class MatmulRelu:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle, d: T.handle) -> None:  # pylint: disable=no-self-argument
+    def main(
+        A: T.Buffer((16, 16), "float32"),
+        B: T.Buffer((16, 16), "float32"),
+        D: T.Buffer((16, 16), "float32"),
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, (16, 16), "float32")
-        B = T.match_buffer(b, (16, 16), "float32")
-        D = T.match_buffer(d, (16, 16), "float32")
+
         C = Ts.sblock_alloc_buffer((16, 16), "float32")
         for i, j, k in T.grid(16, 16, 16):
             with Ts.sblock("matmul"):
@@ -76,7 +79,6 @@ class MatmulRelu:
             with Ts.sblock("relu"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
                 D[vi, vj] = T.max(C[vi, vj], 0.0)
-
 
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument

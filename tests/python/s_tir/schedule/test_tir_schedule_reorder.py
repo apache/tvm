@@ -34,9 +34,7 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def elementwise(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128, 128))
+def elementwise(A: T.Buffer((128, 128, 128, 128)), B: T.Buffer((128, 128, 128, 128))) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 128):
         with Ts.sblock("B"):
             vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
@@ -44,9 +42,9 @@ def elementwise(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128, 128))
+def elementwise_not_affine(
+    A: T.Buffer((128, 128, 128, 128)), B: T.Buffer((128, 128, 128, 128))
+) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 8):
         with Ts.sblock("B"):
             vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
@@ -55,9 +53,9 @@ def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_dependent_loop(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128, 128))
+def elementwise_dependent_loop(
+    A: T.Buffer((128, 128, 128, 128)), B: T.Buffer((128, 128, 128, 128))
+) -> None:
     for i in T.serial(0, 128):
         for j, k, l in T.grid(128, i, 128):
             with Ts.sblock("B"):
@@ -66,9 +64,9 @@ def elementwise_dependent_loop(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_predicate(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128, 128))
+def elementwise_predicate(
+    A: T.Buffer((128, 128, 128, 128)), B: T.Buffer((128, 128, 128, 128))
+) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 128):
         with Ts.sblock("B"):
             Ts.where(i * 2097152 + j * 16384 + k * 128 + l < 100)
@@ -77,10 +75,11 @@ def elementwise_predicate(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_non_single_branch(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128))
+def elementwise_non_single_branch(
+    A: T.Buffer((128, 128, 128)), B: T.Buffer((128, 128, 128))
+) -> None:
     C = Ts.sblock_alloc_buffer((128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128))
+
     for i, j in T.grid(128, 128):
         for k in T.serial(0, 128):
             with Ts.sblock("C"):
@@ -93,9 +92,9 @@ def elementwise_non_single_branch(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_with_loops_not_same_scope(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128))
+def elementwise_with_loops_not_same_scope(
+    A: T.Buffer((128, 128, 128)), B: T.Buffer((128, 128, 128))
+) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("A"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -108,9 +107,9 @@ def elementwise_with_loops_not_same_scope(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_with_wrong_block_var_type(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128))
+def elementwise_with_wrong_block_var_type(
+    A: T.Buffer((128, 128, 128)), B: T.Buffer((128, 128, 128))
+) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -121,9 +120,9 @@ def elementwise_with_wrong_block_var_type(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_reordered(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128, 128))
+def elementwise_reordered(
+    A: T.Buffer((128, 128, 128, 128)), B: T.Buffer((128, 128, 128, 128))
+) -> None:
     for l, j, k, i in T.grid(128, 128, 128, 128):
         with Ts.sblock("B"):
             vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
@@ -131,9 +130,9 @@ def elementwise_reordered(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_reordered2(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128, 128))
+def elementwise_reordered2(
+    A: T.Buffer((128, 128, 128, 128)), B: T.Buffer((128, 128, 128, 128))
+) -> None:
     for k, j, i, l in T.grid(128, 128, 128, 128):
         with Ts.sblock("B"):
             vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
@@ -141,9 +140,9 @@ def elementwise_reordered2(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def elementwise_reordered_with_predicate(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128, 128))
+def elementwise_reordered_with_predicate(
+    A: T.Buffer((128, 128, 128, 128)), B: T.Buffer((128, 128, 128, 128))
+) -> None:
     for l, j, k, i in T.grid(128, 128, 128, 128):
         with Ts.sblock("B"):
             Ts.where(i * 2097152 + j * 16384 + k * 128 + l < 100)
@@ -152,9 +151,7 @@ def elementwise_reordered_with_predicate(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def opaque_access(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [16, 16], "float32")
-    B = T.match_buffer(b, [16, 16], "float32")
+def opaque_access(A: T.Buffer([16, 16], "float32"), B: T.Buffer([16, 16], "float32")) -> None:
     for i, j in T.grid(16, 16):
         with Ts.sblock("A"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -170,9 +167,9 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def opaque_access_reorder(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [16, 16], "float32")
-    B = T.match_buffer(b, [16, 16], "float32")
+def opaque_access_reorder(
+    A: T.Buffer([16, 16], "float32"), B: T.Buffer([16, 16], "float32")
+) -> None:
     for j, i in T.grid(16, 16):
         with Ts.sblock("A"):
             vi, vj = Ts.axis.remap("SS", [i, j])

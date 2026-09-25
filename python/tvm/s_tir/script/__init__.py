@@ -46,6 +46,7 @@ def _initialize():
             "bind_",
             "check_well_formed_",
             "sblock",
+            "match_buffer",
             "init",
             "where",
             "reads",

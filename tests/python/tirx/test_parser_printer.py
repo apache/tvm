@@ -37,8 +37,7 @@ def _make_minimal_tirx_prim_func():
     source = (
         "# from tvm.script import tirx as T\n\n"
         "@T.prim_func()\n"
-        "def f(a: T.handle):\n"
-        '    A = T.match_buffer(a, (1,), "float32")\n'
+        'def f(A: T.Buffer((1,), "float32")):\n'
         "    A[0] = T.float32(1)"
     )
     return from_source(source)
@@ -51,8 +50,7 @@ def from_source_tir(code):
 def test_roundtrip_scopeid1():
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
+    def test(A: T.Buffer((64,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
@@ -71,8 +69,7 @@ def test_roundtrip_scopeid1():
 def test_roundtrip_scopeid2():
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle) -> None:
-        _ = T.match_buffer(A_ptr, (64,), "float32", scope="global")
+    def test(_: T.Buffer((64,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         bx, by, bz = T.cta_id([8, 10, 12])
@@ -97,8 +94,8 @@ def test_roundtrip_scopeid_deferred():
 
     # fmt: off
     @T.prim_func(private=True)
-    def test(A_ptr: T.handle) -> None:
-        _ = T.match_buffer(A_ptr, (64,), "float32", scope="global")
+    def test(_: T.Buffer((64,), 'float32', scope='global')) -> None:
+
         T.device_entry()
         bx = T.cta_id()                       # deferred kernel→cta
         cbx = T.cta_id_in_cluster([2])
@@ -118,9 +115,7 @@ def test_roundtrip_scopeid_deferred():
 
 def test_exec_scope_filter_guard_roundtrip():
     @T.prim_func(private=True)
-    def test(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (1,), "float32", scope="global")
-
+    def test(A: T.Buffer((1,), "float32", scope="global")) -> None:
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([128])
@@ -150,8 +145,7 @@ def test_roundtrip_layout():
 
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle) -> None:
-        _ = T.match_buffer(A_ptr, (64,), "float32", scope="global")
+    def test(_: T.Buffer((64,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
@@ -264,8 +258,7 @@ def test_roundtrip_buffer_view_get1():
 def test_roundtrip_buffer_view_get2():
     # fmt: off
     @T.prim_func
-    def test(out_ptr: T.handle) -> None:
-        out = T.match_buffer(out_ptr, (2), "float32", scope="global")
+    def test(out: T.Buffer(2, 'float32', scope='global')) -> None:
 
         T.device_entry()
         bx, by, bz = T.cta_id([32, 32, 1])
@@ -305,8 +298,7 @@ def test_roundtrip_buffer_view_get3():
 def test_roundtrip_op1():
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
+    def test(A: T.Buffer((64,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
@@ -329,10 +321,11 @@ def test_roundtrip_op1():
 def test_roundtrip_op2():
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128, 128), "float16", scope="global")
-        B = T.match_buffer(B_ptr, (128, 64), "float16", scope="global")
-        C = T.match_buffer(C_ptr, (128, 64), "float32", scope="global")
+    def test(
+        A: T.Buffer((128, 128), "float16", scope="global"),
+        B: T.Buffer((128, 64), "float16", scope="global"),
+        C: T.Buffer((128, 64), "float32", scope="global"),
+    ) -> None:
 
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
@@ -360,10 +353,11 @@ def test_roundtrip_op3():
     K = 4096
 
     @T.prim_func
-    def test(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128, K), "float16", scope="global")
-        B = T.match_buffer(B_ptr, (K, 64), "float16", scope="global")
-        C = T.match_buffer(C_ptr, (128, 64), "float32", scope="global")
+    def test(
+        A: T.Buffer((128, K), "float16", scope="global"),
+        B: T.Buffer((K, 64), "float16", scope="global"),
+        C: T.Buffer((128, 64), "float32", scope="global"),
+    ) -> None:
 
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
@@ -396,12 +390,14 @@ def test_roundtrip_op3():
 def test_roundtrip_tensormap():
     # fmt: off
     @T.prim_func
-    def func1(A_ptr: T.handle):
+    def func1(A: T.Buffer([128], "float32")):
         T.func_attr({"global_symbol": "func"})
-        _ = T.match_buffer(A_ptr, [128], "float32")
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
-        T.call_packed("runtime.tensormap_init", T.address_of(A_map), A_ptr)
+        T.call_packed(
+            "runtime.tensormap_init", T.address_of(A_map), T.reinterpret("handle", A.data)
+        )
+
     # fmt: on
     code = func1.script()
     assert from_source(code).script() == code
@@ -424,8 +420,7 @@ def test_roundtrip_tensormap_kernel_param():
 def test_roundtrip_break_for():
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (10,), "int32")
+    def test(A: T.Buffer((10,), 'int32')):
 
         T.device_entry()
         for i in T.serial(10):
@@ -441,8 +436,7 @@ def test_roundtrip_break_for():
 def test_roundtrip_break_while():
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (10,), "int32")
+    def test(A: T.Buffer((10,), 'int32')):
 
         T.device_entry()
         i = T.alloc_buffer((1,), "int32", scope="local")
@@ -461,8 +455,7 @@ def test_roundtrip_break_while():
 def test_roundtrip_break_nested():
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (9,), "int32")
+    def test(A: T.Buffer((9,), 'int32')):
 
         T.device_entry()
         idx = T.alloc_buffer((1,), "int32", scope="local")
@@ -482,8 +475,7 @@ def test_roundtrip_break_nested():
 def test_roundtrip_continue_for():
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (10,), "int32")
+    def test(A: T.Buffer((10,), 'int32')):
 
         T.device_entry()
         for i in T.serial(10):
@@ -499,8 +491,7 @@ def test_roundtrip_continue_for():
 def test_roundtrip_continue_while():
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (10,), "int32")
+    def test(A: T.Buffer((10,), 'int32')):
 
         T.device_entry()
         i = T.alloc_buffer((1,), "int32", scope="local")
@@ -520,8 +511,7 @@ def test_roundtrip_continue_while():
 def test_roundtrip_continue_nested():
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (9,), "int32")
+    def test(A: T.Buffer((9,), 'int32')):
 
         T.device_entry()
         idx = T.alloc_buffer((1,), dtype="int32", scope="local")
@@ -541,8 +531,7 @@ def test_roundtrip_continue_nested():
 def test_roundtrip_break_and_continue():
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (10,), "int32")
+    def test(A: T.Buffer((10,), 'int32')):
 
         T.device_entry()
         for i in T.serial(10):
@@ -560,8 +549,7 @@ def test_roundtrip_break_and_continue():
 def test_roundtrip_unreachable_after_break():
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (5,), "int32")
+    def test(A: T.Buffer((5,), 'int32')):
 
         T.device_entry()
         for i in T.serial(5):
@@ -593,8 +581,8 @@ def test_roundtrip_allocated_addr():
 def test_roundtrip_implicit_buffer_region():
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (10, 10, 10), "float32", layout=T.TileLayout(T.S[10, 10, 10]))
+    def test(A: T.Buffer((10, 10, 10), 'float32', layout=T.TileLayout(T.S[10, 10, 10]))):
+
         T.device_entry()
         Tx.memset(A[0], T.float32(0.0))
 
@@ -622,13 +610,15 @@ def test_roundtrip_alloc_under_any_scope():
 def test_roundtrip_op_call_workspace():
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, [10], "float32", scope="global")
-        B = T.match_buffer(B_ptr, [10], "float32", scope="global")
+    def test(
+        A: T.Buffer([10], "float32", scope="global"), B: T.Buffer([10], "float32", scope="global")
+    ):
+
         T.device_entry()
         smem = T.alloc_buffer([10], "float32", scope="shared")
         Tx.add(B, A, T.float32(1), workspace={"smem": smem})
         # fmt: on
+
     code = test.script()
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
@@ -637,12 +627,14 @@ def test_roundtrip_op_call_workspace():
 def test_roundtrip_op_call_config():
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, [10], "float32", scope="global")
-        B = T.match_buffer(B_ptr, [10], "float32", scope="global")
+    def test(
+        A: T.Buffer([10], "float32", scope="global"), B: T.Buffer([10], "float32", scope="global")
+    ):
+
         T.device_entry()
         Tx.add(B, A, T.float32(1), schedule="A")
         # fmt: on
+
     code = test.script()
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
@@ -842,7 +834,6 @@ def test_macro():
             two_add_and_mul(1)
             two_add_and_mul(2)
 
-
     @T.prim_func(private=True)
     def expected():
         T.device_entry()
@@ -957,15 +948,12 @@ def test_buffer():
         B: T.Buffer((10, 11), "float32", scope="global"),
         C: T.Buffer((10, 11), "float32", layout="default"),
         D: T.Buffer((10, 11), "float32", layout=T.TileLayout(T.S[(10, 11) : (1, 10)])),
-        E_ptr: T.handle,
-        F_ptr: T.handle,
-        G_ptr: T.handle,
-        H_ptr: T.handle,
+        _E: T.Buffer([10, 11], 'float16', layout=None),
+        _F: T.Buffer([10, 11], 'float16', scope='global'),
+        _G: T.Buffer([10, 11], 'float16', layout='default'),
+        _H: T.Buffer([10, 11], 'float16', layout=T.TileLayout(T.S[(10, 11):(1, 10)])),
     ):
-        _E = T.match_buffer(E_ptr, [10, 11], "float16", layout=None)
-        _F = T.match_buffer(F_ptr, [10, 11], "float16", scope="global")
-        _G = T.match_buffer(G_ptr, [10, 11], "float16", layout="default")
-        _H = T.match_buffer(H_ptr, [10, 11], "float16", layout=T.TileLayout(T.S[(10, 11) : (1, 10)]))  # noqa: E501
+
 
         _A0 = T.decl_buffer((10, 11), "float32", data=A.data, layout=None)
         _B0 = T.decl_buffer((10, 11), "float32", data=B.data, scope="global")
@@ -2286,8 +2274,8 @@ def test_roundtrip_serial_unroll_false():
 
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
+    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
@@ -2308,8 +2296,8 @@ def test_roundtrip_serial_unroll_true():
 
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
+    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
@@ -2330,8 +2318,8 @@ def test_roundtrip_serial_unroll_count():
 
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
+    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
@@ -2352,8 +2340,8 @@ def test_roundtrip_serial_unroll_false_with_other_annotations():
 
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
+    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
@@ -2373,8 +2361,8 @@ def test_roundtrip_unary_inplace():
 
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
+    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
@@ -2401,9 +2389,11 @@ def test_roundtrip_unary_different_dst_src():
 
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
-        B = T.match_buffer(B_ptr, (128,), "float32", scope="global")
+    def test(
+        A: T.Buffer((128,), "float32", scope="global"),
+        B: T.Buffer((128,), "float32", scope="global"),
+    ) -> None:
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
@@ -2424,8 +2414,8 @@ def test_roundtrip_persistent_decorator():
 
     # fmt: off
     @T.prim_func(persistent=True)
-    def test(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
+    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
@@ -2445,8 +2435,8 @@ def test_roundtrip_persistent_not_present():
 
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
+    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
@@ -2464,8 +2454,8 @@ def test_warp_role():
 
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
+    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+
         T.device_entry()
         cta_id = T.cta_id([1])
         wg_id = T.warpgroup_id([4])
@@ -2499,8 +2489,8 @@ def test_warpgroup_role():
 
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
+    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+
         T.device_entry()
         cta_id = T.cta_id([1])
         wg_id = T.warpgroup_id([4])
@@ -2742,8 +2732,8 @@ def test_roundtrip_cp_async_bulk_tensor_g2s_cluster():
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
-    def func(A_ptr: T.handle):
-        _ = T.match_buffer(A_ptr, (16, 16), "float32")
+    def func(_: T.Buffer((16, 16), 'float32')):
+
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
@@ -2763,8 +2753,8 @@ def test_roundtrip_cp_async_bulk_tensor_s2g():
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
-    def func(A_ptr: T.handle):
-        _ = T.match_buffer(A_ptr, (16, 16), "float32")
+    def func(_: T.Buffer((16, 16), 'float32')):
+
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
@@ -2784,8 +2774,8 @@ def test_roundtrip_cp_async_bulk_tensor_prefetch():
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
-    def func(A_ptr: T.handle):
-        _ = T.match_buffer(A_ptr, (16, 16), "float32")
+    def func(_: T.Buffer((16, 16), 'float32')):
+
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
@@ -2804,8 +2794,8 @@ def test_roundtrip_cp_async_bulk_tensor_s2g_reduce():
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
-    def func(A_ptr: T.handle):
-        _ = T.match_buffer(A_ptr, (16, 16), "float32")
+    def func(_: T.Buffer((16, 16), 'float32')):
+
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
@@ -2829,8 +2819,8 @@ def _assert_roundtrip(func):
 def test_loop_var_dtype_uint32():
     # fmt: off
     @T.prim_func
-    def func(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (128,), "float32")
+    def func(A: T.Buffer((128,), 'float32')):
+
         for i in T.serial(128, dtype="uint32"):
             A[i] = T.float32(1)
     # fmt: on
@@ -2845,8 +2835,8 @@ def test_loop_var_dtype_uint32():
 def test_loop_var_dtype_uint32_with_step():
     # fmt: off
     @T.prim_func
-    def func(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (128,), "float32")
+    def func(A: T.Buffer((128,), 'float32')):
+
         for i in T.serial(4, 128, step=2, dtype="uint32"):
             A[i] = T.float32(1)
     # fmt: on
@@ -2863,8 +2853,8 @@ def test_loop_var_dtype_uint32_with_step():
 def test_loop_var_dtype_uint32_all_for_kinds(for_kind):
     # fmt: off
     @T.prim_func
-    def func(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (4,), "float32")
+    def func(A: T.Buffer((4,), 'float32')):
+
         for i in getattr(T, for_kind)(4, dtype="uint32"):
             A[i] = T.float32(1)
     # fmt: on
@@ -2876,8 +2866,8 @@ def test_loop_var_dtype_uint32_all_for_kinds(for_kind):
 def test_grid_loop_var_dtype_uint32():
     # fmt: off
     @T.prim_func
-    def func(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (8, 16), "float32")
+    def func(A: T.Buffer((8, 16), 'float32')):
+
         for i, j in T.grid(8, 16, dtype="uint32"):
             A[i, j] = T.float32(1)
     # fmt: on
@@ -2891,8 +2881,8 @@ def test_grid_loop_var_dtype_uint32():
 def test_loop_var_dtype_defaults_to_int32():
     # fmt: off
     @T.prim_func
-    def func(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (128,), "float32")
+    def func(A: T.Buffer((128,), 'float32')):
+
         for i in range(128):
             A[i] = T.float32(1)
     # fmt: on
@@ -2906,8 +2896,8 @@ def test_loop_var_dtype_inferred_from_unsigned_extent():
 
     # fmt: off
     @T.prim_func
-    def func(A_ptr: T.handle, n: T.uint32):
-        A = T.match_buffer(A_ptr, (128,), "float32")
+    def func(A: T.Buffer((128,), 'float32'), n: T.uint32):
+
         for i in range(n):
             A[i] = T.float32(1)
     # fmt: on
@@ -2921,8 +2911,8 @@ def test_loop_var_dtype_casts_mismatched_bound():
 
     # fmt: off
     @T.prim_func
-    def func(A_ptr: T.handle, n: T.int32):
-        A = T.match_buffer(A_ptr, (128,), "float32")
+    def func(A: T.Buffer((128,), 'float32'), n: T.int32):
+
         for i in T.serial(n, dtype="uint32"):
             A[i] = T.float32(1)
     # fmt: on
@@ -2961,8 +2951,8 @@ def test_hand_built_for_rejects_negative_literal_for_uint32():
 def test_scope_id_dtype_uint32():
     # fmt: off
     @T.prim_func
-    def func(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (128,), "float32")
+    def func(A: T.Buffer((128,), 'float32')):
+
         T.device_entry()
         bx = T.cta_id([1])
         tx = T.thread_id([128], dtype="uint32")
@@ -2991,8 +2981,8 @@ def test_scope_id_dtype_uint32():
 def test_scope_id_dtype_uint32_lane_and_warp():
     # fmt: off
     @T.prim_func
-    def func(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (32,), "float32")
+    def func(A: T.Buffer((32,), 'float32')):
+
         T.device_entry()
         _ = T.cta_id([1])
         warp = T.warp_id([4], dtype="uint32")
@@ -3009,8 +2999,8 @@ def test_scope_id_dtype_uint32_lane_and_warp():
 def test_scope_id_dtype_uint32_with_preferred():
     # fmt: off
     @T.prim_func
-    def func(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (4,), "float32")
+    def func(A: T.Buffer((4,), 'float32')):
+
         T.device_entry()
         _ = T.cluster_id([2])
         cx, cy = T.cta_id_in_cluster([2, 2], preferred=[2, 2], dtype="uint32")
@@ -3029,8 +3019,8 @@ def test_scope_id_dtype_uint32_deferred_extent():
 
     # fmt: off
     @T.prim_func
-    def func(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (32,), "float32")
+    def func(A: T.Buffer((32,), 'float32')):
+
         T.device_entry()
         _ = T.cta_id([1])
         lane = T.lane_id(dtype="uint32")
@@ -3057,8 +3047,8 @@ def test_scope_id_dtype_rejects_unsupported(dtype):
     with pytest.raises(Exception, match='must be "int32" or "uint32"'):
 
         @T.prim_func
-        def func(A_ptr: T.handle):
-            A = T.match_buffer(A_ptr, (128,), "float32")
+        def func(A: T.Buffer((128,), 'float32')):
+
             T.device_entry()
             _ = T.cta_id([1])
             tx = T.thread_id([128], dtype=dtype)

@@ -34,9 +34,7 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def element_wise(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128, 128))
+def element_wise(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -44,9 +42,7 @@ def element_wise(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def element_wise_parallelized(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128, 128))
+def element_wise_parallelized(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
     for i0 in T.parallel(0, 128):
         for i1 in T.serial(0, 128):
             with Ts.sblock("B"):
@@ -55,9 +51,7 @@ def element_wise_parallelized(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def element_wise_i_bound(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128, 128))
+def element_wise_i_bound(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
     for i0 in T.thread_binding(0, 128, thread="threadIdx.x"):
         for i1 in T.serial(0, 128):
             with Ts.sblock("B"):
@@ -66,9 +60,7 @@ def element_wise_i_bound(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def element_wise_compute_at_split(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    C = T.match_buffer(c, (128, 128))
+def element_wise_compute_at_split(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
     for i in T.serial(0, 128):
         for j0 in T.serial(0, 128):
@@ -83,9 +75,9 @@ def element_wise_compute_at_split(a: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def element_wise_compute_at_split_vectorized(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    C = T.match_buffer(c, (128, 128))
+def element_wise_compute_at_split_vectorized(
+    A: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
     for i in T.serial(0, 128):
         for j0 in T.serial(0, 128):
@@ -101,9 +93,7 @@ def element_wise_compute_at_split_vectorized(a: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def element_wise_split_predicate(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
+def element_wise_split_predicate(A: T.Buffer([128, 128]), B: T.Buffer([128, 128])) -> None:
     for i, j_0, j_1 in T.grid(128, 13, 10):
         with Ts.sblock("B"):
             Ts.where(j_0 * 10 + j_1 < 128)
@@ -113,9 +103,9 @@ def element_wise_split_predicate(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def element_wise_split_predicate_parallelized(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
+def element_wise_split_predicate_parallelized(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128])
+) -> None:
     for i in T.serial(0, 128):
         for j_0 in T.parallel(0, 13):
             for j_1 in T.serial(0, 10):
@@ -127,9 +117,9 @@ def element_wise_split_predicate_parallelized(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def element_wise_split_predicate_vectorized(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
+def element_wise_split_predicate_vectorized(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128])
+) -> None:
     for i in T.vectorized(0, 128):
         for j_0, j_1 in T.grid(13, 10):
             with Ts.sblock("B"):
@@ -140,9 +130,9 @@ def element_wise_split_predicate_vectorized(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def element_wise_compute_at_split_j0_j1o_bound(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    C = T.match_buffer(c, (128, 128))
+def element_wise_compute_at_split_j0_j1o_bound(
+    A: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
     for i in T.serial(0, 128):
         for j0 in T.thread_binding(0, 128, thread="threadIdx.x"):
@@ -158,11 +148,7 @@ def element_wise_compute_at_split_j0_j1o_bound(a: T.handle, c: T.handle) -> None
 
 
 @Ts.prim_func
-def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128, 128))
-    C = T.match_buffer(c, (128, 128))
-
+def matmul(A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("C"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -172,10 +158,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128,))
-
+def rowsum(A: T.Buffer((128, 128)), B: T.Buffer((128,))) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -185,9 +168,7 @@ def rowsum(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum_unrolled(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128,))
+def rowsum_unrolled(A: T.Buffer((128, 128)), B: T.Buffer((128,))) -> None:
     for i0 in T.unroll(0, 128):
         for i1 in T.serial(0, 128):
             with Ts.sblock("B"):
@@ -198,10 +179,7 @@ def rowsum_unrolled(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum_not_quasi_affine(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128,))
-
+def rowsum_not_quasi_affine(A: T.Buffer((128, 128)), B: T.Buffer((128,))) -> None:
     for i, k in T.grid(128, 16):
         with Ts.sblock("B"):
             vi = Ts.axis.S(128, i)
@@ -212,10 +190,7 @@ def rowsum_not_quasi_affine(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum_not_compact_data_flow(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128,))
-
+def rowsum_not_compact_data_flow(A: T.Buffer((128, 128)), B: T.Buffer((128,))) -> None:
     for i, k in T.grid(128, 16):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -225,9 +200,7 @@ def rowsum_not_compact_data_flow(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def rowsum_cross_thread_reduction(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128,))
+def rowsum_cross_thread_reduction(A: T.Buffer((128, 128)), B: T.Buffer((128,))) -> None:
     for i0 in T.serial(0, 128):
         for i1 in T.thread_binding(0, 128, thread="threadIdx.x"):
             with Ts.sblock("B"):
@@ -238,17 +211,16 @@ def rowsum_cross_thread_reduction(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def opaque_block(a: T.handle) -> None:
-    A = T.match_buffer(a, (16,))
+def opaque_block(A: T.Buffer((16,))) -> None:
     for i in T.serial(0, 15):
         with Ts.sblock("opaque"):
             A[i + 1] = A[i + 1] + A[i]
 
 
 @Ts.prim_func
-def block_inside_init(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128, 128], dtype="float32")
-    B = T.match_buffer(b, [128, 128], dtype="float32")
+def block_inside_init(
+    A: T.Buffer([128, 128, 128], dtype="float32"), B: T.Buffer([128, 128], dtype="float32")
+) -> None:
     for i in T.serial(0, 128):
         with Ts.sblock("outer"):
             vi = Ts.axis.S(128, i)
@@ -265,9 +237,9 @@ def block_inside_init(a: T.handle, b: T.handle) -> None:
 
 
 @Ts.prim_func
-def thread_bound_block_inside_init(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128, 128], dtype="float32")
-    B = T.match_buffer(b, [128, 128], dtype="float32")
+def thread_bound_block_inside_init(
+    A: T.Buffer([128, 128, 128], dtype="float32"), B: T.Buffer([128, 128], dtype="float32")
+) -> None:
     for i in T.thread_binding(0, 128, thread="threadIdx.x"):
         with Ts.sblock("outer"):
             vi = Ts.axis.S(128, i)

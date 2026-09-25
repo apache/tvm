@@ -232,12 +232,11 @@ def test_vulkan_constant_passing(vulkan_parameter_impl, vulkan_parameter_dtype):
                 for i in range(num_int_params):
                     v = T_builder.arg_(f"scale{i}", tvm.tirx.Var("", dtype))
                     scalar_vars.append(v)
-                var_A = T_builder.arg_("var_A", T_builder.handle())
-                var_B = T_builder.arg_("var_B", T_builder.handle())
-                T_builder.func_attr({"tirx.noalias": True})
                 n_var = T_builder.int32()
-                A = T_builder.match_buffer(var_A, (n_var,), dtype)
-                B = T_builder.match_buffer(var_B, (n_var,), dtype)
+                A = T_builder.arg_("var_A", T_builder.Buffer((n_var,), dtype))
+                B = T_builder.arg_("var_B", T_builder.Buffer((n_var,), dtype))
+                T_builder.func_attr({"tirx.noalias": True})
+
                 scalar_sum = scalar_vars[0]
                 for s in scalar_vars[1:]:
                     scalar_sum = scalar_sum + s
@@ -351,10 +350,11 @@ def test_vectorized_index_ramp():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle):
+        def main(
+            A: T.Buffer((n,), "int32", offset_factor=1), B: T.Buffer((n,), "int32", offset_factor=1)
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (n,), "int32", offset_factor=1)
-            B = T.match_buffer(var_B, (n,), "int32", offset_factor=1)
+
             bx = T.launch_thread("blockIdx.x", 1)
             B[ramp_index] = A[ramp_index]
 
@@ -388,10 +388,11 @@ def test_vectorized_index_broadcast():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle):
+        def main(
+            A: T.Buffer((n,), "int32", offset_factor=1), B: T.Buffer((n,), "int32", offset_factor=1)
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (n,), "int32", offset_factor=1)
-            B = T.match_buffer(var_B, (n,), "int32", offset_factor=1)
+
             bx = T.launch_thread("blockIdx.x", 1)
             B[ramp_index] = A[broadcast_index]
 
@@ -586,9 +587,7 @@ def test_unary():
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(var_A: T.handle, var_B: T.handle):
-                A = T.match_buffer(var_A, (m,), "float32")
-                B = T.match_buffer(var_B, (m,), "float32")
+            def main(A: T.Buffer((m,), "float32"), B: T.Buffer((m,), "float32")):
                 for i_0 in T.thread_binding((m + 63) // 64, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(64, thread="threadIdx.x"):
                         if i_0 * 64 + i_1 < m:

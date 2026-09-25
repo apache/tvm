@@ -69,9 +69,11 @@ def match_buffer_func() -> None:
                 vi, vj = Ts.axis.remap("SS", [i, j])
                 Ts.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
                 Ts.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                AA = T.match_buffer(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16], (16, 16))
-                B0 = T.match_buffer(B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4))
-                B1 = T.match_buffer(
+                AA = Ts.match_buffer(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16], (16, 16))
+                B0 = Ts.match_buffer(
+                    B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4)
+                )
+                B1 = Ts.match_buffer(
                     B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8)
                 )
                 for ii, jj in T.grid(16, 16):
@@ -79,7 +81,7 @@ def match_buffer_func() -> None:
                         vii, vjj = Ts.axis.remap("SS", [ii, jj])
                         Ts.reads([])
                         Ts.writes(AA[vii, vjj])
-                        AAA = T.match_buffer(AA[vii, vjj], ())
+                        AAA = Ts.match_buffer(AA[vii, vjj], ())
                         AAA[()] = 1.0
                 T.evaluate(B0.data)
                 T.evaluate(B1.data)

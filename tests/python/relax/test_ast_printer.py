@@ -447,9 +447,10 @@ def test_call_tir():
     @tvm.script.ir_module
     class TestCallTIR:
         @Ts.prim_func
-        def addone(A_handle: T.handle, B_handle: T.handle) -> None:
-            A = T.match_buffer(A_handle, (m_addone, n_addone), "float32")
-            B = T.match_buffer(B_handle, (m_addone, n_addone), "float32")
+        def addone(
+            A: T.Buffer((m_addone, n_addone), "float32"),
+            B: T.Buffer((m_addone, n_addone), "float32"),
+        ) -> None:
             T.func_attr({"global_symbol": "addone"})
             for i, j in T.grid(m_addone, n_addone):
                 with Ts.sblock("addone"):

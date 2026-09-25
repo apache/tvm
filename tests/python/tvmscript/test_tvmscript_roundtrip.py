@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: E501, F401, F841
 
+from __future__ import annotations
+
 import sys
 
 import numpy as np
@@ -34,12 +36,14 @@ def opt_gemm_lower():
     @tvm.script.ir_module
     class Module:
         @Ts.prim_func
-        def mmult(A: T.handle, B: T.handle, C: T.handle) -> None:
+        def mmult(
+            A_1: T.Buffer([16384], elem_offset=0, align=64, offset_factor=1),
+            B_1: T.Buffer([1024, 1024], elem_offset=0, align=64, offset_factor=1),
+            C_1: T.Buffer([16384], elem_offset=0, align=64, offset_factor=1),
+        ) -> None:
             # function attr dict
             T.func_attr({"tirx.noalias": True})
-            A_1 = T.match_buffer(A, [16384], elem_offset=0, align=64, offset_factor=1)
-            B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
-            C_1 = T.match_buffer(C, [16384], elem_offset=0, align=64, offset_factor=1)
+
             # body
             packedB = T.alloc_buffer((32768,))
             for x in T.parallel(0, 32):
@@ -1671,10 +1675,7 @@ def opt_conv_tensorcore_mod_host():
 
 def vthread_func():
     @Ts.prim_func
-    def vthread_func(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, [256], "float32")
-        C = T.match_buffer(c, [256], "float32")
-
+    def vthread_func(A: T.Buffer([256], "float32"), C: T.Buffer([256], "float32")) -> None:
         i0 = T.env_thread("blockIdx.x")
         i1 = T.env_thread("threadIdx.x")
         i2 = T.env_thread("vthread")
@@ -1693,11 +1694,7 @@ def vthread_func():
 
 def matmul():
     @Ts.prim_func
-    def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, [128, 128])
-        B = T.match_buffer(b, [128, 128])
-        C = T.match_buffer(c, [128, 128])
-
+    def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("update"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -1710,11 +1707,9 @@ def matmul():
 
 def matmul_original():
     @Ts.prim_func
-    def matmul_original(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, [128, 128])
-        B = T.match_buffer(b, [128, 128])
-        C = T.match_buffer(c, [128, 128])
-
+    def matmul_original(
+        A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+    ) -> None:
         for i, j in T.grid(128, 128):
             with Ts.sblock("init"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1730,9 +1725,9 @@ def matmul_original():
 
 def element_wise():
     @Ts.prim_func
-    def element_wise(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128), "float32")
-        C = T.match_buffer(c, (128, 128), "float32")
+    def element_wise(
+        A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+    ) -> None:
         B = Ts.sblock_alloc_buffer((128, 128), "float32")
 
         for i, j in T.grid(128, 128):
@@ -1749,10 +1744,7 @@ def element_wise():
 
 def predicate():
     @Ts.prim_func
-    def predicate(b: T.handle, c: T.handle) -> None:
-        B = T.match_buffer(b, (16, 16), "float32")
-        C = T.match_buffer(c, (16, 16), "float32")
-
+    def predicate(B: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
         for i, jo, ji in T.grid(16, 4, 5):
             with Ts.sblock("update"):
                 vi = Ts.axis.S(16, i)
@@ -1840,10 +1832,9 @@ def test_predicate():
 
 def for_thread_binding():
     @Ts.prim_func
-    def for_thread_binding(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, (16, 16), "float32")
-        B = T.match_buffer(b, (16, 16), "float32")
-
+    def for_thread_binding(
+        A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")
+    ) -> None:
         for i in T.thread_binding(0, 16, thread="threadIdx.x"):
             for j in T.thread_binding(
                 0, 16, thread="threadIdx.y", annotations={"attr_key": "attr_value"}
@@ -1877,18 +1868,17 @@ def test_for_thread_binding():
 
 def match_buffer_region():
     @Ts.prim_func
-    def match_buffer_region(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, (16, 16, 16), "float32")
-        B = T.match_buffer(b, (1), "float32")
-
+    def match_buffer_region(
+        A: T.Buffer((16, 16, 16), "float32"), B: T.Buffer(1, "float32")
+    ) -> None:
         for i, j in T.grid(16, 4):
             with Ts.sblock():
                 vi, vj = Ts.axis.remap("SS", [i, j])
-                C = T.match_buffer(A[0:16, vi, vj * 4 : vj * 4 + 4], (16, 1, 4))
+                C = Ts.match_buffer(A[0:16, vi, vj * 4 : vj * 4 + 4], (16, 1, 4))
                 for ii in range(4):
                     with Ts.sblock():
                         vii = Ts.axis.S(4, ii)
-                        D = T.match_buffer(C[vii * 4 : vii * 4 + 4, 0, 0:4], (4, 1, 4))
+                        D = Ts.match_buffer(C[vii * 4 : vii * 4 + 4, 0, 0:4], (4, 1, 4))
                         for i, j in T.grid(4, 4):
                             B[0] += D[i, 0, j]
 
@@ -1929,10 +1919,7 @@ def test_match_buffer_region():
 
 def block_elements():
     @Ts.prim_func
-    def block_elements(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, (16, 16), "float32")
-        B = T.match_buffer(b, (1, 1), "float32")
-
+    def block_elements(A: T.Buffer((16, 16), "float32"), B: T.Buffer((1, 1), "float32")) -> None:
         with Ts.sblock("update"):
             vi = Ts.axis.S(1, 0)
             Ts.where(True)
@@ -1940,7 +1927,7 @@ def block_elements():
             Ts.writes(B[0, 0])
             Ts.sblock_attr({"attr_key": "attr_value"})
             C = Ts.sblock_alloc_buffer((4, 4), dtype="float32")
-            D = T.match_buffer(A[0:4, 0], (4, 1))
+            D = Ts.match_buffer(A[0:4, 0], (4, 1))
             with Ts.init():
                 B[0, 0] = T.float32(0)
             B[0, 0] = A[0, 0] + B[0, 0] + C[1, 1] + D[2, 0]
@@ -1973,10 +1960,7 @@ def test_block_elements():
 
 def opaque_block():
     @Ts.prim_func
-    def opaque_block(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, (16, 16), "float32")
-        B = T.match_buffer(b, (16, 16), "float32")
-
+    def opaque_block(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")) -> None:
         for i in range(16):
             for j in range(16):
                 with Ts.sblock():
@@ -2019,8 +2003,7 @@ def test_opaque_block():
 
 def rank0():
     @Ts.prim_func
-    def rank0(a: T.handle) -> None:
-        A = T.match_buffer(a, (), "float32")
+    def rank0(A: T.Buffer((), "float32")) -> None:
         B = Ts.sblock_alloc_buffer((), "float32")
         A[()] = 2
         B[()] = A[()]
@@ -2030,8 +2013,7 @@ def rank0():
 
 def rank0_block():
     @Ts.prim_func
-    def rank0_block(a: T.handle) -> None:
-        A = T.match_buffer(a, (), "float32")
+    def rank0_block(A: T.Buffer((), "float32")) -> None:
         B = Ts.sblock_alloc_buffer((), "float32")
         B[()] = A[()]
 
@@ -2046,8 +2028,7 @@ def rank0_block():
 
 def select():
     @Ts.prim_func
-    def select(a: T.handle) -> None:
-        A = T.match_buffer(a, (), "float32")
+    def select(A: T.Buffer((), "float32")) -> None:
         A[()] = T.Select(True, 1, 2)
 
     return select
@@ -2055,8 +2036,7 @@ def select():
 
 def minmax():
     @Ts.prim_func
-    def minmax(a: T.handle) -> None:
-        A = T.match_buffer(a, (), "float32")
+    def minmax(A: T.Buffer((), "float32")) -> None:
         A[()] = T.min(1, 2)
         A[()] = T.max(1, 2)
 
@@ -2065,9 +2045,7 @@ def minmax():
 
 def abs():
     @Ts.prim_func
-    def abs(a: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128), "float32")
-
+    def abs(A: T.Buffer((128, 128), "float32")) -> None:
         for i, j in T.grid(128, 128):
             with Ts.sblock("A"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -2078,8 +2056,7 @@ def abs():
 
 def constant_folding():
     @Ts.prim_func
-    def constant_folding(a: T.handle) -> None:
-        A = T.match_buffer(a, (), "float32")
+    def constant_folding(A: T.Buffer((), "float32")) -> None:
         A[()] = T.min(2.2, 5.2)
         A[()] = T.max(T.float32(2.2), T.float32(T.float32(5.2)))
         A[()] = T.min(2.2, 5.0)
@@ -2103,8 +2080,7 @@ def simplify_bracket():
 
 def var_with_same_name():
     @Ts.prim_func
-    def var_with_same_name(a: T.handle) -> None:
-        A = T.match_buffer(a, (16, 16), "float32")
+    def var_with_same_name(A: T.Buffer((16, 16), "float32")) -> None:
         for i, j in T.grid(16, 16):
             with Ts.sblock():
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -2137,9 +2113,7 @@ def test_same_name_var():
 
 def while_loop():
     @Ts.prim_func
-    def while_loop(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def while_loop(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")) -> None:
         i = Ts.sblock_alloc_buffer((), "int32", scope="local")
         for ii in range(16):
             with Ts.sblock():
@@ -2155,11 +2129,10 @@ def while_loop():
 # fmt: off
 def primfunc_with_allocate_annotations():
     @Ts.prim_func
-    def primfunc_with_allocate_annotations(placeholder_28: T.handle, T_cast_6: T.handle) -> None:
+    def primfunc_with_allocate_annotations(placeholder_29: T.Buffer([802816], dtype='uint8', elem_offset=0, align=64, offset_factor=1), T_cast_7: T.Buffer([200704], dtype='int16', elem_offset=0, align=64, offset_factor=1)) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_max_pool2d_cast", "tirx.noalias": True})
-        placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
-        T_cast_7 = T.match_buffer(T_cast_6, [200704], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+
         # body
         tensor_2 = T.alloc_buffer((200704,), "uint8", annotations={"attr1_key": "attr1_value"})
         for ax0_ax1_fused_4 in T.serial(0, 56):
@@ -2179,10 +2152,10 @@ def primfunc_with_allocate_annotations():
 # fmt: off
 def comm_reducer_single_reduce_group():
     @Ts.prim_func
-    def comm_reducer_single_reduce_group(a: T.handle, b: T.handle) -> None:
+    def comm_reducer_single_reduce_group(A: T.Buffer([16384], dtype='float32'), b: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         threadIdx_x = T.env_thread("threadIdx.x")
-        A = T.match_buffer(a, [16384], dtype="float32")
+
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
             reduce_temp0 = T.alloc_buffer((1,), scope="local")
@@ -2191,13 +2164,12 @@ def comm_reducer_single_reduce_group():
 
     return comm_reducer_single_reduce_group
 
-
 def comm_reducer_multiple_reduce_groups():
     @Ts.prim_func
-    def comm_reducer_multiple_reduce_groups(a: T.handle, b: T.handle) -> None:
+    def comm_reducer_multiple_reduce_groups(A: T.Buffer([16384], dtype='float32'), b: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         threadIdx_x = T.env_thread("threadIdx.x")
-        A = T.match_buffer(a, [16384], dtype="float32")
+
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
             reduce_temp0 = T.alloc_buffer((1,), scope="local")
@@ -2205,7 +2177,6 @@ def comm_reducer_multiple_reduce_groups():
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[i * 128 + threadIdx_x], True, reduce_temp0.data, threadIdx_x, dtype="handle"))
 
     return comm_reducer_multiple_reduce_groups
-
 
 def multiple_commreducer():
     # normal_reduce_temp0 is treated as uninitialized value
@@ -2263,8 +2234,7 @@ def test_div_mod():
 
 def loop_extent_dependent():
     @Ts.prim_func
-    def loop_extent_dependent(a: T.handle) -> None:
-        A = T.match_buffer(a, [], dtype="int32")
+    def loop_extent_dependent(A: T.Buffer([], dtype="int32")) -> None:
         for i in T.serial(0, 128):
             for j in T.serial(0, i):
                 A[()] = A[()] + j
@@ -2274,8 +2244,7 @@ def loop_extent_dependent():
 
 def nontrivial_range_axis():
     @Ts.prim_func
-    def nontrivial_range_axis(a: T.handle) -> None:
-        A = T.match_buffer(a, (10), "float32")
+    def nontrivial_range_axis(A: T.Buffer(10, "float32")) -> None:
         for i in range(10):
             with Ts.sblock("block"):
                 vi = Ts.axis.spatial((1, 11), i + 1)
@@ -2422,11 +2391,12 @@ def parse_bufferslice_as_range_bound():
     # apparently the use of i in the "outer" block when it is defined outside of a block is wrong
     @Ts.prim_func(check_well_formed=False)
     def segment_sum(
-        A_ptr: T.handle, B_ptr: T.handle, indptr_ptr: T.handle, n: T.int32, m: T.int32
+        A: T.Buffer([m], dtype="float32"),  # noqa: F821
+        B: T.Buffer([n], dtype="float32"),  # noqa: F821
+        indptr: T.Buffer([n + 1], dtype="int32"),  # noqa: F821
+        n: T.int32,
+        m: T.int32,
     ) -> None:
-        A = T.match_buffer(A_ptr, [m], dtype="float32")
-        B = T.match_buffer(B_ptr, [n], dtype="float32")
-        indptr = T.match_buffer(indptr_ptr, [n + 1], dtype="int32")
         for i in T.serial(n):
             with Ts.sblock("outer"):
                 vi = Ts.axis.spatial(n, i)
@@ -2446,10 +2416,12 @@ def parse_bufferslice_as_range_bound():
 
 def int64_support():
     @Ts.prim_func
-    def elementwise_shape_int64(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (T.int64(128), T.int64(128)), dtype="float32")
+    def elementwise_shape_int64(
+        A: T.Buffer((T.int64(128), T.int64(128)), dtype="float32"),
+        C: T.Buffer((T.int64(128), T.int64(128)), dtype="float32"),
+    ) -> None:
         B = Ts.sblock_alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
-        C = T.match_buffer(c, (T.int64(128), T.int64(128)), dtype="float32")
+
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -2494,10 +2466,11 @@ def pointer_type():
 
 def buffer_ramp_access_as_slice_index():
     @Ts.prim_func
-    def buffer_ramp_access(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (128,), "float32")
-        B = T.match_buffer(b, (128,), "float32")
-        C = T.match_buffer(c, (128,), "float32")
+    def buffer_ramp_access(
+        A: T.Buffer((128,), "float32"),
+        B: T.Buffer((128,), "float32"),
+        C: T.Buffer((128,), "float32"),
+    ) -> None:
         for i in range(128):
             A[i : i + 1 : 1] = i
         for i in range(4):
@@ -2518,8 +2491,7 @@ def ramp_int64():
 
 def scalable_vectors():
     @Ts.prim_func
-    def func(a: T.handle):
-        A = T.match_buffer(a, (200,), "float32")
+    def func(A: T.Buffer((200,), "float32")):
         A[T.Ramp(11, 2, 4 * tirx.vscale())] = T.Broadcast(125, 4 * tirx.vscale())
 
     return func
@@ -2527,9 +2499,7 @@ def scalable_vectors():
 
 def predicated_buffer_load_store():
     @Ts.prim_func
-    def func(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (4,), "float32")
-        B = T.match_buffer(b, (8,), "float32")
+    def func(A: T.Buffer((4,), "float32"), B: T.Buffer((8,), "float32")):
         for i_0 in range(4):
             load_a = T.meta_var(
                 T.call_intrin(
@@ -2653,9 +2623,7 @@ def allocate_and_decl_buffer():
 
 def alloc_buffer_example():
     @Ts.prim_func
-    def func(a: T.handle, c: T.handle):
-        A = T.match_buffer(a, (128,), "float32")
-        C = T.match_buffer(c, (128,), "float32")
+    def func(A: T.Buffer((128,), "float32"), C: T.Buffer((128,), "float32")):
         B = T.alloc_buffer((128,), "float32")
         for i in range(128):
             B[i] = A[i] * T.float32(2)
@@ -3416,7 +3384,6 @@ show_all_relax_ty = tvm.testing.parameter(
     }
 )
 
-
 _NOT_ROUNDTRIP_STABLE: set[str] = set()
 
 
@@ -3464,8 +3431,7 @@ def test_return_none_no_trailing_type():
 
 def test_address_of_buffer():
     @Ts.prim_func
-    def func(a: T.handle):
-        A = T.match_buffer(a, (128, 128), "float32")
+    def func(A: T.Buffer((128, 128), "float32")):
         T.evaluate(T.address_of(A))
 
     assert "T.address_of(A[0, 0])" in func.script()

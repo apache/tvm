@@ -44,11 +44,13 @@ def test_mul(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        def main(
+            A: T.Buffer((m,), dtype=dtype),
+            B: T.Buffer((m,), dtype=dtype),
+            C: T.Buffer((m,), dtype=dtype),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m,), dtype=dtype)
-            B = T.match_buffer(var_B, (m,), dtype=dtype)
-            C = T.match_buffer(var_C, (m,), dtype=dtype)
+
             for i in range(m):
                 C[i] = A[i] * B[i]
 
@@ -80,11 +82,13 @@ def test_add(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        def main(
+            A: T.Buffer((m,), dtype=dtype),
+            B: T.Buffer((m,), dtype=dtype),
+            C: T.Buffer((m,), dtype=dtype),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m,), dtype=dtype)
-            B = T.match_buffer(var_B, (m,), dtype=dtype)
-            C = T.match_buffer(var_C, (m,), dtype=dtype)
+
             for i in range(m):
                 C[i] = A[i] + B[i]
 
@@ -116,11 +120,13 @@ def test_sub(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        def main(
+            A: T.Buffer((m,), dtype=dtype),
+            B: T.Buffer((m,), dtype=dtype),
+            C: T.Buffer((m,), dtype=dtype),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m,), dtype=dtype)
-            B = T.match_buffer(var_B, (m,), dtype=dtype)
-            C = T.match_buffer(var_C, (m,), dtype=dtype)
+
             for i in range(m):
                 C[i] = A[i] - B[i]
 
@@ -152,12 +158,14 @@ def test_muladd(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle, var_C: T.handle, var_D: T.handle):
+        def main(
+            A: T.Buffer((m,), dtype=dtype),
+            B: T.Buffer((m,), dtype=dtype),
+            C: T.Buffer((m,), dtype=dtype),
+            D: T.Buffer((m,), dtype=dtype),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m,), dtype=dtype)
-            B = T.match_buffer(var_B, (m,), dtype=dtype)
-            C = T.match_buffer(var_C, (m,), dtype=dtype)
-            D = T.match_buffer(var_D, (m,), dtype=dtype)
+
             for i in range(m):
                 D[i] = A[i] * B[i] + C[i]
 
@@ -199,11 +207,13 @@ def test_max(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        def main(
+            A: T.Buffer((m,), dtype=dtype),
+            B: T.Buffer((m,), dtype=dtype),
+            C: T.Buffer((m,), dtype=dtype),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m,), dtype=dtype)
-            B = T.match_buffer(var_B, (m,), dtype=dtype)
-            C = T.match_buffer(var_C, (m,), dtype=dtype)
+
             for i in range(m):
                 C[i] = T.max(A[i], B[i])
 
@@ -239,11 +249,13 @@ def test_min(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        def main(
+            A: T.Buffer((m,), dtype=dtype),
+            B: T.Buffer((m,), dtype=dtype),
+            C: T.Buffer((m,), dtype=dtype),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m,), dtype=dtype)
-            B = T.match_buffer(var_B, (m,), dtype=dtype)
-            C = T.match_buffer(var_C, (m,), dtype=dtype)
+
             for i in range(m):
                 C[i] = T.min(A[i], B[i])
 
@@ -279,11 +291,13 @@ def test_div(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        def main(
+            A: T.Buffer((m,), dtype=dtype),
+            B: T.Buffer((m,), dtype=dtype),
+            C: T.Buffer((m,), dtype=dtype),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m,), dtype=dtype)
-            B = T.match_buffer(var_B, (m,), dtype=dtype)
-            C = T.match_buffer(var_C, (m,), dtype=dtype)
+
             for i in range(m):
                 C[i] = tvm.tirx.div(A[i], B[i])
 
@@ -314,11 +328,13 @@ def test_mod(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        def main(
+            A: T.Buffer((m,), dtype=dtype),
+            B: T.Buffer((m,), dtype=dtype),
+            C: T.Buffer((m,), dtype=dtype),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m,), dtype=dtype)
-            B = T.match_buffer(var_B, (m,), dtype=dtype)
-            C = T.match_buffer(var_C, (m,), dtype=dtype)
+
             for i in range(m):
                 C[i] = T.floormod(A[i], B[i])
 
@@ -350,11 +366,13 @@ def test_eq(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        def main(
+            A: T.Buffer((m,), dtype=dtype),
+            B: T.Buffer((m,), dtype=dtype),
+            C: T.Buffer((m,), "bool"),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m,), dtype=dtype)
-            B = T.match_buffer(var_B, (m,), dtype=dtype)
-            C = T.match_buffer(var_C, (m,), "bool")
+
             for i in range(m):
                 C[i] = A[i] == B[i]
 
@@ -389,11 +407,13 @@ def test_neq(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        def main(
+            A: T.Buffer((m,), dtype=dtype),
+            B: T.Buffer((m,), dtype=dtype),
+            C: T.Buffer((m,), "bool"),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m,), dtype=dtype)
-            B = T.match_buffer(var_B, (m,), dtype=dtype)
-            C = T.match_buffer(var_C, (m,), "bool")
+
             for i in range(m):
                 C[i] = A[i] != B[i]
 
@@ -427,11 +447,13 @@ def test_or(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        def main(
+            A: T.Buffer((m,), dtype=dtype),
+            B: T.Buffer((m,), dtype=dtype),
+            C: T.Buffer((m,), dtype=dtype),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m,), dtype=dtype)
-            B = T.match_buffer(var_B, (m,), dtype=dtype)
-            C = T.match_buffer(var_C, (m,), dtype=dtype)
+
             for i in range(m):
                 C[i] = A[i] | B[i]
 
@@ -462,11 +484,13 @@ def test_and(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        def main(
+            A: T.Buffer((m,), dtype=dtype),
+            B: T.Buffer((m,), dtype=dtype),
+            C: T.Buffer((m,), dtype=dtype),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m,), dtype=dtype)
-            B = T.match_buffer(var_B, (m,), dtype=dtype)
-            C = T.match_buffer(var_C, (m,), dtype=dtype)
+
             for i in range(m):
                 C[i] = A[i] & B[i]
 
@@ -497,10 +521,9 @@ def test_not(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_C: T.handle):
+        def main(A: T.Buffer((m,), dtype=dtype), C: T.Buffer((m,), dtype=dtype)):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m,), dtype=dtype)
-            C = T.match_buffer(var_C, (m,), dtype=dtype)
+
             for i in range(m):
                 C[i] = ~A[i]
 
@@ -535,11 +558,13 @@ def test_memcpy(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        def main(
+            A: T.Buffer((m,), dtype=dtype),
+            B: T.Buffer((m,), "int32"),
+            C: T.Buffer((m,), dtype=dtype),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m,), dtype=dtype)
-            B = T.match_buffer(var_B, (m,), "int32")
-            C = T.match_buffer(var_C, (m,), dtype=dtype)
+
             for i in range(m):
                 C[i] = A[B[i]]
 
@@ -576,10 +601,9 @@ def test_vscale_range_function_attribute(mattr, expect_attr):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_C: T.handle):
+        def main(A: T.Buffer((m,)), C: T.Buffer((m,))):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (m,))
-            C = T.match_buffer(var_C, (m,))
+
             for i in range(m):
                 C[i] = A[i] + T.float32(1)
 

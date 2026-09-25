@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
 # ruff: noqa: F401
+from __future__ import annotations
+
 import pytest
 
 import tvm
@@ -28,10 +30,7 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -43,10 +42,13 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def two_kernels(var_A: T.handle, var_B: T.handle, seq_len: T.int32):
+def two_kernels(
+    A: T.Buffer((1, seq_len * 8), "int32"),  # noqa: F821
+    B: T.Buffer((1, seq_len * 8), "int32", align=8),  # noqa: F821
+    seq_len: T.int32,
+):
     T.func_attr({"tirx.noalias": True})
-    A = T.match_buffer(var_A, (1, seq_len * 8), "int32")
-    B = T.match_buffer(var_B, (1, seq_len * 8), "int32", align=8)
+
     with Ts.sblock("exclusive_scan"):
         Ts.reads()
         Ts.writes()

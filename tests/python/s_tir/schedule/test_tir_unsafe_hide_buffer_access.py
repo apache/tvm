@@ -30,12 +30,12 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def indirect_mem_access(a: T.handle, idx_a: T.handle, b: T.handle, idx_b: T.handle) -> None:
-    A = T.match_buffer(a, [128], dtype="float32")
-    IA = T.match_buffer(idx_a, [10], dtype="int32")
-    B = T.match_buffer(b, [128], dtype="float32")
-    IB = T.match_buffer(idx_b, [10], dtype="int32")
-
+def indirect_mem_access(
+    A: T.Buffer([128], dtype="float32"),
+    IA: T.Buffer([10], dtype="int32"),
+    B: T.Buffer([128], dtype="float32"),
+    IB: T.Buffer([10], dtype="int32"),
+) -> None:
     for i in range(10):
         with Ts.sblock("B"):
             vi = Ts.axis.spatial(10, i)
@@ -45,12 +45,12 @@ def indirect_mem_access(a: T.handle, idx_a: T.handle, b: T.handle, idx_b: T.hand
 
 
 @Ts.prim_func
-def indirect_mem_access_hide_ia(a: T.handle, idx_a: T.handle, b: T.handle, idx_b: T.handle) -> None:
-    A = T.match_buffer(a, [128], dtype="float32")
-    IA = T.match_buffer(idx_a, [10], dtype="int32")
-    B = T.match_buffer(b, [128], dtype="float32")
-    IB = T.match_buffer(idx_b, [10], dtype="int32")
-
+def indirect_mem_access_hide_ia(
+    A: T.Buffer([128], dtype="float32"),
+    IA: T.Buffer([10], dtype="int32"),
+    B: T.Buffer([128], dtype="float32"),
+    IB: T.Buffer([10], dtype="int32"),
+) -> None:
     for i in range(10):
         with Ts.sblock("B"):
             vi = Ts.axis.spatial(10, i)
@@ -60,12 +60,12 @@ def indirect_mem_access_hide_ia(a: T.handle, idx_a: T.handle, b: T.handle, idx_b
 
 
 @Ts.prim_func
-def indirect_mem_access_hide_ib(a: T.handle, idx_a: T.handle, b: T.handle, idx_b: T.handle) -> None:
-    A = T.match_buffer(a, [128], dtype="float32")
-    IA = T.match_buffer(idx_a, [10], dtype="int32")
-    B = T.match_buffer(b, [128], dtype="float32")
-    IB = T.match_buffer(idx_b, [10], dtype="int32")
-
+def indirect_mem_access_hide_ib(
+    A: T.Buffer([128], dtype="float32"),
+    IA: T.Buffer([10], dtype="int32"),
+    B: T.Buffer([128], dtype="float32"),
+    IB: T.Buffer([10], dtype="int32"),
+) -> None:
     for i in range(10):
         with Ts.sblock("B"):
             vi = Ts.axis.spatial(10, i)

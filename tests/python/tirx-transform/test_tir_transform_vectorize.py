@@ -140,8 +140,7 @@ def test_vectorize_with_if():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(a: T.handle, n: T.int32, x: T.int32):
-            A = T.match_buffer(a, (25,), "float32")
+        def main(A: T.Buffer((25,), "float32"), n: T.int32, x: T.int32):
             for i in T.vectorized(extent):
                 if x < n:
                     A[i] = A[i] + T.float32(1)
@@ -152,8 +151,7 @@ def test_vectorize_with_if():
     @I.ir_module
     class After:
         @T.prim_func
-        def main(a: T.handle, n: T.int32, x: T.int32):
-            A = T.match_buffer(a, (25,), "float32")
+        def main(A: T.Buffer((25,), "float32"), n: T.int32, x: T.int32):
             if x < n:
                 A[T.Ramp(0, 1, extent)] = A[T.Ramp(0, 1, extent)] + T.Broadcast(
                     T.float32(1), extent
@@ -175,8 +173,7 @@ def test_vectorize_if_scalable_extent():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(a: T.handle, n: T.int32, x: T.int32):
-            A = T.match_buffer(a, (25,), "float32")
+        def main(A: T.Buffer((25,), "float32"), n: T.int32, x: T.int32):
             for i in T.vectorized(extent):
                 if x < n:
                     A[i] = A[i] + T.float32(1)
@@ -187,8 +184,7 @@ def test_vectorize_if_scalable_extent():
     @I.ir_module
     class After:
         @T.prim_func
-        def main(a: T.handle, n: T.int32, x: T.int32):
-            A = T.match_buffer(a, (25,), "float32")
+        def main(A: T.Buffer((25,), "float32"), n: T.int32, x: T.int32):
             if x < n:
                 A[T.Ramp(0, 1, extent)] = A[T.Ramp(0, 1, extent)] + T.Broadcast(
                     T.float32(1), extent
@@ -528,9 +524,7 @@ def test_illegal_vscale_in_non_sve_compilation():
 
 def test_vectorize_and_predicate_all_buffer_loads_stores():
     @T.prim_func
-    def before(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def before(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0 in T.serial(T.ceildiv(14, 4)):
             for i_1 in T.vectorized(4):
@@ -538,9 +532,7 @@ def test_vectorize_and_predicate_all_buffer_loads_stores():
                     B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + 1.0
 
     @T.prim_func
-    def expected(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def expected(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0 in range(4):
             T.evaluate(
@@ -573,9 +565,7 @@ def test_vectorize_and_predicate_some_buffer_loads_stores():
     # Currently revert to scalarizing the block if not all accesses
     # have been predicated, otherwise incorrect code is generated.
     @T.prim_func
-    def before(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def before(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0 in T.serial(T.ceildiv(14, 4)):
             for i_1 in T.vectorized(4):
@@ -583,9 +573,7 @@ def test_vectorize_and_predicate_some_buffer_loads_stores():
                     B[i_0 * 4 + i_1] = A[i_0] + 1.0
 
     @T.prim_func
-    def expected(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def expected(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0, i_1_s in T.grid(4, 4):
             if i_0 * 4 + i_1_s < 14:
@@ -599,9 +587,7 @@ def test_vectorize_and_predicate_some_buffer_loads_stores():
 
 def test_vectorize_and_predicate_multiple_access_statements():
     @T.prim_func
-    def before(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def before(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0 in T.serial(T.ceildiv(14, 4)):
             for i_1 in T.vectorized(4):
@@ -610,9 +596,7 @@ def test_vectorize_and_predicate_multiple_access_statements():
                     B[i_0 * 4 + i_1] = 1.0
 
     @T.prim_func
-    def expected(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def expected(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0 in range(4):
             T.evaluate(
@@ -672,9 +656,7 @@ def test_vectorize_nested_predicates_preserve_both_masks():
 
 def test_vectorize_and_predicate_invalid_conditions():
     @T.prim_func
-    def before(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def before(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0 in T.serial(T.ceildiv(14, 4)):
             for i_1 in T.vectorized(4):
@@ -686,9 +668,7 @@ def test_vectorize_and_predicate_invalid_conditions():
                     A[i_0 * 4 + i_1] = 2.0
 
     @T.prim_func
-    def expected(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def expected(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0 in range(4):
             for i_1_s in range(4):
@@ -712,9 +692,7 @@ def test_vectorize_with_explicitly_disabled_buffer_level_predication():
     # by default. However, it has been explicitly disabled by the pass context
     # option, so no buffer-level predicates should be added.
     @T.prim_func
-    def before(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def before(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0 in T.serial(T.ceildiv(14, 4)):
             for i_1 in T.vectorized(4):
@@ -722,9 +700,7 @@ def test_vectorize_with_explicitly_disabled_buffer_level_predication():
                     B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + 1.0
 
     @T.prim_func
-    def expected(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def expected(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i_0, i_1_s in T.grid(4, 4):
             if i_0 * 4 + i_1_s < 14:
@@ -739,9 +715,7 @@ def test_vectorize_with_explicitly_disabled_buffer_level_predication():
 
 def test_vectorize_and_predicate_buffer_load_stores_with_sve_func_attr_target():
     @T.prim_func
-    def before(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def before(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True, "target": sve_target})
         for i_0 in T.serial(T.ceildiv(14, 4)):
             for i_1 in T.vectorized(4):
@@ -749,9 +723,7 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_func_attr_target():
                     B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + 1.0
 
     @T.prim_func
-    def expected(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def expected(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True, "target": sve_target})
         for i_0 in range(4):
             T.evaluate(
@@ -781,9 +753,7 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_func_attr_target():
 
 def test_vectorize_and_predicate_buffer_load_stores_with_sve_attr_scope_target():
     @T.prim_func
-    def before(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def before(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with T.attr(sve_target, "target", 0):
             for i_0 in T.serial(T.ceildiv(14, 4)):
@@ -792,9 +762,7 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_attr_scope_target()
                         B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + 1.0
 
     @T.prim_func
-    def expected(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def expected(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with T.attr(sve_target, "target", 0):
             for i_0 in range(4):

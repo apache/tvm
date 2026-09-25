@@ -79,7 +79,6 @@ PrimFuncFrame PrimFunc(bool is_private, bool persistent) {
   n->is_private = is_private;
   n->args.clear();
   n->ret_type = std::nullopt;
-  n->buffer_map.clear();
   n->attrs = {};
   n->env_threads.clear();
   n->persistent = persistent;
@@ -146,38 +145,6 @@ tvm::Type FuncRet(tvm::Type ret_type) {
   }
   frame->ret_type = ret_type;
   return ret_type;
-}
-
-BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType dtype,
-                      ffi::Optional<Expr> data, ffi::Array<PrimExpr> strides, PrimExpr elem_offset,
-                      ffi::String storage_scope, int align, int offset_factor,
-                      ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr) {
-  BufferVar buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
-                                offset_factor, layout, allocated_addr);
-  if (auto var = param.as<tvm::tirx::Var>()) {
-    PrimFuncFrame frame = FindPrimFuncFrame("T.match_buffer");
-    Var v = var.value();
-    for (auto const& arg : frame->args) {
-      if (arg.same_as(v)) {
-        frame->buffer_map.Set(v, buffer);
-        return buffer;
-      }
-    }
-    TVM_FFI_THROW(InternalError) << "ValueError: Can not bind non-input param to buffer.";
-  } else {
-    tvm::TensorRegion region;
-    if (auto load = param.as<TensorLoad>()) {
-      region = BufferRegionFromLoad(load.value());
-    } else if (auto view = param.as<tvm::TensorRegion>()) {
-      region = view.value();
-    } else {
-      TVM_FFI_THROW(ValueError) << "Unexpected type for MatchBuffer";
-    }
-    auto frame = IRBuilder::Current()->GetLastFrame<TIRFrame>();
-    TVM_FFI_CHECK(frame.has_value(), ValueError) << "match_buffer requires a statement frame";
-    frame.value()->BindBufferRegion(buffer, region);
-  }
-  return buffer;
 }
 
 void TilePrimitiveCall(tvm::tirx::TilePrimitiveCall op_call) { AddToParent(op_call); }
@@ -749,7 +716,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.FuncName", FuncName)
       .def("script.ir_builder.tirx.FuncAttrs", FuncAttrs)
       .def("script.ir_builder.tirx.FuncRet", FuncRet)
-      .def("script.ir_builder.tirx.MatchBuffer", MatchBuffer)
       .def("script.ir_builder.tirx.TilePrimitiveCall", TilePrimitiveCall)
       .def("script.ir_builder.tirx.ClusterId",
            [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent, PrimType dtype) {

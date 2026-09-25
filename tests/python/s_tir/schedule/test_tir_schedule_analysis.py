@@ -403,10 +403,11 @@ def test_get_auto_tensorize_mapping_info_matmul(n, m, k, expected):
 
 def test_is_output_block():
     @Ts.prim_func
-    def two_elementwise(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128), "float32")
+    def two_elementwise(
+        A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+    ) -> None:
         B = Ts.sblock_alloc_buffer((128, 128), "float32")
-        C = T.match_buffer(c, (128, 128), "float32")
+
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])

@@ -16,6 +16,7 @@
 # under the License.
 # ruff: noqa: E501, F841
 
+from __future__ import annotations
 
 import tvm
 import tvm.testing
@@ -1382,21 +1383,31 @@ def test_symbolic_prim_arg_after_tensor_arg():
 
     @I.ir_module
     class Before:
+        add_one_n = T.int64()
+
         @Ts.prim_func(private=True)
-        def add_one(x_handle: T.handle, n: T.int64, out_handle: T.handle):
+        def add_one(
+            x: T.Buffer((T.int64(1), add_one_n), "float32"),
+            n: add_one_n,
+            out: T.Buffer((T.int64(1), add_one_n), "float32"),
+        ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-            x = T.match_buffer(x_handle, (T.int64(1), n), "float32")
-            out = T.match_buffer(out_handle, (T.int64(1), n), "float32")
+
             for i in range(n):
                 with Ts.sblock("add_one"):
                     vi = Ts.axis.spatial(n, i)
                     out[0, vi] = x[0, vi] + T.float32(1)
 
+        exp_n = T.int64()
+
         @Ts.prim_func(private=True)
-        def exp(x_handle: T.handle, n: T.int64, out_handle: T.handle):
+        def exp(
+            x: T.Buffer((T.int64(1), exp_n), "float32"),
+            n: exp_n,
+            out: T.Buffer((T.int64(1), exp_n), "float32"),
+        ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-            x = T.match_buffer(x_handle, (T.int64(1), n), "float32")
-            out = T.match_buffer(out_handle, (T.int64(1), n), "float32")
+
             for i in range(n):
                 with Ts.sblock("exp"):
                     vi = Ts.axis.spatial(n, i)
@@ -1449,21 +1460,31 @@ def test_symbolic_prim_arg_before_tensor_arg():
 
     @I.ir_module
     class Before:
+        add_one_n = T.int64()
+
         @Ts.prim_func(private=True)
-        def add_one(n: T.int64, x_handle: T.handle, out_handle: T.handle):
+        def add_one(
+            n: add_one_n,
+            x: T.Buffer((T.int64(1), add_one_n), "float32"),
+            out: T.Buffer((T.int64(1), add_one_n), "float32"),
+        ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-            x = T.match_buffer(x_handle, (T.int64(1), n), "float32")
-            out = T.match_buffer(out_handle, (T.int64(1), n), "float32")
+
             for i in range(n):
                 with Ts.sblock("add_one"):
                     vi = Ts.axis.spatial(n, i)
                     out[0, vi] = x[0, vi] + T.float32(1)
 
+        exp_n = T.int64()
+
         @Ts.prim_func(private=True)
-        def exp(n: T.int64, x_handle: T.handle, out_handle: T.handle):
+        def exp(
+            n: exp_n,
+            x: T.Buffer((T.int64(1), exp_n), "float32"),
+            out: T.Buffer((T.int64(1), exp_n), "float32"),
+        ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-            x = T.match_buffer(x_handle, (T.int64(1), n), "float32")
-            out = T.match_buffer(out_handle, (T.int64(1), n), "float32")
+
             for i in range(n):
                 with Ts.sblock("exp"):
                     vi = Ts.axis.spatial(n, i)
@@ -1516,37 +1537,35 @@ def test_symbolic_prim_arg_reused_from_derived_tensor_shape():
 
     @I.ir_module
     class Before:
+        add_one_n = T.int64()
+
         @Ts.prim_func(private=True)
-        def add_one(x_handle: T.handle, n: T.int64, out_handle: T.handle):
+        def add_one(
+            x: T.Buffer(
+                (T.int64(1), (add_one_n - T.int64(1)) // T.int64(4) + T.int64(1)), "float32"
+            ),
+            n: add_one_n,
+            out: T.Buffer(
+                (T.int64(1), (add_one_n - T.int64(1)) // T.int64(4) + T.int64(1)), "float32"
+            ),
+        ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-            x = T.match_buffer(
-                x_handle,
-                (T.int64(1), (n - T.int64(1)) // T.int64(4) + T.int64(1)),
-                "float32",
-            )
-            out = T.match_buffer(
-                out_handle,
-                (T.int64(1), (n - T.int64(1)) // T.int64(4) + T.int64(1)),
-                "float32",
-            )
+
             for i in range((n - T.int64(1)) // T.int64(4) + T.int64(1)):
                 with Ts.sblock("add_one"):
                     vi = Ts.axis.spatial((n - T.int64(1)) // T.int64(4) + T.int64(1), i)
                     out[0, vi] = x[0, vi] + T.float32(1)
 
+        exp_n = T.int64()
+
         @Ts.prim_func(private=True)
-        def exp(x_handle: T.handle, n: T.int64, out_handle: T.handle):
+        def exp(
+            x: T.Buffer((T.int64(1), (exp_n - T.int64(1)) // T.int64(4) + T.int64(1)), "float32"),
+            n: exp_n,
+            out: T.Buffer((T.int64(1), (exp_n - T.int64(1)) // T.int64(4) + T.int64(1)), "float32"),
+        ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-            x = T.match_buffer(
-                x_handle,
-                (T.int64(1), (n - T.int64(1)) // T.int64(4) + T.int64(1)),
-                "float32",
-            )
-            out = T.match_buffer(
-                out_handle,
-                (T.int64(1), (n - T.int64(1)) // T.int64(4) + T.int64(1)),
-                "float32",
-            )
+
             for i in range((n - T.int64(1)) // T.int64(4) + T.int64(1)):
                 with Ts.sblock("exp"):
                     vi = Ts.axis.spatial((n - T.int64(1)) // T.int64(4) + T.int64(1), i)
@@ -1599,21 +1618,33 @@ def test_symbolic_prim_arg_not_bound_by_derived_tensor_shape():
 
     @I.ir_module
     class Before:
+        add_one_n = T.int64()
+
         @Ts.prim_func(private=True)
-        def add_one(x_handle: T.handle, n: T.int64, m: T.int64, out_handle: T.handle):
+        def add_one(
+            x: T.Buffer((T.int64(1), add_one_n + T.int64(1)), "float32"),
+            n: add_one_n,
+            m: T.int64,
+            out: T.Buffer((T.int64(1), add_one_n + T.int64(1)), "float32"),
+        ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-            x = T.match_buffer(x_handle, (T.int64(1), n + T.int64(1)), "float32")
-            out = T.match_buffer(out_handle, (T.int64(1), n + T.int64(1)), "float32")
+
             for i in range(n + T.int64(1)):
                 with Ts.sblock("add_one"):
                     vi = Ts.axis.spatial(n + T.int64(1), i)
                     out[0, vi] = x[0, vi] + T.float32(1)
 
+        exp_n = T.int64()
+
         @Ts.prim_func(private=True)
-        def exp(x_handle: T.handle, n: T.int64, m: T.int64, out_handle: T.handle):
+        def exp(
+            x: T.Buffer((T.int64(1), exp_n + T.int64(1)), "float32"),
+            n: exp_n,
+            m: T.int64,
+            out: T.Buffer((T.int64(1), exp_n + T.int64(1)), "float32"),
+        ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-            x = T.match_buffer(x_handle, (T.int64(1), n + T.int64(1)), "float32")
-            out = T.match_buffer(out_handle, (T.int64(1), n + T.int64(1)), "float32")
+
             for i in range(n + T.int64(1)):
                 with Ts.sblock("exp"):
                     vi = Ts.axis.spatial(n + T.int64(1), i)
@@ -1656,20 +1687,22 @@ def test_primitive_call_arg_not_inlined():
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
-        def add_scalar(x_handle: T.handle, value: T.int64, out_handle: T.handle):
+        def add_scalar(
+            x: T.Buffer((T.int64(4),), "int64"),
+            value: T.int64,
+            out: T.Buffer((T.int64(4),), "int64"),
+        ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-            x = T.match_buffer(x_handle, (T.int64(4),), "int64")
-            out = T.match_buffer(out_handle, (T.int64(4),), "int64")
+
             for i in range(4):
                 with Ts.sblock("add_scalar"):
                     vi = Ts.axis.spatial(4, i)
                     out[vi] = x[vi] + value
 
         @Ts.prim_func(private=True)
-        def double(x_handle: T.handle, out_handle: T.handle):
+        def double(x: T.Buffer((T.int64(4),), "int64"), out: T.Buffer((T.int64(4),), "int64")):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-            x = T.match_buffer(x_handle, (T.int64(4),), "int64")
-            out = T.match_buffer(out_handle, (T.int64(4),), "int64")
+
             for i in range(4):
                 with Ts.sblock("double"):
                     vi = Ts.axis.spatial(4, i)
@@ -1719,19 +1752,18 @@ def test_primitive_call_arg_used_by_output_shape_not_inlined():
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
-        def make(n: T.int64, out_handle: T.handle):
+        def make(n: T.int64, out: T.Buffer((n,), "float32")):  # noqa: F821
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-            out = T.match_buffer(out_handle, (n,), "float32")
+
             for i in range(n):
                 with Ts.sblock("make"):
                     vi = Ts.axis.spatial(n, i)
                     out[vi] = T.float32(1)
 
         @Ts.prim_func(private=True)
-        def double(x_handle: T.handle, n: T.int64, out_handle: T.handle):
+        def double(x: T.Buffer((n,), "float32"), n: T.int64, out: T.Buffer((n,), "float32")):  # noqa: F821
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-            x = T.match_buffer(x_handle, (n,), "float32")
-            out = T.match_buffer(out_handle, (n,), "float32")
+
             for i in range(n):
                 with Ts.sblock("double"):
                     vi = Ts.axis.spatial(n, i)
@@ -1793,20 +1825,25 @@ def test_symbolic_prim_arg_used_only_by_output_shape():
 
     @I.ir_module
     class Before:
+        make_n = T.int64()
+
         @Ts.prim_func(private=True)
-        def make(n: T.int64, out_handle: T.handle):
+        def make(n: make_n, out: T.Buffer((make_n,), "float32")):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-            out = T.match_buffer(out_handle, (n,), "float32")
+
             for i in range(n):
                 with Ts.sblock("make"):
                     vi = Ts.axis.spatial(n, i)
                     out[vi] = T.float32(1)
 
+        double_n = T.int64()
+
         @Ts.prim_func(private=True)
-        def double(x_handle: T.handle, n: T.int64, out_handle: T.handle):
+        def double(
+            x: T.Buffer((double_n,), "float32"), n: double_n, out: T.Buffer((double_n,), "float32")
+        ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-            x = T.match_buffer(x_handle, (n,), "float32")
-            out = T.match_buffer(out_handle, (n,), "float32")
+
             for i in range(n):
                 with Ts.sblock("double"):
                     vi = Ts.axis.spatial(n, i)

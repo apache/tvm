@@ -27,26 +27,27 @@ with one block of 256 threads.
     import tvm
     from tvm.script import tirx as Tx
 
-    @Tx.prim_func
-    def scale(A_ptr: Tx.handle, B_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, (256,), "float32")
-        B = Tx.match_buffer(B_ptr, (256,), "float32")
 
-        Tx.device_entry()                 # everything below runs on the device
-        bx = Tx.cta_id([1])               # 1 block  (blockIdx)
-        tx = Tx.thread_id([256])          # 256 threads per block (threadIdx)
+    @Tx.prim_func
+    def scale(A: Tx.Buffer((256,), "float32"), B: Tx.Buffer((256,), "float32")):
+
+        Tx.device_entry()  # everything below runs on the device
+        bx = Tx.cta_id([1])  # 1 block  (blockIdx)
+        tx = Tx.thread_id([256])  # 256 threads per block (threadIdx)
 
         B[tx] = A[tx] * Tx.float32(2.0)
 
+
     # compile for CUDA through the TIRx pipeline -> an Executable
-    exe = tvm.compile(tvm.IRModule({"main": scale}),
-                      target=tvm.target.Target("cuda"), tir_pipeline="tirx")
+    exe = tvm.compile(
+        tvm.IRModule({"main": scale}), target=tvm.target.Target("cuda"), tir_pipeline="tirx"
+    )
 
     dev = tvm.cuda(0)
     a = tvm.runtime.tensor(np.random.rand(256).astype("float32"), device=dev)
     b = tvm.runtime.tensor(np.zeros(256, "float32"), device=dev)
-    exe(a, b)                            # run
-    print(exe.mod.imports[0].inspect_source())   # the generated CUDA C
+    exe(a, b)  # run
+    print(exe.mod.imports[0].inspect_source())  # the generated CUDA C
 
 What the surrounding calls do:
 

@@ -114,10 +114,8 @@ def test_rocm_vectorize_add():
 def test_rocm_warp_shuffle():
     @T.prim_func
     def func(
-        A_handle: T.handle,
+        A: T.Buffer((32,), dtype="float32"),
     ):
-        A = T.match_buffer(A_handle, (32,), dtype="float32")
-
         for bx in T.thread_binding(1, thread="blockIdx.x"):
             for tx in T.thread_binding(32, thread="threadIdx.x"):
                 A_local = T.alloc_buffer((1,), "float32", scope="local")
@@ -143,12 +141,9 @@ def test_rocm_warp_shuffle():
 def test_rocm_vectorized_exp():
     @T.prim_func
     def func(
-        A_handle: T.handle,
-        B_handle: T.handle,
+        A: T.Buffer((4,), dtype="float32"),
+        B: T.Buffer((4,), dtype="float32"),
     ):
-        A = T.match_buffer(A_handle, (4,), dtype="float32")
-        B = T.match_buffer(B_handle, (4,), dtype="float32")
-
         for bx in T.thread_binding(1, thread="blockIdx.x"):
             for tx in T.thread_binding(1, thread="threadIdx.x"):
                 for i in T.vectorized(0, 4):

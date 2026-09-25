@@ -130,9 +130,7 @@ def test_kernel_replace_point_is_builtin_marker_not_tile_primitive():
 
 def test_tile_shorthand_and_scoped_aliases_use_tile_ops():
     @T.prim_func(check_well_formed=False)
-    def tile_aliases(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (16,), "float32")
-        B = T.match_buffer(b, (16,), "float32")
+    def tile_aliases(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         T.tile.copy(A[0:16], B[0:16])
         Tx.cast(A[0:16], B[0:16])
         T.cta.cast(A[0:16], B[0:16])
@@ -291,8 +289,7 @@ def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
 
 def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
     @T.prim_func
-    def device_namespaces(dst: T.handle, src: T.handle):
-        A = T.match_buffer(src, (1,), "float32")
+    def device_namespaces(dst: T.handle, A: T.Buffer((1,), "float32")):
         Result = T.alloc_buffer((1,), "float32", scope="local")
         T.cuda.cta_sync()
         T.s_tir.ldg32(Result[0], 1, A[0], 0)

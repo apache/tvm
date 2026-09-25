@@ -77,9 +77,7 @@ def _build_round_trip_kernel(scope, n_threads, shape, dtype):
     if scope == "warp":
 
         @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, shape, dtype)
-            B = T.match_buffer(B_ptr, shape, dtype)
+        def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
             T.lane_id([32])
@@ -92,9 +90,7 @@ def _build_round_trip_kernel(scope, n_threads, shape, dtype):
     elif scope == "warpgroup":
 
         @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, shape, dtype)
-            B = T.match_buffer(B_ptr, shape, dtype)
+        def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
             T.warpgroup_id([n_threads // 128])
@@ -110,9 +106,7 @@ def _build_round_trip_kernel(scope, n_threads, shape, dtype):
     elif scope == "cta":
 
         @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, shape, dtype)
-            B = T.match_buffer(B_ptr, shape, dtype)
+        def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
             T.warp_id([n_threads // 32])
@@ -178,9 +172,7 @@ def test_fallback_thread_scope():
     full = tuple(slice(0, d) for d in shape)
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, dtype)
-        B = T.match_buffer(B_ptr, shape, dtype)
+    def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
@@ -218,9 +210,7 @@ def test_fallback_emits_gate():
     full = tuple(slice(0, d) for d in shape)
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, dtype)
-        B = T.match_buffer(B_ptr, shape, dtype)
+    def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
         T.device_entry()
         T.cta_id([1])
         T.warp_id([8])  # 256 threads => 8 warps

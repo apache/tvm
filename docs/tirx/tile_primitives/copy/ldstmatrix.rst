@@ -105,21 +105,25 @@ register, from ``test_ld_stmatrix.py`` (register layout = the m8n8 fragment,
 
     from tvm.tirx.layout import S, TileLayout, laneid
 
-    num = 2; M, N = 8, num * 8
+    num = 2
+    M, N = 8, num * 8
     r_layout = TileLayout(S[(8, 4, num, 2) : (4 @ laneid, 1 @ laneid, 2, 1)])
-    s_layout = TileLayout(S[(8, 4, num, 2) : (num * 8, 2, 8, 1)])     # row-major
+    s_layout = TileLayout(S[(8, 4, num, 2) : (num * 8, 2, 8, 1)])  # row-major
     full = (slice(0, 8), slice(0, 4), slice(0, num), slice(0, 2))
 
+
     @Tx.prim_func
-    def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, (M, N), "float16")
-        B = Tx.match_buffer(B_ptr, (M, N), "float16")
-        Tx.device_entry(); Tx.cta_id([1]); Tx.lane_id([32]); tid = Tx.thread_id([32])
+    def kernel(A: Tx.Buffer((M, N), "float16"), B: Tx.Buffer((M, N), "float16")):
+
+        Tx.device_entry()
+        Tx.cta_id([1])
+        Tx.lane_id([32])
+        tid = Tx.thread_id([32])
         A_smem = Tx.alloc_buffer((8, 4, num, 2), "float16", scope="shared", layout=s_layout)
         # ... stage A into A_smem (row = tid//4, cp = tid%4) ...
         Tx.cuda.cta_sync()
         R = Tx.alloc_buffer((8, 4, num, 2), "float16", scope="local", layout=r_layout)
-        Tx.tile.warp.copy(R[full], A_smem[full])     # shared -> register  (ldmatrix)
+        Tx.tile.warp.copy(R[full], A_smem[full])  # shared -> register  (ldmatrix)
         # ... write R back out to B ...
 
 Algorithm

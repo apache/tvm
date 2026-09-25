@@ -34,13 +34,8 @@ from tvm.target import Target
 @tvm.script.ir_module
 class Conv2DBiasBnReLU:
     @Ts.prim_func
-    def main(var_X: T.handle, var_W: T.handle, var_B: T.handle, var_bn_scale: T.handle, var_bn_offset: T.handle, var_compute: T.handle) -> None:
-        X = T.match_buffer(var_X, [1, 512, 56, 56], dtype="float32")
-        W = T.match_buffer(var_W, [512, 512, 3, 3], dtype="float32")
-        B = T.match_buffer(var_B, [512, 1, 1], dtype="float32")
-        bn_scale = T.match_buffer(var_bn_scale, [512, 1, 1], dtype="float32")
-        bn_offset = T.match_buffer(var_bn_offset, [512, 1, 1], dtype="float32")
-        compute = T.match_buffer(var_compute, [1, 512, 56, 56], dtype="float32")
+    def main(X: T.Buffer([1, 512, 56, 56], dtype='float32'), W: T.Buffer([512, 512, 3, 3], dtype='float32'), B: T.Buffer([512, 1, 1], dtype='float32'), bn_scale: T.Buffer([512, 1, 1], dtype='float32'), bn_offset: T.Buffer([512, 1, 1], dtype='float32'), compute: T.Buffer([1, 512, 56, 56], dtype='float32')) -> None:
+
         pad_temp = Ts.sblock_alloc_buffer([1, 512, 58, 58], dtype="float32")
         compute_1 = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
         bias_add = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
@@ -73,17 +68,11 @@ class Conv2DBiasBnReLU:
                 i0_2, i1_2, i2_2, i3_2 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 compute[i0_2, i1_2, i2_2, i3_2] = T.max(bn_add[i0_2, i1_2, i2_2, i3_2], T.float32(0))
 
-
 @tvm.script.ir_module
 class Conv2DBiasBnReLUInlined:
     @Ts.prim_func
-    def main(var_X: T.handle, var_W: T.handle, var_B: T.handle, var_bn_scale: T.handle, var_bn_offset: T.handle, var_compute: T.handle) -> None:
-        X = T.match_buffer(var_X, [1, 512, 56, 56], dtype="float32")
-        W = T.match_buffer(var_W, [512, 512, 3, 3], dtype="float32")
-        B = T.match_buffer(var_B, [512, 1, 1], dtype="float32")
-        bn_scale = T.match_buffer(var_bn_scale, [512, 1, 1], dtype="float32")
-        bn_offset = T.match_buffer(var_bn_offset, [512, 1, 1], dtype="float32")
-        compute = T.match_buffer(var_compute, [1, 512, 56, 56], dtype="float32")
+    def main(X: T.Buffer([1, 512, 56, 56], dtype='float32'), W: T.Buffer([512, 512, 3, 3], dtype='float32'), B: T.Buffer([512, 1, 1], dtype='float32'), bn_scale: T.Buffer([512, 1, 1], dtype='float32'), bn_offset: T.Buffer([512, 1, 1], dtype='float32'), compute: T.Buffer([1, 512, 56, 56], dtype='float32')) -> None:
+
         pad_temp = Ts.sblock_alloc_buffer([1, 512, 58, 58], dtype="float32")
         compute_1 = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
         for i0, i1, i2, i3 in T.grid(1, 512, 58, 58):
@@ -101,17 +90,11 @@ class Conv2DBiasBnReLUInlined:
                 i0_2, i1_2, i2_2, i3_2 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 compute[i0_2, i1_2, i2_2, i3_2] = T.max((compute_1[i0_2, i1_2, i2_2, i3_2] + B[i1_2, 0, 0]) * bn_scale[i1_2, 0, 0] + bn_offset[i1_2, 0, 0], T.float32(0))
 
-
 @tvm.script.ir_module
 class MultiLevelTiledConv2D:
     @Ts.prim_func
-    def main(var_X: T.handle, var_W: T.handle, var_B: T.handle, var_bn_scale: T.handle, var_bn_offset: T.handle, var_compute: T.handle) -> None:
-        X = T.match_buffer(var_X, [1, 512, 56, 56], dtype="float32")
-        W = T.match_buffer(var_W, [512, 512, 3, 3], dtype="float32")
-        B = T.match_buffer(var_B, [512, 1, 1], dtype="float32")
-        bn_scale = T.match_buffer(var_bn_scale, [512, 1, 1], dtype="float32")
-        bn_offset = T.match_buffer(var_bn_offset, [512, 1, 1], dtype="float32")
-        compute = T.match_buffer(var_compute, [1, 512, 56, 56], dtype="float32")
+    def main(X: T.Buffer([1, 512, 56, 56], dtype='float32'), W: T.Buffer([512, 512, 3, 3], dtype='float32'), B: T.Buffer([512, 1, 1], dtype='float32'), bn_scale: T.Buffer([512, 1, 1], dtype='float32'), bn_offset: T.Buffer([512, 1, 1], dtype='float32'), compute: T.Buffer([1, 512, 56, 56], dtype='float32')) -> None:
+
         pad_temp = Ts.sblock_alloc_buffer([1, 512, 58, 58], dtype="float32")
         compute_1 = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
         compute_local = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32", scope="local")
@@ -164,7 +147,6 @@ class MultiLevelTiledConv2D:
                 i0_2, i1_2, i2_2, i3_2 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 compute[i0_2, i1_2, i2_2, i3_2] = T.max((compute_1[i0_2, i1_2, i2_2, i3_2] + B[i1_2, 0, 0]) * bn_scale[i1_2, 0, 0] + bn_offset[i1_2, 0, 0], T.float32(0))
 
-
 @tvm.script.ir_module
 class MultiLevelTiledConv2DAfterInline:
     @Ts.prim_func
@@ -191,7 +173,6 @@ class MultiLevelTiledConv2DAfterInline:
                             v2 = Ts.axis.spatial(56, i0_0_i1_0_i2_0_i3_0_fused % 14 // 2 * 8 + i0_1_i1_1_i2_1_i3_1_fused * 4 + i0_2_i1_2_i2_2_i3_2_fused % 2 * 2 + ax2)
                             v3 = Ts.axis.spatial(56, i0_0_i1_0_i2_0_i3_0_fused % 2 * 28 + ax3)
                             compute[v0, v1, v2, v3] = T.max((compute_local[v0, v1, v2, v3] + B[v1, 0, 0]) * bn_scale[v1, 0, 0] + bn_offset[v1, 0, 0], T.float32(0))
-
 
 @tvm.script.ir_module
 class SoftmaxBeforeInline:
@@ -221,7 +202,6 @@ class SoftmaxBeforeInline:
                 i0_6, i1_2 = Ts.axis.remap("SS", [i0_5, i1])
                 T_softmax_norm[i0_6, i1_2] = T_softmax_exp[i0_6, i1_2] / T_softmax_expsum[i0_6]
 
-
 @tvm.script.ir_module
 class SoftmaxAfterInline:
     @Ts.prim_func
@@ -244,7 +224,6 @@ class SoftmaxAfterInline:
             with Ts.sblock("T_softmax_norm"):
                 i0_4, i1_1 = Ts.axis.remap("SS", [i0_3, i1])
                 T_softmax_norm[i0_4, i1_1] = T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4], dtype="float32") / T_softmax_expsum[i0_4]
-
 
 @tvm.script.ir_module
 class BeforePureSpatial:
@@ -310,7 +289,6 @@ class BeforePureSpatial:
                 Ts.writes(T_add[ax0, ax1, ax2])
                 T_add[ax0, ax1, ax2] = T_take[ax0, ax1, ax2] + placeholder_2[ax0, ax1, ax2]
 
-
 @tvm.script.ir_module
 class AfterPureSpatial:
     @Ts.prim_func
@@ -340,7 +318,6 @@ class ConstConsumer:
                 Ts.reads()
                 Ts.writes(T_full[ax0, ax1, ax2])
                 T_full[ax0, ax1, ax2] = T.int64(0)
-
 
 @tvm.script.ir_module
 class Conv2dInt8:
@@ -434,7 +411,6 @@ class Conv2dInt8:
                 Ts.reads(T_add_2[i0_11, i1_11, i2_11, i3_11])
                 Ts.writes(compute[i0_11, i1_11, i2_11, i3_11])
                 compute[i0_11, i1_11, i2_11, i3_11] = T.max(T.min(T_add_2[i0_11, i1_11, i2_11, i3_11], 255), 0)
-
 
 # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on

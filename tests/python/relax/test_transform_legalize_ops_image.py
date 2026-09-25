@@ -93,10 +93,9 @@ def test_image_resize2d_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def resize2d(var_rxplaceholder: T.handle, var_resize: T.handle):
+        def resize2d(rxplaceholder: T.Buffer([n_resize2d, c_resize2d, h_resize2d, w_resize2d, T.int64(16)], dtype='float32'), resize: T.Buffer([n_resize2d, c_resize2d, oh_resize2d, ow_resize2d, T.int64(16)], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [n_resize2d, c_resize2d, h_resize2d, w_resize2d, T.int64(16)], dtype="float32")
-            resize = T.match_buffer(var_resize, [n_resize2d, c_resize2d, oh_resize2d, ow_resize2d, T.int64(16)], dtype="float32")
+
             for i0, i1, i2, i3, i4 in T.grid(n_resize2d, c_resize2d, oh_resize2d, ow_resize2d, T.int64(16)):
                 with Ts.sblock("resize"):
                     i0_1, i1_1, i2_1, i3_1, i4_1 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -126,10 +125,9 @@ def test_image_affine_grid():
             return gv
 
         @Ts.prim_func(private=True)
-        def affine_grid(var_theta: T.handle, var_compute: T.handle):
+        def affine_grid(theta: T.Buffer((T.int64(2), T.int64(2), T.int64(3))), compute: T.Buffer((T.int64(2), T.int64(2), T.int64(16), T.int64(16)))):
             T.func_attr({"tirx.noalias": True})
-            theta = T.match_buffer(var_theta, (T.int64(2), T.int64(2), T.int64(3)))
-            compute = T.match_buffer(var_compute, (T.int64(2), T.int64(2), T.int64(16), T.int64(16)))
+
             with Ts.sblock("root"):
                 Ts.reads()
                 Ts.writes()

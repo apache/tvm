@@ -16,7 +16,6 @@
 # under the License.
 # ruff: noqa: F841
 
-
 import numpy as np
 import pytest
 import torch
@@ -180,10 +179,10 @@ def test_alias_call_tir():
     @I.ir_module
     class AliasCallTir:
         @Ts.prim_func
-        def tir_id(x: T.handle, y: T.handle) -> None:
+        def tir_id(
+            A: T.Buffer((m_tir_id, n_tir_id), "int32"), B: T.Buffer((m_tir_id, n_tir_id), "int32")
+        ) -> None:
             T.func_attr({"global_symbol": "tir_id"})
-            A = T.match_buffer(x, (m_tir_id, n_tir_id), "int32")
-            B = T.match_buffer(y, (m_tir_id, n_tir_id), "int32")
 
             for i, j in T.grid(m_tir_id, n_tir_id):
                 with Ts.sblock("id"):
@@ -191,11 +190,12 @@ def test_alias_call_tir():
                     B[vi, vj] = A[vi, vj]
 
         @Ts.prim_func
-        def tir_id2(x: T.handle, y: T.handle, z: T.handle) -> None:
+        def tir_id2(
+            A: T.Buffer((m_tir_id2, n_tir_id2), "int32"),
+            B: T.Buffer((m_tir_id2, n_tir_id2), "int32"),
+            C: T.Buffer((m_tir_id2, n_tir_id2), "int32"),
+        ) -> None:
             T.func_attr({"global_symbol": "tir_id"})
-            A = T.match_buffer(x, (m_tir_id2, n_tir_id2), "int32")
-            B = T.match_buffer(y, (m_tir_id2, n_tir_id2), "int32")
-            C = T.match_buffer(z, (m_tir_id2, n_tir_id2), "int32")
 
             for i, j in T.grid(m_tir_id2, n_tir_id2):
                 with Ts.sblock("id"):
@@ -577,10 +577,11 @@ def test_dynamic():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def add_inplace(var_A: T.handle, var_B: T.handle):
+        def add_inplace(
+            A: T.Buffer((a_add_inplace, b_add_inplace)), B: T.Buffer((a_add_inplace, b_add_inplace))
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (a_add_inplace, b_add_inplace))
-            B = T.match_buffer(var_B, (a_add_inplace, b_add_inplace))
+
             for ax0, ax1 in T.grid(a_add_inplace, b_add_inplace):
                 with Ts.sblock("T_add"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -589,10 +590,12 @@ def test_dynamic():
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
         @Ts.prim_func(private=True)
-        def subtract_inplace(var_A: T.handle, var_B: T.handle):
+        def subtract_inplace(
+            A: T.Buffer((a_subtract_inplace, b_subtract_inplace)),
+            B: T.Buffer((a_subtract_inplace, b_subtract_inplace)),
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (a_subtract_inplace, b_subtract_inplace))
-            B = T.match_buffer(var_B, (a_subtract_inplace, b_subtract_inplace))
+
             for ax0, ax1 in T.grid(a_subtract_inplace, b_subtract_inplace):
                 with Ts.sblock("T_subtract"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])

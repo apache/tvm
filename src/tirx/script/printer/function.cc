@@ -77,13 +77,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         args.reserve(n_args);
         std::unordered_map<const tirx::VarNode*, ExprDoc> scalar_param_docs;
         // Define scalar docs up front so a preceding Buffer parameter can render
-        // a reference to a later scalar parameter.  `bound_signature_vars`
-        // separately tracks Python bindings in source order.
-        std::unordered_set<tirx::Var> bound_signature_vars;
+        // a reference to a later scalar parameter. Reserve their names for the
+        // whole script so later hoisted symbols cannot capture these annotations.
         bool has_dependent_annotations = false;
         for (const tirx::Var& param : func->params) {
           if (!param->ty.as<tirx::BufferTypeNode>()) {
-            scalar_param_docs.emplace(param.get(), DefineVar(param, *f, d));
+            scalar_param_docs.emplace(param.get(), DefineVar(param, d->frames.front(), d));
           }
         }
         for (int i = 0; i < n_args; ++i) {
@@ -91,18 +90,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           AccessPath var_p = p->Attr("params")->ArrayItem(i);
           if (var->ty.as<tirx::BufferTypeNode>()) {
             tirx::BufferVar buffer(var);
-            // Layout expressions have no expression-string syntax.
-            // Materialize a dependent buffer after its parameters
-            // are bound, using the existing handle/match_buffer form.
-            bool needs_body_declaration = false;
             auto check_annotation_var =
                 [&](const tirx::Var& annotation_var) -> ffi::Expected<ffi::WalkResult> {
               has_dependent_annotations =
                   has_dependent_annotations || runtime_params.count(annotation_var.get());
-              if (!bound_signature_vars.count(annotation_var) &&
-                  !type_vars.count(annotation_var.get())) {
-                needs_body_declaration = true;
-              }
               return ffi::WalkResult::Advance();
             };
             if (buffer->layout.has_value() &&
@@ -121,16 +112,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             for (const PrimExpr& address : buffer->allocated_addr) {
               ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(address, check_annotation_var);
             }
-            if (needs_body_declaration) {
-              tirx::Var handle(var->name + "_handle", PointerType::VoidPointerTy());
-              ExprDoc handle_doc = DefineVar(handle, *f, d);
-              args.push_back(AssignDoc(handle_doc, std::nullopt, TIR(d, "handle")));
-              IdDoc lhs = DefineBuffer(buffer, *f, d);
-              ExprDoc rhs = BufferDecl(buffer, "match_buffer", {handle_doc}, var_p->Attr("ty"), *f,
-                                       d, BufferVarDefinition::MatchBuffer);
-              (*f)->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
-              continue;
-            }
             IdDoc lhs = DefineBuffer(buffer, *f, d);
             ExprDoc annotation = BufferAttn(buffer, var_p->Attr("ty"), *f, d);
             args.push_back(AssignDoc(lhs, std::nullopt, annotation));
@@ -138,7 +119,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           }
           ExprDoc a = d->AsDoc<ExprDoc>(var->ty, var_p->Attr("ty"));
           args.push_back(AssignDoc(scalar_param_docs.at(var.get()), std::nullopt, a));
-          bound_signature_vars.insert(var);
         }
         if (has_dependent_annotations) {
           d->ir_usage.insert("future_annotations");

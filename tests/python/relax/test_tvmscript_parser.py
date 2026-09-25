@@ -1027,10 +1027,14 @@ def test_call_tir_with_tir_var():
             y = R.call_tir(cls.copy, (x, n), R.Tensor((n * 2,), dtype="float32"))
             return y
 
+        copy_n = T.int64()
+
         @Ts.prim_func
-        def copy(var_x: T.handle, n: T.int64, var_y: T.handle):
-            X = T.match_buffer(var_x, (n * 2,), dtype="float32")
-            Y = T.match_buffer(var_y, (n * 2,), dtype="float32")
+        def copy(
+            X: T.Buffer((copy_n * 2,), dtype="float32"),
+            n: copy_n,
+            Y: T.Buffer((copy_n * 2,), dtype="float32"),
+        ):
             for i in T.grid(n * 2):
                 with Ts.sblock("block"):
                     vi = Ts.axis.remap("S", [i])
@@ -1056,10 +1060,7 @@ def test_call_tir_with_grad():
     @I.ir_module
     class Module:
         @Ts.prim_func
-        def identity_tir(a: T.handle, b: T.handle) -> None:
-            A = T.match_buffer(a, [54, 96])
-            B = T.match_buffer(b, [54, 96])
-
+        def identity_tir(A: T.Buffer([54, 96]), B: T.Buffer([54, 96])) -> None:
             for i, j in T.grid(54, 96):
                 with Ts.sblock("compute"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1188,11 +1189,9 @@ def test_inline_prim_func():
             @R.function
             def f(x: R.Tensor((128, 128), "float32"), y: R.Tensor((128, 128), "float32")):
                 @Ts.prim_func
-                def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-                    A = T.match_buffer(a, (128, 128))
-                    B = T.match_buffer(b, (128, 128))
-                    C = T.match_buffer(c, (128, 128))
-
+                def my_matmul(
+                    A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+                ) -> None:
                     for i, j, k in T.grid(128, 128, 128):
                         with Ts.sblock():
                             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])

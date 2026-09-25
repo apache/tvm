@@ -367,7 +367,6 @@ def conv1d(
     This operator takes the weight as the 1D convolution kernel
     and convolves it with data to produce an output.
 
-
     In the default case, where the data_layout is `NCW`
     and kernel_layout is `OIW`, conv1d takes in
     a data Tensor with shape `(batch_size, in_channels, width)`,
@@ -2670,7 +2669,6 @@ def multinomial_from_uniform(
     dtype : str
         The data type of output tensor.
 
-
     Returns
     -------
     result : Tensor
@@ -2801,11 +2799,12 @@ def sample_top_p_top_k_from_sorted_prob(
     vocab_size = T.dynamic("vocab_size")
 
     @Ts.prim_func(private=True)
-    def _get_renorm_prob(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
-        cumsum_sorted = T.match_buffer(A, (batch, vocab_size), prob_dtype)
-        top_p = T.match_buffer(B, (batch, 1), prob_dtype)
-        top_k = T.match_buffer(C, (batch, 1), index_dtype)
-        renorm_prob = T.match_buffer(D, (batch, 1), prob_dtype)
+    def _get_renorm_prob(
+        cumsum_sorted: T.Buffer((batch, vocab_size), prob_dtype),
+        top_p: T.Buffer((batch, 1), prob_dtype),
+        top_k: T.Buffer((batch, 1), index_dtype),
+        renorm_prob: T.Buffer((batch, 1), prob_dtype),
+    ):
         for ax0, ax1 in T.grid(batch, vocab_size):
             with Ts.sblock("T_get_renorm_prob"):
                 v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -2823,15 +2822,13 @@ def sample_top_p_top_k_from_sorted_prob(
 
     @Ts.prim_func(private=True)
     def _get_index_from_sorted(
-        A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle, F: T.handle
+        cumsum_sorted: T.Buffer((batch, vocab_size), prob_dtype),
+        indices: T.Buffer((batch, vocab_size), index_dtype),
+        renorm_prob: T.Buffer((batch, 1), prob_dtype),
+        usample: T.Buffer((kernel_out_batch, 1), prob_dtype),
+        sample_indices: T.Buffer((kernel_out_batch, 1), sample_indices_dtype),
+        output_index: T.Buffer((kernel_out_batch, 1), index_dtype),
     ):
-        cumsum_sorted = T.match_buffer(A, (batch, vocab_size), prob_dtype)
-        indices = T.match_buffer(B, (batch, vocab_size), index_dtype)
-        renorm_prob = T.match_buffer(C, (batch, 1), prob_dtype)
-        usample = T.match_buffer(D, (kernel_out_batch, 1), prob_dtype)
-        sample_indices = T.match_buffer(E, (kernel_out_batch, 1), sample_indices_dtype)
-        output_index = T.match_buffer(F, (kernel_out_batch, 1), index_dtype)
-
         for ax0, ax1 in T.grid(kernel_out_batch, vocab_size):
             with Ts.sblock("T_get_index_from_sorted"):
                 v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -2911,12 +2908,13 @@ def renormalize_top_p_top_k_prob(prob, sorted_prob, top_p, top_k):
     vocab_size = T.dynamic("vocab_size")
 
     @Ts.prim_func(private=True)
-    def _get_renorm_cutoff(A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle):
-        sorted_prob = T.match_buffer(A, (kernel_batch, vocab_size), prob_dtype)
-        cumsum_sorted = T.match_buffer(B, (kernel_batch, vocab_size), prob_dtype)
-        top_p = T.match_buffer(C, (kernel_batch, 1), prob_dtype)
-        top_k = T.match_buffer(D, (kernel_batch, 1), top_k_dtype)
-        cutoff = T.match_buffer(E, (kernel_batch, 1), prob_dtype)
+    def _get_renorm_cutoff(
+        sorted_prob: T.Buffer((kernel_batch, vocab_size), prob_dtype),
+        cumsum_sorted: T.Buffer((kernel_batch, vocab_size), prob_dtype),
+        top_p: T.Buffer((kernel_batch, 1), prob_dtype),
+        top_k: T.Buffer((kernel_batch, 1), top_k_dtype),
+        cutoff: T.Buffer((kernel_batch, 1), prob_dtype),
+    ):
         for ax0, ax1 in T.grid(kernel_batch, vocab_size):
             with Ts.sblock("T_get_renorm_cutoff"):
                 v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])

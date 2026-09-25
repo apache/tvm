@@ -34,9 +34,7 @@ def _check(original, transformed):
 
 
 @Ts.prim_func
-def elementwise_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-    C = T.match_buffer(c, (16, 16), "float32")
+def elementwise_func(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
     for i in range(0, 16):
         with Ts.sblock():
             Ts.reads(A[i, 0:16])
@@ -55,9 +53,9 @@ def elementwise_func(a: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def substituted_elementwise_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-    C = T.match_buffer(c, (16, 16), "float32")
+def substituted_elementwise_func(
+    A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
+) -> None:
     for i in range(0, 16):
         with Ts.sblock():
             Ts.reads(A[i, 0:16])

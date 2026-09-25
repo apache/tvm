@@ -33,9 +33,7 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def resize(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (1, 3, 40, 40))
-    B = T.match_buffer(b, (1, 3, 80, 80))
+def resize(A: T.Buffer((1, 3, 40, 40)), B: T.Buffer((1, 3, 80, 80))) -> None:
     for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
         with Ts.sblock("A"):
             n, c, vi, vj = Ts.axis.remap("SSSS", [i0, i1, i2, i3])

@@ -35,10 +35,8 @@ from tvm.script import tirx as T
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
-
 def packed_index_map_func(m, n):
     return m // 16, n // 16, m % 16, n % 16
-
 
 @Ts.prim_func
 def two_elementwise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
@@ -51,7 +49,6 @@ def two_elementwise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), 
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
-
 
 @Ts.prim_func
 def two_elementwise_transformed_intermediate_buffer(
@@ -67,7 +64,6 @@ def two_elementwise_transformed_intermediate_buffer(
             vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi // 16, vj // 16, vi % 16, vj % 16] + 1.0
 
-
 @Ts.prim_func
 def two_elementwise_transformed_input_buffer(
     A: T.Buffer((8, 8, 16, 16), "float32"), C: T.Buffer((128, 128), "float32")
@@ -81,7 +77,6 @@ def two_elementwise_transformed_input_buffer(
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
-
 
 @Ts.prim_func
 def two_elementwise_transformed_output_buffer(
@@ -97,7 +92,6 @@ def two_elementwise_transformed_output_buffer(
             vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi // 16, vj // 16, vi % 16, vj % 16] = B[vi, vj] + 1.0
 
-
 @Ts.prim_func
 def elementwise(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")) -> None:
     for i, j in T.grid(128, 128):
@@ -105,14 +99,12 @@ def elementwise(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "flo
             vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
-
 @Ts.prim_func
 def elementwise_transformed(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")) -> None:
     for i in range(16384):
         with Ts.sblock("B"):
             vi = Ts.axis.remap("S", [i])
             B[vi // 128, vi % 128] = A[vi // 128, vi % 128] * 2.0
-
 
 @Ts.prim_func
 def conv2d_nhwc(
@@ -140,7 +132,6 @@ def conv2d_nhwc(
                 * Weight[rh, rw, rc, co]
             )
 
-
 @Ts.prim_func
 def conv2d_nhwc_transformed(
     Input: T.Buffer((1, 224, 224, 3), "float32"),
@@ -165,7 +156,6 @@ def conv2d_nhwc_transformed(
             with Ts.init():
                 Conv2d_nhwc[0, v0 // 112, v0 % 112, v1] = T.float32(0)
             Conv2d_nhwc[0, v0 // 112, v0 % 112, v1] = Conv2d_nhwc[0, v0 // 112, v0 % 112, v1] + PadInput[0, v0 // 112 * 2 + v2 // 21, v0 % 112 * 2 + v2 % 21 // 3, v2 % 3] * Weight[v2 // 21, v2 % 21 // 3, v2 % 3, v1]
-
 
 @Ts.prim_func
 def two_elementwise_unit_dim(A: T.Buffer((1, 128), "float32"), C: T.Buffer((1, 128), "float32")) -> None:
@@ -1174,11 +1164,9 @@ def test_transform_layout_with_symbolic_bound():
     n = T.dynamic("n")
 
     @Ts.prim_func
-    def before(a: T.handle, b: T.handle, c: T.handle):
+    def before(A: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), 'float16'), B: T.Buffer((T.int64(1), T.int64(32), n, T.int64(128)), 'float16'), C: T.Buffer((T.int64(1), T.int64(32), T.int64(1), n), 'float16')):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
-        B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
-        C = T.match_buffer(c, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
+
         for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(32), T.int64(1), n, T.int64(128)):
             with Ts.sblock("NT_matmul"):
                 v_i0, v_i1, v_i2, v_i3, v_k = Ts.axis.remap("SSSSR", [i0, i1, i2, i3, k])
@@ -1191,11 +1179,9 @@ def test_transform_layout_with_symbolic_bound():
     n = T.dynamic("n")
 
     @Ts.prim_func
-    def after(a: T.handle, b: T.handle, c: T.handle):
+    def after(A: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), 'float16'), B: T.Buffer((T.int64(1), T.int64(32), n, T.int64(128)), 'float16'), C: T.Buffer((n * T.int64(32),), 'float16')):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
-        B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
-        C = T.match_buffer(c, (n * T.int64(32),), "float16")
+
         for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(32), T.int64(1), n, T.int64(128)):
             with Ts.sblock("NT_matmul"):
                 v_i0, v_i1, v_i2, v_i3, v_k = Ts.axis.remap("SSSSR", [i0, i1, i2, i3, k])
@@ -1226,11 +1212,9 @@ def test_transform_block_layout_with_symbolic_bound():
     n = T.dynamic("n")
 
     @Ts.prim_func
-    def before(a: T.handle, b: T.handle, c: T.handle):
+    def before(A: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), 'float16'), B: T.Buffer((T.int64(1), T.int64(32), n, T.int64(128)), 'float16'), C: T.Buffer((n * T.int64(32),), 'float16')):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
-        B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
-        C = T.match_buffer(c, (n * T.int64(32),), "float16")
+
         for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(32), T.int64(1), n, T.int64(128)):
             with Ts.sblock("NT_matmul"):
                 v_i0, v_i1, v_i2, v_i3, v_k = Ts.axis.remap("SSSSR", [i0, i1, i2, i3, k])
@@ -1243,11 +1227,9 @@ def test_transform_block_layout_with_symbolic_bound():
     n = T.dynamic("n")
 
     @Ts.prim_func
-    def after(a: T.handle, b: T.handle, c: T.handle):
+    def after(A: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), 'float16'), B: T.Buffer((T.int64(1), T.int64(32), n, T.int64(128)), 'float16'), C: T.Buffer((n * T.int64(32),), 'float16')):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
-        B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
-        C = T.match_buffer(c, (n * T.int64(32),), "float16")
+
         for ax0, ax1 in T.grid(n * T.int64(32), T.int64(128)):
             with Ts.sblock("NT_matmul"):
                 v0, v1 = Ts.axis.remap("SR", [ax0, ax1])

@@ -25,11 +25,13 @@ from tvm.target import Target
 
 
 @Ts.prim_func
-def add(a: T.handle, b: T.handle) -> None:
+def add(
+    A: T.Buffer([2048, 2048, 2048], dtype="float32"),
+    B: T.Buffer([2048, 2048, 2048], dtype="float32"),
+) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main"})
-    A = T.match_buffer(a, [2048, 2048, 2048], dtype="float32")
-    B = T.match_buffer(b, [2048, 2048, 2048], dtype="float32")
+
     A_cached = Ts.sblock_alloc_buffer([2048, 2048, 2048], dtype="float32")
     # body
     for i, j, k in T.grid(2048, 2048, 2048):

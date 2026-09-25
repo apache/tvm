@@ -72,7 +72,7 @@ def test_block_iters_used_only_in_regions():
                         vj_o * T.int64(8) : vj_o * T.int64(8) + T.int64(8),
                     ]
                 )
-                A_tile = T.match_buffer(
+                A_tile = Ts.match_buffer(
                     A[
                         vi_o * T.int64(8) : vi_o * T.int64(8) + T.int64(8),
                         vj_o * T.int64(8) : vj_o * T.int64(8) + T.int64(8),
@@ -80,7 +80,7 @@ def test_block_iters_used_only_in_regions():
                     (T.int64(8), T.int64(8)),
                     offset_factor=1,
                 )
-                B_tile = T.match_buffer(
+                B_tile = Ts.match_buffer(
                     B[
                         vi_o * T.int64(8) : vi_o * T.int64(8) + T.int64(8),
                         vj_o * T.int64(8) : vj_o * T.int64(8) + T.int64(8),
@@ -100,10 +100,10 @@ def test_block_iters_used_only_in_regions():
                 vi_o, vj_o = Ts.axis.remap("SS", [i_o, j_o])
                 Ts.reads(A[vi_o * 8 : vi_o * 8 + 8, vj_o * 8 : vj_o * 8 + 8])
                 Ts.writes(B[vi_o * 8 : vi_o * 8 + 8, vj_o * 8 : vj_o * 8 + 8])
-                A_tile = T.match_buffer(
+                A_tile = Ts.match_buffer(
                     A[vi_o * 8 : vi_o * 8 + 8, vj_o * 8 : vj_o * 8 + 8], (8, 8), offset_factor=1
                 )
-                B_tile = T.match_buffer(
+                B_tile = Ts.match_buffer(
                     B[vi_o * 8 : vi_o * 8 + 8, vj_o * 8 : vj_o * 8 + 8], (8, 8), offset_factor=1
                 )
                 for i_i, j_i in T.grid(8, 8):
@@ -154,10 +154,10 @@ def test_metal_simdgroup_matmul_builds():
 
     @Ts.prim_func
     def main(
-        var_A: T.handle, B: T.Buffer((T.int64(256), T.int64(256)), "float16"), var_C: T.handle
+        A: T.Buffer((T.int64(1), n, T.int64(256)), "float16"),
+        B: T.Buffer((T.int64(256), T.int64(256)), "float16"),
+        C: T.Buffer((T.int64(1), n, T.int64(256)), "float16"),
     ):
-        A = T.match_buffer(var_A, (T.int64(1), n, T.int64(256)), "float16")
-        C = T.match_buffer(var_C, (T.int64(1), n, T.int64(256)), "float16")
         for i0, i1, i2, k in T.grid(T.int64(1), n, T.int64(256), T.int64(256)):
             with Ts.sblock("NT_matmul"):
                 v0, v1, v2, vk = Ts.axis.remap("SSSR", [i0, i1, i2, k])

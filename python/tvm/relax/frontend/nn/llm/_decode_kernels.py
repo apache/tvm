@@ -36,9 +36,9 @@ from tvm.script import tirx as T
 from tvm.target import Target
 
 from ._kernel_common import (
-    _declare_length_info,
     _get_kv_chunk_len,
     _get_seq_offset,
+    _length_info_buffer,
     _rope,
     _var,
     _var_cpu,
@@ -67,15 +67,15 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
     @Ts.prim_func
     def batch_decode_paged_kv(
-        Q_handle: T.handle,
-        pages_handle: T.handle,
-        page_table_indptr_handle: T.handle,
-        page_table_values_handle: T.handle,
-        var_length_info: T.handle,  # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset_handle: T.handle,
-        q_rope_position_handle: T.handle,
-        output_handle: T.handle,
-        lse_handle: T.handle,
+        Q: T.Buffer((B, H_qo, D), qkv_dtype),
+        pages: T.Buffer((max_num_pages, 2, H_kv, page_size, D), qkv_dtype),
+        page_table_indptr: T.Buffer((B + 1,), 'int32', elem_offset=page_indptr_elem_offset),
+        page_table_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),
+        length_info: _length_info_buffer(B, sliding_window, length_info_elem_offset),  # [b] when sliding window = False, or otherwise [3, b]
+        k_rope_pos_offset: T.Buffer((B,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),
+        q_rope_position: T.Buffer((B,), 'int32', elem_offset=q_rope_position_elem_offset),
+        output: T.Buffer((B, H_qo, D), qkv_dtype),
+        lse: T.Buffer((B, H_qo), 'float32'),
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
@@ -83,14 +83,7 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
     ):
         T.func_attr({"tirx.is_scheduled": True, "global_symbol": global_symbol})
 
-        Q = T.match_buffer(Q_handle, (B, H_qo, D), qkv_dtype)
-        pages = T.match_buffer(pages_handle, (max_num_pages, 2, H_kv, page_size, D), qkv_dtype)
-        page_table_indptr = T.match_buffer(page_table_indptr_handle, (B + 1,), "int32", elem_offset=page_indptr_elem_offset)
-        page_table_values = T.match_buffer(page_table_values_handle, (nnz_pages,), "int32", elem_offset=page_values_elem_offset)
-        k_rope_pos_offset = T.match_buffer(k_rope_pos_offset_handle, (B,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
-        q_rope_position = T.match_buffer(q_rope_position_handle, (B,), "int32", elem_offset=q_rope_position_elem_offset)
-        output = T.match_buffer(output_handle, (B, H_qo, D), qkv_dtype)
-        lse = T.match_buffer(lse_handle, (B, H_qo), "float32")  # pylint: disable=unused-variable
+          # pylint: disable=unused-variable
         # The length information of the sequences.
         # - It is in shape `(3, batch_size)` when sliding window is enabled.
         #   For a sequence "i", location
@@ -99,7 +92,6 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
         #   - "(2, i)" is the attn sink length of the sequence.
         # - It is in shape `(batch_size,)` when sliding window is disabled,
         #   denoting the "last_page_len".
-        length_info = _declare_length_info(var_length_info, B, sliding_window, length_info_elem_offset)
 
         for b in T.serial(B):
             with Ts.sblock("attn"):
@@ -178,7 +170,6 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
 
     return batch_decode_paged_kv
 
-
 def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_window: bool, rope_scaling: dict[str, Any], target: Target, page_size: int = 16):
     qkv_dtype_bytes = 2
     H_qo = num_qo_heads
@@ -223,15 +214,15 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
     @Ts.prim_func
     def batch_decode_paged_kv(
-        Q_handle: T.handle,
-        pages_handle: T.handle,
-        page_table_indptr_handle: T.handle,
-        page_table_values_handle: T.handle,
-        var_length_info: T.handle, # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset_handle: T.handle,
-        q_rope_position_handle: T.handle,
-        output_handle: T.handle,
-        lse_handle: T.handle,
+        Q: T.Buffer((B, H_qo, D), qkv_dtype),
+        pages: T.Buffer((max_num_pages, 2, H_kv, page_size, D), qkv_dtype, elem_offset=pages_elem_offset),
+        page_table_indptr: T.Buffer((B + 1,), 'int32', elem_offset=page_indptr_elem_offset),
+        page_table_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),
+        length_info: _length_info_buffer(B, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
+        k_rope_pos_offset: T.Buffer((B,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),
+        q_rope_position: T.Buffer((B,), 'int32', elem_offset=q_rope_position_elem_offset),
+        output: T.Buffer((B, H_qo, D), qkv_dtype),
+        lse: T.Buffer((B, H_qo), 'float32'),
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
@@ -239,15 +230,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
     ):
         T.func_attr({"tirx.is_scheduled": True, "global_symbol": global_symbol})
 
-        Q = T.match_buffer(Q_handle, (B, H_qo, D), qkv_dtype)
-        pages = T.match_buffer(pages_handle, (max_num_pages, 2, H_kv, page_size, D), qkv_dtype, elem_offset=pages_elem_offset)
-        page_table_indptr = T.match_buffer(page_table_indptr_handle, (B + 1,), "int32", elem_offset=page_indptr_elem_offset)
-        page_table_values = T.match_buffer(page_table_values_handle, (nnz_pages,), "int32", elem_offset=page_values_elem_offset)
-        k_rope_pos_offset = T.match_buffer(k_rope_pos_offset_handle, (B,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
-        q_rope_position = T.match_buffer(q_rope_position_handle, (B,), "int32", elem_offset=q_rope_position_elem_offset)
-        output = T.match_buffer(output_handle, (B, H_qo, D), qkv_dtype)
-        lse = T.match_buffer(lse_handle, (B, H_qo), "float32")  # pylint: disable=unused-variable
-        length_info = _declare_length_info(var_length_info, B, sliding_window, length_info_elem_offset)
+          # pylint: disable=unused-variable
 
         for bx in T.thread_binding(B, thread="blockIdx.x"):
             for fused_by_bz in T.thread_binding(H_kv * gdz, thread="blockIdx.y"):
@@ -411,24 +394,18 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
     # pylint: enable=too-many-branches
     return batch_decode_paged_kv
 
-
 def _merge_state_inplace_cpu(v_dtype):
     N = T.dynamic("N", "int32")
     H = T.dynamic("H", "int32")
     D = T.dynamic("D", "int32")
     @Ts.prim_func
     def merge_state_inplace_cpu(
-        v: T.handle,
-        s: T.handle,
-        v_other: T.handle,
-        s_other: T.handle,
+        V: T.Buffer((N, H, D), v_dtype),
+        S: T.Buffer((N, H), 'float32'),
+        V_other: T.Buffer((N, H, D), v_dtype),
+        S_other: T.Buffer((N, H), 'float32'),
     ):
         T.func_attr({"tirx.is_scheduled": True})
-
-        V = T.match_buffer(v, (N, H, D), v_dtype)
-        S = T.match_buffer(s, (N, H), "float32")
-        V_other = T.match_buffer(v_other, (N, H, D), v_dtype)
-        S_other = T.match_buffer(s_other, (N, H), "float32")
 
         for n in T.serial(N):
             for h in T.serial(H):
@@ -452,7 +429,6 @@ def _merge_state_inplace_cpu(v_dtype):
 
     return merge_state_inplace_cpu
 
-
 def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_symbol: str | None = None):
     v_dtype_bytes = 2
     VEC_SIZE = min(max(8 // v_dtype_bytes, head_dim // 32), 4)
@@ -469,17 +445,12 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_sy
     D = T.dynamic("D", "int32")
     @Ts.prim_func
     def merge_state_inplace(
-        v: T.handle,
-        s: T.handle,
-        v_other: T.handle,
-        s_other: T.handle,
+        V: T.Buffer((N, H, D), v_dtype),
+        S: T.Buffer((N, H), 'float32'),
+        V_other: T.Buffer((N, H, D), v_dtype),
+        S_other: T.Buffer((N, H), 'float32'),
     ):
         T.func_attr({"tirx.is_scheduled": True})
-
-        V = T.match_buffer(v, (N, H, D), v_dtype)
-        S = T.match_buffer(s, (N, H), "float32")
-        V_other = T.match_buffer(v_other, (N, H, D), v_dtype)
-        S_other = T.match_buffer(s_other, (N, H), "float32")
 
         for bx in T.thread_binding(N, thread="blockIdx.x"):
             for by in T.thread_binding(gdy, thread="blockIdx.y"):

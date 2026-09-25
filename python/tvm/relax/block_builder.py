@@ -476,13 +476,14 @@ class BlockBuilder(Object):
             @tvm.script.ir_module
             class Module:
                 @Ts.prim_func
-                def te_func(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle,
-                            var_compute: T.handle) -> None:
+                def te_func(
+                    rxplaceholder: T.Buffer([n, m], dtype="float32"),
+                    rxplaceholder_1: T.Buffer([n, m], dtype="float32"),
+                    compute: T.Buffer([128, 128], dtype="float32"),
+                ) -> None:
                     # function attr dict
                     T.func_attr({"tirx.noalias": True})
-                    rxplaceholder = T.match_buffer(var_rxplaceholder, [n, m], dtype="float32")
-                    rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [n, m], dtype="float32")
-                    compute = T.match_buffer(var_compute, [128, 128], dtype="float32")
+
                     # body
                     # with Ts.sblock("root")
                     for i0, i1 in T.grid(128, 128):
@@ -526,10 +527,12 @@ class BlockBuilder(Object):
             @tvm.script.ir_module
             class Module:
                 @Ts.prim_func
-                def te_func(var_rxplaceholder: T.handle, var_compute: T.handle, n: T.int64) -> None:
-                    rxplaceholder = T.match_buffer(var_rxplaceholder, [n + T.int64(1)],
-                                                   dtype="float32")
-                    compute = T.match_buffer(var_compute, [n + T.int64(1)], dtype="float32")
+                def te_func(
+                    rxplaceholder: T.Buffer([n + T.int64(1)], dtype="float32"),
+                    compute: T.Buffer([n + T.int64(1)], dtype="float32"),
+                    n: T.int64,
+                ) -> None:
+
                     # body
                     # with Ts.sblock("root")
                     for i0 in T.serial(0, n + T.int64(1)):

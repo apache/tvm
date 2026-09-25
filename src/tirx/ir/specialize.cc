@@ -360,7 +360,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
  *   It means we have two var mappings here: m = 8 and n = 16
  *
  *   If the buffer signature is not a Var, the mapping will fail.
- *   e.g. A = T.match_buffer(a, [m * 2, n + 1])
+ *   e.g. A: T.Buffer([m * 2, n + 1])
  */
 void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const BufferVar& specific_buf,
                             VarMap* var_map) {

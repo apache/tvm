@@ -64,14 +64,11 @@ class PyTorchIntegrationModule(BasePyModule):
 
     @Ts.prim_func
     def matmul(
-        var_A: T.handle,
-        var_B: T.handle,
-        var_C: T.handle,
+        A: T.Buffer((n_matmul, 16), "float32"),
+        B: T.Buffer((16, 20), "float32"),
+        C: T.Buffer((n_matmul, 20), "float32"),
     ):
         """TIR function for matrix multiplication."""
-        A = T.match_buffer(var_A, (n_matmul, 16), "float32")
-        B = T.match_buffer(var_B, (16, 20), "float32")
-        C = T.match_buffer(var_C, (n_matmul, 20), "float32")
 
         for i, j, k in T.grid(n_matmul, 20, 16):
             with Ts.sblock("block"):

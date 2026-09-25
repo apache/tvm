@@ -115,11 +115,10 @@ def conv2d_nhwc_reindex_data(
 
 @Ts.prim_func
 def conv2d_nhwc_reindex_weight(
-    var_inputs: T.handle, var_weight: T.handle, var_conv2d_nhwc: T.handle
+    inputs: T.Buffer([1, 224, 224, 3], dtype="float32"),
+    weight: T.Buffer([7, 7, 3, 64], dtype="float32"),
+    conv2d_nhwc: T.Buffer([1, 112, 112, 64], dtype="float32"),
 ) -> None:
-    inputs = T.match_buffer(var_inputs, [1, 224, 224, 3], dtype="float32")
-    weight = T.match_buffer(var_weight, [7, 7, 3, 64], dtype="float32")
-    conv2d_nhwc = T.match_buffer(var_conv2d_nhwc, [1, 112, 112, 64], dtype="float32")
     PadInput = Ts.sblock_alloc_buffer([1, 230, 230, 3], dtype="float32")
     weight_reindex = Ts.sblock_alloc_buffer([64, 7, 7, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):

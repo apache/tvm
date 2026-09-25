@@ -72,11 +72,13 @@ MATMUL_M = 32
 @tvm.script.ir_module
 class MatmulModule:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    def main(
+        A: T.Buffer((16, 16), "float32"),
+        B: T.Buffer((16, 16), "float32"),
+        C: T.Buffer((16, 16), "float32"),
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, (16, 16), "float32")
-        B = T.match_buffer(b, (16, 16), "float32")
-        C = T.match_buffer(c, (16, 16), "float32")
+
         for i, j, k in T.grid(16, 16, 16):
             with Ts.sblock("matmul"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -88,11 +90,13 @@ class MatmulModule:
 @tvm.script.ir_module
 class MatmulReluModule:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle, d: T.handle) -> None:  # pylint: disable=no-self-argument
+    def main(
+        A: T.Buffer((16, 16), "float32"),
+        B: T.Buffer((16, 16), "float32"),
+        D: T.Buffer((16, 16), "float32"),
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, (16, 16), "float32")
-        B = T.match_buffer(b, (16, 16), "float32")
-        D = T.match_buffer(d, (16, 16), "float32")
+
         C = Ts.sblock_alloc_buffer((16, 16), "float32")
         for i, j, k in T.grid(16, 16, 16):
             with Ts.sblock("matmul"):
@@ -109,11 +113,11 @@ class MatmulReluModule:
 @tvm.script.ir_module
 class BatchMatmulModule:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    def main(
+        A: T.Buffer([16, 32, 32]), B: T.Buffer([16, 32, 32]), C: T.Buffer([16, 32, 32])
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, [16, 32, 32])
-        B = T.match_buffer(b, [16, 32, 32])
-        C = T.match_buffer(c, [16, 32, 32])
+
         for n, i, j, k in T.grid(16, 32, 32, 32):
             with Ts.sblock("update"):
                 vn, vi, vj, vk = Ts.axis.remap("SSSR", [n, i, j, k])
@@ -125,11 +129,11 @@ class BatchMatmulModule:
 @tvm.script.ir_module
 class AddModule:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    def main(
+        A: T.Buffer([32], "float32"), B: T.Buffer([32], "float32"), C: T.Buffer([32], "float32")
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, [32], "float32")
-        B = T.match_buffer(b, [32], "float32")
-        C = T.match_buffer(c, [32], "float32")
+
         for i in range(32):
             with Ts.sblock("add"):
                 vi = Ts.axis.S(32, i)
@@ -140,11 +144,13 @@ class AddModule:
 @tvm.script.ir_module
 class MatmulHugeModule:
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    def main(
+        A: T.Buffer((4096, 4096), "float32"),
+        B: T.Buffer((4096, 4096), "float32"),
+        C: T.Buffer((4096, 4096), "float32"),
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, (4096, 4096), "float32")
-        B = T.match_buffer(b, (4096, 4096), "float32")
-        C = T.match_buffer(c, (4096, 4096), "float32")
+
         for i, j, k in T.grid(4096, 4096, 4096):
             with Ts.sblock("matmul"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])

@@ -17,7 +17,6 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: E501
 
-
 import tvm
 import tvm.script
 import tvm.testing
@@ -52,11 +51,8 @@ def test_dispatch_multinomial_from_uniform_generic():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def get_sample_index(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
-            prob = T.match_buffer(A, (batch, vocab_size))
-            usample = T.match_buffer(B, (out_batch, 1))
-            sample_indices = T.match_buffer(C, (out_batch, 1), "int64")
-            output_index = T.match_buffer(D, (out_batch, 1), "int64")
+        def get_sample_index(prob: T.Buffer((batch, vocab_size)), usample: T.Buffer((out_batch, 1)), sample_indices: T.Buffer((out_batch, 1), 'int64'), output_index: T.Buffer((out_batch, 1), 'int64')):
+
             # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(out_batch, vocab_size):
                 with Ts.sblock("T_get_sample_index"):
@@ -93,12 +89,9 @@ def test_dispatch_multinomial_from_uniform_gpu():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def parallel_sampling_from_prob(var_prob: T.handle, var_uniform_samples: T.handle, var_row_indices: T.handle, var_sampled_token_ids: T.handle):
+        def parallel_sampling_from_prob(prob: T.Buffer((n, vocab_size)), uniform_samples: T.Buffer((batch_size, 1)), row_indices: T.Buffer((batch_size, 1), 'int64'), token_ids: T.Buffer((batch_size, 1), 'int64')):
             T.func_attr({"tirx.is_scheduled": True})
-            prob = T.match_buffer(var_prob, (n, vocab_size))
-            uniform_samples = T.match_buffer(var_uniform_samples, (batch_size, 1))
-            row_indices = T.match_buffer(var_row_indices, (batch_size, 1), "int64")
-            token_ids = T.match_buffer(var_sampled_token_ids, (batch_size, 1), "int64")
+
             # with Ts.sblock("root"):
             aggregate = Ts.sblock_alloc_buffer((), scope="local")
             sample_id_local = Ts.sblock_alloc_buffer((), "int64", scope="local")

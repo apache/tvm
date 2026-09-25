@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 import enum
 
 import pytest
@@ -44,11 +46,8 @@ def test_annotate_opkind_outewisefusable():
     @tvm.script.ir_module
     class InputModule:
         @Ts.prim_func
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+        def tir_matmul(A: T.Buffer((m, n)), B: T.Buffer((n, k)), C: T.Buffer((m, k))) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            A = T.match_buffer(x, (m, n))
-            B = T.match_buffer(y, (n, k))
-            C = T.match_buffer(z, (m, k))
 
             for i, j, k_index in T.grid(m, k, n):
                 with Ts.sblock("matmul"):
@@ -78,11 +77,12 @@ def test_annotate_opkind_outewisefusable_with_cast(cast_pattern):
     @tvm.script.ir_module
     class InputModule:
         @Ts.prim_func
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+        def tir_matmul(
+            A: T.Buffer((m, n), "float16"),
+            B: T.Buffer((n, k), "float16"),
+            C: T.Buffer((m, k), "float32"),
+        ) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            A = T.match_buffer(x, (m, n), "float16")
-            B = T.match_buffer(y, (n, k), "float16")
-            C = T.match_buffer(z, (m, k), "float32")
 
             for i, j, k_index in T.grid(m, k, n):
                 with Ts.sblock("matmul"):
@@ -100,11 +100,15 @@ def test_annotate_opkind_outewisefusable_int_var_signature():
     @tvm.script.ir_module
     class InputModule:
         @Ts.prim_func
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle, m: T.int64, n: T.int64, k: T.int64):
+        def tir_matmul(
+            A: T.Buffer((m, n)),  # noqa: F821
+            B: T.Buffer((n, k)),  # noqa: F821
+            C: T.Buffer((m, k)),  # noqa: F821
+            m: T.int64,
+            n: T.int64,
+            k: T.int64,
+        ):
             T.func_attr({"global_symbol": "tir_matmul"})
-            A = T.match_buffer(x, (m, n))
-            B = T.match_buffer(y, (n, k))
-            C = T.match_buffer(z, (m, k))
 
             for i, j, k_index in T.grid(m, k, n):
                 with Ts.sblock("matmul"):
@@ -122,10 +126,8 @@ def test_annotate_opkind_reduce():
     @tvm.script.ir_module
     class InputModule:
         @Ts.prim_func
-        def sum(x: T.handle, y: T.handle) -> None:
+        def sum(A: T.Buffer((16, 16)), B: T.Buffer((16,))) -> None:
             T.func_attr({"global_symbol": "elemwise"})
-            A = T.match_buffer(x, (16, 16))
-            B = T.match_buffer(y, (16,))
 
             for i, j in T.grid(16, 16):
                 with Ts.sblock("matmul"):
@@ -143,10 +145,8 @@ def test_annotate_opkind_ewise():
     @tvm.script.ir_module
     class InputModule:
         @Ts.prim_func
-        def elemwise(x: T.handle, y: T.handle) -> None:
+        def elemwise(A: T.Buffer((16, 16)), B: T.Buffer((16, 16))) -> None:
             T.func_attr({"global_symbol": "elemwise"})
-            A = T.match_buffer(x, (16, 16))
-            B = T.match_buffer(y, (16, 16))
 
             for i, j in T.grid(16, 16):
                 with Ts.sblock("matmul"):
@@ -162,10 +162,8 @@ def test_annotate_opkind_broadcast():
     @tvm.script.ir_module
     class InputModule:
         @Ts.prim_func
-        def broadcast(x: T.handle, y: T.handle) -> None:
+        def broadcast(A: T.Buffer((16, 16)), B: T.Buffer((16, 16, 16, 16))) -> None:
             T.func_attr({"global_symbol": "elemwise"})
-            A = T.match_buffer(x, (16, 16))
-            B = T.match_buffer(y, (16, 16, 16, 16))
 
             for i0, j0, i1, j1 in T.grid(16, 16, 16, 16):
                 with Ts.sblock("matmul"):
@@ -181,10 +179,8 @@ def test_annotate_opkind_injective():
     @tvm.script.ir_module
     class InputModule:
         @Ts.prim_func
-        def injective(x: T.handle, y: T.handle) -> None:
+        def injective(A: T.Buffer((4, 4, 4, 4)), B: T.Buffer((16, 16))) -> None:
             T.func_attr({"global_symbol": "elemwise"})
-            A = T.match_buffer(x, (4, 4, 4, 4))
-            B = T.match_buffer(y, (16, 16))
 
             for i, j in T.grid(16, 16):
                 with Ts.sblock("matmul"):
@@ -371,10 +367,10 @@ def test_multiple_bufer_stores_fallback():
     @tvm.script.ir_module
     class CumsumModule:
         @Ts.prim_func
-        def cumsum(var_rxplaceholder: T.handle, out_buf: T.Buffer(160, "float32")):
-            rxplaceholder = T.match_buffer(
-                var_rxplaceholder, [10, 16], dtype="float32", offset_factor=1
-            )
+        def cumsum(
+            rxplaceholder: T.Buffer([10, 16], dtype="float32", offset_factor=1),
+            out_buf: T.Buffer(160, "float32"),
+        ):
             with Ts.sblock("cumsum_generic"):
                 Ts.reads(rxplaceholder[0:10, 0:16])
                 Ts.writes(out_buf[0:160])

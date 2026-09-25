@@ -201,9 +201,8 @@ def test_sf_blockwise_transpose(name, pipe, blk, dtype):
 
     # fmt: off
     @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, shape, dtype, layout=pre)
-        B_buf = T.match_buffer(B, shape, dtype, layout=post)
+    def f(A_buf: T.Buffer(shape, dtype, layout=pre), B_buf: T.Buffer(shape, dtype, layout=post)):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -249,9 +248,11 @@ def test_identity_passes_through_as_copy():
 
     # fmt: off
     @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, shape, "uint32", layout=layout)
-        B_buf = T.match_buffer(B, shape, "uint32", layout=layout)
+    def f(
+        A_buf: T.Buffer(shape, "uint32", layout=layout),
+        B_buf: T.Buffer(shape, "uint32", layout=layout),
+    ):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -286,9 +287,8 @@ def test_generic_transpose(shape, src_strides, dst_strides, dtype):
 
     # fmt: off
     @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, shape, dtype, layout=pre)
-        B_buf = T.match_buffer(B, shape, dtype, layout=post)
+    def f(A_buf: T.Buffer(shape, dtype, layout=pre), B_buf: T.Buffer(shape, dtype, layout=post)):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -313,9 +313,11 @@ def test_generic_transpose(shape, src_strides, dst_strides, dtype):
 def _build_and_assert_rejected(shape, src_layout, dst_layout, dtype, msg_substr):
     # fmt: off
     @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, shape, dtype, layout=src_layout)
-        B_buf = T.match_buffer(B, shape, dtype, layout=dst_layout)
+    def f(
+        A_buf: T.Buffer(shape, dtype, layout=src_layout),
+        B_buf: T.Buffer(shape, dtype, layout=dst_layout),
+    ):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -337,9 +339,11 @@ def test_reject_dtype_mismatch():
 
     # fmt: off
     @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, shape, "uint32", layout=layout)
-        B_buf = T.match_buffer(B, shape, "uint16", layout=layout)
+    def f(
+        A_buf: T.Buffer(shape, "uint32", layout=layout),
+        B_buf: T.Buffer(shape, "uint16", layout=layout),
+    ):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -358,9 +362,11 @@ def test_reject_shape_mismatch():
 
     # fmt: off
     @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, (4, 32), "uint32", layout=src_layout)
-        B_buf = T.match_buffer(B, (8, 16), "uint32", layout=dst_layout)
+    def f(
+        A_buf: T.Buffer((4, 32), "uint32", layout=src_layout),
+        B_buf: T.Buffer((8, 16), "uint32", layout=dst_layout),
+    ):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -390,9 +396,11 @@ def test_reject_swizzle_layout():
 
     # fmt: off
     @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, (4, 32), "uint32", layout=swizzled)
-        B_buf = T.match_buffer(B, (4, 32), "uint32", layout=plain)
+    def f(
+        A_buf: T.Buffer((4, 32), "uint32", layout=swizzled),
+        B_buf: T.Buffer((4, 32), "uint32", layout=plain),
+    ):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -411,9 +419,11 @@ def test_reject_non_warp_scope():
 
     # fmt: off
     @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, (4, 32), "uint32", layout=layout_pre)
-        B_buf = T.match_buffer(B, (4, 32), "uint32", layout=layout_post)
+    def f(
+        A_buf: T.Buffer((4, 32), "uint32", layout=layout_pre),
+        B_buf: T.Buffer((4, 32), "uint32", layout=layout_post),
+    ):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -446,9 +456,8 @@ def test_shared_to_shared_uses_direct_ldst(dtype):
 
     # fmt: off
     @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, shape, dtype, layout=pre)
-        B_buf = T.match_buffer(B, shape, dtype, layout=post)
+    def f(A_buf: T.Buffer(shape, dtype, layout=pre), B_buf: T.Buffer(shape, dtype, layout=post)):
+
         T.device_entry()
         T.cta_id([1])
         tid = T.thread_id([32])

@@ -151,24 +151,18 @@ def get_ldmatrix_intrin(
     offset_factor = smem_tile_col
 
     @Ts.prim_func
-    def ldmatrix_desc(warp_handle: T.handle, shared_handle: T.handle) -> None:
-        shared = T.match_buffer(
-            shared_handle,
+    def ldmatrix_desc(
+        warp: T.Buffer(
+            (WARP_SIZE, local_size), dtype, align=64, offset_factor=offset_factor, scope="warp"
+        ),
+        shared: T.Buffer(
             (smem_tile_row, smem_tile_col),
             dtype,
             align=64,
             offset_factor=offset_factor,
             scope=shared_scope,
-        )
-        warp = T.match_buffer(
-            warp_handle,
-            (WARP_SIZE, local_size),
-            dtype,
-            align=64,
-            offset_factor=offset_factor,
-            scope="warp",
-        )
-
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(shared[0:smem_tile_row, 0:smem_tile_col])
             Ts.writes(warp[0:WARP_SIZE, 0:local_size])
@@ -186,25 +180,19 @@ def get_ldmatrix_intrin(
     s1 = T.dynamic("s1", "int32")
 
     @Ts.prim_func
-    def ldmatrix_impl(warp_handle: T.handle, shared_handle: T.handle) -> None:
-        shared = T.match_buffer(
-            shared_handle,
+    def ldmatrix_impl(
+        warp: T.Buffer(
+            (WARP_SIZE, local_size), dtype, align=64, offset_factor=offset_factor, scope="warp"
+        ),
+        shared: T.Buffer(
             (smem_tile_row, smem_tile_col),
             dtype,
             align=64,
             offset_factor=offset_factor,
             scope=shared_scope,
             strides=[s0, s1],
-        )
-        warp = T.match_buffer(
-            warp_handle,
-            (WARP_SIZE, local_size),
-            dtype,
-            align=64,
-            offset_factor=offset_factor,
-            scope="warp",
-        )
-
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(shared[0:smem_tile_row, 0:smem_tile_col])
             Ts.writes(warp[0:WARP_SIZE, 0:local_size])
@@ -341,32 +329,21 @@ def get_mma_intrin(
     out_offset_factor = N_DIM
 
     @Ts.prim_func
-    def mma_sync_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a,
-            (WARP_SIZE, local_size),
-            a_dtype,
-            align=64,
-            offset_factor=A_offset_factor,
-            scope="warp",
-        )
-        B = T.match_buffer(
-            b,
-            (WARP_SIZE, local_size),
-            b_dtype,
-            align=64,
-            offset_factor=B_offset_factor,
-            scope="warp",
-        )
-        C = T.match_buffer(
-            c,
+    def mma_sync_desc(
+        A: T.Buffer(
+            (WARP_SIZE, local_size), a_dtype, align=64, offset_factor=A_offset_factor, scope="warp"
+        ),
+        B: T.Buffer(
+            (WARP_SIZE, local_size), b_dtype, align=64, offset_factor=B_offset_factor, scope="warp"
+        ),
+        C: T.Buffer(
             (WARP_SIZE, local_size_out),
             out_dtype,
             align=64,
             offset_factor=out_offset_factor,
             scope="warp",
-        )
-
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(
                 C[0:WARP_SIZE, 0:local_size_out],
@@ -397,32 +374,21 @@ def get_mma_intrin(
                     ) * cast_to_out_dtype(B[b_warp_indices[0], b_warp_indices[1]])
 
     @Ts.prim_func
-    def mma_sync_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a,
-            (WARP_SIZE, local_size),
-            a_dtype,
-            align=64,
-            offset_factor=A_offset_factor,
-            scope="warp",
-        )
-        B = T.match_buffer(
-            b,
-            (WARP_SIZE, local_size),
-            b_dtype,
-            align=64,
-            offset_factor=B_offset_factor,
-            scope="warp",
-        )
-        C = T.match_buffer(
-            c,
+    def mma_sync_impl(
+        A: T.Buffer(
+            (WARP_SIZE, local_size), a_dtype, align=64, offset_factor=A_offset_factor, scope="warp"
+        ),
+        B: T.Buffer(
+            (WARP_SIZE, local_size), b_dtype, align=64, offset_factor=B_offset_factor, scope="warp"
+        ),
+        C: T.Buffer(
             (WARP_SIZE, local_size_out),
             out_dtype,
             align=64,
             offset_factor=out_offset_factor,
             scope="warp",
-        )
-
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(
                 C[0:WARP_SIZE, 0:local_size_out],
@@ -557,9 +523,7 @@ def get_mma_fill_intrin(dtype, local_size):
     index_map = shared_16x16_to_ldmatrix_32x8_layout
 
     @Ts.prim_func
-    def mma_fill_desc(a: T.handle) -> None:
-        C_warp = T.match_buffer(a, [WARP_SIZE, local_size], dtype=dtype, scope="warp")
-
+    def mma_fill_desc(C_warp: T.Buffer([WARP_SIZE, local_size], dtype=dtype, scope="warp")) -> None:
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes(C_warp[0:WARP_SIZE, 0:local_size])
@@ -572,11 +536,9 @@ def get_mma_fill_intrin(dtype, local_size):
                     C_warp[warp_indices[0], warp_indices[1]] = zero
 
     @Ts.prim_func
-    def mma_fill_impl(a: T.handle) -> None:
-        C_warp = T.match_buffer(
-            a, [WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1
-        )
-
+    def mma_fill_impl(
+        C_warp: T.Buffer([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes(C_warp[0:WARP_SIZE, 0:local_size])
@@ -605,10 +567,10 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
     index_map_rev = ldmatrix_32x8_to_shared_16x16_layout
 
     @Ts.prim_func
-    def mma_store_desc(a: T.handle, c: T.handle) -> None:
-        C_warp = T.match_buffer(a, [WARP_SIZE, local_size], dtype=dtype, scope="warp")
-        C = T.match_buffer(c, [M_DIM, N_DIM], dtype=dtype, scope=scope)
-
+    def mma_store_desc(
+        C_warp: T.Buffer([WARP_SIZE, local_size], dtype=dtype, scope="warp"),
+        C: T.Buffer([M_DIM, N_DIM], dtype=dtype, scope=scope),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C_warp[0:WARP_SIZE, 0:local_size])
             Ts.writes(C[0:M_DIM, 0:N_DIM])
@@ -625,14 +587,12 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
         s1 = T.dynamic("s1", "int32")
 
         @Ts.prim_func
-        def mma_store_impl(a: T.handle, c: T.handle) -> None:
-            C_warp = T.match_buffer(
-                a, [WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1
-            )
-            C = T.match_buffer(
-                c, [M_DIM, N_DIM], dtype=dtype, scope=scope, offset_factor=1, strides=[s0, s1]
-            )
-
+        def mma_store_impl(
+            C_warp: T.Buffer([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
+            C: T.Buffer(
+                [M_DIM, N_DIM], dtype=dtype, scope=scope, offset_factor=1, strides=[s0, s1]
+            ),
+        ) -> None:
             with Ts.sblock("root"):
                 Ts.reads(C_warp[0:WARP_SIZE, 0:local_size])
                 Ts.writes(C[0:M_DIM, 0:N_DIM])
@@ -655,14 +615,12 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
         s1 = T.dynamic("s1", "int32")
 
         @Ts.prim_func
-        def mma_store_impl(a: T.handle, c: T.handle) -> None:
-            C_warp = T.match_buffer(
-                a, [WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1
-            )
-            C = T.match_buffer(
-                c, [M_DIM, N_DIM], dtype=dtype, scope=scope, offset_factor=1, strides=[s0, s1]
-            )
-
+        def mma_store_impl(
+            C_warp: T.Buffer([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
+            C: T.Buffer(
+                [M_DIM, N_DIM], dtype=dtype, scope=scope, offset_factor=1, strides=[s0, s1]
+            ),
+        ) -> None:
             with Ts.sblock("root"):
                 Ts.reads(C_warp[0:WARP_SIZE, 0:local_size])
                 Ts.writes(C[0:M_DIM, 0:N_DIM])
@@ -836,18 +794,18 @@ def get_wmma_load_intrin(
     offset_factor = frag_n
 
     @Ts.prim_func
-    def wmma_load_desc(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a, (frag_m, frag_n), dtype, align=64, offset_factor=offset_factor, scope=shared_scope
-        )
-        C = T.match_buffer(
-            c,
+    def wmma_load_desc(
+        A: T.Buffer(
+            (frag_m, frag_n), dtype, align=64, offset_factor=offset_factor, scope=shared_scope
+        ),
+        C: T.Buffer(
             (frag_m, frag_n),
             dtype,
             align=64,
             offset_factor=offset_factor,
             scope=wmma_fragment_scope,
-        )
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:frag_m, 0:frag_n])
             Ts.writes(C[0:frag_m, 0:frag_n])
@@ -862,25 +820,24 @@ def get_wmma_load_intrin(
     d0 = T.dynamic("d0", "int32")
 
     @Ts.prim_func
-    def wmma_load_impl(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a,
+    def wmma_load_impl(
+        A: T.Buffer(
             (frag_m, frag_n),
             dtype,
             align=64,
             offset_factor=offset_factor,
             scope=shared_scope,
             strides=[s1, s0],
-        )
-        C = T.match_buffer(
-            c,
+        ),
+        C: T.Buffer(
             (frag_m, frag_n),
             dtype,
             align=64,
             offset_factor=offset_factor,
             scope=wmma_fragment_scope,
             strides=[d1, d0],
-        )
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:frag_m, 0:frag_n])
             Ts.writes(C[0:frag_m, 0:frag_n])
@@ -909,15 +866,11 @@ def get_wmma_fill_intrin(
     offset_factor = n_dim
 
     @Ts.prim_func
-    def wmma_fill_desc(c: T.handle) -> None:
-        C = T.match_buffer(
-            c,
-            (m_dim, n_dim),
-            dtype,
-            align=64,
-            offset_factor=offset_factor,
-            scope="wmma.accumulator",
-        )
+    def wmma_fill_desc(
+        C: T.Buffer(
+            (m_dim, n_dim), dtype, align=64, offset_factor=offset_factor, scope="wmma.accumulator"
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes(C[0:m_dim, 0:n_dim])
@@ -930,16 +883,16 @@ def get_wmma_fill_intrin(
     d0 = T.dynamic("d0", "int32")
 
     @Ts.prim_func
-    def wmma_fill_impl(c: T.handle) -> None:
-        C = T.match_buffer(
-            c,
+    def wmma_fill_impl(
+        C: T.Buffer(
             (m_dim, n_dim),
             dtype,
             align=64,
             offset_factor=offset_factor,
             scope="wmma.accumulator",
             strides=[d1, d0],
-        )
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes(C[0:m_dim, 0:n_dim])
@@ -965,18 +918,12 @@ def get_wmma_store_intrin(
     offset_factor = n_dim
 
     @Ts.prim_func
-    def wmma_store_desc(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a,
-            (m_dim, n_dim),
-            dtype,
-            align=64,
-            offset_factor=offset_factor,
-            scope="wmma.accumulator",
-        )
-        C = T.match_buffer(
-            c, (m_dim, n_dim), dtype, align=64, offset_factor=offset_factor, scope=scope
-        )
+    def wmma_store_desc(
+        A: T.Buffer(
+            (m_dim, n_dim), dtype, align=64, offset_factor=offset_factor, scope="wmma.accumulator"
+        ),
+        C: T.Buffer((m_dim, n_dim), dtype, align=64, offset_factor=offset_factor, scope=scope),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:m_dim, 0:n_dim])
             Ts.writes(C[0:m_dim, 0:n_dim])
@@ -991,25 +938,24 @@ def get_wmma_store_intrin(
     d0 = T.dynamic("d0", "int32")
 
     @Ts.prim_func
-    def wmma_store_impl(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a,
+    def wmma_store_impl(
+        A: T.Buffer(
             (m_dim, n_dim),
             dtype,
             align=64,
             offset_factor=offset_factor,
             scope="wmma.accumulator",
             strides=[d1, d0],
-        )
-        C = T.match_buffer(
-            c,
+        ),
+        C: T.Buffer(
             (m_dim, n_dim),
             dtype,
             align=64,
             offset_factor=offset_factor,
             scope=scope,
             strides=[s1, s0],
-        )
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:m_dim, 0:n_dim])
             Ts.writes(C[0:m_dim, 0:n_dim])
@@ -1052,32 +998,25 @@ def get_wmma_sync_intrin(
     out_offset_factor = n_dim
 
     @Ts.prim_func
-    def wmma_sync_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a,
-            (m_dim, k_dim),
-            in_dtype,
-            align=64,
-            offset_factor=A_offset_factor,
-            scope="wmma.matrix_a",
-        )
-        B = T.match_buffer(
-            b,
+    def wmma_sync_desc(
+        A: T.Buffer(
+            (m_dim, k_dim), in_dtype, align=64, offset_factor=A_offset_factor, scope="wmma.matrix_a"
+        ),
+        B: T.Buffer(
             maybe_swap(k_dim, n_dim),
             in_dtype,
             align=64,
             offset_factor=B_offset_factor,
             scope="wmma.matrix_b",
-        )
-        C = T.match_buffer(
-            c,
+        ),
+        C: T.Buffer(
             (m_dim, n_dim),
             out_dtype,
             align=64,
             offset_factor=out_offset_factor,
             scope="wmma.accumulator",
-        )
-
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:b_shape_0, 0:b_shape_1])
             Ts.writes(C[0:m_dim, 0:n_dim])
@@ -1097,35 +1036,32 @@ def get_wmma_sync_intrin(
     c0 = T.dynamic("c0", "int32")
 
     @Ts.prim_func
-    def wmma_sync_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a,
+    def wmma_sync_impl(
+        A: T.Buffer(
             (m_dim, k_dim),
             in_dtype,
             align=64,
             offset_factor=A_offset_factor,
             scope="wmma.matrix_a",
             strides=[a1, a0],
-        )
-        B = T.match_buffer(
-            b,
+        ),
+        B: T.Buffer(
             maybe_swap(k_dim, n_dim),
             in_dtype,
             align=64,
             offset_factor=B_offset_factor,
             scope="wmma.matrix_b",
             strides=[b1, b0],
-        )
-        C = T.match_buffer(
-            c,
+        ),
+        C: T.Buffer(
             (m_dim, n_dim),
             out_dtype,
             align=64,
             offset_factor=out_offset_factor,
             scope="wmma.accumulator",
             strides=[c1, c0],
-        )
-
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:b_shape_0, 0:b_shape_1])
             Ts.writes(C[0:m_dim, 0:n_dim])
@@ -1488,10 +1424,9 @@ def get_mma_init_intrin(
     assert n_dim // 4 * int(dtype[-2:]) <= 128, "n_dim vectorize failed"
 
     @Ts.prim_func
-    def mma_init_desc(c: T.handle) -> None:
-        dst = T.match_buffer(
-            c, (m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"
-        )
+    def mma_init_desc(
+        dst: T.Buffer((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes(dst[0:m_dim, 0:n_dim])
@@ -1501,11 +1436,9 @@ def get_mma_init_intrin(
                     dst[vi, vj] = zero
 
     @Ts.prim_func
-    def mma_init_impl(c: T.handle) -> None:
-        dst = T.match_buffer(
-            c, (m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"
-        )
-
+    def mma_init_impl(
+        dst: T.Buffer((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes(dst[0:m_dim, 0:n_dim])
@@ -1539,14 +1472,10 @@ def get_mma_load_intrin(
     )
 
     @Ts.prim_func
-    def mma_load_desc(a: T.handle, c: T.handle) -> None:
-        src = T.match_buffer(
-            a, (frag_m, frag_n), dtype, align=64, offset_factor=1, scope=shared_scope
-        )
-        dst = T.match_buffer(
-            c, (frag_m, frag_n), dtype, align=64, offset_factor=1, scope=mma_fragment_scope
-        )
-
+    def mma_load_desc(
+        src: T.Buffer((frag_m, frag_n), dtype, align=64, offset_factor=1, scope=shared_scope),
+        dst: T.Buffer((frag_m, frag_n), dtype, align=64, offset_factor=1, scope=mma_fragment_scope),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(src[0:frag_m, 0:frag_n])
             Ts.writes(dst[0:frag_m, 0:frag_n])
@@ -1561,26 +1490,19 @@ def get_mma_load_intrin(
     d1 = T.dynamic("d1", "int32")
 
     @Ts.prim_func
-    def mma_load_impl(a: T.handle, c: T.handle) -> None:
-        src = T.match_buffer(
-            a,
-            (frag_m, frag_n),
-            dtype,
-            align=64,
-            offset_factor=1,
-            scope=shared_scope,
-            strides=[s0, s1],
-        )
-        dst = T.match_buffer(
-            c,
+    def mma_load_impl(
+        src: T.Buffer(
+            (frag_m, frag_n), dtype, align=64, offset_factor=1, scope=shared_scope, strides=[s0, s1]
+        ),
+        dst: T.Buffer(
             (frag_m, frag_n),
             dtype,
             align=64,
             offset_factor=1,
             scope=mma_fragment_scope,
             strides=[d0, d1],
-        )
-
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(src[0:frag_m, 0:frag_n])
             Ts.writes(dst[0:frag_m, 0:frag_n])
@@ -1620,17 +1542,13 @@ def get_mma_sync_intrin(
     B_shape_0, B_shape_1 = maybe_swap(k_dim, n_dim)
 
     @Ts.prim_func
-    def mma_sync_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a, (m_dim, k_dim), in_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixA"
-        )
-        B = T.match_buffer(
-            b, (B_shape_0, B_shape_1), in_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixB"
-        )
-        C = T.match_buffer(
-            c, (m_dim, n_dim), out_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"
-        )
-
+    def mma_sync_desc(
+        A: T.Buffer((m_dim, k_dim), in_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixA"),
+        B: T.Buffer(
+            (B_shape_0, B_shape_1), in_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixB"
+        ),
+        C: T.Buffer((m_dim, n_dim), out_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:B_shape_0, 0:B_shape_1])
             Ts.writes(C[0:m_dim, 0:n_dim])
@@ -1650,35 +1568,32 @@ def get_mma_sync_intrin(
     c1 = T.dynamic("c1", "int32")
 
     @Ts.prim_func
-    def mma_sync_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a,
+    def mma_sync_impl(
+        A: T.Buffer(
             (m_dim, k_dim),
             in_dtype,
             align=64,
             offset_factor=1,
             scope="m16n8k8.matrixA",
             strides=[a0, a1],
-        )
-        B = T.match_buffer(
-            b,
+        ),
+        B: T.Buffer(
             (B_shape_0, B_shape_1),
             in_dtype,
             align=64,
             offset_factor=1,
             scope="m16n8k8.matrixB",
             strides=[b0, b1],
-        )
-        C = T.match_buffer(
-            c,
+        ),
+        C: T.Buffer(
             (m_dim, n_dim),
             out_dtype,
             align=64,
             offset_factor=1,
             scope="m16n8k8.matrixC",
             strides=[c0, c1],
-        )
-
+        ),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:B_shape_0, 0:B_shape_1])
             Ts.writes(C[0:m_dim, 0:n_dim])
@@ -1711,14 +1626,10 @@ def get_mma_store_dummy_intrin(
     del k_dim  # unused
 
     @Ts.prim_func
-    def mma_store_desc(a: T.handle, c: T.handle) -> None:
-        src = T.match_buffer(
-            a, (m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"
-        )
-        dst = T.match_buffer(
-            c, (m_dim, n_dim), dtype, align=64, offset_factor=1, scope="shared.dyn"
-        )
-
+    def mma_store_desc(
+        src: T.Buffer((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
+        dst: T.Buffer((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="shared.dyn"),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(src[0:m_dim, 0:n_dim])
             Ts.writes(dst[0:m_dim, 0:n_dim])

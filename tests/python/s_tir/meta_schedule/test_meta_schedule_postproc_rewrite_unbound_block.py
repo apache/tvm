@@ -49,9 +49,9 @@ def _create_context(mod, target) -> ms.TuneContext:
 @tvm.script.ir_module
 class Before_cooperative_fetch:
     @Ts.prim_func
-    def main(var_A: T.handle, var_B: T.handle) -> None:
-        A = T.match_buffer(var_A, [512, 512], dtype="float32")
-        B = T.match_buffer(var_B, [512, 512], dtype="float32")
+    def main(
+        A: T.Buffer([512, 512], dtype="float32"), B: T.Buffer([512, 512], dtype="float32")
+    ) -> None:
         for i, j in T.grid(512, 512):
             with Ts.sblock("C"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -61,9 +61,9 @@ class Before_cooperative_fetch:
 @tvm.script.ir_module
 class After_cooperative_fetch:
     @Ts.prim_func
-    def main(var_A: T.handle, var_B: T.handle) -> None:
-        A = T.match_buffer(var_A, [512, 512], dtype="float32")
-        B = T.match_buffer(var_B, [512, 512], dtype="float32")
+    def main(
+        A: T.Buffer([512, 512], dtype="float32"), B: T.Buffer([512, 512], dtype="float32")
+    ) -> None:
         for i_j_fused_0 in T.thread_binding(256, thread="blockIdx.x"):
             for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
                 with Ts.sblock("C"):

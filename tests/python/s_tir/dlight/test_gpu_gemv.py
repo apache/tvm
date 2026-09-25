@@ -17,6 +17,8 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: E501, F841
 
+from __future__ import annotations
+
 import tvm
 import tvm.testing
 from tvm.s_tir import dlight as dl
@@ -28,13 +30,11 @@ from tvm.target import Target
 def test_gemv_rejects_composite_normalized_axis():
     @Ts.prim_func(private=True)
     def before(
-        p_data: T.handle,
+        data: T.Buffer((1, 64, n), "float32"),  # noqa: F821
         weight: T.Buffer((64, 1, 512), "float32"),
-        p_output: T.handle,
+        output: T.Buffer((1, 1, n * 256), "float32"),  # noqa: F821
         n: T.int64,
     ):
-        data = T.match_buffer(p_data, (1, 64, n), "float32")
-        output = T.match_buffer(p_output, (1, 1, n * 256), "float32")
         for w, rc, rw in T.grid(n * 256, 64, 512):
             with Ts.sblock("conv1d_transpose"):
                 vw, vrc, vrw = Ts.axis.remap("SRR", [w, rc, rw])
@@ -57,11 +57,9 @@ def test_gemv_basic():
     n = T.dynamic("n", "int32")
 
     @Ts.prim_func(private=True)
-    def before(lv1637: T.Buffer((1, 32, 1, 128), "float16"), p_lv1638: T.handle, p_lv1614: T.handle, p_output0: T.handle):
+    def before(lv1637: T.Buffer((1, 32, 1, 128), "float16"), lv1638: T.Buffer((1, 32, n, 128), 'float16'), lv1614: T.Buffer((1, 1, 1, n), 'float16'), var_compute_intermediate: T.Buffer((1, 32, 1, n))):
         T.func_attr({"tirx.noalias": True})
-        lv1638 = T.match_buffer(p_lv1638, (1, 32, n, 128), "float16")
-        lv1614 = T.match_buffer(p_lv1614, (1, 1, 1, n), "float16")
-        var_compute_intermediate = T.match_buffer(p_output0, (1, 32, 1, n))
+
         # with Ts.sblock("root"):
         var_NT_matmul_intermediate = Ts.sblock_alloc_buffer((1, 32, 1, n), "float16")
         var_T_divide_intermediate = Ts.sblock_alloc_buffer((1, 32, 1, n), "float16")
@@ -103,11 +101,9 @@ def test_gemv_basic():
     n = T.dynamic("n", "int32")
 
     @Ts.prim_func(private=True)
-    def expected(lv1637: T.Buffer((1, 32, 1, 128), "float16"), p_lv1638: T.handle, p_lv1614: T.handle, p_output0: T.handle):
+    def expected(lv1637: T.Buffer((1, 32, 1, 128), "float16"), lv1638: T.Buffer((1, 32, n, 128), 'float16'), lv1614: T.Buffer((1, 1, 1, n), 'float16'), var_compute_intermediate: T.Buffer((1, 32, 1, n))):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-        lv1638 = T.match_buffer(p_lv1638, (1, 32, n, 128), "float16")
-        lv1614 = T.match_buffer(p_lv1614, (1, 1, 1, n), "float16")
-        var_compute_intermediate = T.match_buffer(p_output0, (1, 32, 1, n))
+
         # with Ts.sblock("root"):
         var_NT_matmul_intermediate_local = Ts.sblock_alloc_buffer((1, 32, 1, n), "float16", scope="local")
         var_NT_matmul_intermediate_rf_local = Ts.sblock_alloc_buffer((128, 1, 32, 1, n), "float16", scope="local")
@@ -813,11 +809,9 @@ def test_outer_reduction_adreno_dynamic():
     v = T.dynamic("v")
 
     @Ts.prim_func(private=True)
-    def before(p_lv612: T.handle, p_lv613: T.handle, lv1607: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0: T.handle):
+    def before(lv612: T.Buffer((T.int64(512), v), 'uint32'), lv613: T.Buffer((T.int64(128), v), 'float16'), lv1607: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), v))):
         T.func_attr({"tirx.noalias": True})
-        lv612 = T.match_buffer(p_lv612, (T.int64(512), v), "uint32")
-        lv613 = T.match_buffer(p_lv613, (T.int64(128), v), "float16")
-        p_output0_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(1), v))
+
         # with Ts.sblock("root"):
         p_output0_intermediate_1 = Ts.sblock_alloc_buffer((T.int64(4096), v), "float16")
         var_matmul_intermediate = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1), v), "float16")
@@ -845,11 +839,9 @@ def test_outer_reduction_adreno_dynamic():
     v = T.dynamic("v")
 
     @Ts.prim_func(private=True)
-    def expected(p_lv612: T.handle, p_lv613: T.handle, lv1607: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0: T.handle):
+    def expected(lv612: T.Buffer((T.int64(512), v), 'uint32'), lv613: T.Buffer((T.int64(128), v), 'float16'), lv1607: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), v))):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-        lv612 = T.match_buffer(p_lv612, (T.int64(512), v), "uint32")
-        lv613 = T.match_buffer(p_lv613, (T.int64(128), v), "float16")
-        p_output0_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(1), v))
+
         # with Ts.sblock("root"):
         var_matmul_intermediate_local = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1), v), "float16", scope="local")
         var_matmul_intermediate_rf_local = Ts.sblock_alloc_buffer((T.int64(8), T.int64(1), T.int64(1), v), "float16", scope="local")
@@ -1056,11 +1048,11 @@ def test_blockized_gemv():
 
 def test_func_to_skip():
     @Ts.prim_func
-    def before(var_A: T.handle, var_exclusive_scan_thrust: T.handle, seq_len: T.int64):
-        data_buf = T.match_buffer(var_A, (seq_len * T.int64(8),), "int32", align=8)
-        output_buf = T.match_buffer(
-            var_exclusive_scan_thrust, (seq_len * T.int64(8),), "int32", align=8
-        )
+    def before(
+        data_buf: T.Buffer((seq_len * T.int64(8),), "int32", align=8),  # noqa: F821
+        output_buf: T.Buffer((seq_len * T.int64(8),), "int32", align=8),  # noqa: F821
+        seq_len: T.int64,
+    ):
         with Ts.sblock("exclusive_scan_thrust"):
             Ts.reads()
             Ts.writes()
@@ -1154,12 +1146,11 @@ def test_gemv_broadcast_epilogue():
     @Ts.prim_func(private=True)
     def before(
         A: T.Buffer((1, 32, 1, 128), "float16"),
-        p_B: T.handle,
-        p_C: T.handle,
+        B: T.Buffer((1, 32, n, 128), 'float16'),
+        C: T.Buffer((1, 32, 2, 3, n), 'float32'),
     ):
         T.func_attr({"tirx.noalias": True})
-        B = T.match_buffer(p_B, (1, 32, n, 128), "float16")
-        C = T.match_buffer(p_C, (1, 32, 2, 3, n), "float32")
+
         C_temp = Ts.sblock_alloc_buffer((1, 32, 1, n), "float16")
         for i0, i1, i2, i3, k in T.grid(1, 32, 1, n, 128):
             with Ts.sblock("NT_matmul"):

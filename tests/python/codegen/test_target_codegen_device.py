@@ -65,10 +65,9 @@ def test_add_pipeline():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, B: T.Buffer((), "float32"), var_D: T.handle):
+        def main(A: T.Buffer((n,)), B: T.Buffer((), "float32"), D: T.Buffer((n,))):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (n,))
-            D = T.match_buffer(var_D, (n,))
+
             C = T.alloc_buffer((n,))
             for i0_0 in T.thread_binding((n + 255) // 256, thread="blockIdx.x"):
                 for i0_1 in T.thread_binding(256, thread="threadIdx.x"):

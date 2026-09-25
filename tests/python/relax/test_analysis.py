@@ -16,7 +16,6 @@
 # under the License.
 # ruff: noqa: F811, F841
 
-
 import pytest
 
 import tvm
@@ -654,11 +653,10 @@ def test_reshape_pattern_dyn_1():
     n = T.dynamic("n")
 
     @Ts.prim_func
-    def reshape(var_A: T.handle, var_T_reshape: T.handle):
-        A = T.match_buffer(var_A, (n, T.int64(32), T.int64(128)), "float16")
-        T_reshape = T.match_buffer(
-            var_T_reshape, (T.int64(1), n, T.int64(32), T.int64(128)), "float16"
-        )
+    def reshape(
+        A: T.Buffer((n, T.int64(32), T.int64(128)), "float16"),
+        T_reshape: T.Buffer((T.int64(1), n, T.int64(32), T.int64(128)), "float16"),
+    ):
         for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), n, T.int64(32), T.int64(128)):
             with Ts.sblock("T_reshape"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -683,9 +681,7 @@ def test_reshape_pattern_dyn_2():
     n = T.dynamic("n")
 
     @Ts.prim_func
-    def reshape(var_A: T.handle, var_T_reshape: T.handle):
-        A = T.match_buffer(var_A, (T.int64(1), n), "int32")
-        T_reshape = T.match_buffer(var_T_reshape, (n,), "int32")
+    def reshape(A: T.Buffer((T.int64(1), n), "int32"), T_reshape: T.Buffer((n,), "int32")):
         for ax0 in range(n):
             with Ts.sblock("T_reshape"):
                 v_ax0 = Ts.axis.spatial(n, ax0)
@@ -700,10 +696,12 @@ def test_reshape_pattern_dyn_3():
     n = T.dynamic("n")
 
     @Ts.prim_func
-    def reshape(var_A: T.handle, var_T_reshape: T.handle):
+    def reshape(
+        A: T.Buffer((n, T.int64(4096)), "float16"),
+        T_reshape: T.Buffer((T.int64(1), n, T.int64(4096)), "float16"),
+    ):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True})
-        A = T.match_buffer(var_A, (n, T.int64(4096)), "float16")
-        T_reshape = T.match_buffer(var_T_reshape, (T.int64(1), n, T.int64(4096)), "float16")
+
         for ax0, ax1, ax2 in T.grid(T.int64(1), n, T.int64(4096)):
             with Ts.sblock("T_reshape"):
                 v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
@@ -720,12 +718,12 @@ def test_reshape_pattern_dyn_4():
     n = T.dynamic("n")
 
     @Ts.prim_func
-    def reshape(var_A: T.handle, var_T_reshape: T.handle):
+    def reshape(
+        A: T.Buffer((T.int64(1), n, T.int64(4096)), "float16"),
+        T_reshape: T.Buffer((T.int64(1), n, T.int64(32), T.int64(128)), "float16"),
+    ):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True})
-        A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)), "float16")
-        T_reshape = T.match_buffer(
-            var_T_reshape, (T.int64(1), n, T.int64(32), T.int64(128)), "float16"
-        )
+
         for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), n, T.int64(32), T.int64(128)):
             with Ts.sblock("T_reshape"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -750,10 +748,12 @@ def test_reshape_pattern_dyn_5():
     n = T.dynamic("n")
 
     @Ts.prim_func
-    def reshape(var_A: T.handle, var_T_reshape: T.handle):
+    def reshape(
+        A: T.Buffer((T.int64(1), n, T.int64(32), T.int64(128)), "float16"),
+        T_reshape: T.Buffer((T.int64(1), n, T.int64(4096)), "float16"),
+    ):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True})
-        A = T.match_buffer(var_A, (T.int64(1), n, T.int64(32), T.int64(128)), "float16")
-        T_reshape = T.match_buffer(var_T_reshape, (T.int64(1), n, T.int64(4096)), "float16")
+
         # with Ts.sblock("root"):
         for ax0, ax1, ax2 in T.grid(T.int64(1), n, T.int64(4096)):
             with Ts.sblock("T_reshape"):

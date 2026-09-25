@@ -48,11 +48,13 @@ def test_tir_call_source_kernel():
     @I.ir_module
     class Module:
         @Ts.prim_func
-        def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle) -> None:
+        def add(
+            x: T.Buffer((m_add,), "float32"),
+            y: T.Buffer((m_add,), "float32"),
+            output: T.Buffer((m_add,), "float32"),
+        ) -> None:
             T.func_attr({"global_symbol": "add"})
-            x = T.match_buffer(x_handle, (m_add,), "float32")
-            y = T.match_buffer(y_handle, (m_add,), "float32")
-            output = T.match_buffer(output_handle, (m_add,), "float32")
+
             with Ts.sblock("root"):
                 Ts.reads(x[0:m_add], y[0:m_add])
                 Ts.writes(output[0:m_add])
@@ -78,10 +80,7 @@ def test_tir_call_source_kernel():
     @I.ir_module
     class Parsed:
         @Ts.prim_func
-        def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle):
-            x = T.match_buffer(x_handle, (m,))
-            y = T.match_buffer(y_handle, (m,))
-            output = T.match_buffer(output_handle, (m,))
+        def add(x: T.Buffer((m,)), y: T.Buffer((m,)), output: T.Buffer((m,))):
             with Ts.sblock("root"):
                 Ts.reads(x[0:m], y[0:m])
                 Ts.writes(output[0:m])
