@@ -675,16 +675,14 @@ def _run_statements(
     namespace[transformer.function.dialect_prefix] = builder
     node = tree.body[-1]
     # Macros enter through their body instead of function declaration lowering.
-    # Initialize the same original-name annotation captures inside their helper,
-    # where bound arguments and the macro's definition scope are both available.
+    # Snapshot annotations before defining the helper, in the definition scope.
+    # Bound arguments remain original-name parameters of the macro body.
     _, _, annotation_names = transformer._read_function_annotations(
         node, [], transformer.module.prescan_ctx.bindings.get(node, ())
     )
     captures = transformer.module.make_fresh_name("_definition")
     transformer.function.definition_captures = captures
-    statements = transformer._create_definition_bindings(
-        node, annotation_names, captures=captures
-    )
+    statements = transformer._create_definition_bindings(node, annotation_names, captures=captures)
     body = transformer.transform_statements(node.body)
     names = sorted(name for name in bound_names if name in namespace)
     helper_name = transformer.module.make_fresh_name("_macro")
@@ -707,7 +705,9 @@ def _run_statements(
     if "type_params" in ast.FunctionDef._fields:
         helper.type_params = []
     transformer.module.generated_builders.append(
-        GeneratedBuilder(helper, node.name, set(names) | transformer.module.prescan_ctx.namespaces.keys())
+        GeneratedBuilder(
+            helper, node.name, set(names) | transformer.module.prescan_ctx.namespaces.keys()
+        )
     )
     runnable = _recompose_builder(
         ast.Module([*statements, helper], []),

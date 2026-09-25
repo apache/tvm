@@ -73,22 +73,19 @@ def test_callable_entry_emits_the_expected_builder_program(language, monkeypatch
     expected = dedent(
         """
         with _I0.IRBuilder() as _builder0:
-            _definition0 = {
-                'M': _host1().get(
-                    'M', _definition_scope0.get('M', _host0().get('M', _I0.MISSING))
-                )
-            }
+            _definition0 = _host2(('M',), _host0(), _host1())
             with M.function_() as _fn0:
 
                 def _declare0(*, M=_definition0.get('M', _I0.MISSING)):
                     M.func_name('identity')
                     x = M.arg('x', M.Tensor((4,)))
 
-                    def _build0():
-                        x, = _fn0.params
-                        M.emit_(M.record(x))
-                    _build0()
                 _declare0()
+
+                def _build0():
+                    x, = _fn0.params
+                    M.emit_(M.record(x))
+                _build0()
         _result0 = _fn0.function
         _result0.__name__ = 'identity'
         M.check_well_formed_(_result0)

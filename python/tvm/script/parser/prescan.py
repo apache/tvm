@@ -23,7 +23,7 @@ import builtins
 import inspect
 from collections.abc import Mapping
 from types import ModuleType
-from typing import NamedTuple, NoReturn, TypeVar
+from typing import NamedTuple, NoReturn
 
 from . import protocol_registry as protocol
 from .annotation import parse_annotation
@@ -35,7 +35,7 @@ def collect_annotation_free_names(node: ast.expr) -> dict[str, ast.Name]:
 
 
 def collect_annotation_free_reads(node: ast.expr, bound: set[str] | None = None) -> list[ast.Name]:
-    """Collect the original free reads for captures and lazy symbol adaptation."""
+    """Collect original free reads for captures and lazy missing-name checks."""
     bound = set() if bound is None else bound
     if isinstance(node, ast.Name):
         return [node] if isinstance(node.ctx, ast.Load) and node.id not in bound else []

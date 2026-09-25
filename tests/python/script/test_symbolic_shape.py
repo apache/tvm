@@ -26,7 +26,6 @@ import sys
 
 import pytest
 
-from tvm import ir
 from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.script.parser import entry

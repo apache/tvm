@@ -233,7 +233,8 @@ class FunctionContext:
     """
 
     def __init__(self, current_scope: ast.AST | None, dialect_prefix: str) -> None:
-        # Active source function (or None before root lowering); declaration rewriting use it to select lexical prescan facts.
+        # Active source function (or None before root lowering); declaration rewriting
+        # uses it to select lexical prescan facts.
         self.current_scope = current_scope
         # Namespace identifier used by _call_dialect for this function's builder operations.
         self.dialect_prefix = dialect_prefix
@@ -390,31 +391,11 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         finally:
             self.bypass_ast_rewrite = old
 
-
-
     @contextmanager
-    def _rewrite_annotation(
-        self, node: ast.expr, *, body_annotation: bool = False
-    ) -> Iterator[None]:
-        """Adapt only original free reads, lazily, without renaming Python bindings."""
+    def _rewrite_annotation(self, node: ast.expr) -> Iterator[None]:
+        """Check missing values only at free reads, without renaming Python bindings."""
         previous_reads = self.annotation_reads
-        reads = collect_annotation_free_reads(node)
-        if body_annotation:
-            # Already-bound body values need no definition-symbol adaptation. Use
-            # existing declaration provenance once; helper parameters still own lookup.
-            bindings = self.module.prescan_ctx.bindings.get(self.function.current_scope, ())
-            reads = [
-                reference
-                for reference in reads
-                if not any(
-                    item.name == reference.id
-                    and isinstance(item.node, ast.Name)
-                    and (item.node.lineno, item.node.col_offset)
-                    < (reference.lineno, reference.col_offset)
-                    for item in bindings
-                )
-            ]
-        self.annotation_reads = set(reads)
+        self.annotation_reads = set(collect_annotation_free_reads(node))
         try:
             yield
         finally:
@@ -449,7 +430,9 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             if node.id in self.module.prescan_ctx.namespaces:
                 return node
             return ast.copy_location(
-                ast.Call(self._inject(_require_annotation_value), [node, ast.Constant(node.id)], []),
+                ast.Call(
+                    self._inject(_require_annotation_value), [node, ast.Constant(node.id)], []
+                ),
                 node,
             )
         return node
@@ -477,11 +460,6 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             and not fixed_namespace
             else result
         )
-
-
-
-
-
 
     def visit_Constant(self, node: ast.Constant) -> ast.expr:
         # -------------------- Pattern --------------------
@@ -1097,13 +1075,11 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         value = (
             self._rewrite_assignment_value(node.value, ordinary=ordinary)
             if node.value
-            else ast.Attribute(
-                ast.Name(self.module.ir_prefix, ast.Load()), "MISSING", ast.Load()
-            )
+            else ast.Attribute(ast.Name(self.module.ir_prefix, ast.Load()), "MISSING", ast.Load())
         )
         annotation = parse_annotation(node.annotation, self.module.filename)
         names = set(collect_annotation_free_names(annotation))
-        with self._rewrite_annotation(annotation, body_annotation=True):
+        with self._rewrite_annotation(annotation):
             helper = self._create_lambda([], self.visit(annotation))
         self._capture_defaults(helper, names, node.annotation, body_locals=True)
         annotation = ast.copy_location(ast.Call(helper, [], []), node.annotation)
@@ -1399,7 +1375,9 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         ast.copy_location(context, node.iter)
         # A sequence target unpacks stable frame.vars after entry, including a
         # one-dimensional loop whose public entry returns a scalar variable.
-        frame = self.module.make_fresh_name("_loop") if not isinstance(node.target, ast.Name) else None
+        frame = (
+            self.module.make_fresh_name("_loop") if not isinstance(node.target, ast.Name) else None
+        )
         body = self.transform_statements(node.body)
         if frame is not None:
             unpack = ast.copy_location(
@@ -1668,11 +1646,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         # Acquire each scope once; the snapshot retains selected values, never frames.
         scopes: list[ast.expr] = [ast.Call(self._inject(locals), [], [])]
         scopes.append(ast.Call(self._inject(globals), [], []))
-        defaults = {
-            name: getattr(builtins, name)
-            for name in names
-            if hasattr(builtins, name)
-        }
+        defaults = {name: getattr(builtins, name) for name in names if hasattr(builtins, name)}
         if defaults:
             scopes.append(self._inject(defaults))
         captured = ast.Call(
@@ -1708,9 +1682,18 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 and (item.node.lineno, item.node.col_offset) < (node.lineno, node.col_offset)
                 for item in self.module.prescan_ctx.bindings.get(self.function.current_scope, ())
             ):
-                # A direct read captures enclosing branch/function cells too;
-                # locals().get would hide those references from Python's compiler.
-                value = ast.Name(name, ast.Load())
+                # Keep a real name read so Python captures enclosing helper cells.
+                # A prior conditional binding may not have executed: snapshot its
+                # absence without reading it until the annotation selects that name.
+                value = ast.IfExp(
+                    ast.Compare(
+                        ast.Constant(name), [ast.In()], [ast.Call(self._inject(locals), [], [])]
+                    ),
+                    ast.Name(name, ast.Load()),
+                    ast.Attribute(
+                        ast.Name(self.module.ir_prefix, ast.Load()), "MISSING", ast.Load()
+                    ),
+                )
             helper.args.kwonlyargs.append(ast.arg(name))
             helper.args.kw_defaults.append(value)
 
@@ -1743,7 +1726,12 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             bound = getattr(parameter, "bound", None)
             dtype = self.module.prescan_ctx.sites[parameter].dtype
             if bound is not None and not (isinstance(bound, ast.Name) and bound.id == "int"):
-                if protocol.SCALAR_ANNOTATION_DTYPE.get(self.module.prescan_ctx._match_special_func(bound)) is None:
+                if (
+                    protocol.SCALAR_ANNOTATION_DTYPE.get(
+                        self.module.prescan_ctx._match_special_func(bound)
+                    )
+                    is None
+                ):
                     self._raise_error(
                         parameter,
                         "A symbolic type parameter bound must be int or a registered scalar dtype",
@@ -1858,7 +1846,9 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             value = (
                 fallback
                 if const_args is None
-                else self._select_specialized_value(name, fallback, parameter, const_args=const_args)
+                else self._select_specialized_value(
+                    name, fallback, parameter, const_args=const_args
+                )
             )
             declaration.append(self._assign(alias, value, parameter))
             if alias != name:
@@ -2003,68 +1993,38 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         self,
         node: ast.FunctionDef,
         frame: str,
-        body_name: str,
         definition: ast.FunctionDef,
         frame_declaration: list[ast.stmt],
         capture_names: set[str],
+        constexpr_aliases: dict[str, str],
     ) -> list[ast.stmt]:
-        """Give each signature a lexical scope and retain its body closure."""
-        # Each signature needs its own Python parameter scope. Keep
-        # definition captures outside, at the original declaration
-        # point, and retain the body helper's signature closures.
-        # -------------------- Pattern --------------------
-        # Python source:
-        #     def f(x: annotation):
-        #         body(x)
-        #
-        # Builder:
-        #     def declare(frame):
-        #         with frame:
-        #             x = X.arg("x", annotation)
-        #         def build():
-        #             x, = frame.params
-        #             body(x)
-        #         return frame, build
-        #     frame, build = declare(X.function_(decl=True))
-        #     f = frame.global_var
-        #     with frame:
-        #         build()
-        # -------------------------------------------------
+        """Keep signature snapshots separate from the body's enclosing Python scope."""
+        # The declaration helper returns only the frame and selected host values.
+        # Runtime parameters and explicit symbols are recovered from the frame by
+        # the sibling body helper, whose closures still observe source class setup.
         declare_name = self.module.make_fresh_name("_declare")
         signature = frame_declaration[0]
-        # Decorator options belong to the outer definition scope;
-        # a same-named parameter must not hide them in the helper.
+        # Decorator options evaluate outside the signature's same-named parameters.
         constructor = signature.items[0].context_expr
         signature.items[0].context_expr = ast.copy_location(ast.Name(frame, ast.Load()), node)
+        outputs = [frame, *constexpr_aliases.values()]
         returned = ast.copy_location(
-            ast.Return(
-                ast.Tuple(
-                    [ast.Name(frame, ast.Load()), ast.Name(body_name, ast.Load())],
-                    ast.Load(),
-                )
-            ),
+            ast.Return(ast.Tuple([ast.Name(name, ast.Load()) for name in outputs], ast.Load())),
             node,
         )
-        declare = self._create_definition(declare_name, [signature, definition, returned], node)
+        declare = self._create_definition(declare_name, [signature, returned], node)
         declare.args.args.append(ast.arg(frame))
         self._capture_defaults(declare, capture_names, node)
         return [
             declare,
             ast.copy_location(
                 ast.Assign(
-                    [
-                        ast.Tuple(
-                            [
-                                ast.Name(frame, ast.Store()),
-                                ast.Name(body_name, ast.Store()),
-                            ],
-                            ast.Store(),
-                        )
-                    ],
+                    [ast.Tuple([ast.Name(name, ast.Store()) for name in outputs], ast.Store())],
                     ast.Call(ast.Name(declare_name, ast.Load()), [constructor], []),
                 ),
                 node,
             ),
+            definition,
             frame_declaration[1],
         ]
 
@@ -2094,12 +2054,10 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             )
             captures = self.module.make_fresh_name("_definition")
             self.function.definition_captures = captures
-            statements = self._create_definition_bindings(
-                node, capture_names, captures=captures
-            )
+            statements = self._create_definition_bindings(node, capture_names, captures=captures)
             const_args = None
             if self.module.enable_jit_map and not local_function:
-                const_args = self.module.make_fresh_name("_specialization")
+                const_args = self.module.make_fresh_name("_const_args")
                 statements.extend(self._create_const_args(node, const_args=const_args))
             declaration: list[ast.stmt] = [
                 ast.copy_location(
@@ -2152,7 +2110,9 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 )
                 if self.module.module_name:
                     protected.add(self.module.module_name)
-                self.module.generated_builders.append(GeneratedBuilder(definition, node.name, protected))
+                self.module.generated_builders.append(
+                    GeneratedBuilder(definition, node.name, protected)
+                )
             # -------------------- Pattern --------------------
             # Python source:
             #     def f():
@@ -2172,21 +2132,42 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             if split_declare:
                 statements.extend(
                     self._create_split_declaration(
-                        node, frame, body_name, definition, frame_declaration, capture_names
+                        node, frame, definition, frame_declaration, capture_names, constexpr_aliases
                     )
                 )
             else:
+                outputs = list(constexpr_aliases.values())
+                if outputs:
+                    declaration.append(
+                        ast.copy_location(
+                            ast.Return(
+                                ast.Tuple(
+                                    [ast.Name(name, ast.Load()) for name in outputs], ast.Load()
+                                )
+                            ),
+                            node,
+                        )
+                    )
                 signature = self._create_definition(
-                    self.module.make_fresh_name("_declare"), [*declaration, definition, invocation], node
+                    self.module.make_fresh_name("_declare"), declaration, node
                 )
                 self._capture_defaults(signature, capture_names, node)
+                call = ast.Call(ast.Name(signature.name, ast.Load()), [], [])
                 signature_call = ast.copy_location(
-                    ast.Expr(ast.Call(ast.Name(signature.name, ast.Load()), [], [])), node
+                    ast.Assign(
+                        [ast.Tuple([ast.Name(name, ast.Store()) for name in outputs], ast.Store())],
+                        call,
+                    )
+                    if outputs
+                    else ast.Expr(call),
+                    node,
                 )
             resumed = ast.copy_location(
                 ast.With(
                     [body_entry],
-                    [invocation] if split_declare else [signature, signature_call],
+                    [invocation]
+                    if split_declare
+                    else [signature, signature_call, definition, invocation],
                 ),
                 node,
             )
