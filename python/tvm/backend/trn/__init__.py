@@ -33,11 +33,11 @@ def register_backend():
     """Register Trainium-owned Python semantics."""
     from tvm.tirx import compilation_pipeline  # pylint: disable=import-outside-toplevel
     from tvm.tirx.script.ir_builder import (
-        ir as builder_ir,  # pylint: disable=import-outside-toplevel
+        op as builder_op,  # pylint: disable=import-outside-toplevel
     )
 
     for name, namespace in script_namespaces().items():
-        builder_ir.register_script_namespace(name, namespace)
+        builder_op.register_script_namespace(name, namespace)
 
     import_module(f"{__name__}.tile_primitive")
     trn_pipeline = import_module(f"{__name__}.pipeline")

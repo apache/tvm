@@ -18,12 +18,10 @@
 
 import contextlib
 
-from tvm import tirx
 from tvm.ir import StringImm
 from tvm.tirx import Buffer
 
-from . import frame
-from . import ir as T
+from . import _ffi_api, frame
 
 
 class _FrameScope:
@@ -109,119 +107,42 @@ def seq_scope():
                     T.evaluate(j)
             result = ib.get()
     """
-    return T.attr(0, "pragma_scope", StringImm("seq"))
+    return _ffi_api.Attr(0, "pragma_scope", StringImm("seq"))
 
 
-def _unravel_index(index, shape):
-    """Convert a flat index to multi-dimensional indices.
+def buffer_indices(buffer: Buffer, index):
+    """Translate logical flat or multidimensional indices for a concrete buffer.
+
+    A single index is unraveled in row-major logical order, retaining the
+    outermost quotient. Explicit multidimensional coordinates pass through.
+    The result indexes the original buffer, preserving its strides, layout,
+    element offset and aliases; this function never creates a buffer view.
 
     Parameters
     ----------
-    index : Expr
-        The flat index.
-    shape : Tuple
-        The shape of the buffer.
+    buffer : Buffer
+        The concrete buffer whose logical shape determines the coordinates.
+    index : Expr or sequence of Expr
+        A flat logical index or explicit multidimensional coordinates.
 
     Returns
     -------
-    List[Expr]
-        The multi-dimensional indices.
+    indices : list of Expr
+        Coordinates for a buffer load or an explicitly emitted buffer store.
     """
+    try:
+        indices = list(index)
+    except TypeError:
+        indices = [index]
+    shape = buffer.shape
+    if len(indices) != 1 or len(shape) == 1:
+        return indices
+    index = indices[0]
     indices = []
-    for i, dim in enumerate(reversed(shape)):
-        if i == len(shape) - 1:
-            # Outermost dimension: use remaining quotient directly (no modulo)
+    for axis, extent in enumerate(reversed(shape)):
+        if axis == len(shape) - 1:
             indices.append(index)
         else:
-            indices.append(index % dim)
-            index = index // dim
+            indices.append(index % extent)
+            index = index // extent
     return list(reversed(indices))
-
-
-class _BufferProxy:
-    """Proxy for flat indexing on multi-dimensional buffers.
-
-    This class wraps a TIR Buffer and provides flat indexing that gets
-    automatically converted to multi-dimensional indices. It also supports
-    assignment syntax via __setitem__.
-
-    Parameters
-    ----------
-    buf : Buffer
-        The TIR buffer to wrap.
-
-    Examples
-    --------
-    .. code-block:: python
-
-        buf = tvm.tirx.decl_buffer([2, 3], "float32")
-        ptr = buffer_proxy(buf)
-
-        # Read with flat index (converted to [0, 1])
-        val = ptr[1]
-
-        # Write with flat index
-        ptr[1] = 42.0
-
-        # Multi-dimensional access still works
-        val = ptr[0, 2]
-    """
-
-    def __init__(self, buf):
-        self._buffer = buf
-        self.dtype = buf.dtype
-        self.shape = buf.shape
-        self.name = buf.name
-        self.data = buf.data
-
-    def _normalize_index(self, index):
-        """Convert flat index to multi-dimensional indices if needed."""
-        try:
-            index = [*index]
-        except TypeError:
-            index = [index]
-        if len(index) == 1 and len(self._buffer.shape) != 1:
-            index = _unravel_index(index[0], self._buffer.shape)
-        return index
-
-    def __getitem__(self, index):
-        index = self._normalize_index(index)
-        return tirx.BufferLoad(self._buffer, index)
-
-    def __setitem__(self, index, value):
-        index = self._normalize_index(index)
-        T.buffer_store(self._buffer, value, index)
-
-
-def buffer_proxy(buf: Buffer) -> _BufferProxy:
-    """Create a buffer proxy for flat indexing on multi-dimensional buffers.
-
-    This provides flat indexing that gets converted to multi-dimensional indices.
-    It also supports assignment syntax via __setitem__.
-
-    Parameters
-    ----------
-    buf : Buffer
-        The TIR buffer to wrap.
-
-    Returns
-    -------
-    _BufferProxy
-        A proxy object that supports flat indexing and assignment.
-
-    Examples
-    --------
-    .. code-block:: python
-
-        from tvm.tirx.script.ir_builder.utils import buffer_proxy
-
-        buf = tvm.tirx.decl_buffer([2, 3], "float32")
-        ptr = buffer_proxy(buf)
-
-        # Flat indexing (index 1 -> indices [0, 1])
-        val = ptr[1]
-
-        # Assignment syntax
-        ptr[1] = 42.0
-    """
-    return _BufferProxy(buf)

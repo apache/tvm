@@ -57,7 +57,7 @@ def register_backend():
     """Register CUDA-owned Python semantics."""
     from tvm.target.detect_target import register_device_target_detector
     from tvm.tirx.script.ir_builder import (
-        ir as builder_ir,  # pylint: disable=import-outside-toplevel
+        op as builder_op,  # pylint: disable=import-outside-toplevel
     )
 
     runtime_dir = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent
@@ -73,7 +73,7 @@ def register_backend():
         pass
     register_device_target_detector("cuda", _detect_target_from_device)
     for name, namespace in script_namespaces().items():
-        builder_ir.register_script_namespace(name, namespace)
+        builder_op.register_script_namespace(name, namespace)
 
     # script_namespaces() above pulls in ptx, which only imports the shared
     # codegen layer -- not the device-helper modules. This import is the sole

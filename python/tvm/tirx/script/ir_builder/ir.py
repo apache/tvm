@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""IRBuilder for TIR"""
+"""Concrete TIRx types, buffers, allocations and construction metadata."""
 
 import contextlib
 import functools
@@ -23,27 +23,27 @@ import threading
 from collections.abc import Callable
 from functools import partial
 from numbers import Integral
-from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, Union
+from typing import TYPE_CHECKING, Any, TypeVar
 
-from tvm.ir import StringImm as _StringImm
+from tvm import ir as _ir
 from tvm.ir import TensorRegion
+from tvm.script.ir_builder.base import annotation_constructor as _annotation_constructor
+from tvm.script.ir_builder.base import at as _at
+from tvm.script.parser.protocol_registry import (
+    result_span as _result_span,
+)
 
 # isort: off
 from typing import Literal
 
 # isort: on
 
-from tvm_ffi.core import String
 
 from tvm import DataType, ir
 from tvm import tirx as tir
-from tvm.ir import Call, TensorLoad, Type, is_prim_expr
-from tvm.ir import register_op_attr as _register_op_attr
-from tvm.ir.prim import _ffi_api as _prim_ffi_api
-from tvm.runtime import convert
-from tvm.script.ir_builder import meta_var
-from tvm.script.ir_builder.base import AlreadyEmitted, IRBuilder
-from tvm.script.ir_builder.frame import IRModuleFrame
+from tvm.ir import TensorLoad, Type, is_prim_expr
+from tvm.script.ir_builder.base import IRBuilder
+from tvm.script.ir_builder.ir import meta_var
 from tvm.script.parser.protocol_registry import (
     mutable_cell_decl as _mutable_cell_decl,
 )
@@ -53,49 +53,15 @@ from tvm.script.parser.protocol_registry import (
 from tvm.target import Target
 
 # pylint: disable=unused-import
-from tvm.target.codegen import llvm_lookup_intrinsic_id
 from tvm.tirx import Buffer, Expr, IndexMap, is_buffer_var, type_annotation
-from tvm.tirx import op as _tir_op
 from tvm.tirx.exec_scope import ExecScope, ScopeIdDef, Var
 
 # import tirx.expr for direct ir construction to pass structural_equal comparison
 from tvm.tirx.expr import (
-    EQ,
-    GE,
-    GT,
-    LE,
-    LT,
-    NE,
-    Add,
-    And,
-    BitwiseAnd,
-    BitwiseNot,
-    BitwiseOr,
-    BitwiseXor,
-    Broadcast,
     BufferLoad,
-    CallEffectKind,
-    Cast,
-    CommReducer,
-    Div,
     FloatImm,
-    FloorDiv,
-    FloorMod,
     IntImm,
     IterVar,
-    LShift,
-    Max,
-    Min,
-    Mod,
-    Mul,
-    Not,
-    Or,
-    Ramp,
-    Reduce,
-    RShift,
-    Select,
-    Shuffle,
-    Sub,
 )
 from tvm.tirx.layout import (
     ComposeLayout,
@@ -107,30 +73,9 @@ from tvm.tirx.layout import (
     wg_local_layout,
 )
 
-from . import _ffi_api, frame, utils
-from .external_kernel import call_kernel
+from . import _ffi_api, frame
 
 # pylint: enable=unused-import
-
-
-def _call_global(func: ir.GlobalVar, *args: Expr) -> Call:
-    """Build a TIRX call using the declared function's exact result type."""
-    if IRBuilder.is_in_scope():
-        for module_frame in reversed(list(IRBuilder.current().frames)):
-            if isinstance(module_frame, IRModuleFrame) and func in module_frame.functions:
-                declaration = module_frame.functions[func]
-                if isinstance(declaration, tir.PrimFunc):
-                    # The Relax-facing signature may erase pointer results to Any.
-                    return Call(func, args, ret_ty=declaration.ret_type)
-                break
-    if isinstance(func.ty, ir.FuncType):
-        return Call(func, args, ret_ty=func.ty.ret_type)
-    return Call(func, args)
-
-
-def cast(value, dtype, span=None):
-    """Cast an expression to the requested data type."""
-    return _prim_ffi_api._cast(dtype, value, span)  # type: ignore[attr-defined]
 
 
 def _get_layout(layout: str | Layout | None, shape: list[Expr], scope: str) -> Layout | None:
@@ -184,6 +129,8 @@ def _get_elem_offset(elem_offset, byte_offset, dtype: str):
 
 
 _meta_construction_state = threading.local()
+
+
 _THIS_FILE = __file__
 
 
@@ -263,6 +210,9 @@ def _record_meta_resource(value: Any, skip_frames: int = 2) -> None:
         scope.record(value, frame_info)
 
 
+@_result_span("T.Buffer")
+@_mutable_cell_decl("T.Buffer", syntax="parameter")
+@_annotation_constructor
 def buffer(
     shape: list[Expr] | tuple[Expr] | Expr | Integral,
     dtype: str = "float32",
@@ -276,6 +226,8 @@ def buffer(
     layout: str | Layout | None = "default",
     allocated_addr: int | tuple[int, ...] | None = None,
     buffer_name: str = "",
+    *,
+    span=None,
 ) -> Buffer:
     """The buffer declaration function.
 
@@ -343,93 +295,7 @@ def buffer(
         _get_layout(layout, shape, scope),
         allocated_addr,
     )
-    return result
-
-
-def prim_func(
-    is_private: bool = False,
-    persistent: bool = False,
-    *,
-    private: bool | None = None,
-) -> frame.PrimFuncFrame:
-    """The primitive function statement.
-
-    Parameters
-    ----------
-    is_private : bool
-        Whether the PrimFunc is annotated as private.
-    persistent : bool
-        Whether this is a persistent kernel.
-    private : bool
-        Alias for ``is_private`` (used in decorator syntax).
-
-    Returns
-    -------
-    res : frame.PrimFuncFrame
-        The PrimFuncFrame.
-    """
-    if private is not None:
-        is_private = private
-    return _ffi_api.PrimFunc(is_private, persistent)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def arg(name: str, obj: Var | Buffer) -> Var | Buffer:
-    """The PrimFunc arguments adding function.
-
-    Parameters
-    ----------
-    name : str
-        The name of the argument.
-
-    obj : Union[Var, Buffer]
-        The argument of Var or Buffer.
-
-    Returns
-    -------
-    res : Union[Var, Buffer]
-        The argument.
-    """
-    return _ffi_api.Arg(name, obj)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def func_name(name: str) -> None:
-    """The PrimFunc naming statement.
-
-    Parameters
-    ----------
-    name : str
-        The name of the PrimFunc.
-    """
-    _ffi_api.FuncName(name)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def func_attr(attrs: dict[str, Any]) -> None:
-    """The PrimFunc annotation statement.
-
-    Parameters
-    ----------
-    attrs : Dict[str, Any]
-        The annotations of the PrimFunc.
-    """
-    _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def func_ret(ret_type: Type | None) -> Type:
-    """The PrimFunc return type statement.
-
-    Parameters
-    ----------
-    ret_type : Type
-        The return type of the PrimFunc.
-
-    Returns
-    -------
-    res : Type
-        The return type.
-    """
-    if ret_type is None:
-        ret_type = Type.missing()
-    return _ffi_api.FuncRet(ret_type)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _at(span, result)
 
 
 def Tuple(*fields: Type) -> Type:  # pylint: disable=invalid-name
@@ -549,31 +415,6 @@ def match_buffer(
         allocated_addr,
     )
     return result
-
-
-def device_entry() -> None:
-    """Mark the device-region entry within the enclosing PrimFunc body.
-
-    Flat marker (no ``with``). Subsequent statements in the function body
-    accumulate into an ``AttrStmt("tirx.device_entry", True, body=...)``;
-    the wrapping is closed by the PrimFunc frame at function end.
-
-    Anything written before this marker is host code (e.g. ``T.match_buffer``);
-    anything after is device code.
-
-    Example::
-
-        @T.prim_func
-        def kernel(...):
-            A = T.match_buffer(...)
-            T.device_entry()           # device region starts here
-            bx = T.cta_id([SM_COUNT])  # standalone scope-id def
-            ...
-    """
-    attr_frame = _ffi_api.DeviceEntry()  # type: ignore[attr-defined] # pylint: disable=no-member
-    attr_frame.__enter__()
-    # No return: the frame is registered on the IRBuilder stack; the
-    # PrimFunc frame's exit drains it.
 
 
 def elected():
@@ -844,381 +685,6 @@ def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Buffer:
     )
 
 
-def serial(
-    start: Expr,
-    stop: Expr = None,
-    *,
-    annotations: dict[str, Any] | None = None,
-    step: Expr | None = None,
-    unroll: bool | int | None = None,
-    dtype: str | None = None,
-) -> frame.ForFrame:
-    """The serial For statement.
-
-    Parameters
-    ----------
-    start : Expr
-        The minimum value of iteration.
-
-    stop : Expr
-        The maximum value of iteration.
-
-    annotations : Dict[str, Any]
-        The optional annotations of the For statement.
-
-    step : Expr
-        The optional step value of iteration.
-
-    unroll : bool or int, optional
-        If True, adds ``{"pragma_unroll": True}`` annotation, which asks CUDA codegen
-        to emit ``#pragma unroll`` while preserving the loop as a C++ ``for``.
-        If False, adds ``{"disable_unroll": True}`` annotation.
-        If a positive integer, emits ``#pragma unroll N``. Boolean values are
-        handled separately from integers, so ``False`` keeps disabling unrolling.
-
-    dtype : str, optional
-        The dtype of the loop variable, either ``"int32"`` or ``"uint32"``. When
-        omitted it is inferred from the bounds. Bounds that do not already have this
-        dtype are converted (literals are retyped, other expressions get a Cast).
-        Note ``T.thread_binding`` does not support this; its loop var is always int32.
-
-    Returns
-    -------
-    res : frame.ForFrame
-        The ForFrame.
-    """
-    if unroll is not None:
-        annotations = dict(annotations) if annotations else {}
-        if isinstance(unroll, bool):
-            if unroll:
-                annotations["pragma_unroll"] = True
-            else:
-                annotations["disable_unroll"] = True
-        elif isinstance(unroll, int):
-            if unroll < 1:
-                raise ValueError("unroll must be a positive integer")
-            annotations["pragma_unroll"] = unroll
-        else:
-            raise TypeError("unroll must be a bool, a positive integer, or None")
-    if stop is None:
-        stop = start
-        if is_prim_expr(start):
-            start = IntImm(start.ty, 0)
-        else:
-            start = 0
-    return _ffi_api.Serial(start, stop, annotations, step, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def parallel(
-    start: Expr,
-    stop: Expr = None,
-    *,
-    annotations: dict[str, Any] | None = None,
-    step: Expr | None = None,
-    dtype: str | None = None,
-) -> frame.ForFrame:
-    """The parallel For statement.
-
-    Parameters
-    ----------
-    start : Expr
-        The minimum value of iteration.
-
-    stop : Expr
-        The maximum value of iteration.
-
-    annotations : Dict[str, Any]
-        The optional annotations of the For statement.
-
-    step : Expr
-        The optional step value of iteration.
-
-    dtype : str, optional
-        The dtype of the loop variable, either ``"int32"`` or ``"uint32"``. When
-        omitted it is inferred from the bounds.
-
-    Returns
-    -------
-    res : frame.ForFrame
-        The ForFrame.
-    """
-    if stop is None:
-        stop = start
-        if is_prim_expr(start):
-            start = IntImm(start.ty, 0)
-        else:
-            start = 0
-    return _ffi_api.Parallel(start, stop, annotations, step, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def vectorized(
-    start: Expr,
-    stop: Expr = None,
-    *,
-    annotations: dict[str, Any] | None = None,
-    step: Expr | None = None,
-    dtype: str | None = None,
-) -> frame.ForFrame:
-    """The vectorized For statement.
-
-    Parameters
-    ----------
-    start : Expr
-        The minimum value of iteration.
-
-    stop : Expr
-        The maximum value of iteration.
-
-    annotations : Dict[str, Any]
-        The optional annotations of the For statement.
-
-    step : Expr
-        The optional step value of iteration.
-
-    dtype : str, optional
-        The dtype of the loop variable, either ``"int32"`` or ``"uint32"``. When
-        omitted it is inferred from the bounds.
-
-    Returns
-    -------
-    res : frame.ForFrame
-        The ForFrame.
-    """
-    if stop is None:
-        stop = start
-        if is_prim_expr(start):
-            start = IntImm(start.ty, 0)
-        else:
-            start = 0
-    return _ffi_api.Vectorized(start, stop, annotations, step, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def unroll(
-    start: Expr,
-    stop: Expr = None,
-    *,
-    annotations: dict[str, Any] | None = None,
-    step: Expr | None = None,
-    dtype: str | None = None,
-) -> frame.ForFrame:
-    """The unrolled For statement.
-
-    Parameters
-    ----------
-    start : Expr
-        The minimum value of iteration.
-
-    stop : Expr
-        The maximum value of iteration.
-
-    annotations : Dict[str, Any]
-        The optional annotations of the For statement.
-
-    step : Expr
-        The optional step value of iteration.
-
-    dtype : str, optional
-        The dtype of the loop variable, either ``"int32"`` or ``"uint32"``. When
-        omitted it is inferred from the bounds.
-
-    Returns
-    -------
-    res : frame.ForFrame
-        The ForFrame.
-    """
-    if stop is None:
-        stop = start
-        if is_prim_expr(start):
-            start = IntImm(start.ty, 0)
-        else:
-            start = 0
-    return _ffi_api.Unroll(start, stop, annotations, step, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def thread_binding(
-    start: Expr,
-    stop: Expr = None,
-    thread: str | None = None,
-    *,
-    annotations: dict[str, Any] | None = None,
-) -> frame.ForFrame:
-    """The thread-binding For statement.
-
-    Parameters
-    ----------
-    start : Expr
-        The minimum value of iteration.
-
-    stop : Expr
-        The maximum value of iteration.
-
-    thread : str
-        The thread for loop variable to bind.
-
-    annotations : Dict[str, Any]
-        The optional annotations of the For statement.
-
-    Returns
-    -------
-    res : frame.ForFrame
-        The ForFrame.
-    """
-    if thread is None:
-        if not isinstance(stop, str):
-            raise ValueError("Thread cannot be None for thread_binding")
-        thread = stop
-        stop = start
-        if is_prim_expr(start):
-            start = IntImm(start.ty, 0)
-        else:
-            start = 0
-    elif stop is None:
-        stop = start
-        if is_prim_expr(start):
-            start = IntImm(start.ty, 0)
-        else:
-            start = 0
-    return _ffi_api.ThreadBinding(  # type: ignore[attr-defined] # pylint: disable=no-member
-        start, stop, thread, annotations
-    )
-
-
-def grid(*extents: tuple[Expr | tuple[Expr, Expr]], dtype: str | None = None) -> frame.ForFrame:
-    """The grid For statement.
-
-    Parameters
-    ----------
-    extents : Tuple[Union[Expr, Tuple[Expr, Expr]]]
-        If a single Expr is provided, it is used as the extent of the iteration.
-        If a tuple of two Expr is provided, the first is the start of the iteration,
-        and the second is the extent of the iteration.
-
-    dtype : str, optional
-        The dtype of every loop variable, either ``"int32"`` or ``"uint32"``. When
-        omitted each loop variable takes the dtype of its own extent.
-
-    Returns
-    -------
-    res : frame.ForFrame
-        The ForFrame.
-    """
-    # Convert integer extents to IntImm
-    # TODO(@bohan): fix this after FFI refactor
-    imm_dtype = dtype if dtype is not None else "int32"
-    processed_extents = []
-    for extent in extents:
-        if isinstance(extent, tuple):
-            start, extent = extent
-            start = IntImm(imm_dtype, start) if isinstance(start, int) else start
-            extent = IntImm(imm_dtype, extent) if isinstance(extent, int) else extent
-            processed_extents.append((start, extent))
-        else:
-            processed_extents.append(
-                IntImm(imm_dtype, extent) if isinstance(extent, int) else extent
-            )
-    extents = tuple(processed_extents)
-    return _ffi_api.Grid(extents, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def Assert(condition: Expr, message, error_kind: str = "RuntimeError") -> frame.AssertFrame:  # pylint: disable=invalid-name
-    """Create an assertion statement.
-
-    Parameters
-    ----------
-    condition : Expr
-        The Expr to test.
-
-    message : str or list[str]
-        The error message when the assertion fails. Can be a single string
-        or a list of string parts (fragments stored separately in the IR
-        for binary size reduction through string reuse).
-
-    error_kind : str
-        The error kind (e.g. "RuntimeError", "TypeError", "ValueError").
-
-    Returns
-    -------
-    res : frame.AssertFrame
-        The result AssertFrame.
-    """
-    if isinstance(condition, bool):
-        condition = IntImm("bool", condition)
-    if not isinstance(message, list | tuple):
-        message = [message]
-    return _ffi_api.Assert(condition, error_kind, message)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def Bind(  # pylint: disable=invalid-name
-    value: Expr,
-    type_annotation: Type | None = None,  # pylint: disable=redefined-outer-name
-    *,
-    var: Var | None = None,  # pylint: disable=redefined-outer-name
-) -> Var:
-    """Create a Bind (variable binding).
-
-    Emits a flat Bind statement to the current frame and returns the bound variable.
-
-    Parameters
-    ----------
-    value : Expr
-        The value to be bound.
-    type_annotation : Optional[Type] = None
-        The type annotation of the binding. Usually it is used for fine-grained var typing,
-        particularly, PointerType.
-    var : Optional[Var] = None
-        The variable to bind. If not specified, a new variable will be created.
-
-    Returns
-    -------
-    var : Var
-        The bound variable.
-    """
-    if type_annotation is not None:
-        # Canonical Vars are callable when they denote functions.  Here a Var is
-        # already a resolved type annotation, rather than a deferred annotation factory.
-        if callable(type_annotation) and not isinstance(type_annotation, Expr):
-            type_annotation = type_annotation()
-        if isinstance(type_annotation, ir.Var):
-            type_annotation = type_annotation.ty
-    return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def Let(  # pylint: disable=invalid-name
-    expr: Expr,
-    where: dict[Var, Expr],  # pylint: disable=redefined-outer-name
-) -> Expr:
-    """Create a Let expression binding"""
-    assert len(where) == 1, "T.Let only allows `where` to have exactly one element"
-    var, value = next(iter(where.items()))  # pylint: disable=redefined-outer-name
-    return tir.Let(var, value, expr)
-
-
-def bind(
-    value: Expr,
-    type_annotation: Type | None = None,  # pylint: disable=redefined-outer-name
-    *,
-    var: Var | None = None,  # pylint: disable=redefined-outer-name
-) -> Var:
-    """Create an immutable binding and return its native variable.
-
-    Parameters
-    ----------
-    value : Expr
-        Expression bound in the current statement frame.
-    type_annotation : Type or callable, optional
-        Explicit binding type, or a zero-argument annotation factory. A variable
-        annotation supplies its type; None lets the native builder infer it.
-    var : Var, optional
-        Existing variable to bind. None asks the native builder to create one.
-
-    Returns
-    -------
-    result : Var
-        The same variable stored in the emitted Bind statement.
-    """
-    return Bind(value, type_annotation, var=var)
-
-
 class LetAnnotation:
     """Marker for an immutable Bind, created by ``T.let`` or ``T.let[type]``.
 
@@ -1306,159 +772,6 @@ class DtypeConstructor:
         return f"DtypeConstructor({self._dtype_str!r})"
 
 
-def attr(
-    node_or_dict: Any, attr_key: str | None = None, value: Expr | str | None = None
-) -> Union[frame.AttrFrame, "utils._FrameScope"]:
-    """Create an attribute node, or multiple attribute nodes from a dict.
-
-    Usage 1 — single attr::
-
-        with T.attr(node, key, value):
-            ...
-
-    Usage 2 — dict sugar (node defaults to ``0``)::
-
-        with T.attr({"key1": value1, "key2": value2}):
-            ...
-
-    Parameters
-    ----------
-    node_or_dict : Any
-        If a dict, each key-value pair becomes an AttrStmt with
-        ``node=0``.  Otherwise the node to annotate.
-
-    attr_key : str, optional
-        Attribute type key (required when ``node_or_dict`` is not a dict).
-
-    value : Union[Expr, str], optional
-        The attribute value (required when ``node_or_dict`` is not a dict).
-
-    Returns
-    -------
-    res : Union[frame.AttrFrame, _FrameScope]
-        A single AttrFrame, or a _FrameScope wrapping multiple AttrFrames.
-    """
-    if isinstance(node_or_dict, dict):
-        frames = []
-        for k, v in node_or_dict.items():
-            if isinstance(v, bool):
-                v = IntImm("bool", v)
-            frames.append(_ffi_api.Attr(0, k, convert(v)))  # type: ignore[attr-defined]
-        if len(frames) == 1:
-            return frames[0]
-        return utils._FrameScope(frames)
-    else:
-        if attr_key is None or value is None:
-            raise ValueError("T.attr(node, attr_key, value) requires all three arguments")
-        node_or_dict = convert(node_or_dict)
-        value = convert(value)
-        return _ffi_api.Attr(node_or_dict, attr_key, value)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def hint(message: str = "", **attrs) -> frame.HintFrame:
-    """Universal directive primitive for the sketch language.
-
-    Parameters
-    ----------
-    message : str
-        Free-form directive string that the agent interprets.
-    **attrs
-        Optional structured key-value attributes for known patterns.
-
-    Returns
-    -------
-    res : frame.HintFrame
-        Usable as context manager (with T.hint("msg"):) or bare statement (T.hint("msg")).
-    """
-    return _ffi_api.Hint(message, attrs or {})  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def While(condition: Expr) -> frame.WhileFrame:  # pylint: disable=invalid-name
-    """Create a while node.
-
-    Parameters
-    ----------
-    condition : Expr
-        The termination condition of the loop.
-
-    Returns
-    -------
-    res : frame.WhileFrame
-        The result WhileFrame.
-    """
-    if isinstance(condition, bool):
-        condition = IntImm("bool", condition)
-    return _ffi_api.While(condition)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def Return(value: Expr) -> AlreadyEmitted[tir.Stmt]:  # pylint: disable=invalid-name
-    """Emit a return and retain the stored statement in an emission receipt.
-
-    Parameters
-    ----------
-    value : Expr
-        Expression returned by the active primitive function.
-
-    Returns
-    -------
-    result : AlreadyEmitted[Stmt]
-        Receipt holding the exact return statement emitted into the current frame;
-        consuming it does not emit that statement again.
-    """
-    return AlreadyEmitted(_ffi_api.Return(value))  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def Break() -> None:  # pylint: disable=invalid-name
-    """Create a break node."""
-    return _ffi_api.Break()  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def Continue() -> None:  # pylint: disable=invalid-name
-    """Create a continue node."""
-    return _ffi_api.Continue()  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def If(condition: Expr) -> frame.IfFrame:  # pylint: disable=invalid-name
-    """Create an if node.
-
-    Parameters
-    ----------
-    condition : Expr
-        The condition of if statement, executes the true branch if the condition is true,
-        otherwise jump into the false branch.
-
-    Returns
-    -------
-    res : frame.IfFrame
-        The result IfFrame.
-    """
-    if isinstance(condition, bool):
-        condition = IntImm("bool", condition)
-    return _ffi_api.If(condition)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def Then() -> frame.ThenFrame:  # pylint: disable=invalid-name
-    """Create a then.
-
-    Returns
-    -------
-    res : frame.ThenFrame
-        The result ThenFrame.
-    """
-    return _ffi_api.Then()  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def Else() -> frame.ElseFrame:  # pylint: disable=invalid-name
-    """Create an else.
-
-    Returns
-    -------
-    res : frame.ElseFrame
-        The result ElseFrame.
-    """
-    return _ffi_api.Else()  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
 @_mutable_cell_decl("T.decl_buffer")
 def decl_buffer(
     shape,
@@ -1543,10 +856,20 @@ def decl_buffer(
 
 
 alloc_shared = functools.partial(alloc_buffer, scope="shared")
+
+
 _mutable_cell_decl("T.alloc_shared")(alloc_shared)
+
+
 alloc_local = functools.partial(alloc_buffer, scope="local")
+
+
 _mutable_cell_decl("T.alloc_local")(alloc_local)
+
+
 smem = _mutable_cell_decl("T.smem")(alloc_shared)
+
+
 tmem = functools.partial(alloc_buffer, scope="tmem")
 
 
@@ -1639,113 +962,13 @@ def alloc_cast_frag(src, dtype):
     return flat.view(rows, cols, layout=src.ty.layout)
 
 
-if TYPE_CHECKING:
-    ScalarT = TypeVar("ScalarT")
-
-    # Keep type checking/linting simple by treating wrapper as identity.
-    def scalar_wrapper(x: ScalarT) -> ScalarT:
-        return x
-
-else:
-
-    class scalar_wrapper:
-        """Internal wrapper to allow IRBuilder auto-naming on scalar assignment."""
-
-        def __init__(self, scalar: TensorLoad):
-            assert isinstance(scalar, TensorLoad)
-            self.scalar = scalar
-
-        def __getattr__(self, name: str) -> Any:
-            return getattr(self.scalar, name)
-
-        def __add__(self, other):
-            return self.scalar + other
-
-        def __radd__(self, other):
-            return other + self.scalar
-
-        def __sub__(self, other):
-            return self.scalar - other
-
-        def __rsub__(self, other):
-            return other - self.scalar
-
-        def __mul__(self, other):
-            return self.scalar * other
-
-        def __rmul__(self, other):
-            return other * self.scalar
-
-        def __truediv__(self, other):
-            return self.scalar / other
-
-        def __rtruediv__(self, other):
-            return other / self.scalar
-
-        def __floordiv__(self, other):
-            return self.scalar // other
-
-        def __rfloordiv__(self, other):
-            return other // self.scalar
-
-        def __mod__(self, other):
-            return self.scalar % other
-
-        def __rmod__(self, other):
-            return other % self.scalar
-
-        def __lt__(self, other):
-            return self.scalar < other
-
-        def __le__(self, other):
-            return self.scalar <= other
-
-        def __gt__(self, other):
-            return self.scalar > other
-
-        def __ge__(self, other):
-            return self.scalar >= other
-
-        def __eq__(self, other):
-            return self.scalar == other
-
-        def __ne__(self, other):
-            return self.scalar != other
-
-        def __and__(self, other):
-            return self.scalar & other
-
-        def __rand__(self, other):
-            return other & self.scalar
-
-        def __or__(self, other):
-            return self.scalar | other
-
-        def __ror__(self, other):
-            return other | self.scalar
-
-        def __xor__(self, other):
-            return self.scalar ^ other
-
-        def __rxor__(self, other):
-            return other ^ self.scalar
-
-        def __neg__(self):
-            return -self.scalar
-
-        def __invert__(self):
-            return ~self.scalar
-
-
 @_mutable_cell_decl("T.alloc_scalar")
 def alloc_scalar(dtype: str = "float32", scope: str = "global") -> TensorLoad:
     """Allocate a zero-dimensional buffer (scalar)."""
     buf = alloc_buffer(shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]))
     assert is_buffer_var(buf)
     scalar = buf[0]
-    if _current_meta_construction_scope() is not None:
-        return scalar
-    return scalar_wrapper(scalar)
+    return scalar
 
 
 @_mutable_cell_decl("T.decl_scalar")
@@ -1764,9 +987,7 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Tenso
     )
     assert is_buffer_var(buf)
     scalar = buf[0]
-    if _current_meta_construction_scope() is not None:
-        return scalar
-    return scalar_wrapper(scalar)
+    return scalar
 
 
 @_mutable_cell_decl("T.shared_scalar")
@@ -1786,8 +1007,6 @@ def _is_meta_class_instance(value: Any) -> bool:
 
 
 def _meta_resource_for_value(value: Any) -> Any | None:
-    if isinstance(value, scalar_wrapper):
-        return value.scalar.source
     if isinstance(value, TensorLoad):
         return value.source
     if is_buffer_var(value):
@@ -1877,134 +1096,6 @@ def _validate_meta_construction_scope(scope: _MetaConstructionScope) -> None:
     object.__setattr__(scope.instance, "_tirx_meta_owned_resources", created_resources)
 
 
-def launch_thread(
-    thread: Var | str,  # pylint: disable=redefined-outer-name
-    extent: Expr,
-) -> frame.LaunchThreadFrame:
-    """Launch a thread.
-
-    Parameters
-    ----------
-    thread : Union[Var, str]
-        The iteration variable.
-
-    extent : Expr
-        The extent of environment thread.
-
-    Returns
-    -------
-    res : frame.LaunchThreadFrame
-        The result LaunchThreadFrame.
-
-    Examples
-    --------
-
-    .. code-block:: python
-
-    from tvm.tirx.script import ir_builder as T
-    brow = T.env_thread("blockIdx.y")
-    T.launch_thread(brow, 1)
-
-    """
-
-    if isinstance(thread, str):
-        thread = String(thread)
-    return _ffi_api.LaunchThread(thread, extent)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def env_thread(thread_tag: str, dtype: str = "int32") -> Var:
-    """Bind a var to thread env
-
-    Parameters
-    ----------
-    thread_tag : str
-        The thread type tag.
-
-    dtype : str
-        The data type of the thread env.
-
-    Returns
-    -------
-    res : Var
-        The thread variable; native function state retains its iteration metadata.
-
-    """
-    return _ffi_api.EnvThread(thread_tag, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def buffer_store(
-    buffer: Buffer,  # pylint: disable=redefined-outer-name
-    value: Expr,
-    indices: list[Expr | slice],
-) -> AlreadyEmitted[tir.Stmt]:
-    """Emit a buffer store and return a receipt for the stored statement.
-
-    Parameters
-    ----------
-    buffer : Buffer
-        The buffer.
-
-    value : Expr
-        The value to be stored.
-
-    indices : List[Union[Expr, slice]]
-        The indices location to be stored.
-
-    Returns
-    -------
-    result : AlreadyEmitted[Stmt]
-        Receipt for the exact stored statement; consuming it does not emit again.
-
-    """
-    from tvm.sym import Analyzer  # pylint: disable=import-outside-toplevel
-
-    if not isinstance(indices, list | tuple | ir.Array):
-        indices = [indices]
-
-    expr_indices = []
-    for index in indices:
-        if isinstance(index, slice):
-            step = 1 if index.step is None else index.step
-            lanes = Analyzer().simplify(  # pylint: disable=redefined-outer-name
-                (index.stop - index.start + step - 1) // step
-            )
-            if lanes == 1:
-                expr_indices.append(index.start)
-            else:
-                expr_indices.append(ramp(index.start, step, lanes))
-        else:
-            expr_indices.append(index)
-    if isinstance(value, bool) and buffer.ty.dtype == "bool":
-        value = IntImm("bool", value)
-    return AlreadyEmitted(_ffi_api.BufferStore(buffer, value, expr_indices))
-
-
-def evaluate(value: Expr) -> AlreadyEmitted[tir.Stmt]:
-    """Emit an evaluation and return a reference to its stored statement.
-
-    Parameters
-    ----------
-    value : Expr
-        The input expression to evaluate.
-
-    Returns
-    -------
-    result : AlreadyEmitted[Stmt]
-        A receipt containing the emitted statement, so expression-statement
-        handling does not emit it again.
-    """
-    if isinstance(value, str):
-        value = _StringImm(value)
-    if isinstance(value, bool):
-        value = IntImm("bool", value)
-    if isinstance(value, TensorRegion):
-        raise TypeError(
-            "T.evaluate does not accept TensorRegion values; "
-            "construct a BufferLoad with explicit indices"
-        )
-    return AlreadyEmitted(_ffi_api.Evaluate(value))  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
 def _ffi_name_to_dtype(name: str) -> str:
     """Convert an FFI type name to its TVM dtype string.
 
@@ -2037,182 +1128,467 @@ def static_assert(x: Any, message: str = ""):
     assert x, message
 
 
-def add_to_parent(stmt: tir.Stmt) -> None:
-    """Add a statement to the parent frame."""
-    _ffi_api.AddToParent(stmt)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-# pylint: disable=invalid-name
 int8 = func_gen("Int8")
+
+
 int16 = func_gen("Int16")
+
+
 int32 = func_gen("Int32")
+
+
 int64 = func_gen("Int64")
+
+
 int8x2 = func_gen("Int8x2")
+
+
 int16x2 = func_gen("Int16x2")
+
+
 int32x2 = func_gen("Int32x2")
+
+
 int64x2 = func_gen("Int64x2")
+
+
 int8x4 = func_gen("Int8x4")
+
+
 int16x4 = func_gen("Int16x4")
+
+
 int32x4 = func_gen("Int32x4")
+
+
 int64x4 = func_gen("Int64x4")
+
+
 int8x8 = func_gen("Int8x8")
+
+
 int16x8 = func_gen("Int16x8")
+
+
 int32x8 = func_gen("Int32x8")
+
+
 int64x8 = func_gen("Int64x8")
+
+
 int8x16 = func_gen("Int8x16")
+
+
 int16x16 = func_gen("Int16x16")
+
+
 int32x16 = func_gen("Int32x16")
+
+
 int64x16 = func_gen("Int64x16")
+
+
 int8x32 = func_gen("Int8x32")
+
+
 int16x32 = func_gen("Int16x32")
+
+
 int32x32 = func_gen("Int32x32")
+
+
 int64x32 = func_gen("Int64x32")
+
+
 int8x64 = func_gen("Int8x64")
+
+
 int16x64 = func_gen("Int16x64")
+
+
 int32x64 = func_gen("Int32x64")
+
+
 int64x64 = func_gen("Int64x64")
 
+
 uint8 = func_gen("UInt8")
+
+
 uint16 = func_gen("UInt16")
+
+
 uint32 = func_gen("UInt32")
+
+
 uint64 = func_gen("UInt64")
+
+
 uint8x2 = func_gen("UInt8x2")
+
+
 uint16x2 = func_gen("UInt16x2")
+
+
 uint32x2 = func_gen("UInt32x2")
+
+
 uint64x2 = func_gen("UInt64x2")
+
+
 uint8x4 = func_gen("UInt8x4")
+
+
 uint16x4 = func_gen("UInt16x4")
+
+
 uint32x4 = func_gen("UInt32x4")
+
+
 uint64x4 = func_gen("UInt64x4")
+
+
 uint8x8 = func_gen("UInt8x8")
+
+
 uint16x8 = func_gen("UInt16x8")
+
+
 uint32x8 = func_gen("UInt32x8")
+
+
 uint64x8 = func_gen("UInt64x8")
+
+
 uint8x16 = func_gen("UInt8x16")
+
+
 uint16x16 = func_gen("UInt16x16")
+
+
 uint32x16 = func_gen("UInt32x16")
+
+
 uint64x16 = func_gen("UInt64x16")
+
+
 uint8x32 = func_gen("UInt8x32")
+
+
 uint16x32 = func_gen("UInt16x32")
+
+
 uint32x32 = func_gen("UInt32x32")
+
+
 uint64x32 = func_gen("UInt64x32")
+
+
 uint8x64 = func_gen("UInt8x64")
+
+
 uint16x64 = func_gen("UInt16x64")
+
+
 uint32x64 = func_gen("UInt32x64")
+
+
 uint64x64 = func_gen("UInt64x64")
 
+
 float16 = func_gen("Float16")
+
+
 float32 = func_gen("Float32")
+
+
 float64 = func_gen("Float64")
+
+
 float16x2 = func_gen("Float16x2")
+
+
 float32x2 = func_gen("Float32x2")
+
+
 float64x2 = func_gen("Float64x2")
+
+
 float16x4 = func_gen("Float16x4")
+
+
 float32x4 = func_gen("Float32x4")
+
+
 float64x4 = func_gen("Float64x4")
+
+
 float16x8 = func_gen("Float16x8")
+
+
 float32x8 = func_gen("Float32x8")
+
+
 float64x8 = func_gen("Float64x8")
+
+
 float16x16 = func_gen("Float16x16")
+
+
 float32x16 = func_gen("Float32x16")
+
+
 float64x16 = func_gen("Float64x16")
+
+
 float16x32 = func_gen("Float16x32")
+
+
 float32x32 = func_gen("Float32x32")
+
+
 float64x32 = func_gen("Float64x32")
+
+
 float16x64 = func_gen("Float16x64")
+
+
 float32x64 = func_gen("Float32x64")
+
+
 float64x64 = func_gen("Float64x64")
 
-# Float8 variants
+
 float8_e3m4 = func_gen("Float8E3M4")
+
+
 float8_e3m4x2 = func_gen("Float8E3M4x2")
+
+
 float8_e3m4x4 = func_gen("Float8E3M4x4")
+
+
 float8_e3m4x8 = func_gen("Float8E3M4x8")
+
+
 float8_e3m4x16 = func_gen("Float8E3M4x16")
+
+
 float8_e3m4x32 = func_gen("Float8E3M4x32")
+
+
 float8_e3m4x64 = func_gen("Float8E3M4x64")
 
+
 float8_e4m3 = func_gen("Float8E4M3")
+
+
 float8_e4m3x2 = func_gen("Float8E4M3x2")
+
+
 float8_e4m3x4 = func_gen("Float8E4M3x4")
+
+
 float8_e4m3x8 = func_gen("Float8E4M3x8")
+
+
 float8_e4m3x16 = func_gen("Float8E4M3x16")
+
+
 float8_e4m3x32 = func_gen("Float8E4M3x32")
+
+
 float8_e4m3x64 = func_gen("Float8E4M3x64")
 
+
 float8_e4m3b11fnuz = func_gen("Float8E4M3B11FNUZ")
+
+
 float8_e4m3b11fnuzx2 = func_gen("Float8E4M3B11FNUZx2")
+
+
 float8_e4m3b11fnuzx4 = func_gen("Float8E4M3B11FNUZx4")
+
+
 float8_e4m3b11fnuzx8 = func_gen("Float8E4M3B11FNUZx8")
+
+
 float8_e4m3b11fnuzx16 = func_gen("Float8E4M3B11FNUZx16")
+
+
 float8_e4m3b11fnuzx32 = func_gen("Float8E4M3B11FNUZx32")
+
+
 float8_e4m3b11fnuzx64 = func_gen("Float8E4M3B11FNUZx64")
 
+
 float8_e4m3fn = func_gen("Float8E4M3FN")
+
+
 float8_e4m3fnx2 = func_gen("Float8E4M3FNx2")
+
+
 float8_e4m3fnx4 = func_gen("Float8E4M3FNx4")
+
+
 float8_e4m3fnx8 = func_gen("Float8E4M3FNx8")
+
+
 float8_e4m3fnx16 = func_gen("Float8E4M3FNx16")
+
+
 float8_e4m3fnx32 = func_gen("Float8E4M3FNx32")
+
+
 float8_e4m3fnx64 = func_gen("Float8E4M3FNx64")
 
+
 float8_e4m3fnuz = func_gen("Float8E4M3FNUZ")
+
+
 float8_e4m3fnuzx2 = func_gen("Float8E4M3FNUZx2")
+
+
 float8_e4m3fnuzx4 = func_gen("Float8E4M3FNUZx4")
+
+
 float8_e4m3fnuzx8 = func_gen("Float8E4M3FNUZx8")
+
+
 float8_e4m3fnuzx16 = func_gen("Float8E4M3FNUZx16")
+
+
 float8_e4m3fnuzx32 = func_gen("Float8E4M3FNUZx32")
+
+
 float8_e4m3fnuzx64 = func_gen("Float8E4M3FNUZx64")
 
+
 float8_e5m2 = func_gen("Float8E5M2")
+
+
 float8_e5m2x2 = func_gen("Float8E5M2x2")
+
+
 float8_e5m2x4 = func_gen("Float8E5M2x4")
+
+
 float8_e5m2x8 = func_gen("Float8E5M2x8")
+
+
 float8_e5m2x16 = func_gen("Float8E5M2x16")
+
+
 float8_e5m2x32 = func_gen("Float8E5M2x32")
+
+
 float8_e5m2x64 = func_gen("Float8E5M2x64")
 
+
 float8_e5m2fnuz = func_gen("Float8E5M2FNUZ")
+
+
 float8_e5m2fnuzx2 = func_gen("Float8E5M2FNUZx2")
+
+
 float8_e5m2fnuzx4 = func_gen("Float8E5M2FNUZx4")
+
+
 float8_e5m2fnuzx8 = func_gen("Float8E5M2FNUZx8")
+
+
 float8_e5m2fnuzx16 = func_gen("Float8E5M2FNUZx16")
+
+
 float8_e5m2fnuzx32 = func_gen("Float8E5M2FNUZx32")
+
+
 float8_e5m2fnuzx64 = func_gen("Float8E5M2FNUZx64")
 
+
 float8_e8m0fnu = func_gen("Float8E8M0FNU")
+
+
 float8_e8m0fnux2 = func_gen("Float8E8M0FNUx2")
+
+
 float8_e8m0fnux4 = func_gen("Float8E8M0FNUx4")
+
+
 float8_e8m0fnux8 = func_gen("Float8E8M0FNUx8")
+
+
 float8_e8m0fnux16 = func_gen("Float8E8M0FNUx16")
+
+
 float8_e8m0fnux32 = func_gen("Float8E8M0FNUx32")
+
+
 float8_e8m0fnux64 = func_gen("Float8E8M0FNUx64")
 
-# Float6 variants
+
 float6_e2m3fn = func_gen("Float6E2M3FN")
+
+
 float6_e2m3fnx2 = func_gen("Float6E2M3FNx2")
+
+
 float6_e2m3fnx4 = func_gen("Float6E2M3FNx4")
+
+
 float6_e2m3fnx8 = func_gen("Float6E2M3FNx8")
+
+
 float6_e2m3fnx16 = func_gen("Float6E2M3FNx16")
+
+
 float6_e2m3fnx32 = func_gen("Float6E2M3FNx32")
+
+
 float6_e2m3fnx64 = func_gen("Float6E2M3FNx64")
 
+
 float6_e3m2fn = func_gen("Float6E3M2FN")
+
+
 float6_e3m2fnx2 = func_gen("Float6E3M2FNx2")
+
+
 float6_e3m2fnx4 = func_gen("Float6E3M2FNx4")
+
+
 float6_e3m2fnx8 = func_gen("Float6E3M2FNx8")
+
+
 float6_e3m2fnx16 = func_gen("Float6E3M2FNx16")
+
+
 float6_e3m2fnx32 = func_gen("Float6E3M2FNx32")
+
+
 float6_e3m2fnx64 = func_gen("Float6E3M2FNx64")
 
-# Float4 variants
+
 float4_e2m1fn = func_gen("Float4E2M1FN")
+
+
 float4_e2m1fnx2 = func_gen("Float4E2M1FNx2")
+
+
 float4_e2m1fnx4 = func_gen("Float4E2M1FNx4")
+
+
 float4_e2m1fnx8 = func_gen("Float4E2M1FNx8")
+
+
 float4_e2m1fnx16 = func_gen("Float4E2M1FNx16")
+
+
 float4_e2m1fnx32 = func_gen("Float4E2M1FNx32")
+
+
 float4_e2m1fnx64 = func_gen("Float4E2M1FNx64")
+
 
 bfloat16 = func_gen("BFloat16")
 
@@ -2240,8 +1616,8 @@ _mutable_cell_decl("T.u16", syntax="annotation")(u16)
 u32 = _register_scalar_annotation("T.u32", uint32, dtype="uint32")
 _mutable_cell_decl("T.u32", syntax="annotation")(u32)
 u64 = _register_scalar_annotation("T.u64", uint64, dtype="uint64")
+
 _mutable_cell_decl("T.u64", syntax="annotation")(u64)
-# pylint: enable=invalid-name
 
 
 def boolean(expr: Expr | None = None) -> Expr:
@@ -2332,44 +1708,6 @@ def ptr(dtype: str, storage_scope: str = "global") -> Var:
     return _ffi_api.Ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def min(a: Expr, b: Expr) -> Expr:  # pylint: disable=redefined-builtin
-    """Compute the minimum value of two expressions.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand
-
-    b : Expr
-        The right hand operand
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-    """
-    return _ffi_api.min(a, b)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def max(a: Expr, b: Expr) -> Expr:  # pylint: disable=redefined-builtin
-    """Compute the maximum value of two expressions.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand
-
-    b : Expr
-        The right hand operand
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-    """
-    return _ffi_api.max(a, b)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
 def iter_var(v: Var | str, dom: ir.Range, iter_type: str, thread_tag: str) -> IterVar:
     """The iteration variable.
 
@@ -2394,37 +1732,6 @@ def iter_var(v: Var | str, dom: ir.Range, iter_type: str, thread_tag: str) -> It
     """
     iter_type = getattr(IterVar, iter_type)
     return IterVar(dom, v, iter_type, thread_tag)
-
-
-def comm_reducer(combiner: Callable, identity: list[Expr]) -> CommReducer:
-    """
-    Create a CommReducer from lambda inputs/outputs and the identities
-
-    Parameters
-    ----------
-    combiner : Callable
-        A binary function which takes two Expr as input to return a Expr.
-
-    identity : List[Expr]
-        A list of types of output Expr.
-
-    Returns
-    -------
-    res : CommReducer
-        The CommReducer.
-    """
-    params = inspect.signature(combiner).parameters
-    num_args = len(params)
-    args = []
-    for name, i in zip(params.keys(), identity + identity):
-        if isinstance(i, int):
-            args.append(Var(name, "int32"))
-        else:
-            args.append(Var(name, i.ty))
-    res = combiner(*args)
-    if not isinstance(res, tuple):
-        res = (res,)
-    return CommReducer(args[: num_args // 2], args[num_args // 2 :], res, identity)
 
 
 def index_map(
@@ -2505,18 +1812,12 @@ else:
             return cls
 
         original_init = getattr(cls, "__init__", object.__init__)
-        original_setattr = getattr(cls, "__setattr__", object.__setattr__)
         original_init_subclass = getattr(cls, "__init_subclass__", None)
 
         def __init__(self, *args, **kwargs):
             with _with_meta_construction_scope(self, type(self)) as scope:
                 original_init(self, *args, **kwargs)
                 _validate_meta_construction_scope(scope)
-
-        def __setattr__(self, name, value):
-            if isinstance(value, scalar_wrapper):
-                value = value.scalar
-            original_setattr(self, name, value)
 
         @classmethod
         def __init_subclass__(subcls, **kwargs):
@@ -2525,7 +1826,6 @@ else:
             _install_meta_class(subcls)
 
         cls.__init__ = __init__
-        cls.__setattr__ = __setattr__
         cls.__init_subclass__ = __init_subclass__
         cls._is_meta_class = True
         cls._tirx_meta_class_installed = True
@@ -2538,691 +1838,263 @@ else:
         """
         return _install_meta_class(cls)
 
-# pylint: disable=invalid-name
+
+def Ptr(dtype, storage_scope="global", *, span=None):
+    """The pointer declaration function.
+
+    Parameters
+    ----------
+    dtype : str, Type or callable
+        The data type of the pointer.
+
+    storage_scope : str
+        The storage scope of the pointer.
+
+    span : SpanEntry, Span or None, optional
+        Source location attached to the constructed IR.
+
+    Returns
+    -------
+    res : Var
+        The pointer.
+    """
+    if callable(dtype) and not isinstance(dtype, _ir.Expr):
+        dtype = dtype()
+    if isinstance(dtype, _ir.Expr):
+        dtype = dtype.ty
+    if isinstance(dtype, _ir.PrimType):
+        dtype = dtype.dtype
+    return _at(span, ptr(dtype, storage_scope))
 
 
-T = TypeVar("T")
-P = ParamSpec("P")
-
-
-def _op_wrapper(func: Callable[P, T]) -> Callable[P, T]:
-    @functools.wraps(func)
-    def wrapped(*args, **kwargs) -> T:
-        if "dtype" in kwargs:
-            kwargs.pop("dtype")
-        return func(*args, **kwargs)
-
-    # Expose underlying tir op name for printer registration
-    try:
-        wrapped.__tir_op_name__ = getattr(func, "__name__", None)
-    except Exception:  # pragma: no cover
-        pass
-    return wrapped
-
-
-def _dtype_forward(func):
-    @functools.wraps(func)
-    def wrapped(*args, **kwargs):
-        if "dtype" in kwargs:
-            args = (kwargs.pop("dtype"), *args)
-        return func(*args, **kwargs)
-
-    # Expose underlying tir op name for printer registration
-    try:
-        wrapped.__tir_op_name__ = getattr(func, "__name__", None)
-    except Exception:  # pragma: no cover
-        pass
-    return wrapped
-
-
-class WebGPUNamespace:
-    """The WebGPU intrinsics submodule."""
-
-    @staticmethod
-    def subgroup_shuffle(var, lane):
-        if is_buffer_var(var):
-            var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle", var, lane)
-
-    @staticmethod
-    def subgroup_shuffle_up(var, delta):
-        if is_buffer_var(var):
-            var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle_up", var, delta)
-
-    @staticmethod
-    def subgroup_shuffle_down(var, delta):
-        if is_buffer_var(var):
-            var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle_down", var, delta)
-
-
-webgpu = WebGPUNamespace()
-
-
-def _register_script_namespace_printer_names(ns_obj, dotted_prefix):
-    def register_printer_name(op_name, script_name):
-        try:
-            ir.Op.get(op_name)
-        except Exception:
-            return
-        try:
-            _register_op_attr(op_name, "TScriptPrinterName", script_name, level=20)
-        except Exception:
-            pass
-
-    def visit(ns_obj, dotted_prefix):
-        # If the namespace object itself maps to an op via __call__
-        call_op = getattr(ns_obj, "__tir_call_op_name__", None)
-        if call_op:
-            flat_name = f"tirx.{call_op}"
-            for op_name in {flat_name, _tir_op._canonical_device_intrin_name(flat_name)}:
-                register_printer_name(op_name, dotted_prefix)
-        # Walk attributes to find wrapped ops and sub-namespaces
-        for name in dir(ns_obj):
-            if name.startswith("_"):
-                continue
-            try:
-                val = getattr(ns_obj, name)
-            except Exception:
-                continue
-            # Sub-namespace: recurse
-            if hasattr(val, "__dict__") and val.__class__.__name__.endswith("Namespace"):
-                visit(val, f"{dotted_prefix}.{name}")
-                continue
-            # Wrapped op (callable with attached __tir_op_name__)
-            op_name = getattr(val, "__tir_op_name__", None)
-            if callable(val) and op_name:
-                flat_name = f"tirx.{op_name}"
-                script_name = f"{dotted_prefix}.{name}"
-                for full_op_name in {flat_name, _tir_op._canonical_device_intrin_name(flat_name)}:
-                    register_printer_name(full_op_name, script_name)
-
-    visit(ns_obj, dotted_prefix)
-
-
-_SCRIPT_NAMESPACES = {}
-
-
-def _get_script_namespace(name: str) -> object:
-    """Return an explicitly registered backend construction namespace."""
-    if name in _SCRIPT_NAMESPACES:
-        return _SCRIPT_NAMESPACES[name]
-    raise AttributeError(f"No script namespace {name!r}")
-
-
-def register_script_namespace(name: str, namespace: object) -> object:
-    """Register a TVMScript namespace on the TIRx builder facade."""
-    _SCRIPT_NAMESPACES[name] = namespace
-    globals()[name] = namespace
-    if "__all__" in globals() and name not in __all__:
-        __all__.append(name)
-
-    import sys  # pylint: disable=import-outside-toplevel
-
-    for module_name in [
-        "tvm.tirx.script.ir_builder",
-        "tvm.tirx.script",
-        "tvm.script.tirx",
-    ]:
-        module = sys.modules.get(module_name)
-        if module is None:
-            continue
-        setattr(module, name, namespace)
-        module_all = getattr(module, "__all__", None)
-        if isinstance(module_all, list) and name not in module_all:
-            module_all.append(name)
-
-    _register_script_namespace_printer_names(namespace, name)
-    return namespace
-
-
-def _register_tir_namespace_printer_names():
-    try:
-        _register_script_namespace_printer_names(webgpu, "webgpu")
-    except Exception:
-        # Best-effort registration; avoid import-time hard failure
-        pass
-
-
-_register_tir_namespace_printer_names()
-
-abs = _op_wrapper(_tir_op.abs)  # pylint: disable=redefined-builtin
-acos = _op_wrapper(_tir_op.acos)
-acosh = _op_wrapper(_tir_op.acosh)
-address_of = _op_wrapper(_tir_op.address_of)
-asin = _op_wrapper(_tir_op.asin)
-asinh = _op_wrapper(_tir_op.asinh)
-atan = _op_wrapper(_tir_op.atan)
-atan2 = _op_wrapper(_tir_op.atan2)
-atanh = _op_wrapper(_tir_op.atanh)
-bitwise_and = _op_wrapper(_tir_op.bitwise_and)
-bitwise_not = _op_wrapper(_tir_op.bitwise_not)
-bitwise_or = _op_wrapper(_tir_op.bitwise_or)
-bitwise_xor = _op_wrapper(_tir_op.bitwise_xor)
-ceil = _op_wrapper(_tir_op.ceil)
-clz = _op_wrapper(_tir_op.clz)
-copysign = _op_wrapper(_tir_op.copysign)
-cos = _op_wrapper(_tir_op.cos)
-cosh = _op_wrapper(_tir_op.cosh)
-erf = _op_wrapper(_tir_op.erf)
-exp = _op_wrapper(_tir_op.exp)
-exp2 = _op_wrapper(_tir_op.exp2)
-exp10 = _op_wrapper(_tir_op.exp10)
-filter = _op_wrapper(_tir_op.filter)  # pylint: disable=redefined-builtin
-selector = _op_wrapper(_tir_op.selector)
-floor = _op_wrapper(_tir_op.floor)
-ceildiv = _op_wrapper(_tir_op.ceildiv)
-floordiv = _op_wrapper(_tir_op.floordiv)
-floormod = _op_wrapper(_tir_op.floormod)
-fmod = _op_wrapper(_tir_op.fmod)
-fma = _op_wrapper(_tir_op.fma)
-hypot = _op_wrapper(_tir_op.hypot)
-if_then_else = _op_wrapper(_tir_op.if_then_else)
-infinity = _op_wrapper(_tir_op.infinity)
-isfinite = _op_wrapper(_tir_op.isfinite)
-isinf = _op_wrapper(_tir_op.isinf)
-isnan = _op_wrapper(_tir_op.isnan)
-isnullptr = _op_wrapper(_tir_op.isnullptr)
-ldexp = _op_wrapper(_tir_op.ldexp)
-likely = _op_wrapper(_tir_op.likely)
-log = _op_wrapper(_tir_op.log)
-log1p = _op_wrapper(_tir_op.log1p)
-log2 = _op_wrapper(_tir_op.log2)
-log10 = _op_wrapper(_tir_op.log10)
-lookup_param = _op_wrapper(_tir_op.lookup_param)
-max_value = _op_wrapper(_tir_op.max_value)
-min_value = _op_wrapper(_tir_op.min_value)
-nearbyint = _op_wrapper(_tir_op.nearbyint)
-nextafter = _op_wrapper(_tir_op.nextafter)
-popcount = _op_wrapper(_tir_op.popcount)
-pow = _op_wrapper(_tir_op.pow)  # pylint: disable=redefined-builtin
-q_multiply_shift = _op_wrapper(_tir_op.q_multiply_shift)
-q_multiply_shift_per_axis = _op_wrapper(_tir_op.q_multiply_shift_per_axis)
-continue_loop = _op_wrapper(_tir_op.continue_loop)
-break_loop = _op_wrapper(_tir_op.break_loop)
-round = _op_wrapper(_tir_op.round)  # pylint: disable=redefined-builtin
-rsqrt = _op_wrapper(_tir_op.rsqrt)
-shift_left = _op_wrapper(_tir_op.shift_left)
-shift_right = _op_wrapper(_tir_op.shift_right)
-sigmoid = _op_wrapper(_tir_op.sigmoid)
-sin = _op_wrapper(_tir_op.sin)
-sinh = _op_wrapper(_tir_op.sinh)
-sqrt = _op_wrapper(_tir_op.sqrt)
-tan = _op_wrapper(_tir_op.tan)
-tanh = _op_wrapper(_tir_op.tanh)
-thread_return = _op_wrapper(_tir_op.thread_return)
-trunc = _op_wrapper(_tir_op.trunc)
-truncdiv = _op_wrapper(_tir_op.truncdiv)
-truncmod = _op_wrapper(_tir_op.truncmod)
-tvm_access_ptr = _op_wrapper(_tir_op.tvm_access_ptr)
-ptr_byte_offset = _op_wrapper(_tir_op.ptr_byte_offset)
-tvm_throw_last_error = _op_wrapper(_tir_op.tvm_throw_last_error)
-print_buffer = _op_wrapper(_tir_op.print_buffer)
-tvm_stack_alloca = _op_wrapper(_tir_op.tvm_stack_alloca)
-tvm_stack_make_shape = _op_wrapper(_tir_op.tvm_stack_make_shape)
-tvm_stack_make_array = _op_wrapper(_tir_op.tvm_stack_make_array)
-call_packed = _op_wrapper(_tir_op.call_packed)
-call_ffi_kernel = _op_wrapper(_tir_op.call_ffi_kernel)
-tensormap_encode_tiled = _op_wrapper(_tir_op.tensormap_encode_tiled)
-call_cpacked = _op_wrapper(_tir_op.call_cpacked)
-call_packed_lowered = _op_wrapper(_tir_op.call_packed_lowered)
-call_cpacked_lowered = _op_wrapper(_tir_op.call_cpacked_lowered)
-tvm_tuple = _op_wrapper(_tir_op.tvm_tuple)
-handle_add_byte_offset = _op_wrapper(_tir_op.handle_add_byte_offset)
-tvm_struct_set = _op_wrapper(_tir_op.tvm_struct_set)
-tvm_struct_get = _tir_op.tvm_struct_get
-tvm_thread_invariant = _op_wrapper(_tir_op.tvm_thread_invariant)
-tvm_thread_allreduce = _op_wrapper(_tir_op.tvm_thread_allreduce)
-tvm_load_matrix_sync = _op_wrapper(_tir_op.tvm_load_matrix_sync)
-tvm_mma_sync = _op_wrapper(_tir_op.tvm_mma_sync)
-tvm_bmma_sync = _op_wrapper(_tir_op.tvm_bmma_sync)
-tvm_fill_fragment = _op_wrapper(_tir_op.tvm_fill_fragment)
-tvm_store_matrix_sync = _op_wrapper(_tir_op.tvm_store_matrix_sync)
-tvm_storage_sync = _tir_op.tvm_storage_sync
-tvm_kernel_replace_point = _op_wrapper(_tir_op.tvm_kernel_replace_point)
-tvm_global_barrier_kinit = _tir_op.tvm_global_barrier_kinit
-tvm_warp_shuffle = _tir_op.tvm_warp_shuffle
-tvm_warp_shuffle_up = _tir_op.tvm_warp_shuffle_up
-tvm_warp_shuffle_down = _tir_op.tvm_warp_shuffle_down
-tvm_warp_shuffle_xor = _tir_op.tvm_warp_shuffle_xor
-tvm_warp_activemask = _tir_op.tvm_warp_activemask
-cooperative_tensor_fill = _op_wrapper(_tir_op.cooperative_tensor_fill)
-cooperative_tensor_load = _op_wrapper(_tir_op.cooperative_tensor_load)
-cooperative_tensor_store = _op_wrapper(_tir_op.cooperative_tensor_store)
-cooperative_tensor_multiply_accumulate = _op_wrapper(_tir_op.cooperative_tensor_multiply_accumulate)
-assume = _op_wrapper(_tir_op.assume)
-undef = _op_wrapper(_tir_op.undef)
-TVMBackendAllocWorkspace = _op_wrapper(_tir_op.TVMBackendAllocWorkspace)
-TVMBackendFreeWorkspace = _op_wrapper(_tir_op.TVMBackendFreeWorkspace)
-start_profile_intrinsic = _op_wrapper(_tir_op.start_profile_intrinsic)
-end_profile_intrinsic = _op_wrapper(_tir_op.end_profile_intrinsic)
-anylist_getitem = _op_wrapper(_tir_op.anylist_getitem)
-anylist_resetitem = _op_wrapper(_tir_op.anylist_resetitem)
-anylist_setitem_call_packed = _op_wrapper(_tir_op.anylist_setitem_call_packed)
-anylist_setitem_call_cpacked = _op_wrapper(_tir_op.anylist_setitem_call_cpacked)
-vscale = _op_wrapper(_tir_op.vscale)
-ignore_loop_partition = _op_wrapper(_tir_op.ignore_loop_partition)
-
-reinterpret = _dtype_forward(_tir_op.reinterpret)
-call_extern = _dtype_forward(_tir_op.call_extern)
-call_intrin = _dtype_forward(_tir_op.call_intrin)
-call_llvm_intrin = _dtype_forward(_tir_op.call_llvm_intrin)
-call_llvm_pure_intrin = _dtype_forward(_tir_op.call_llvm_pure_intrin)
-call_pure_extern = _dtype_forward(_tir_op.call_pure_extern)
-vectorlow = _dtype_forward(_tir_op.vectorlow)
-vectorhigh = _dtype_forward(_tir_op.vectorhigh)
-vectorcombine = _dtype_forward(_tir_op.vectorcombine)
-get_active_lane_mask = _dtype_forward(_tir_op.get_active_lane_mask)
-masked_load = _dtype_forward(_tir_op.masked_load)
-masked_store = _op_wrapper(_tir_op.masked_store)
-dp4a = _dtype_forward(_tir_op.dp4a)
-
-
-broadcast = Broadcast
-ramp = Ramp
-fabs = abs
-tvm_call_packed = call_packed
-tvm_call_cpacked = call_cpacked
-tvm_call_packed_lowered = call_packed_lowered
-tvm_call_cpacked_lowered = call_cpacked_lowered
-
-# pylint: enable=invalid-name
-
-bases = [
-    "float8_e3m4",
-    "float8_e4m3",
-    "float8_e4m3b11fnuz",
-    "float8_e4m3fn",
-    "float8_e4m3fnuz",
-    "float8_e5m2",
-    "float8_e5m2fnuz",
-    "float8_e8m0fnu",
-    "float6_e2m3fn",
-    "float6_e3m2fn",
-    "float4_e2m1fn",
-    "float16",
-    "float32",
-    "float64",
-]
-lanes = [1, 2, 4, 8, 16, 32, 64]
-
-float_types = []
-for base in bases:
-    for lane in lanes:
-        suffix = f"x{lane}" if lane != 1 else ""
-        float_types.append(f"{base}{suffix}")
+Buffer = buffer
+_mutable_cell_decl("T.buffer", syntax="parameter")(buffer)
 
 __all__ = [
-    *float_types,
-    "int8",
-    "int16",
-    "int32",
-    "int64",
-    "int8x2",
-    "int16x2",
-    "int32x2",
-    "int64x2",
-    "int8x4",
-    "int16x4",
-    "int32x4",
-    "int64x4",
-    "int8x8",
-    "int16x8",
-    "int32x8",
-    "int64x8",
-    "int8x16",
-    "int16x16",
-    "int32x16",
-    "int64x16",
-    "int8x32",
-    "int16x32",
-    "int32x32",
-    "int64x32",
-    "int8x64",
-    "int16x64",
-    "int32x64",
-    "int64x64",
-    "uint8",
-    "uint16",
-    "uint32",
-    "uint64",
-    "uint8x2",
-    "uint16x2",
-    "uint32x2",
-    "uint64x2",
-    "uint8x4",
-    "uint16x4",
-    "uint32x4",
-    "uint64x4",
-    "uint8x8",
-    "uint16x8",
-    "uint32x8",
-    "uint64x8",
-    "uint8x16",
-    "uint16x16",
-    "uint32x16",
-    "uint64x16",
-    "uint8x32",
-    "uint16x32",
-    "uint32x32",
-    "uint64x32",
-    "uint8x64",
-    "uint16x64",
-    "uint32x64",
-    "uint64x64",
-    "float8_e4m3fn",
-    "float8_e5m2",
-    "float4_e2m1fn",
-    "float16",
-    "float32",
-    "float64",
-    "float4_e2m1fnx2",
-    "float8_e4m3fnx4",
-    "float8_e5m2x4",
-    "float4_e2m1fnx4",
-    "float16x2",
-    "float32x2",
-    "float64x2",
-    "float16x4",
-    "float32x4",
-    "float64x4",
-    "float8_e4m3fnx8",
-    "float8_e5m2x8",
-    "float4_e2m1fnx8",
-    "float16x8",
-    "float32x8",
-    "float64x8",
-    "float8_e4m3fnx16",
-    "float8_e5m2x16",
-    "float4_e2m1fnx16",
-    "float16x16",
-    "float32x16",
-    "float64x16",
-    "float8_e4m3fnx32",
-    "float8_e5m2x32",
-    "float4_e2m1fnx32",
-    "float16x32",
-    "float32x32",
-    "float64x32",
-    "float8_e4m3fnx64",
-    "float8_e5m2x64",
-    "float4_e2m1fnx64",
-    "float16x64",
-    "float32x64",
-    "float64x64",
-    "bfloat16",
-    "buffer",
-    "prim_func",
-    "arg",
-    "func_name",
-    "func_attr",
-    "func_ret",
-    "Tuple",
-    "match_buffer",
-    "alloc_buffer",
-    "wg_reg_tile",
-    "serial",
-    "parallel",
-    "vectorized",
-    "unroll",
-    "thread_binding",
-    "grid",
-    "Assert",
-    "attr",
-    "hint",
-    "While",
-    "Return",
-    "Break",
-    "Continue",
-    "If",
-    "Then",
-    "Else",
-    "decl_buffer",
-    "launch_thread",
-    "env_thread",
-    "buffer_store",
-    "evaluate",
-    "boolean",
-    "handle",
-    "void",
-    "ptr",
-    "min",
-    "max",
-    "iter_var",
-    "comm_reducer",
-    "index_map",
-    "target",
-    "abs",
-    "fabs",
-    "acos",
-    "acosh",
-    "address_of",
-    "asin",
-    "asinh",
-    "atan",
-    "atan2",
-    "atanh",
-    "bitwise_and",
-    "bitwise_not",
-    "bitwise_or",
-    "bitwise_xor",
-    "ceil",
-    "clz",
-    "copysign",
-    "cos",
-    "cosh",
-    "erf",
-    "exp",
-    "exp2",
-    "exp10",
-    "floor",
-    "ceildiv",
-    "floordiv",
-    "floormod",
-    "fmod",
-    "fma",
-    "filter",
-    "selector",
-    "hypot",
-    "if_then_else",
-    "infinity",
-    "isfinite",
-    "isinf",
-    "isnan",
-    "isnullptr",
-    "ldexp",
-    "likely",
-    "log",
-    "log1p",
-    "log2",
-    "log10",
-    "lookup_param",
-    "max_value",
-    "min_value",
-    "nearbyint",
-    "nextafter",
-    "popcount",
-    "pow",
-    "q_multiply_shift",
-    "q_multiply_shift_per_axis",
-    "continue_loop",
-    "break_loop",
-    "reinterpret",
-    "round",
-    "rsqrt",
-    "shift_left",
-    "shift_right",
-    "sigmoid",
-    "sin",
-    "sinh",
-    "sqrt",
-    "tan",
-    "tanh",
-    "thread_return",
-    "trunc",
-    "truncdiv",
-    "truncmod",
-    "tvm_access_ptr",
-    "ptr_byte_offset",
-    "tvm_throw_last_error",
-    "print_buffer",
-    "tvm_stack_alloca",
-    "tvm_stack_make_shape",
-    "tvm_stack_make_array",
-    "call_packed",
-    "call_ffi_kernel",
-    "tensormap_encode_tiled",
-    "call_cpacked",
-    "call_packed_lowered",
-    "call_cpacked_lowered",
-    "call_extern",
-    "call_intrin",
-    "call_llvm_intrin",
-    "call_llvm_pure_intrin",
-    "call_pure_extern",
-    "tvm_tuple",
-    "handle_add_byte_offset",
-    "tvm_struct_set",
-    "tvm_struct_get",
-    "tvm_thread_invariant",
-    "tvm_thread_allreduce",
-    "tvm_load_matrix_sync",
-    "tvm_mma_sync",
-    "tvm_bmma_sync",
-    "tvm_fill_fragment",
-    "tvm_store_matrix_sync",
-    "tvm_storage_sync",
-    "tvm_kernel_replace_point",
-    "tvm_global_barrier_kinit",
-    "tvm_warp_shuffle",
-    "tvm_warp_shuffle_up",
-    "tvm_warp_shuffle_down",
-    "tvm_warp_shuffle_xor",
-    "tvm_warp_activemask",
-    "cooperative_tensor_fill",
-    "cooperative_tensor_load",
-    "cooperative_tensor_store",
-    "cooperative_tensor_multiply_accumulate",
-    "vectorlow",
-    "vectorhigh",
-    "vectorcombine",
-    "dp4a",
-    "assume",
-    "undef",
-    "tvm_call_packed",
-    "tvm_call_cpacked",
-    "tvm_call_packed_lowered",
-    "tvm_call_cpacked_lowered",
-    "TVMBackendAllocWorkspace",
-    "TVMBackendFreeWorkspace",
-    "start_profile_intrinsic",
-    "end_profile_intrinsic",
-    "meta_var",
-    "anylist_getitem",
-    "anylist_resetitem",
-    "anylist_setitem_call_packed",
-    "anylist_setitem_call_cpacked",
-    "llvm_lookup_intrinsic_id",
-    "type_annotation",
-    "broadcast",
-    "ramp",
-    "cast",
-    # tvm.tirx.expr
-    "Var",
-    "Reduce",
+    "Buffer",
+    "BufferLoad",
+    "ComposeLayout",
+    "DtypeConstructor",
+    "ExecScope",
     "FloatImm",
     "IntImm",
-    "Cast",
-    "Add",
-    "Sub",
-    "Mul",
-    "Div",
-    "Mod",
-    "FloorDiv",
-    "FloorMod",
-    "LShift",
-    "RShift",
-    "BitwiseAnd",
-    "BitwiseOr",
-    "BitwiseXor",
-    "BitwiseNot",
-    "Min",
-    "Max",
-    "EQ",
-    "NE",
-    "LT",
-    "LE",
-    "GT",
-    "GE",
-    "And",
-    "Or",
-    "Not",
-    "Select",
-    "BufferLoad",
-    "Ramp",
-    "Broadcast",
-    "Shuffle",
-    "Call",
-    "CallEffectKind",
-    "let",
-    "Bind",
-    "bind",
+    "Iter",
+    "IterVar",
+    "Layout",
     "LetAnnotation",
     "LocalVectorAnnotation",
-    "DtypeConstructor",
-    "Let",
-    "IterVar",
-    "CommReducer",
-    "Range",
-    "vscale",
-    "get_active_lane_mask",
-    "masked_load",
-    "masked_store",
-    "call_kernel",
-    "ignore_loop_partition",
-]
-
-__all__ += [
-    "ComposeLayout",
-    "ExecScope",
-    "Iter",
-    "Layout",
+    "Ptr",
     "R",
+    "Range",
     "S",
     "ScopeIdDef",
     "TensorMap",
     "TileLayout",
+    "Tuple",
     "Var",
-    "add_to_parent",
+    "alloc_buffer",
     "alloc_cast_frag",
     "alloc_local",
     "alloc_scalar",
     "alloc_shared",
     "alloc_tcgen05_ldst_frag",
+    "bf16",
+    "bfloat16",
+    "boolean",
+    "buffer",
     "cluster_id",
     "cta_id",
     "cta_id_in_cluster",
     "cta_id_in_pair",
+    "decl_buffer",
     "decl_scalar",
-    "device_entry",
+    "f16",
+    "f32",
+    "f64",
+    "float4_e2m1fn",
+    "float4_e2m1fnx2",
+    "float4_e2m1fnx4",
+    "float4_e2m1fnx8",
+    "float4_e2m1fnx16",
+    "float4_e2m1fnx32",
+    "float4_e2m1fnx64",
+    "float6_e2m3fn",
+    "float6_e2m3fnx2",
+    "float6_e2m3fnx4",
+    "float6_e2m3fnx8",
+    "float6_e2m3fnx16",
+    "float6_e2m3fnx32",
+    "float6_e2m3fnx64",
+    "float6_e3m2fn",
+    "float6_e3m2fnx2",
+    "float6_e3m2fnx4",
+    "float6_e3m2fnx8",
+    "float6_e3m2fnx16",
+    "float6_e3m2fnx32",
+    "float6_e3m2fnx64",
+    "float8_e3m4",
+    "float8_e3m4x2",
+    "float8_e3m4x4",
+    "float8_e3m4x8",
+    "float8_e3m4x16",
+    "float8_e3m4x32",
+    "float8_e3m4x64",
+    "float8_e4m3",
+    "float8_e4m3b11fnuz",
+    "float8_e4m3b11fnuzx2",
+    "float8_e4m3b11fnuzx4",
+    "float8_e4m3b11fnuzx8",
+    "float8_e4m3b11fnuzx16",
+    "float8_e4m3b11fnuzx32",
+    "float8_e4m3b11fnuzx64",
+    "float8_e4m3fn",
+    "float8_e4m3fnuz",
+    "float8_e4m3fnuzx2",
+    "float8_e4m3fnuzx4",
+    "float8_e4m3fnuzx8",
+    "float8_e4m3fnuzx16",
+    "float8_e4m3fnuzx32",
+    "float8_e4m3fnuzx64",
+    "float8_e4m3fnx2",
+    "float8_e4m3fnx4",
+    "float8_e4m3fnx8",
+    "float8_e4m3fnx16",
+    "float8_e4m3fnx32",
+    "float8_e4m3fnx64",
+    "float8_e4m3x2",
+    "float8_e4m3x4",
+    "float8_e4m3x8",
+    "float8_e4m3x16",
+    "float8_e4m3x32",
+    "float8_e4m3x64",
+    "float8_e5m2",
+    "float8_e5m2fnuz",
+    "float8_e5m2fnuzx2",
+    "float8_e5m2fnuzx4",
+    "float8_e5m2fnuzx8",
+    "float8_e5m2fnuzx16",
+    "float8_e5m2fnuzx32",
+    "float8_e5m2fnuzx64",
+    "float8_e5m2x2",
+    "float8_e5m2x4",
+    "float8_e5m2x8",
+    "float8_e5m2x16",
+    "float8_e5m2x32",
+    "float8_e5m2x64",
+    "float8_e8m0fnu",
+    "float8_e8m0fnux2",
+    "float8_e8m0fnux4",
+    "float8_e8m0fnux8",
+    "float8_e8m0fnux16",
+    "float8_e8m0fnux32",
+    "float8_e8m0fnux64",
+    "float16",
+    "float16x2",
+    "float16x4",
+    "float16x8",
+    "float16x16",
+    "float16x32",
+    "float16x64",
+    "float32",
+    "float32x2",
+    "float32x4",
+    "float32x8",
+    "float32x16",
+    "float32x32",
+    "float32x64",
+    "float64",
+    "float64x2",
+    "float64x4",
+    "float64x8",
+    "float64x16",
+    "float64x32",
+    "float64x64",
+    "handle",
+    "i8",
+    "i16",
+    "i32",
+    "i64",
+    "index_map",
+    "int8",
+    "int8x2",
+    "int8x4",
+    "int8x8",
+    "int8x16",
+    "int8x32",
+    "int8x64",
+    "int16",
+    "int16x2",
+    "int16x4",
+    "int16x8",
+    "int16x16",
+    "int16x32",
+    "int16x64",
+    "int32",
+    "int32x2",
+    "int32x4",
+    "int32x8",
+    "int32x16",
+    "int32x32",
+    "int32x64",
+    "int64",
+    "int64x2",
+    "int64x4",
+    "int64x8",
+    "int64x16",
+    "int64x32",
+    "int64x64",
+    "iter_var",
     "lane_id",
+    "let",
     "local_scalar",
+    "match_buffer",
     "meta_class",
-    "register_script_namespace",
-    "scalar_wrapper",
+    "meta_var",
+    "ptr",
     "scope_id",
     "shared_scalar",
     "smem",
     "static_assert",
+    "target",
     "thread_id",
     "thread_id_in_wg",
     "tmem",
+    "type_annotation",
+    "u8",
+    "u16",
+    "u32",
+    "u64",
+    "uint8",
+    "uint8x2",
+    "uint8x4",
+    "uint8x8",
+    "uint8x16",
+    "uint8x32",
+    "uint8x64",
+    "uint16",
+    "uint16x2",
+    "uint16x4",
+    "uint16x8",
+    "uint16x16",
+    "uint16x32",
+    "uint16x64",
+    "uint32",
+    "uint32x2",
+    "uint32x4",
+    "uint32x8",
+    "uint32x16",
+    "uint32x32",
+    "uint32x64",
+    "uint64",
+    "uint64x2",
+    "uint64x4",
+    "uint64x8",
+    "uint64x16",
+    "uint64x32",
+    "uint64x64",
+    "void",
     "warp_id",
     "warp_id_in_wg",
     "warpgroup_id",
-    "webgpu",
+    "wg_reg_tile",
 ]
-
-# Shorthand dtype aliases
-__all__ += ["bf16", "f16", "f32", "f64", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64"]
