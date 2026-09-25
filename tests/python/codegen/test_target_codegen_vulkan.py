@@ -459,27 +459,6 @@ def test_cooperative_matrix(out_dtype):
     M, N, K = 16, 16, 32
 
     # fmt: off
-    C_0_s0 = T.dynamic("C_0_s0")
-    C_0_s1 = T.dynamic("C_0_s1")
-    A_3_s0 = T.dynamic("A_3_s0")
-    A_3_s1 = T.dynamic("A_3_s1")
-    C_4_s0 = T.dynamic("C_4_s0")
-    C_4_s1 = T.dynamic("C_4_s1")
-    A_2_s0 = T.dynamic("A_2_s0")
-    A_2_s1 = T.dynamic("A_2_s1")
-    B_0_s0 = T.dynamic("B_0_s0")
-    B_0_s1 = T.dynamic("B_0_s1")
-    C_3_s0 = T.dynamic("C_3_s0")
-    C_3_s1 = T.dynamic("C_3_s1")
-    A_0_s0 = T.dynamic("A_0_s0")
-    A_0_s1 = T.dynamic("A_0_s1")
-    C_1_s0 = T.dynamic("C_1_s0")
-    C_1_s1 = T.dynamic("C_1_s1")
-    A_1_s0 = T.dynamic("A_1_s0")
-    A_1_s1 = T.dynamic("A_1_s1")
-    C_2_s0 = T.dynamic("C_2_s0")
-    C_2_s1 = T.dynamic("C_2_s1")
-
     @I.ir_module
     class Module:
         @T.prim_func
