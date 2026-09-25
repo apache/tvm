@@ -160,18 +160,18 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
     )
     from tvm.backend.metal.script import MetalNamespace as BackendMetalNamespace
     from tvm.backend.trn.script import NKINamespace as BackendNKINamespace
-    from tvm.tirx.script.ir_builder import ir as builder_ir
+    from tvm.tirx.script.ir_builder import op as builder_op
 
-    assert isinstance(builder_ir.cuda, BackendCUDANamespace)
-    assert isinstance(builder_ir.s_tir, BackendSTIRNamespace)
-    assert isinstance(builder_ir.nvshmem, BackendNVSHMEMNamespace)
-    assert isinstance(builder_ir.metal, BackendMetalNamespace)
-    assert isinstance(builder_ir.nki, BackendNKINamespace)
-    assert T.cuda is builder_ir.cuda
-    assert T.s_tir is builder_ir.s_tir
-    assert T.nvshmem is builder_ir.nvshmem
-    assert T.metal is builder_ir.metal
-    assert T.nki is builder_ir.nki
+    assert isinstance(builder_op.cuda, BackendCUDANamespace)
+    assert isinstance(builder_op.s_tir, BackendSTIRNamespace)
+    assert isinstance(builder_op.nvshmem, BackendNVSHMEMNamespace)
+    assert isinstance(builder_op.metal, BackendMetalNamespace)
+    assert isinstance(builder_op.nki, BackendNKINamespace)
+    assert T.cuda is builder_op.cuda
+    assert T.s_tir is builder_op.s_tir
+    assert T.nvshmem is builder_op.nvshmem
+    assert T.metal is builder_op.metal
+    assert T.nki is builder_op.nki
 
     buffer = tvm.tirx.decl_buffer((1,), "float32")
     calls = [
@@ -231,7 +231,7 @@ def test_backend_specific_wrappers_are_not_root_exports():
 def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
     from tvm.script.parser import tirx as parser
     from tvm.tirx.script import ir_builder as builder
-    from tvm.tirx.script.ir_builder import ir as builder_ir
+    from tvm.tirx.script.ir_builder import op as builder_op
 
     backend_name = "unit_test_backend"
     backend_module_name = f"tvm.backend.{backend_name}"
@@ -251,7 +251,7 @@ def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
 
     def register_backend():
         register_calls.append(True)
-        builder_ir.register_script_namespace(namespace_name, UnitTestNamespace())
+        builder_op.register_script_namespace(namespace_name, UnitTestNamespace())
 
     module.register_backend = register_backend
     monkeypatch.setitem(sys.modules, backend_module_name, module)
@@ -276,7 +276,7 @@ def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
         assert public_op_module.__tvm_backend_module__ is op_module
         assert public_op_module.marker is op_module.marker
 
-        namespace = getattr(builder_ir, namespace_name)
+        namespace = getattr(builder_op, namespace_name)
         assert isinstance(namespace, UnitTestNamespace)
         assert getattr(builder, namespace_name) is namespace
         assert getattr(parser, namespace_name) is namespace

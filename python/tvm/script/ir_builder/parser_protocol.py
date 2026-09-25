@@ -32,8 +32,11 @@ from collections.abc import Sequence
 from typing import Any
 
 from tvm import ir as _ir
+from tvm.ir import BaseFunc, GlobalVar
 
+from . import _ffi_api
 from .base import MISSING, AlreadyEmitted, IRBuilderFrame, SpanEntry
+from .frame import IRModuleFrame
 
 _Span = SpanEntry | _ir.Span | None
 
@@ -854,10 +857,6 @@ def module_member_(name: str, value: Any) -> Any:
         # Generated builder, inside I.ir_module
         helper = I.module_member_("helper", existing_function)
     """
-    from tvm.ir import BaseFunc
-
-    from .ir import decl_function, def_function
-
     if isinstance(value, BaseFunc):
         reference = decl_function(name, value)
         def_function(name, value)
@@ -1218,7 +1217,7 @@ def set_mutable_cell_(target: Any, value: Any, *, span: _Span = None) -> Already
 
     Parameters
     ----------
-    target : TensorLoad, scalar wrapper or one-element buffer Var
+    target : TensorLoad or one-element buffer Var
         Storage handle returned by an explicit mutable declaration. Its identity is
         retained; this argument is not a source name or a new declaration.
     value : Expr or scalar convertible to Expr
@@ -1236,7 +1235,7 @@ def set_mutable_cell_(target: Any, value: Any, *, span: _Span = None) -> Already
     Notes
     -----
     TIRx requires an active primitive function/statement region and appends a native store
-    to that region. Scalar wrappers are unwrapped, TensorLoad indices are preserved, and
+    to that region. TensorLoad indices are preserved, and
     one-element buffer targets use index zero. Unsupported targets raise TypeError; native
     type/index checks propagate. Relax always raises TypeError because its bindings are
     immutable. No new allocation or immutable binding is created.
@@ -1491,3 +1490,57 @@ def assert_(
         X.assert_(condition, "failed")
     """
     raise NotImplementedError
+
+
+def ir_module() -> IRModuleFrame:
+    """Start a ir_module frame.
+
+    Returns
+    -------
+    frame: IRModuleFrame
+        The constructed frame.
+    """
+    return _ffi_api.IRModule()  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def decl_function(func_name: str, func_signature: BaseFunc) -> GlobalVar:
+    """Declare a Function without given the specific function implementation.
+
+    Parameters
+    ----------
+    func_name : str
+        The function unique name.
+
+    func_signature: BaseFunc
+        A Function w/o body, which used to specify the function signature
+        (i.e. func params and func return type/shape).
+
+    Note
+    ----
+    It is usually used in cross-function call. And we can specify the function by `DefFunction`
+
+    Returns
+    -------
+    gv : GlobalVar
+        The corresponding GlobalVar.
+    """
+    if not isinstance(func_signature, BaseFunc):
+        raise ValueError(
+            "decl_function expects an instance of BaseFunc, "
+            f"but {func_signature} is of type {type(func_signature)}"
+        )
+    return _ffi_api.DeclFunction(  # type: ignore[attr-defined] # pylint: disable=no-member
+        func_name, func_signature
+    )
+
+
+def def_function(func_name: str, func: BaseFunc) -> None:
+    """Define the function which is declared before.
+    Parameters
+    ----------
+    func_name : str
+        The function unique name.
+    func: BaseFunc
+        The given function implementation
+    """
+    return _ffi_api.DefFunction(func_name, func)  # type: ignore[attr-defined] # pylint: disable=no-member

@@ -675,9 +675,9 @@ class PrescanCollector(ast.NodeVisitor):
         #
         # Builder:
         #     with X.if_(condition) as frame:
-        #         with X.Then():
+        #         with X.then_():
         #             y = X.bind_(a, name="y")
-        #         with X.Else():
+        #         with X.else_():
         #             y = X.bind_(b, name="y")
         #     y = frame.var
         # -------------------------------------------------

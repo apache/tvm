@@ -341,14 +341,15 @@ with T.attr("pragma", "unroll", 1):
 
 def test_assert_stmt():
     with IRBuilder() as ib:
-        with T.Assert(True, "assertion"):
-            T.evaluate(0)
-    obj = ib.get()
+        with T.prim_func():
+            T.assert_(True, "assertion")
+            T.evaluate(T.call_extern("int32", "after_assert"))
+    obj = ib.get().body
     _assert_print(
         obj,
         """
 assert T.bool(True), ("RuntimeError", ["assertion"])
-T.evaluate(0)
+T.call_extern("int32", "after_assert")
 """,
     )
 
@@ -356,7 +357,7 @@ T.evaluate(0)
 def test_while():
     with IRBuilder() as ib:
         x = I.dynamic("v", "int32")
-        with T.While(x < 10):
+        with T.while_(x < 10):
             T.evaluate(0)
     obj = ib.get()
     _assert_print(
@@ -477,8 +478,8 @@ T.evaluate(2)
 
 def test_if_then_else():
     with IRBuilder() as ib:
-        with T.If(I.dynamic("v", "int32") == 1):
-            with T.Then():
+        with T.if_(I.dynamic("v", "int32") == 1):
+            with T.then_():
                 T.evaluate(0)
 
     obj = ib.get()

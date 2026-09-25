@@ -25,7 +25,7 @@ from tvm.script import s_tir as Ts
 from tvm.script.parser import tirx as T
 
 
-def test_tir_buffer_proxy():
+def test_tir_buffer_annotation():
     buffer_0 = T.Buffer((128, 128), "float32")
     assert (
         tirx.is_buffer_var(buffer_0)
