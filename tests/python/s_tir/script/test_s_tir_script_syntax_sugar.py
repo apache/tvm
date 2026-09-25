@@ -336,7 +336,7 @@ def test_func_call():
 
     # error: Error occurred when invoking the function sqrt:
     # loop of ufunc does not support argument 0 of type Var which has no callable sqrt method
-    #  --> test_tvmscript_syntax_sugar.py:334:19
+    #  --> test_s_tir_script_syntax_sugar.py:334:19
     #      |
     #  334 |              ind = sqrt(i)
     #      |                    ^^^^^^^

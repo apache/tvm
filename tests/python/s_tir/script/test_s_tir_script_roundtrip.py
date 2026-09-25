@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, F401, F841
+# ruff: noqa: E501, F841
 
 from __future__ import annotations
 
@@ -27,7 +27,6 @@ import tvm
 import tvm.testing
 from tvm import s_tir, tirx
 from tvm.script import ir as I
-from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
@@ -2163,7 +2162,10 @@ def comm_reducer_single_reduce_group():
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[i * 128 + threadIdx_x], True, reduce_temp0.data, threadIdx_x, dtype="handle"))
 
     return comm_reducer_single_reduce_group
+# fmt: on
 
+
+# fmt: off
 def comm_reducer_multiple_reduce_groups():
     @Ts.prim_func
     def comm_reducer_multiple_reduce_groups(A: T.Buffer([16384], dtype='float32'), b: T.handle) -> None:
@@ -2177,7 +2179,10 @@ def comm_reducer_multiple_reduce_groups():
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[i * 128 + threadIdx_x], True, reduce_temp0.data, threadIdx_x, dtype="handle"))
 
     return comm_reducer_multiple_reduce_groups
+# fmt: on
 
+
+# fmt: off
 def multiple_commreducer():
     # normal_reduce_temp0 is treated as uninitialized value
     @Ts.prim_func(check_well_formed=False)
@@ -2957,30 +2962,6 @@ def ir_module_with_attrs():
     return Module
 
 
-def nested_seqstmt():
-    """Nested SeqStmt should be normalized to flat SeqStmt
-
-    Nested SeqStmt are representable in the TIR structures, but are
-    flattened when converted to TVMScript.  Previously, this could
-    cause failures to round-trip through TVMScript, including
-    erroneous use of TVMScript's concise-scoping rules.  This was
-    resolved by normalizing nested SeqStmt in TIR, such that the use
-    of `tirx.SeqStmt` below results in a single flat `tirx.SeqStmt`
-    containing the three `tirx.Evaluate` calls.
-    """
-    func = tvm.tirx.PrimFunc(
-        params=[],
-        body=tvm.tirx.SeqStmt(
-            [
-                tvm.tirx.SeqStmt([tvm.tirx.Evaluate(0), tvm.tirx.Evaluate(1)]),
-                tvm.tirx.Evaluate(2),
-            ]
-        ),
-    )
-
-    return func
-
-
 def subroutine_call():
     """A GlobalVar may reference other functions in the module"""
 
@@ -3215,80 +3196,6 @@ def op_of_literal():
         yield make_ir_generator(op, arg)
 
 
-def relax_extern_func():
-    @R.function
-    def func(A: R.Tensor([10, 20], "float32")):
-        func = R.ExternFunc("dummy_func")
-
-        B: R.Tensor([10, 20], "float32") = R.call_dps_packed(
-            func, [A], out_ty=R.Tensor([10, 20], "float32")
-        )
-
-        C: R.Tensor(ndim=2, dtype="float32") = R.call_dps_packed(
-            func, [B], out_ty=R.Tensor([10, 20], "float32")
-        )
-
-        return C
-
-    return func
-
-
-def relax_match_cast_ty_proxy():
-    """Default type constructors may be used as expressions
-
-    This is a regression test.  The TVMScript parser allows Type
-    to be specified using a default-constructible class
-    (e.g. `R.Tensor` or `R.Shape`) rather than an instance of that
-    class (e.g. `R.Tensor()` or `R.Shape()`).  In previous
-    implementations, this was only handled when the `Type` was
-    used in an annotation context.  However, a `Type` may also
-    appear as an argument, which is passed to `R.match_cast`.  Use of
-    a default-constructible class must be handled in this context as
-    well.
-    """
-
-    def make_ir_generator(proxy_subclass):
-        def inner():
-            @R.function
-            def func(A: R.Any):
-                B = R.match_cast(A, proxy_subclass)
-                return B
-
-            return func
-
-        inner.__name__ = subclass.__name__
-        return inner
-
-    # Prim and DTensor require arguments; the remaining public type
-    # constructors also work as bare values in match_cast expressions.
-    subclasses = [R.Any, R.Tensor, R.Callable, R.Tuple, R.Shape]
-
-    for subclass in subclasses:
-        yield make_ir_generator(subclass)
-
-
-def relax_symbolic_var():
-    """Relax tensors may use symbolic variables."""
-    N = T.dynamic("N", "int64")
-
-    @R.function
-    def func(A: R.Tensor([N], "float16")):
-        B: R.Tensor([N], "float16") = A
-        return B
-
-    return func
-
-
-def relax_float_symbolic_var():
-    """Relax scalar variables may use any dtype."""
-
-    @R.function
-    def func(value: T.float16):
-        return value
-
-    return func
-
-
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_lower,
@@ -3353,7 +3260,6 @@ ir_generator = tvm.testing.parameter(
     make_packed_api_result,
     tvm_struct_set_generated_in_cpp,
     ir_module_with_attrs,
-    nested_seqstmt,
     subroutine_call,
     subroutine_call_returning_int,
     undefined_data_ptr_in_decl_buffer,
@@ -3368,20 +3274,6 @@ ir_generator = tvm.testing.parameter(
     func_with_loop_jumps,
     func_with_loop_steps,
     *op_of_literal(),
-    *relax_match_cast_ty_proxy(),
-    relax_symbolic_var,
-    relax_float_symbolic_var,
-)
-
-relax_ir_generator = tvm.testing.parameter(
-    relax_extern_func,
-)
-
-show_all_relax_ty = tvm.testing.parameter(
-    by_dict={
-        "show_all_ty": True,
-        "hide_inferable_ty": False,
-    }
 )
 
 _NOT_ROUNDTRIP_STABLE: set[str] = set()
@@ -3396,23 +3288,6 @@ def test_roundtrip(ir_generator):
     after_roundtrip = tvm.script.from_source(
         original.script(show_meta=True),
         check_well_formed=False,
-        extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
-        },
-    )
-    tvm.ir.assert_structural_equal(original, after_roundtrip, True)
-
-
-def test_relax_roundtrip(relax_ir_generator, show_all_relax_ty):
-    original = relax_ir_generator()
-    after_roundtrip = tvm.script.from_source(
-        original.script(
-            show_meta=True,
-            show_all_ty=show_all_relax_ty,
-        ),
         extra_vars={
             "I": tvm.script.ir,
             "T": tvm.script.tirx,

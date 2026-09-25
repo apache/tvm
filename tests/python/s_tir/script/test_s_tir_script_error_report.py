@@ -87,13 +87,6 @@ def test_unsupported_function_call():
     check_error(unsupported_function_call, 2, AttributeError)
 
 
-def test_missing_type_annotation():
-    def missing_type_annotation(a) -> None:  # error
-        T.evaluate(0.0)
-
-    check_error(missing_type_annotation, 1, SyntaxError)
-
-
 def test_invalid_for_function():
     def invalid_for_function(A: T.Buffer((16, 16), "float32")) -> None:
         for i in T.evaluate(0.0):  # error

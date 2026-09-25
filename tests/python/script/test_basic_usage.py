@@ -34,6 +34,7 @@ from tvm.ir import prim
 from tvm.ir._overload_prim_expr import EqualOp
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.script.parser import entry
 
 
 def test_function(language):
@@ -81,6 +82,22 @@ def test_missing_parameter_annotation_keeps_source_range(language):
         error.end_lineno,
         error.end_offset,
     ) == expected
+    assert not language.functions
+
+    # The string entry must report the same missing annotation in its original source.
+    source = "@M.function\ndef main(value) -> None:\n    M.record(0)\n"
+    with pytest.raises(SyntaxError, match="requires an annotation") as caught:
+        entry.parse(source, extra_vars={"M": M})
+
+    error = caught.value
+    assert type(error) is SyntaxError
+    assert (
+        error.filename,
+        error.lineno,
+        error.offset,
+        error.end_lineno,
+        error.end_offset,
+    ) == ("<str>", 2, 10, 2, 15)
     assert not language.functions
 
 

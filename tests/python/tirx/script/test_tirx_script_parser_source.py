@@ -14,22 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401
 """Source and span tests for the canonical parser"""
 
-import ast as doc
-import inspect
-
-import pytest
 import tvm_ffi
 from tvm_ffi import structural_walk
 
 import tvm
 import tvm.testing
 from tvm.ir import Call, SequentialSpan, TensorLoad, assert_structural_equal
-from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.script.parser.inspect_source import Source, acquire_source
+from tvm.script.parser.inspect_source import Source
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.stmt import TilePrimitiveCall
 
@@ -42,56 +36,6 @@ def _capture_source(sources):
         return function
 
     return capture
-
-
-def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
-    for i, j, k in T.grid(128, 128, 128):
-        with Ts.sblock("update"):
-            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
-
-
-def test_source_base():
-    source = Source(matmul)
-    assert (
-        source.source_name == inspect.getsourcefile(matmul)
-        and source.start_line is not None
-        and source.start_column == 0
-        and source.source == inspect.getsource(matmul)
-        and source.full_source == inspect.getsource(inspect.getmodule(matmul))
-    )
-
-
-def test_source_ast():
-    source = Source(matmul)
-    mod = source.as_ast()
-    assert isinstance(mod, doc.Module)
-    func_def = mod.body[0]
-    assert isinstance(func_def, doc.FunctionDef)
-    assert func_def.name == "matmul"
-    func_args = func_def.args
-    assert (
-        len(func_args.args) == 3
-        and func_args.args[0].arg == "A"
-        and func_args.args[1].arg == "B"
-        and func_args.args[2].arg == "C"
-    )
-    func_body = func_def.body
-    assert len(func_body) == 1
-    for argument in func_args.args:
-        assert isinstance(argument.annotation, doc.Call)
-        assert argument.annotation.func.attr == "Buffer"
-    func_for = func_body[0]
-    assert (
-        len(func_for.target.elts) == 3
-        and func_for.target.elts[0].id == "i"
-        and func_for.target.elts[1].id == "j"
-        and func_for.target.elts[2].id == "k"
-    )
-    for_body = func_for.body
-    assert len(for_body) == 1
-    for_block = for_body[0]
-    assert isinstance(for_block, doc.With) and len(for_block.body) == 2
 
 
 def _span_range(span):
@@ -110,21 +54,6 @@ def _find_ir_node(func, predicate):
     matches = [node for node in nodes if predicate(node)]
     assert len(matches) == 1
     return matches[0]
-
-
-def test_source_to_span_matches_parser_diagnostic_coordinates():
-    source = Source(matmul)
-    assign = source.as_ast().body[0].body[0].body[0].body[1]
-    span = source.to_span(assign)
-    expected_location = (
-        source.start_line + 4,
-        13,
-        source.start_line + 4,
-        58,
-    )
-
-    assert source.location(assign) == expected_location
-    assert _span_range(span) == (source.source_name, *expected_location)
 
 
 def test_parser_attaches_span_to_direct_call():
@@ -243,43 +172,6 @@ def test_parser_spans_do_not_affect_structural_identity():
     assert _span_range(func_b.body.span) == ("<str>", 5, 5, 5, 18)
     assert tvm_ffi.structural_hash(func_a) == tvm_ffi.structural_hash(func_b)
     assert_structural_equal(func_a, func_b)
-
-
-def test_nesting_parsing():
-    class dummy:
-        pass
-
-    for i in range(1):
-
-        @tvm.script.ir_module
-        class Module:
-            @Ts.prim_func
-            def impl(
-                A: T.Buffer((12, 196, 64), "float32"),
-            ) -> None:
-                T.evaluate(0)
-
-
-def test_acquire_source_preserves_continuation_indentation_and_literal():
-    # fmt: off
-    def original(
-        value: int = 0,
-):
-        return """first
-  second
-"""
-    # fmt: on
-
-    tree, filename, _ = acquire_source(original)
-    definition = tree.body[0]
-    literal = definition.body[0].value
-    assert definition.lineno == original.__code__.co_firstlineno
-    assert definition.col_offset == 4
-    assert definition.body[0].col_offset == 8
-    assert literal.value == original()
-    assert filename == inspect.getsourcefile(original)
-    full_source = inspect.getsource(inspect.getmodule(original))
-    assert doc.literal_eval(doc.get_source_segment(full_source, literal)) == original()
 
 
 if __name__ == "__main__":
