@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/script/ir_builder/ir/frame.h>
 
@@ -25,9 +26,25 @@ namespace script {
 namespace ir_builder {
 namespace ir {
 
-TVM_FFI_STATIC_INIT_BLOCK() { IRModuleFrameNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRModuleFrameNode::RegisterReflection();
+  ffi::reflection::GlobalDef().def("script.ir_builder.ir.IRModuleFrameAbort",
+                                   [](const IRModuleFrame& frame) {
+                                     if (!IRBuilder::IsInScope()) return;
+                                     auto& frames = IRBuilder::Current()->frames;
+                                     for (size_t i = frames.size(); i > 0; --i) {
+                                       if (frames[i - 1].same_as(frame)) {
+                                         // Drop this failed scope without callbacks or
+                                         // finalization.
+                                         while (frames.size() >= i) frames.pop_back();
+                                         return;
+                                       }
+                                     }
+                                   });
+}
 
 void IRModuleFrameNode::ExitWithScope() {
+  IRBuilderFrameNode::ExitWithScope();
   ffi::Map<GlobalVar, BaseFunc> func_map;
   TVM_FFI_ICHECK_EQ(functions.size(), global_var_map.size())
       << "All functions must be defined in the IRModule. Got " << global_var_map.size()

@@ -20,6 +20,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/tirx/stmt_functor.h>
 
+#include "../../../script/printer/ir/utils.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -117,12 +118,37 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           kwargs_values.push_back(LiteralDoc::Int(n->ndim, n_p->Attr("ndim")));
         }
         if (n->vdevice.has_value() && n->vdevice.value()->target.defined()) {
+          // Function annotations defer module-owned selectors until declaration.
+          bool has_relax_frame = false;
+          bool has_module_frame = false;
+          for (const Frame& frame : d->frames) {
+            if (const auto* relax_frame = frame.as<RelaxFrameNode>()) {
+              has_relax_frame = true;
+              if (relax_frame->func_vars != nullptr) {
+                d->ir_usage.insert("future_annotations");
+              }
+            } else if (const auto* ir_frame = frame.as<IRFrameNode>()) {
+              has_module_frame = ir_frame->global_infos != nullptr;
+            }
+          }
           kwargs_keys.push_back("vdevice");
-          std::string dev_kind = n->vdevice.value()->target->kind->name;
-          int dev_index = FindVDeviceIndexByTargetKind(n->vdevice.value(), d);
-          kwargs_values.push_back(LiteralDoc::Str(
-              dev_kind + ":" + std::to_string(dev_index) + ":" + n->vdevice.value()->memory_scope,
-              n_p->Attr("vdevice")));
+          if (has_relax_frame) {
+            std::string dev_kind = n->vdevice.value()->target->kind->name;
+            int dev_index = FindVDeviceIndexByTargetKind(n->vdevice.value(), d);
+            kwargs_values.push_back(LiteralDoc::Str(
+                dev_kind + ":" + std::to_string(dev_index) + ":" + n->vdevice.value()->memory_scope,
+                n_p->Attr("vdevice")));
+          } else if (has_module_frame) {
+            // Class assignments execute eagerly; retrieve their existing concrete metadata.
+            kwargs_values.push_back(
+                Relax(d, "lookup_vdevice")
+                    ->Call({LiteralDoc::Str(n->vdevice.value()->target->kind->name,
+                                            n_p->Attr("vdevice")),
+                            LiteralDoc::Int(FindVDeviceIndexByTargetKind(n->vdevice.value(), d),
+                                            n_p->Attr("vdevice"))}));
+          } else {
+            kwargs_values.push_back(d->AsDoc<ExprDoc>(n->vdevice.value(), n_p->Attr("vdevice")));
+          }
         }
         if (args.empty() && kwargs_keys.empty()) {
           return Relax(d, "Tensor");

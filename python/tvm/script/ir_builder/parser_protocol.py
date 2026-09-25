@@ -728,15 +728,19 @@ def resolve_global_info_(content: Any) -> Any:
 
     Notes
     -----
-    A string argument marked ``global_info`` is evaluated once and passed to
-    this hook without attaching a new span to the existing metadata object.
+    A builder may supply this hook to
+    :func:`tvm.script.ir_builder.resolve_global_info_args`. The decorator resolves
+    selected string arguments after ordinary Python argument evaluation, without
+    attaching a new span to the existing metadata object. The parser does not rewrite
+    selector arguments.
 
     .. code:: python
 
-        # Source: an argument policy marks metadata as global_info.
-        X.CustomType(metadata="mesh[0]")
-        # Generated builder
-        X.CustomType(metadata=X.resolve_global_info_("mesh[0]"))
+        @resolve_global_info_args("metadata", resolver=resolve_global_info_)
+        def CustomType(metadata):
+            return make_type(metadata)
+
+        CustomType(metadata="mesh[0]")
     """
     raise NotImplementedError
 
@@ -868,7 +872,7 @@ def module_member_(name: str, value: Any) -> Any:
 #
 # Syntax markers live in tvm.script.parser.protocol_registry.
 # ``constexpr(value)`` selects host evaluation in marked control flow.
-# ``args_policy(path, fields)`` marks expression-string or global-info arguments.
+# ``args_policy(path, fields)`` marks expression-string arguments.
 # ``register_type_var_decl(path, constructor, dtype=...)`` marks symbolic declarations.
 # ``mutable_cell_decl(path)`` marks mutable storage declarations.
 # ``result_span(path)`` permits attaching a call's result span without a call context.

@@ -173,9 +173,11 @@ TIR control-flow frames in a primitive function and Relax control-flow frames in
 function. The transpiler emits these operations without implementing dialect IR semantics.
 
 ``parser/protocol_registry.py`` owns callable syntax metadata and registration. Argument policies such
-as ``expr_str`` translate symbolic strings written directly in source expressions, while ``global_info``
-preserves a module reference for builder-side lookup. Dtype and placement strings remain
-literal. Captured or computed symbolic shapes must already contain explicit IR variables;
+as ``expr_str`` translate symbolic strings written directly in source expressions.
+Global-info selectors use the builder decorator
+:func:`tvm.script.ir_builder.resolve_global_info_args`, which resolves named string arguments
+through an explicit dialect callback after ordinary Python argument evaluation. Captured
+aliases and unpacked calls use the same decorator. Dtype and placement strings remain literal. Captured or computed symbolic shapes must already contain explicit IR variables;
 the parser does not interpret expression strings found inside captured values.
 Registration keeps syntax facts in simple dictionaries keyed by canonical namespace paths.
 Known namespace aliases normalize to the registered path; ordinary captured callables,
@@ -263,8 +265,15 @@ DSL expression strings such as ``R.Tensor(("n", 4), "float32")`` use
 ``type_var_map``. Repeated names refer to the same symbol across parameters, return
 annotations and the body. Quoted lookup does not introduce a Python name; an explicit
 symbol declaration does. A Python name in ``R.Tensor((n, 4), ...)`` follows its source
-lexical scope. Module global-info references use ``I.resolve_global_info_`` against the
-active native module frame's existing map.
+lexical scope. Relax global-info selectors use ``R.resolve_global_info_`` against the
+nearest active native module frame's existing map. String selectors outside an active module
+raise, including when an unrelated builder is active. Concrete metadata objects retain identity.
+When defining Python functions before their module builder opens, quote the whole annotation
+or use ``from __future__ import annotations``; the parser reconstructs these annotations inside
+the module. Printed module function signatures containing selectors request postponed annotations.
+Eager printed class assignments, such as typed ``R.ExternFunc`` declarations, retrieve concrete
+virtual devices with ``R.lookup_vdevice`` because postponed annotations do not defer assignment
+values. This explicit lookup preserves the module metadata object before tensor construction.
 
 During rewriting, each needed source range becomes a fixed native span entry in an
 injected table. ``_S[i](value)`` attaches that location while preserving identity;

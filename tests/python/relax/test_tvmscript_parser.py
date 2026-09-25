@@ -816,10 +816,10 @@ def test_tensor_with_vdevice():
 
         @R.function
         def foo(
-            a: R.Tensor((128, 128), "float32", "cuda:1"),
-            b: R.Tensor((128, 128), "float32", "llvm"),
-            c: R.Tensor((128, 128), "float32", "vdevice:3"),
-        ) -> R.Tensor((128, 128), "float32", "cuda:1"):
+            a: 'R.Tensor((128, 128), "float32", "cuda:1")',
+            b: 'R.Tensor((128, 128), "float32", "llvm")',
+            c: 'R.Tensor((128, 128), "float32", "vdevice:3")',
+        ) -> 'R.Tensor((128, 128), "float32", "cuda:1")':
             s = R.add(a, c)
             return s
 

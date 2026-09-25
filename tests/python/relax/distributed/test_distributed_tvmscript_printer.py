@@ -90,8 +90,8 @@ class TestModule:
 
     @R.function
     def foo(
-        x: R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"),
-    ) -> R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"):
+        x: 'R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R")',
+    ) -> 'R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R")':
         gv0 = R.dist.call_tir(
             TestModule.tir_func,
             x,
@@ -120,6 +120,8 @@ def test_module():
     _assert_print(
         TestModule,
         """
+from __future__ import annotations
+
 # from tvm.script import ir as I
 # from tvm.script import tirx as T
 # from tvm.tirx.layout import Axis

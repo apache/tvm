@@ -24,28 +24,28 @@ import traceback
 import pytest
 
 from tvm.script import tirx as T
+from tvm.script.ir_builder import resolve_global_info_args
 from tvm.script.parser import protocol_registry as registry
 
 
 def test_constructor_policy_survives_a_failed_definition(language):
-    # A registered argument uses the dialect lookup, even after a constructor failure.
+    # Aliased calls use the same builder lookup, even after a constructor failure.
     M = language.M
     calls = []
     dialect_infos = {}
     first, invalid, second = object(), object(), object()
     failure = RuntimeError("constructor failed")
 
-    @registry.args_policy("M.constructor", {"device": "global_info"})
+    def resolve(name):
+        return dialect_infos[name]
+
+    @resolve_global_info_args("device", resolver=resolve)
     def constructor(device):
         calls.append(device)
         if device is invalid:
             raise failure
         return device
 
-    def resolve(name):
-        return dialect_infos[name]
-
-    M.resolve_global_info_ = resolve
     M.constructor = constructor
 
     def build():
@@ -57,14 +57,14 @@ def test_constructor_policy_survives_a_failed_definition(language):
         return main
 
     dialect_infos["mesh"] = first
-    assert build().body == [("emit", first), ("emit", "mesh")]
+    assert build().body == [("emit", first), ("emit", first)]
     dialect_infos["mesh"] = invalid
     with pytest.raises(RuntimeError, match="constructor failed") as caught:
         build()
     assert caught.value is failure
     dialect_infos["mesh"] = second
-    assert build().body == [("emit", second), ("emit", "mesh")]
-    assert calls == [first, "mesh", invalid, second, "mesh"]
+    assert build().body == [("emit", second), ("emit", second)]
+    assert calls == [first, first, invalid, second, second]
 
 
 def test_argument_policy_preserves_expression_dtype(language):
@@ -88,9 +88,9 @@ def test_argument_policy_preserves_expression_dtype(language):
     assert increment.args[1] == 1
 
 
-def test_tirx_rejects_global_info_at_the_source_argument(monkeypatch):
-    # A custom global-info argument must report TIRx's unsupported policy at its source.
-    @registry.args_policy("T.global_annotation", {"device": "global_info"})
+def test_tirx_rejects_global_info_at_the_call_site(monkeypatch):
+    # A custom builder reports its resolver failure at the ordinary call site.
+    @resolve_global_info_args("device", resolver=T.resolve_global_info_)
     def global_annotation(device):
         return T.int32
 
@@ -103,7 +103,7 @@ def test_tirx_rejects_global_info_at_the_source_argument(monkeypatch):
         def main(value: T.global_annotation(device="cuda:0")):
             T.evaluate(value)
 
-    lines, first = inspect.getsourcelines(test_tirx_rejects_global_info_at_the_source_argument)
+    lines, first = inspect.getsourcelines(test_tirx_rejects_global_info_at_the_call_site)
     index, line = next((i, line) for i, line in enumerate(lines) if "def main(value:" in line)
     location = first + index
     frames = traceback.extract_tb(caught.value.__traceback__)
@@ -112,7 +112,7 @@ def test_tirx_rejects_global_info_at_the_source_argument(monkeypatch):
     ]
     assert source_frames
     if getattr(source_frames[-1], "colno", None) is not None:
-        column = line.index('"cuda:0"')
+        column = line.index("T.global_annotation(")
         assert (
             source_frames[-1].colno,
             source_frames[-1].end_lineno,
@@ -120,5 +120,5 @@ def test_tirx_rejects_global_info_at_the_source_argument(monkeypatch):
         ) == (
             column,
             location,
-            column + len('"cuda:0"'),
+            column + len('T.global_annotation(device="cuda:0")'),
         )

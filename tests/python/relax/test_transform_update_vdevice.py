@@ -55,8 +55,8 @@ def test_update():
 
         @R.function
         def main(
-            a: R.Tensor((128, 128), "float32", "cuda:1"),
-            c: R.Tensor((128, 128), "float32", "vdevice:3"),
+            a: 'R.Tensor((128, 128), "float32", "cuda:1")',
+            c: 'R.Tensor((128, 128), "float32", "vdevice:3")',
         ) -> R.Tensor((128, 128), "float32"):
             s = R.add(a, c)
             return s
@@ -77,9 +77,9 @@ def test_update():
 
         @R.function
         def main(
-            a: R.Tensor((128, 128), dtype="float32", vdevice="metal:1"),
-            c: R.Tensor((128, 128), dtype="float32", vdevice="metal:1"),
-        ) -> R.Tensor((128, 128), dtype="float32", vdevice="metal:1"):
+            a: 'R.Tensor((128, 128), dtype="float32", vdevice="metal:1")',
+            c: 'R.Tensor((128, 128), dtype="float32", vdevice="metal:1")',
+        ) -> 'R.Tensor((128, 128), dtype="float32", vdevice="metal:1")':
             s: R.Tensor((128, 128), dtype="float32", vdevice="metal:1") = R.add(a, c)
             return s
 
@@ -97,8 +97,8 @@ def test_update():
 
         @R.function
         def main(
-            a: R.Tensor((128, 128), "float32", "cuda:0"),
-            c: R.Tensor((128, 128), "float32", "cuda:0"),
+            a: 'R.Tensor((128, 128), "float32", "cuda:0")',
+            c: 'R.Tensor((128, 128), "float32", "cuda:0")',
         ) -> R.Tensor((128, 128), "float32"):
             s = R.add(a, c)
             return s
@@ -117,9 +117,9 @@ def test_update():
 
         @R.function
         def main(
-            a: R.Tensor((128, 128), "float32", "llvm:1"),
-            c: R.Tensor((128, 128), "float32", "llvm:1"),
-        ) -> R.Tensor((128, 128), "float32", "llvm:1"):
+            a: 'R.Tensor((128, 128), "float32", "llvm:1")',
+            c: 'R.Tensor((128, 128), "float32", "llvm:1")',
+        ) -> 'R.Tensor((128, 128), "float32", "llvm:1")':
             s: R.Tensor((128, 128), "float32", "llvm:1") = R.add(a, c)
             return s
 
