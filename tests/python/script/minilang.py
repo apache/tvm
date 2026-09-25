@@ -28,7 +28,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 
-from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import IRBuilder, resolve_global_info_args
 from tvm.script.ir_builder.base import MISSING, AlreadyEmitted
 from tvm.script.parser import entry
 from tvm.script.parser import protocol_registry as registry
@@ -215,9 +215,8 @@ class Language:
             entry.make_decorator(self.M)
         )
 
-        @registry.args_policy(
-            "M.Tensor", {"shape": "expr_str", "device": "global_info"}, scalar_strings=False
-        )
+        @resolve_global_info_args("device", resolver=self.resolve_global_info)
+        @registry.args_policy("M.Tensor", {"shape": "expr_str"}, scalar_strings=False)
         def Tensor(shape=None, dtype="float32", device=None, placement="S[0]"):
             return Value("tensor", (shape, dtype, device, placement))
 
