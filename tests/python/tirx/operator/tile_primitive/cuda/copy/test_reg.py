@@ -69,8 +69,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
         if scope == "warpgroup":
 
             @T.prim_func
-            def kernel(B_ptr: T.handle) -> None:
-                B = T.match_buffer(B_ptr, shape, dtype)
+            def kernel(B: T.Buffer(shape, dtype)) -> None:
                 T.device_entry()
                 T.cta_id([1])
                 T.warpgroup_id([n_threads // 128])
@@ -95,8 +94,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
         elif scope == "warp":
 
             @T.prim_func
-            def kernel(B_ptr: T.handle) -> None:
-                B = T.match_buffer(B_ptr, shape, dtype)
+            def kernel(B: T.Buffer(shape, dtype)) -> None:
                 T.device_entry()
                 T.cta_id([1])
                 T.lane_id([32])
@@ -118,8 +116,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
         elif scope == "cta":
 
             @T.prim_func
-            def kernel(B_ptr: T.handle) -> None:
-                B = T.match_buffer(B_ptr, shape, dtype)
+            def kernel(B: T.Buffer(shape, dtype)) -> None:
                 T.device_entry()
                 T.cta_id([1])
                 T.warp_id([n_threads // 32])
@@ -145,9 +142,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
         if scope == "warpgroup":
 
             @T.prim_func
-            def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-                A = T.match_buffer(A_ptr, shape, dtype)
-                B = T.match_buffer(B_ptr, shape, dtype)
+            def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
                 T.device_entry()
                 T.cta_id([1])
                 T.warpgroup_id([n_threads // 128])
@@ -171,9 +166,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
         elif scope == "warp":
 
             @T.prim_func
-            def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-                A = T.match_buffer(A_ptr, shape, dtype)
-                B = T.match_buffer(B_ptr, shape, dtype)
+            def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
                 T.device_entry()
                 T.cta_id([1])
                 T.lane_id([32])
@@ -194,9 +187,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
         elif scope == "cta":
 
             @T.prim_func
-            def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-                A = T.match_buffer(A_ptr, shape, dtype)
-                B = T.match_buffer(B_ptr, shape, dtype)
+            def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
                 T.device_entry()
                 T.cta_id([1])
                 T.warp_id([n_threads // 32])
@@ -286,9 +277,7 @@ def test_reg_roundtrip_gapped_permuted_storage():
 
     # fmt: off
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, "float32")
-        B = T.match_buffer(B_ptr, shape, "float32")
+    def kernel(A: T.Buffer(shape, 'float32'), B: T.Buffer(shape, 'float32')) -> None:
 
         T.device_entry()
         T.cta_id([1])
@@ -355,10 +344,9 @@ def test_copy_g2l_l2g_vec_load(task, dtype):
     r_gmem = tuple(slice(g_region[i][0], g_region[i][1]) for i in range(len(g_shape)))
 
     @T.prim_func
-    def copy_sync(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, dtype, layout=layoutA)
-        B = T.match_buffer(B_ptr, g_shape, dtype, layout=layoutB)
-
+    def copy_sync(
+        A: T.Buffer(g_shape, dtype, layout=layoutA), B: T.Buffer(g_shape, dtype, layout=layoutB)
+    ) -> None:
         T.device_entry()
         T.cta_id([2])
         T.thread_id([thread_cnt])
@@ -393,8 +381,7 @@ def test_copy_g2l_l2g_vec_load(task, dtype):
 
 
 @T.prim_func
-def _nc_strided_reg_copy(src_ptr: T.handle) -> None:
-    src = T.match_buffer(src_ptr, (1024,), "int32")
+def _nc_strided_reg_copy(src: T.Buffer((1024,), "int32")) -> None:
     T.device_entry()
     T.thread_id([128])
     tid = T.thread_id_in_wg([128])
@@ -409,8 +396,7 @@ def _nc_strided_reg_copy(src_ptr: T.handle) -> None:
 
 
 @T.prim_func
-def _plain_strided_reg_copy(src_ptr: T.handle) -> None:
-    src = T.match_buffer(src_ptr, (1024,), "int32")
+def _plain_strided_reg_copy(src: T.Buffer((1024,), "int32")) -> None:
     T.device_entry()
     T.thread_id([128])
     tid = T.thread_id_in_wg([128])
@@ -457,8 +443,7 @@ def test_reg_copy_linear_shared_hoists_thread_base():
     linear_layout = TileLayout(S[shape])
 
     @T.prim_func
-    def kernel(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, "float16", layout=linear_layout)
+    def kernel(A: T.Buffer(shape, "float16", layout=linear_layout)) -> None:
         T.device_entry()
         T.cta_id([1])
         T.thread_id([n_threads])
@@ -513,10 +498,10 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_structured_compose_apply():
     smem_layout = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, "float16", layout=g_layout)
-        B = T.match_buffer(B_ptr, g_shape, "float16", layout=g_layout)
-
+    def kernel(
+        A: T.Buffer(g_shape, "float16", layout=g_layout),
+        B: T.Buffer(g_shape, "float16", layout=g_layout),
+    ) -> None:
         T.device_entry()
         T.cta_id([1])
         T.thread_id([N_THREADS])
@@ -569,8 +554,7 @@ def test_ptx_st_from_src_f32_vector_preserves_values():
     """A vector store of f32 registers must preserve the values."""
 
     @T.prim_func
-    def kernel(B_ptr: T.handle) -> None:
-        B = T.match_buffer(B_ptr, (4,), "float32")
+    def kernel(B: T.Buffer((4,), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
@@ -602,8 +586,7 @@ def test_ptx_st_from_src_f32_vector_preserves_values():
 
 def test_copy_fallback_handles_scalar_regions():
     @T.prim_func
-    def kernel(B_ptr: T.handle) -> None:
-        B = T.match_buffer(B_ptr, (1,), "float32")
+    def kernel(B: T.Buffer((1,), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
@@ -635,8 +618,7 @@ def test_copy_fallback_handles_scalar_regions():
 )
 def test_copy_forced_vec_width_codegen(variant, dtype, n_elements, expected_st, expected_ld):
     @T.prim_func
-    def kernel(B_ptr: T.handle) -> None:
-        B = T.match_buffer(B_ptr, (n_elements,), dtype)
+    def kernel(B: T.Buffer((n_elements,), dtype)) -> None:
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
@@ -675,8 +657,7 @@ def test_copy_forced_vec_dynamic_swizzled_shared_uses_vector_ptx():
     smem_layout = ComposeLayout(2, 3, 3, TileLayout(S[(64, 8, 32) : (32, 2048, 1)]))
 
     @T.prim_func
-    def kernel(B_ptr: T.handle) -> None:
-        B = T.match_buffer(B_ptr, (128, 4), "float32")
+    def kernel(B: T.Buffer((128, 4), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
         tid = T.thread_id([128])
@@ -714,8 +695,7 @@ def test_copy_forced_vec_dynamic_swizzled_shared_uses_vector_ptx():
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_copy_explicit_vec_auto_uses_auto_family():
     @T.prim_func
-    def kernel(B_ptr: T.handle) -> None:
-        B = T.match_buffer(B_ptr, (4,), "float32")
+    def kernel(B: T.Buffer((4,), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
@@ -746,8 +726,7 @@ def test_copy_explicit_vec_auto_uses_auto_family():
 @pytest.mark.parametrize("dispatch", ["reg", "gmem_smem"])
 def test_copy_old_dispatch_names_are_not_registered(dispatch):
     @T.prim_func
-    def kernel(B_ptr: T.handle) -> None:
-        B = T.match_buffer(B_ptr, (4,), "float32")
+    def kernel(B: T.Buffer((4,), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
@@ -767,8 +746,7 @@ def test_copy_old_dispatch_names_are_not_registered(dispatch):
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_copy_forced_vec_rejects_size_mismatch():
     @T.prim_func
-    def kernel(B_ptr: T.handle) -> None:
-        B = T.match_buffer(B_ptr, (4,), "float32")
+    def kernel(B: T.Buffer((4,), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
@@ -788,8 +766,7 @@ def test_copy_forced_vec_rejects_size_mismatch():
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_copy_forced_vec_rejects_non_thread_scope():
     @T.prim_func
-    def kernel(B_ptr: T.handle) -> None:
-        B = T.match_buffer(B_ptr, (4,), "float32")
+    def kernel(B: T.Buffer((4,), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
         T.lane_id([32])
@@ -1096,9 +1073,9 @@ def _build_tcgen05_d_epilogue_deposit_roundtrip():
     sl_m, sl_n = _TCGEN05_D_SLICE
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (m, n), _TCGEN05_D_DTYPE)
-        B = T.match_buffer(B_ptr, (m, n), _TCGEN05_D_DTYPE)
+    def kernel(
+        A: T.Buffer((m, n), _TCGEN05_D_DTYPE), B: T.Buffer((m, n), _TCGEN05_D_DTYPE)
+    ) -> None:
         T.device_entry()
         T.cta_id([1])
         T.warpgroup_id([1])

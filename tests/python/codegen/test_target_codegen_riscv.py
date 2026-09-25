@@ -109,10 +109,8 @@ def test_rvv_vscale_llvm_dbginfo(target):
 
     # fmt: off
     @T.prim_func
-    def rvv_with_vscale(A_handle: T.handle, B_handle: T.handle, C_handle: T.handle):
-        A = T.match_buffer(A_handle, (8,), dtype="float32", align=4, offset_factor=1)
-        B = T.match_buffer(B_handle, (4, 8), dtype="float32", align=4, offset_factor=1, strides=[8, 1])
-        C = T.match_buffer(C_handle, (4,), dtype="float32", align=4, offset_factor=1)
+    def rvv_with_vscale(A: T.Buffer((8,), dtype='float32', align=4, offset_factor=1), B: T.Buffer((4, 8), dtype='float32', align=4, offset_factor=1, strides=[8, 1]), C: T.Buffer((4,), dtype='float32', align=4, offset_factor=1)):
+
         zero = T.call_llvm_intrin('float32xvscalex2', 'llvm.riscv.vfmv.v.f', T.Broadcast(T.float32(0.0), T.vscale() * 2), C[0], T.uint64(1))
         vec_A = T.call_llvm_intrin('float32xvscalex4', 'llvm.riscv.vle', T.Broadcast(T.float32(0.0), T.vscale() * 4), T.tvm_access_ptr(T.type_annotation('float32'), A.data, 0, 8, 1), T.int64(8))
         vec_B = T.call_llvm_intrin('float32xvscalex4', 'llvm.riscv.vle', T.Broadcast(T.float32(0.0), T.vscale() * 4), T.tvm_access_ptr(T.type_annotation('float32'), B.data, 0 * 8, 8, 1), T.int64(8))

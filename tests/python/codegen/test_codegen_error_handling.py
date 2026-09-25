@@ -34,7 +34,6 @@ from tvm.testing import env
 # Parameterize over both LLVM and C backends
 codegen_target = tvm.testing.parameter("llvm", "c")
 
-
 # ── Argument count errors ────────────────────────────────────
 
 
@@ -44,9 +43,7 @@ def test_wrong_argument_count_error(codegen_target):
     n0 = T.dynamic("n0")
 
     @T.prim_func
-    def func(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (n0,), "float32")
-        B = T.match_buffer(b, (n0,), "float32")
+    def func(A: T.Buffer((n0,), "float32"), B: T.Buffer((n0,), "float32")):
         for i in range(n0):
             B[i] = A[i] + T.float32(1)
 
@@ -74,9 +71,7 @@ def test_type_mismatch_non_tensor(codegen_target):
     n0 = T.dynamic("n0")
 
     @T.prim_func
-    def func(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (n0,), "float32")
-        B = T.match_buffer(b, (n0,), "float32")
+    def func(A: T.Buffer((n0,), "float32"), B: T.Buffer((n0,), "float32")):
         for i in range(n0):
             B[i] = A[i] + T.float32(1)
 
@@ -105,9 +100,7 @@ def test_shape_mismatch_shared_variable(codegen_target):
     n0 = T.dynamic("n0")
 
     @T.prim_func
-    def func(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (n0,), "float32")
-        B = T.match_buffer(b, (n0,), "float32")
+    def func(A: T.Buffer((n0,), "float32"), B: T.Buffer((n0,), "float32")):
         for i in range(n0):
             B[i] = A[i] + T.float32(1)
 
@@ -399,9 +392,7 @@ def test_forward_reference_symbolic_shape(codegen_target):
     batch_size = T.dynamic("batch_size")
 
     @T.prim_func
-    def func(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (batch_size + 1,), "int32")
-        B = T.match_buffer(b, (batch_size,), "int32")
+    def func(A: T.Buffer((batch_size + 1,), "int32"), B: T.Buffer((batch_size,), "int32")):
         for i in range(batch_size):
             B[i] = A[i] + A[i + 1]
 

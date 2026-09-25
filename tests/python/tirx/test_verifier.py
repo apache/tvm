@@ -197,8 +197,7 @@ def test_layout():
 def test_host():
     # fmt: off
     @T.prim_func(check_well_formed=False)
-    def test1(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (16, 16), dtype="float32", align=16)
+    def test1(A: T.Buffer((16, 16), dtype='float32', align=16)):
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         T.call_packed("runtime.cuTensorMapEncodeTiled", A_map, "float32", 2, A.data, 16, 16, 64, 16, 16, 1, 1, 0, 0, 0, 0)  # noqa: E501

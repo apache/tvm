@@ -47,8 +47,8 @@ def test_warp_sum_full():
 
     # fmt: off
     @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (32,), "float32")
+    def func(out: T.Buffer((32,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
@@ -71,8 +71,8 @@ def test_warp_sum_partial_8():
 
     # fmt: off
     @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (32,), "float32")
+    def func(out: T.Buffer((32,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
@@ -101,8 +101,8 @@ def test_warp_max_partial_4():
 
     # fmt: off
     @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (32,), "float32")
+    def func(out: T.Buffer((32,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
@@ -127,8 +127,8 @@ def test_warp_min_full():
 
     # fmt: off
     @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (32,), "float32")
+    def func(out: T.Buffer((32,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
@@ -149,8 +149,8 @@ def test_warp_sum_partial_2():
 
     # fmt: off
     @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (32,), "float32")
+    def func(out: T.Buffer((32,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
@@ -178,8 +178,8 @@ def test_warp_sum_all_widths(width):
 
     # fmt: off
     @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (32,), "float32")
+    def func(out: T.Buffer((32,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])

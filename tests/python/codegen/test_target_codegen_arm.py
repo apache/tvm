@@ -67,10 +67,11 @@ def test_vmlal_s16():
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(var_A: T.handle, var_B: T.handle, C: T.Buffer((N,), "int32")):
+            def main(
+                A: T.Buffer((K, N), "int8"), B: T.Buffer((K, N), "int8"), C: T.Buffer((N,), "int32")
+            ):
                 T.func_attr({"tirx.noalias": True})
-                A = T.match_buffer(var_A, (K, N), "int8")
-                B = T.match_buffer(var_B, (K, N), "int8")
+
                 for n in T.vectorized(N):
                     C[n] = 0
                     for rv in range(K):
@@ -94,10 +95,11 @@ def test_vmlal_s16():
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(var_A: T.handle, var_B: T.handle, C: T.Buffer((N,), "int32")):
+            def main(
+                A: T.Buffer((K, N), "int8"), B: T.Buffer((K,), "int8"), C: T.Buffer((N,), "int32")
+            ):
                 T.func_attr({"tirx.noalias": True})
-                A = T.match_buffer(var_A, (K, N), "int8")
-                B = T.match_buffer(var_B, (K,), "int8")
+
                 for n in T.vectorized(N):
                     C[n] = 0
                     for rv in range(K):

@@ -106,28 +106,6 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  */
 Type FuncRet(Type ret_type);
 
-/*!
- * \brief The buffer match statement.
- * \param param The parameter of the PrimFunc to match.
- * \param shape The type of the buffer prior to flattening.
- * \param dtype The data type in the content of the buffer.
- * \param data The pointer to the head of the data.
- * \param strides The strides of each dimension.
- * \param elem_offset The offset in terms of number of dtype elements (including lanes).
- * \param storage_scope The optional storage scope of buffer data pointer.
- * \param align The alignment requirement of data pointer in bytes.
- * \param offset_factor The factor of elem_offset field.
- * \param layout The buffer layout.
- * \param allocated_addr Addresses assigned to the buffer allocation.
- * \return The matched buffer.
- */
-BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
-                      PrimType dtype = PrimType::Float(32), ffi::Optional<Expr> data = std::nullopt,
-                      ffi::Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
-                      ffi::String storage_scope = "global", int align = -1, int offset_factor = 0,
-                      ffi::Optional<Layout> layout = std::nullopt,
-                      ffi::Array<PrimExpr> allocated_addr = {});
-
 void TilePrimitiveCall(tvm::tirx::TilePrimitiveCall op_call);
 
 /*!

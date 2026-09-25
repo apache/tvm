@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations
+
 import pytest
 import tvm_ffi
 
@@ -276,11 +278,12 @@ def test_dynamic_launch_thread():
     @I.ir_module
     class before:
         @T.prim_func
-        def default_function(var_A: T.handle, var_B: T.handle, seq_len: T.int32):
+        def default_function(
+            A: T.Buffer([seq_len], "int32"),  # noqa: F821
+            B: T.Buffer([seq_len], "int32"),  # noqa: F821
+            seq_len: T.int32,
+        ):
             T.func_attr({"target": T.target("cuda")})
-
-            A = T.match_buffer(var_A, [seq_len], "int32")
-            B = T.match_buffer(var_B, [seq_len], "int32")
 
             num_blocks: T.let[T.int32] = (seq_len + 127) // 128
             with T.attr(T.target("cuda"), "target", 0):
@@ -292,10 +295,13 @@ def test_dynamic_launch_thread():
     @I.ir_module
     class expected:
         @T.prim_func
-        def default_function(var_A: T.handle, var_B: T.handle, seq_len: T.int32):
+        def default_function(
+            A: T.Buffer((seq_len,), "int32"),  # noqa: F821
+            B: T.Buffer((seq_len,), "int32"),  # noqa: F821
+            seq_len: T.int32,
+        ):
             T.func_attr({"target": T.target("cuda")})
-            A = T.match_buffer(var_A, (seq_len,), "int32")
-            B = T.match_buffer(var_B, (seq_len,), "int32")
+
             num_blocks: T.let[T.int32] = (seq_len + 127) // 128
             expected.default_function_kernel(A.data, B.data, num_blocks, seq_len)
 
@@ -332,10 +338,9 @@ def test_symbolic_var_parameter():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle):
+        def main(A: T.Buffer((m,)), B: T.Buffer((m,))):
             T.func_attr({"target": T.target("cuda")})
-            A = T.match_buffer(var_A, (m,))
-            B = T.match_buffer(var_B, (m,))
+
             T.attr(T.target("cuda"), "target", 0)
             blockIdx_x = T.launch_thread("blockIdx.x", m)
             B_1 = T.decl_buffer((m,), data=B.data)

@@ -55,17 +55,15 @@ def test_simple_copy():
     dst_layout = TileLayout(S[(128, 512) : (1 @ P, 1 @ F)])
 
     @T.prim_func
-    def copy(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, "float32", layout=src_layout)
+    def copy(A: T.Buffer(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.copy(A_sbuf, A)
 
     @T.prim_func
-    def expected(A_ptr: T.handle):
+    def expected(A: T.Buffer((128, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A = T.match_buffer(A_ptr, (128, 512), layout=None)
         A_1 = T.decl_buffer((65536,), data=A.data, layout=None)
         A_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
         for b_loop in T.serial(0, 1):
@@ -88,17 +86,15 @@ def test_simple_copy_2():
     dst_layout = TileLayout(S[(128, 4, 128) : (4 @ F, 1 @ F, 1 @ P)])
 
     @T.prim_func
-    def copy(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, "float32", layout=src_layout)
+    def copy(A: T.Buffer(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.copy(A_sbuf, A)
 
     @T.prim_func
-    def expected(A_ptr: T.handle):
+    def expected(A: T.Buffer((128, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A = T.match_buffer(A_ptr, (128, 512), layout=None)
         A_1 = T.decl_buffer((65536,), data=A.data, layout=None)
         A_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
         for b_loop in T.serial(0, 512):
@@ -120,18 +116,16 @@ def test_copy_in_a_loop():
     dst_layout = TileLayout(S[(4, 128, 512) : (512 @ F, 1 @ P, 1 @ F)])
 
     @T.prim_func
-    def copy(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, "float32", layout=src_layout)
+    def copy(A: T.Buffer(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             Tx.copy(A_sbuf[i * 128 : i * 128 + 128, :], A[i * 128 : i * 128 + 128, :])
 
     @T.prim_func
-    def expected(A_ptr: T.handle):
+    def expected(A: T.Buffer((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A = T.match_buffer(A_ptr, (512, 512), layout=None)
         A_1 = T.decl_buffer((262144,), data=A.data, layout=None)
         A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
         for i, b_loop in T.grid(4, 1):
@@ -155,8 +149,7 @@ def test_copy_in_a_loop_2():
     dst_layout = TileLayout(S[(128, 2048) : (1 @ P, 1 @ F)])
 
     @T.prim_func
-    def copy(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, "float32", layout=src_layout)
+    def copy(A: T.Buffer(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         A_sbuf_view = A_sbuf.view(128, 4, 512)
@@ -165,10 +158,9 @@ def test_copy_in_a_loop_2():
             Tx.copy(A_sbuf_view[:, i, :], A_view[:, i, :])
 
     @T.prim_func
-    def expected(A_ptr: T.handle):
+    def expected(A: T.Buffer((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A = T.match_buffer(A_ptr, (512, 512), layout=None)
         _A_flat = T.decl_buffer((262144,), data=A.data, layout=None)
         A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
         A_sbuf_view = T.decl_buffer((128, 2048), data=A_sbuf.data, scope="trn.sbuf", layout=None)
@@ -360,18 +352,16 @@ def test_copy_irregular_shape():
     dst_layout = TileLayout(S[(128, 512) : (1 @ P, 1 @ F)])
 
     @T.prim_func
-    def copy(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, "float32", layout=src_layout)
+    def copy(A: T.Buffer(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             Tx.copy(A[:, i * 512 : i * 512 + 512], A_sbuf)
 
     @T.prim_func
-    def expected(A_ptr: T.handle):
+    def expected(A: T.Buffer((128, 10000), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A = T.match_buffer(A_ptr, (128, 10000), layout=None)
         A_1 = T.decl_buffer((1280000,), data=A.data, layout=None)
         A_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
         for i, b_loop in T.grid(4, 1):
@@ -394,18 +384,17 @@ def test_copy_different_shape_dim():
 
     # fmt: off
     @T.prim_func
-    def copy(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, "float32", layout=src_layout)
+    def copy(A: T.Buffer(src_shape, 'float32', layout=src_layout)) -> None:
+
         T.device_entry()
         A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(32):
             Tx.copy(A_sbuf, A[i, :, :])
 
     @T.prim_func
-    def expected(A_ptr: T.handle):
+    def expected(A: T.Buffer((32, 128, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A = T.match_buffer(A_ptr, (32, 128, 512), layout=None)
         A_1 = T.decl_buffer((2097152,), data=A.data, layout=None)
         A_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
         for i, b_loop in T.grid(32, 1):
@@ -427,18 +416,16 @@ def test_copy_with_offset():
     dst_layout = TileLayout(S[(4, 128, 512) : (512 @ F, 1 @ P, 1 @ F)])
 
     @T.prim_func
-    def copy(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, "float32", layout=src_layout)
+    def copy(A: T.Buffer(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(2):
             Tx.copy(A_sbuf[i * 256 : i * 256 + 256, :], A)
 
     @T.prim_func
-    def expected(A_ptr: T.handle):
+    def expected(A: T.Buffer((256, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A = T.match_buffer(A_ptr, (256, 512), layout=None)
         A_1 = T.decl_buffer((131072,), data=A.data, layout=None)
         A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
         for i, b_loop in T.grid(2, 2):
@@ -463,18 +450,16 @@ def test_large_dma_copy():
     dst_layout = TileLayout(S[(4, 128, 4096) : (4096 @ F, 1 @ P, 1 @ F)])
 
     @T.prim_func
-    def copy(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, "float32", layout=src_layout)
+    def copy(A: T.Buffer(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             Tx.copy(A_sbuf[i * 128 : i * 128 + 128, :], A[i * 128 : i * 128 + 128, :])
 
     @T.prim_func
-    def expected(A_ptr: T.handle):
+    def expected(A: T.Buffer((512, 4096), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A = T.match_buffer(A_ptr, (512, 4096), layout=None)
         A_1 = T.decl_buffer((2097152,), data=A.data, layout=None)
         A_sbuf = T.alloc_buffer((128, 16384), scope="trn.sbuf")
         for i, b_loop in T.grid(4, 1):
@@ -534,17 +519,16 @@ def test_copy_with_complex_index():
 
     # fmt: off
     @T.prim_func
-    def copy(A_ptr: T.handle, ) -> None:
-        A = T.match_buffer(A_ptr, A_shape, "float32", layout=A_layout)
+    def copy(A: T.Buffer(A_shape, 'float32', layout=A_layout), ) -> None:
+
         T.device_entry()
         A_sbuf = T.alloc_buffer(A_sbuf_shape, "float32", scope="trn.sbuf", layout=A_sbuf_layout)
         Tx.copy(A_sbuf[1, 0:2048, 0:1024], A[2048: 4096, 3072:4096])
 
     @T.prim_func
-    def expected(A_ptr: T.handle):
+    def expected(A: T.Buffer((4096, 4096), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A = T.match_buffer(A_ptr, (4096, 4096), layout=None)
         A_1 = T.decl_buffer((16777216,), data=A.data, layout=None)
         A_sbuf = T.alloc_buffer((128, 32768), scope="trn.sbuf")
         for b_loop in T.serial(0, 8):
@@ -567,17 +551,16 @@ def test_copy_with_complex_index_2():
 
     # fmt: off
     @T.prim_func
-    def copy(A_ptr: T.handle, ) -> None:
-        A = T.match_buffer(A_ptr, A_shape, "float32", layout=A_layout)
+    def copy(A: T.Buffer(A_shape, 'float32', layout=A_layout), ) -> None:
+
         T.device_entry()
         A_sbuf = T.alloc_buffer(A_sbuf_shape, "float32", scope="trn.sbuf", layout=A_sbuf_layout)
         Tx.copy(A_sbuf[2048: 4096, 3072:4096], A[1, 0:2048, 0:1024])
 
     @T.prim_func
-    def expected(A_ptr: T.handle):
+    def expected(A: T.Buffer((2, 2048, 1024), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A = T.match_buffer(A_ptr, (2, 2048, 1024), layout=None)
         A_1 = T.decl_buffer((4194304,), data=A.data, layout=None)
         A_sbuf = T.alloc_buffer((128, 131072), scope="trn.sbuf")
         for b_loop in T.serial(0, 8):
@@ -650,8 +633,8 @@ def test_copy_with_guard():
 
     # fmt: off
     @T.prim_func
-    def copy(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, "float32", layout=src_layout)
+    def copy(A: T.Buffer(src_shape, 'float32', layout=src_layout)) -> None:
+
         T.device_entry()
         A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for j in range(4):
@@ -659,10 +642,9 @@ def test_copy_with_guard():
                 Tx.copy(A_sbuf[i * 128 : i * 128 + 128, 0:128*j], A[i * 128 : i * 128 + 128, 0:128*j])  # noqa: E501
 
     @T.prim_func
-    def expected(A_ptr: T.handle):
+    def expected(A: T.Buffer((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A = T.match_buffer(A_ptr, (512, 512), layout=None)
         A_1 = T.decl_buffer((262144,), data=A.data, layout=None)
         A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
         for j, i, b_loop in T.grid(4, 4, 1):
@@ -687,8 +669,8 @@ def test_copy_with_guard_2():
 
     # fmt: off
     @T.prim_func
-    def copy(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, "float32", layout=src_layout)
+    def copy(A: T.Buffer(src_shape, 'float32', layout=src_layout)) -> None:
+
         T.device_entry()
         A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for j in range(4):
@@ -696,10 +678,9 @@ def test_copy_with_guard_2():
                 Tx.copy(A_sbuf[0:128*j, 0:128*i], A[0:128*j, 0:128*i])
 
     @T.prim_func
-    def expected(A_ptr: T.handle):
+    def expected(A: T.Buffer((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A = T.match_buffer(A_ptr, (512, 512), layout=None)
         A_1 = T.decl_buffer((262144,), data=A.data, layout=None)
         A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
         for j, i, b_loop in T.grid(4, 4, 3):

@@ -107,42 +107,8 @@ void PrimFuncFrameNode::ExitWithScope() {
   TVM_FFI_CHECK(!is_declaration || stmts.empty(), ValueError)
       << "A function declaration cannot contain body statements";
   tvm::tirx::Stmt body = is_declaration ? tvm::tirx::Stmt() : AsStmt(stmts);
-  ffi::Array<tvm::tirx::Var> effective_args;
-  ffi::Map<tvm::tirx::Var, tvm::Expr> param_replacements;
-  for (const tvm::tirx::Var& arg : args) {
-    ffi::Optional<tvm::tirx::BufferVar> opt_buffer = buffer_map.Get(arg);
-    bool replaces_legacy_param = opt_buffer.has_value();
-    if (!opt_buffer.has_value() && arg->ty.as<tvm::tirx::BufferTypeNode>()) {
-      opt_buffer = tvm::tirx::BufferVar(arg);
-    }
-    if (!opt_buffer.has_value()) {
-      effective_args.push_back(arg);
-      continue;
-    }
-    tvm::tirx::BufferVar buffer = opt_buffer.value();
-    effective_args.push_back(buffer.var());
-    if (replaces_legacy_param && !arg.same_as(buffer.var()) &&
-        !arg->ty.as<tvm::tirx::BufferTypeNode>()) {
-      tvm::Expr data = buffer.data();
-      param_replacements.Set(arg, ffi::StructuralEqual()(arg->ty, data->ty)
-                                      ? data
-                                      : tvm::prim::reinterpret(arg->ty, std::move(data)));
-    }
-  }
-  if (!is_declaration && !param_replacements.empty()) {
-    auto f_substitute =
-        [&param_replacements](
-            const tvm::tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-      if (auto repl = param_replacements.Get(var)) {
-        return ffi::Any(*std::move(repl));
-      }
-      return ffi::Unchanged();
-    };
-    body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(body), f_substitute)
-               .as_or_throw<tvm::tirx::Stmt>();
-  }
   tvm::tirx::PrimFunc func(
-      /*params=*/effective_args,
+      /*params=*/args,
       /*body=*/body,
       /*ret_type=*/ret_type.value_or(TupleType::Empty()),
       /*attrs=*/attrs.defined() ? DictAttrs(attrs) : DictAttrs(),

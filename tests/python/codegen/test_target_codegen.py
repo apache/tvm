@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
 
 import numpy as np
 import pytest
@@ -28,8 +27,7 @@ def test_buffer_store_predicate_not_supported():
     target = "c"
 
     @T.prim_func
-    def func(b: T.handle):
-        B = T.match_buffer(b, (8,), "float32")
+    def func(B: T.Buffer((8,), "float32")):
         T.evaluate(
             T.call_intrin(
                 "void",
@@ -62,9 +60,7 @@ def test_buffer_store_predicate_not_supported_gpu(target):
         pytest.skip(f"{target} not enabled")
 
     @T.prim_func
-    def func(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (2, 3), "float32")
-        B = T.match_buffer(b, (6,), "float32")
+    def func(A: T.Buffer((2, 3), "float32"), B: T.Buffer((6,), "float32")):
         T.func_attr({"global_symbol": "main"})
         for i_0 in T.thread_binding(3, thread="threadIdx.x"):
             T.evaluate(
@@ -88,9 +84,7 @@ def test_buffer_load_predicate_not_supported():
     target = "c"
 
     @T.prim_func
-    def func(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (8,), "float32")
-        B = T.match_buffer(b, (8,), "float32")
+    def func(A: T.Buffer((8,), "float32"), B: T.Buffer((8,), "float32")):
         for i_0 in range(4):
             B.vstore(
                 [T.Ramp(0, 2, 4)],
@@ -124,9 +118,7 @@ def test_buffer_load_predicate_not_supported_gpu(target):
         pytest.skip(f"{target} not enabled")
 
     @T.prim_func
-    def func(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (8,), "float32")
-        B = T.match_buffer(b, (8,), "float32")
+    def func(A: T.Buffer((8,), "float32"), B: T.Buffer((8,), "float32")):
         for i_0 in T.thread_binding(3, thread="threadIdx.x"):
             B.vstore(
                 [T.Ramp(0, 2, 4)],

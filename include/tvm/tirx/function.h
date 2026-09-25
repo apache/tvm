@@ -132,13 +132,14 @@ class PrimFunc : public BaseFunc {
  * \note We can define a Meta TIR function with symbolic shape:
  *
  * \code{.py}
- *  @T.prim_func
- *  def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32) -> None:
- *      A = T.match_buffer(a, (m, n), "float32")
- *      B = T.match_buffer(b, (m, n), "float32")
+ *  from __future__ import annotations
+ *
+ *  @Ts.prim_func
+ *  def mem_copy(A: T.Buffer((m, n), "float32"), B: T.Buffer((m, n), "float32"),
+ *               m: T.int32, n: T.int32) -> None:
  *      for i, j in T.grid(m, n):
- *          with T.sblock():
- *              vi, vj = T.axis.remap("SS", [i, j])
+ *          with Ts.sblock():
+ *              vi, vj = Ts.axis.remap("SS", [i, j])
  *              B[vi, vj] = A[vi, vj]
  * \endcode
  *
@@ -152,13 +153,12 @@ class PrimFunc : public BaseFunc {
  * \endcode
  *
  * \code{.py}
- *  @T.prim_func
- *  def mem_copy_16_16(a: T.handle, b: T.handle) -> None:
- *      A = T.match_buffer(a, (16, 16), "float32")
- *      B = T.match_buffer(b, (16, 16), "float32")
+ *  @Ts.prim_func
+ *  def mem_copy_16_16(A: T.Buffer((16, 16), "float32"),
+ *                     B: T.Buffer((16, 16), "float32")) -> None:
  *      for i, j in T.grid(16, 16):
- *          with T.sblock():
- *              vi, vj = T.axis.remap("SS", [i, j])
+ *          with Ts.sblock():
+ *              vi, vj = Ts.axis.remap("SS", [i, j])
  *              B[vi, vj] = A[vi, vj]
  * \endcode
  */

@@ -159,14 +159,14 @@ def device_entry() -> None:
     accumulate into an ``AttrStmt("tirx.device_entry", True, body=...)``;
     the wrapping is closed by the PrimFunc frame at function end.
 
-    Anything written before this marker is host code (e.g. ``T.match_buffer``);
+    Anything written before this marker is host code (e.g. buffer layout setup);
     anything after is device code.
 
     Example::
 
         @T.prim_func
         def kernel(...):
-            A = T.match_buffer(...)
+            A = T.Buffer(...)
             T.device_entry()           # device region starts here
             bx = T.cta_id([SM_COUNT])  # standalone scope-id def
             ...
@@ -604,7 +604,6 @@ def add_to_parent(stmt: _tir.Stmt) -> None:
 # --------------------------------------
 # Syntax markers and declaration policies are registered by the source namespace.
 # They are consumed by the parser before runtime builder calls.
-
 
 # --------------------------------------
 # Control
@@ -1046,7 +1045,6 @@ def env_thread(thread_tag: str, dtype: str = "int32") -> Var:
 # Operators
 # --------------------------------------
 # Operator hooks are re-exported directly from the concrete op module above.
-
 
 func_ret = func_ret_type_
 emit = emit_

@@ -160,9 +160,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
 
     # fmt: off
     @T.prim_func
-    def dsmem_copy(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, dtype)
-        B = T.match_buffer(B_ptr, shape, dtype)
+    def dsmem_copy(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
 
         T.device_entry()
         cbx = T.cta_id_in_cluster([CLUSTER_N])
