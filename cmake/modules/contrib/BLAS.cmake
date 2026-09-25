@@ -15,6 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+if(DEFINED USE_MKL_PATH)
+  message(FATAL_ERROR "USE_MKL_PATH has been removed. Set USE_MKL to the MKL installation path instead.")
+endif()
+
 if(USE_BLAS STREQUAL "openblas")
   find_library(BLAS_LIBRARY openblas)
   add_library(tvm_blas_objs OBJECT src/runtime/extra/contrib/cblas/cblas.cc)
@@ -40,21 +44,14 @@ elseif(USE_BLAS STREQUAL "apple")
   target_link_libraries(tvm_runtime_extra PRIVATE tvm_blas_objs ${BLAS_LIBRARY})
   message(STATUS "Use BLAS library " ${BLAS_LIBRARY})
 elseif(USE_BLAS STREQUAL "mkl")
-  message(DEPRECATION "USE_BLAS=mkl is deprecated. Use USE_MKL=ON instead.")
-  set(USE_MKL ON)
+  message(FATAL_ERROR "USE_BLAS=mkl has been removed. Use USE_MKL=ON instead.")
 elseif(USE_BLAS STREQUAL "none")
   # pass
 else()
   message(FATAL_ERROR "Invalid option: USE_BLAS=" ${USE_BLAS})
 endif()
 
-if(USE_MKL OR USE_MKL_PATH)
-  if(USE_MKL_PATH)
-    message(DEPRECATION "USE_MKL_PATH=${USE_MKL_PATH} is deprecated. Use USE_MKL=${USE_MKL_PATH} instead.")
-  endif()
-  if(NOT USE_MKL)
-    set(USE_MKL ${USE_MKL_PATH})
-  endif()
+if(USE_MKL)
   if(NOT IS_DIRECTORY ${USE_MKL})
     set(USE_MKL /opt/intel/mkl)
   endif()

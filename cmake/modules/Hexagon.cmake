@@ -54,7 +54,7 @@ set(TVMRT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/backend/hexagon/runtime")
 set(TVM_CORE_RUNTIME_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime")
 
 if(DEFINED USE_HEXAGON_DEVICE)
-  message(WARNING "USE_HEXAGON_DEVICE is deprecated, use USE_HEXAGON instead")
+  message(FATAL_ERROR "USE_HEXAGON_DEVICE has been removed. Use USE_HEXAGON instead.")
 endif()
 
 # This .cmake file is included when building any part of TVM for any
