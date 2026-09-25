@@ -23,7 +23,6 @@ from __future__ import annotations
 
 # Keep the single generated-program golden exactly as ast.unparse emits it.
 import ast
-import sys
 from textwrap import dedent
 
 from tvm.script.parser import entry
@@ -74,23 +73,29 @@ def test_callable_entry_emits_the_expected_builder_program(language, monkeypatch
     expected = dedent(
         """
         with _I0.IRBuilder() as _builder0:
+            _definition0 = {
+                'M': _host1().get(
+                    'M', _definition_scope0.get('M', _host0().get('M', _I0.MISSING))
+                )
+            }
             with M.function_() as _fn0:
-                M.func_name('identity')
-                x = M.arg('x', M.Tensor((4,)))
 
-                def _build0():
-                    x, = _fn0.params
-                    M.emit_(M.record(x))
-                _build0()
+                def _declare0(*, M=_definition0.get('M', _I0.MISSING)):
+                    M.func_name('identity')
+                    x = M.arg('x', M.Tensor((4,)))
+
+                    def _build0():
+                        x, = _fn0.params
+                        M.emit_(M.record(x))
+                    _build0()
+                _declare0()
         _result0 = _fn0.function
         _result0.__name__ = 'identity'
         M.check_well_formed_(_result0)
         """
     ).strip()
-    if sys.version_info[:2] == (3, 10):
-        # Python 3.10's ast.unparse parenthesizes this tuple assignment target.
-        expected = expected.replace("x, = _fn0.params", "(x,) = _fn0.params")
-    assert programs == [expected]
+    assert len(programs) == 1
+    assert ast.dump(ast.parse(programs[0])) == ast.dump(ast.parse(expected))
     assert result.params[0].args[0].args[0] == (4,)
     assert result.body == [("emit", result.params[0])]
 

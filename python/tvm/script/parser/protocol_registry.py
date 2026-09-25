@@ -19,7 +19,7 @@
 Each language variant registers its namespace through ``register_namespace`` and supplies
 explicit canonical keys such as ``T.int32`` or ``R.Tensor`` at its marker sites.
 The first registered alias names that namespace. Source aliases normalize to this
-same root; nested namespace members append their attribute names. Consumers read
+same root; only direct root members select special syntax. Consumers read
 the public dictionaries directly. Ordinary captured callables, local aliases,
 instance methods and descriptors do not acquire syntax policies through identity
 or receiver inference.
