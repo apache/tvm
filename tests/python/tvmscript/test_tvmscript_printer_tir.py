@@ -931,8 +931,8 @@ def test_variable_with_cpp_address():
 
     expected_regex = re.escape(without_address)
     for name in ["a_name", "A_name", "N_name", "i_name"]:
-        # Replace all occurrences with a backref to an earlier match
-        expected_regex = expected_regex.replace(name, rf"(?P={name})")
+        # Identifiers carry addresses; dynamic name-hint strings stay literal.
+        expected_regex = re.sub(rf"(?<![\"'])\b{name}\b(?![\"'])", rf"(?P={name})", expected_regex)
         # Then replace the first such backref with a capturing group.
         expected_regex = expected_regex.replace(
             rf"(?P={name})", rf"(?P<{name}>{name}_0x[A-Fa-f0-9]+)", 1
