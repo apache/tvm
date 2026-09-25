@@ -202,3 +202,33 @@ def test_explicit_symbolic_analysis():
         simplified = tvm.sym.iter_map_simplify(indices, ranges)
         tvm.ir.assert_structural_equal(simplified[0], x)
         assert not prim.op_const_fold_enabled()
+
+
+def test_iterator_normalization_policy_agreement():
+    x, y = tirx.Var("x", "int32"), tirx.Var("y", "int32")
+    ranges = {x: tvm.ir.Range(0, 8), y: tvm.ir.Range(0, 4)}
+    expressions = [
+        x,
+        x + 1,
+        x * 4 + y,
+        x // 2,
+        x % 2,
+        (x * 4 + y) // 2,
+        (x * 4 + y) % 2,
+        (x // 2) * 2 + x % 2,
+        x * 4,
+    ]
+    expected = [tvm.sym.normalize_to_iter_sum(expr, ranges) for expr in expressions]
+    with prim.OpConstFoldScope(False):
+        for expr, normalized in zip(expressions, expected):
+            actual = tvm.sym.normalize_to_iter_sum(expr, ranges)
+            tvm.ir.assert_structural_equal(actual, normalized)
+            assert not prim.op_const_fold_enabled()
+
+
+def test_explicit_analysis_failure_restores_scope():
+    with prim.OpConstFoldScope(False):
+        invalid = prim.Div(prim.const(1), prim.const(0))
+        with pytest.raises(tvm.error.InternalError, match="Divide by zero"):
+            tvm.sym.Analyzer().simplify(invalid)
+        assert not prim.op_const_fold_enabled()

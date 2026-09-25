@@ -792,7 +792,6 @@ class IterMapRewriter : public tvm::ExprMutator {
    * \return The Normalized expression.
    */
   IterSumExpr NormalizeToIterSum(IterSumExpr expr) {
-    With<prim::OpConstFoldScope> enable_folding(true);
     // We are normalizing a regular iter
     if (expr->args.size() < 1) return expr;
     if (auto opt = TryCombineSplitFromSameSource(expr)) {
@@ -1637,6 +1636,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 IterSumExpr NormalizeToIterSum(PrimExpr index, const ffi::Map<PrimVar, Range>& input_iters,
                                const sym::Analyzer& analyzer) {
+  With<prim::OpConstFoldScope> enable_folding(true);
   sym::AnalyzerObj* analyzer_ptr = analyzer.get();
   IterMapResult result;
   TVM_FFI_ICHECK(IterRangeSanityCheck(input_iters))
