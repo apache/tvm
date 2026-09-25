@@ -21,7 +21,7 @@
 #include <tvm/ir/global_info.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/script/ir_builder/ir/ir.h>
+#include <tvm/script/ir_builder/ir.h>
 
 #include "./utils.h"
 

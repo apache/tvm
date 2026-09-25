@@ -198,15 +198,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-std::string ReprPrintIRModule(const ffi::ObjectRef& mod, const PrinterConfig& cfg) {
-  return ReprPrintIR(mod, cfg);
-}
-
 TVM_REGISTER_SCRIPT_AS_REPR(GlobalVarNode, ReprPrintIR);
 TVM_REGISTER_SCRIPT_AS_REPR(DictAttrsNode, ReprPrintIR);
 TVM_REGISTER_SCRIPT_AS_REPR(FuncTypeNode, ReprPrintIR);
 TVM_REGISTER_SCRIPT_AS_REPR(RangeNode, ReprPrintIR);
-TVM_REGISTER_SCRIPT_AS_REPR(IRModuleNode, ReprPrintIRModule);
+TVM_REGISTER_SCRIPT_AS_REPR(IRModuleNode, ReprPrintIR);
 
 }  // namespace printer
 }  // namespace script

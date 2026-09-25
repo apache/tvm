@@ -42,12 +42,6 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-// Note: the `TVM_SCRIPT_REPR` macro is intentionally duplicated in each
-// dialect-local `src/<dialect>/script/printer/utils.h`. Keeping a single
-// definition here would force the dialect headers to depend on this shared
-// header, which the per-dialect restructure aims to avoid for cross-directory
-// references. See each `<dialect>/script/printer/utils.h` for the macro.
-
 inline std::string Docsify(const ffi::ObjectRef& obj, const IRDocsifier& d, const Frame& f,
                            const PrinterConfig& cfg) {
   Doc doc = d->AsDoc(obj, AccessPath::Root());
@@ -114,9 +108,6 @@ inline ExprDoc STIR(const IRDocsifier& d, const ffi::String& attr) {
   d->ir_usage.insert("s_tir");
   return IdDoc(d->cfg->GetExtraConfig<ffi::String>("s_tir.prefix", "Ts"))->Attr(attr);
 }
-
-/*! \brief Alias for TIR — historical TIRx name used by tirx printer code */
-inline ExprDoc TIRx(const IRDocsifier& d, const ffi::String& attr) { return TIR(d, attr); }
 
 /*! \brief Creates the Relax common prefix, which is by default `R` */
 inline ExprDoc Relax(const IRDocsifier& d, const ffi::String& attr) {

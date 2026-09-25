@@ -19,7 +19,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/script/ir_builder/ir/frame.h>
+#include <tvm/script/ir_builder/frame.h>
 
 namespace tvm {
 namespace script {

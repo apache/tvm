@@ -30,7 +30,7 @@
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
-#include <tvm/tirx/script/builder/ir.h>
+#include <tvm/tirx/script/ir_builder/ir.h>
 #include <tvm/tirx/tile_primitive.h>
 
 #include "./utils.h"
