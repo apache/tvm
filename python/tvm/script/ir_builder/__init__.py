@@ -29,6 +29,7 @@ from .base import (
     annotation_value_,
     at_,
     require_defined,
+    resolve_global_info_args,
     with_at_group_,
 )
 from .frame import IRModuleFrame
@@ -70,6 +71,7 @@ __all__ = [
     "module_member_",
     "module_set_attr",
     "require_defined",
+    "resolve_global_info_args",
     "with_at_group_",
 ]
 

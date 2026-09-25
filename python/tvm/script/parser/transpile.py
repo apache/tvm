@@ -610,18 +610,6 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             if kind == "expr_str" and (nested or policy.scalar_strings):
                 with self._use_string_policy(policy):
                     return self.visit(parse_expression_string(node, self.module.filename))
-            if kind == "global_info":
-                # -------------------- Pattern --------------------
-                # Python source:
-                #     X.Tensor(vdevice="cuda:1")
-                #
-                # Builder:
-                #     X.Tensor(vdevice=X.resolve_global_info_("cuda:1"))
-                # -------------------------------------------------
-                value = self.visit(node)
-                return self._call(
-                    self.function.dialect_prefix, "resolve_global_info_", [value], node
-                )
         return self.visit(node)
 
     def _visit_direct_operand(self, node: ast.expr) -> ast.expr:
@@ -649,7 +637,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         #     X.Tensor(("n",), vdevice="cuda:0")
         #
         # Builder:
-        #     X.Tensor((X.resolve_type_var_("n"),), vdevice=X.resolve_global_info_("cuda:0"))
+        #     X.Tensor((X.resolve_type_var_("n"),), vdevice="cuda:0")
         # -------------------------------------------------
         binding_value = node is self.binding_expression
         marker = self._read_constexpr_operand(node)
