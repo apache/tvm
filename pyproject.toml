@@ -159,7 +159,7 @@ BUILD_TESTING = "OFF"
 version_file = "python/tvm/_version.py"
 version_scheme = "guess-next-dev"
 local_scheme = "no-local-version"
-fallback_version = "0.26.dev0"
+fallback_version = "0.28.dev0"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
