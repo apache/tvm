@@ -215,10 +215,14 @@ def test_call_tir_with_tir_var():
             y = R.call_tir(cls.copy, (x, n), R.Tensor((n * 2,), dtype="float32"))
             return y
 
+        copy_n = T.int64()
+
         @Ts.prim_func
-        def copy(var_x: T.handle, n: T.int64, var_y: T.handle):
-            X = T.match_buffer(var_x, (n * 2,), dtype="float32")
-            Y = T.match_buffer(var_y, (n * 2,), dtype="float32")
+        def copy(
+            X: T.Buffer((copy_n * 2,), dtype="float32"),
+            n: copy_n,
+            Y: T.Buffer((copy_n * 2,), dtype="float32"),
+        ):
             for i in T.grid(n * 2):
                 with Ts.sblock("block"):
                     vi = Ts.axis.remap("S", [i])
@@ -460,9 +464,6 @@ class Module:
     _check(mod)
 
 
-
-
-
 def test_non_int64_prim_param_rejected_in_shape_annotation():
     with pytest.raises(tvm.error.InternalError):
         tvm.script.from_source(
@@ -686,4 +687,3 @@ def main(x: R.Tensor([n], "float32"), n: T.int64):
     x, n = function.params
     assert x.ty.shape[0].same_as(n)
     assert str(n.ty.dtype) == "int64"
-

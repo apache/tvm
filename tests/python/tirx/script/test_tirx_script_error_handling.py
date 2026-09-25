@@ -24,6 +24,7 @@ import traceback
 
 import pytest
 
+import tvm
 from tvm.script import tirx as T
 from tvm.script.ir_builder import resolve_global_info_args
 
@@ -121,5 +122,4 @@ def func():
     # previously swallowed it and fell through to eval_assign.
     with patch("tvm.tirx.script.ir_builder.parser_protocol.buffer_store", side_effect=bomb):
         with pytest.raises(ValueError, match="boom"):
-            from_source(src)
-
+            tvm.script.from_source(src, extra_vars={"I": tvm.script.ir, "T": T})

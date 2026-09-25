@@ -161,15 +161,12 @@ class Module:
     ],
 )
 def test_tir_direct_later_prim_param_reuses_shape_symbol(source):
-    result = tvm.script.from_source(
-        source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
-    )
+    result = tvm.script.from_source(source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
     function = result["main"] if isinstance(result, tvm.IRModule) else result
     A, n = function.params
     assert A.ty.shape[0].same_as(n)
     assert str(n.ty.dtype) == "int32"
     assert function.body.value.same_as(n)
-
 
 
 def test_tir_return_annotation_does_not_define_symbolic_var():

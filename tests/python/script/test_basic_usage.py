@@ -642,7 +642,6 @@ def test_callable_entry_emits_the_expected_builder_program(language, monkeypatch
     assert result.body == [("emit", result.params[0])]
 
 
-
 @pytest.mark.parametrize(
     "expression, expected",
     [

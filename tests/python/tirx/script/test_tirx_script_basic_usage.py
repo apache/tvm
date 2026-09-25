@@ -126,7 +126,6 @@ def test_range():
     tvm.ir.assert_structural_equal(test, expected)
 
 
-
 def test_scalar_annotation_syntax():
     """Test the scalar annotation syntax: x: T.int32 = init, x: T.int32, and T.let."""
 
@@ -337,8 +336,7 @@ def test_roundtrip_unary_inplace():
 
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
+    def test(A: T.Buffer((128,), "float32", scope="global")) -> None:
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
@@ -365,9 +363,10 @@ def test_roundtrip_unary_different_dst_src():
 
     # fmt: off
     @T.prim_func
-    def test(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
-        B = T.match_buffer(B_ptr, (128,), "float32", scope="global")
+    def test(
+        A: T.Buffer((128,), "float32", scope="global"),
+        B: T.Buffer((128,), "float32", scope="global"),
+    ) -> None:
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
