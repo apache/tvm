@@ -22,7 +22,7 @@ import tvm
 import tvm.testing
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.script.highlight import _format, cprint
+from tvm.script.printer.highlight import _format, cprint
 
 
 def test_highlight_script():
