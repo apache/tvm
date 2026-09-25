@@ -79,7 +79,7 @@ def test_dispatch_scanop_cuda():
         I.module_global_infos({"vdevice": [R.vdevice("cuda", 0)]})
 
         @R.function
-        def main(x: 'R.Tensor((m, 3), "float32", "cuda"))':
+        def main(x: 'R.Tensor((m, 3), "float32", "cuda")'):
             with R.dataflow():
                 lv0 = R.cumsum(x, axis=1, exclusive=True)
                 lv1 = R.cumprod(lv0, axis=1)
@@ -127,7 +127,7 @@ def test_dispatch_sort():
         I.module_global_infos({"vdevice": [R.vdevice("llvm", 0)]})
 
         @R.function
-        def foo(x: 'R.Tensor((m, 3), "float32", "llvm"))':
+        def foo(x: 'R.Tensor((m, 3), "float32", "llvm")'):
             with R.dataflow():
                 lv = R.sort(x, axis=1, descending=False)
                 gv = lv
@@ -225,7 +225,7 @@ def test_dispatch_argsort():
         I.module_global_infos({"vdevice": [R.vdevice("llvm", 0)]})
 
         @R.function
-        def foo(x: 'R.Tensor((m, 3), "float32", "llvm"))':
+        def foo(x: 'R.Tensor((m, 3), "float32", "llvm")'):
             with R.dataflow():
                 lv = R.argsort(x, axis=1, descending=False, dtype="int32")
                 gv = lv
@@ -319,7 +319,7 @@ def test_dispatch_topk():
         I.module_global_infos({"vdevice": [R.vdevice("llvm", 0)]})
 
         @R.function
-        def foo(x: 'R.Tensor((m, 3), "float32", "llvm"))':
+        def foo(x: 'R.Tensor((m, 3), "float32", "llvm")'):
             with R.dataflow():
                 lv = R.topk(x, k=2, axis=1, largest=True)
                 gv = lv
@@ -717,7 +717,7 @@ def test_dispatch_cumsum_webgpu_symbolic_non_contiguous_axis():
         I.module_global_infos({"vdevice": [R.vdevice("webgpu", 0)]})
 
         @R.function
-        def main(x: 'R.Tensor((1, n, 9), "float32", "webgpu"))':
+        def main(x: 'R.Tensor((1, n, 9), "float32", "webgpu")'):
             return R.cumsum(x, axis=1)
 
     target = tvm.target.Target("webgpu", host="llvm")

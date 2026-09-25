@@ -547,7 +547,6 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         ]
         return bool(records) and all(item.kind == "module_alias" for item in records)
 
-
     def _visit_direct_operand(self, node: ast.expr) -> ast.expr:
         """Preserve an existing payload's span without bypassing child operations."""
         if isinstance(node, ast.Name):
