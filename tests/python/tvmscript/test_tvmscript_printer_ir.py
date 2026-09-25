@@ -38,7 +38,7 @@ def test_ir_module():
     with IRBuilder() as ib:  # pylint: disable=invalid-name
         with I.ir_module():
             with build_prim_func():
-                T.func_name("foo")
+                T.func_name_("foo")
     mod = ib.get()
     _assert_print(
         mod,
@@ -60,7 +60,7 @@ def test_failed_invalid_prefix():
     with IRBuilder() as ib:  # pylint: disable=invalid-name
         with I.ir_module():
             with T.prim_func():
-                T.func_name("foo")
+                T.func_name_("foo")
     mod = ib.get()
 
     with pytest.raises(RuntimeError):

@@ -34,7 +34,6 @@ from tvm.ir import prim
 from tvm.ir._overload_prim_expr import EqualOp
 from tvm.script import ir as I
 from tvm.script import tirx as T
-from tvm.script.parser import protocol_registry as registry
 
 
 def test_function(language):
@@ -86,9 +85,9 @@ def test_missing_parameter_annotation_keeps_source_range(language):
 
 
 def test_invalid_quoted_annotation_keeps_source_range(language):
-    # A malformed quoted annotation must report the original literal, not generated code.
+    # Even malformed quoted annotations report the original literal without decoding it.
     M = language.M
-    with pytest.raises(SyntaxError, match="Invalid annotation expression") as caught:
+    with pytest.raises(SyntaxError, match="Quoted annotations are not supported") as caught:
 
         @M.function
         def main(value: "invalid +"):  # noqa: F722
@@ -381,7 +380,7 @@ def test_conditional_outputs_share_one_native_frame_result(language):
 def test_bare_callable_alias_does_not_acquire_constexpr_syntax(language):
     # A bare callable alias must not silently acquire constexpr syntax from the original marker.
     M = language.M
-    marker = registry.constexpr
+    marker = I.constexpr
     with pytest.raises(TypeError, match="syntax marker"):
 
         @M.function

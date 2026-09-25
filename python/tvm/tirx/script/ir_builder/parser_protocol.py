@@ -63,113 +63,142 @@ from .op import or_ as or_
 
 _Span = _base.SpanEntry | _ir.Span | None
 
-
 # --------------------------------------
-# Section: control flow
+# Function
 # --------------------------------------
-#
-# ``with X.if_(cond):`` opens a conditional frame.
-# ``with X.then_():`` enters its true branch.
-# ``with X.else_():`` enters its false branch.
-# ``with X.for_(loop) as i:`` binds a loop iterator.
-# ``with X.while_(cond):`` builds a while loop.
-# ``X.range_(start, stop)`` constructs a loop descriptor.
-# ``X.break_()`` emits a loop exit.
-# ``X.continue_()`` emits a loop continuation.
 
 
-def if_(condition: Any, *, span: _Span = None) -> frame.IfFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.if_`."""
-    if isinstance(condition, _python.bool):
-        condition = IntImm("bool", condition)
-    return _base.at_(span, _ffi_api.If(condition))
+def prim_func(
+    is_private: bool = False,
+    persistent: bool = False,
+    *,
+    private: bool | None = None,
+) -> frame.PrimFuncFrame:
+    """The primitive function statement.
 
+    Parameters
+    ----------
+    is_private : bool
+        Whether the PrimFunc is annotated as private.
+    persistent : bool
+        Whether this is a persistent kernel.
+    private : bool
+        Alias for ``is_private`` (used in decorator syntax).
 
-def then_(*, span: _Span = None) -> frame.ThenFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.then_`."""
-    return _base.at_(span, _ffi_api.Then())
-
-
-def else_(*, span: _Span = None) -> frame.ElseFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.else_`."""
-    return _base.at_(span, _ffi_api.Else())
-
-
-def for_(
-    iterable: Any, *, names: str | Sequence[str] | None = None, span: _Span = None
-) -> frame.ForFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.for_`.
-
-    A single native loop returns its scalar Var; multiple loops return their
-    sequence. frame.vars remains the stable sequence for source unpacking.
+    Returns
+    -------
+    res : frame.PrimFuncFrame
+        The PrimFuncFrame.
     """
-    if isinstance(iterable, _python.range):
-        iterable = serial(iterable.start, iterable.stop, step=iterable.step)
-    if not isinstance(iterable, frame.ForFrame):
-        raise TypeError("A primitive for loop requires an iteration specification")
-    iterable.set_names(names)
-    return _base.at_(span, iterable)
+    if private is not None:
+        is_private = private
+    return _ffi_api.PrimFunc(is_private, persistent)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def while_(condition: Any, *, span: _Span = None) -> frame.WhileFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.while_`."""
-    if isinstance(condition, _python.bool):
-        condition = IntImm("bool", condition)
-    return _base.at_(span, _ffi_api.While(condition))
+def function_(
+    *,
+    private: bool = False,
+    persistent: bool = False,
+    decl: bool = False,
+    span: _Span = None,
+) -> frame.PrimFuncFrame:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.function_`.
 
-
-def range_(*args: Any, annotations: dict[str, Any] | None = None) -> frame.ForFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.range_`."""
-    if len(args) == 1:
-        args = (0, args[0], None)
-    elif len(args) == 2:
-        args = (*args, None)
-    elif len(args) != 3:
-        raise TypeError("range expects one to three arguments")
-    if isinstance(args[2], _python.int) and args[2] == 0:
-        raise ValueError("range step cannot be zero")
-    return serial(args[0], args[1], step=args[2], annotations=annotations)
-
-
-def break_(*, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.break_`.
-
-    Legality is checked on the completed function, across loop and function boundaries.
+    Private/persistent options pass to the native TIRx function frame.
+    The same frame supports declaration and body entry.
     """
-    return _base.at_(span, evaluate(_op.break_loop()))
+    native = (
+        _ffi_api.DeclFunction(private, persistent)
+        if decl
+        else _ffi_api.PrimFunc(private, persistent)
+    )
+    return _base.at_(span, native)
 
 
-def continue_(*, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.continue_`.
+def arg_(name: str, annotation: Any, *, span: _Span = None) -> _ir.Var:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.arg_`."""
+    if getattr(annotation, "__tvm_optional_annotation__", None) is not None:
+        raise TypeError("T.Optional is only supported by @T.jit")
+    if callable(annotation) and not isinstance(annotation, _ir.Expr):
+        annotation = annotation()
+    if isinstance(annotation, _ir.PrimType) or _ir.is_prim_var(annotation):
+        annotation = resolve_type_var_(name, annotation, span=span)
+    elif isinstance(annotation, _ir.Type):
+        annotation = _ir.Var(name, annotation)
+    return _ffi_api.Arg(name, _base.at_(span, annotation))
 
-    Legality is checked on the completed function, across loop and function boundaries.
+
+def func_name_(name: str) -> None:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.func_name_`."""
+    return _ffi_api.FuncName(name)
+
+
+def func_ret_type_(annotation: Any, *, span: _Span = None) -> None:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.func_ret_type_`."""
+    annotation = _base._return_annotation(annotation)
+    if callable(annotation) and not isinstance(annotation, _ir.Expr | _ir.Type):
+        annotation = annotation()
+    if isinstance(annotation, _ir.Expr):
+        annotation = annotation.ty
+    return _ffi_api.FuncRet(_ir.Type.missing() if annotation is None else annotation)
+
+
+def func_attr(attrs: dict[str, Any]) -> None:
+    """The PrimFunc annotation statement.
+
+    Parameters
+    ----------
+    attrs : Dict[str, Any]
+        The annotations of the PrimFunc.
     """
-    return _base.at_(span, evaluate(_op.continue_loop()))
+    _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def device_entry() -> None:
+    """Mark the device-region entry within the enclosing PrimFunc body.
+
+    Flat marker (no ``with``). Subsequent statements in the function body
+    accumulate into an ``AttrStmt("tirx.device_entry", True, body=...)``;
+    the wrapping is closed by the PrimFunc frame at function end.
+
+    Anything written before this marker is host code (e.g. ``T.match_buffer``);
+    anything after is device code.
+
+    Example::
+
+        @T.prim_func
+        def kernel(...):
+            A = T.match_buffer(...)
+            T.device_entry()           # device region starts here
+            bx = T.cta_id([SM_COUNT])  # standalone scope-id def
+            ...
+    """
+    attr_frame = _ffi_api.DeviceEntry()  # type: ignore[attr-defined] # pylint: disable=no-member
+    attr_frame.__enter__()
+
+
+def check_well_formed_(function: _tir.PrimFunc) -> None:
+    """Validate a completed TIRx function."""
+    try:
+        _tir.analysis.verify_well_formed(function)
+        _tir.analysis.verify_tirx_well_formed(function)
+    except Exception as error:
+        raise ValueError(
+            "Program is not well-formed. If this is deliberate, set "
+            f"check_well_formed=False in the top-level decorator.\n{error}"
+        ) from error
+
+
+def _check_module_well_formed(module: _ir.IRModule) -> None:
+    """Validate completed functions belonging to the TIRx dialect."""
+    for function in module.functions.values():
+        if isinstance(function, _tir.PrimFunc) and function.is_tirx:
+            check_well_formed_(function)
 
 
 # --------------------------------------
-# Section: operator overloading
+# Bindings
 # --------------------------------------
-#
-# ``X.if_then_else_(c, a, b)`` selects an expression.
-# ``X.and_(a, b)`` constructs conjunction.
-# ``X.or_(a, b)`` constructs disjunction.
-# ``X.not_(a)`` negates a condition.
-# ``X.lt_(a, b)`` lowers ``a < b``.
-# ``X.le_(a, b)`` lowers ``a <= b``.
-# ``X.gt_(a, b)`` lowers ``a > b``.
-# ``X.ge_(a, b)`` lowers ``a >= b``.
-# ``X.eq_(a, b)`` lowers ``a == b``.
-# ``X.ne_(a, b)`` lowers ``a != b``.
-
-
-# --------------------------------------
-# Section: context lookup and resolution
-# --------------------------------------
-#
-# ``X.resolve_global_info_(key)`` resolves module metadata.
-# ``X.resolve_type_var_("n")`` resolves a symbolic dimension.
-# ``X.call_global_var_(f, args)`` calls a module function.
 
 
 def resolve_global_info_(content: Any) -> Any:
@@ -194,95 +223,6 @@ def resolve_type_var_(
 def call_global_var_(function: _ir.GlobalVar, args: Sequence[Any]) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.call_global_var_`."""
     return _op._call_global(function, *args)
-
-
-# --------------------------------------
-# Section: special protocol
-# --------------------------------------
-#
-# Syntax markers live in tvm.script.parser.protocol_registry.
-# ``with X.function_(...) as fn:`` builds a function frame.
-# ``a = X.arg("a", ty)`` declares a parameter.
-# ``X.func_name("main")`` sets the function name.
-# ``X.func_ret_type(ty)`` sets the result annotation.
-# ``X.check_well_formed_(result)`` validates completed IR.
-
-
-def function_(
-    *,
-    private: bool = False,
-    persistent: bool = False,
-    decl: bool = False,
-    span: _Span = None,
-) -> frame.PrimFuncFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.function_`.
-
-    Private/persistent options pass to the native TIRx function frame.
-    The same frame supports declaration and body entry.
-    """
-    native = (
-        _ffi_api.DeclFunction(private, persistent)
-        if decl
-        else _ffi_api.PrimFunc(private, persistent)
-    )
-    return _base.at_(span, native)
-
-
-def arg(name: str, annotation: Any, *, span: _Span = None) -> _ir.Var:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.arg`."""
-    if getattr(annotation, "__tvm_optional_annotation__", None) is not None:
-        raise TypeError("T.Optional is only supported by @T.jit")
-    if callable(annotation) and not isinstance(annotation, _ir.Expr):
-        annotation = annotation()
-    if isinstance(annotation, _ir.PrimType) or _ir.is_prim_var(annotation):
-        annotation = resolve_type_var_(name, annotation, span=span)
-    elif isinstance(annotation, _ir.Type):
-        annotation = _ir.Var(name, annotation)
-    return _ffi_api.Arg(name, _base.at_(span, annotation))
-
-
-def func_name(name: str) -> None:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.func_name`."""
-    return _ffi_api.FuncName(name)
-
-
-def func_ret_type(annotation: Any, *, span: _Span = None) -> None:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.func_ret_type`."""
-    annotation = _base._return_annotation(annotation)
-    if callable(annotation) and not isinstance(annotation, _ir.Expr | _ir.Type):
-        annotation = annotation()
-    if isinstance(annotation, _ir.Expr):
-        annotation = annotation.ty
-    return _ffi_api.FuncRet(_ir.Type.missing() if annotation is None else annotation)
-
-
-def check_well_formed_(function: _tir.PrimFunc) -> None:
-    """Validate a completed TIRx function."""
-    try:
-        _tir.analysis.verify_well_formed(function)
-        _tir.analysis.verify_tirx_well_formed(function)
-    except Exception as error:
-        raise ValueError(
-            "Program is not well-formed. If this is deliberate, set "
-            f"check_well_formed=False in the top-level decorator.\n{error}"
-        ) from error
-
-
-def _check_module_well_formed(module: _ir.IRModule) -> None:
-    """Validate completed functions belonging to the TIRx dialect."""
-    for function in module.functions.values():
-        if isinstance(function, _tir.PrimFunc) and function.is_tirx:
-            check_well_formed_(function)
-
-
-# --------------------------------------
-# Section: binding
-# --------------------------------------
-#
-# ``a = X.bind_(value, name="a")`` binds a source name.
-# ``X.decl_mutable_cell_(value, ty=ty)`` declares mutable storage.
-# ``X.set_mutable_cell_(cell, value)`` updates mutable storage.
-# ``a, b = X.unpack(value)`` destructures a binding.
 
 
 def _name(value: Any, name: str | None, span: _Span) -> Any:
@@ -427,24 +367,13 @@ def set_mutable_cell_(
         raise TypeError("A mutable assignment requires scalar storage")
 
 
-def unpack(value: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.unpack`."""
+def unpack_(value: Any) -> Any:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.unpack_`."""
     if isinstance(value, _ir.Tuple):
         return _python.tuple(value.fields)
     if isinstance(value, _ir.Expr) and isinstance(value.ty, _ir.TupleType):
         return _python.tuple(_ir.TupleGetItem(value, i) for i in range(len(value.ty.fields)))
     return value
-
-
-# --------------------------------------
-# Section: statement
-# --------------------------------------
-#
-# ``X.emit_(value)`` emits an expression statement.
-# ``X.return_(value)`` emits a function return.
-# ``X.setitem_(a, i, value)`` emits an indexed store.
-# ``X.setattr_(a, "field", value)`` emits an attribute store.
-# ``X.assert_(condition, message)`` emits an assertion.
 
 
 def emit_(value: Any, *, span: _Span = None) -> None:
@@ -483,15 +412,6 @@ def emit_(value: Any, *, span: _Span = None) -> None:
         _base.at_(span, emitted)
 
 
-def return_(value: Any = None, *, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.return_`."""
-    if value is None:
-        raise TypeError("A primitive function return requires an expression")
-    return _base.with_at_group_(
-        span, lambda: _base.AlreadyEmitted(_ffi_api.Return(_op._as_expr(value)))
-    )
-
-
 def setitem_(
     target: Any, key: Any, value: Any, *, span: _Span = None
 ) -> _base.AlreadyEmitted[_tir.Stmt]:
@@ -510,6 +430,276 @@ def setattr_(
         if len(shape) == 1 and _python.bool(shape[0] == 1):
             return set_mutable_cell_(previous, value, span=span)
     _python.setattr(target, name, value)
+
+
+def bind(  # pylint: disable=invalid-name
+    value: Expr,
+    type_annotation: Type | None = None,  # pylint: disable=redefined-outer-name
+    *,
+    var: Var | None = None,  # pylint: disable=redefined-outer-name
+) -> Var:
+    """Create a Bind (variable binding).
+
+    Emits a flat Bind statement to the current frame and returns the bound variable.
+
+    Parameters
+    ----------
+    value : Expr
+        The value to be bound.
+    type_annotation : Optional[Type] = None
+        The type annotation of the binding. Usually it is used for fine-grained var typing,
+        particularly, PointerType.
+    var : Optional[Var] = None
+        The variable to bind. If not specified, a new variable will be created.
+
+    Returns
+    -------
+    var : Var
+        The bound variable.
+    """
+    if type_annotation is not None:
+        # Canonical Vars are callable when they denote functions.  Here a Var is
+        # already a resolved type annotation, rather than a deferred annotation factory.
+        if callable(type_annotation) and not isinstance(type_annotation, Expr):
+            type_annotation = type_annotation()
+        if isinstance(type_annotation, _ir.Var):
+            type_annotation = type_annotation.ty
+    return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def attr(
+    node_or_dict: Any, attr_key: str | None = None, value: Expr | str | None = None
+) -> frame.AttrFrame | utils._FrameScope:
+    """Create an attribute node, or multiple attribute nodes from a dict.
+
+    Usage 1 — single attr::
+
+        with T.attr(node, key, value):
+            ...
+
+    Usage 2 — dict sugar (node defaults to ``0``)::
+
+        with T.attr({"key1": value1, "key2": value2}):
+            ...
+
+    Parameters
+    ----------
+    node_or_dict : Any
+        If a dict, each key-value pair becomes an AttrStmt with
+        ``node=0``.  Otherwise the node to annotate.
+
+    attr_key : str, optional
+        Attribute type key (required when ``node_or_dict`` is not a dict).
+
+    value : Union[Expr, str], optional
+        The attribute value (required when ``node_or_dict`` is not a dict).
+
+    Returns
+    -------
+    res : Union[frame.AttrFrame, _FrameScope]
+        A single AttrFrame, or a _FrameScope wrapping multiple AttrFrames.
+    """
+    if isinstance(node_or_dict, dict):
+        frames = []
+        for k, v in node_or_dict.items():
+            if isinstance(v, bool):
+                v = IntImm("bool", v)
+            frames.append(_ffi_api.Attr(0, k, convert(v)))  # type: ignore[attr-defined]
+        if len(frames) == 1:
+            return frames[0]
+        return utils._FrameScope(frames)
+    else:
+        if attr_key is None or value is None:
+            raise ValueError("T.attr(node, attr_key, value) requires all three arguments")
+        node_or_dict = convert(node_or_dict)
+        value = convert(value)
+        return _ffi_api.Attr(node_or_dict, attr_key, value)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def hint(message: str = "", **attrs) -> frame.HintFrame:
+    """Universal directive primitive for the sketch language.
+
+    Parameters
+    ----------
+    message : str
+        Free-form directive string that the agent interprets.
+    **attrs
+        Optional structured key-value attributes for known patterns.
+
+    Returns
+    -------
+    res : frame.HintFrame
+        Usable as context manager (with T.hint("msg"):) or bare statement (T.hint("msg")).
+    """
+    return _ffi_api.Hint(message, attrs or {})  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def buffer_store(
+    buffer: Buffer,  # pylint: disable=redefined-outer-name
+    value: Expr,
+    indices: list[Expr | slice],
+) -> AlreadyEmitted[_tir.Stmt]:
+    """Emit a buffer store and return a receipt for the stored statement.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The buffer.
+
+    value : Expr
+        The value to be stored.
+
+    indices : List[Union[Expr, slice]]
+        The indices location to be stored.
+
+    Returns
+    -------
+    result : AlreadyEmitted[Stmt]
+        Receipt for the exact stored statement; consuming it does not emit again.
+
+    """
+    from tvm.sym import Analyzer  # pylint: disable=import-outside-toplevel
+
+    if not isinstance(indices, list | tuple | _ir.Array):
+        indices = [indices]
+
+    expr_indices = []
+    for index in indices:
+        if isinstance(index, slice):
+            step = 1 if index.step is None else index.step
+            lanes = Analyzer().simplify(  # pylint: disable=redefined-outer-name
+                (index.stop - index.start + step - 1) // step
+            )
+            if lanes == 1:
+                expr_indices.append(index.start)
+            else:
+                expr_indices.append(_op.ramp(index.start, step, lanes))
+        else:
+            expr_indices.append(index)
+    if isinstance(value, bool) and buffer.ty.dtype == "bool":
+        value = IntImm("bool", value)
+    return AlreadyEmitted(_ffi_api.BufferStore(buffer, value, expr_indices))
+
+
+def evaluate(value: Expr) -> AlreadyEmitted[_tir.Stmt]:
+    """Emit an evaluation and return a reference to its stored statement.
+
+    Parameters
+    ----------
+    value : Expr
+        The input expression to evaluate.
+
+    Returns
+    -------
+    result : AlreadyEmitted[Stmt]
+        A receipt containing the emitted statement, so expression-statement
+        handling does not emit it again.
+    """
+    if isinstance(value, str):
+        value = _StringImm(value)
+    if isinstance(value, bool):
+        value = IntImm("bool", value)
+    if isinstance(value, TensorRegion):
+        raise TypeError(
+            "T.evaluate does not accept TensorRegion values; "
+            "construct a BufferLoad with explicit indices"
+        )
+    return AlreadyEmitted(_ffi_api.Evaluate(value))  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def add_to_parent(stmt: _tir.Stmt) -> None:
+    """Add a statement to the parent frame."""
+    _ffi_api.AddToParent(stmt)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+# --------------------------------------
+# Special
+# --------------------------------------
+# Syntax markers and declaration policies are registered by the source namespace.
+# They are consumed by the parser before runtime builder calls.
+
+
+# --------------------------------------
+# Control
+# --------------------------------------
+
+
+def if_(condition: Any, *, span: _Span = None) -> frame.IfFrame:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.if_`."""
+    if isinstance(condition, _python.bool):
+        condition = IntImm("bool", condition)
+    return _base.at_(span, _ffi_api.If(condition))
+
+
+def then_(*, span: _Span = None) -> frame.ThenFrame:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.then_`."""
+    return _base.at_(span, _ffi_api.Then())
+
+
+def else_(*, span: _Span = None) -> frame.ElseFrame:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.else_`."""
+    return _base.at_(span, _ffi_api.Else())
+
+
+def for_(
+    iterable: Any, *, names: str | Sequence[str] | None = None, span: _Span = None
+) -> frame.ForFrame:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.for_`.
+
+    A single native loop returns its scalar Var; multiple loops return their
+    sequence. frame.vars remains the stable sequence for source unpacking.
+    """
+    if isinstance(iterable, _python.range):
+        iterable = serial(iterable.start, iterable.stop, step=iterable.step)
+    if not isinstance(iterable, frame.ForFrame):
+        raise TypeError("A primitive for loop requires an iteration specification")
+    iterable.set_names(names)
+    return _base.at_(span, iterable)
+
+
+def while_(condition: Any, *, span: _Span = None) -> frame.WhileFrame:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.while_`."""
+    if isinstance(condition, _python.bool):
+        condition = IntImm("bool", condition)
+    return _base.at_(span, _ffi_api.While(condition))
+
+
+def range_(*args: Any, annotations: dict[str, Any] | None = None) -> frame.ForFrame:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.range_`."""
+    if len(args) == 1:
+        args = (0, args[0], None)
+    elif len(args) == 2:
+        args = (*args, None)
+    elif len(args) != 3:
+        raise TypeError("range expects one to three arguments")
+    if isinstance(args[2], _python.int) and args[2] == 0:
+        raise ValueError("range step cannot be zero")
+    return serial(args[0], args[1], step=args[2], annotations=annotations)
+
+
+def break_(*, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.break_`.
+
+    Legality is checked on the completed function, across loop and function boundaries.
+    """
+    return _base.at_(span, evaluate(_op.break_loop()))
+
+
+def continue_(*, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.continue_`.
+
+    Legality is checked on the completed function, across loop and function boundaries.
+    """
+    return _base.at_(span, evaluate(_op.continue_loop()))
+
+
+def return_(value: Any = None, *, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.return_`."""
+    if value is None:
+        raise TypeError("A primitive function return requires an expression")
+    return _base.with_at_group_(
+        span, lambda: _base.AlreadyEmitted(_ffi_api.Return(_op._as_expr(value)))
+    )
 
 
 def assert_(
@@ -532,67 +722,6 @@ def assert_(
         condition = IntImm("bool", condition)
     with _base.at_(span, _ffi_api.Assert(condition, kind, message)):
         pass
-
-
-def prim_func(
-    is_private: bool = False,
-    persistent: bool = False,
-    *,
-    private: bool | None = None,
-) -> frame.PrimFuncFrame:
-    """The primitive function statement.
-
-    Parameters
-    ----------
-    is_private : bool
-        Whether the PrimFunc is annotated as private.
-    persistent : bool
-        Whether this is a persistent kernel.
-    private : bool
-        Alias for ``is_private`` (used in decorator syntax).
-
-    Returns
-    -------
-    res : frame.PrimFuncFrame
-        The PrimFuncFrame.
-    """
-    if private is not None:
-        is_private = private
-    return _ffi_api.PrimFunc(is_private, persistent)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def func_attr(attrs: dict[str, Any]) -> None:
-    """The PrimFunc annotation statement.
-
-    Parameters
-    ----------
-    attrs : Dict[str, Any]
-        The annotations of the PrimFunc.
-    """
-    _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def device_entry() -> None:
-    """Mark the device-region entry within the enclosing PrimFunc body.
-
-    Flat marker (no ``with``). Subsequent statements in the function body
-    accumulate into an ``AttrStmt("tirx.device_entry", True, body=...)``;
-    the wrapping is closed by the PrimFunc frame at function end.
-
-    Anything written before this marker is host code (e.g. ``T.match_buffer``);
-    anything after is device code.
-
-    Example::
-
-        @T.prim_func
-        def kernel(...):
-            A = T.match_buffer(...)
-            T.device_entry()           # device region starts here
-            bx = T.cta_id([SM_COUNT])  # standalone scope-id def
-            ...
-    """
-    attr_frame = _ffi_api.DeviceEntry()  # type: ignore[attr-defined] # pylint: disable=no-member
-    attr_frame.__enter__()
 
 
 def serial(
@@ -871,108 +1000,6 @@ def grid(*extents: tuple[Expr | tuple[Expr, Expr]], dtype: str | None = None) ->
     return _ffi_api.Grid(extents, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def bind(  # pylint: disable=invalid-name
-    value: Expr,
-    type_annotation: Type | None = None,  # pylint: disable=redefined-outer-name
-    *,
-    var: Var | None = None,  # pylint: disable=redefined-outer-name
-) -> Var:
-    """Create a Bind (variable binding).
-
-    Emits a flat Bind statement to the current frame and returns the bound variable.
-
-    Parameters
-    ----------
-    value : Expr
-        The value to be bound.
-    type_annotation : Optional[Type] = None
-        The type annotation of the binding. Usually it is used for fine-grained var typing,
-        particularly, PointerType.
-    var : Optional[Var] = None
-        The variable to bind. If not specified, a new variable will be created.
-
-    Returns
-    -------
-    var : Var
-        The bound variable.
-    """
-    if type_annotation is not None:
-        # Canonical Vars are callable when they denote functions.  Here a Var is
-        # already a resolved type annotation, rather than a deferred annotation factory.
-        if callable(type_annotation) and not isinstance(type_annotation, Expr):
-            type_annotation = type_annotation()
-        if isinstance(type_annotation, _ir.Var):
-            type_annotation = type_annotation.ty
-    return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def attr(
-    node_or_dict: Any, attr_key: str | None = None, value: Expr | str | None = None
-) -> frame.AttrFrame | utils._FrameScope:
-    """Create an attribute node, or multiple attribute nodes from a dict.
-
-    Usage 1 — single attr::
-
-        with T.attr(node, key, value):
-            ...
-
-    Usage 2 — dict sugar (node defaults to ``0``)::
-
-        with T.attr({"key1": value1, "key2": value2}):
-            ...
-
-    Parameters
-    ----------
-    node_or_dict : Any
-        If a dict, each key-value pair becomes an AttrStmt with
-        ``node=0``.  Otherwise the node to annotate.
-
-    attr_key : str, optional
-        Attribute type key (required when ``node_or_dict`` is not a dict).
-
-    value : Union[Expr, str], optional
-        The attribute value (required when ``node_or_dict`` is not a dict).
-
-    Returns
-    -------
-    res : Union[frame.AttrFrame, _FrameScope]
-        A single AttrFrame, or a _FrameScope wrapping multiple AttrFrames.
-    """
-    if isinstance(node_or_dict, dict):
-        frames = []
-        for k, v in node_or_dict.items():
-            if isinstance(v, bool):
-                v = IntImm("bool", v)
-            frames.append(_ffi_api.Attr(0, k, convert(v)))  # type: ignore[attr-defined]
-        if len(frames) == 1:
-            return frames[0]
-        return utils._FrameScope(frames)
-    else:
-        if attr_key is None or value is None:
-            raise ValueError("T.attr(node, attr_key, value) requires all three arguments")
-        node_or_dict = convert(node_or_dict)
-        value = convert(value)
-        return _ffi_api.Attr(node_or_dict, attr_key, value)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def hint(message: str = "", **attrs) -> frame.HintFrame:
-    """Universal directive primitive for the sketch language.
-
-    Parameters
-    ----------
-    message : str
-        Free-form directive string that the agent interprets.
-    **attrs
-        Optional structured key-value attributes for known patterns.
-
-    Returns
-    -------
-    res : frame.HintFrame
-        Usable as context manager (with T.hint("msg"):) or bare statement (T.hint("msg")).
-    """
-    return _ffi_api.Hint(message, attrs or {})  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
 def launch_thread(
     thread: Var | str,  # pylint: disable=redefined-outer-name
     extent: Expr,
@@ -1028,91 +1055,19 @@ def env_thread(thread_tag: str, dtype: str = "int32") -> Var:
     return _ffi_api.EnvThread(thread_tag, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def buffer_store(
-    buffer: Buffer,  # pylint: disable=redefined-outer-name
-    value: Expr,
-    indices: list[Expr | slice],
-) -> AlreadyEmitted[_tir.Stmt]:
-    """Emit a buffer store and return a receipt for the stored statement.
-
-    Parameters
-    ----------
-    buffer : Buffer
-        The buffer.
-
-    value : Expr
-        The value to be stored.
-
-    indices : List[Union[Expr, slice]]
-        The indices location to be stored.
-
-    Returns
-    -------
-    result : AlreadyEmitted[Stmt]
-        Receipt for the exact stored statement; consuming it does not emit again.
-
-    """
-    from tvm.sym import Analyzer  # pylint: disable=import-outside-toplevel
-
-    if not isinstance(indices, list | tuple | _ir.Array):
-        indices = [indices]
-
-    expr_indices = []
-    for index in indices:
-        if isinstance(index, slice):
-            step = 1 if index.step is None else index.step
-            lanes = Analyzer().simplify(  # pylint: disable=redefined-outer-name
-                (index.stop - index.start + step - 1) // step
-            )
-            if lanes == 1:
-                expr_indices.append(index.start)
-            else:
-                expr_indices.append(_op.ramp(index.start, step, lanes))
-        else:
-            expr_indices.append(index)
-    if isinstance(value, bool) and buffer.ty.dtype == "bool":
-        value = IntImm("bool", value)
-    return AlreadyEmitted(_ffi_api.BufferStore(buffer, value, expr_indices))
+# --------------------------------------
+# Operators
+# --------------------------------------
+# Operator hooks are re-exported directly from the concrete op module above.
 
 
-def evaluate(value: Expr) -> AlreadyEmitted[_tir.Stmt]:
-    """Emit an evaluation and return a reference to its stored statement.
-
-    Parameters
-    ----------
-    value : Expr
-        The input expression to evaluate.
-
-    Returns
-    -------
-    result : AlreadyEmitted[Stmt]
-        A receipt containing the emitted statement, so expression-statement
-        handling does not emit it again.
-    """
-    if isinstance(value, str):
-        value = _StringImm(value)
-    if isinstance(value, bool):
-        value = IntImm("bool", value)
-    if isinstance(value, TensorRegion):
-        raise TypeError(
-            "T.evaluate does not accept TensorRegion values; "
-            "construct a BufferLoad with explicit indices"
-        )
-    return AlreadyEmitted(_ffi_api.Evaluate(value))  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def add_to_parent(stmt: _tir.Stmt) -> None:
-    """Add a statement to the parent frame."""
-    _ffi_api.AddToParent(stmt)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-func_ret = func_ret_type
+func_ret = func_ret_type_
 emit = emit_
 
 __all__ = [
     "add_to_parent",
     "and_",
-    "arg",
+    "arg_",
     "assert_",
     "attr",
     "bind",
@@ -1132,9 +1087,9 @@ __all__ = [
     "evaluate",
     "for_",
     "func_attr",
-    "func_name",
+    "func_name_",
     "func_ret",
-    "func_ret_type",
+    "func_ret_type_",
     "function_",
     "ge_",
     "grid",
@@ -1160,7 +1115,7 @@ __all__ = [
     "setitem_",
     "then_",
     "thread_binding",
-    "unpack",
+    "unpack_",
     "unroll",
     "vectorized",
     "while_",

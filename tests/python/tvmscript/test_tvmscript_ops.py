@@ -155,8 +155,13 @@ def _check_alloc_zero_dim_buffer(f):
 def test_alloc_zero_dim_buffer_round_trip():
     func = alloc_zero_dim_buffer
     func_with_block = alloc_zero_dim_buffer_block
-    rt_func = tvm.script.from_source(func.script())
-    rt_func_with_block = tvm.script.from_source(func_with_block.script())
+    rt_func = tvm.script.from_source(
+        func.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+    )
+    rt_func_with_block = tvm.script.from_source(
+        func_with_block.script(),
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+    )
     rt_mod = tvm.compile(rt_func, "llvm")
     rt_mod_with_block = tvm.compile(rt_func_with_block, "llvm")
     tvm.ir.assert_structural_equal(

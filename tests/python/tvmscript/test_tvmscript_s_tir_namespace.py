@@ -48,7 +48,13 @@ def test_shared_operations_and_aliases():
     assert Ts.serial is T.serial
     assert Ts.bind is T.bind
     assert Ts.tile is T.tile
-    tvm.ir.assert_structural_equal(shared, tvm.script.from_source(shared.script()))
+    tvm.ir.assert_structural_equal(
+        shared,
+        tvm.script.from_source(
+            shared.script(),
+            extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+        ),
+    )
 
 
 def test_mixed_module_roundtrip():
@@ -72,7 +78,12 @@ def test_mixed_module_roundtrip():
     assert "@Ts.prim_func" in script
     assert "@T.prim_func" in script
     assert "s_tir=True" not in script
-    tvm.ir.assert_structural_equal(Mixed, tvm.script.from_source(script))
+    tvm.ir.assert_structural_equal(
+        Mixed,
+        tvm.script.from_source(
+            script, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+        ),
+    )
     direct_script = Mixed["direct"].script()
     assert "Ts" not in direct_script
     assert "import s_tir" not in direct_script
@@ -92,7 +103,10 @@ def test_tirx_construction_roundtrip_and_execution_are_independent(monkeypatch):
             for i in T.serial(4):
                 A[i] = A[i] + 3
 
-    restored = tvm.script.from_source(Direct.script())
+    restored = tvm.script.from_source(
+        Direct.script(),
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+    )
     tvm.ir.assert_structural_equal(Direct, restored)
     assert "s_tir" not in restored["main"].attrs
     executable = tvm.compile(restored, target="llvm")
@@ -120,7 +134,8 @@ def test_legacy_mode_is_not_a_function_option(namespace, option):
     with pytest.raises(TypeError, match="unexpected keyword argument"):
         tvm.script.from_source(
             f"@{namespace}.prim_func({option}=True, check_well_formed=False)\n"
-            "def main():\n    T.evaluate(0)\n"
+            "def main():\n    T.evaluate(0)\n",
+            extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
         )
 
 
@@ -152,7 +167,8 @@ def test_tirx_rejects_s_tir_blocks():
     with pytest.raises(ValueError, match="Ts.prim_func"):
         tvm.script.from_source(
             "@T.prim_func(check_well_formed=False)\n"
-            "def main():\n    with Ts.sblock('bad'):\n        T.evaluate(0)\n"
+            "def main():\n    with Ts.sblock('bad'):\n        T.evaluate(0)\n",
+            extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
         )
 
 
@@ -161,7 +177,8 @@ def test_tirx_cannot_change_dialect_with_attribute(value):
     with pytest.raises(ValueError, match="Ts.prim_func"):
         tvm.script.from_source(
             "@T.prim_func(check_well_formed=False)\n"
-            f"def main():\n    T.func_attr({{'s_tir': {value}}})\n    T.evaluate(0)\n"
+            f"def main():\n    T.func_attr({{'s_tir': {value}}})\n    T.evaluate(0)\n",
+            extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
         )
 
 
@@ -189,7 +206,13 @@ def test_s_tir_options_and_helpers():
 
     assert scheduled.attrs["s_tir"]
     assert "global_symbol" not in scheduled.attrs
-    tvm.ir.assert_structural_equal(scheduled, tvm.script.from_source(scheduled.script()))
+    tvm.ir.assert_structural_equal(
+        scheduled,
+        tvm.script.from_source(
+            scheduled.script(),
+            extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+        ),
+    )
 
 
 @pytest.mark.parametrize(
@@ -222,8 +245,8 @@ def test_import_order(first):
             "assert owned_frame is alias_frame\n"
             "assert Ts.ir_builder is not T.ir_builder\n"
             "from tvm.script.parser import _NAMESPACES\n"
-            "assert _NAMESPACES['Ts'] is Ts\n"
-            "assert _NAMESPACES['T'] is T\n",
+            "assert _NAMESPACES['s_tir'] is Ts\n"
+            "assert _NAMESPACES['tirx'] is T\n",
         ],
         check=True,
         env=os.environ.copy(),

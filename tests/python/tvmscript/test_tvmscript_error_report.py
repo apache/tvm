@@ -37,7 +37,7 @@ def check_error(func, rel_lineno, error_type):
     indent = len(re.match(r"^\s*", source_code).group(0))
     source_code = "@Ts.prim_func\n" + "\n".join(line[indent:] for line in source_code.splitlines())
     with pytest.raises(error_type) as caught:
-        from_source(source_code)
+        from_source(source_code, extra_vars={"T": T, "Ts": Ts})
     assert type(caught.value) is error_type
     if isinstance(caught.value, SyntaxError):
         assert caught.value.filename == "<str>"
@@ -626,7 +626,7 @@ def test_multi_line_error_report():
     )
 
     with pytest.raises(tvm.error.InternalError) as caught:
-        from_source(source_code)
+        from_source(source_code, extra_vars={"T": T, "Ts": Ts})
     frames = [
         frame
         for frame in traceback.extract_tb(caught.value.__traceback__)

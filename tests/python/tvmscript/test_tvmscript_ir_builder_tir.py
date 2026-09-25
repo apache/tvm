@@ -67,11 +67,11 @@ def test_ir_builder_source_span_applies_to_emitted_stmt():
 def test_ir_builder_tir_primfunc_complete():
     with IRBuilder() as ib:
         with build_prim_func():
-            T.arg("a", T.handle())
-            T.arg("b", T.int64())
-            T.arg("c", T.Buffer((128, 128), "float32"))
-            d = T.arg("d", T.handle())
-            e = T.arg("e", T.Buffer((1024,), "int8"))
+            T.arg_("a", T.handle())
+            T.arg_("b", T.int64())
+            T.arg_("c", T.Buffer((128, 128), "float32"))
+            d = T.arg_("d", T.handle())
+            e = T.arg_("e", T.Buffer((1024,), "int8"))
             T.func_attr({"key": "value"})
             T.func_ret(tvm.ir.PrimType("int64"))
             buffer_d = T.match_buffer(d, (64, 64), "int64")
@@ -362,7 +362,7 @@ def test_ir_builder_tir_thread():
 def test_ir_builder_tir_allocate():
     with IRBuilder() as ib:
         with build_prim_func():
-            T.func_name("test")
+            T.func_name_("test")
             buf = T.alloc_buffer([10], "float32", scope="local")
             T.evaluate(1)
 
@@ -465,7 +465,7 @@ def test_ir_builder_tir_evaluate():
 def test_ir_builder_tir_decl_buffer():
     with IRBuilder() as ib:
         with build_prim_func():
-            T.func_name("test")
+            T.func_name_("test")
             buf = T.decl_buffer([128, 128], "float32")
             T.evaluate(1)
 

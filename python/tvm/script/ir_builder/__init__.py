@@ -17,7 +17,6 @@
 """Shared TVMScript construction APIs and lazy language variant builders."""
 
 from tvm.ir import GenericConst, Range, StringImm, StringType
-from tvm.script.parser.protocol_registry import constexpr
 
 from .base import (
     MISSING,
@@ -30,8 +29,8 @@ from .base import (
 from .frame import IRModuleFrame
 from .ir import _get_dialect_builder as __getattr__
 from .ir import (
+    constexpr,
     dynamic,
-    lookup_name,
     meta_var,
     module_attrs,
     module_get_attr,
@@ -41,9 +40,9 @@ from .ir import (
 from .parser_protocol import (
     check_well_formed_,
     decl_function,
-    def_function,
     ir_module,
     module_member_,
+    resolve_global_info_,
 )
 
 # Keep source namespaces independent of imported helper modules and lazy builders.
@@ -60,16 +59,15 @@ __all__ = [
     "check_well_formed_",
     "constexpr",
     "decl_function",
-    "def_function",
     "dynamic",
     "ir_module",
-    "lookup_name",
     "meta_var",
     "module_attrs",
     "module_get_attr",
     "module_global_infos",
     "module_member_",
     "module_set_attr",
+    "resolve_global_info_",
     "resolve_global_info_args",
     "with_at_group_",
 ]

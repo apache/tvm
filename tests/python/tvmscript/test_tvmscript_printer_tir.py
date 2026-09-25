@@ -74,7 +74,12 @@ def test_prim_func_symbolic_buffer_param_roundtrip():
     source = func.script(extra_config={"script.use_pep695": False})
     assert "T.Buffer((n + 1, n)" in source
     assert source.index('n = I.dynamic("n", dtype="int32")') < source.index("T.evaluate(n)")
-    tvm.ir.assert_structural_equal(tvm.script.from_source(source), func)
+    tvm.ir.assert_structural_equal(
+        tvm.script.from_source(
+            source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+        ),
+        func,
+    )
 
 
 def test_prim_func_compound_buffer_shape_first_use_roundtrip():
@@ -89,7 +94,12 @@ def test_prim_func_compound_buffer_shape_first_use_roundtrip():
     source = func.script(extra_config={"script.use_pep695": False})
     assert "T.Buffer((T.max(n, 1),)" in source
     assert source.index('n = I.dynamic("n", dtype="int32")') < source.index("T.evaluate(n)")
-    tvm.ir.assert_structural_equal(tvm.script.from_source(source), func)
+    tvm.ir.assert_structural_equal(
+        tvm.script.from_source(
+            source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+        ),
+        func,
+    )
 
 
 def test_prim_func_symbolic_alloc_buffer_roundtrip():
@@ -102,7 +112,14 @@ def test_prim_func_symbolic_alloc_buffer_roundtrip():
 
     source = func.script()
     assert "T.alloc_buffer((size,))" in source
-    tvm.ir.assert_structural_equal(tvm.script.from_source(source, check_well_formed=False), func)
+    tvm.ir.assert_structural_equal(
+        tvm.script.from_source(
+            source,
+            check_well_formed=False,
+            extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+        ),
+        func,
+    )
 
 
 def test_prim_func_buffer_data_use():
@@ -373,7 +390,7 @@ while v < 10:
 def test_allocate():
     with IRBuilder() as ib:
         with T.prim_func():
-            T.func_name("test")
+            T.func_name_("test")
             buf = T.alloc_buffer([128, 128], "float32")
             T.evaluate(1)
     obj = ib.get()
@@ -390,7 +407,7 @@ def test_allocate_with_decl_buffer_sugar():
     # AllocBuffer and DeclBuffer are flat siblings
     with IRBuilder() as ib:
         with T.prim_func():
-            T.func_name("test")
+            T.func_name_("test")
             buf = T.alloc_buffer([128, 128], "float32")
             buf2 = T.decl_buffer([128, 128], "float32", data=buf.data)
             T.evaluate(1)
@@ -409,7 +426,7 @@ def test_allocate_with_decl_buffer_sugar_multi_usage():
     # AllocBuffer and DeclBuffer are flat siblings
     with IRBuilder() as ib:
         with T.prim_func():
-            T.func_name("test")
+            T.func_name_("test")
             buf = T.alloc_buffer([128, 128], "float32")
             buf2 = T.decl_buffer([128, 128], "float32", data=buf.data)
             T.evaluate(buf.data)
@@ -427,7 +444,7 @@ T.evaluate(buffer.data)
 def test_allocate_with_decl_buffer_no_sugar_mismatch():
     with IRBuilder() as ib:
         with T.prim_func():
-            T.func_name("test")
+            T.func_name_("test")
             buf = T.alloc_buffer([128, 128], "float32")
             buf2 = T.decl_buffer([256, 256], "float32", data=buf.data)
             T.evaluate(buf.data)
@@ -446,7 +463,7 @@ def test_decl_buffer():
     # DeclBuffer is flat: we need a frame to hold multiple stmts
     with IRBuilder() as ib:
         with T.prim_func():
-            T.func_name("test")
+            T.func_name_("test")
             buf = T.decl_buffer((10, 10), data=T.ptr("float32"))
             T.evaluate(1)
     obj = ib.get()
@@ -1143,7 +1160,12 @@ def test_masked_load_prevents_scalar_allocation_init_fusion():
     source = main.script()
     assert "A = T.alloc_buffer" in source
     assert "A[0] = T.masked_load" in source
-    tvm.ir.assert_structural_equal(tvm.script.from_source(source), main)
+    tvm.ir.assert_structural_equal(
+        tvm.script.from_source(
+            source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+        ),
+        main,
+    )
 
 
 def test_vload_with_explicit_scalable_data_type():
