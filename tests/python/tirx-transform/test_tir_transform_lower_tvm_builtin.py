@@ -33,7 +33,7 @@ def my_matmul(a, b, c):
 def test_lower_call_packed():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(
             A: T.Buffer((64, 64), "float32"),
             B: T.Buffer((64, 64), "float32"),
@@ -45,7 +45,7 @@ def test_lower_call_packed():
 
     @I.ir_module(check_well_formed=False)
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(
             A: T.Buffer((64, 64), "float32"),
             B: T.Buffer((64, 64), "float32"),
@@ -54,7 +54,9 @@ def test_lower_call_packed():
             T.func_attr({"target": tvm.target.Target("llvm")})
             stack_ffi_any: T.let[T.handle] = T.tvm_stack_alloca("tvm_ffi_any", 4)
             stack_array: T.let[T.handle] = T.tvm_stack_alloca("array", 3)
-            stack_shape = T.decl_buffer((T.int64(6),), "int64", data=T.tvm_stack_alloca("shape", 6))
+            stack_shape = T.decl_buffer(
+                (T.int64(6),), "int64", data=T.tvm_stack_alloca("shape", 6), layout=None
+            )
             stack_shape[0] = T.int64(64)
             stack_shape[1] = T.int64(64)
             T.tvm_struct_set(stack_array, 0, 1, A.data)
@@ -119,14 +121,14 @@ def test_lower_call_packed_raw_string(call):
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main():
             T.func_attr({"target": tvm.target.Target("llvm")})
             T.evaluate(invoke("testing.echo", "payload"))
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main():
             T.func_attr({"target": tvm.target.Target("llvm")})
             stack_ffi_any: T.let[T.handle] = T.tvm_stack_alloca("tvm_ffi_any", 2)
@@ -184,7 +186,7 @@ def test_call_packed_return_non_i32():
 
 
 def test_lower_overflow_int32():
-    @T.prim_func(check_well_formed=False, s_tir=True)
+    @T.prim_func(check_well_formed=False)
     def variance4(rxplaceholder: T.Buffer((T.int64(1), T.int64(32), T.int64(25690112)), "float32")):
         T.func_attr({"global_symbol": "variance4", "tirx.noalias": True})
         rxplaceholder_red = T.alloc_buffer((32,), "float32")
@@ -213,7 +215,7 @@ def test_lower_device_allocate():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main():
             T.func_attr({"target": T.target("llvm")})
             T.attr("dummy", "device_type", 2)  # kDLCuda
@@ -237,7 +239,7 @@ def test_lower_cpu_allocation():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main():
             T.func_attr({"target": T.target("llvm")})
             T.attr("dummy", "device_type", 1)  # kDLCPU
@@ -248,7 +250,7 @@ def test_lower_cpu_allocation():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main():
             T.func_attr({"target": T.target("llvm")})
             ptr = T.alloc_buffer((16,), "float32")
@@ -264,7 +266,7 @@ def test_lower_allocate_requires_device_id():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main():
             T.func_attr({"target": T.target("llvm")})
             T.attr("dummy", "device_type", 2)  # kDLCuda
@@ -288,7 +290,7 @@ def test_lower_allocate_requires_device_type():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main():
             T.func_attr({"tirx.is_host_func": True})
             T.attr("dummy", "device_id", 0)
@@ -311,7 +313,7 @@ def test_lower_cpu_alloc_with_function_attr():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main():
             T.func_attr({"target": T.target("llvm")})
             ptr = T.alloc_buffer((16,), "float32")

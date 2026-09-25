@@ -144,7 +144,7 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   }
   // Dialect-specific keys are stored in extra_config with dotted-name keys.
   // String-typed dialect keys passed through directly.
-  for (const char* key : {"tirx.prefix", "relax.prefix"}) {
+  for (const char* key : {"tirx.prefix", "s_tir.prefix", "relax.prefix"}) {
     if (auto v = config_dict.Get(key)) {
       n->extra_config.Set(ffi::String(key), v.value());
     }
@@ -167,6 +167,9 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   TVM_FFI_ICHECK(IsIdentifier(std::string(n->ir_prefix)))
       << "Invalid `ir_prefix`: " << n->ir_prefix;
   ffi::String tir_prefix = n->GetExtraConfig<ffi::String>("tirx.prefix", "T");
+  ffi::String stir_prefix = n->GetExtraConfig<ffi::String>("s_tir.prefix", "Ts");
+  TVM_FFI_ICHECK(IsIdentifier(std::string(stir_prefix)))
+      << "Invalid `s_tir.prefix`: " << stir_prefix;
   ffi::String relax_prefix = n->GetExtraConfig<ffi::String>("relax.prefix", "R");
   TVM_FFI_ICHECK(IsIdentifier(std::string(tir_prefix))) << "Invalid `tirx.prefix`: " << tir_prefix;
   TVM_FFI_ICHECK(IsIdentifier(std::string(relax_prefix)))
@@ -180,7 +183,8 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
 ffi::Array<ffi::String> PrinterConfigNode::GetBuiltinKeywords() {
   ffi::String tir_prefix = GetExtraConfig<ffi::String>("tirx.prefix", "T");
   ffi::String relax_prefix = GetExtraConfig<ffi::String>("relax.prefix", "R");
-  ffi::Array<ffi::String> result{this->ir_prefix, tir_prefix, relax_prefix};
+  ffi::Array<ffi::String> result{this->ir_prefix, tir_prefix, relax_prefix,
+                                 GetExtraConfig<ffi::String>("s_tir.prefix", "Ts")};
   if (!this->module_alias.empty()) {
     result.push_back(this->module_alias);
   }

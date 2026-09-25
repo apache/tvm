@@ -35,6 +35,12 @@ class TIRFrame(IRBuilderFrame): ...
 class PrimFuncFrame(TIRFrame):
     """Native function frame retaining signature, symbols and finalized results."""
 
+    def default_buffer_layout(self, shape, scope):
+        """Select the default layout for buffers constructed in this function."""
+        from tvm.tirx.layout import S, TileLayout
+
+        return None if scope in ("trn.sbuf", "trn.psum") else TileLayout(S[tuple(shape)])
+
     @property
     def params(self):
         """The native declared parameters, shared with the resumed body."""
@@ -43,14 +49,6 @@ class PrimFuncFrame(TIRFrame):
     def resolve_type_var(self, name, dtype=None, *, value=None, span=None):
         """Resolve a primitive symbol in this function's native map."""
         return _resolve_type_var(self, _ffi_api.ResolveTypeVar, name, dtype, value=value, span=span)
-
-
-@_register_object("script.ir_builder.tirx.SSBlockFrame")
-class SBlockFrame(TIRFrame): ...
-
-
-@_register_object("script.ir_builder.tirx.SBlockInitFrame")
-class BlockInitFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tirx.ForFrame")

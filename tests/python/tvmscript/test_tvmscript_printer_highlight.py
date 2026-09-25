@@ -20,6 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.script.highlight import _format, cprint
 
@@ -27,7 +28,7 @@ from tvm.script.highlight import _format, cprint
 def test_highlight_script():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(  # type: ignore
             a: T.handle,
             b: T.handle,
@@ -38,9 +39,9 @@ def test_highlight_script():
             B = T.match_buffer(b, [16, 128, 128])
             C = T.match_buffer(c, [16, 128, 128])
             for n, i, j, k in T.grid(16, 128, 128, 128):
-                with T.sblock("matmul"):
-                    vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    vn, vi, vj, vk = Ts.axis.remap("SSSR", [n, i, j, k])
+                    with Ts.init():
                         C[vn, vi, vj] = 0.0  # type: ignore
                     C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
 

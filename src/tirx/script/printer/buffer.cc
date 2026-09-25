@@ -202,8 +202,8 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
                LiteralDoc::Int(buffer->offset_factor, buffer_p->Attr("offset_factor")));
   }
   // Step 9. Handle `buffer.layout`. Track the enclosing PrimFunc's `s_tir`
-  // attr — in `s_tir=True` mode the parser fills `layout=None` by default,
-  // in `s_tir=False` (tirx) mode it fills `DefaultLayout(shape)`. Mirror
+  // attr: S-TIR construction uses layout=None by default, while TIRx
+  // construction uses DefaultLayout(shape). Mirror
   // that here so the implicit default is omitted and the non-default value
   // is emitted explicitly (round-trips safely under `StructuralEqual`).
   bool enclosing_s_tir = false;
@@ -275,7 +275,7 @@ ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
                    const ffi::Array<ExprDoc>& args, const AccessPath& p, const Frame& frame,
                    const IRDocsifier& d, BufferVarDefinition var_definitions,
                    ffi::Optional<Expr> data) {
-  auto prefix = TIR(d, method);
+  auto prefix = method == "sblock_alloc_buffer" ? STIR(d, method) : TIR(d, method);
   auto attrs = BufferAttrs(buffer, p, frame, d, var_definitions, data);
   if (method == "alloc_buffer") {
     if (buffer.IsScalar()) {

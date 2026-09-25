@@ -46,7 +46,6 @@ def make_jit(builder: object) -> Callable[..., Any]:
         *,
         private: bool = False,
         check_well_formed: bool = True,
-        is_stir: bool = False,
         persistent: bool = False,
     ) -> TIRJit | Callable[[FunctionType], TIRJit]:
         """Decorator: capture the kernel and defer parsing until ``.specialize()``.
@@ -103,7 +102,6 @@ def make_jit(builder: object) -> Callable[..., Any]:
             return TIRJit(
                 function,
                 check_well_formed,
-                is_stir,
                 persistent,
                 private,
                 definition_scope=definition_scope,
@@ -132,7 +130,6 @@ class TIRJit:
         self,
         func: FunctionType,
         check_well_formed: bool = True,
-        is_stir: bool = False,
         persistent: bool = False,
         private: bool = False,
         *,
@@ -147,7 +144,6 @@ class TIRJit:
         self.builder = builder
         self.func = func
         self.check_well_formed = check_well_formed
-        self.is_stir = is_stir
         self.persistent = persistent  # pylint: disable=unused-private-member
         self.private = private  # pylint: disable=unused-private-member
         # Resolved closure vars (computed once; the function itself is the
@@ -267,7 +263,6 @@ class TIRJit:
             root_builder=builder,
             root_function_options={
                 "private": self.private,
-                "s_tir": self.is_stir,
                 "persistent": self.persistent,
             },
             _specialization_bindings=effective,

@@ -109,6 +109,12 @@ inline ExprDoc TIR(const IRDocsifier& d, const ffi::String& attr) {
   return IdDoc(d->cfg->GetExtraConfig<ffi::String>("tirx.prefix", "T"))->Attr(attr);
 }
 
+/*! \brief Creates the S-TIR prefix for dialect-specific entry points. */
+inline ExprDoc STIR(const IRDocsifier& d, const ffi::String& attr) {
+  d->ir_usage.insert("s_tir");
+  return IdDoc(d->cfg->GetExtraConfig<ffi::String>("s_tir.prefix", "Ts"))->Attr(attr);
+}
+
 /*! \brief Alias for TIR — historical TIRx name used by tirx printer code */
 inline ExprDoc TIRx(const IRDocsifier& d, const ffi::String& attr) { return TIR(d, attr); }
 
@@ -141,6 +147,10 @@ inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
       // `Axis` class attribute. Mirror the `Axis` injection in `_default_globals`
       // so readers see the dependency. Decorative only.
       stmts.push_back(CommentDoc("from tvm.tirx.layout import Axis"));
+    }
+    if (d->ir_usage.count("s_tir")) {
+      stmts.push_back(CommentDoc("from tvm.script import s_tir as " +
+                                 d->cfg->GetExtraConfig<ffi::String>("s_tir.prefix", "Ts")));
     }
     if (d->ir_usage.count("relax")) {
       stmts.push_back(CommentDoc("from tvm.script import relax as " +

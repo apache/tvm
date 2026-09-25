@@ -39,9 +39,9 @@ from tvm.target.codegen import llvm_version_major
 def test_mul(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -49,11 +49,7 @@ def test_mul(dtype):
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
             for i in range(m):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(m, i)
-                    T.reads(A[v_i], B[v_i])
-                    T.writes(C[v_i])
-                    C[v_i] = A[v_i] * B[v_i]
+                C[i] = A[i] * B[i]
 
     with tvm.target.Target(target):
         f = tvm.tirx.build(Module)
@@ -78,9 +74,9 @@ def test_mul(dtype):
 def test_add(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -88,11 +84,7 @@ def test_add(dtype):
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
             for i in range(m):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(m, i)
-                    T.reads(A[v_i], B[v_i])
-                    T.writes(C[v_i])
-                    C[v_i] = A[v_i] + B[v_i]
+                C[i] = A[i] + B[i]
 
     with tvm.target.Target(target):
         f = tvm.tirx.build(Module)
@@ -117,9 +109,9 @@ def test_add(dtype):
 def test_sub(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -127,11 +119,7 @@ def test_sub(dtype):
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
             for i in range(m):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(m, i)
-                    T.reads(A[v_i], B[v_i])
-                    T.writes(C[v_i])
-                    C[v_i] = A[v_i] - B[v_i]
+                C[i] = A[i] - B[i]
 
     with tvm.target.Target(target):
         f = tvm.tirx.build(Module)
@@ -156,9 +144,9 @@ def test_sub(dtype):
 def test_muladd(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle, var_D: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -167,11 +155,7 @@ def test_muladd(dtype):
             C = T.match_buffer(var_C, (m,), dtype=dtype)
             D = T.match_buffer(var_D, (m,), dtype=dtype)
             for i in range(m):
-                with T.sblock("D"):
-                    v_i = T.axis.spatial(m, i)
-                    T.reads(A[v_i], B[v_i], C[v_i])
-                    T.writes(D[v_i])
-                    D[v_i] = A[v_i] * B[v_i] + C[v_i]
+                D[i] = A[i] * B[i] + C[i]
 
     with tvm.target.Target(target):
         f = tvm.tirx.build(Module)
@@ -206,9 +190,9 @@ def test_muladd(dtype):
 def test_max(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -216,11 +200,7 @@ def test_max(dtype):
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
             for i in range(m):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(m, i)
-                    T.reads(A[v_i], B[v_i])
-                    T.writes(C[v_i])
-                    C[v_i] = T.max(A[v_i], B[v_i])
+                C[i] = T.max(A[i], B[i])
 
     with tvm.target.Target(target):
         f = tvm.tirx.build(Module)
@@ -249,9 +229,9 @@ def test_max(dtype):
 def test_min(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -259,11 +239,7 @@ def test_min(dtype):
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
             for i in range(m):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(m, i)
-                    T.reads(A[v_i], B[v_i])
-                    T.writes(C[v_i])
-                    C[v_i] = T.min(A[v_i], B[v_i])
+                C[i] = T.min(A[i], B[i])
 
     with tvm.target.Target(target):
         f = tvm.tirx.build(Module)
@@ -292,9 +268,9 @@ def test_min(dtype):
 def test_div(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -302,11 +278,7 @@ def test_div(dtype):
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
             for i in range(m):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(m, i)
-                    T.reads(A[v_i], B[v_i])
-                    T.writes(C[v_i])
-                    C[v_i] = tvm.tirx.div(A[v_i], B[v_i])
+                C[i] = tvm.tirx.div(A[i], B[i])
 
     with tvm.target.Target(target):
         f = tvm.tirx.build(Module)
@@ -330,9 +302,9 @@ def test_div(dtype):
 def test_mod(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -340,11 +312,7 @@ def test_mod(dtype):
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
             for i in range(m):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(m, i)
-                    T.reads(A[v_i], B[v_i])
-                    T.writes(C[v_i])
-                    C[v_i] = T.floormod(A[v_i], B[v_i])
+                C[i] = T.floormod(A[i], B[i])
 
     with tvm.target.Target(target):
         f = tvm.tirx.build(Module)
@@ -369,9 +337,9 @@ def test_mod(dtype):
 def test_eq(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -379,11 +347,7 @@ def test_eq(dtype):
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), "bool")
             for i in range(m):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(m, i)
-                    T.reads(A[v_i], B[v_i])
-                    T.writes(C[v_i])
-                    C[v_i] = A[v_i] == B[v_i]
+                C[i] = A[i] == B[i]
 
     with tvm.target.Target(target):
         f = tvm.tirx.build(Module)
@@ -411,9 +375,9 @@ def test_eq(dtype):
 def test_neq(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -421,11 +385,7 @@ def test_neq(dtype):
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), "bool")
             for i in range(m):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(m, i)
-                    T.reads(A[v_i], B[v_i])
-                    T.writes(C[v_i])
-                    C[v_i] = A[v_i] != B[v_i]
+                C[i] = A[i] != B[i]
 
     with tvm.target.Target(target):
         f = tvm.tirx.build(Module)
@@ -452,9 +412,9 @@ def test_neq(dtype):
 def test_or(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -462,11 +422,7 @@ def test_or(dtype):
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
             for i in range(m):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(m, i)
-                    T.reads(A[v_i], B[v_i])
-                    T.writes(C[v_i])
-                    C[v_i] = A[v_i] | B[v_i]
+                C[i] = A[i] | B[i]
 
     with tvm.target.Target(target):
         f = tvm.tirx.build(Module)
@@ -490,9 +446,9 @@ def test_or(dtype):
 def test_and(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -500,11 +456,7 @@ def test_and(dtype):
             B = T.match_buffer(var_B, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
             for i in range(m):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(m, i)
-                    T.reads(A[v_i], B[v_i])
-                    T.writes(C[v_i])
-                    C[v_i] = A[v_i] & B[v_i]
+                C[i] = A[i] & B[i]
 
     with tvm.target.Target(target):
         f = tvm.tirx.build(Module)
@@ -528,20 +480,16 @@ def test_and(dtype):
 def test_not(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
             for i in range(m):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(m, i)
-                    T.reads(A[v_i])
-                    T.writes(C[v_i])
-                    C[v_i] = ~A[v_i]
+                C[i] = ~A[i]
 
     with tvm.target.Target(target):
         f = tvm.tirx.build(Module)
@@ -569,9 +517,9 @@ def test_not(dtype):
 def test_memcpy(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -579,11 +527,7 @@ def test_memcpy(dtype):
             B = T.match_buffer(var_B, (m,), "int32")
             C = T.match_buffer(var_C, (m,), dtype=dtype)
             for i in range(m):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(m, i)
-                    T.reads(B[v_i], A[B[v_i]])
-                    T.writes(C[v_i])
-                    C[v_i] = A[B[v_i]]
+                C[i] = A[B[i]]
 
     with tvm.target.Target(target):
         f = tvm.tirx.build(Module)
@@ -613,20 +557,16 @@ def test_memcpy(dtype):
 def test_vscale_range_function_attribute(mattr, expect_attr):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": [mattr]}
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,))
             C = T.match_buffer(var_C, (m,))
             for i in range(m):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(m, i)
-                    T.reads(A[v_i])
-                    T.writes(C[v_i])
-                    C[v_i] = A[v_i] + T.float32(1)
+                C[i] = A[i] + T.float32(1)
 
     with tvm.target.Target(target):
         f = tvm.tirx.build(Module)
