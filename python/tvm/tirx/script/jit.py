@@ -67,7 +67,7 @@ def make_jit(builder: object) -> Callable[..., Any]:
         Use ``@T.jit`` (instead of ``@T.prim_func``) when the kernel takes
         compile-time parameters annotated with ``T.constexpr`` or runtime
         parameters that may be removed with ``T.Optional``. The resulting object
-        exposes ``.specialize(**specialization_kwargs)``, which returns a
+        exposes ``.specialize(**const_args)``, which returns a
         ``tvm.tirx.PrimFunc``.
 
         Parameters
@@ -268,12 +268,12 @@ class TIRJit:
         self.optional_names: frozenset[str] = frozenset(optional_names)
         self._cache: dict[tuple[tuple[str, type, Any], ...], PrimFunc] = {}
 
-    def specialize(self, **specialization_kwargs: Any) -> PrimFunc:
+    def specialize(self, **const_args: Any) -> PrimFunc:
         """Build a PrimFunc by binding constexprs and absent optional params.
 
         Parameters
         ----------
-        **specialization_kwargs : Any
+        **const_args : Any
             One hashable value per ``T.constexpr``-annotated parameter.  A
             ``T.Optional`` parameter may additionally be supplied as ``None``
             to remove it from the resulting PrimFunc ABI.  Omitting an
@@ -301,16 +301,16 @@ class TIRJit:
         from tvm.script.parser.entry import parse
 
         specializable_names = self.constexpr_names | self.optional_names
-        extra = specialization_kwargs.keys() - specializable_names
+        extra = const_args.keys() - specializable_names
         if extra:
             raise TypeError(
                 f"{self.func.__name__}.specialize() got unexpected arg(s): "
                 f"{sorted(extra)} (specializable params are: {sorted(specializable_names)})"
             )
         invalid_optional = {
-            name: specialization_kwargs[name]
-            for name in self.optional_names & specialization_kwargs.keys()
-            if specialization_kwargs[name] is not None
+            name: const_args[name]
+            for name in self.optional_names & const_args.keys()
+            if const_args[name] is not None
         }
         if invalid_optional:
             raise TypeError(
@@ -318,9 +318,9 @@ class TIRJit:
                 f"pass actual tensors when calling the compiled kernel (got: {invalid_optional!r})"
             )
 
-        # One selection contains constexprs and explicit optional None values.
-        effective = {**self.constexpr_defaults, **specialization_kwargs}
-        missing = self.constexpr_names - effective.keys()
+        # Fixed arguments contain constexprs and explicit optional None values.
+        const_args = {**self.constexpr_defaults, **const_args}
+        missing = self.constexpr_names - const_args.keys()
         if missing:
             raise TypeError(
                 f"{self.func.__name__}.specialize() missing constexpr arg(s) "
@@ -329,13 +329,13 @@ class TIRJit:
 
         try:
             cache_key = tuple(
-                (name, type(value), value) for name, value in sorted(effective.items())
+                (name, type(value), value) for name, value in sorted(const_args.items())
             )
             cached = self._cache.get(cache_key)
         except TypeError as err:
             raise TypeError(
                 f"{self.func.__name__}.specialize(): all constexpr values must "
-                f"be hashable (got: {effective!r})"
+                f"be hashable (got: {const_args!r})"
             ) from err
         if cached is not None:
             return cached
@@ -348,7 +348,7 @@ class TIRJit:
                 "private": self.private,
                 "persistent": self.persistent,
             },
-            _specialization_bindings=effective,
+            _const_args=const_args,
             check_well_formed=self.check_well_formed,
         )
         setattr(prim_func, "__name__", self.func.__name__)

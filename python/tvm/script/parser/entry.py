@@ -743,7 +743,7 @@ def parse(
         Nested functions and module members use their own source decorators.
         Defaults are owned by the builder hook; check_well_formed is separate.
     **options
-        ``_specialization_bindings`` is a mapping of selected constexpr values
+        ``_const_args`` maps parameter names to fixed constexpr values
         and explicit optional-parameter absence. None selects ordinary parsing;
         an empty mapping still selects root JIT construction. ``check_well_formed``
         controls completed-result validation; construction policy otherwise
@@ -790,7 +790,7 @@ def parse(
     try:
         root = tree.body[-1]
         root_name = root.name if isinstance(root, ast.FunctionDef) else None
-        specialization = options.get("_specialization_bindings")
+        const_args = options.get("_const_args")
         check_well_formed = options.get("check_well_formed")
         if check_well_formed is None:
             check_well_formed = True
@@ -810,7 +810,7 @@ def parse(
             definition_scope,
             filename,
             track_span=track_span,
-            enable_jit_map=specialization is not None and root_name is not None,
+            enable_jit_map=const_args is not None and root_name is not None,
             root_function_kwargs=root_function_kwargs,
         )
         transformed, result_name = transformer.rewrite_module(
@@ -831,7 +831,7 @@ def parse(
         )
         # Important: do not retain _builder. Its globals and closures may keep
         # values from the enclosing scope alive.
-        with jit_support.use_specialization(root_name, specialization):
+        with jit_support.use_specialization(root_name, const_args):
             result = _builder()
         return result
     finally:

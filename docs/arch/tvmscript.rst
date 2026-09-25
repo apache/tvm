@@ -95,6 +95,12 @@ result span handling. Symbolic shapes use concrete expressions. Source aliases r
 ordinary Python calls remain calls in the generated program. Explicit ``constexpr``
 markers select host control flow during construction.
 
+JIT supplies ``const_args``, a mapping from parameter names to fixed values. Explicit
+``None`` values mark absent optional arguments and skip their annotation evaluation.
+Generated code reads the mapping through a fresh ``_const_args`` name. An empty map
+still selects root JIT construction; an absent map selects ordinary parsing. Syntax
+translation does not inspect these values to select a branch.
+
 Generated operations retain source locations. Syntax restrictions raise source-located
 ``SyntaxError`` exceptions; builder and Python helper errors retain their original
 exception types. Temporary parse state is released when construction finishes or fails.

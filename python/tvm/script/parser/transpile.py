@@ -56,6 +56,35 @@ from .prescan import (
 )
 
 _Node = TypeVar("_Node", bound=ast.AST)
+_Value = TypeVar("_Value")
+
+
+def require_constexpr_arg(value: _Value, name: str) -> _Value:
+    """Return the constexpr argument value, or raise if it is missing.
+
+    Parameters
+    ----------
+    value : Any
+        Selected or captured compile-time value. Only the builder's MISSING
+        sentinel denotes an absent binding; None is an explicit valid value.
+    name : str
+        Source parameter name included in a missing-binding diagnostic.
+
+    Returns
+    -------
+    Any
+        The identical input value, preserving its Python type and identity.
+
+    Raises
+    ------
+    TypeError
+        If value is the MISSING sentinel and no constexpr binding was selected.
+    """
+    from tvm.script.ir_builder.base import MISSING
+
+    if value is MISSING:
+        raise TypeError(f"constexpr parameter {name!r} requires a specialization binding")
+    return value
 
 
 class GeneratedBuilder(NamedTuple):
@@ -1719,19 +1748,17 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         )
         return [self._assign(captures, captured, node)]
 
-    def _create_specialization_bindings(
-        self, node: ast.FunctionDef, *, special: str
-    ) -> list[ast.stmt]:
+    def _create_const_args(self, node: ast.FunctionDef, *, const_args: str) -> list[ast.stmt]:
         """Read root JIT inputs; nested functions keep ordinary runtime parameters."""
         from . import jit_support
 
-        # _jit_map = read_specialization_bindings("f")
-        special_expr = ast.Call(
+        # _const_args = read_specialization_bindings("f")
+        const_args_expr = ast.Call(
             self._inject(jit_support.read_specialization_bindings),
             [ast.Constant(node.name)],
             [],
         )
-        return [self._assign(special, special_expr, node)]
+        return [self._assign(const_args, const_args_expr, node)]
 
     def _create_symbol_declarations(
         self, node: ast.FunctionDef
@@ -1778,21 +1805,21 @@ class IRBuilderTranspiler(ast.NodeTransformer):
 
     @staticmethod
     def _select_specialized_value(
-        name: str, fallback: ast.expr, node: ast.AST, *, special: str
+        name: str, fallback: ast.expr, node: ast.AST, *, const_args: str
     ) -> ast.IfExp:
         """Select a JIT value or explicit absence without evaluating the fallback."""
         selected = ast.BoolOp(
             ast.And(),
             [
-                ast.Compare(ast.Name(special, ast.Load()), [ast.IsNot()], [ast.Constant(None)]),
-                ast.Compare(ast.Constant(name), [ast.In()], [ast.Name(special, ast.Load())]),
+                ast.Compare(ast.Name(const_args, ast.Load()), [ast.IsNot()], [ast.Constant(None)]),
+                ast.Compare(ast.Constant(name), [ast.In()], [ast.Name(const_args, ast.Load())]),
             ],
         )
-        # _jit_map["x"] if _jit_map is not None and "x" in it else fallback
+        # _const_args["x"] if _const_args is not None and "x" in it else fallback
         return ast.copy_location(
             ast.IfExp(
                 selected,
-                ast.Subscript(ast.Name(special, ast.Load()), ast.Constant(name), ast.Load()),
+                ast.Subscript(ast.Name(const_args, ast.Load()), ast.Constant(name), ast.Load()),
                 fallback,
             ),
             node,
@@ -1808,7 +1835,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         annotations: list[ast.expr | None],
         *,
         captures: str,
-        special: str | None,
+        const_args: str | None,
     ) -> tuple[list[ast.stmt], dict[str, str]]:
         """Declare signature parameters, making constexpr values available first."""
         from . import jit_support
@@ -1842,7 +1869,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 alias = self.module.make_fresh_name("_parameter")
                 constexpr_aliases[name] = alias
                 fallback = ast.Call(
-                    self._inject(jit_support.require_constexpr_binding),
+                    self._inject(require_constexpr_arg),
                     [
                         self._call(
                             captures,
@@ -1863,12 +1890,12 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 )
             else:
                 translated = self.visit(annotation)
-                if special is not None:
+                if const_args is not None:
                     # Optional annotations are unwrapped only for specialization;
                     # ordinary annotation validation belongs to the language variant arg.
                     translated = ast.Call(
                         self._inject(jit_support.unwrap_annotation),
-                        [translated, ast.Name(special, ast.Load())],
+                        [translated, ast.Name(const_args, ast.Load())],
                         [],
                     )
                 # x = X.arg("x", annotation, span=_S[i])
@@ -1877,8 +1904,10 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             # thunk is absent from the selected generated Python branch.
             value = (
                 fallback
-                if special is None
-                else self._select_specialized_value(name, fallback, parameter, special=special)
+                if const_args is None
+                else self._select_specialized_value(
+                    name, fallback, parameter, const_args=const_args
+                )
             )
             declaration.append(self._assign(alias, value, parameter))
             self.function.annotation_bindings[name] = (
@@ -1973,11 +2002,11 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         constexpr_aliases: dict[str, str],
         *,
         frame: str,
-        special: str | None,
+        const_args: str | None,
     ) -> list[ast.stmt]:
         """Bind known ordinary parameters directly; selected JIT parameters have no ABI slot."""
         body: list[ast.stmt] = []
-        if special is None:
+        if const_args is None:
             # -------------------- Pattern --------------------
             # Python source:
             #     def f(x: X.int32, y: X.int32):
@@ -2025,7 +2054,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                         name,
                         ast.Call(self._inject(next), [ast.Name(iterator, ast.Load())], []),
                         parameter,
-                        special=special,
+                        const_args=const_args,
                     )
                 )
                 body.append(self._assign(name, value, parameter))
@@ -2139,10 +2168,10 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 statements = self._create_definition_bindings(
                     node, definition_aliases, captures=captures
                 )
-                special = None
+                const_args = None
                 if self.module.enable_jit_map and not local_function:
-                    special = self.module.make_fresh_name("_jit_map")
-                    statements.extend(self._create_specialization_bindings(node, special=special))
+                    const_args = self.module.make_fresh_name("_const_args")
+                    statements.extend(self._create_const_args(node, const_args=const_args))
                 declaration: list[ast.stmt] = [
                     ast.copy_location(
                         ast.Expr(self._call(builder, "func_name", [ast.Constant(node.name)], node)),
@@ -2156,7 +2185,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     self._rewrite_annotation(),
                 ):
                     arguments, constexpr_aliases = self._rewrite_parameters(
-                        parameters, annotations, captures=captures, special=special
+                        parameters, annotations, captures=captures, const_args=const_args
                     )
                     declaration.extend(arguments)
                     if returns is not None:
@@ -2185,7 +2214,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     split_declare=split_declare,
                 )
                 body = self._create_body_parameters(
-                    node, parameters, constexpr_aliases, frame=frame, special=special
+                    node, parameters, constexpr_aliases, frame=frame, const_args=const_args
                 )
                 body.extend(self.transform_statements(node.body))
                 definition = self._create_definition(body_name, body, node)

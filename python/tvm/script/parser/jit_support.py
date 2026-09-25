@@ -27,11 +27,9 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, TypeVar
+from typing import Any
 
 # Per-execution inputs, never a second owner of native function or parameter state.
-_Value = TypeVar("_Value")
-
 # Host/JIT values and callable annotation adapters have open-ended Python types.
 _SPECIALIZATION: ContextVar[tuple[str | None, dict[str, Any]] | None] = ContextVar(
     "tvm_parser_specialization", default=None
@@ -39,16 +37,16 @@ _SPECIALIZATION: ContextVar[tuple[str | None, dict[str, Any]] | None] = ContextV
 
 
 @contextmanager
-def use_specialization(name: str | None, bindings: Mapping[str, Any] | None) -> Iterator[None]:
-    """Pass selected JIT bindings to one root builder execution.
+def use_specialization(name: str | None, const_args: Mapping[str, Any] | None) -> Iterator[None]:
+    """Pass fixed JIT arguments to one root builder execution.
 
     Parameters
     ----------
     name : str or None
         Source name of the standalone root function. Readers must request this
         exact name. None is used when the parsed root is not a function.
-    bindings : Mapping[str, Any] or None
-        Already-selected parameter values, including explicit None values for
+    const_args : Mapping[str, Any] or None
+        Parameter names mapped to fixed values, including explicit None values for
         omitted optional parameters. None selects ordinary parsing; an empty
         mapping still selects specialization with no compile-time values.
         The mapping is copied on entry, without copying its values.
@@ -59,7 +57,7 @@ def use_specialization(name: str | None, bindings: Mapping[str, Any] | None) -> 
         The enclosed builder execution sees this selection. The previous
         selection is restored on exit, including nested parsing and exceptions.
     """
-    token = _SPECIALIZATION.set(None if bindings is None else (name, dict(bindings)))
+    token = _SPECIALIZATION.set(None if const_args is None else (name, dict(const_args)))
     try:
         yield
     finally:
@@ -67,7 +65,7 @@ def use_specialization(name: str | None, bindings: Mapping[str, Any] | None) -> 
 
 
 def read_specialization_bindings(name: str) -> dict[str, Any] | None:
-    """Read the current root's selected JIT bindings.
+    """Read the current root's fixed JIT arguments.
 
     Parameters
     ----------
@@ -77,8 +75,8 @@ def read_specialization_bindings(name: str) -> dict[str, Any] | None:
     Returns
     -------
     dict[str, Any] or None
-        The active selection when its root name matches, including an empty
-        dictionary for an active specialization with no selected values. None
+        Parameter names mapped to fixed values when the root name matches. An empty
+        dictionary means an active specialization with no selected values. None
         means ordinary parsing or a different root name. The returned dictionary
         is borrowed from the current context and should not be mutated.
     """
@@ -86,7 +84,7 @@ def read_specialization_bindings(name: str) -> dict[str, Any] | None:
     return context[1] if context is not None and context[0] == name else None
 
 
-def unwrap_annotation(annotation: Any, specialization: Mapping[str, Any] | None = None) -> Any:
+def unwrap_annotation(annotation: Any, const_args: Mapping[str, Any] | None = None) -> Any:
     """Read an optional runtime annotation only within a JIT specialization.
 
     Parameters
@@ -95,10 +93,11 @@ def unwrap_annotation(annotation: Any, specialization: Mapping[str, Any] | None 
         Evaluated runtime annotation. An object implementing the callable
         ``__tvm_optional_annotation__`` adapter supplies its contained annotation;
         all other objects pass through unchanged.
-    specialization : Mapping[str, Any] or None, optional
-        Active root selection. None, the default, means ordinary parsing and
-        forbids optional annotation adapters. Any mapping, including an empty
-        mapping, enables the adapter; its contents are not inspected here.
+    const_args : Mapping[str, Any] or None, optional
+        Parameter names mapped to fixed values for the active root. None, the
+        default, means ordinary parsing and forbids optional annotation adapters. Any
+        mapping, including an empty mapping, enables the adapter. Its contents
+        are not inspected here.
 
     Returns
     -------
@@ -119,35 +118,7 @@ def unwrap_annotation(annotation: Any, specialization: Mapping[str, Any] | None 
     """
     unwrap = getattr(annotation, "__tvm_optional_annotation__", None)
     if unwrap is not None:
-        if specialization is None:
+        if const_args is None:
             raise TypeError("T.Optional is only supported by @T.jit")
         return unwrap()
     return annotation
-
-
-def require_constexpr_binding(value: _Value, name: str) -> _Value:
-    """Require an explicit captured value for a constexpr parameter.
-
-    Parameters
-    ----------
-    value : Any
-        Selected or captured compile-time value. Only the builder's MISSING
-        sentinel denotes an absent binding; None is an explicit valid value.
-    name : str
-        Source parameter name included in a missing-binding diagnostic.
-
-    Returns
-    -------
-    Any
-        The identical input value, preserving its Python type and identity.
-
-    Raises
-    ------
-    TypeError
-        If value is the MISSING sentinel and no constexpr binding was selected.
-    """
-    from tvm.script.ir_builder.base import MISSING
-
-    if value is MISSING:
-        raise TypeError(f"constexpr parameter {name!r} requires a specialization binding")
-    return value
