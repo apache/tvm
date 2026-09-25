@@ -274,6 +274,29 @@ class IRBuilder(_Object):
 _T = TypeVar("_T")
 
 
+class AlreadyEmitted(Generic[_T]):
+    """Hold the exact emitted value; location handling preserves this receipt.
+
+    Parameters
+    ----------
+    value : Any
+        Object already emitted by a language variant's builder. The receipt
+        retains this object without copying it. Binding or emitting the receipt
+        must not emit the object again.
+
+    Attributes
+    ----------
+    value : Any
+        The same emitted object, available for identity checks and source-span
+        attachment.
+    """
+
+    __slots__ = ("value",)
+
+    def __init__(self, value: _T) -> None:
+        self.value = value
+
+
 class SpanEntry:
     """A materialized source range shared by generated builder operations.
 
@@ -301,29 +324,6 @@ class SpanEntry:
         retain their native construction span regardless of result attachment.
         """
         return with_at_group_(self.span, thunk, attach_result=attach_result)
-
-
-class AlreadyEmitted(Generic[_T]):
-    """Hold the exact emitted value; location handling preserves this receipt.
-
-    Parameters
-    ----------
-    value : Any
-        Object already emitted by a language variant's builder. The receipt
-        retains this object without copying it. Binding or emitting the receipt
-        must not emit the object again.
-
-    Attributes
-    ----------
-    value : Any
-        The same emitted object, available for identity checks and source-span
-        attachment.
-    """
-
-    __slots__ = ("value",)
-
-    def __init__(self, value: _T) -> None:
-        self.value = value
 
 
 def at(span: SpanEntry | ir.Span | None, value: _T) -> _T:
