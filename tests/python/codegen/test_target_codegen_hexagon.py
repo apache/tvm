@@ -41,9 +41,9 @@ def register_linker():
 def test_basic():
     target = tvm.target.Target("qcom/hexagon-v66")
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(
             C: T.Buffer((128,), "uint8"),
             A: T.Buffer((128,), "uint8"),
@@ -51,11 +51,7 @@ def test_basic():
         ):
             T.func_attr({"tirx.noalias": True})
             for i in range(128):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(128, i)
-                    T.reads(A[v_i], A_1[v_i])
-                    T.writes(C[v_i])
-                    C[v_i] = A[v_i] + A_1[v_i]
+                C[i] = A[i] + A_1[i]
 
     hexm = tvm.compile(Module, target=tvm.target.Target(target, target))
     asm = hexm.inspect_source("s")
@@ -67,17 +63,13 @@ def test_basic():
 def test_llvm_target_features():
     target = tvm.target.Target("qcom/hexagon-v66")
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def add_one(C: T.Buffer((128,), "int32"), A: T.Buffer((128,), "uint8")):
             T.func_attr({"tirx.noalias": True})
             for i in range(128):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(128, i)
-                    T.reads(A[v_i])
-                    T.writes(C[v_i])
-                    C[v_i] = T.Cast("int32", A[v_i]) + 1
+                C[i] = T.Cast("int32", A[i]) + 1
 
     m = tvm.compile(Module, target=tvm.target.Target(target, target))
     llvm_ir = m.inspect_source("ll")
@@ -100,17 +92,13 @@ def test_llvm_options():
         }
     )
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(compute: T.Buffer((10,), "int32")):
             T.func_attr({"tirx.noalias": True})
             for _ in range(10):
-                with T.sblock("compute"):
-                    v__ = T.axis.spatial(10, _)
-                    T.reads()
-                    T.writes(compute[v__])
-                    compute[v__] = 0
+                compute[_] = 0
 
     # Check that BuildHexagon hasn't crashed because of target attribute
     # type mismatch.

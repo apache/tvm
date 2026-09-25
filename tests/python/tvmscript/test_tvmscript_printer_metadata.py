@@ -17,8 +17,8 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: F841
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
-from tvm.script.parser import tirx as T
 
 
 def test_str_metadata():
@@ -28,12 +28,12 @@ def test_str_metadata():
 
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def foo() -> None:
             A = str_imm
             B = str_imm
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def foo1() -> None:
             A = str_imm
 

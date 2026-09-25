@@ -114,6 +114,15 @@ TVM_DLL Pass StmtSimplify();
 TVM_DLL Pass ConvertSSA();
 
 /*!
+ * \brief Unify loop and attribute bindings of each thread axis within a kernel.
+ * \return The pass.
+ */
+TVM_DLL Pass UnifyThreadBinding();
+
+/*! \brief Lower cross-thread reductions to target-specific communication. */
+TVM_DLL Pass LowerThreadAllreduce();
+
+/*!
  * \brief Transform the high-level PrimFunc to a low-level version
  *        that can be used as an API function.
  *

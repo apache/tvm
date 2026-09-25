@@ -19,12 +19,13 @@
 #ifndef TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
 #define TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
 
-#include <tvm/s_tir/stmt.h>
 #include <tvm/script/ir_builder/base.h>
 #include <tvm/script/ir_builder/ir/frame.h>
 #include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
 
+#include <functional>
 #include <utility>
 
 namespace tvm {
@@ -41,6 +42,9 @@ class TIRFrameNode : public IRBuilderFrameNode {
  public:
   /*! \brief The Stmt within in this frame. */
   ffi::Array<tvm::tirx::Stmt> stmts;
+
+  /*! \brief Bind a view in frames that support region aliases. */
+  virtual void BindBufferRegion(tvm::tirx::BufferVar buffer, tvm::TensorRegion region);
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -86,13 +90,6 @@ class PrimFuncFrameNode : public TIRFrameNode {
   ffi::Map<ffi::String, Any> attrs;
   /*! \brief The variable map bound to thread env. */
   ffi::Map<tvm::tirx::Var, tvm::tirx::IterVar> env_threads;
-  /*! \brief The buffer allocated in root block. */
-  ffi::Array<tvm::tirx::BufferVar> root_alloc_buffers;
-
-  // TIR utils
-  /*! \brief Whether this PrimFunc uses s_tir semantics (root s_tir::SBlock wrap,
-   *  parser layout default = None). Default (false) = tirx semantics. */
-  bool s_tir;
   /*! \brief Whether it is a persistent kernel. */
   bool persistent;
   /*! \brief Whether this frame declares a bodyless signature. */
@@ -112,15 +109,13 @@ class PrimFuncFrameNode : public TIRFrameNode {
         .def_ro("buffer_map", &PrimFuncFrameNode::buffer_map)
         .def_ro("attrs", &PrimFuncFrameNode::attrs)
         .def_ro("env_threads", &PrimFuncFrameNode::env_threads)
-        .def_ro("root_alloc_buffers", &PrimFuncFrameNode::root_alloc_buffers)
-        .def_ro("s_tir", &PrimFuncFrameNode::s_tir)
         .def_ro("persistent", &PrimFuncFrameNode::persistent)
         .def_ro("is_declaration", &PrimFuncFrameNode::is_declaration)
         .def_ro("function", &PrimFuncFrameNode::function)
         .def_ro("global_var", &PrimFuncFrameNode::global_var);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.PrimFuncFrame", PrimFuncFrameNode,
-                                    TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.tirx.PrimFuncFrame", PrimFuncFrameNode,
+                              TIRFrameNode);
 
  public:
   /*!
@@ -128,6 +123,14 @@ class PrimFuncFrameNode : public TIRFrameNode {
    * \sa tvm::support::With
    */
   void ExitWithScope() final;
+
+  /*! \brief Register validation for an extension-owned function attribute. */
+  using AttrValidator = std::function<void(const PrimFuncFrameNode*, const ffi::Any&)>;
+  static void RegisterAttrValidator(ffi::String key, AttrValidator validator);
+  void ValidateAttrs() const;
+
+  /*! \brief Complete dialect-specific function construction before publication. */
+  virtual tvm::tirx::PrimFunc FinalizeFunction(tvm::tirx::PrimFunc func);
 };
 
 /*!
@@ -142,121 +145,6 @@ class PrimFuncFrame : public TIRFrame {
     data_ = std::move(data);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimFuncFrame, TIRFrame, PrimFuncFrameNode);
-};
-
-/*!
- * \brief A frame that represents the block.
- *
- * \sa SBlockFrame
- */
-class SBlockFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The name of the block. */
-  ffi::String name;
-  /*! \brief The variables of the block. */
-  ffi::Array<tvm::tirx::IterVar> iter_vars;
-  /*! \brief The read buffer regions of the block. */
-  ffi::Optional<ffi::Array<tvm::TensorRegion>> reads;
-  /*! \brief The write buffer regions of the block. */
-  ffi::Optional<ffi::Array<tvm::TensorRegion>> writes;
-  /*! \brief The init statement of the bolck. */
-  ffi::Optional<tvm::tirx::Stmt> init;
-  /*! \brief The buffer allocated in the block. */
-  ffi::Array<tvm::tirx::BufferVar> alloc_buffers;
-  /*! \brief The match buffer regions. */
-  ffi::Array<tvm::s_tir::MatchBufferRegion> match_buffers;
-  /*! \brief The annotation of the block. */
-  ffi::Optional<ffi::Map<ffi::String, Any>> annotations;
-  /*! \brief The corresponding values of the iter vars. */
-  ffi::Array<PrimExpr> iter_values;
-  /*!
-   * \brief The predicate of the block realization, the block will only be executed when the
-   * predicate is true.
-   */
-  ffi::Optional<PrimExpr> predicate;
-  /*! \brief The flag whether to construct BlockRealize or Block. */
-  bool no_realize;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SBlockFrameNode>()
-        .def_ro("name", &SBlockFrameNode::name)
-        .def_ro("iter_vars", &SBlockFrameNode::iter_vars)
-        .def_ro("reads", &SBlockFrameNode::reads)
-        .def_ro("writes", &SBlockFrameNode::writes)
-        .def_ro("init", &SBlockFrameNode::init)
-        .def_ro("alloc_buffers", &SBlockFrameNode::alloc_buffers)
-        .def_ro("match_buffers", &SBlockFrameNode::match_buffers)
-        .def_ro("annotations", &SBlockFrameNode::annotations)
-        .def_ro("iter_values", &SBlockFrameNode::iter_values)
-        .def_ro("predicate", &SBlockFrameNode::predicate)
-        .def_ro("no_realize", &SBlockFrameNode::no_realize);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.SSBlockFrame", SBlockFrameNode,
-                                    TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to SBlockFrameNode.
- *
- * \sa SBlockFrameNode
- */
-
-class SBlockFrame : public TIRFrame {
- public:
-  explicit SBlockFrame(ffi::ObjectPtr<SBlockFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockFrame, TIRFrame, SBlockFrameNode);
-};
-
-/*!
- * \brief A frame that represents the block initialization statment.
- *
- * \sa BlockInitFrame
- */
-class BlockInitFrameNode : public TIRFrameNode {
- public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BlockInitFrameNode>();
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.SBlockInitFrame", BlockInitFrameNode,
-                                    TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when entering RAII scope.
-   * \sa tvm::support::With
-   */
-  void EnterWithScope() final;
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to BlockInitFrameNode.
- *
- * \sa BlockInitFrameNode
- */
-class BlockInitFrame : public TIRFrame {
- public:
-  explicit BlockInitFrame(ffi::ObjectPtr<BlockInitFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockInitFrame, TIRFrame, BlockInitFrameNode);
 };
 
 /*!

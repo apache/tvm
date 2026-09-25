@@ -128,7 +128,7 @@ constexpr const char* kGlobalSymbol = "global_symbol";
 /*!
  * \brief The function uses s_tir (apache-derived TIR) semantics:
  *        parser fills layout=None, ScriptComplete wraps body in a root SBlock,
- *        and printer emits `s_tir=True` on the decorator.
+ *        and the printer emits the S-TIR `Ts.prim_func` entry point.
  *        Default (attr absent or False) is tirx semantics.
  *
  * Type: IntImm (bool dtype)

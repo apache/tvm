@@ -39,7 +39,7 @@ def test_ssa_across_entire_module():
 
     @I.ir_module
     class before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main():
             T.func_attr({"global_symbol": "main", "target": T.target("cuda", host="llvm")})
             for i in range(16):
@@ -59,7 +59,7 @@ def test_split_host_device():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             T.attr(T.target("cuda"), "target", 0)
@@ -67,12 +67,12 @@ def test_split_host_device():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             T.call_ffi_kernel("main_kernel", n, launch_params=[])
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main_kernel(n: T.int32):
             T.func_attr(
                 {
@@ -95,7 +95,7 @@ def test_split_host_device_on_cpu():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             T.attr(T.target("llvm"), "target", 0)
@@ -103,13 +103,13 @@ def test_split_host_device_on_cpu():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             kernel_error_code: T.let[T.int32] = T.call_extern("int32", "main_kernel", n)
             assert kernel_error_code == 0, "Error executing compute kernel"
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main_kernel(n: T.int32) -> T.int32:
             T.func_attr(
                 {
@@ -153,7 +153,7 @@ def test_split_host_device_without_func_host_attribute():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.int32):
             T.func_attr({"target": T.target("llvm")})
             T.attr(T.target("cuda"), "target", 0)
@@ -161,12 +161,12 @@ def test_split_host_device_without_func_host_attribute():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.int32):
             T.func_attr({"target": T.target("llvm")})
             T.call_ffi_kernel("main_kernel", n, launch_params=[])
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main_kernel(n: T.int32):
             T.func_attr(
                 {
@@ -192,7 +192,7 @@ def test_split_host_device_without_device_region():
     attribute.
     """
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def Before():
         T.func_attr({"target": T.target("ext_dev", host="llvm")})
         T.evaluate(0)
@@ -213,25 +213,25 @@ def test_split_host_device_name_collision():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             T.attr(T.target("cuda"), "target", 0)
             T.evaluate(n)
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main_kernel():
             T.func_attr({"target": T.target("llvm")})
             T.evaluate(0)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             T.call_ffi_kernel("main_kernel_1", n, launch_params=[])
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main_kernel_1(n: T.int32):
             T.func_attr(
                 {
@@ -245,7 +245,7 @@ def test_split_host_device_name_collision():
             )
             T.evaluate(n)
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main_kernel():
             T.func_attr({"target": T.target("llvm")})
             T.evaluate(0)
@@ -275,7 +275,7 @@ def test_dynamic_launch_thread():
 
     @I.ir_module
     class before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def default_function(var_A: T.handle, var_B: T.handle, seq_len: T.int32):
             T.func_attr({"target": T.target("cuda")})
 
@@ -291,7 +291,7 @@ def test_dynamic_launch_thread():
 
     @I.ir_module
     class expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def default_function(var_A: T.handle, var_B: T.handle, seq_len: T.int32):
             T.func_attr({"target": T.target("cuda")})
             A = T.match_buffer(var_A, (seq_len,), "int32")
@@ -299,7 +299,7 @@ def test_dynamic_launch_thread():
             num_blocks: T.let[T.int32] = (seq_len + 127) // 128
             expected.default_function_kernel(A.data, B.data, num_blocks, seq_len)
 
-        @T.prim_func(private=True, s_tir=True)
+        @T.prim_func(private=True)
         def default_function_kernel(
             A_data: T.handle("int32"),
             B_data: T.handle("int32"),
@@ -329,7 +329,7 @@ def test_dynamic_launch_thread():
 def test_symbolic_var_parameter():
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"target": T.target("cuda")})
             m = T.int64()
@@ -349,7 +349,7 @@ def test_symbolic_var_parameter():
 def test_buffer_used_only_through_data_projection():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer((16,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             with T.attr(T.target("cuda"), "target", 0):
@@ -373,7 +373,7 @@ def test_thread_extent_region_extracted_as_device_kernel():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(16, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             i = T.launch_thread("threadIdx.x", 16)
@@ -381,12 +381,12 @@ def test_thread_extent_region_extracted_as_device_kernel():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(16, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.call_ffi_kernel("main_kernel", A.data, 16, launch_params=["threadIdx.x"])
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main_kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -409,7 +409,7 @@ def test_thread_extent_region_extracted_as_device_kernel():
 def test_cuda_launch_preserves_flag_metadata():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(16, "float32")):
             T.func_attr(
                 {
@@ -446,7 +446,7 @@ def test_cuda_launch_preserves_flag_metadata():
 def test_cuda_required_block_size_coexists_with_launch_bounds():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(4, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.attr(T.target("cuda"), "target", 0)
@@ -478,7 +478,7 @@ def test_cuda_required_block_size_coexists_with_launch_bounds():
 def test_cuda_launch_preserves_singleton_cluster_dimensions():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             with T.attr(T.target("cuda"), "target", 0):
@@ -509,7 +509,7 @@ def test_device_scope_region_extracted_as_device_kernel():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.attr(0, "device_scope", 0)
@@ -517,12 +517,12 @@ def test_device_scope_region_extracted_as_device_kernel():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.call_ffi_kernel("main_kernel", A.data, launch_params=[])
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main_kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -547,12 +547,12 @@ def test_lower_device_kernel_launch():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def kernel(A_data: T.handle("float32")):
             T.func_attr({"target": T.target("cuda")})
             A = T.decl_buffer(1, dtype="float32", data=A_data)
@@ -560,12 +560,12 @@ def test_lower_device_kernel_launch():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             T.call_ffi_kernel("kernel", A.data, launch_params=[])
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -588,12 +588,12 @@ def test_externally_visible_kernel_launch():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def kernel(A_data: T.handle("float32")):
             T.func_attr({"target": T.target("cuda"), "global_symbol": "kernel_by_another_name"})
             A = T.decl_buffer(1, dtype="float32", data=A_data)
@@ -601,12 +601,12 @@ def test_externally_visible_kernel_launch():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             T.call_ffi_kernel("kernel_by_another_name", A.data, launch_params=[])
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -629,12 +629,12 @@ def test_collect_launch_parameter():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(16, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -648,12 +648,12 @@ def test_collect_launch_parameter():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(16, "float32")):
             T.func_attr({"target": T.target("llvm")})
             T.call_ffi_kernel("kernel", A.data, 16, launch_params=["threadIdx.x"])
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -677,12 +677,12 @@ def test_same_device_different_target():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def kernel(A_data: T.handle("float32")):
             T.func_attr({"target": T.target("c")})
             A = T.decl_buffer(16, dtype="float32", data=A_data)
@@ -690,12 +690,12 @@ def test_same_device_different_target():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             T.call_extern("kernel", A.data, dtype="void")
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -716,12 +716,12 @@ def test_bind_before_thread_extent():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(16, "float32"), n: T.int32):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data, n)
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def kernel(A_data: T.handle("float32"), n: T.int32):
             T.func_attr({"target": T.target("cuda"), "global_symbol": "kernel"})
             A = T.decl_buffer(16, dtype="float32", data=A_data)
@@ -731,12 +731,12 @@ def test_bind_before_thread_extent():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer(16, "float32"), n: T.int32):
             T.func_attr({"target": T.target("llvm")})
             T.call_ffi_kernel("kernel", A.data, n, n + 1, launch_params=["threadIdx.x"])
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def kernel(A_data: T.handle("float32"), n: T.int32):
             T.func_attr(
                 {

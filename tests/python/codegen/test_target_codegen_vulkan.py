@@ -63,16 +63,18 @@ def test_vector_comparison(dtype):
     zero = tvm.tirx.const(0, dtype)
     one = tvm.tirx.const(1, dtype)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer((1024,), dtype), B: T.Buffer((1024,), dtype)):
             for i_0 in T.thread_binding(8, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
                     for i_2 in T.vectorized(4):
-                        with T.sblock("B"):
-                            v_i = T.axis.spatial(1024, i_0 * 128 + i_1 * 4 + i_2)
-                            B[v_i] = T.Select(A[v_i] >= zero, A[v_i] + one, zero)
+                        B[i_0 * 128 + i_1 * 4 + i_2] = T.Select(
+                            A[i_0 * 128 + i_1 * 4 + i_2] >= zero,
+                            A[i_0 * 128 + i_1 * 4 + i_2] + one,
+                            zero,
+                        )
 
     # Build
     f = tvm.tirx.build(Module, target=target)
@@ -132,15 +134,13 @@ def test_array_vectorize_add(dtype):
     vec_dtype = f"{dtype}x{lanes}"
     one = tvm.tirx.const(1, vec_dtype)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer((64,), vec_dtype), B: T.Buffer((64,), vec_dtype)):
             for i_0 in T.thread_binding(16, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(4, thread="threadIdx.x"):
-                    with T.sblock("B"):
-                        v_i = T.axis.spatial(64, i_0 * 4 + i_1)
-                        B[v_i] = A[v_i] + one
+                    B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + one
 
     f = tvm.compile(Module, target=target)
 
@@ -166,15 +166,13 @@ def test_vulkan_bool_load():
     target = tvm.target.Target(target)
     arr_size = 1024
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer((1024,), "bool"), B: T.Buffer((1024,), "int32")):
             for i_0 in T.thread_binding(8, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(128, thread="threadIdx.x"):
-                    with T.sblock("B"):
-                        v_i = T.axis.spatial(1024, i_0 * 128 + i_1)
-                        B[v_i] = T.Cast("int32", A[v_i])
+                    B[i_0 * 128 + i_1] = T.Cast("int32", A[i_0 * 128 + i_1])
 
     f = tvm.compile(Module, target=target)
 
@@ -247,12 +245,10 @@ def test_vulkan_constant_passing(vulkan_parameter_impl, vulkan_parameter_dtype):
                     tvm.tirx.ceildiv(n_var, 64), thread="blockIdx.x"
                 ) as i_0:
                     with T_builder.thread_binding(64, thread="threadIdx.x") as i_1:
-                        with T_builder.sblock("B"):
-                            v_i = T_builder.axis.spatial(n_var, i_0 * 64 + i_1)
-                            T_builder.where(i_0 * 64 + i_1 < n_var)
-                            T_builder.reads(A[v_i])
-                            T_builder.writes(B[v_i])
-                            T_builder.buffer_store(B, scalar_sum + A[v_i], [v_i])
+                        v_i = i_0 * 64 + i_1
+                        with T_builder.If(v_i < n_var):
+                            with T_builder.Then():
+                                T_builder.buffer_store(B, scalar_sum + A[v_i], [v_i])
     mod = ib.get()
     f_add = tvm.compile(mod, target=target)
 
@@ -280,7 +276,7 @@ def test_vulkan_while_if():
     n = 1
     dtype = "int32"
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def while_if_gpu(A: T.Buffer((1,), "int32"), B: T.Buffer((1,), "int32")):
         for bx in T.thread_binding(1, thread="blockIdx.x"):
             iterations = T.decl_buffer((1,), "int32", scope="local")
@@ -314,7 +310,7 @@ def test_vulkan_local_threadidx():
     target = tvm.target.Target(target)
     n = 32
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def local_threadidx_func(A: T.Buffer((32,), "int32"), B: T.Buffer((32,), "int32")):
         # First block with thread extent 16
         for _ in range(1):
@@ -352,18 +348,15 @@ def test_vectorized_index_ramp():
     n = 4
     ramp_index = tvm.tirx.Ramp(0, 1, 4)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
             A = T.match_buffer(var_A, (n,), "int32", offset_factor=1)
             B = T.match_buffer(var_B, (n,), "int32", offset_factor=1)
-            with T.sblock("compute"):
-                T.reads()
-                T.writes()
-                bx = T.launch_thread("blockIdx.x", 1)
-                B[ramp_index] = A[ramp_index]
+            bx = T.launch_thread("blockIdx.x", 1)
+            B[ramp_index] = A[ramp_index]
 
     f = tvm.compile(Module, target=target)
 
@@ -392,19 +385,15 @@ def test_vectorized_index_broadcast():
     broadcast_index = tvm.tirx.Broadcast(0, 4)
     ramp_index = tvm.tirx.Ramp(0, 1, 4)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
             A = T.match_buffer(var_A, (n,), "int32", offset_factor=1)
             B = T.match_buffer(var_B, (n,), "int32", offset_factor=1)
-            with T.sblock("compute"):
-                T.reads()
-                T.writes()
-                bx = T.launch_thread("blockIdx.x", 1)
-                # Load from broadcast index (single element), store to ramp index
-                B[ramp_index] = A[broadcast_index]
+            bx = T.launch_thread("blockIdx.x", 1)
+            B[ramp_index] = A[broadcast_index]
 
     f = tvm.compile(Module, target=target)
 
@@ -446,13 +435,11 @@ def test_negative_operand_divmod():
     offset = 16
     divisor = 5
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def func(A: T.Buffer((N, 2), "int32")):
         for i in T.thread_binding(N, thread="threadIdx.x"):
-            with T.sblock("A"):
-                v_i = T.axis.spatial(N, i)
-                A[v_i, 0] = T.floordiv(v_i - offset, divisor)
-                A[v_i, 1] = T.floormod(v_i - offset, divisor)
+            A[i, 0] = T.floordiv(i - offset, divisor)
+            A[i, 1] = T.floormod(i - offset, divisor)
 
     built = tvm.compile(func, target=target)
 
@@ -472,81 +459,35 @@ def test_cooperative_matrix(out_dtype):
     M, N, K = 16, 16, 32
 
     # fmt: off
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(X: T.Buffer((16, 32), "float16"), W: T.Buffer((32, 16), "float16"), compute: T.Buffer((16, 16), out_dtype)):
             T.func_attr({"tirx.noalias": True})
-            X_shared = T.sblock_alloc_buffer((16, 32), "float16", scope="shared")
-            W_shared = T.sblock_alloc_buffer((32, 16), "float16", scope="shared")
-            X_shared_wmma_matrix_a = T.sblock_alloc_buffer((16, 32), "float16", scope="wmma.matrix_a")
-            W_shared_wmma_matrix_b = T.sblock_alloc_buffer((32, 16), "float16", scope="wmma.matrix_b")
-            compute_wmma_accumulator = T.sblock_alloc_buffer((16, 16), out_dtype, scope="wmma.accumulator")
+            X_shared = T.alloc_buffer((16, 32), "float16", scope="shared")
+            W_shared = T.alloc_buffer((32, 16), "float16", scope="shared")
+            X_shared_wmma_matrix_a = T.alloc_buffer((16, 32), "float16", scope="wmma.matrix_a")
+            W_shared_wmma_matrix_b = T.alloc_buffer((32, 16), "float16", scope="wmma.matrix_b")
+            compute_wmma_accumulator = T.alloc_buffer((16, 16), out_dtype, scope="wmma.accumulator")
             for i_0_j_0_fused in T.thread_binding(1, thread="blockIdx.x"):
-                with T.sblock("compute_init_o"):
-                    v_i_o = T.axis.spatial(1, 0)
-                    v_j_o = T.axis.spatial(1, 0)
-                    T.reads()
-                    T.writes(compute_wmma_accumulator[0:16, 0:16])
-                    C = T.match_buffer(compute_wmma_accumulator[0:16, 0:16], (16, 16), out_dtype, strides=("C_0_s0", "C_0_s1"), scope="wmma.accumulator", offset_factor=16)
-                    T.tvm_fill_fragment(C.data, 16, 16, 16, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16, T.float32(0.0))
+                T.tvm_fill_fragment(compute_wmma_accumulator.data, 16, 16, 16, 0, T.float32(0.0))
                 for k_0 in range(2):
-                    for ax0_ax1_fused_0 in range(2):
-                        for ax0_ax1_fused_1 in T.thread_binding(32, thread="threadIdx.x"):
-                            for ax0_ax1_fused_2 in T.vectorized(4):
-                                with T.sblock("X_shared"):
-                                    v0 = T.axis.spatial(16, (ax0_ax1_fused_0 * 128 + ax0_ax1_fused_1 * 4 + ax0_ax1_fused_2) // 16)
-                                    v1 = T.axis.spatial(32, k_0 * 16 + (ax0_ax1_fused_0 * 128 + ax0_ax1_fused_1 * 4 + ax0_ax1_fused_2) % 16)
-                                    T.reads(X[v0, v1])
-                                    T.writes(X_shared[v0, v1])
-                                    X_shared[v0, v1] = X[v0, v1]
-                    for ax0_ax1_fused_0 in range(2):
-                        for ax0_ax1_fused_1 in T.thread_binding(32, thread="threadIdx.x"):
-                            for ax0_ax1_fused_2 in T.vectorized(4):
-                                with T.sblock("W_shared"):
-                                    v0 = T.axis.spatial(32, k_0 * 16 + (ax0_ax1_fused_0 * 128 + ax0_ax1_fused_1 * 4 + ax0_ax1_fused_2) // 16)
-                                    v1 = T.axis.spatial(16, (ax0_ax1_fused_0 * 128 + ax0_ax1_fused_1 * 4 + ax0_ax1_fused_2) % 16)
-                                    T.reads(W[v0, v1])
-                                    T.writes(W_shared[v0, v1])
-                                    W_shared[v0, v1] = W[v0, v1]
-                    for ax0_0 in T.unroll(1):
-                        for ax1_0 in T.unroll(1):
-                            with T.sblock("X_shared_wmma.matrix_a_o"):
-                                v0_o = T.axis.spatial(1, ax0_0)
-                                v1_o = T.axis.spatial(2, k_0 + ax1_0)
-                                T.reads(X_shared[0:16, v1_o * 16:v1_o * 16 + 16])
-                                T.writes(X_shared_wmma_matrix_a[0:16, v1_o * 16:v1_o * 16 + 16])
-                                A = T.match_buffer(X_shared[0:16, v1_o * 16:v1_o * 16 + 16], (16, 16), "float16", strides=("A_0_s0", "A_0_s1"), scope="shared", offset_factor=16)
-                                C = T.match_buffer(X_shared_wmma_matrix_a[0:16, v1_o * 16:v1_o * 16 + 16], (16, 16), "float16", strides=("C_1_s0", "C_1_s1"), scope="wmma.matrix_a", offset_factor=16)
-                                T.tvm_load_matrix_sync(C.data, 16, 16, 16, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16, T.tvm_access_ptr(T.type_annotation("float16"), A.data, A.elem_offset, A.strides[0] * 16, 1), A.strides[0], "row_major")
-                    for ax0_0 in T.unroll(1):
-                        for ax1_0 in T.unroll(1):
-                            with T.sblock("W_shared_wmma.matrix_b_o"):
-                                v0_o = T.axis.spatial(2, k_0 + ax0_0)
-                                v1_o = T.axis.spatial(1, ax1_0)
-                                T.reads(W_shared[v0_o * 16:v0_o * 16 + 16, 0:16])
-                                T.writes(W_shared_wmma_matrix_b[v0_o * 16:v0_o * 16 + 16, 0:16])
-                                A = T.match_buffer(W_shared[v0_o * 16:v0_o * 16 + 16, 0:16], (16, 16), "float16", strides=("A_1_s0", "A_1_s1"), scope="shared", offset_factor=16)
-                                C = T.match_buffer(W_shared_wmma_matrix_b[v0_o * 16:v0_o * 16 + 16, 0:16], (16, 16), "float16", strides=("C_2_s0", "C_2_s1"), scope="wmma.matrix_b", offset_factor=16)
-                                T.tvm_load_matrix_sync(C.data, 16, 16, 16, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16, T.tvm_access_ptr(T.type_annotation("float16"), A.data, A.elem_offset, A.strides[0] * 16, 1), A.strides[0], "row_major")
-                    with T.sblock("compute_update_o"):
-                        v_i_o = T.axis.spatial(1, 0)
-                        v_j_o = T.axis.spatial(1, 0)
-                        v_k_o = T.axis.reduce(2, k_0)
-                        T.reads(compute_wmma_accumulator[0:16, 0:16], X_shared_wmma_matrix_a[0:16, v_k_o * 16:v_k_o * 16 + 16], W_shared_wmma_matrix_b[v_k_o * 16:v_k_o * 16 + 16, 0:16])
-                        T.writes(compute_wmma_accumulator[0:16, 0:16])
-                        A = T.match_buffer(X_shared_wmma_matrix_a[0:16, v_k_o * 16:v_k_o * 16 + 16], (16, 16), "float16", strides=("A_2_s0", "A_2_s1"), scope="wmma.matrix_a", offset_factor=16)
-                        B = T.match_buffer(W_shared_wmma_matrix_b[v_k_o * 16:v_k_o * 16 + 16, 0:16], (16, 16), "float16", strides=("B_0_s0", "B_0_s1"), scope="wmma.matrix_b", offset_factor=16)
-                        C = T.match_buffer(compute_wmma_accumulator[0:16, 0:16], (16, 16), out_dtype, strides=("C_3_s0", "C_3_s1"), scope="wmma.accumulator", offset_factor=16)
-                        T.tvm_mma_sync(C.data, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16, A.data, A.elem_offset // A.strides[0] // 16 * (A.strides[0] // 16) + A.elem_offset % A.strides[0] // 16, B.data, B.elem_offset // B.strides[0] // 16 * (B.strides[0] // 16) + B.elem_offset % B.strides[0] // 16, C.data, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16)
-                with T.sblock("compute_wmma.accumulator_o"):
-                    v0_o = T.axis.spatial(1, 0)
-                    v1_o = T.axis.spatial(1, 0)
-                    T.reads(compute_wmma_accumulator[0:16, 0:16])
-                    T.writes(compute[0:16, 0:16])
-                    A = T.match_buffer(compute_wmma_accumulator[0:16, 0:16], (16, 16), out_dtype, strides=("A_3_s0", "A_3_s1"), scope="wmma.accumulator", offset_factor=16)
-                    C = T.match_buffer(compute[0:16, 0:16], (16, 16), out_dtype, strides=("C_4_s0", "C_4_s1"), offset_factor=16)
-                    T.tvm_store_matrix_sync(A.data, 16, 16, 16, A.elem_offset // A.strides[0] // 16 * (A.strides[0] // 16) + A.elem_offset % A.strides[0] // 16, T.tvm_access_ptr(T.type_annotation(out_dtype), C.data, C.elem_offset, C.strides[0] * 16, 2), C.strides[0], "row_major")
+                    for fused_outer in range(2):
+                        for tx in T.thread_binding(32, thread="threadIdx.x"):
+                            for lane in T.vectorized(4):
+                                index = fused_outer * 128 + tx * 4 + lane
+                                X_shared[index // 16, k_0 * 16 + index % 16] = X[index // 16, k_0 * 16 + index % 16]
+                                W_shared[k_0 * 16 + index // 16, index % 16] = W[k_0 * 16 + index // 16, index % 16]
+                    T.tvm_storage_sync("shared")
+                    T.tvm_load_matrix_sync(X_shared_wmma_matrix_a.data, 16, 16, 16, k_0,
+                        T.tvm_access_ptr(T.type_annotation("float16"), X_shared.data, k_0 * 16, 512, 1), 32, "row_major")
+                    T.tvm_load_matrix_sync(W_shared_wmma_matrix_b.data, 16, 16, 16, k_0,
+                        T.tvm_access_ptr(T.type_annotation("float16"), W_shared.data, k_0 * 256, 256, 1), 16, "row_major")
+                    T.tvm_mma_sync(compute_wmma_accumulator.data, 0,
+                        X_shared_wmma_matrix_a.data, k_0, W_shared_wmma_matrix_b.data, k_0,
+                        compute_wmma_accumulator.data, 0)
+                T.tvm_store_matrix_sync(compute_wmma_accumulator.data, 16, 16, 16, 0,
+                    T.tvm_access_ptr(T.type_annotation(out_dtype), compute.data, 0, 256, 2), 16, "row_major")
     # fmt: on
 
     target = {"kind": "vulkan", "from_device": 0}
@@ -574,9 +515,9 @@ def test_cooperative_matrix(out_dtype):
 def test_codegen_decl_buffer():
     """DeclBuffer aliases should retain their backing storage metadata."""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class AllocationBacked:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def kernel():
             T.func_attr({"calling_conv": 2, "global_symbol": "kernel", "tirx.noalias": True})
             A = T.alloc_buffer((256,), dtype="float32", scope="local")
@@ -588,9 +529,9 @@ def test_codegen_decl_buffer():
     vulkan_codegen = tvm.get_global_func("target.build.vulkan")
     vulkan_codegen(AllocationBacked, target)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class ParameterBacked:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer((1,), "float32"), B: T.Buffer((1,), "float32")):
             A_buf = T.decl_buffer([1], dtype="float32", data=A.data)
             B_buf = T.decl_buffer([1], dtype="float32", data=B.data)
@@ -605,9 +546,9 @@ def test_codegen_decl_buffer():
 def test_codegen_static_shared_memory():
     """The codegen should accept static shared/workgroup allocations."""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
             A_shared = T.alloc_buffer((128,), dtype="float32", scope="shared")
 
@@ -640,21 +581,17 @@ def test_unary():
     def run_test(tvm_intrin, np_func):
         n = 16
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
+            @T.prim_func
             def main(var_A: T.handle, var_B: T.handle):
                 m = T.int32()
                 A = T.match_buffer(var_A, (m,), "float32")
                 B = T.match_buffer(var_B, (m,), "float32")
                 for i_0 in T.thread_binding((m + 63) // 64, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(64, thread="threadIdx.x"):
-                        with T.sblock("B"):
-                            v_i = T.axis.spatial(m, i_0 * 64 + i_1)
-                            T.where(i_0 * 64 + i_1 < m)
-                            T.reads(A[v_i])
-                            T.writes(B[v_i])
-                            B[v_i] = tvm_intrin(A[v_i])
+                        if i_0 * 64 + i_1 < m:
+                            B[i_0 * 64 + i_1] = tvm_intrin(A[i_0 * 64 + i_1])
 
         target = tvm.target.Target("vulkan")
         func = tvm.compile(Module, target=target)
@@ -687,18 +624,14 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
     """Force the codegen wrapper into the fallback branch, then export."""
     n = 1024
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
-                    with T.sblock("B"):
-                        v_i = T.axis.spatial(n, i_0 * 32 + i_1)
-                        T.reads(A[v_i])
-                        T.writes(B[v_i])
-                        B[v_i] = A[v_i] + 1.0
+                    B[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + 1.0
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
     host_lib = tvm.compile(Module, target="vulkan")

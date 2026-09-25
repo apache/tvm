@@ -26,6 +26,7 @@ from tvm import relax
 from tvm.relax.frontend import nn
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -63,18 +64,18 @@ def test_tir_triton_integration():
 
     BLOCK_SIZE = 64
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle) -> None:
             T.func_attr({"global_symbol": "add"})
             m = T.int64()
             x = T.match_buffer(x_handle, (m,), "float32")
             y = T.match_buffer(y_handle, (m,), "float32")
             output = T.match_buffer(output_handle, (m,), "float32")
-            with T.sblock("root"):
-                T.reads(x[0:m], y[0:m])
-                T.writes(output[0:m])
+            with Ts.sblock("root"):
+                Ts.reads(x[0:m], y[0:m])
+                Ts.writes(output[0:m])
                 T.call_kernel(
                     add_kernel,
                     (T.ceildiv(m, BLOCK_SIZE),),
@@ -101,17 +102,17 @@ def test_tir_triton_integration():
         scratch_args.append(tvm.tirx.reinterpret("handle", tvm.tirx.IntImm("uint64", 0)))
 
     # The thread extent is 256 because the kernel is compiled with num_warps=8.
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Parsed:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle):
             m = T.int64()
             x = T.match_buffer(x_handle, (m,))
             y = T.match_buffer(y_handle, (m,))
             output = T.match_buffer(output_handle, (m,))
-            with T.sblock("root"):
-                T.reads(x[0:m], y[0:m])
-                T.writes(output[0:m])
+            with Ts.sblock("root"):
+                Ts.reads(x[0:m], y[0:m])
+                Ts.writes(output[0:m])
                 T.call_packed(
                     "add_kernel",
                     x.data,

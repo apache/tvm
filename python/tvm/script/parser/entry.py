@@ -247,11 +247,6 @@ def make_decorator(
         check_well_formed : bool, optional
             Whether to check that the constructed function is well formed.
             Defaults to True.
-        s_tir : bool, optional
-            For ``T.prim_func``, select scheduled-TIR construction semantics:
-            buffers have no default layout and the body is wrapped in a root
-            block. Defaults to False, selecting TIRx construction. See
-            :func:`tvm.tirx.script.ir_builder.prim_func`.
         persistent : bool, optional
             For ``T.prim_func``, mark the resulting function as a persistent
             kernel. Defaults to False. See
@@ -377,14 +372,13 @@ def make_macro_decorator(
 
             import tvm
             from tvm.script import tirx as T
-
             x_value = 128
 
             @T.inline
             def capture(A, B):
                 B[()] = A[x_value]  # x_value resolved from enclosing scope
 
-            @T.prim_func(s_tir=True)
+            @T.prim_func
             def use(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
                 capture(A, B)       # Produces B[()] = A[128]
         """

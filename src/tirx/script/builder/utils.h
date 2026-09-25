@@ -91,27 +91,6 @@ inline PrimFuncFrame FindPrimFuncFrame(const ffi::String& method) {
 }
 
 /*!
- * \brief Check whether the top frame in IRBuilder frame stack is SBlockFrame.
- * \param method The method name to be printed when throwing exception.
- * \return The top frame of SBlockFrame.
- */
-inline SBlockFrame FindSBlockFrame(const ffi::String& method) {
-  if (ffi::Optional<SBlockFrame> frame = IRBuilder::Current()->GetLastFrame<SBlockFrame>()) {
-    return frame.value();
-  } else if (ffi::Optional<SBlockFrame> frame = IRBuilder::Current()->FindFrame<SBlockFrame>()) {
-    TVM_FFI_THROW(ValueError)
-        << method << " must be called at the top of a T.sblock().  "
-        << "While " << method << " did occur within the block \"" << frame.value()->name
-        << "\", other frames (e.g. if/else/let) had been introduced since the T.sblock(\""
-        << frame.value()->name << "\") frame";
-  } else {
-    TVM_FFI_THROW(ValueError) << method << " must be called at the top of a T.sblock(), "
-                              << "but " << method << " occurred outside of any T.sblock() frame";
-  }
-  throw;
-}
-
-/*!
  * \brief Check whether the top frame in IRBuilder frame stack is IfFrame.
  * \param method The method name to be printed when throwing exception.
  * \return The top frame of IfFrame.

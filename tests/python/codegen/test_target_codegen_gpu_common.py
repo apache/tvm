@@ -48,20 +48,16 @@ def test_int_intrin(target, dtype):
     for tvm_intrin, np_func in test_funcs:
         n = 128
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
+            @T.prim_func
             def main(
                 A: T.Buffer((n,), dtype),
                 B: T.Buffer((n,), dtype),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i0 in T.thread_binding(n, thread="threadIdx.x"):
-                    with T.sblock("B"):
-                        v_i0 = T.axis.spatial(n, i0)
-                        T.reads(A[v_i0])
-                        T.writes(B[v_i0])
-                        B[v_i0] = tvm_intrin(A[v_i0])
+                    B[i0] = tvm_intrin(A[i0])
 
         f = tvm.compile(Module, target=target)
 

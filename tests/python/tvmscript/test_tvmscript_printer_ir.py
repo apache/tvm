@@ -19,6 +19,7 @@
 import pytest
 
 from tvm import IRModule
+from tvm.s_tir.script.ir_builder import prim_func as build_prim_func
 from tvm.script import ir_builder as I
 from tvm.script.ir_builder import IRBuilder
 from tvm.tirx.script import ir_builder as T
@@ -34,7 +35,7 @@ def _assert_print(obj, expected):
 def test_ir_module():
     with IRBuilder() as ib:  # pylint: disable=invalid-name
         with I.ir_module():
-            with T.prim_func(s_tir=True):
+            with build_prim_func():
                 T.func_name("foo")
     mod = ib.get()
     _assert_print(
@@ -43,10 +44,11 @@ def test_ir_module():
 # from tvm.script import ir as I
 # from tvm.script import tirx as T
 # from tvm.tirx.layout import Axis
+# from tvm.script import s_tir as Ts
 
 @I.ir_module
 class Module:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def foo():
         T.evaluate(0)""",
     )

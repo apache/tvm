@@ -49,7 +49,7 @@ def test_create_scalable_tir_intrin():
 
 @pytest.mark.skipif(llvm_version_major() < 13, reason="Stepvector intrinsic was added in LLVM 13.")
 def test_tvm_script_create_scalable_tir_intrin():
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def my_func():
         T.call_llvm_intrin("int32xvscalex4", _STEPVECTOR_NAME)
 
