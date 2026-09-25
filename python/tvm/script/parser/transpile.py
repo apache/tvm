@@ -59,7 +59,7 @@ _Node = TypeVar("_Node", bound=ast.AST)
 _Value = TypeVar("_Value")
 
 
-def require_constexpr_arg(value: _Value, name: str) -> _Value:
+def _require_constexpr_arg(value: _Value, name: str) -> _Value:
     """Return the constexpr argument value, or raise if it is missing.
 
     Parameters
@@ -85,6 +85,48 @@ def require_constexpr_arg(value: _Value, name: str) -> _Value:
     if value is MISSING:
         raise TypeError(f"constexpr parameter {name!r} requires a specialization binding")
     return value
+
+
+def _unwrap_optional_annotation(
+    annotation: Any, const_args: Mapping[str, Any] | None = None
+) -> Any:
+    """Read an optional runtime annotation only within a JIT specialization.
+
+    Parameters
+    ----------
+    annotation : Any
+        Evaluated runtime annotation. An object implementing the callable
+        ``__tvm_optional_annotation__`` adapter supplies its contained annotation;
+        all other objects pass through unchanged.
+    const_args : Mapping[str, Any] or None, optional
+        Parameter names mapped to fixed values for the active root. None, the
+        default, means ordinary parsing and forbids optional annotation adapters. Any
+        mapping, including an empty mapping, enables the adapter. Its contents
+        are not inspected here.
+
+    Returns
+    -------
+    Any
+        The adapter's result, or the identical input object when no adapter exists.
+
+    Raises
+    ------
+    TypeError
+        If an optional annotation adapter is used without specialization.
+
+    Notes
+    -----
+    Generated specialization calls this after checking selected values and
+    absences, so omitted parameters never evaluate their annotation. Ordinary
+    argument construction delegates annotation validation to the language variant.
+    Adapter lookup and execution exceptions propagate unchanged.
+    """
+    unwrap = getattr(annotation, "__tvm_optional_annotation__", None)
+    if unwrap is not None:
+        if const_args is None:
+            raise TypeError("T.Optional is only supported by @T.jit")
+        return unwrap()
+    return annotation
 
 
 class GeneratedBuilder(NamedTuple):
@@ -1838,7 +1880,6 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         const_args: str | None,
     ) -> tuple[list[ast.stmt], dict[str, str]]:
         """Declare signature parameters, making constexpr values available first."""
-        from . import jit_support
 
         declaration: list[ast.stmt] = []
         constexpr_aliases: dict[str, str] = {}
@@ -1869,7 +1910,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 alias = self.module.make_fresh_name("_parameter")
                 constexpr_aliases[name] = alias
                 fallback = ast.Call(
-                    self._inject(require_constexpr_arg),
+                    self._inject(_require_constexpr_arg),
                     [
                         self._call(
                             captures,
@@ -1894,7 +1935,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     # Optional annotations are unwrapped only for specialization;
                     # ordinary annotation validation belongs to the language variant arg.
                     translated = ast.Call(
-                        self._inject(jit_support.unwrap_annotation),
+                        self._inject(_unwrap_optional_annotation),
                         [translated, ast.Name(const_args, ast.Load())],
                         [],
                     )

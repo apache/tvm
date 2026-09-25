@@ -30,12 +30,7 @@ These helpers carry ``const_args``, the selected fixed argument map, into genera
 execution. Parameter validation and caching remain with the JIT entry point.
 
 .. automodule:: tvm.script.parser.jit_support
-   :members: use_specialization, read_specialization_bindings, unwrap_annotation
-
-tvm.script.parser.transpile
-**************************
-
-.. autofunction:: tvm.script.parser.transpile.require_constexpr_arg
+   :members: use_specialization, read_specialization_bindings
 
 tvm.script.parser.protocol_registry
 ***********************************
