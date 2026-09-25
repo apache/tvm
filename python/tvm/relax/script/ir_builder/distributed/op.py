@@ -39,7 +39,7 @@ def call_tir(
 ) -> Call:
     """Distributed version of call_tir
 
-    Parameters:
+    Parameters
     ----------
     func : Union[str, Expr]
         The destination-passing-style function, can be ExternFunc or PrimFunc.
