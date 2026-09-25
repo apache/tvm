@@ -24,7 +24,7 @@ from typing import Any
 from tvm.backend.cuda import op as _cuda_op
 from tvm.tirx import is_buffer_var
 from tvm.tirx import op as _tir_op
-from tvm.tirx.script.ir_builder.ir import _dtype_forward, _op_wrapper
+from tvm.tirx.script.ir_builder.op import _dtype_forward, _op_wrapper
 
 # pylint: disable=protected-access
 

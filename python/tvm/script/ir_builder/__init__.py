@@ -16,9 +16,6 @@
 # under the License.
 """Shared TVMScript construction APIs and lazy language variant builders."""
 
-import importlib as _importlib
-from typing import Any as _Any
-
 from tvm.ir import GenericConst, Range, StringImm, StringType
 from tvm.script.parser.protocol_registry import constexpr
 
@@ -31,11 +28,9 @@ from .base import (
     with_at_group_,
 )
 from .frame import IRModuleFrame
+from .ir import _get_dialect_builder as __getattr__
 from .ir import (
-    decl_function,
-    def_function,
     dynamic,
-    ir_module,
     lookup_name,
     meta_var,
     module_attrs,
@@ -43,7 +38,13 @@ from .ir import (
     module_global_infos,
     module_set_attr,
 )
-from .parser_protocol import check_well_formed_, module_member_
+from .parser_protocol import (
+    check_well_formed_,
+    decl_function,
+    def_function,
+    ir_module,
+    module_member_,
+)
 
 # Keep source namespaces independent of imported helper modules and lazy builders.
 __all__ = [
@@ -72,14 +73,3 @@ __all__ = [
     "resolve_global_info_args",
     "with_at_group_",
 ]
-
-
-def __getattr__(name: str) -> _Any:
-    # The finder resolves each registered dialect's canonical builder package.
-    from tvm.script import _DIALECT_REGISTRY  # pylint: disable=import-outside-toplevel
-
-    if name in _DIALECT_REGISTRY:
-        module = _importlib.import_module(f"{__name__}.{name}")
-        globals()[name] = module
-        return module
-    raise AttributeError(f"module 'tvm.script.ir_builder' has no attribute {name!r}")

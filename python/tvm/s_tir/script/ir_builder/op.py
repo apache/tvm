@@ -15,25 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name
-"""Public distributed Relax construction and operator exports."""
+"""S-TIR uses the common TIRx expression operators."""
 
-from ..ir import DTensor, device_mesh
-from .ir import const
-from .op import (
-    annotate_sharding,
-    call_tir,
-    call_tir_local_view,
-    redistribute,
-    redistribute_replica_to_shard,
-)
-
-__all__ = [
-    "DTensor",
-    "annotate_sharding",
-    "call_tir",
-    "call_tir_local_view",
-    "const",
-    "device_mesh",
-    "redistribute",
-    "redistribute_replica_to_shard",
-]
+from tvm.tirx.script.ir_builder.op import *  # noqa: F403
+from tvm.tirx.script.ir_builder.op import __all__ as __all__

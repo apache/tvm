@@ -15,78 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name, unused-import
-# ruff: noqa: F401
 
 """IRBuilder for distributed Relax dialect"""
 
 from numbers import Number
-from typing import Optional, Union
 
 import numpy as _np  # type: ignore
 
 import tvm
-from tvm import base as _base
-from tvm.ir import Call, GenericConst
-from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
-from tvm.relax.expr import Expr, ExternFunc
-from tvm.relax.expr import Tuple as RxTuple
-from tvm.relax.op.distributed import (
-    annotate_sharding as _annotate_sharding,
-)
-from tvm.relax.op.distributed import (
-    call_tir_local_view,
-    redistribute_replica_to_shard,
-)
-from tvm.relax.op.distributed import (
-    redistribute as _redistribute,
-)
-from tvm.relax.script.ir_builder.ir import py_str
-from tvm.relax.utils import convert_to_expr
+from tvm.ir import GenericConst
+from tvm.relax.distributed import DeviceMesh, DTensorType
 from tvm.runtime import _tensor
-from tvm.script.ir_builder import IRBuilder, IRModuleFrame
+from tvm.script.ir_builder.base import IRBuilder
+from tvm.script.ir_builder.frame import IRModuleFrame
 from tvm.script.ir_builder.ir import lookup_global_info
-
-from . import _ffi_api
-
-
-def call_tir(
-    func: str | Expr,
-    args: Expr,
-    out_ty: DTensorType | list[DTensorType],
-) -> Call:
-    """Distributed version of call_tir
-
-    Parameters:
-    ----------
-    func : Union[str, Expr]
-        The destination-passing-style function, can be ExternFunc or PrimFunc.
-
-    args : Expr
-        The ordered distributed-tensor and primitive input arguments.  These
-        correspond positionally to the leading parameters of the PrimFunc.
-
-    out_ty : Union[DTensorType, List[DTensorType]]
-        The type information of the call_tir output.
-        It should be a single or a list of DTensorType. Each one denotes the
-        type information of a returned distributed tensor.
-
-    Returns
-    -------
-    ret: Call
-        A call node for the call_tir operator.
-    """
-    if isinstance(func, str):
-        func = ExternFunc(func)
-
-    if isinstance(args, tuple | list):
-        args = RxTuple([convert_to_expr(a) for a in args])
-    elif isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
-        args = RxTuple((args,))
-
-    if not isinstance(out_ty, list):
-        out_ty = [out_ty]
-
-    return _ffi_api.call_tir_dist(func, args, out_ty)  # type: ignore
 
 
 def const(
@@ -132,7 +74,7 @@ def const(
     return GenericConst(value, ty)
 
 
-def _lookup_device_mesh(device_mesh_str: py_str) -> DeviceMesh:
+def _lookup_device_mesh(device_mesh_str: str) -> DeviceMesh:
     name, index_str = device_mesh_str.split("[")
     index = int(index_str[:-1])
     if not IRBuilder.is_in_scope():
@@ -149,21 +91,4 @@ def _lookup_device_mesh(device_mesh_str: py_str) -> DeviceMesh:
     return device_mesh
 
 
-def annotate_sharding(
-    value: Expr, device_mesh: py_str | DeviceMesh, placement: py_str | Placement
-) -> Expr:
-    if isinstance(device_mesh, py_str):
-        device_mesh = _lookup_device_mesh(device_mesh)
-    if isinstance(placement, py_str):
-        placement = Placement.from_text(placement)
-    return _annotate_sharding(value, device_mesh, placement)
-
-
-def redistribute(
-    value: Expr, device_mesh: py_str | DeviceMesh, placement: py_str | Placement
-) -> Expr:
-    if isinstance(device_mesh, py_str):
-        device_mesh = _lookup_device_mesh(device_mesh)
-    if isinstance(placement, py_str):
-        placement = Placement.from_text(placement)
-    return _redistribute(value, device_mesh, placement)
+__all__ = ["const"]

@@ -23,7 +23,6 @@ from tvm import te, tirx, topi
 from tvm.ir import Call
 from tvm.script.ir_builder import IRBuilder
 from tvm.tirx.script import ir_builder as T
-from tvm.tirx.script.ir_builder.utils import buffer_proxy
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr
@@ -166,10 +165,10 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
     def te_take_backward(output_grad, x, indices):
         def gen_ir(output_grad_ptr, x_ptr, indices_ptr, out_ptr):
             # pylint: disable=invalid-name
-            # Use buffer_proxy for flat indexing on multi-dimensional buffers
-            out = buffer_proxy(out_ptr)
-            grad = buffer_proxy(output_grad_ptr)
-            idx = buffer_proxy(indices_ptr)
+            # Keep the original buffers and translate logical flat indices at each access.
+            out = out_ptr
+            grad = output_grad_ptr
+            idx = indices_ptr
 
             fused_shape = 1
             for i in x_ptr.shape:
@@ -182,7 +181,9 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
                 with T.seq_scope():
                     # Init loop (zero-fill output buffer)
                     with T.serial(fused_shape) as i:
-                        out[i] = tirx.const(0, dtype=x_ptr.dtype)
+                        T.buffer_store(
+                            out, tirx.const(0, dtype=x_ptr.dtype), T.buffer_indices(out, i)
+                        )
 
                     # Accumulation loop
                     if axis is not None:
@@ -204,7 +205,8 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
                             with T.serial(indices_len) as loop_l:
                                 out_idx = (
                                     i * fused_output_grad_shape_nxt * x_axis_len
-                                    + idx[loop_l] * fused_output_grad_shape_nxt
+                                    + idx[T.buffer_indices(idx, loop_l)]
+                                    * fused_output_grad_shape_nxt
                                     + j
                                 )
                                 grad_idx = (
@@ -212,10 +214,20 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
                                     + loop_l * fused_output_grad_shape_nxt
                                     + j
                                 )
-                                out[out_idx] = out[out_idx] + grad[grad_idx]
+                                T.buffer_store(
+                                    out,
+                                    out[T.buffer_indices(out, out_idx)]
+                                    + grad[T.buffer_indices(grad, grad_idx)],
+                                    T.buffer_indices(out, out_idx),
+                                )
                     else:
                         with T.serial(indices_len) as loop_l:
-                            out[idx[loop_l]] = out[idx[loop_l]] + grad[loop_l]
+                            T.buffer_store(
+                                out,
+                                out[T.buffer_indices(out, (idx[T.buffer_indices(idx, loop_l)]))]
+                                + grad[T.buffer_indices(grad, loop_l)],
+                                T.buffer_indices(out, (idx[T.buffer_indices(idx, loop_l)])),
+                            )
 
                 return ib.get()
 

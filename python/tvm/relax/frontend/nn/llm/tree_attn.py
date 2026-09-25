@@ -674,7 +674,7 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
         length_info = _declare_length_info(var_length_info, batch_size, sliding_window, length_info_elem_offset)
 
 
-        T.Assert(
+        T.assert_(
             rotary_mode == T.int32(0), "Inline rotary mode is not supported in tree attention."
         )
 
@@ -885,7 +885,7 @@ def tree_attn_with_paged_kv_cache(
             var_length_info, batch_size, sliding_window, length_info_elem_offset
         )
 
-        T.Assert(
+        T.assert_(
             rotary_mode == T.int32(0), "Inline rotary mode is not supported in tree attention."
         )
 

@@ -96,10 +96,10 @@ def scatter_nd(data, indices, updates, mode):
 
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr):
         # pylint: disable=invalid-name
-        data = T.buffer_proxy(data_ptr)
-        indices = T.buffer_proxy(indices_ptr)
-        updates = T.buffer_proxy(updates_ptr)
-        out = T.buffer_proxy(out_ptr)
+        data = data_ptr
+        indices = indices_ptr
+        updates = updates_ptr
+        out = out_ptr
 
         # We combine all the indices dimensions but the first one into a single
         # dimension so we can iterate it in single loop instead of an arbitrary
@@ -119,7 +119,7 @@ def scatter_nd(data, indices, updates, mode):
         with IRBuilder() as ib:
             with T.seq_scope():
                 with T.serial(0, fused_shape) as i:
-                    out[i] = data[i]
+                    T.buffer_store(out, data[T.buffer_indices(data, i)], T.buffer_indices(out, i))
 
                 with T.serial(0, fused_indices_dimension) as i:
                     with T.parallel(0, fused_updates_dimension) as j:
@@ -129,21 +129,62 @@ def scatter_nd(data, indices, updates, mode):
                         # of the index into out.
                         for l in reversed(range(indices_ptr.shape[0].value)):
                             # indices[l, y_0, ... y_{k-1}]
-                            index += offset * indices[i + l * fused_indices_dimension]
+                            index += (
+                                offset
+                                * indices[
+                                    T.buffer_indices(indices, i + l * fused_indices_dimension)
+                                ]
+                            )
                             offset *= data_ptr.shape[l]
                         if mode == "update":
-                            out[index] = updates[i * fused_updates_dimension + j]
+                            T.buffer_store(
+                                out,
+                                updates[T.buffer_indices(updates, i * fused_updates_dimension + j)],
+                                T.buffer_indices(out, index),
+                            )
                         elif mode == "add":
-                            out[index] += updates[i * fused_updates_dimension + j]
+                            T.buffer_store(
+                                out,
+                                out[T.buffer_indices(out, index)]
+                                + (
+                                    updates[
+                                        T.buffer_indices(updates, i * fused_updates_dimension + j)
+                                    ]
+                                ),
+                                T.buffer_indices(out, index),
+                            )
                         elif mode == "mul":
-                            out[index] *= updates[i * fused_updates_dimension + j]
+                            T.buffer_store(
+                                out,
+                                out[T.buffer_indices(out, index)]
+                                * (
+                                    updates[
+                                        T.buffer_indices(updates, i * fused_updates_dimension + j)
+                                    ]
+                                ),
+                                T.buffer_indices(out, index),
+                            )
                         elif mode == "min":
-                            out[index] = tirx.min(
-                                out[index], updates[i * fused_updates_dimension + j]
+                            T.buffer_store(
+                                out,
+                                tirx.min(
+                                    out[T.buffer_indices(out, index)],
+                                    updates[
+                                        T.buffer_indices(updates, i * fused_updates_dimension + j)
+                                    ],
+                                ),
+                                T.buffer_indices(out, index),
                             )
                         elif mode == "max":
-                            out[index] = tirx.max(
-                                out[index], updates[i * fused_updates_dimension + j]
+                            T.buffer_store(
+                                out,
+                                tirx.max(
+                                    out[T.buffer_indices(out, index)],
+                                    updates[
+                                        T.buffer_indices(updates, i * fused_updates_dimension + j)
+                                    ],
+                                ),
+                                T.buffer_indices(out, index),
                             )
                         else:
                             raise NotImplementedError(

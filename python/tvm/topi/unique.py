@@ -41,14 +41,24 @@ def _calc_adjacent_diff_ir(data, output, binop=tirx.Sub):
         compute the adjacent difference.
     """
     with IRBuilder() as ib:
-        data_ptr = T.buffer_proxy(data)
-        output_ptr = T.buffer_proxy(output)
+        data_ptr = data
+        output_ptr = output
         with T.parallel(0, data.shape[0]) as i:
-            with T.If(i == 0):
-                with T.Then():
-                    output_ptr[0] = 0
-                with T.Else():
-                    output_ptr[i] = tirx.Cast(output.dtype, binop(data_ptr[i], data_ptr[i - 1]))
+            with T.if_(i == 0):
+                with T.then_():
+                    T.buffer_store(output_ptr, 0, T.buffer_indices(output_ptr, 0))
+                with T.else_():
+                    T.buffer_store(
+                        output_ptr,
+                        tirx.Cast(
+                            output.dtype,
+                            binop(
+                                data_ptr[T.buffer_indices(data_ptr, i)],
+                                data_ptr[T.buffer_indices(data_ptr, i - 1)],
+                            ),
+                        ),
+                        T.buffer_indices(output_ptr, i),
+                    )
         return ib.get()
 
 

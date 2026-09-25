@@ -29,7 +29,6 @@ from tvm.tirx.layout import Layout
 from tvm.tirx.script.ir_builder.ir import _get_layout, _record_meta_resource
 
 from . import _ffi_api
-from .frame import BlockInitFrame, SBlockFrame
 
 _block_name_suffix = threading.local()
 
@@ -58,42 +57,6 @@ def block_name_suffix_context(block_suffix: str):
         yield
     finally:
         _block_name_suffix.value = old_suffix
-
-
-def sblock(name: str = "", no_realize: bool = False, exec_scope: str = "") -> SBlockFrame:
-    """The sblock declaration statement.
-
-    Parameters
-    ----------
-    name : str
-        The name of the sblock.
-
-    no_realize : bool
-        The flag whether to construct SBlockRealize or SBlock.
-
-    exec_scope : str
-        The execution scope of the block.
-
-    Returns
-    -------
-    res : SBlockFrame
-        The SBlockFrame.
-    """
-    block_suffix = _get_sblock_name_suffix()
-    if block_suffix and name:
-        name = name + block_suffix
-    return _ffi_api.Block(name, no_realize, exec_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def init() -> BlockInitFrame:
-    """The block initialization statement.
-
-    Returns
-    -------
-    res : BlockInitFrame
-        The BlockInitFrame.
-    """
-    return _ffi_api.Init()  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def where(predicate: Expr | int) -> None:
@@ -403,3 +366,14 @@ class axis:  # pylint: disable=invalid-name
 
     S = spatial  # pylint: disable=invalid-name
     R = reduce  # pylint: disable=invalid-name
+
+
+__all__ = [
+    "axis",
+    "block_name_suffix_context",
+    "reads",
+    "sblock_alloc_buffer",
+    "sblock_attr",
+    "where",
+    "writes",
+]

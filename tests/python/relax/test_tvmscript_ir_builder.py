@@ -165,7 +165,7 @@ def test_dataflow_block():
 
 def test_regression_py_print():
     # Test that the py_print directs to python builtin print
-    from tvm.relax.script.ir_builder.ir import py_print  # pylint: disable=import-outside-toplevel
+    from tvm.relax.script.ir_builder.op import py_print  # pylint: disable=import-outside-toplevel
 
     assert py_print == print
 

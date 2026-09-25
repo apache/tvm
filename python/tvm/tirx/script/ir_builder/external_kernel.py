@@ -213,12 +213,12 @@ def call_kernel(
     kwargs : Dict[str, Any]
         Additional keyword arguments to pass to the kernel or compilation.
     """
-    from tvm.script.ir_builder import (  # pylint: disable=import-outside-toplevel
+    from tvm.script.ir_builder.ir import (  # pylint: disable=import-outside-toplevel
         module_get_attr,
         module_set_attr,
     )
 
-    from .ir import call_packed  # pylint: disable=import-outside-toplevel
+    from .op import call_packed  # pylint: disable=import-outside-toplevel
 
     kernel_type = f"{type(kernel).__module__}.{type(kernel).__qualname__}"
     if kernel_type == "triton.runtime.jit.JITFunction":
