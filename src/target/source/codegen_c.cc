@@ -667,6 +667,12 @@ void CodeGenC::Dispatch_(const prim::BitwiseXorNode* op, std::ostream& os) {  //
   PrintBinaryExpr(op, "^", os, this);
 }
 void CodeGenC::Dispatch_(const prim::BitwiseNotNode* op, std::ostream& os) {  // NOLINT(*)
+  if (op->a.ty().MatchesCode(DLDataTypeCode::kDLBool)) {
+    // C promotes ~bool to int. Comparing against false preserves the boolean
+    // complement and uses the target's elementwise path for vector operands.
+    PrintExpr(prim::EQ(op->a, prim::MakeConst(op->a.ty(), false)), os);
+    return;
+  }
   os << "(~";
   PrintExpr(op->a, os);
   os << ')';
