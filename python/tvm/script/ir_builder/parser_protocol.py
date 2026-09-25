@@ -874,7 +874,6 @@ def module_member_(name: str, value: Any) -> Any:
 # ``register_scalar_annotation(path, constructor, dtype=...)`` describes scalar annotations.
 # ``mutable_cell_decl(path)`` marks mutable storage declarations.
 # ``result_span(path)`` permits attaching a call's result span without a call context.
-# ``module_decorator(path)`` marks module declaration decorators.
 # ``declaration_kind(path, kind)`` marks function and helper declarations.
 # ``with X.function_(...) as fn:`` builds a function frame.
 # ``a = X.arg("a", ty)`` declares a parameter.
