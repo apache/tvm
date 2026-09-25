@@ -216,10 +216,7 @@ def test_tir_ptr_proxy():
 
 def test_tir_func_name():
     @Ts.prim_func
-    def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, [128, 128])
-        B = T.match_buffer(b, [128, 128])
-        C = T.match_buffer(c, [128, 128])
+    def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("update"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -231,11 +228,9 @@ def test_tir_func_name():
 
 def test_tir_func_private_attrs():
     @Ts.prim_func(private=True)
-    def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+    def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
         T.func_attr({"attr": "value"})
-        A = T.match_buffer(a, [128, 128])
-        B = T.match_buffer(b, [128, 128])
-        C = T.match_buffer(c, [128, 128])
+
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("update"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -248,11 +243,11 @@ def test_tir_func_private_manual_global_symbol_fail():
     with pytest.raises(tvm.error.InternalError):
 
         @Ts.prim_func(private=True)
-        def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+        def matmul(
+            A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+        ) -> None:
             T.func_attr({"global_symbol": "matmul"})
-            A = T.match_buffer(a, [128, 128])
-            B = T.match_buffer(b, [128, 128])
-            C = T.match_buffer(c, [128, 128])
+
             for i, j, k in T.grid(128, 128, 128):
                 with Ts.sblock("update"):
                     vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -303,19 +298,17 @@ def test_tir_macro_signature():
         kwargs["t3"][vi, vj] = kwargs["t3"][vi, vj] + t1[vi, vk] * kwargs["t2"][vj, vk]
 
     @Ts.prim_func(private=True)
-    def matmul_w_macro(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, [128, 128])
-        B = T.match_buffer(b, [128, 128])
-        C = T.match_buffer(c, [128, 128])
+    def matmul_w_macro(
+        A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+    ) -> None:
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("update"):
                 assign(i, j, k, t1=A, t2=B, t3=C)
 
     @Ts.prim_func(private=True)
-    def matmul_no_macro(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, [128, 128])
-        B = T.match_buffer(b, [128, 128])
-        C = T.match_buffer(c, [128, 128])
+    def matmul_no_macro(
+        A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+    ) -> None:
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("update"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -380,16 +373,14 @@ def test_tir_macro_in_class():
                     self.local_x[vi, vj] = x[vi, vj]
 
     @Ts.prim_func(private=True)
-    def func_w_macro(a: T.handle):
-        A = T.match_buffer(a, [128, 128])
+    def func_w_macro(A: T.Buffer([128, 128])):
         o1 = T.meta_var(Object(A))
         o1.load(A)
         o2 = T.meta_var(Object(A))
         o2.load(o1.local_x)
 
     @Ts.prim_func(private=True)
-    def func_no_macro(a: T.handle):
-        A = T.match_buffer(a, [128, 128])
+    def func_no_macro(A: T.Buffer([128, 128])):
         local_a = Ts.sblock_alloc_buffer([128, 128])
         N, M = local_a.shape
         for i, j in T.grid(N, M):
@@ -410,14 +401,12 @@ def test_tir_starred_expression():
     dims = (128, 128)
 
     @Ts.prim_func(private=True)
-    def starred(a: T.handle) -> None:
-        A = T.match_buffer(a, [128, *dims], "int32")
+    def starred(A: T.Buffer([128, *dims], "int32")) -> None:
         for i, j, k in T.grid(128, *dims):
             A[i, j, k] = T.int32(1)
 
     @Ts.prim_func(private=True)
-    def non_starred(a: T.handle) -> None:
-        A = T.match_buffer(a, [128, 128, 128], "int32")
+    def non_starred(A: T.Buffer([128, 128, 128], "int32")) -> None:
         for i, j, k in T.grid(128, 128, 128):
             A[i, j, k] = T.int32(1)
 
@@ -428,14 +417,12 @@ def test_tir_starred_shape_expression():
     dims = (128, 128)
 
     @Ts.prim_func(private=True)
-    def starred(a: T.handle) -> None:
-        A = T.match_buffer(a, [128, *dims], "int32")
+    def starred(A: T.Buffer([128, *dims], "int32")) -> None:
         for i, j, k in T.grid(*A.shape):
             A[i, j, k] = T.int32(1)
 
     @Ts.prim_func(private=True)
-    def non_starred(a: T.handle) -> None:
-        A = T.match_buffer(a, [128, 128, 128], "int32")
+    def non_starred(A: T.Buffer([128, 128, 128], "int32")) -> None:
         for i, j, k in T.grid(128, 128, 128):
             A[i, j, k] = T.int32(1)
 
@@ -446,14 +433,12 @@ def test_tir_dynamic_for_loop():
     dims = (128, 128)
 
     @Ts.prim_func(private=True)
-    def starred(a: T.handle) -> None:
-        A = T.match_buffer(a, [128, *dims], "int32")
+    def starred(A: T.Buffer([128, *dims], "int32")) -> None:
         for (*iters,) in T.grid(*A.shape):
             A[iters] = T.int32(1)
 
     @Ts.prim_func(private=True)
-    def non_starred(a: T.handle) -> None:
-        A = T.match_buffer(a, [128, 128, 128], "int32")
+    def non_starred(A: T.Buffer([128, 128, 128], "int32")) -> None:
         for i, j, k in T.grid(128, 128, 128):
             A[i, j, k] = T.int32(1)
 
@@ -464,9 +449,7 @@ def test_tir_starred_for_loop():
     dims = (128, 128)
 
     @Ts.prim_func(private=True)
-    def starred(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, [*dims, 128], "int32")
-        B = T.match_buffer(b, dims, "int32")
+    def starred(A: T.Buffer([*dims, 128], "int32"), B: T.Buffer(dims, "int32")):
         for *spatial, reduction in T.grid(*A.shape):
             with Ts.sblock("reduce"):
                 with Ts.init():
@@ -474,9 +457,7 @@ def test_tir_starred_for_loop():
                 B[spatial] = B[spatial] + A[(*spatial, reduction)]
 
     @Ts.prim_func(private=True)
-    def non_starred(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, [128, 128, 128], "int32")
-        B = T.match_buffer(b, [128, 128], "int32")
+    def non_starred(A: T.Buffer([128, 128, 128], "int32"), B: T.Buffer([128, 128], "int32")):
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("reduce"):
                 with Ts.init():
@@ -532,8 +513,7 @@ def test_tir_builtin_expression():
     dims = (128, 128)
 
     @Ts.prim_func(private=True)
-    def with_builtin(a: T.handle) -> None:
-        A = T.match_buffer(a, [len(dims), *dims], "int32")
+    def with_builtin(A: T.Buffer([len(dims), *dims], "int32")) -> None:
         for i, j, k in T.grid(*A.shape):
             A[i, j, k] = T.int32(1 + len(A.shape))
 
@@ -651,9 +631,7 @@ def test_inferred_ty_with_dynamic_buffer():
     N = T.dynamic("N", "int64")
 
     @Ts.prim_func
-    def func(a_handle: T.handle, b_handle: T.handle):
-        A = T.match_buffer(a_handle, [M, N], "float32")
-        B = T.match_buffer(b_handle, [M * N], "float32")
+    def func(A: T.Buffer([M, N], "float32"), B: T.Buffer([M * N], "float32")):
         for i, j in T.grid(M, N):
             B[i * N + j] = A[i, j]
 
@@ -806,16 +784,14 @@ def test_tir_macro_block_name_suffix():
             A[v] = A[v] * T.float32(2)
 
     @Ts.prim_func(private=True)
-    def func_w_macro(a: T.handle) -> None:
-        A = T.match_buffer(a, [10])
+    def func_w_macro(A: T.Buffer([10])) -> None:
         for i in T.serial(0, 10):
             operation(A, i)
             operation(A, i)
             operation(A, i)
 
     @Ts.prim_func(private=True)
-    def expected(a: T.handle) -> None:
-        A = T.match_buffer(a, [10])
+    def expected(A: T.Buffer([10])) -> None:
         for i in T.serial(0, 10):
             with Ts.sblock("op"):
                 v = Ts.axis.remap("S", [i])

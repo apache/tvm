@@ -247,7 +247,7 @@ def test_match_buffer_region():
         obj,
         """
 src = T.Buffer((128, 128))
-tgt = T.match_buffer(src[64:128, 64:128], (64, 64))
+tgt = Ts.match_buffer(src[64:128, 64:128], (64, 64))
 """,
     )
 
@@ -941,8 +941,7 @@ def test_variable_with_cpp_address():
     N_name = I.dynamic("N_name")
 
     @Ts.prim_func
-    def func(a_name: T.handle):
-        A_name = T.match_buffer(a_name, N_name, "float32")
+    def func(A_name: T.Buffer(N_name, "float32")):
         for i_name in range(N_name):
             A_name[i_name] = A_name[i_name] + 1.0
 
@@ -1032,9 +1031,7 @@ def test_predicated_load_store():
     from tvm.script import tirx as T
 
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (128, 128), "float32")
-        B = T.match_buffer(b, (256, 256), "float32")
+    def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
         T.func_attr({"global_symbol": "func"})
         a_load = T.meta_var(
             T.call_intrin(
@@ -1119,9 +1116,7 @@ def test_predicated_scalable_load_store():
     from tvm.script import tirx as T
 
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (128, 128), "float32")
-        B = T.match_buffer(b, (256, 256), "float32")
+    def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
         T.func_attr({"global_symbol": "func"})
         mask = T.meta_var(T.get_active_lane_mask("uint1xvscalex4", 0, 13))
         a_load = T.meta_var(
@@ -1172,9 +1167,7 @@ def test_vload_with_explicit_scalable_data_type():
     from tvm.script import tirx as T
 
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (128,), "float32")
-        B = T.match_buffer(b, (128,), "float32")
+    def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         B[0 : T.vscale() * 4] = A.vload([T.Ramp(0, 1, T.vscale() * 4)], dtype="float32xvscalex4")
 
     expected_output = """
@@ -1193,9 +1186,7 @@ def test_vectorize_llvm_pure_intrin():
     from tvm.script import tirx as T
 
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (4,), "float32")
-        B = T.match_buffer(b, (4,), "float32")
+    def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
         A[T.Ramp(0, 1, 4)] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", B[T.Ramp(0, 1, 4)])
 
     expected_output = """
@@ -1214,9 +1205,7 @@ def test_func_with_loop_jumps():
     from tvm.script import tirx as T
 
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (4,), "float32")
-        B = T.match_buffer(b, (4,), "float32")
+    def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
         for i in range(1000):
             if i % 13 == 0:
                 A[1] = A[1] + 1

@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -150,10 +152,12 @@ def test_symbolic():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
-            A = T.match_buffer(a, (n, m), "float32")
-            C = T.match_buffer(c, (n, m), "float32")
-
+        def main(
+            A: T.Buffer((n, m), "float32"),  # noqa: F821
+            C: T.Buffer((n, m), "float32"),  # noqa: F821
+            n: T.int32,
+            m: T.int32,
+        ) -> None:
             for i in range(0, n):
                 B = T.decl_buffer([m], "float32")
                 for j in range(0, m):
@@ -164,9 +168,12 @@ def test_symbolic():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
-            A = T.match_buffer(a, (n, m), "float32")
-            C = T.match_buffer(c, (n, m), "float32")
+        def main(
+            A: T.Buffer((n, m), "float32"),  # noqa: F821
+            C: T.Buffer((n, m), "float32"),  # noqa: F821
+            n: T.int32,
+            m: T.int32,
+        ) -> None:
             A_1 = T.decl_buffer(n * m, "float32", data=A.data, layout=None)
             C_1 = T.decl_buffer(n * m, "float32", data=C.data, layout=None)
 
@@ -187,10 +194,11 @@ def test_fused_symbolic():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(a: T.handle, b: T.handle, n: T.int32) -> None:
-            A = T.match_buffer(a, (32, n, n), "float32")
-            B = T.match_buffer(b, (32, n, n), "float32")
-
+        def main(
+            A: T.Buffer((32, n, n), "float32"),  # noqa: F821
+            B: T.Buffer((32, n, n), "float32"),  # noqa: F821
+            n: T.int32,
+        ) -> None:
             for i in range(0, n * n * 32):
                 B[i // (n * n), (i % (n * n)) // n, i % n] = A[
                     i // (n * n), (i % (n * n)) // n, i % n
@@ -199,9 +207,11 @@ def test_fused_symbolic():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(a: T.handle, b: T.handle, n: T.int32) -> None:
-            input_A = T.match_buffer(a, (32, n, n), "float32")
-            input_B = T.match_buffer(b, (32, n, n), "float32")
+        def main(
+            input_A: T.Buffer((32, n, n), "float32"),  # noqa: F821
+            input_B: T.Buffer((32, n, n), "float32"),  # noqa: F821
+            n: T.int32,
+        ) -> None:
             A = T.decl_buffer(n * n * 32, "float32", data=input_A.data, layout=None)
             B = T.decl_buffer(n * n * 32, "float32", data=input_B.data, layout=None)
 
@@ -218,9 +228,11 @@ def test_fused_symbolic_with_predicate():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(a: T.handle, b: T.handle, n: T.int32) -> None:
-            A = T.match_buffer(a, (32, n, n), "float32")
-            B = T.match_buffer(b, (32, n, n), "float32")
+        def main(
+            A: T.Buffer((32, n, n), "float32"),  # noqa: F821
+            B: T.Buffer((32, n, n), "float32"),  # noqa: F821
+            n: T.int32,
+        ) -> None:
             for bx, tx in T.grid((n * n + 1) // 2, 64):
                 if bx * 64 + tx < n * n * 32:
                     B[
@@ -236,9 +248,11 @@ def test_fused_symbolic_with_predicate():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(a: T.handle, b: T.handle, n: T.int32) -> None:
-            input_A = T.match_buffer(a, (32, n, n), "float32")
-            input_B = T.match_buffer(b, (32, n, n), "float32")
+        def main(
+            input_A: T.Buffer((32, n, n), "float32"),  # noqa: F821
+            input_B: T.Buffer((32, n, n), "float32"),  # noqa: F821
+            n: T.int32,
+        ) -> None:
             A = T.decl_buffer(n * n * 32, "float32", data=input_A.data, layout=None)
             B = T.decl_buffer(n * n * 32, "float32", data=input_B.data, layout=None)
 

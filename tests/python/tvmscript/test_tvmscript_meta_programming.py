@@ -23,11 +23,11 @@ from tvm.script import tirx as T
 def test_meta_programming_matmul():
     def matmul_generator(M: int, N: int, K: int, dtype: str):
         @Ts.prim_func
-        def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-            A = T.match_buffer(a, [M, K], dtype=dtype)
-            B = T.match_buffer(b, [N, K], dtype=dtype)
-            C = T.match_buffer(c, [M, N], dtype=dtype)
-
+        def matmul(
+            A: T.Buffer([M, K], dtype=dtype),
+            B: T.Buffer([N, K], dtype=dtype),
+            C: T.Buffer([M, N], dtype=dtype),
+        ) -> None:
             for i, j, k in T.grid(M, N, K):
                 with Ts.sblock():
                     vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -38,11 +38,11 @@ def test_meta_programming_matmul():
         return matmul
 
     @Ts.prim_func
-    def matmul_128_128_128_fp16(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, [128, 128], dtype="float16")
-        B = T.match_buffer(b, [128, 128], dtype="float16")
-        C = T.match_buffer(c, [128, 128], dtype="float16")
-
+    def matmul_128_128_128_fp16(
+        A: T.Buffer([128, 128], dtype="float16"),
+        B: T.Buffer([128, 128], dtype="float16"),
+        C: T.Buffer([128, 128], dtype="float16"),
+    ) -> None:
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock():
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])

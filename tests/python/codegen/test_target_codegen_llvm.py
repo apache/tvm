@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E501, E731, E741, F841
+from __future__ import annotations
+
 import math
 import re
 
@@ -210,11 +212,9 @@ def test_llvm_vadd_pipeline():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        def main(A: T.Buffer((n,)), B: T.Buffer((n,)), C: T.Buffer((n,))):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (n,))
-            B = T.match_buffer(var_B, (n,))
-            C = T.match_buffer(var_C, (n,))
+
             for i_0 in range((n + 3) // 4):
                 for i_1 in T.vectorized(4):
                     if i_0 * 4 + i_1 < n:
@@ -291,20 +291,16 @@ def test_multiple_func():
     @I.ir_module
     class Module:
         @T.prim_func
-        def fadd1(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        def fadd1(A: T.Buffer((fadd1_n,)), B: T.Buffer((fadd1_n,)), C: T.Buffer((fadd1_n,))):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (fadd1_n,))
-            B = T.match_buffer(var_B, (fadd1_n,))
-            C = T.match_buffer(var_C, (fadd1_n,))
+
             for i in range(fadd1_n):
                 C[i] = A[i] + B[i]
 
         @T.prim_func
-        def fadd2(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        def fadd2(A: T.Buffer((fadd2_n,)), B: T.Buffer((fadd2_n,)), C: T.Buffer((fadd2_n,))):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (fadd2_n,))
-            B = T.match_buffer(var_B, (fadd2_n,))
-            C = T.match_buffer(var_C, (fadd2_n,))
+
             for i in range(fadd2_n):
                 C[i] = A[i] + B[i]
 
@@ -652,10 +648,9 @@ def test_llvm_fp_math():
     @I.ir_module
     class RecipModule:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle):
+        def main(A: T.Buffer((n,)), B: T.Buffer((n,))):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (n,))
-            B = T.match_buffer(var_B, (n,))
+
             for i in range(n):
                 B[i] = T.float32(1.0) / (T.float32(1e37) * A[i])
 
@@ -672,10 +667,9 @@ def test_llvm_fp_math():
     @I.ir_module
     class SigmoidModule:
         @T.prim_func
-        def main(var_A: T.handle, var_B: T.handle):
+        def main(A: T.Buffer((n,)), B: T.Buffer((n,))):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (n,))
-            B = T.match_buffer(var_B, (n,))
+
             for i in range(n):
                 B[i] = T.sigmoid(A[i])
 
@@ -957,11 +951,14 @@ def test_llvm_target_attributes():
     @I.ir_module
     class Module:
         @T.prim_func
-        def test_func(var_A: T.handle, var_B: T.handle, var_C: T.handle, tindex: T.int32):
+        def test_func(
+            A: T.Buffer((tindex,)),  # noqa: F821
+            B: T.Buffer((tindex,)),  # noqa: F821
+            C: T.Buffer((tindex,)),  # noqa: F821
+            tindex: T.int32,
+        ):
             T.func_attr({"tirx.noalias": True})
-            A = T.match_buffer(var_A, (tindex,))
-            B = T.match_buffer(var_B, (tindex,))
-            C = T.match_buffer(var_C, (tindex,))
+
             for i in range(tindex):
                 B[i] = A[i]
             for i_0 in T.parallel(2):
@@ -1163,8 +1160,7 @@ def test_invalid_volatile_masked_buffer_load():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(b: T.handle):
-            B = T.match_buffer(b, [4])
+        def main(B: T.Buffer([4])):
             A = T.alloc_buffer((4,), annotations={"tirx.volatile": True})
             B[0:4] = T.call_intrin(
                 "float32x4",
@@ -1184,8 +1180,7 @@ def test_invalid_volatile_masked_decl_buffer_load():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(b: T.handle):
-            B = T.match_buffer(b, [4])
+        def main(B: T.Buffer([4])):
             A = T.alloc_buffer((4,), annotations={"tirx.volatile": True})
             A_alias = T.decl_buffer((4,), data=A.data)
             B[0:4] = T.call_intrin(

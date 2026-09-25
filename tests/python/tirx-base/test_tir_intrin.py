@@ -36,11 +36,10 @@ from tvm.support import clang, utils
 def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):
     out_dtype = out_dtype or dtype
 
+    n = T.int32()
+
     @T.prim_func
-    def kernel(a: T.handle, b: T.handle):
-        n = T.int32()
-        A = T.match_buffer(a, (n,), dtype)
-        B = T.match_buffer(b, (n,), out_dtype)
+    def kernel(A: T.Buffer((n,), dtype), B: T.Buffer((n,), out_dtype)):
         if I.constexpr(gpu):
             for bx in T.thread_binding(T.ceildiv(n, 64), thread="blockIdx.x"):
                 for tx in T.thread_binding(64, thread="threadIdx.x"):
@@ -54,12 +53,12 @@ def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):
 
 
 def _binary_kernel(op, rhs_dtype="float32"):
+    n = T.int32()
+
     @T.prim_func
-    def kernel(a: T.handle, b: T.handle, c: T.handle):
-        n = T.int32()
-        A = T.match_buffer(a, (n,), "float32")
-        B = T.match_buffer(b, (n,), rhs_dtype)
-        C = T.match_buffer(c, (n,), "float32")
+    def kernel(
+        A: T.Buffer((n,), "float32"), B: T.Buffer((n,), rhs_dtype), C: T.Buffer((n,), "float32")
+    ):
         for i in range(n):
             C[i] = op(A[i], B[i])
 
@@ -318,41 +317,15 @@ stride_3 = T.dynamic("stride_3", "int32")
 @tvm.script.ir_module
 class Module:
     @T.prim_func
-    def test_tir_fma(A: T.handle, B: T.handle, C: T.handle, d: T.handle) -> None:
+    def test_tir_fma(
+        A_1: T.Buffer([n], strides=[stride], elem_offset=0, align=64, offset_factor=1),
+        B_1: T.Buffer([n], strides=[stride_1], elem_offset=0, align=64, offset_factor=1),
+        C_1: T.Buffer([n], strides=[stride_2], elem_offset=0, align=64, offset_factor=1),
+        d_1: T.Buffer([n], strides=[stride_3], elem_offset=0, align=64, offset_factor=1),
+    ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "test_fma", "tirx.noalias": True})
-        A_1 = T.match_buffer(
-            A,
-            [n],
-            strides=[stride],
-            elem_offset=0,
-            align=64,
-            offset_factor=1,
-        )
-        B_1 = T.match_buffer(
-            B,
-            [n],
-            strides=[stride_1],
-            elem_offset=0,
-            align=64,
-            offset_factor=1,
-        )
-        C_1 = T.match_buffer(
-            C,
-            [n],
-            strides=[stride_2],
-            elem_offset=0,
-            align=64,
-            offset_factor=1,
-        )
-        d_1 = T.match_buffer(
-            d,
-            [n],
-            strides=[stride_3],
-            elem_offset=0,
-            align=64,
-            offset_factor=1,
-        )
+
         # body
         for i in T.serial(0, n):
             d_1[(i * stride_3)] = (A_1[(i * stride)] * B_1[(i * stride_1)]) + C_1[(i * stride_2)]

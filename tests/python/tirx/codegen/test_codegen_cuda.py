@@ -1038,8 +1038,7 @@ __device__ void print(int32_t a) {
 def test_warp_shuffle_xor_sync():
     # fmt: off
     @T.prim_func
-    def func(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (32,), dtype="float32", align=16)
+    def func(A: T.Buffer((32,), dtype='float32', align=16)):
 
         T.device_entry()
         cta_id = T.cta_id([1])

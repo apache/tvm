@@ -222,7 +222,6 @@ def test_inject_async_copy_shared_dyn():
 # `wait_barrier`) which fork does not provide; fork uses the
 # `ptx_mbarrier_*` family instead.
 
-
 expected_cuda_script = r"""#include <cuda.h>
 #endif
 
@@ -497,7 +496,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                         v_x_o * 16 : v_x_o * 16 + 16, v_y_o * 16 : v_y_o * 16 + 16
                                     ]
                                 )
-                                C = T.match_buffer(
+                                C = Ts.match_buffer(
                                     Conv_reindex_wmma_accumulator[
                                         v_x_o * 16 : v_x_o * 16 + 16, v_y_o * 16 : v_y_o * 16 + 16
                                     ],
@@ -677,7 +676,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                 v1_o * 16 : v1_o * 16 + 16,
                                             ]
                                         )
-                                        A_1 = T.match_buffer(
+                                        A_1 = Ts.match_buffer(
                                             data_im2col_reindex_shared_dyn[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
@@ -688,7 +687,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             scope="shared.dyn",
                                             offset_factor=16,
                                         )
-                                        C = T.match_buffer(
+                                        C = Ts.match_buffer(
                                             data_im2col_reindex_shared_dyn_wmma_matrix_a[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
@@ -734,7 +733,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                 v1_o * 16 : v1_o * 16 + 16,
                                             ]
                                         )
-                                        A_1 = T.match_buffer(
+                                        A_1 = Ts.match_buffer(
                                             weight_flatten_reindex_shared_dyn[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
@@ -745,7 +744,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             scope="shared.dyn",
                                             offset_factor=16,
                                         )
-                                        C = T.match_buffer(
+                                        C = Ts.match_buffer(
                                             weight_flatten_reindex_shared_dyn_wmma_matrix_b[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
@@ -798,7 +797,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                 v_y_o * 16 : v_y_o * 16 + 16,
                                             ]
                                         )
-                                        A_1 = T.match_buffer(
+                                        A_1 = Ts.match_buffer(
                                             data_im2col_reindex_shared_dyn_wmma_matrix_a[
                                                 v_x_o * 16 : v_x_o * 16 + 16,
                                                 v_k_o * 16 : v_k_o * 16 + 16,
@@ -809,7 +808,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             scope="wmma.matrix_a",
                                             offset_factor=16,
                                         )
-                                        B = T.match_buffer(
+                                        B = Ts.match_buffer(
                                             weight_flatten_reindex_shared_dyn_wmma_matrix_b[
                                                 v_y_o * 16 : v_y_o * 16 + 16,
                                                 v_k_o * 16 : v_k_o * 16 + 16,
@@ -820,7 +819,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             scope="wmma.matrix_b",
                                             offset_factor=16,
                                         )
-                                        C = T.match_buffer(
+                                        C = Ts.match_buffer(
                                             Conv_reindex_wmma_accumulator[
                                                 v_x_o * 16 : v_x_o * 16 + 16,
                                                 v_y_o * 16 : v_y_o * 16 + 16,
@@ -857,7 +856,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                 Ts.writes(
                                     Conv[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16]
                                 )
-                                A_1 = T.match_buffer(
+                                A_1 = Ts.match_buffer(
                                     Conv_reindex_wmma_accumulator[
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ],
@@ -867,7 +866,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     scope="wmma.accumulator",
                                     offset_factor=16,
                                 )
-                                C = T.match_buffer(
+                                C = Ts.match_buffer(
                                     Conv[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16],
                                     (16, 16),
                                     "float16",

@@ -124,11 +124,12 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
             kernel = add.specialize(N=1024)  # returns a PrimFunc
 
             @T.jit
-            def guarded(optional: T.Optional(T.handle), out: T.handle):
-                output = T.match_buffer(out, (1,), "int32")
+            def guarded(
+                optional: T.Optional(T.Buffer((1,), "int32")),
+                output: T.Buffer((1,), "int32"),
+            ):
                 if T.constexpr(optional is not None):
-                    value = T.match_buffer(optional, (1,), "int32")
-                    output[0] = value[0]
+                    output[0] = optional[0]
                 else:
                     output[0] = 0
 

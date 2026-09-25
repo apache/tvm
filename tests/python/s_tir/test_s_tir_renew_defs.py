@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations
+
 import tvm
 import tvm.testing
 from tvm.s_tir import SBlock
@@ -93,7 +95,7 @@ def test_match_buffer():
     def func_match_buffer(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")):
         with Ts.sblock("root"):
             # A0 should be remapped
-            A0 = T.match_buffer(
+            A0 = Ts.match_buffer(
                 A[0:128, 0:128],
                 shape=(128, 128),
                 dtype="float32",
@@ -160,9 +162,7 @@ def test_symbolic_func():
     m = T.dynamic("m", "int32")
 
     @Ts.prim_func
-    def symbolic_func(a: T.handle, b: T.handle, n: T.int32):
-        A = T.match_buffer(a, (n, m))
-        B = T.match_buffer(b, (n, m * 2))
+    def symbolic_func(A: T.Buffer((n, m)), B: T.Buffer((n, m * 2)), n: T.int32):  # noqa: F821
         for i, j in T.grid(n, m):
             B[i, j * 2] = A[i, j]
             B[i, j * 2 + 1] = A[i, j]
@@ -176,9 +176,7 @@ def test_buffer_params():
     m = T.dynamic("m")
 
     @Ts.prim_func
-    def main(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (m * 2,))
-        B = T.match_buffer(b, (m, 2))
+    def main(A: T.Buffer((m * 2,)), B: T.Buffer((m, 2))):
         for i, j in T.grid(m, 2):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])

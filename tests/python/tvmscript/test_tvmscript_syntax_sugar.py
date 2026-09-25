@@ -29,11 +29,9 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def transformed_matmul_no_syntax_sugar(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
+def transformed_matmul_no_syntax_sugar(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
         with Ts.sblock("update"):
             vi, vj = Ts.axis.remap("SS", [i0, i1])
@@ -47,11 +45,9 @@ def transformed_matmul_no_syntax_sugar(a: T.handle, b: T.handle, c: T.handle) ->
 
 
 @Ts.prim_func
-def transformed_matmul_syntax_sugar(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
+def transformed_matmul_syntax_sugar(
+    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+) -> None:
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
         with Ts.sblock("update"):
             vi, vj = Ts.axis.remap("SS", [i0, i1])
@@ -71,8 +67,7 @@ def test_reads_writes_syntax_sugar():
 
 
 @Ts.prim_func
-def loop_no_syntax_sugar(a: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128, 128))
+def loop_no_syntax_sugar(A: T.Buffer((128, 128, 128, 128))) -> None:
     for i in T.serial(0, 128):
         for j in T.parallel(0, 128):
             for k in T.vectorized(0, 128):
@@ -83,8 +78,7 @@ def loop_no_syntax_sugar(a: T.handle) -> None:
 
 
 @Ts.prim_func
-def loop_syntax_sugar(a: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128, 128))
+def loop_syntax_sugar(A: T.Buffer((128, 128, 128, 128))) -> None:
     for i in T.serial(128):
         for j in T.parallel(128):
             for k in T.vectorized(128):
@@ -98,21 +92,19 @@ def test_loop_syntax_sugar():
     assert_structural_equal_ignore_global_symbol(loop_no_syntax_sugar, loop_syntax_sugar)
 
 
-# match buffer - use kwargs
+# Buffer signature with the default dtype
 @Ts.prim_func
-def elementwise_handle(
-    a: T.handle,
-    b: T.handle,
+def elementwise_buffer_default_dtype(
+    A: T.Buffer((128, 128, 128, 128)),
+    B: T.Buffer((128, 128, 128, 128)),
 ) -> None:
-    A = T.match_buffer(a, (128, 128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128, 128))
     for i, j, k, l in T.grid(128, 128, 128, 128):
         with Ts.sblock("B"):
             vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-# match buffer - use buffer with kwargs
+# Buffer signature with keyword arguments
 @Ts.prim_func
 def elementwise_buffer_kwargs(
     a: T.Buffer(shape=(128, 128, 128, 128), dtype="float32"),
@@ -124,7 +116,7 @@ def elementwise_buffer_kwargs(
             b[vi, vj, vk, vl] = a[vi, vj, vk, vl] * 2.0
 
 
-# match buffer - use buffer without kwargs
+# Buffer signature with positional arguments
 @Ts.prim_func
 def elementwise_buffer_no_kwargs(
     a: T.Buffer((128, 128, 128, 128), "float32"),
@@ -136,17 +128,20 @@ def elementwise_buffer_no_kwargs(
             b[vi, vj, vk, vl] = a[vi, vj, vk, vl] * 2.0
 
 
-def test_match_buffer_syntax_sugar():
+def test_buffer_signature_syntax_sugar():
     # with kwargs
-    assert_structural_equal_ignore_global_symbol(elementwise_handle, elementwise_buffer_kwargs)
+    assert_structural_equal_ignore_global_symbol(
+        elementwise_buffer_default_dtype, elementwise_buffer_kwargs
+    )
     # without kwargs
-    assert_structural_equal_ignore_global_symbol(elementwise_handle, elementwise_buffer_no_kwargs)
+    assert_structural_equal_ignore_global_symbol(
+        elementwise_buffer_default_dtype, elementwise_buffer_no_kwargs
+    )
 
 
-def test_match_buffer_1d():
+def test_buffer_1d():
     @Ts.prim_func
-    def func_no_sugar(a: T.handle):
-        A = T.match_buffer(a, shape=(16,))
+    def func_no_sugar(A: T.Buffer(shape=(16,))):
         for i in T.serial(16):
             A[i] = 0.0
 
@@ -165,10 +160,9 @@ K = T.dynamic("K", "int32")
 
 
 @Ts.prim_func
-def gemm_dyn_shape(a: T.handle, b: T.handle, c: T.handle):
-    A = T.match_buffer(a, (N, K), "float32")
-    B = T.match_buffer(b, (K, M), "float32")
-    C = T.match_buffer(c, (N, M), "float32")
+def gemm_dyn_shape(
+    A: T.Buffer((N, K), "float32"), B: T.Buffer((K, M), "float32"), C: T.Buffer((N, M), "float32")
+):
     for i, j, k in T.grid(N, M, K):
         with Ts.sblock("gemm"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -186,10 +180,12 @@ def test_dynamic_shape_gemm():
 
 
 @Ts.prim_func
-def match_buffer_int64(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (T.int64(128), T.int64(128)), dtype="float32")
+def buffer_int64(
+    A: T.Buffer((T.int64(128), T.int64(128)), dtype="float32"),
+    C: T.Buffer((T.int64(128), T.int64(128)), dtype="float32"),
+) -> None:
     B = Ts.sblock_alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
-    C = T.match_buffer(c, (T.int64(128), T.int64(128)), dtype="float32")
+
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -201,7 +197,7 @@ def match_buffer_int64(a: T.handle, c: T.handle) -> None:
 
 
 @Ts.prim_func
-def match_buffer_int64_after_roundtrip(
+def buffer_int64_after_roundtrip(
     A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     C: T.Buffer((T.int64(128), T.int64(128)), "float32"),
 ) -> None:
@@ -216,9 +212,9 @@ def match_buffer_int64_after_roundtrip(
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-def test_match_buffer_int64():
-    original = match_buffer_int64
-    after_roundtrip = match_buffer_int64_after_roundtrip
+def test_buffer_int64():
+    original = buffer_int64
+    after_roundtrip = buffer_int64_after_roundtrip
     assert_structural_equal_ignore_global_symbol(original, after_roundtrip, True)
 
 
@@ -226,24 +222,23 @@ def test_match_buffer_region_has_implicit_shape_dtype():
     @Ts.prim_func
     def explicit_shape_dtype(A: T.Buffer((16, 64), "int32")):
         with Ts.sblock():
-            B = T.match_buffer(A[8:16, 32:64], shape=(8, 32), dtype="int32")
+            B = Ts.match_buffer(A[8:16, 32:64], shape=(8, 32), dtype="int32")
             T.evaluate(0)
 
     @Ts.prim_func
     def implicit_shape_dtype(A: T.Buffer((16, 64), "int32")):
         with Ts.sblock():
-            B = T.match_buffer(A[8:16, 32:64])
+            B = Ts.match_buffer(A[8:16, 32:64])
             T.evaluate(0)
 
     assert_structural_equal_ignore_global_symbol(explicit_shape_dtype, implicit_shape_dtype)
 
 
-def test_match_buffer_input_requires_shape_arg():
-    with pytest.raises(ValueError):
+def test_buffer_input_requires_shape_arg():
+    with pytest.raises(TypeError):
 
         @Ts.prim_func
-        def func(a: T.handle):
-            A = T.match_buffer(a, dtype="int32")
+        def func(A: T.Buffer(dtype="int32")):
             T.evaluate(0)
 
 
@@ -283,11 +278,11 @@ def test_func_call():
         return thread_id, (j // 8) * 4 + (i // 8) * 2 + (j % 2)
 
     @Ts.prim_func
-    def mma_sync_m16n16k16_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
-        B = T.match_buffer(b, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
-        C = T.match_buffer(c, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
-
+    def mma_sync_m16n16k16_desc(
+        A: T.Buffer((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
+        B: T.Buffer((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
+        C: T.Buffer((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
             Ts.writes(C[0:32, 0:8])
@@ -310,11 +305,11 @@ def test_func_call():
                     )
 
     @Ts.prim_func
-    def mma_sync_m16n16k16_desc_manual(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
-        B = T.match_buffer(b, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
-        C = T.match_buffer(c, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
-
+    def mma_sync_m16n16k16_desc_manual(
+        A: T.Buffer((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
+        B: T.Buffer((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
+        C: T.Buffer((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
+    ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
             Ts.writes(C[0:32, 0:8])
@@ -353,8 +348,7 @@ def test_func_call():
     #     return np.sqrt(x)
 
     # @T.prim_func
-    # def loop(a: T.handle) -> None:
-    #     A = T.match_buffer(a, (128,))
+    # def loop(A: T.Buffer((128,))) -> None:
     #     for i in T.serial(128):
     #         ind = sqrt(i)
     #         A[i] = A[ind]

@@ -250,7 +250,8 @@ ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
                    const ffi::Array<ExprDoc>& args, const AccessPath& p, const Frame& frame,
                    const IRDocsifier& d, BufferVarDefinition var_definitions,
                    ffi::Optional<Expr> data) {
-  auto prefix = method == "sblock_alloc_buffer" ? STIR(d, method) : TIR(d, method);
+  auto prefix = (method == "sblock_alloc_buffer" || method == "match_buffer") ? STIR(d, method)
+                                                                              : TIR(d, method);
   auto attrs = BufferAttrs(buffer, p, frame, d, var_definitions, data);
   if (method == "alloc_buffer") {
     if (buffer.IsScalar()) {

@@ -17,6 +17,8 @@
 # pylint: disable=missing-function-docstring, missing-module-docstring
 # ruff: noqa: F401
 
+from __future__ import annotations
+
 import pytest
 
 import tvm
@@ -32,11 +34,7 @@ def assert_structural_equal_ignore_global_symbol(lhs, rhs):
 
 
 @T.prim_func
-def matmul(a: T.handle, b: T.handle, c: T.handle, n: T.int32) -> None:
-    A = T.match_buffer(a, [m, n])
-    B = T.match_buffer(b, [m, n])
-    C = T.match_buffer(c, [m, m])
-
+def matmul(A: T.Buffer([m, n]), B: T.Buffer([m, n]), C: T.Buffer([m, m]), n: T.int32) -> None:
     for i, j, k in T.grid(m, m, n):
         if k == 0:
             C[i, j] = 0.0
@@ -44,11 +42,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle, n: T.int32) -> None:
 
 
 @T.prim_func
-def matmul_128(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
+def matmul_128(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
     for i, j, k in T.grid(128, 128, 128):
         if k == 0:
             C[i, j] = 0.0
@@ -59,11 +53,7 @@ m = T.dynamic("m", "int32")
 
 
 @T.prim_func
-def matmul_m_128(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [m, 128])
-    B = T.match_buffer(b, [m, 128])
-    C = T.match_buffer(c, [m, m])
-
+def matmul_m_128(A: T.Buffer([m, 128]), B: T.Buffer([m, 128]), C: T.Buffer([m, m])) -> None:
     for i, j, k in T.grid(m, m, 128):
         if k == 0:
             C[i, j] = 0.0
@@ -77,11 +67,7 @@ m = T.dynamic("m", "int32")
 
 
 @T.prim_func(check_well_formed=False)
-def matmul_m_8x(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [m, x * 8])
-    B = T.match_buffer(b, [m, x * 8])
-    C = T.match_buffer(c, [m, m])
-
+def matmul_m_8x(A: T.Buffer([m, x * 8]), B: T.Buffer([m, x * 8]), C: T.Buffer([m, m])) -> None:
     for i, j, k in T.grid(m, m, x * 8):
         if k == 0:
             C[i, j] = 0.0
@@ -93,10 +79,7 @@ n = T.dynamic("n", "int32")
 
 
 @T.prim_func
-def element_wise(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (m, n), "float32")
-    C = T.match_buffer(c, (m, n), "float32")
-
+def element_wise(A: T.Buffer((m, n), "float32"), C: T.Buffer((m, n), "float32")) -> None:
     B = T.alloc_buffer((m, n), "float32")
 
     for i, j in T.grid(m, n):
@@ -107,9 +90,9 @@ def element_wise(a: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
-def element_wise_128_64(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 64), "float32")
-    C = T.match_buffer(c, (128, 64), "float32")
+def element_wise_128_64(
+    A: T.Buffer((128, 64), "float32"), C: T.Buffer((128, 64), "float32")
+) -> None:
     B = T.alloc_buffer((128, 64), "float32")
 
     for i, j in T.grid(128, 64):
@@ -123,9 +106,7 @@ n = T.dynamic("n", "int32")
 
 
 @T.prim_func
-def element_wise_128_n(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, n), "float32")
-    C = T.match_buffer(c, (128, n), "float32")
+def element_wise_128_n(A: T.Buffer((128, n), "float32"), C: T.Buffer((128, n), "float32")) -> None:
     B = T.alloc_buffer((128, n), "float32")
 
     for i, j in T.grid(128, n):
@@ -135,29 +116,56 @@ def element_wise_128_n(a: T.handle, c: T.handle) -> None:
         C[i, j] = B[i, j] + 1.0
 
 
-@T.prim_func
-def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int32, q: T.int32) -> None:
-    A = T.match_buffer(a, (m, n), "float32", strides=[p, 1], elem_offset=q)
-    B = T.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=q)
+mem_copy_m = T.int32()
 
+mem_copy_n = T.int32()
+
+
+@T.prim_func
+def mem_copy(
+    A: T.Buffer((mem_copy_m, mem_copy_n), "float32", strides=[p, 1], elem_offset=q),  # noqa: F821
+    B: T.Buffer((mem_copy_m, mem_copy_n), "float32", strides=[p, 1], elem_offset=q),  # noqa: F821
+    m: mem_copy_m,
+    n: mem_copy_n,
+    p: T.int32,
+    q: T.int32,
+) -> None:
     for i, j in T.grid(m, n):
         B[i, j] = A[i, j]
 
 
 @T.prim_func
-def mem_copy_16_16_8_4(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32", strides=[8, 1], elem_offset=4)
-    B = T.match_buffer(b, (16, 16), "float32", strides=[8, 1], elem_offset=4)
-
+def mem_copy_16_16_8_4(
+    A: T.Buffer((16, 16), "float32", strides=[8, 1], elem_offset=4),
+    B: T.Buffer((16, 16), "float32", strides=[8, 1], elem_offset=4),
+) -> None:
     for i, j in T.grid(16, 16):
         B[i, j] = A[i, j]
 
 
-@T.prim_func
-def mem_copy_m_n_p_n(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int32) -> None:
-    A = T.match_buffer(a, (m, n), "float32", strides=[p, 1], elem_offset=n)
-    B = T.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=n)
+mem_copy_m_n_p_n_m = T.int32()
 
+mem_copy_m_n_p_n_n = T.int32()
+
+
+@T.prim_func
+def mem_copy_m_n_p_n(
+    A: T.Buffer(
+        (mem_copy_m_n_p_n_m, mem_copy_m_n_p_n_n),
+        "float32",
+        strides=[p, 1],  # noqa: F821
+        elem_offset=mem_copy_m_n_p_n_n,
+    ),
+    B: T.Buffer(
+        (mem_copy_m_n_p_n_m, mem_copy_m_n_p_n_n),
+        "float32",
+        strides=[p, 1],  # noqa: F821
+        elem_offset=mem_copy_m_n_p_n_n,
+    ),
+    m: mem_copy_m_n_p_n_m,
+    n: mem_copy_m_n_p_n_n,
+    p: T.int32,
+) -> None:
     for i, j in T.grid(m, n):
         B[i, j] = A[i, j]
 
@@ -212,16 +220,12 @@ def test_specialize_with_const_folding():
     n = T.dynamic("n", "int32")
 
     @T.prim_func
-    def before(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, [n // 8, 8], "int32")
-        B = T.match_buffer(b, [n], "int32")
+    def before(A: T.Buffer([n // 8, 8], "int32"), B: T.Buffer([n], "int32")):
         for i in range(n - 1):
             B[i] = A[i // 8, i % 8] + (n + 1) * 42
 
     @T.prim_func
-    def expected(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, [2, 8], "int32")
-        B = T.match_buffer(b, [16], "int32")
+    def expected(A: T.Buffer([2, 8], "int32"), B: T.Buffer([16], "int32")):
         for i in range(15):
             B[i] = A[i // 8, i % 8] + 714
 
@@ -252,15 +256,15 @@ def test_specialize_decl_buffer():
 
 
 def test_specialize_preserves_decl_buffer_alias():
+    before_n = T.int32()
+
     @T.prim_func(private=True)
-    def before(A_handle: T.handle, n: T.int32):
-        A = T.match_buffer(A_handle, (n,), "int32")
+    def before(A: T.Buffer((before_n,), "int32"), n: before_n):
         A_flat = T.decl_buffer((n,), "int32", data=A.data)
         A_flat[n - 1] = 42
 
     @T.prim_func(private=True)
-    def expected(A_handle: T.handle):
-        A = T.match_buffer(A_handle, (8,), "int32")
+    def expected(A: T.Buffer((8,), "int32")):
         A_flat = T.decl_buffer((8,), "int32", data=A.data)
         A_flat[7] = 42
 

@@ -57,8 +57,7 @@ def test_fma_scalar_scalar():
     bias_val = -1.0
 
     @T.prim_func
-    def test_func(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (N,), dtype, layout=TileLayout(S[N]))
+    def test_func(A: T.Buffer((N,), dtype, layout=TileLayout(S[N]))) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         tx = T.thread_id([N])
@@ -99,9 +98,10 @@ def test_fma_buffer_scale_scalar_bias():
     coeff = 0.695
 
     @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (N,), dtype, layout=TileLayout(S[N]))
-        B = T.match_buffer(B_ptr, (N,), dtype, layout=TileLayout(S[N]))
+    def test_func(
+        A: T.Buffer((N,), dtype, layout=TileLayout(S[N])),
+        B: T.Buffer((N,), dtype, layout=TileLayout(S[N])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _tx = T.thread_id([1])
@@ -144,9 +144,10 @@ def test_mul_scalar_broadcast():
     target = tvm.target.Target("cuda")
 
     @T.prim_func
-    def test_func(A_ptr: T.handle, S_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (N,), dtype, layout=TileLayout(S[N]))
-        Scale = T.match_buffer(S_ptr, (1,), dtype, layout=TileLayout(S[1]))
+    def test_func(
+        A: T.Buffer((N,), dtype, layout=TileLayout(S[N])),
+        Scale: T.Buffer((1,), dtype, layout=TileLayout(S[1])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _tx = T.thread_id([1])
@@ -191,8 +192,7 @@ def test_add_rounding_mode():
     round_const = float(2**23 + 2**22)
 
     @T.prim_func
-    def test_func(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (N,), dtype, layout=TileLayout(S[N]))
+    def test_func(A: T.Buffer((N,), dtype, layout=TileLayout(S[N]))) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _tx = T.thread_id([1])
@@ -239,8 +239,7 @@ def test_fma_no_layout():
     bias_val = 1.0
 
     @T.prim_func
-    def test_func(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (N,), dtype, layout=TileLayout(S[N]))
+    def test_func(A: T.Buffer((N,), dtype, layout=TileLayout(S[N]))) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _tx = T.thread_id([1])
@@ -281,9 +280,10 @@ def test_sub_buffer_buffer_rounding():
     target = tvm.target.Target("cuda")
 
     @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (N,), dtype, layout=TileLayout(S[N]))
-        B = T.match_buffer(B_ptr, (N,), dtype, layout=TileLayout(S[N]))
+    def test_func(
+        A: T.Buffer((N,), dtype, layout=TileLayout(S[N])),
+        B: T.Buffer((N,), dtype, layout=TileLayout(S[N])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _tx = T.thread_id([1])
@@ -325,9 +325,10 @@ def test_fma_warpgroup_wg_local_layout():
     target = tvm.target.Target("cuda")
 
     @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (rows, cols), dtype, layout=TileLayout(S[(rows, cols)]))
-        B = T.match_buffer(B_ptr, (rows, cols), dtype, layout=TileLayout(S[(rows, cols)]))
+    def test_func(
+        A: T.Buffer((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
+        B: T.Buffer((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         wg_id = T.warpgroup_id([1])
@@ -371,11 +372,12 @@ def test_fma_f32_sm100_packed_f32x2_dispatch():
     lay = TileLayout(S[shape])
 
     @T.prim_func
-    def k(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle, D_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, "float32", layout=lay)
-        B = T.match_buffer(B_ptr, shape, "float32", layout=lay)
-        C = T.match_buffer(C_ptr, shape, "float32", layout=lay)
-        D = T.match_buffer(D_ptr, shape, "float32", layout=lay)
+    def k(
+        A: T.Buffer(shape, "float32", layout=lay),
+        B: T.Buffer(shape, "float32", layout=lay),
+        C: T.Buffer(shape, "float32", layout=lay),
+        D: T.Buffer(shape, "float32", layout=lay),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         tx = T.thread_id([64])
