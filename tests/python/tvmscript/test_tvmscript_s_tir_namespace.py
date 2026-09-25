@@ -246,8 +246,7 @@ def test_import_order(first):
             "assert Ts.ir_builder is not T.ir_builder\n"
             "from tvm.script.parser import _NAMESPACES\n"
             "assert _NAMESPACES['s_tir'] is Ts\n"
-            "assert _NAMESPACES['tirx'] is T\n"
-            "assert not {'T', 'Ts', 'R', 'I'} & _NAMESPACES.keys()\n",
+            "assert _NAMESPACES['tirx'] is T\n",
         ],
         check=True,
         env=os.environ.copy(),

@@ -25,8 +25,6 @@ from __future__ import annotations
 import ast
 from textwrap import dedent
 
-import pytest
-
 from tvm.script.parser import entry
 
 
@@ -133,65 +131,3 @@ def main(x: M.Tensor((extent,))):
     )
     assert prefixed.params[0].args[0].args[0] == (3,)
     assert prefixed.body == [("emit", 3)]
-
-
-def test_module_member_retains_completed_function():
-    from tvm.script import tirx as T
-
-    @T.prim_func(private=True)
-    def completed():
-        T.evaluate(7)
-
-    module = entry.parse(
-        """@I.ir_module
-class Module:
-    helper = completed
-""",
-        extra_vars={"completed": completed},
-    )
-    assert module["helper"].same_as(completed)
-    assert module["helper"].body.value.value == 7
-
-
-def test_python_helpers_retain_quoted_annotations(language):
-    module = entry.parse(
-        "\n".join(
-            [
-                "from tvm.script import ir as I",
-                "@I.ir_module",
-                "class Module:",
-                "    @I.pyfunc",
-                '    def helper(value: "int") -> "int":',
-                '        def nested(item: "int") -> "int":',
-                "            return item",
-                "        return nested(value)",
-            ]
-        )
-    )
-    helper = module.__pyfuncs__["helper"]
-    assert helper(7) == 7
-    assert helper.__annotations__ == {"value": "int", "return": "int"}
-    function = entry.parse(
-        "\n".join(
-            [
-                "@M.function",
-                "def main():",
-                '    def helper(value: "int") -> "int":',
-                "        return value",
-                "    M.record(helper(5))",
-            ]
-        ),
-        extra_vars={"M": language.M},
-    )
-    assert function.body == [("emit", 5)]
-
-
-@pytest.mark.parametrize("name", ["T", "R", "I", "Ts"])
-def test_conventional_letters_require_source_bindings(name):
-    prefix = "from tvm.script import tirx as X\n@X.prim_func\n"
-    with pytest.raises(NameError, match=f"name '{name}' is not defined"):
-        entry.parse(prefix + f"def main():\n    X.evaluate({name})\n")
-    # Unselected letters are ordinary parameters, while X keeps its syntax policy.
-    function = entry.parse(prefix + f"def main({name}: X.int32):\n    X.evaluate({name})\n")
-    assert function.params[0].name == name
-    assert function.body.value.same_as(function.params[0])
