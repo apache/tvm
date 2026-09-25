@@ -28,8 +28,8 @@ from tvm.relax.distributed import DTensorType as _DTensorType
 from tvm.relax.distributed import Placement as _Placement
 from tvm.relax.distributed import device_mesh as device_mesh
 from tvm.script.ir_builder import resolve_global_info_args as _resolve_global_info_args
+from tvm.script.ir_builder.base import SpanEntry as _SpanEntry
 from tvm.script.ir_builder.base import at as _at
-from tvm.script.ir_builder.base import source_span as _source_span
 from tvm.script.parser.protocol_registry import constexpr as constexpr
 
 from . import distributed as dist
@@ -101,7 +101,7 @@ def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
     ndim : int, optional
         Rank when shape is unknown; -1 means unknown rank. Do not supply
         an explicit rank together with a known shape.
-    span : Span or source location, optional
+    span : SpanEntry, Span or None, optional
         Source location attached to the constructed IR; None leaves it unspecified.
 
     Returns
@@ -112,7 +112,9 @@ def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
     """
     if isinstance(shape, _python.str) and dtype is None:
         dtype, shape = shape, None
-    return _relax.TensorType(shape, dtype, vdevice, ndim, _source_span(span))
+    return _relax.TensorType(
+        shape, dtype, vdevice, ndim, span.span if isinstance(span, _SpanEntry) else span
+    )
 
 
 @_resolve_global_info_args("device_mesh", resolver=resolve_global_info_)
@@ -135,7 +137,7 @@ def DTensor(shape=None, dtype=None, device_mesh=None, placement="", *, ndim=-1, 
         parsed with Placement.from_text.
     ndim : int, optional
         Global rank when shape is unknown; -1 means unknown rank.
-    span : Span or source location, optional
+    span : SpanEntry, Span or None, optional
         Source location attached to the constructed IR; None leaves it unspecified.
 
     Returns
@@ -148,7 +150,12 @@ def DTensor(shape=None, dtype=None, device_mesh=None, placement="", *, ndim=-1, 
         device_mesh = _DeviceMesh([], _ir.Range(0, 1))
     if isinstance(placement, _python.str):
         placement = _Placement.from_text(placement)
-    return _DTensorType(Tensor(shape, dtype, ndim=ndim), device_mesh, placement, _source_span(span))
+    return _DTensorType(
+        Tensor(shape, dtype, ndim=ndim),
+        device_mesh,
+        placement,
+        span.span if isinstance(span, _SpanEntry) else span,
+    )
 
 
 # The distributed source spelling shares the decorated concrete constructor.
@@ -172,7 +179,7 @@ def Shape(values=None, ndim=-1, *, span=None):
     ndim : int, optional
         Number of dimensions when values is None; -1 leaves it unknown.
         Do not supply an explicit count together with known values.
-    span : Span or source location, optional
+    span : SpanEntry, Span or None, optional
         Source location attached to the constructed IR; None leaves it unspecified.
 
     Returns
@@ -180,7 +187,7 @@ def Shape(values=None, ndim=-1, *, span=None):
     result : ShapeType
         The constructed shape type.
     """
-    return _relax.ShapeType(values, ndim, _source_span(span))
+    return _relax.ShapeType(values, ndim, span.span if isinstance(span, _SpanEntry) else span)
 
 
 def _type(value):
@@ -212,7 +219,7 @@ def Callable(params=None, ret=None, purity=None, derive_func=None, *, span=None)
     derive_func : str or EnvFunc, optional
         Custom result-type derivation for an opaque callable. It is not
         accepted when params supplies a concrete parameter list.
-    span : Span or source location, optional
+    span : SpanEntry, Span or None, optional
         Source location attached to the constructed IR; None leaves it unspecified.
 
     Returns
@@ -233,14 +240,17 @@ def Callable(params=None, ret=None, purity=None, derive_func=None, *, span=None)
             ret=None if ret is None else _type(ret),
             derive_func=derive_func,
             purity=purity,
-            span=_source_span(span),
+            span=span.span if isinstance(span, _SpanEntry) else span,
         )
     if derive_func is not None:
         raise ValueError("A derivation function requires an opaque callable")
     if not isinstance(params, list | _python.tuple):
         params = [params]
     return _relax.FuncType(
-        [_type(param) for param in params], _type(ret), purity, _source_span(span)
+        [_type(param) for param in params],
+        _type(ret),
+        purity,
+        span.span if isinstance(span, _SpanEntry) else span,
     )
 
 
@@ -252,7 +262,7 @@ def Tuple(*fields, span=None):
     fields : Type or callable
         Field annotations as positional arguments, or one list or tuple.
         Each annotation is normalized to a type; None denotes an empty tuple.
-    span : Span or source location, optional
+    span : SpanEntry, Span or None, optional
         Source location attached to the constructed IR; None leaves it unspecified.
 
     Returns
@@ -262,7 +272,9 @@ def Tuple(*fields, span=None):
     """
     if len(fields) == 1 and isinstance(fields[0], list | _python.tuple):
         fields = fields[0]
-    return _ir.TupleType([_type(field) for field in fields], _source_span(span))
+    return _ir.TupleType(
+        [_type(field) for field in fields], span.span if isinstance(span, _SpanEntry) else span
+    )
 
 
 def Object(*, span=None):
@@ -270,7 +282,7 @@ def Object(*, span=None):
 
     Parameters
     ----------
-    span : Span or source location, optional
+    span : SpanEntry, Span or None, optional
         Source location attached to the constructed IR; None leaves it unspecified.
 
     Returns
@@ -278,7 +290,7 @@ def Object(*, span=None):
     result : AnyType
         A type accepting any Relax value.
     """
-    return _relax.AnyType(_source_span(span))
+    return _relax.AnyType(span.span if isinstance(span, _SpanEntry) else span)
 
 
 Any = Object
@@ -296,7 +308,7 @@ def type_var(name, *, dtype=None, span=None):
         Name of the symbol.
     dtype : str or PrimType, optional
         Primitive type of the symbol; None selects "int64".
-    span : Span or source location, optional
+    span : SpanEntry, Span or None, optional
         Source location attached to the constructed IR; None leaves it unspecified.
 
     Returns
@@ -309,7 +321,11 @@ def type_var(name, *, dtype=None, span=None):
     This constructor creates a new symbol on each call. Use the language variant
     resolver for symbols shared by name within a function signature.
     """
-    return _ir.Var(name, "int64" if dtype is None else dtype, _source_span(span))
+    return _ir.Var(
+        name,
+        "int64" if dtype is None else dtype,
+        span.span if isinstance(span, _SpanEntry) else span,
+    )
 
 
 func_ret_ty = func_ret_type
@@ -320,7 +336,7 @@ def dataflow(*, span=None):
 
     Parameters
     ----------
-    span : Span or source location, optional
+    span : SpanEntry, Span or None, optional
         Source location attached to the constructed IR.
 
     Returns
@@ -351,7 +367,7 @@ def match_cast(value, ty, *, span=None):
         are converted to Relax expressions; None is not accepted.
     ty : Type or callable
         Asserted type, or a zero-argument factory producing its annotation.
-    span : Span or source location, optional
+    span : SpanEntry, Span or None, optional
         Source location attached to the constructed IR; None leaves it unspecified.
 
     Returns
@@ -363,7 +379,9 @@ def match_cast(value, ty, *, span=None):
     if value is None:
         raise ValueError("The match-cast value cannot be None")
     ty = _type(ty)
-    return _relax.MatchCast(_ir.Var("", ty), _value(value), ty, _source_span(span))
+    return _relax.MatchCast(
+        _ir.Var("", ty), _value(value), ty, span.span if isinstance(span, _SpanEntry) else span
+    )
 
 
 __all__ = [

@@ -336,7 +336,7 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
     captured = T.Buffer((4, 4), "float32")
     original = type(captured).view
     seen, produced, observed = [], [], []
-    span = base.source_span(("producer.py", 7, 7, 2, 19))
+    span = ir.Span(ir.SourceName("producer.py"), 7, 7, 2, 19)
 
     @wraps(original)
     def view(buffer, *args):

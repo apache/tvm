@@ -26,7 +26,6 @@ from tvm import tirx as _tir
 from tvm.script.ir_builder import dynamic as dynamic
 from tvm.script.ir_builder.base import annotation_constructor as _annotation_constructor
 from tvm.script.ir_builder.base import at as _at
-from tvm.script.ir_builder.base import source_span as _source_span
 from tvm.script.parser.protocol_registry import constexpr as constexpr
 from tvm.script.parser.protocol_registry import (
     mutable_cell_decl as _mutable_cell_decl,
@@ -155,7 +154,7 @@ def Buffer(
     buffer_name : str
         The name of the buffer.
 
-    span : Span or source location, optional
+    span : SpanEntry, Span or None, optional
         Source location attached to the constructed IR.
 
     Returns
@@ -196,7 +195,7 @@ def Ptr(dtype, storage_scope="global", *, span=None):
     storage_scope : str
         The storage scope of the pointer.
 
-    span : Span or source location, optional
+    span : SpanEntry, Span or None, optional
         Source location attached to the constructed IR.
 
     Returns

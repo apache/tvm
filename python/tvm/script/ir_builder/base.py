@@ -274,49 +274,6 @@ class IRBuilder(_Object):
 _T = TypeVar("_T")
 
 
-class SpanEntry:
-    """A materialized source range shared by generated builder operations.
-
-    Entries retain only fixed source metadata. Calling an entry attaches its
-    span to the same result; ``ctx(thunk)`` additionally supplies call provenance
-    during evaluation. ``ctx(thunk, attach_result=False)`` supplies only the
-    evaluation context, leaving result attachment to the binding operation.
-    Both compose the active caller context at invocation.
-    Builders accepting an explicit span normalize an entry with ``source_span``.
-    """
-
-    __slots__ = ("span",)
-
-    def __init__(self, span: ir.Span) -> None:
-        self.span = span
-
-    def __call__(self, value: _T) -> _T:
-        """Attach this range to the same value, receipt, or native frame."""
-        return at(self.span, value)
-
-    def ctx(self, thunk: Callable[[], _T], *, attach_result: bool = True) -> _T:
-        """Evaluate once under this range, optionally attaching it to the result.
-
-        Context is restored even on failure. Frames constructed during the call
-        retain their native construction span regardless of result attachment.
-        """
-        return with_at_group_(self.span, thunk, attach_result=attach_result)
-
-
-def source_span(
-    location: SpanEntry | ir.Span | tuple[str | ir.SourceName, int, int, int, int] | None,
-) -> ir.Span | None:
-    """Normalize an entry or materialize a range without retaining source-unit state."""
-    if isinstance(location, SpanEntry):
-        return location.span
-    if location is None or isinstance(location, ir.Span | ir.SequentialSpan):
-        return location
-    source_name, line, end_line, column, end_column = location
-    if isinstance(source_name, str):
-        source_name = ir.SourceName(source_name)
-    return ir.Span(source_name, line, end_line, column, end_column)
-
-
 class AlreadyEmitted(Generic[_T]):
     """Hold the exact emitted value; location handling preserves this receipt.
 
@@ -340,17 +297,43 @@ class AlreadyEmitted(Generic[_T]):
         self.value = value
 
 
-def at(
-    span: SpanEntry | ir.Span | tuple[str | ir.SourceName, int, int, int, int] | None, value: _T
-) -> _T:
+class SpanEntry:
+    """A materialized source range shared by generated builder operations.
+
+    Entries retain only fixed source metadata. Calling an entry attaches its
+    span to the same result; ``ctx(thunk)`` additionally supplies call provenance
+    during evaluation. ``ctx(thunk, attach_result=False)`` supplies only the
+    evaluation context, leaving result attachment to the binding operation.
+    Both compose the active caller context at invocation.
+    Builders accepting an explicit span unwrap the entry at native boundaries.
+    """
+
+    __slots__ = ("span",)
+
+    def __init__(self, span: ir.Span) -> None:
+        self.span = span
+
+    def __call__(self, value: _T) -> _T:
+        """Attach this range to the same value, receipt, or native frame."""
+        return at(self.span, value)
+
+    def ctx(self, thunk: Callable[[], _T], *, attach_result: bool = True) -> _T:
+        """Evaluate once under this range, optionally attaching it to the result.
+
+        Context is restored even on failure. Frames constructed during the call
+        retain their native construction span regardless of result attachment.
+        """
+        return with_at_group_(self.span, thunk, attach_result=attach_result)
+
+
+def at(span: SpanEntry | ir.Span | None, value: _T) -> _T:
     """Attach source context to the same IR node, emission receipt, or frame.
 
     Parameters
     ----------
-    span : SpanEntry, Span, tuple or None
-        Source location to compose with the active construction context. A tuple
-        contains ``(source_name, line, end_line, column, end_column)``; its source
-        name may be a string or SourceName. None leaves the value unchanged.
+    span : SpanEntry, Span or None
+        Source location to compose with the active construction context.
+        None leaves the value unchanged.
     value : Any
         Native object, :class:`AlreadyEmitted` receipt, or list/tuple of native
         objects to annotate. A receipt's contained object receives the span.
@@ -369,16 +352,18 @@ def at(
     """
     if span is None or not IRBuilder.is_in_scope():
         return value
+    if isinstance(span, SpanEntry):
+        span = span.span
     target = value.value if isinstance(value, AlreadyEmitted) else value
     targets = target if isinstance(target, list | tuple) else (target,)
     for item in targets:
         if isinstance(item, _Object):
-            _ffi_api.IRBuilderSetSourceSpan(IRBuilder.current(), item, source_span(span))
+            _ffi_api.IRBuilderSetSourceSpan(IRBuilder.current(), item, span)
     return value
 
 
 def with_at_group_(
-    location: SpanEntry | ir.Span | tuple[str | ir.SourceName, int, int, int, int] | None,
+    location: SpanEntry | ir.Span | None,
     thunk: Callable[[], _T],
     *,
     attach_result: bool = True,
@@ -387,10 +372,9 @@ def with_at_group_(
 
     Parameters
     ----------
-    location : SpanEntry, Span, tuple or None
-        Source context for the call. A tuple contains
-        ``(source_name, line, end_line, column, end_column)``. None, or the
-        absence of an active builder, leaves construction context unchanged.
+    location : SpanEntry, Span or None
+        Source context for the call. None, or the absence of an active builder,
+        leaves construction context unchanged.
     thunk : Callable[[], Any]
         Zero-argument callable evaluated exactly once inside that context.
     attach_result : bool, optional
@@ -409,7 +393,7 @@ def with_at_group_(
     exception propagates unchanged. Frames created during the call retain their
     construction spans regardless of ``attach_result``.
     """
-    span = source_span(location)
+    span = location.span if isinstance(location, SpanEntry) else location
     context = (
         IRBuilder.current().with_source_span(span)
         if span is not None and IRBuilder.is_in_scope()
@@ -417,7 +401,7 @@ def with_at_group_(
     )
     with context:
         value = thunk()
-        return at(location, value) if attach_result else value
+        return at(span, value) if attach_result else value
 
 
 at_ = at
@@ -435,7 +419,9 @@ def _resolve_type_var(frame, ffi_resolver, name, dtype=None, *, value=None, span
         raise TypeError("A symbolic variable requires a primitive type")
     if value is not None and not ir.is_prim_var(value):
         raise TypeError("A symbolic binding requires a primitive Var")
-    return ffi_resolver(frame, name, dtype, value, source_span(span))
+    return ffi_resolver(
+        frame, name, dtype, value, span.span if isinstance(span, SpanEntry) else span
+    )
 
 
 def _current_function_frame():

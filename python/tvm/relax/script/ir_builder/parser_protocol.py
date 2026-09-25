@@ -45,7 +45,7 @@ from . import _ffi_api
 from . import frame as _frame
 from . import ir as _native
 
-_Span = _base.SpanEntry | _ir.Span | tuple[_ir.SourceName, int, int, int, int] | None
+_Span = _base.SpanEntry | _ir.Span | None
 
 
 # --------------------------------------
@@ -172,7 +172,7 @@ def lt_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
         return _base.at_(span, _relax.op.less(lhs, rhs))
-    return _prim_ffi._OpLT(lhs, rhs, _base.source_span(span))
+    return _prim_ffi._OpLT(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
 
 
 def le_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
@@ -181,7 +181,7 @@ def le_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
         return _base.at_(span, _relax.op.less_equal(lhs, rhs))
-    return _prim_ffi._OpLE(lhs, rhs, _base.source_span(span))
+    return _prim_ffi._OpLE(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
 
 
 def gt_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
@@ -190,7 +190,7 @@ def gt_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
         return _base.at_(span, _relax.op.greater(lhs, rhs))
-    return _prim_ffi._OpGT(lhs, rhs, _base.source_span(span))
+    return _prim_ffi._OpGT(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
 
 
 def ge_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
@@ -199,7 +199,7 @@ def ge_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
         return _base.at_(span, _relax.op.greater_equal(lhs, rhs))
-    return _prim_ffi._OpGE(lhs, rhs, _base.source_span(span))
+    return _prim_ffi._OpGE(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
 
 
 def eq_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
@@ -208,7 +208,7 @@ def eq_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
         return _base.at_(span, _relax.op.equal(lhs, rhs))
-    return _prim_ffi._OpEQ(lhs, rhs, _base.source_span(span))
+    return _prim_ffi._OpEQ(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
 
 
 def ne_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
@@ -217,7 +217,7 @@ def ne_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
         return _base.at_(span, _relax.op.not_equal(lhs, rhs))
-    return _prim_ffi._OpNE(lhs, rhs, _base.source_span(span))
+    return _prim_ffi._OpNE(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
 
 
 # --------------------------------------
@@ -350,7 +350,7 @@ def arg(name: str, ty: Any, *, span: _Span = None) -> _ir.Var:
         :func:`tvm.script.ir_builder.parser_protocol.arg` contract. Primitive
         annotations resolve through the active signature symbol context; an
         existing variable retains its identity.
-    span : Span or source location, optional
+    span : SpanEntry, Span or None, optional
         Source location attached to the constructed IR; None leaves it unspecified.
 
     Returns
@@ -446,14 +446,18 @@ def bind_(
     Relax values emit a binding or MatchCast; value_span belongs to the actual
     RHS and span to the binding target. Metadata passes through unchanged.
     """
-    name_span = _base.source_span(span if name_span is None else name_span)
+    if isinstance(span, _base.SpanEntry):
+        span = span.span
+    name_span = span if name_span is None else name_span
+    if isinstance(name_span, _base.SpanEntry):
+        name_span = name_span.span
     if frame_value:
         if isinstance(value, _python.list | _python.tuple | _ir.Array):
             for index, item in enumerate(value):
                 bind_(
                     item,
                     name=None if name is None else f"{name}_{index}",
-                    span=_base.source_span(span),
+                    span=span,
                     name_span=name_span,
                     frame_value=True,
                 )
@@ -472,12 +476,10 @@ def bind_(
         _base.at_(value_span, value.value)
         if ty is not None and not _ffi.structural_equal(ty, value.ty):
             raise TypeError("The binding annotation differs from the match-cast type")
-        result = _ffi_api.EmitMatchCastWithSpan(
-            value.value, value.ty, name_span, _base.source_span(span)
-        )
+        result = _ffi_api.EmitMatchCastWithSpan(value.value, value.ty, name_span, span)
     elif isinstance(value, _relax.Expr):
         _base.at_(value_span, value)
-        result = _ffi_api.EmitWithSpan(value, ty, name_span, _base.source_span(span))
+        result = _ffi_api.EmitWithSpan(value, ty, name_span, span)
     else:
         return value
     if name is not None:

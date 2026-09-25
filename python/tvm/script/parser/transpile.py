@@ -2412,4 +2412,4 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 root, result, python_functions, check_well_formed=check_well_formed
             )
         )
-        return ast.fix_missing_locations(ast.Module(translated, [])), result
+        return ast.Module(translated, []), result
