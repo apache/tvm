@@ -23,6 +23,24 @@ from tvm.script.parser import entry
 
 
 @pytest.fixture
+def language(monkeypatch):
+    """Use the shared recording language without selecting a native dialect."""
+    from minilang import Language, RecordingSpanEntry
+
+    from tvm.script.parser import entry
+
+    monkeypatch.setattr(
+        entry,
+        "register_namespace",
+        lambda alias, namespace: monkeypatch.setitem(entry._NAMESPACES, alias, namespace),
+    )
+    language = Language()
+    monkeypatch.setattr(entry, "builder_ir", language.I)
+    monkeypatch.setattr(entry, "SpanEntry", lambda span: RecordingSpanEntry(language, span))
+    return language
+
+
+@pytest.fixture
 def spanned_language(language, monkeypatch):
     monkeypatch.setattr(entry, "SpanEntry", base.SpanEntry)
     language.I.at_ = base.at_

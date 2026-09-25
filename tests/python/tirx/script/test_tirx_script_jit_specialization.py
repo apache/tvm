@@ -14,11 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Specialize real JIT scripts while retaining runtime parameters and captured values.
-
-A small native TIRx example checks the resulting IR. Mini-language regressions
-cover deferred annotations, nested failures and the lifetime of needed captures.
-"""
+"""Native JIT annotation, capture, lifetime and specialization contracts."""
 
 from __future__ import annotations
 
@@ -28,73 +24,67 @@ from types import SimpleNamespace
 
 import pytest
 
+from tvm import ir, tirx
 from tvm.ir import assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.tirx.script.jit import make_jit
 
 
-@pytest.fixture
-def jit_language(language):
-    language.M.jit = make_jit(language.M, namespace_path="M.jit")
-    return language
-
-
-def test_annotation_constructor_executes_in_required_builder_context(jit_language):
-    # Before: a postponed annotation calls a context-sensitive constructor.
-    # Expected builder: constructor runs once at specialization inside the real IRBuilder.
-    M = jit_language.M
+def test_jit_annotation_context_and_optional_selection():
     calls = []
 
     def annotation():
         calls.append(IRBuilder.is_in_scope())
-        return M.Tensor((5,), "int32")
+        return T.Buffer((5,), "int32")
 
-    @M.jit
-    def function(output: annotation()):
-        M.record(7)
+    @T.jit(private=True)
+    def required(output: annotation()):
+        output[0] = 7
 
-    assert calls == []  # postponed annotations are not evaluated at decoration
-    result = function.specialize()
-    assert calls == [True]
-    assert [int(value) for value in result.params[0].args[0].args[0]] == [5]
-
-
-def test_optional_annotation_is_evaluated_only_for_present_parameters(jit_language):
-    # A selected absence skips its annotation entirely; a present optional unwraps once.
-    M = jit_language.M
-    M.Optional = T.Optional
-    calls = []
-
-    def annotation():
-        calls.append("annotation")
-        return M.Tensor((5,))
-
-    @M.jit
-    def function(value: M.Optional(annotation())):
-        M.record(value)
-
-    absent = function.specialize(value=None)
-    assert absent.params == [] and absent.body == [("emit", None)]
     assert calls == []
-    present = function.specialize()
-    assert calls == ["annotation"]
-    assert present.params[0].args[0].args[0] == (5,)
-    assert present.body == [("emit", present.params[0])]
+    result = required.specialize()
+    assert calls == [True]
+    assert [int(value) for value in result.params[0].ty.shape] == [5]
+    assert result.body.buffer.same_as(result.params[0])
+    assert int(result.body.value) == 7
+    calls.clear()
+
+    @T.jit(private=True)
+    def optional(value: T.Optional(annotation())):
+        if T.constexpr(value is not None):
+            value[0] = 3
+        else:
+            T.evaluate(0)
+
+    assert calls == []
+    absent = optional.specialize(value=None)
+    assert len(absent.params) == 0 and int(absent.body.value) == 0
+    assert calls == []
+    present = optional.specialize()
+    assert calls == [True]
+    assert [int(value) for value in present.params[0].ty.shape] == [5]
+    assert present.body.buffer.same_as(present.params[0])
+    assert int(present.body.value) == 3
+
+    @T.jit(private=True)
+    def missing(value: T.Optional(missing_annotation)):  # noqa: F821
+        T.evaluate(0)
+
+    absent = missing.specialize(value=None)
+    assert len(absent.params) == 0 and int(absent.body.value) == 0
+    with pytest.raises(NameError, match="missing_annotation"):
+        missing.specialize()
 
 
-def test_jit_retains_lexical_annotation_snapshot(jit_language):
-    # Later enclosing mutations must not replace the annotation/body values captured for JIT.
-    M = jit_language.M
-
+def test_jit_capture_snapshot_and_specialization():
     def outer(extent):
         def middle(width):
-            type_namespace = M
+            type_namespace = T
 
-            @M.jit
-            def function(output: type_namespace.Tensor((extent, width), "int32")):
-                M.record(extent)
+            @T.jit(private=True)
+            def function(output: type_namespace.Buffer((extent, width), "int32")):
+                T.evaluate(extent)
 
             return function
 
@@ -103,97 +93,10 @@ def test_jit_retains_lexical_annotation_snapshot(jit_language):
         return pending
 
     function = outer(8).specialize()
-    assert function.params[0].args[0].args[:2] == ((8, 3), "int32")
-    assert function.body == [("emit", 8)]
+    assert [int(value) for value in function.params[0].ty.shape] == [8, 3]
+    assert function.params[0].ty.dtype == "int32"
+    assert int(function.body.value) == 8
 
-
-def test_reentrant_specialization_restores_root_bindings_after_failure(jit_language):
-    # A nested parse and failed same-name specialization must not overwrite the outer value.
-    M = jit_language.M
-    failure = ValueError("nested failure")
-
-    def fail():
-        raise failure
-
-    def nested():
-        @M.function
-        def kernel(n: M.Tensor((1,))):
-            M.record(n)
-
-        assert len(kernel.params) == 1
-        assert kernel.body[0][1] is kernel.params[0]
-
-        @M.jit
-        def kernel(n: I.constexpr):
-            fail()
-
-        with pytest.raises(ValueError) as caught:
-            kernel.specialize(n=8)
-        assert caught.value is failure
-
-    @M.jit
-    def kernel(n: I.constexpr):
-        nested()
-        M.record(n)
-
-    result = kernel.specialize(n=4)
-    assert result.params == [] and result.body[-1] == ("emit", 4)
-
-
-def test_live_jit_retains_only_needed_scope_across_uncached_builds(jit_language):
-    # A live JIT must release unrelated scope while preserving annotations across uncached builds.
-    class Payload:
-        pass
-
-    M = jit_language.M
-    M.jit = make_jit(M, namespace_path="M.jit")
-
-    def make():
-        payload = Payload()
-        reference = weakref.ref(payload)
-        width = 7
-
-        @M.jit
-        def kernel(x: M.Tensor((width,)), *, value: I.constexpr):
-            M.record(value)
-
-        return kernel, reference
-
-    enabled = gc.isenabled()
-    gc.disable()
-    try:
-        kernel, reference = make()
-        assert reference() is None
-        first = kernel.specialize(value=1)
-        second = kernel.specialize(value=2)
-        assert reference() is None
-        assert first is kernel.specialize(value=1) and first is not second
-        assert first.params[0].args[0].args[0] == second.params[0].args[0].args[0] == (7,)
-        assert first.body == [("emit", 1)] and second.body == [("emit", 2)]
-    finally:
-        if enabled:
-            gc.enable()
-
-
-def test_recursive_parameters_survive_empty_specialization(jit_language):
-    # Empty specialization must preserve recursive runtime arguments and their identities.
-    M = jit_language.M
-    M.jit = make_jit(M, namespace_path="M.jit")
-
-    @M.jit
-    def main(x: M.Tensor((4,)), y: M.Tensor((4,))):
-        main(x, y)
-
-    result = main.specialize()
-    assert len(result.params) == 2
-    call = result.body[0][1]
-    assert call.args[0] is jit_language.references["main"]
-    assert all(actual is expected for actual, expected in zip(call.args[1:], result.params))
-    assert len(call.args) == 3
-
-
-def test_tirx_jit_specializes_captured_shape_and_value():
-    # A deferred native function must retain its enclosing shape and substitute the constexpr value.
     width = 4
 
     @T.jit(private=True)
@@ -211,98 +114,162 @@ def test_tirx_jit_specializes_captured_shape_and_value():
     assert_structural_equal(result, expected, map_free_vars=True)
 
 
-def test_optional_missing_annotation_stays_lazy(jit_language):
-    M = jit_language.M
-    M.Optional = T.Optional
+def test_jit_reentrant_specialization_after_failure():
+    failure = ValueError("nested failure")
 
-    @M.jit
-    def function(value: M.Optional(missing_annotation)):  # noqa: F821
-        M.record(value)
+    def fail():
+        raise failure
 
-    absent = function.specialize(value=None)
-    assert absent.params == [] and absent.body == [("emit", None)]
-    with pytest.raises(NameError, match="missing_annotation"):
-        function.specialize()
+    def nested():
+        @T.prim_func(private=True)
+        def kernel(n: T.int32):
+            T.evaluate(n)
+
+        assert len(kernel.params) == 1
+        assert kernel.body.value.same_as(kernel.params[0])
+
+        @T.jit(private=True)
+        def kernel(n: I.constexpr):
+            fail()
+
+        with pytest.raises(ValueError) as caught:
+            kernel.specialize(n=8)
+        assert caught.value is failure
+
+    @T.jit(private=True)
+    def kernel(n: I.constexpr):
+        nested()
+        T.evaluate(n)
+
+    result = kernel.specialize(n=4)
+    assert len(result.params) == 0 and int(result.body.value) == 4
 
 
-def test_jit_preserves_namespace_used_only_by_decorator(jit_language):
-    Alias = jit_language.M
-
-    @Alias.jit(private=True)
-    def function():
+def test_jit_capture_lifetime_and_cache():
+    class Payload:
         pass
 
-    result = function.specialize()
-    assert result.params == [] and result.body == []
+    def make():
+        payload = Payload()
+        reference = weakref.ref(payload)
+        width = 7
 
+        @T.jit(private=True)
+        def kernel(x: T.Buffer((width,), "int32"), *, value: I.constexpr):
+            T.evaluate(value)
 
-def test_jit_does_not_retain_ordinary_decorator_owners(jit_language):
-    M = jit_language.M
+        return kernel, reference
 
     class Owner:
         def decorate(self, function):
             return function
 
-    def make():
+    def decorated():
         owner = Owner()
         reference = weakref.ref(owner)
 
-        @M.jit
+        @T.jit(private=True)
         @owner.decorate
         def function():
             pass
 
         return function, reference
 
-    function, reference = make()
-    assert reference() is None
-    assert function.specialize().body == []
+    enabled = gc.isenabled()
+    gc.disable()
+    try:
+        kernel, reference = make()
+        assert reference() is None
+        first = kernel.specialize(value=1)
+        second = kernel.specialize(value=2)
+        assert reference() is None
+        assert first is kernel.specialize(value=1) and first is not second
+        assert [int(value) for value in first.params[0].ty.shape] == [7]
+        assert [int(value) for value in second.params[0].ty.shape] == [7]
+        assert int(first.body.value) == 1 and int(second.body.value) == 2
+        function, reference = decorated()
+        assert reference() is None
+        result = function.specialize()
+        assert len(result.params) == 0
+        assert_structural_equal(result.body, tirx.Evaluate(0))
+    finally:
+        if enabled:
+            gc.enable()
 
 
-@pytest.mark.parametrize("postponed", [False, True])
-def test_jit_initial_alias_preserves_annotation_forms(tmp_path, postponed):
+@pytest.mark.parametrize("annotation_form", ["eager", "postponed", "quoted"])
+def test_jit_namespace_and_marker_resolution(tmp_path, monkeypatch, annotation_form):
+    Alias = T
+
+    @Alias.jit(private=True)
+    def empty():
+        pass
+
+    result = empty.specialize()
+    assert len(result.params) == 0
+    assert "global_symbol" not in result.attrs
+    assert_structural_equal(result.body, tirx.Evaluate(0))
+
     source = """@Script.jit(private=True)
 def kernel(output: Script.Buffer((1,), "int32"), *, value: Script.constexpr,
            optional: Script.Optional(Script.Buffer((1,), "int32"))):
     output[0] = value
 """
-    if postponed:
+    if annotation_form != "eager":
         source = "from __future__ import annotations\n" + source
+    if annotation_form == "quoted":
+        source = source.replace("value: Script.constexpr", "value: 'Script.constexpr'")
     path = tmp_path / "aliased_jit.py"
     path.write_text(source)
     namespace = {"Script": T}
     exec(compile(source, str(path), "exec", dont_inherit=True), namespace)
     kernel = namespace["kernel"]
+    if annotation_form == "quoted":
+        with pytest.raises(SyntaxError, match="Quoted annotations are not supported"):
+            kernel.specialize(value=3, optional=None)
+        return
     assert kernel.constexpr_names == {"value"}
     assert kernel.optional_names == {"optional"}
     result = kernel.specialize(value=3, optional=None)
-    assert len(result.params) == 1
-    assert int(result.body.value) == 3
+    assert len(result.params) == 1 and int(result.body.value) == 3
 
-
-def test_postponed_jit_uses_registered_constexpr_syntax(jit_language, monkeypatch):
-    M = jit_language.M
-    Alias = M
-    # Syntax classification must not inspect the value behind a registered marker name.
-    monkeypatch.setattr(M, "constexpr", object())
+    # Registered namespace syntax, rather than the current attribute value, selects markers.
+    monkeypatch.setattr(T, "constexpr", object())
+    monkeypatch.setattr(T, "marker_alias", I.constexpr, raising=False)
     Ordinary = SimpleNamespace(constexpr=I.constexpr, Optional=T.Optional)
-    M.marker_alias = I.constexpr
 
     def unavailable():
         pytest.fail("Unselected annotations must remain unevaluated")
 
-    @M.jit
+    @T.jit(private=True)
     def specialized(value: Alias.constexpr):
-        M.record(value)
+        T.evaluate(value)
 
-    assert specialized.specialize(value=4).body == [("emit", 4)]
+    assert int(specialized.specialize(value=4).body.value) == 4
 
-    @M.jit
+    @T.jit(private=True)
     def ordinary(
         value: Ordinary.constexpr,
         optional: Ordinary.Optional(unavailable()),
-        alias: M.marker_alias,
+        alias: T.marker_alias,
     ):
-        M.record(value)
+        T.evaluate(value)
 
     assert ordinary.constexpr_names == ordinary.optional_names == set()
+
+
+def test_jit_empty_specialization_preserves_runtime_parameters():
+    @T.jit(private=True)
+    def main(x: T.int32, y: T.int32):
+        main(x, y)
+        main(x, y)
+
+    result = main.specialize()
+    assert len(result.params) == 2
+    assert len(result.body.seq) == 2
+    first, second = [node.value for node in result.body.seq]
+    assert isinstance(first.op, ir.GlobalVar) and first.op.name_hint == "main"
+    assert first.op.same_as(second.op)
+    for call in (first, second):
+        assert len(call.args) == 2
+        assert all(actual.same_as(expected) for actual, expected in zip(call.args, result.params))

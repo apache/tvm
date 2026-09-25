@@ -14,37 +14,170 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TIRX parser integration for source locations."""
+
+"""TIRx script source locations."""
 
 from __future__ import annotations
 
-# Script-local bindings are inspected through the constructed IR.
 import inspect
 from types import SimpleNamespace
 
 import pytest
+import tvm_ffi
+from tvm_ffi import structural_walk
 
+import tvm
+import tvm.testing
 from tvm import ir
-from tvm.ir import prim
+from tvm.ir import Call, SequentialSpan, TensorLoad, assert_structural_equal, prim
 from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.script.ir_builder.base import AlreadyEmitted
+from tvm.script.parser.inspect_source import Source
+from tvm.script.tirx import tile as Tx
+from tvm.tirx.stmt import TilePrimitiveCall
 
 
-def _line_of(function, statement):
-    lines, first = inspect.getsourcelines(function)
-    return first + next(index for index, line in enumerate(lines) if line.strip() == statement)
+def test_parser_attaches_span_to_direct_call():
+    sources = []
+
+    @T.prim_func
+    @_capture_source(sources)
+    def direct_call():
+        T.device_entry()
+        barriers = T.alloc_buffer((1,), "uint64", scope="shared")
+        T.cuda.mbarrier_wait(
+            T.address_of(barriers[0]),
+            0,
+        )
+
+    source = sources[0]
+    call_ast = source.as_ast().body[0].body[-1].value
+    func = direct_call
+    call = _find_ir_node(
+        func,
+        lambda node: (
+            isinstance(node, Call) and getattr(node.op, "name", None) == "tirx.cuda.mbarrier_wait"
+        ),
+    )
+
+    assert _span_range(call.span) == _span_range(source.to_span(call_ast))
 
 
-def _position(test, statement, expression):
-    lines, start = inspect.getsourcelines(test)
-    index, line = next((i, line) for i, line in enumerate(lines) if line.strip() == statement)
-    column = line.index(expression) + 1
-    return start + index, column, start + index, column + len(expression)
+def _capture_source(sources):
+    """Keep original source coordinates before a definition-site construction."""
+
+    def capture(function):
+        sources.append(Source(function))
+        return function
+
+    return capture
 
 
-def _span_position(span):
-    return span.line, span.column, span.end_line, span.end_column
+def _span_range(span):
+    return (
+        span.source_name.name,
+        span.line,
+        span.column,
+        span.end_line,
+        span.end_column,
+    )
+
+
+def _find_ir_node(func, predicate):
+    nodes = []
+    structural_walk(func.body, nodes.append, order="post")
+    matches = [node for node in nodes if predicate(node)]
+    assert len(matches) == 1
+    return matches[0]
+
+
+def test_parser_attaches_span_to_nested_tensor_load():
+    sources = []
+
+    @T.prim_func
+    @_capture_source(sources)
+    def nested_load():
+        source_buffer = T.alloc_buffer((1,), "int32")
+        output = T.alloc_buffer((1,), "int32")
+        output[0] = source_buffer[0] + 1
+
+    source = sources[0]
+    load_ast = source.as_ast().body[0].body[-1].value.left
+    func = nested_load
+    load = _find_ir_node(
+        func,
+        lambda node: (
+            isinstance(node, TensorLoad) and getattr(node.source, "name", None) == "source_buffer"
+        ),
+    )
+
+    assert _span_range(load.span) == _span_range(source.to_span(load_ast))
+
+
+def test_parser_retains_inline_call_site_and_definition_spans():
+    @T.inline
+    def wait_impl(barrier):
+        T.cuda.mbarrier_wait(barrier, 0)
+
+    wait_source = Source(wait_impl.__wrapped__)
+    wait_call_ast = wait_source.as_ast().body[0].body[0].value
+    wait = wait_impl
+
+    sources = []
+
+    @T.prim_func
+    @_capture_source(sources)
+    def inline_call():
+        T.device_entry()
+        barriers = T.alloc_buffer((1,), "uint64", scope="shared")
+        wait(T.address_of(barriers[0]))
+
+    caller_source = sources[0]
+    caller_call_ast = caller_source.as_ast().body[0].body[-1].value
+    func = inline_call
+    call = _find_ir_node(
+        func,
+        lambda node: (
+            isinstance(node, Call) and getattr(node.op, "name", None) == "tirx.cuda.mbarrier_wait"
+        ),
+    )
+
+    assert isinstance(call.span, SequentialSpan)
+    assert [_span_range(span) for span in call.span.spans] == [
+        _span_range(caller_source.to_span(caller_call_ast)),
+        _span_range(wait_source.to_span(wait_call_ast)),
+    ]
+
+
+def test_parser_attaches_span_to_tile_primitive_call():
+    sources = []
+
+    @T.prim_func
+    @_capture_source(sources)
+    def tile_call():
+        A = T.alloc_buffer((16,), "float32")
+        Tx.memset(A[0:16], T.float32(0))
+
+    source = sources[0]
+    call_ast = source.as_ast().body[0].body[-1].value
+    func = tile_call
+    call = _find_ir_node(func, lambda node: isinstance(node, TilePrimitiveCall))
+
+    assert _span_range(call.span) == _span_range(source.to_span(call_ast))
+
+
+def test_parser_spans_do_not_affect_structural_identity():
+    source_a = """@T.prim_func\ndef f():\n    T.evaluate(1)\n"""
+    source_b = """\n\n@T.prim_func\ndef f():\n    T.evaluate(1)\n"""
+
+    func_a = tvm.script.from_source(source_a, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+    func_b = tvm.script.from_source(source_b, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+
+    assert _span_range(func_a.body.span) == ("<str>", 3, 5, 3, 18)
+    assert _span_range(func_b.body.span) == ("<str>", 5, 5, 5, 18)
+    assert tvm_ffi.structural_hash(func_a) == tvm_ffi.structural_hash(func_b)
+    assert_structural_equal(func_a, func_b)
 
 
 def test_statement_receipts_keep_emitted_nodes_and_spans():
@@ -225,6 +358,11 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
             object()
 
 
+def _line_of(function, statement):
+    lines, first = inspect.getsourcelines(function)
+    return first + next(index for index, line in enumerate(lines) if line.strip() == statement)
+
+
 def test_non_call_expression_reads_keep_their_source_range():
     # Bare name, property, item and literal emissions must retain their written
     # ranges in actual IR, with each host read evaluated once.
@@ -264,3 +402,14 @@ def test_non_call_expression_reads_keep_their_source_range():
         )
         assert _span_position(node.span) == expected
         assert node.span.source_name.name == __file__
+
+
+def _position(test, statement, expression):
+    lines, start = inspect.getsourcelines(test)
+    index, line = next((i, line) for i, line in enumerate(lines) if line.strip() == statement)
+    column = line.index(expression) + 1
+    return start + index, column, start + index, column + len(expression)
+
+
+def _span_position(span):
+    return span.line, span.column, span.end_line, span.end_column

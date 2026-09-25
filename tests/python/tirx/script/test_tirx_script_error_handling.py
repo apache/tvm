@@ -14,7 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TIRX parser integration for error handling."""
+
+"""TIRx script error handling."""
+
+from __future__ import annotations
 
 import inspect
 import traceback
@@ -22,6 +25,7 @@ import traceback
 import pytest
 
 from tvm.script import tirx as T
+from tvm.script.ir_builder import resolve_global_info_args
 
 
 def test_optional_annotation_requires_jit_at_the_source_parameter():
@@ -49,3 +53,73 @@ def test_optional_annotation_requires_jit_at_the_source_parameter():
             first + index,
             column + len("value: T.Optional(T.handle)"),
         )
+
+
+def test_tirx_rejects_global_info_at_the_call_site(monkeypatch):
+    # A custom builder reports its resolver failure at the ordinary call site.
+    @resolve_global_info_args("device", resolver=T.resolve_global_info_)
+    def global_annotation(device):
+        return T.int32
+
+    monkeypatch.setattr(T, "global_annotation", global_annotation, raising=False)
+    with pytest.raises(
+        NotImplementedError, match="TIRx does not support global-info lookup"
+    ) as caught:
+
+        @T.prim_func
+        def main(value: T.global_annotation(device="cuda:0")):
+            T.evaluate(value)
+
+    lines, first = inspect.getsourcelines(test_tirx_rejects_global_info_at_the_call_site)
+    index, line = next((i, line) for i, line in enumerate(lines) if "def main(value:" in line)
+    location = first + index
+    frames = traceback.extract_tb(caught.value.__traceback__)
+    source_frames = [
+        frame for frame in frames if frame.filename == __file__ and frame.lineno == location
+    ]
+    assert source_frames
+    if getattr(source_frames[-1], "colno", None) is not None:
+        column = line.index("T.global_annotation(")
+        assert (
+            source_frames[-1].colno,
+            source_frames[-1].end_lineno,
+            source_frames[-1].end_colno,
+        ) == (
+            column,
+            location,
+            column + len('T.global_annotation(device="cuda:0")'),
+        )
+
+
+def test_scalar_assign_error_not_swallowed():
+    """Regression: genuine errors (non-TypeError) from buffer_store during
+    scalar-assignment sugar must propagate, not be silently swallowed.
+
+    Before the fix, both eval_expr and buffer_store were wrapped in a single
+    broad ``except Exception: pass``, so any error from buffer_store would be
+    swallowed and the assignment would silently fall through to eval_assign."""
+    from unittest.mock import patch
+
+    original = tvm.tirx.script.ir_builder.parser_protocol.buffer_store
+
+    def bomb(*args, **kwargs):
+        # Intercept only the scalar-assignment path (indices == [0])
+        if args[2] == [0]:
+            raise ValueError("boom")
+        return original(*args, **kwargs)
+
+    src = """
+# from tvm.script import tirx as T
+
+@T.prim_func
+def func():
+    T.device_entry()
+    v: T.int32
+    v = v + T.int32(1)
+"""
+    # The ValueError propagates unchanged. A broad ``except Exception`` here
+    # previously swallowed it and fell through to eval_assign.
+    with patch("tvm.tirx.script.ir_builder.parser_protocol.buffer_store", side_effect=bomb):
+        with pytest.raises(ValueError, match="boom"):
+            from_source(src)
+

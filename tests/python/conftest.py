@@ -19,8 +19,6 @@
 import os
 from pathlib import Path
 
-import pytest
-
 
 def pytest_sessionstart():
     if os.getenv("CI", "") == "true":
@@ -29,21 +27,3 @@ def pytest_sessionstart():
         )
 
         install_request_hook(Path(__file__).with_name("request_hook.py"))
-
-
-@pytest.fixture
-def language(monkeypatch):
-    """Use the shared recording language without selecting a native dialect."""
-    from minilang import Language, RecordingSpanEntry
-
-    from tvm.script.parser import entry
-
-    monkeypatch.setattr(
-        entry,
-        "register_namespace",
-        lambda alias, namespace: monkeypatch.setitem(entry._NAMESPACES, alias, namespace),
-    )
-    language = Language()
-    monkeypatch.setattr(entry, "builder_ir", language.I)
-    monkeypatch.setattr(entry, "SpanEntry", lambda span: RecordingSpanEntry(language, span))
-    return language

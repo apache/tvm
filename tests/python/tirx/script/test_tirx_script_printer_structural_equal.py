@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""TIRx script printer structural equal."""
+
 import pytest
 from tvm_ffi.access_path import AccessPath
 
@@ -22,17 +24,6 @@ import tvm
 from tvm.ir import assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import tirx as T
-
-
-def _error_message(exception):
-    return str(exception)
-
-
-def _expected_result(func1, func2, objpath1, objpath2):
-    return f"""StructuralEqual check failed, caused by lhs at {objpath1}:
-{func1.script(path_to_underline=[objpath1], syntax_sugar=False)}
-and rhs at {objpath2}:
-{func2.script(path_to_underline=[objpath2], syntax_sugar=False)}"""
 
 
 def test_prim_type_hidden_path_exact_message():
@@ -85,6 +76,17 @@ def test_prim_func_buffer_param():
         .array_item(1)
         .attr("value"),
     )
+
+
+def _expected_result(func1, func2, objpath1, objpath2):
+    return f"""StructuralEqual check failed, caused by lhs at {objpath1}:
+{func1.script(path_to_underline=[objpath1], syntax_sugar=False)}
+and rhs at {objpath2}:
+{func2.script(path_to_underline=[objpath2], syntax_sugar=False)}"""
+
+
+def _error_message(exception):
+    return str(exception)
 
 
 def test_evaluate():
@@ -177,7 +179,3 @@ def test_for():
         AccessPath.root().attr("body").attr("body").attr("body"),
         AccessPath.root().attr("body").attr("body").attr("body"),
     )
-
-
-if __name__ == "__main__":
-    tvm.testing.main()

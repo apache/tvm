@@ -14,9 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, missing-docstring
 # ruff: noqa: F841
-"""Unittests for tvm.tirx.script.ir_builder"""
+"""S-TIR script ir builder."""
 
 import tvm
 import tvm.runtime

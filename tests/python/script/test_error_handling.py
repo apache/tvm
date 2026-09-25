@@ -14,20 +14,219 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Construction failures preserve the original error and allow later scripts to build.
+"""Shared parser error handling."""
 
-A nested function failure must unwind lexical and construction scopes without
-leaking its source context into a subsequently constructed native expression.
-"""
+from __future__ import annotations
 
+import ast
 import inspect
 import traceback
 
 import pytest
 
+# Script-local bindings are observed through the constructed IR.
+# ruff: noqa: F841
+from minilang import Value
+
 from tvm import ir
 from tvm.ir import prim
+from tvm.script import ir as I
 from tvm.script.parser import entry
+
+
+def test_missing_parameter_annotation_keeps_source_range(language):
+    # An unannotated script parameter must report that parameter before constructing IR.
+    M = language.M
+    with pytest.raises(SyntaxError, match="requires an annotation") as caught:
+
+        @M.function
+        def main(value):
+            pass
+
+    error = caught.value
+    # The outer test's fixture argument is not the offending script argument.
+    lines, first = inspect.getsourcelines(test_missing_parameter_annotation_keeps_source_range)
+    node = next(
+        n
+        for n in ast.walk(ast.parse("".join(lines)))
+        if isinstance(n, ast.arg) and n.arg == "value"
+    )
+    expected = (
+        __file__,
+        first + node.lineno - 1,
+        node.col_offset + 1,
+        first + node.end_lineno - 1,
+        node.end_col_offset + 1,
+    )
+    assert type(error) is SyntaxError
+    assert (
+        error.filename,
+        error.lineno,
+        error.offset,
+        error.end_lineno,
+        error.end_offset,
+    ) == expected
+    assert not language.functions
+
+    # The string entry must report the same missing annotation in its original source.
+    source = "@M.function\ndef main(value) -> None:\n    M.record(0)\n"
+    with pytest.raises(SyntaxError, match="requires an annotation") as caught:
+        entry.parse(source, extra_vars={"M": M})
+
+    error = caught.value
+    assert type(error) is SyntaxError
+    assert (
+        error.filename,
+        error.lineno,
+        error.offset,
+        error.end_lineno,
+        error.end_offset,
+    ) == ("<str>", 2, 10, 2, 15)
+    assert not language.functions
+
+
+def test_invalid_quoted_annotation_keeps_source_range(language):
+    # Even malformed quoted annotations report the original literal without decoding it.
+    M = language.M
+    with pytest.raises(SyntaxError, match="Quoted annotations are not supported") as caught:
+
+        @M.function
+        def main(value: "invalid +"):  # noqa: F722
+            pass
+
+    error = caught.value
+    lines, first = inspect.getsourcelines(test_invalid_quoted_annotation_keeps_source_range)
+    node = next(
+        n
+        for n in ast.walk(ast.parse("".join(lines)))
+        if isinstance(n, ast.Constant) and n.value == "invalid +"
+    )
+    expected = (
+        __file__,
+        first + node.lineno - 1,
+        node.col_offset + 1,
+        first + node.end_lineno - 1,
+        node.end_col_offset + 1,
+    )
+    assert type(error) is SyntaxError
+    assert (
+        error.filename,
+        error.lineno,
+        error.offset,
+        error.end_lineno,
+        error.end_offset,
+    ) == expected
+    assert not language.functions
+
+
+def test_simple_chain_and_complex_operand_rejection(primitive_language):
+    # Simple comparison chains preserve order; unsupported effectful operands fail before execution.
+    M = primitive_language.M
+    x, y = ir.Var("x", "int32"), ir.Var("y", "int32")
+
+    @M.function
+    def main():
+        -1 < x <= y != +3
+
+    expected = prim.And(prim.LT(-1, x), prim.And(prim.LE(x, y), prim.NE(y, 3)))
+    ir.assert_structural_equal(main.body[0][1], expected)
+
+    def operand():
+        pytest.fail("unsupported chain evaluated its operand")
+
+    with pytest.raises(SyntaxError, match="chain") as caught:
+
+        @M.function
+        def invalid():
+            operand() < x < y
+
+    lines, start = inspect.getsourcelines(test_simple_chain_and_complex_operand_rejection)
+    line = start + next(i for i, text in enumerate(lines) if text.strip() == "operand() < x < y")
+    assert (caught.value.filename, caught.value.lineno, caught.value.offset) == (__file__, line, 13)
+
+
+def test_conditional_branches_require_matching_output_names(language):
+    # Value-producing branches must agree on their output name and locate the mismatched assignment.
+    M = language.M
+    M.__tvm_value_if__ = True
+    condition, left, right = Value("condition"), Value("left"), Value("right")
+    with pytest.raises(SyntaxError, match="same named output") as caught:
+
+        @M.function
+        def main():
+            if condition:
+                y = left
+            else:
+                z = right
+
+    error = caught.value
+    lines, first = inspect.getsourcelines(test_conditional_branches_require_matching_output_names)
+    line = first + next(i for i, text in enumerate(lines) if text.strip() == "z = right")
+    assert (error.filename, error.lineno, error.end_lineno) == (__file__, line, line)
+    assert (error.offset, error.end_offset) == (17, 26)
+    assert not language.functions
+
+
+def test_constexpr_keeps_named_expression_unsupported(language):
+    # Constexpr must reject a multiline assignment expression at its full original range.
+    M = language.M
+    with pytest.raises(SyntaxError, match="Unsupported expression: NamedExpr") as caught:
+
+        @M.function
+        def main():
+            if I.constexpr(
+                bool(
+                    value := 1  # Keep the diagnostic range across two source lines.
+                    + 2
+                )
+            ):
+                M.record(value)
+
+    error = caught.value
+    lines, first = inspect.getsourcelines(test_constexpr_keeps_named_expression_unsupported)
+    node = next(n for n in ast.walk(ast.parse("".join(lines))) if isinstance(n, ast.NamedExpr))
+    assert type(error) is SyntaxError
+    assert (
+        error.filename,
+        error.lineno,
+        error.offset,
+        error.end_lineno,
+        error.end_offset,
+    ) == (
+        __file__,
+        first + node.lineno - 1,
+        node.col_offset + 1,
+        first + node.end_lineno - 1,
+        node.end_col_offset + 1,
+    )
+    assert not language.functions
+
+
+def test_missing_host_binding_cannot_be_truth_tested(language):
+    # Reading an unexecuted constexpr binding must raise before truth testing it.
+    M = language.M
+    with pytest.raises(NameError):
+
+        @M.function
+        def main():
+            if I.constexpr(False):
+                x = 1
+            M.record(1 if I.constexpr(x) else 0)
+
+
+def test_missing_host_if_binding_raises_before_branch_assignments(language):
+    # An if-condition must reject its missing incoming value before either arm assigns that name.
+    M = language.M
+    with pytest.raises(NameError):
+
+        @M.function
+        def main():
+            if I.constexpr(False):
+                x = 1
+            if I.constexpr(x):
+                x = 2
+            else:
+                x = 3
 
 
 def test_nested_function_failure_preserves_error_and_recovers(spanned_language):
@@ -153,7 +352,7 @@ def test_namespace_rebinding_reports_source_location(language):
 
         @M.function
         def main():
-            M = 1  # noqa: F841
+            M = 1
 
     error = caught.value
     lines, first = inspect.getsourcelines(test_namespace_rebinding_reports_source_location)

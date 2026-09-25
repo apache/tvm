@@ -14,31 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-"""TIRx script printer highlight."""
+"""S-TIR script source locations."""
 
 import tvm
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-def test_highlight_script():
-    @tvm.script.ir_module
-    class Module:
-        @T.prim_func
-        def main(  # type: ignore
-            A: T.Buffer([16, 128, 128]),
-            B: T.Buffer([16, 128, 128]),
-            C: T.Buffer([16, 128, 128]),
-        ) -> None:  # pylint: disable=no-self-argument
-            T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-            for n, i, j in T.grid(16, 128, 128):
-                C[n, i, j] = 0.0  # type: ignore
-                for k in T.serial(128):
-                    C[n, i, j] = C[n, i, j] + A[n, i, k] * B[n, j, k]
+def test_nesting_parsing():
+    class dummy:
+        pass
 
-    Module.show()
-    Module["main"].show()
-    Module["main"].show(style="light")
-    Module["main"].show(style="dark")
-    Module["main"].show(style="ansi")
+    for i in range(1):
+
+        @tvm.script.ir_module
+        class Module:
+            @Ts.prim_func
+            def impl(
+                A: T.Buffer((12, 196, 64), "float32"),
+            ) -> None:
+                T.evaluate(0)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

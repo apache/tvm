@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Independent S-TIR entry points and shared construction operations."""
+"""S-TIR script namespace."""
 
 import os
 import subprocess
@@ -251,3 +251,7 @@ def test_import_order(first):
         check=True,
         env=os.environ.copy(),
     )
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
