@@ -223,7 +223,6 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
         # Rename internal state for clarity
         self.work_idx = self.linear_idx  # alias: global work item index
         self.tile_count = T.local_scalar("int32")
-        self.tile_idx = self.tile_count  # alias for backward compatibility
 
         is_static_m = isinstance(num_m_tiles, int)
 
