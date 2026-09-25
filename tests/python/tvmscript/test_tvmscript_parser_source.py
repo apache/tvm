@@ -29,7 +29,7 @@ import tvm.testing
 from tvm.ir import Call, SequentialSpan, TensorLoad, assert_structural_equal
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.script.parser.inspect_source import Source
+from tvm.script.parser.inspect_source import Source, acquire_source
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.stmt import TilePrimitiveCall
 
@@ -263,6 +263,28 @@ def test_nesting_parsing():
                 A: T.Buffer((12, 196, 64), "float32"),
             ) -> None:
                 T.evaluate(0)
+
+
+def test_acquire_source_preserves_continuation_indentation_and_literal():
+    # fmt: off
+    def original(
+        value: int = 0,
+):
+        return """first
+  second
+"""
+    # fmt: on
+
+    tree, filename, _ = acquire_source(original)
+    definition = tree.body[0]
+    literal = definition.body[0].value
+    assert definition.lineno == original.__code__.co_firstlineno
+    assert definition.col_offset == 4
+    assert definition.body[0].col_offset == 8
+    assert literal.value == original()
+    assert filename == inspect.getsourcefile(original)
+    full_source = inspect.getsource(inspect.getmodule(original))
+    assert doc.literal_eval(doc.get_source_segment(full_source, literal)) == original()
 
 
 if __name__ == "__main__":

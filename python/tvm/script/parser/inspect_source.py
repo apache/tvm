@@ -441,19 +441,34 @@ def acquire_source(
     if isinstance(source, str):
         text = source
         filename = filename or "<str>"
-        start, indent = 1, 0
+        start = 1
         linecache.cache[filename] = (len(text), None, text.splitlines(keepends=True), filename)
+        tree = ast.parse(textwrap.dedent(text), filename)
     else:
         lines, start, source_filename = _read_source_lines(source, definition_source)
         text = "".join(lines)
         filename = filename or source_filename
-        indent = len(lines[0]) - len(lines[0].lstrip())
-    tree = ast.parse(textwrap.dedent(text), filename)
+        if lines[0][:1].isspace():
+            # Continuation lines and multiline literals may be less indented than
+            # the definition. A temporary suite preserves their text and original
+            # columns without relying on a common indentation prefix.
+            try:
+                tree = ast.parse("if True:\n" + text, filename)
+            except SyntaxError as error:
+                # Parser errors precede AST relocation; hide the synthetic line
+                # in both the exception attributes and its location tuple.
+                location = list(error.args[1])
+                location[1] += start - 2
+                error.lineno = location[1]
+                if len(location) > 4 and location[4] is not None:
+                    location[4] += start - 2
+                    error.end_lineno = location[4]
+                error.args = (error.args[0], tuple(location))
+                raise
+            tree.body = tree.body[0].body
+            ast.increment_lineno(tree, -1)
+        else:
+            tree = ast.parse(text, filename)
     if start != 1:
         ast.increment_lineno(tree, start - 1)
-    if indent:
-        for node in ast.walk(tree):
-            if hasattr(node, "col_offset"):
-                node.col_offset += indent
-                node.end_col_offset += indent
     return tree, filename, flags
