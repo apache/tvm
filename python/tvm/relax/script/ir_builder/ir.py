@@ -209,7 +209,6 @@ from tvm.runtime._tensor import (
 )
 from tvm.script.ir_builder import IRBuilder, decl_function
 from tvm.script.ir_builder.ir import _class_global_infos
-from tvm.script.parser.protocol_registry import module_decorator as _module_decorator
 
 from . import _ffi_api, frame
 
@@ -472,10 +471,6 @@ def rewriter(rewriter_mod: IRModule | type) -> PatternMatchingRewriter:
         rewriter_mod = module
 
     return PatternMatchingRewriter.from_module(rewriter_mod)
-
-
-# Member decorators defer to the same shared module construction boundary.
-_module_decorator("R.rewriter")(rewriter)
 
 
 ############################# BindingBlock ##############################

@@ -236,7 +236,7 @@ class TIRJit:
         raw_anns = getattr(func, "__annotations__", {}) or {}
         annotation_scope = {**func.__globals__, **self._closure_vars, **self._definition_scope}
 
-        from tvm.script.parser.prescan import resolve_namespace_value
+        from tvm.script.parser.prescan import resolve_namespace_key, resolve_namespace_value
 
         sig = inspect.signature(func)
         constexpr_names: set[str] = set()
@@ -250,11 +250,21 @@ class TIRJit:
                     node = ast.parse(ann, mode="eval").body
                     if isinstance(node, ast.Constant) and isinstance(node.value, str):
                         node = ast.parse(node.value, mode="eval").body
-                    ann = resolve_namespace_value(
-                        node.func if isinstance(node, ast.Call) else node, annotation_scope
+                    key = (
+                        resolve_namespace_key(node, annotation_scope)
+                        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+                        else None
                     )
-                    if isinstance(node, ast.Call) and ann is not OptionalAnnotation:
-                        ann = None
+                    if key is not None and key.endswith(".constexpr"):
+                        ann = protocol.constexpr
+                    else:
+                        ann = resolve_namespace_value(
+                            node.func if isinstance(node, ast.Call) else node, annotation_scope
+                        )
+                        if ann is protocol.constexpr or (
+                            isinstance(node, ast.Call) and ann is not OptionalAnnotation
+                        ):
+                            ann = None
                 except SyntaxError:
                     ann = None
             if ann is protocol.constexpr:

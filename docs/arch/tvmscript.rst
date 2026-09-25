@@ -55,8 +55,9 @@ namespace aliases from imports or ``extra_vars``, not executable prefix assignme
 ``GeneratedBuilder`` records connect generated body helpers to original functions and
 identify bindings preserved during recomposition. Original-name wrapper parameters
 capture definition values as defaults. Execution globals remain separate from the
-locals that evaluate those defaults. Known unshadowed signature values use these
-parameters; lazy snapshots remain for missing or shadowed names and body annotations.
+locals that evaluate those defaults. Declaration and annotation helpers bind snapshot
+values under their original names, so Python handles parameter and local shadowing.
+Missing snapshot values raise only when their annotation expressions read them.
 Class setup and declaration snapshots execute in source order before function bodies.
 Body globals, closures and local shadowing retain their Python scope. Missing values
 are read only when needed, including conditional and optional annotations.

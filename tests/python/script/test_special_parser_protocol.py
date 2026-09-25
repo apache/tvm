@@ -20,11 +20,13 @@ A failed constructor must not change the next function's interpretation of liter
 
 import inspect
 import traceback
+from types import SimpleNamespace
 
 import pytest
 
 from tvm.script import tirx as T
 from tvm.script.ir_builder import resolve_global_info_args
+from tvm.script.parser import entry
 
 
 def test_constructor_policy_survives_a_failed_definition(language):
@@ -121,3 +123,35 @@ def test_tirx_rejects_global_info_at_the_call_site(monkeypatch):
             location,
             column + len('T.global_annotation(device="cuda:0")'),
         )
+
+
+def test_ordinary_calls_preserve_literal_arguments(language):
+    M = language.M
+    Alias = M
+    seen = []
+
+    M.special = lambda value: seen.append(value)
+    M.nested = SimpleNamespace(special=M.special)
+    special = M.special
+
+    @M.function
+    def main():
+        Alias.special("n")
+        M.nested.special("n")
+        special("n")
+        M.record(int("3"))
+
+    assert seen == ["n", "n", "n"]
+    assert main.body[-1] == ("emit", 3)
+
+
+def test_initial_import_alias_and_symbolic_range():
+    source = """from tvm.script import tirx as Script
+@Script.prim_func
+def main(n: Script.int32):
+    for i in range(n):
+        Script.evaluate(i)
+"""
+    function = entry.parse(source)
+    assert function.body.extent.same_as(function.params[0])
+    assert function.body.body.value.same_as(function.body.loop_var)

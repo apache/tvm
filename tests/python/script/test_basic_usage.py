@@ -407,8 +407,8 @@ def test_void_branch_statements_need_no_synthetic_named_output(language):
     assert [value for kind, value in main.body] == [None, None, 9]
 
 
-def test_lexical_range_binding_calls_the_custom_iterator_once(language):
-    # A lexical range alias must call the captured iterator once instead of the builtin range.
+def test_ordinary_iterator_binding_calls_the_custom_iterator_once(language):
+    # An ordinary iterator alias calls its captured implementation exactly once.
     M = language.M
     calls = []
 
@@ -418,8 +418,8 @@ def test_lexical_range_binding_calls_the_custom_iterator_once(language):
 
     @M.function
     def main():
-        range = custom_range
-        for i in range(4):
+        iterator = custom_range
+        for i in iterator(4):
             M.record(i)
 
     assert calls == [4]

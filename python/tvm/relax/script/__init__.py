@@ -26,8 +26,6 @@ from collections.abc import Callable as _Callable
 from typing import TYPE_CHECKING
 from typing import Any as _Any
 
-from tvm.script.parser.protocol_registry import module_decorator as _module_decorator
-
 if TYPE_CHECKING:
     from tvm.ir import IRModule
     from tvm.relax.base_py_module import BasePyModule
@@ -212,7 +210,3 @@ def py_module(
         return result
 
     return apply(module) if module is not None else apply
-
-
-# Member decorators may defer to this shared-parser entry without importing Relax.
-_module_decorator("R.py_module")(py_module)
