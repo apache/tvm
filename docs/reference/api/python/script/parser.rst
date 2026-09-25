@@ -40,7 +40,7 @@ registered through :func:`tvm.script.parser.register_namespace` and
 :func:`tvm.script.parser.register_namespace_initializer`.
 
 .. automodule:: tvm.script.parser.protocol_registry
-   :members: constexpr, register_scalar_annotation, mutable_cell_decl, result_span, declaration_kind
+   :members: register_scalar_annotation, register_mutable_decl
 
 The language variant aliases below share the public construction namespaces documented
 in :doc:`script`. Parser entry points above use the canonical frontend.

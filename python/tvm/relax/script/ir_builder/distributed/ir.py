@@ -26,9 +26,6 @@ import tvm
 from tvm.ir import GenericConst
 from tvm.relax.distributed import DeviceMesh, DTensorType
 from tvm.runtime import _tensor
-from tvm.script.ir_builder.base import IRBuilder
-from tvm.script.ir_builder.frame import IRModuleFrame
-from tvm.script.ir_builder.ir import lookup_global_info
 
 
 def const(
@@ -75,19 +72,11 @@ def const(
 
 
 def _lookup_device_mesh(device_mesh_str: str) -> DeviceMesh:
-    name, index_str = device_mesh_str.split("[")
-    index = int(index_str[:-1])
-    if not IRBuilder.is_in_scope():
-        device_mesh = lookup_global_info(name, index)
-        if not isinstance(device_mesh, DeviceMesh):
-            raise TypeError("The device_mesh global info must be a DeviceMesh.")
-        return device_mesh
-    frames = IRBuilder.current().frames
-    for f in frames:
-        if isinstance(f, IRModuleFrame):
-            device_mesh = f.global_infos[name][index]
-            break
-    assert isinstance(device_mesh, DeviceMesh)
+    from ..parser_protocol import resolve_global_info_
+
+    device_mesh = resolve_global_info_(device_mesh_str)
+    if not isinstance(device_mesh, DeviceMesh):
+        raise TypeError("The device_mesh global info must be a DeviceMesh.")
     return device_mesh
 
 

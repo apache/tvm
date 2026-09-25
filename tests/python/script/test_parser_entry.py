@@ -77,8 +77,8 @@ def test_callable_entry_emits_the_expected_builder_program(language, monkeypatch
             with M.function_() as _fn0:
 
                 def _declare0(*, M=_definition0.get('M', _I0.MISSING)):
-                    M.func_name('identity')
-                    x = M.arg('x', M.Tensor((4,)))
+                    M.func_name_('identity')
+                    x = M.arg_('x', M.Tensor((4,)))
 
                 _declare0()
 
@@ -131,3 +131,53 @@ def main(x: M.Tensor((extent,))):
     )
     assert prefixed.params[0].args[0].args[0] == (3,)
     assert prefixed.body == [("emit", 3)]
+
+
+def test_module_member_retains_completed_function():
+    from tvm.script import tirx as T
+
+    @T.prim_func(private=True)
+    def completed():
+        T.evaluate(7)
+
+    module = entry.parse(
+        """@I.ir_module
+class Module:
+    helper = completed
+""",
+        extra_vars={"completed": completed},
+    )
+    assert module["helper"].same_as(completed)
+    assert module["helper"].body.value.value == 7
+
+
+def test_python_helpers_retain_quoted_annotations(language):
+    module = entry.parse(
+        "\n".join(
+            [
+                "@I.ir_module",
+                "class Module:",
+                "    @I.pyfunc",
+                '    def helper(value: "int") -> "int":',
+                '        def nested(item: "int") -> "int":',
+                "            return item",
+                "        return nested(value)",
+            ]
+        )
+    )
+    helper = module.__pyfuncs__["helper"]
+    assert helper(7) == 7
+    assert helper.__annotations__ == {"value": "int", "return": "int"}
+    function = entry.parse(
+        "\n".join(
+            [
+                "@M.function",
+                "def main():",
+                '    def helper(value: "int") -> "int":',
+                "        return value",
+                "    M.record(helper(5))",
+            ]
+        ),
+        extra_vars={"M": language.M},
+    )
+    assert function.body == [("emit", 5)]

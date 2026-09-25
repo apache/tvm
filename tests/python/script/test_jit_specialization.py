@@ -32,13 +32,12 @@ from tvm.ir import assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.parser import protocol_registry
 from tvm.tirx.script.jit import make_jit
 
 
 @pytest.fixture
 def jit_language(language):
-    language.M.jit = protocol_registry.declaration_kind("M.jit", "function")(make_jit(language.M))
+    language.M.jit = make_jit(language.M, namespace_path="M.jit")
     return language
 
 
@@ -147,7 +146,7 @@ def test_live_jit_retains_only_needed_scope_across_uncached_builds(jit_language)
         pass
 
     M = jit_language.M
-    M.jit = protocol_registry.declaration_kind("M.jit", "function")(make_jit(M))
+    M.jit = make_jit(M, namespace_path="M.jit")
 
     def make():
         payload = Payload()
@@ -179,7 +178,7 @@ def test_live_jit_retains_only_needed_scope_across_uncached_builds(jit_language)
 def test_recursive_parameters_survive_empty_specialization(jit_language):
     # Empty specialization must preserve recursive runtime arguments and their identities.
     M = jit_language.M
-    M.jit = protocol_registry.declaration_kind("M.jit", "function")(make_jit(M))
+    M.jit = make_jit(M, namespace_path="M.jit")
 
     @M.jit
     def main(x: M.Tensor((4,)), y: M.Tensor((4,))):
@@ -268,9 +267,7 @@ def kernel(output: Script.Buffer((1,), "int32"), *, value: Script.constexpr,
     output[0] = value
 """
     if postponed:
-        source = "from __future__ import annotations\n" + source.replace(
-            "value: Script.constexpr", "value: 'Script.constexpr'"
-        )
+        source = "from __future__ import annotations\n" + source
     path = tmp_path / "aliased_jit.py"
     path.write_text(source)
     namespace = {"Script": T}

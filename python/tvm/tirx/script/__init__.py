@@ -32,7 +32,6 @@ def _initialize() -> None:
     _initializing = True
     try:
         from tvm.script.parser import entry, register_namespace
-        from tvm.script.parser.protocol_registry import declaration_kind
         from tvm.tirx.layout import Axis
 
         from . import ir_builder as builder
@@ -44,14 +43,14 @@ def _initialize() -> None:
         )
         globals().update(
             bind=builder.bind,
-            prim_func=declaration_kind("T.prim_func", "function")(entry.make_decorator(builder)),
-            inline=declaration_kind("T.inline", "helper")(
-                entry.make_macro_decorator(builder, preserve_return=True, late_binding=True)
+            prim_func=entry.make_decorator(builder, namespace_path="T.prim_func"),
+            inline=entry.make_macro_decorator(
+                builder, namespace_path="T.inline", preserve_return=True, late_binding=True
             ),
-            macro=declaration_kind("T.macro", "helper")(
-                entry.make_macro_decorator(builder, preserve_return=False)
+            macro=entry.make_macro_decorator(
+                builder, namespace_path="T.macro", preserve_return=False
             ),
-            jit=declaration_kind("T.jit", "function")(make_jit(builder)),
+            jit=make_jit(builder, namespace_path="T.jit"),
             tile=tile,
         )
         for name in ("cluster", "cta", "thread", "warp", "warpgroup", "wg"):

@@ -38,11 +38,11 @@ def get_relax_matmul_module(
     out_dtype = out_dtype if out_dtype is not None else in_dtype
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            x = R.arg("x", R.Tensor(x_shape, in_dtype))
-            y = R.arg("y", R.Tensor(y_shape, in_dtype))
+            R.func_name_("main")
+            x = R.arg_("x", R.Tensor(x_shape, in_dtype))
+            y = R.arg_("y", R.Tensor(y_shape, in_dtype))
             if bias_shape is not None:
-                bias = R.arg("bias", R.Tensor(bias_shape, out_dtype))
+                bias = R.arg_("bias", R.Tensor(bias_shape, out_dtype))
 
             with R.dataflow() as frame:
                 if transposed_y:

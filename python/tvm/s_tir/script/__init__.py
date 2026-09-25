@@ -42,7 +42,7 @@ def _initialize():
         )
         for name in (
             "function_",
-            "arg",
+            "arg_",
             "bind_",
             "check_well_formed_",
             "sblock",
@@ -60,7 +60,6 @@ def _initialize():
         for table in (
             protocol_registry.SCALAR_ANNOTATION_DTYPE,
             protocol_registry.MUTABLE_CELL_DECL,
-            protocol_registry.RESULT_SPAN,
         ):
             table.update(
                 {
@@ -70,14 +69,12 @@ def _initialize():
                 }
             )
         globals().update(
-            prim_func=protocol_registry.declaration_kind("Ts.prim_func", "function")(
-                entry.make_decorator(builder)
+            prim_func=entry.make_decorator(builder, namespace_path="Ts.prim_func"),
+            inline=entry.make_macro_decorator(
+                builder, namespace_path="Ts.inline", preserve_return=True, late_binding=True
             ),
-            inline=protocol_registry.declaration_kind("Ts.inline", "helper")(
-                entry.make_macro_decorator(builder, preserve_return=True, late_binding=True)
-            ),
-            macro=protocol_registry.declaration_kind("Ts.macro", "helper")(
-                entry.make_macro_decorator(builder, preserve_return=False)
+            macro=entry.make_macro_decorator(
+                builder, namespace_path="Ts.macro", preserve_return=False
             ),
         )
         for alias in ("Ts", "s_tir"):

@@ -18,6 +18,8 @@
 
 #  type: ignore
 
+from __future__ import annotations
+
 import tvm
 import tvm.testing
 from tvm import relax
@@ -62,10 +64,10 @@ def test_mlp():
 
         @R.function
         def foo(
-            x: 'R.DTensor((128, 128), "float32", "mesh[0]", "R")',
-            weight1: 'R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")',
-            weight2: 'R.DTensor((128, 128), "float32", "mesh[0]", "S[0]")',
-        ) -> 'R.DTensor((128, 128), "float32", "mesh[0]", "R")':
+            x: R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+            weight1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
+            weight2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
+        ) -> R.DTensor((128, 128), "float32", "mesh[0]", "R"):
             lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.matmul(x, weight1)
             lv1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.nn.gelu(lv0)
             lv3: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.matmul(lv1, weight2)
@@ -156,12 +158,12 @@ def test_mlp_with_tuple():
 
         @R.function
         def foo(
-            x: 'R.DTensor((128, 128), "float32", "mesh[0]", "R")',
-            weight_packed: """R.Tuple(
+            x: R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+            weight_packed: R.Tuple(
                 R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
                 R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
-            )""",
-        ) -> 'R.DTensor((64, 128), "float32", "mesh[0]", "R")':
+            ),
+        ) -> R.DTensor((64, 128), "float32", "mesh[0]", "R"):
             cls = ShardedMLPWithTuple
             weight1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = weight_packed[0]
             lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.matmul(x, weight1)
@@ -218,10 +220,10 @@ def test_mlp_const():
 
         @R.function
         def foo(
-            x: 'R.DTensor((128, 128), "float32", "mesh[0]", "R")',
-            weight1: 'R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")',
-            weight2: 'R.DTensor((128, 128), "float32", "mesh[0]", "S[0]")',
-        ) -> 'R.DTensor((128, 128), "float32", "mesh[0]", "R")':
+            x: R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+            weight1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
+            weight2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
+        ) -> R.DTensor((128, 128), "float32", "mesh[0]", "R"):
             lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.matmul(x, weight1)
             lv1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.nn.gelu(lv0)
             lv2: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.add(
@@ -278,10 +280,10 @@ def test_mlp_dynamic_shape():
 
         @R.function
         def foo(
-            x: 'R.DTensor((m, k0), "float32", "mesh[0]", "R")',
-            weight1: 'R.DTensor((k0, k1), "float32", "mesh[0]", "S[1]")',
-            weight2: 'R.DTensor((k1, n), "float32", "mesh[0]", "S[0]")',
-        ) -> 'R.DTensor((m, n), "float32", "mesh[0]", "R")':
+            x: R.DTensor((m, k0), "float32", "mesh[0]", "R"),
+            weight1: R.DTensor((k0, k1), "float32", "mesh[0]", "S[1]"),
+            weight2: R.DTensor((k1, n), "float32", "mesh[0]", "S[0]"),
+        ) -> R.DTensor((m, n), "float32", "mesh[0]", "R"):
             lv0: R.DTensor((m, k1), "float32", "mesh[0]", "S[1]") = R.matmul(x, weight1)
             lv1: R.DTensor((m, k1), "float32", "mesh[0]", "S[1]") = R.nn.gelu(lv0)
             lv3: R.DTensor((m, n), "float32", "mesh[0]", "R") = R.matmul(lv1, weight2)
@@ -335,12 +337,12 @@ def test_mlp_pipeline_parallelism():
 
         @R.function
         def foo(
-            x: 'R.DTensor((128, 128), "float32", "mesh[0]", "R")',
-            weight1: 'R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")',
-            weight2: 'R.DTensor((128, 128), "float32", "mesh[0]", "S[0]")',
-            weight3: 'R.DTensor((128, 128), "float32", "mesh[1]", "S[1]")',
-            weight4: 'R.DTensor((128, 128), "float32", "mesh[1]", "S[0]")',
-        ) -> 'R.DTensor((128, 128), "float32", "mesh[1]", "R")':
+            x: R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+            weight1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
+            weight2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
+            weight3: R.DTensor((128, 128), "float32", "mesh[1]", "S[1]"),
+            weight4: R.DTensor((128, 128), "float32", "mesh[1]", "S[0]"),
+        ) -> R.DTensor((128, 128), "float32", "mesh[1]", "R"):
             lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.matmul(x, weight1)
             lv1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.nn.gelu(lv0)
             lv3: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.matmul(lv1, weight2)
@@ -634,19 +636,19 @@ def test_decoder_layer():
 
         @R.function(pure=False)
         def foo(
-            input_tokens: 'R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")',
-            mask: 'R.DTensor((1, 1, 256, 256), "float16", "mesh[0]", "R")',
-            div_const: 'R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")',
-            maximum_const: 'R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")',
+            input_tokens: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+            mask: R.DTensor((1, 1, 256, 256), "float16", "mesh[0]", "R"),
+            div_const: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+            maximum_const: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
             kv_cache: R.Tuple(R.Any, R.Any),
-            linear_weight: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")',
-            linear_weight1: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")',
-            linear_weight2: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")',
-            linear_weight3: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]")',
-            rms_norm_weight: 'R.DTensor((4096,), "float16", "mesh[0]", "R")',
-            cos_cached: 'R.DTensor((2048, 128), "float16", "mesh[0]", "R")',
-            sin_cached: 'R.DTensor((2048, 128), "float16", "mesh[0]", "R")',
-        ) -> 'R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")':
+            linear_weight: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+            linear_weight1: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+            linear_weight2: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+            linear_weight3: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+            rms_norm_weight: R.DTensor((4096,), "float16", "mesh[0]", "R"),
+            cos_cached: R.DTensor((2048, 128), "float16", "mesh[0]", "R"),
+            sin_cached: R.DTensor((2048, 128), "float16", "mesh[0]", "R"),
+        ) -> R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"):
             cls = ShardedLlamaAttentionLayer
             lv6 = R.dist.call_tir(
                 cls.rms_norm,
@@ -1341,19 +1343,19 @@ def test_decoder_layer_tir():
 
         @R.function(pure=False)
         def foo(
-            input_tokens: 'R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")',
-            mask: 'R.DTensor((1, 1, 256, 256), "float16", "mesh[0]", "R")',
-            div_const: 'R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")',
-            maximum_const: 'R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")',
+            input_tokens: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+            mask: R.DTensor((1, 1, 256, 256), "float16", "mesh[0]", "R"),
+            div_const: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+            maximum_const: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
             kv_cache: R.Tuple(R.Any, R.Any),
-            linear_weight: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")',
-            linear_weight1: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")',
-            linear_weight2: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")',
-            linear_weight3: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]")',
-            rms_norm_weight: 'R.DTensor((4096,), "float16", "mesh[0]", "R")',
-            cos_cached: 'R.DTensor((2048, 128), "float16", "mesh[0]", "R")',
-            sin_cached: 'R.DTensor((2048, 128), "float16", "mesh[0]", "R")',
-        ) -> 'R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")':
+            linear_weight: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+            linear_weight1: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+            linear_weight2: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+            linear_weight3: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+            rms_norm_weight: R.DTensor((4096,), "float16", "mesh[0]", "R"),
+            cos_cached: R.DTensor((2048, 128), "float16", "mesh[0]", "R"),
+            sin_cached: R.DTensor((2048, 128), "float16", "mesh[0]", "R"),
+        ) -> R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"):
             cls = ShardedLlamaAttentionLayerTIR
             lv6 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("rms_norm"),
@@ -1849,17 +1851,17 @@ def test_decoder_layer_dynamic_shape():
 
         @R.function(pure=False)
         def foo(
-            input_tokens: 'R.DTensor((1, foo_n, 4096), "float16", "mesh[0]", "R")',
-            mask: 'R.DTensor((1, 1, foo_n, m), "float16", "mesh[0]", "R")',
+            input_tokens: R.DTensor((1, foo_n, 4096), "float16", "mesh[0]", "R"),
+            mask: R.DTensor((1, 1, foo_n, m), "float16", "mesh[0]", "R"),
             kv_cache: R.Tuple(R.Any, R.Any),
-            linear_weight: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")',
-            linear_weight1: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")',
-            linear_weight2: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")',
-            linear_weight3: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]")',
-            rms_norm_weight: 'R.DTensor((4096,), "float16", "mesh[0]", "R")',
-            cos_cached: 'R.DTensor((2048, 128), "float16", "mesh[0]", "R")',
-            sin_cached: 'R.DTensor((2048, 128), "float16", "mesh[0]", "R")',
-        ) -> 'R.DTensor((1, foo_n, 4096), "float16", "mesh[0]", "R")':
+            linear_weight: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+            linear_weight1: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+            linear_weight2: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+            linear_weight3: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+            rms_norm_weight: R.DTensor((4096,), "float16", "mesh[0]", "R"),
+            cos_cached: R.DTensor((2048, 128), "float16", "mesh[0]", "R"),
+            sin_cached: R.DTensor((2048, 128), "float16", "mesh[0]", "R"),
+        ) -> R.DTensor((1, foo_n, 4096), "float16", "mesh[0]", "R"):
             cls = ShardedLlamaAttentionLayerDynamicShape
             lv6 = R.dist.call_tir(
                 cls.rms_norm,

@@ -57,8 +57,8 @@ def test_statement_receipts_keep_emitted_nodes_and_spans():
     location = ir.Span(ir.SourceName("direct_builder.py"), 5, 5, 3, 17)
     with I.IRBuilder():
         with T.function_(private=True) as frame:
-            T.func_name("receipts")
-            output = T.arg("output", T.Buffer((1,), "int32"))
+            T.func_name_("receipts")
+            output = T.arg_("output", T.Buffer((1,), "int32"))
             stored = T.setitem_(value=3, target=output, key=0, span=location)
             holder = SimpleNamespace(value=output)
             updated = T.setattr_(holder, "value", 4, span=location)
@@ -484,3 +484,62 @@ def test_non_call_expression_reads_keep_their_source_range():
         )
         assert _span_position(node.span) == expected
         assert node.span.source_name.name == __file__
+
+
+def test_buffer_constructor_uses_call_context_and_restores_after_failure(monkeypatch):
+    # Buffer follows ordinary calls: arguments run once and constructors see their source.
+    original = T.Buffer
+    calls, probes, produced = [], [], []
+    failure = RuntimeError("buffer constructor failed")
+    fail = False
+
+    def shape():
+        calls.append("shape")
+        return (1,)
+
+    def dtype():
+        calls.append("dtype")
+        return "int32"
+
+    def constructor(*args, **kwargs):
+        calls.append("buffer")
+        probe = prim.IntImm("int32", 7)
+        I.IRBuilder.current()._set_current_source_span(probe)
+        probes.append(probe)
+        if fail:
+            raise failure
+        result = original(*args, **kwargs)
+        produced.append(result)
+        return result
+
+    monkeypatch.setattr(T, "Buffer", constructor)
+
+    def build():
+        @T.prim_func(check_well_formed=False)
+        def main():
+            value = T.Buffer(shape(), dtype())
+            T.evaluate(value[0])
+
+        return main
+
+    function = build()
+    assert calls == ["shape", "dtype", "buffer"]
+    line = source_line(
+        test_buffer_constructor_uses_call_context_and_restores_after_failure,
+        "value = T.Buffer(shape(), dtype())",
+    )
+    assert line in span_lines(probes[0])
+    assert function.body.value.source.same_as(produced[0])
+    outer = ir.Span(ir.SourceName("outer.py"), 7, 7, 0, 1)
+    with I.IRBuilder() as builder:
+        with builder.with_source_span(outer):
+            fail = True
+            with pytest.raises(RuntimeError, match="buffer constructor failed") as caught:
+                build()
+            assert caught.value is failure
+            restored = prim.IntImm("int32", 8)
+            builder._set_current_source_span(restored)
+            assert restored.span.same_as(outer)
+    fail = False
+    build()
+    assert calls == ["shape", "dtype", "buffer"] * 3

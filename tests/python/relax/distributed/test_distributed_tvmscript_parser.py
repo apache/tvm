@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F401
 
+from __future__ import annotations
+
 from typing import Optional, Union
 
 import pytest
@@ -70,8 +72,8 @@ def test_call_tir_dtensor():
 
         @R.function
         def foo(
-            x: 'R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R")',
-        ) -> 'R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R")':
+            x: R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"),
+        ) -> R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"):
             gv0 = R.dist.call_tir(
                 TestModule.tir_func,
                 x,
@@ -133,8 +135,8 @@ def test_explicit_device_id():
 
         @R.function
         def foo(
-            x: 'R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R")',
-        ) -> 'R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R")':
+            x: R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"),
+        ) -> R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"):
             gv0 = R.dist.call_tir(
                 TestModule.tir_func,
                 x,
@@ -173,8 +175,8 @@ def test_constant():
 
         @R.function
         def foo(
-            x: 'R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R")',
-        ) -> 'R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R")':
+            x: R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"),
+        ) -> R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"):
             gv0 = R.dist.call_tir(
                 TestModule.tir_func,
                 x,

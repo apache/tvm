@@ -21,13 +21,17 @@ from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm.script.ir_builder import base as _base
 from tvm.tirx.script.ir_builder.ir import buffer
-from tvm.tirx.script.ir_builder.parser_protocol import arg as _shared_arg
+from tvm.tirx.script.ir_builder.parser_protocol import arg_ as _shared_arg
 from tvm.tirx.script.ir_builder.parser_protocol import bind_ as _shared_bind
 
 from . import _ffi_api
 from .frame import BlockInitFrame, SBlockFrame
 from .frame import SBlockFrame as _SBlockFrame
 from .ir import _get_sblock_name_suffix
+
+# --------------------------------------
+# Function
+# --------------------------------------
 
 
 def prim_func(is_private=False, persistent=False, *, private=None):
@@ -45,7 +49,7 @@ def function_(*, private=False, persistent=False, decl=False, span=None):
     return _base.at_(span, native)
 
 
-def arg(name, annotation, *, span=None):
+def arg_(name, annotation, *, span=None):
     """Normalize eagerly constructed parameter buffers for S-TIR."""
     if _tir.is_buffer_var(annotation) and annotation.ty.layout is not None:
         ty = annotation.ty
@@ -62,13 +66,6 @@ def arg(name, annotation, *, span=None):
             buffer_name=name,
         )
     return _shared_arg(name, annotation, span=span)
-
-
-def bind_(value=_base.MISSING, **options):
-    """Block frames cannot introduce an as-target value."""
-    if options.get("frame_value") and isinstance(value, _SBlockFrame):
-        raise TypeError("A block does not introduce an as-target value")
-    return _shared_bind(value, **options)
 
 
 def check_well_formed_(function):
@@ -95,6 +92,29 @@ def _check_module_well_formed(module):
     }
     if functions:
         analysis.verify_well_formed(_ir.IRModule(functions))
+
+
+# --------------------------------------
+# Bindings
+# --------------------------------------
+
+
+def bind_(value=_base.MISSING, **options):
+    """Block frames cannot introduce an as-target value."""
+    if options.get("frame_value") and isinstance(value, _SBlockFrame):
+        raise TypeError("A block does not introduce an as-target value")
+    return _shared_bind(value, **options)
+
+
+# --------------------------------------
+# Special
+# --------------------------------------
+# S-TIR inherits syntax marker and declaration policies from TIRx.
+
+
+# --------------------------------------
+# Control
+# --------------------------------------
 
 
 def sblock(name: str = "", no_realize: bool = False, exec_scope: str = "") -> SBlockFrame:
@@ -133,4 +153,9 @@ def init() -> BlockInitFrame:
     return _ffi_api.Init()  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-__all__ = ["arg", "bind_", "check_well_formed_", "function_", "init", "prim_func", "sblock"]
+# --------------------------------------
+# Operators
+# --------------------------------------
+# Operator hooks are inherited from TIRx.
+
+__all__ = ["arg_", "bind_", "check_well_formed_", "function_", "init", "prim_func", "sblock"]

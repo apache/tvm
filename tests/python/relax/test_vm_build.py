@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F841
 
+from __future__ import annotations
+
 import ctypes
 from collections.abc import Callable
 
@@ -1238,7 +1240,7 @@ def test_relax_module_with_multiple_targets(exec_mode):
 
         @R.function
         def func_llvm(
-            A: 'R.Tensor([32, 32], "float32", "llvm")', B: 'R.Tensor([32, 32], "float32", "llvm")'
+            A: R.Tensor([32, 32], "float32", "llvm"), B: R.Tensor([32, 32], "float32", "llvm")
         ):
             C = R.add(A, B)
             return C

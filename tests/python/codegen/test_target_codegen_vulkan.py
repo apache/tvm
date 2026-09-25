@@ -227,13 +227,13 @@ def test_vulkan_constant_passing(vulkan_parameter_impl, vulkan_parameter_dtype):
     with IRBuilder() as ib:
         with I_builder.ir_module():
             with T_builder.prim_func():
-                T_builder.func_name("main")
+                T_builder.func_name_("main")
                 scalar_vars = []
                 for i in range(num_int_params):
-                    v = T_builder.arg(f"scale{i}", tvm.tirx.Var("", dtype))
+                    v = T_builder.arg_(f"scale{i}", tvm.tirx.Var("", dtype))
                     scalar_vars.append(v)
-                var_A = T_builder.arg("var_A", T_builder.handle())
-                var_B = T_builder.arg("var_B", T_builder.handle())
+                var_A = T_builder.arg_("var_A", T_builder.handle())
+                var_B = T_builder.arg_("var_B", T_builder.handle())
                 T_builder.func_attr({"tirx.noalias": True})
                 n_var = T_builder.int32()
                 A = T_builder.match_buffer(var_A, (n_var,), dtype)

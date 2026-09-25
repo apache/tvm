@@ -51,17 +51,17 @@ def get_relax_conv2d_mod(
 ):
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
+            R.func_name_("main")
             if has_pad:
                 p = (0, 0, 0, 0, padding[0], padding[0], padding[1], padding[1])
-                orig_data = R.arg("data", R.Tensor(data_shape, dtype))
+                orig_data = R.arg_("data", R.Tensor(data_shape, dtype))
                 data = R.nn.pad(orig_data, pad_width=p, pad_value=0.0)
                 padding = (0, 0, 0, 0)
             else:
-                data = R.arg("data", R.Tensor(data_shape, dtype))
-            weight = R.arg("weight", R.Tensor(weight_shape, dtype))
+                data = R.arg_("data", R.Tensor(data_shape, dtype))
+            weight = R.arg_("weight", R.Tensor(weight_shape, dtype))
             if has_bias:
-                bias = R.arg("bias", R.Tensor((1, weight_shape[0], 1, 1), dtype))
+                bias = R.arg_("bias", R.Tensor((1, weight_shape[0], 1, 1), dtype))
 
             is_depthwise = data_shape[1] == weight_shape[0] == groups
 
@@ -82,10 +82,10 @@ def get_relax_conv2d_mod(
                 if has_bias:
                     output = R.emit(output + bias)
                 if has_bn:
-                    gamma = R.arg("gamma", R.Tensor((weight_shape[0],), dtype))
-                    beta = R.arg("beta", R.Tensor((weight_shape[0],), dtype))
-                    mean = R.arg("mean", R.Tensor((weight_shape[0],), dtype))
-                    variance = R.arg("variance", R.Tensor((weight_shape[0],), dtype))
+                    gamma = R.arg_("gamma", R.Tensor((weight_shape[0],), dtype))
+                    beta = R.arg_("beta", R.Tensor((weight_shape[0],), dtype))
+                    mean = R.arg_("mean", R.Tensor((weight_shape[0],), dtype))
+                    variance = R.arg_("variance", R.Tensor((weight_shape[0],), dtype))
                     output = R.emit(
                         R.nn.batch_norm(output, gamma, beta, mean, variance, axis=1, epsilon=1e-5)[
                             0
@@ -218,9 +218,9 @@ def get_relax_conv2d_transpose_mod(
 ):
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            data = R.arg("data", R.Tensor(data_shape, dtype))
-            weight = R.arg("weight", R.Tensor(weight_shape, dtype))
+            R.func_name_("main")
+            data = R.arg_("data", R.Tensor(data_shape, dtype))
+            weight = R.arg_("weight", R.Tensor(weight_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(
@@ -285,12 +285,12 @@ def get_conv2d_transpose_expected_codegen(
 def get_batchnorm_mod(data_shape, channels, axis, epsilon, dtype):
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            data = R.arg("data", R.Tensor(data_shape, dtype))
-            gamma = R.arg("gamma", R.Tensor((channels,), dtype))
-            beta = R.arg("beta", R.Tensor((channels,), dtype))
-            mean = R.arg("moving_mean", R.Tensor((channels,), dtype))
-            variance = R.arg("moving_var", R.Tensor((channels,), dtype))
+            R.func_name_("main")
+            data = R.arg_("data", R.Tensor(data_shape, dtype))
+            gamma = R.arg_("gamma", R.Tensor((channels,), dtype))
+            beta = R.arg_("beta", R.Tensor((channels,), dtype))
+            mean = R.arg_("moving_mean", R.Tensor((channels,), dtype))
+            variance = R.arg_("moving_var", R.Tensor((channels,), dtype))
             with R.dataflow() as frame:
                 output = R.emit(
                     R.nn.batch_norm(data, gamma, beta, mean, variance, axis, epsilon)[0]
@@ -306,9 +306,9 @@ def get_batchnorm_mod(data_shape, channels, axis, epsilon, dtype):
 def get_binary_op_mod(a_shape, b_shape, op, dtype):
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            a = R.arg("a", R.Tensor(a_shape, dtype))
-            b = R.arg("b", R.Tensor(b_shape, dtype))
+            R.func_name_("main")
+            a = R.arg_("a", R.Tensor(a_shape, dtype))
+            b = R.arg_("b", R.Tensor(b_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(op(a, b))
@@ -328,8 +328,8 @@ def get_binary_op_mod(a_shape, b_shape, op, dtype):
 def get_unary_op_mod(a_shape, op, dtype):
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            a = R.arg("a", R.Tensor(a_shape, dtype))
+            R.func_name_("main")
+            a = R.arg_("a", R.Tensor(a_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(op(a))
@@ -363,15 +363,15 @@ def get_relax_maxpool_mod(
     """
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
+            R.func_name_("main")
 
             if has_pad:
                 p = (0, 0, 0, 0, padding[0], padding[1], padding[0], padding[1])
-                orig_data = R.arg("data", R.Tensor(data_shape, dtype))
+                orig_data = R.arg_("data", R.Tensor(data_shape, dtype))
                 data = R.nn.pad(orig_data, pad_width=p, pad_value=float("-inf"))
                 padding = (0, 0)
             else:
-                data = R.arg("data", R.Tensor(data_shape, dtype))
+                data = R.arg_("data", R.Tensor(data_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(
@@ -455,15 +455,15 @@ def get_relax_avgpool_mod(data_shape, dtype, pool_size, stride, dilation, paddin
     """
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
+            R.func_name_("main")
 
             if has_pad:
                 p = (0, 0, 0, 0, padding[0], padding[1], padding[0], padding[1])
-                orig_data = R.arg("data", R.Tensor(data_shape, dtype))
+                orig_data = R.arg_("data", R.Tensor(data_shape, dtype))
                 data = R.nn.pad(orig_data, pad_width=p, pad_value=0.0)
                 padding = (0, 0)
             else:
-                data = R.arg("data", R.Tensor(data_shape, dtype))
+                data = R.arg_("data", R.Tensor(data_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(
@@ -542,8 +542,8 @@ def get_relax_reshape_mod(input_shape, output_shape, dtype):
     """
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            data = R.arg("data", R.Tensor(input_shape, dtype))
+            R.func_name_("main")
+            data = R.arg_("data", R.Tensor(input_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(R.reshape(data, output_shape))
@@ -601,8 +601,8 @@ def get_relax_global_avgpool_mod(data_shape, keepdims, dtype):
     """
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            data = R.arg("data", R.Tensor(data_shape, dtype))
+            R.func_name_("main")
+            data = R.arg_("data", R.Tensor(data_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(R.mean(data, axis=[2, 3], keepdims=keepdims))
@@ -664,8 +664,8 @@ def get_relax_global_maxpool_mod(data_shape, keepdims, dtype):
     N, C, H, W = data_shape
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            data = R.arg("data", R.Tensor(data_shape, dtype))
+            R.func_name_("main")
+            data = R.arg_("data", R.Tensor(data_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(

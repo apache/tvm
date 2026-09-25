@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F401
 
+from __future__ import annotations
+
 import tvm
 import tvm.testing
 from tvm import relax
@@ -128,8 +130,8 @@ def test_maxpool2d_scope_folding():
 
         @R.function
         def main(
-            x: 'R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global")',
-        ) -> 'R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global")':
+            x: R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),
+        ) -> R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"):
             cls = Input
             with R.dataflow():
                 lv = R.call_tir(
@@ -253,8 +255,8 @@ def test_maxpool2d_scope_folding():
 
         @R.function
         def main(
-            x: 'R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global")',
-        ) -> 'R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global")':
+            x: R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),
+        ) -> R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"):
             cls = Expected
             with R.dataflow():
                 lv = R.call_tir(

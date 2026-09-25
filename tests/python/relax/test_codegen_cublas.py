@@ -123,9 +123,9 @@ def get_relax_matmul_dequantize_module(
     """Create a matmul op followd by dequantize operations."""
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            x = R.arg("x", R.Tensor(x_shape, in_dtype))
-            y = R.arg("y", R.Tensor(y_shape, in_dtype))
+            R.func_name_("main")
+            x = R.arg_("x", R.Tensor(x_shape, in_dtype))
+            y = R.arg_("y", R.Tensor(y_shape, in_dtype))
 
             with R.dataflow() as frame:
                 if transposed_y:
@@ -160,11 +160,11 @@ def get_relax_matmul_multiply_module(
     """Create a matmul op followd by multiply operations."""
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            x = R.arg("x", R.Tensor(x_shape, in_dtype))
-            y = R.arg("y", R.Tensor(y_shape, in_dtype))
-            scaleA = R.arg("scaleA", R.Tensor(z_shape, acc_dtype))
-            scaleB = R.arg("scaleB", R.Tensor(z_shape, acc_dtype))
+            R.func_name_("main")
+            x = R.arg_("x", R.Tensor(x_shape, in_dtype))
+            y = R.arg_("y", R.Tensor(y_shape, in_dtype))
+            scaleA = R.arg_("scaleA", R.Tensor(z_shape, acc_dtype))
+            scaleB = R.arg_("scaleB", R.Tensor(z_shape, acc_dtype))
 
             with R.dataflow() as frame:
                 if transposed_y:

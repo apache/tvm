@@ -276,15 +276,15 @@ def _is_inside_ir_module(function: FunctionType, frame: FrameType) -> bool:
     return False
 
 
-def make_decorator(
-    builder: object,
-) -> Callable[..., Any]:
+def make_decorator(builder: object, *, namespace_path: str) -> Callable[..., Any]:
     """Create a function decorator with an explicit construction namespace.
 
     Parameters
     ----------
     builder : object
         Namespace implementing the function construction protocol.
+    namespace_path : str
+        Canonical registered syntax key, such as "T.prim_func".
 
     Returns
     -------
@@ -312,6 +312,8 @@ def make_decorator(
     Construction errors propagate unchanged through `parse`. Public options
     pass directly to ``builder.function_``; the language variant hook owns their defaults.
     """
+
+    syntax_protocol.DECLARATION_KIND[namespace_path] = "function"
 
     def decorator(function: FunctionType | None = None, **options: Any) -> Any:
         """Parse a Python function into a function of the selected IR language variant.
@@ -383,7 +385,11 @@ def make_decorator(
 
 
 def make_macro_decorator(
-    builder: object, *, preserve_return: bool = True, late_binding: bool = False
+    builder: object,
+    *,
+    namespace_path: str,
+    preserve_return: bool = True,
+    late_binding: bool = False,
 ) -> Callable[..., Callable[..., Any]]:
     """Create a decorator for helpers executed in a caller's builder frames.
 
@@ -391,6 +397,8 @@ def make_macro_decorator(
     ----------
     builder : object
         Namespace implementing construction operations for the helper body.
+    namespace_path : str
+        Canonical registered syntax key, such as "T.inline".
     preserve_return : bool, optional
         Keep helper returns as ordinary Python control flow. Default is True.
     late_binding : bool, optional
@@ -424,6 +432,8 @@ def make_macro_decorator(
     frames instead of declaring an IR function. Source acquisition,
     compilation, and builder exceptions propagate to the caller.
     """
+
+    syntax_protocol.DECLARATION_KIND[namespace_path] = "helper"
 
     def decorator(function: FunctionType | None = None, **options: Any) -> Callable[..., Any]:
         """Decorate a helper that constructs IR in its caller's active frames.
@@ -515,7 +525,9 @@ def make_macro_decorator(
     return decorator
 
 
-@syntax_protocol.declaration_kind("I.pyfunc", "helper")
+syntax_protocol.DECLARATION_KIND["I.pyfunc"] = "helper"
+
+
 def pyfunc(function: _Callable) -> _Callable:
     """Keep an ordinary Python callable for collection in a module.
 

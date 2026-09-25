@@ -20,6 +20,7 @@ A nested function failure must unwind lexical and construction scopes without
 leaking its source context into a subsequently constructed native expression.
 """
 
+import ast
 import inspect
 import traceback
 
@@ -115,6 +116,55 @@ def test_nested_function_failure_preserves_error_and_recovers(spanned_language):
         start + index,
         column + len("M.node(23)"),
     )
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        "def main(value: {annotation}):\n    pass",
+        "def main(value: {annotation}, /):\n    pass",
+        "def main(*, value: {annotation}):\n    pass",
+        "def main(*values: {annotation}):\n    pass",
+        "def main(**values: {annotation}):\n    pass",
+        "def main() -> {annotation}:\n    pass",
+        "def main():\n    value: {annotation} = effect()",
+    ],
+)
+@pytest.mark.parametrize(
+    "annotation",
+    [
+        repr('M.Tensor((4,), "float32")'),
+        '"""M.Tensor(\n    (4,), "float32"\n)"""',
+    ],
+)
+def test_quoted_source_annotations_report_the_complete_literal(language, declaration, annotation):
+    source = "from __future__ import annotations\n@M.function\n" + declaration.format(
+        annotation=annotation
+    )
+    literal = next(node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.Constant))
+    effects = []
+    with pytest.raises(SyntaxError, match="Quoted annotations are not supported") as caught:
+        entry.parse(
+            source,
+            {"M": language.M, "effect": lambda: effects.append(1)},
+            filename="quoted_annotation.py",
+        )
+    error = caught.value
+    assert (
+        error.filename,
+        error.lineno,
+        error.offset,
+        error.end_lineno,
+        error.end_offset,
+    ) == (
+        "quoted_annotation.py",
+        literal.lineno,
+        literal.col_offset + 1,
+        literal.end_lineno,
+        literal.end_col_offset + 1,
+    )
+    assert not effects
+    assert not language.functions
 
 
 def test_optional_annotation_requires_jit_at_the_source_parameter():

@@ -32,10 +32,10 @@ def test_function_simple():
     # create with Script IRBuilder
     with IRBuilder() as ir_builder:
         with R.function():
-            R.func_name("foo")
+            R.func_name_("foo")
             R.func_attr({"Primitive": True})
-            x = R.arg("x", relax.TensorType((128, 128), "float32"))
-            R.func_ret_type(relax.TensorType(dtype="float32", ndim=2))
+            x = R.arg_("x", relax.TensorType((128, 128), "float32"))
+            R.func_ret_type_(relax.TensorType(dtype="float32", ndim=2))
             y = R.emit(
                 R.call_dps_packed("extern_func", x, relax.TensorType((128, 128), dtype="float32"))
             )
@@ -83,9 +83,9 @@ def test_emits():
     # create with Script IRBuilder
     with IRBuilder() as ir_builder:
         with R.function():
-            R.func_name("foo")
-            x = R.arg("x", relax.TensorType(ndim=-1, dtype="float32"))
-            y = R.arg("y", relax.TensorType(ndim=-1, dtype="float32"))
+            R.func_name_("foo")
+            x = R.arg_("x", relax.TensorType(ndim=-1, dtype="float32"))
+            y = R.arg_("y", relax.TensorType(ndim=-1, dtype="float32"))
             m = tirx.Var("m", ty="int64")
             n = tirx.Var("n", ty="int64")
             _ = R.emit_match_cast(x, relax.TensorType((m,), "float32"))
@@ -131,8 +131,8 @@ def test_dataflow_block():
     # create with Script IRBuilder
     with IRBuilder() as ir_builder:
         with R.function():
-            R.func_name("foo")
-            x = R.arg("x", relax.TensorType((128, 128), "float32"))
+            R.func_name_("foo")
+            x = R.arg_("x", relax.TensorType((128, 128), "float32"))
             with R.dataflow() as df:
                 lv0 = R.emit(
                     R.call_dps_packed(

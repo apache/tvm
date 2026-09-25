@@ -151,14 +151,6 @@ void ModuleGlobalInfos(ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_info
   }
 }
 
-bool LookupName(const ffi::String& name) {
-  if (IRBuilder::IsInScope()) {
-    IRModuleFrame frame = FindModuleFrame();
-    return frame->global_var_map.find(name) != frame->global_var_map.end();
-  }
-  return false;
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
@@ -168,8 +160,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.ir.ModuleAttrs", ModuleAttrs)
       .def("script.ir_builder.ir.ModuleGetAttr", ModuleGetAttr)
       .def("script.ir_builder.ir.ModuleSetAttr", ModuleSetAttr)
-      .def("script.ir_builder.ir.ModuleGlobalInfos", ModuleGlobalInfos)
-      .def("script.ir_builder.ir.LookupName", LookupName);
+      .def("script.ir_builder.ir.ModuleGlobalInfos", ModuleGlobalInfos);
 }
 
 }  // namespace ir
