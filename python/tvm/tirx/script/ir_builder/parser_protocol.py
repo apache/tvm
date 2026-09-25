@@ -40,7 +40,7 @@ from . import _ffi_api
 from . import frame as _frame
 from . import ir as _native
 
-_Span = _base.SpanEntry | _ir.Span | tuple[_ir.SourceName, int, int, int, int] | None
+_Span = _base.SpanEntry | _ir.Span | None
 
 
 # --------------------------------------
@@ -160,32 +160,32 @@ def not_(value: Any) -> Any:
 
 def lt_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.lt_`."""
-    return _prim_ffi._OpLT(lhs, rhs, _base.source_span(span))
+    return _prim_ffi._OpLT(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
 
 
 def le_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.le_`."""
-    return _prim_ffi._OpLE(lhs, rhs, _base.source_span(span))
+    return _prim_ffi._OpLE(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
 
 
 def gt_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.gt_`."""
-    return _prim_ffi._OpGT(lhs, rhs, _base.source_span(span))
+    return _prim_ffi._OpGT(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
 
 
 def ge_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.ge_`."""
-    return _prim_ffi._OpGE(lhs, rhs, _base.source_span(span))
+    return _prim_ffi._OpGE(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
 
 
 def eq_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.eq_`."""
-    return _prim_ffi._OpEQ(lhs, rhs, _base.source_span(span))
+    return _prim_ffi._OpEQ(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
 
 
 def ne_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.ne_`."""
-    return _prim_ffi._OpNE(lhs, rhs, _base.source_span(span))
+    return _prim_ffi._OpNE(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
 
 
 # --------------------------------------
