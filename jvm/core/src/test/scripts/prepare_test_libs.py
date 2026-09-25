@@ -53,7 +53,7 @@ def prepare_cpu_lib(base_path):
     B = te.placeholder((n,), name="B")
     C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B, C]).with_attr("global_symbol", "myadd"))
-    fadd = tvm.build(mod, target)
+    fadd = tvm.tirx.build(mod, target)
     lib_path = os.path.join(base_path, "add_cpu.so")
     fadd.export_library(lib_path)
 
@@ -73,7 +73,7 @@ def prepare_gpu_lib(base_path):
     i0, i1 = sch.split(i, [None, 32])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")
-    fadd = tvm.build(sch.mod, "cuda")
+    fadd = tvm.tirx.build(sch.mod, "cuda")
     lib_path = os.path.join(base_path, "add_cuda.so")
     fadd.export_library(lib_path)
 

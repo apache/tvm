@@ -55,7 +55,7 @@ def prepare_tir_lib(base_path):
         te.create_prim_func([A, B]).with_attr("global_symbol", "add_one")
     ).with_attr("system_lib_prefix", "")
 
-    fadd = tvm.build(mod, target)
+    fadd = tvm.tirx.build(mod, target)
     wasm_path = os.path.join(base_path, "test_addone.wasm")
     fadd.export_library(wasm_path, fcompile=tvmjs.create_tvmjs_wasm)
 

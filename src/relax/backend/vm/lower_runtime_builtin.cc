@@ -64,8 +64,8 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     } else if (call->op.same_as(invoke_closure_op_)) {
       return InvokeClosure(call);
     } else if (call->op.same_as(alloc_tensor_op_)) {
-      TVM_FFI_THROW(InternalError) << "VMBuiltinLower encountered " << call->op << " in expression "
-                                   << ffi::GetRef<Call>(call_node) << ".  "
+      TVM_FFI_THROW(InternalError) << "LowerRuntimeBuiltin encountered " << call->op
+                                   << " in expression " << ffi::GetRef<Call>(call_node) << ".  "
                                    << "This operation should have been lowered earlier "
                                    << "using the 'relax.transform.LowerAllocTensor' pass.";
     } else if (call->op.same_as(mem_alloc_storage_op_)) {
@@ -128,7 +128,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     auto arg = call_node->args[1];
 
     TVM_FFI_CHECK(arg->ty->IsInstance<ShapeTypeNode>(), TypeError)
-        << "VMBuiltinLower expects the shape arg of R.reshape "
+        << "LowerRuntimeBuiltin expects the shape arg of R.reshape "
         << "to be a ShapeExpr or VarNode bound to a ShapeExpr.  "
         << "However, in expression " << call_node << ", the shape argument " << arg << " has type "
         << arg->ty;

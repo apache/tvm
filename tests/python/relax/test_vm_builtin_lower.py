@@ -113,7 +113,7 @@ def test_vm_reshape_may_be_var():
             )
             return reshape
 
-    After = relax.transform.VMBuiltinLower()(Before)
+    After = relax.transform.LowerRuntimeBuiltin()(Before)
 
     tvm.ir.assert_structural_equal(Expected, After)
 
@@ -149,7 +149,7 @@ def test_vm_reshape_using_tensor_to_shape():
             )
             return reshape
 
-    After = relax.transform.VMBuiltinLower()(Before)
+    After = relax.transform.LowerRuntimeBuiltin()(Before)
 
     tvm.ir.assert_structural_equal(Expected, After)
 

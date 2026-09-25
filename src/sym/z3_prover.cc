@@ -103,16 +103,6 @@ struct Namespace {
 
 }  // namespace
 
-// Deprecated no-ops, kept only for callers of
-// sym.EnterZ3ContextScope / sym.ExitZ3ContextScope (Z3ContextScope in
-// Python). Shared per-compile Z3 contexts are gone: every materialized solver
-// owns a private context (see Z3Prover::Impl::Materialize), which subsumes the
-// per-compilation isolation these scopes provided. Remove together with the
-// remaining call sites.
-void EnterZ3ContextScope() {}
-
-void ExitZ3ContextScope() {}
-
 class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
  public:
   using Base = tvm::ExprFunctor<z3::expr(const Expr&)>;
@@ -1023,9 +1013,6 @@ TVM_DLL Z3Prover::~Z3Prover() = default;
 namespace tvm::sym {
 
 using namespace ffi;
-
-void EnterZ3ContextScope() {}
-void ExitZ3ContextScope() {}
 
 // Stub implementation used when Z3 support is not built. All proving queries
 // conservatively report "cannot prove" while keeping the public API available.

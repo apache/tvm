@@ -419,7 +419,7 @@ def test_topi_float_unary_accepts_float_input(op_name, dtype):
 
     func = te.create_prim_func([x, out]).with_attr("target", tvm.target.Target("llvm"))
     mod = tvm.IRModule({"main": func})
-    compiled = tvm.build(mod, target="llvm")
+    compiled = tvm.tirx.build(mod, target="llvm")
 
     assert compiled is not None
 

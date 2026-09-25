@@ -49,7 +49,7 @@ def test_rpc():
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")
 
-    fadd = tvm.build(sch.mod.with_attr("system_lib_prefix", ""), target=target)
+    fadd = tvm.tirx.build(sch.mod.with_attr("system_lib_prefix", ""), target=target)
     temp = utils.tempdir()
 
     wasm_path = temp.relpath("addone_gpu.wasm")

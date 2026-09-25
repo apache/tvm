@@ -1855,7 +1855,7 @@ def test_func_ty_of_legalized_layout_transform():
         ):
             R.func_attr({"relax.force_pure": True})
             cls = Expected
-            alloc: R.Tensor((4, 4), dtype="float32") = R.emit_with_ty(
+            alloc: R.Tensor((4, 4), dtype="float32") = R.emit_with_type(
                 "relax.builtin.alloc_tensor",
                 (R.shape([4, 4]), R.dtype("float32"), R.prim_value(0), R.str("global")),
                 (R.Tensor((4, 4), dtype="float32"),),

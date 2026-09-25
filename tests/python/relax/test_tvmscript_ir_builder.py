@@ -35,7 +35,7 @@ def test_function_simple():
             R.func_name("foo")
             R.func_attr({"Primitive": True})
             x = R.arg("x", relax.TensorType((128, 128), "float32"))
-            R.func_ret_ty(relax.TensorType(dtype="float32", ndim=2))
+            R.func_ret_type(relax.TensorType(dtype="float32", ndim=2))
             y = R.emit(
                 R.call_dps_packed("extern_func", x, relax.TensorType((128, 128), dtype="float32"))
             )

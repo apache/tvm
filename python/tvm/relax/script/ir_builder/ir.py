@@ -389,11 +389,6 @@ def func_ret_type(ret_ty: Type) -> None:
     return _ffi_api.FuncRetType(ret_ty)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def func_ret_ty(ret_ty: Type) -> None:
-    """Backward-compatible alias for `func_ret_type`."""
-    return func_ret_type(ret_ty)
-
-
 def func_ret_value(value: Expr) -> None:
     """Specify the return value of the last function frame.
 
@@ -735,15 +730,6 @@ def emit_with_type(
     return Call(builtin_call, args, attrs=None, ty_args=ty_args)
 
 
-def emit_with_ty(
-    op: str,
-    args: Expr,
-    ty_args: Type | list[Type] | None = None,
-) -> Call:
-    """Backward-compatible alias for `emit_with_type`."""
-    return emit_with_type(op, args, ty_args)
-
-
 ############################### SeqExpr ###############################
 
 
@@ -956,7 +942,6 @@ __all__ = [
     "emit_match_cast",
     "emit_te",
     "emit_var_binding",
-    "emit_with_ty",
     "emit_with_type",
     "equal",
     "erf",
@@ -975,7 +960,6 @@ __all__ = [
     "full_like",
     "func_attr",
     "func_name",
-    "func_ret_ty",
     "func_ret_type",
     "func_ret_value",
     "function",
