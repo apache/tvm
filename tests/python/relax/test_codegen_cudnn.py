@@ -66,14 +66,14 @@ def get_relax_conv2d_module(
 ):
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            data = R.arg("data", R.Tensor(data_shape, dtype))
-            weight = R.arg("weight", R.Tensor(weight_shape, dtype))
+            R.func_name_("main")
+            data = R.arg_("data", R.Tensor(data_shape, dtype))
+            weight = R.arg_("weight", R.Tensor(weight_shape, dtype))
             if with_bias:
                 if data_layout == "NHWC":
-                    bias = R.arg("bias", R.Tensor((1, 1, 1, weight_shape[0]), dtype))
+                    bias = R.arg_("bias", R.Tensor((1, 1, 1, weight_shape[0]), dtype))
                 elif data_layout == "NCHW":
-                    bias = R.arg("bias", R.Tensor((1, weight_shape[0], 1, 1), dtype))
+                    bias = R.arg_("bias", R.Tensor((1, weight_shape[0], 1, 1), dtype))
                 else:
                     raise ValueError(f"Unsupported data_layout: {data_layout}")
 

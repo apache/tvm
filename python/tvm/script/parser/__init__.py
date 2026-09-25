@@ -24,7 +24,7 @@ from typing import Any
 
 _NAMESPACES: dict[str, object] = {}
 _NAMESPACE_INITIALIZERS: list[Callable[[], None]] = []
-_NAMESPACE_ALIASES: set[str] = {"I", "ir"}
+_NAMESPACE_ALIASES: set[str] = {"ir"}
 _ENTRY_EXPORTS = (
     "from_source",
     "ir_module",
@@ -44,7 +44,7 @@ def register_namespace(alias: str, namespace: object) -> None:
     Parameters
     ----------
     alias : str
-        Source name for the namespace, such as ``"I"`` or ``"M"``. The first
+        Source name for the namespace, such as ``"ir"`` or ``"minilang"``. The first
         registered alias for an object is its canonical syntax-policy prefix;
         additional aliases for that object resolve to the same prefix.
     namespace : object

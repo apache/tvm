@@ -45,7 +45,7 @@ def make_tvm_runner(func, input_data, initial_output, expected_output):
 
 
 def from_source(code):
-    return tvm.script.from_source(code)
+    return tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
 
 
 def verify_result(C_tvm, C_np):

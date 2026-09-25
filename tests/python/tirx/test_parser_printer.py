@@ -30,7 +30,7 @@ from tvm.tirx.layout import TCol, TLane, laneid, warpid
 
 
 def from_source(code):
-    return tvm.script.from_source(code)
+    return tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
 
 
 def _make_minimal_tirx_prim_func():
@@ -45,7 +45,7 @@ def _make_minimal_tirx_prim_func():
 
 
 def from_source_tir(code):
-    return tvm.script.from_source(code)
+    return tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
 
 
 def test_roundtrip_scopeid1():

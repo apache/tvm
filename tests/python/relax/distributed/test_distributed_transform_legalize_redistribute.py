@@ -16,6 +16,8 @@
 # under the License.
 
 #  type: ignore
+from __future__ import annotations
+
 import tvm
 import tvm.testing
 from tvm import relax
@@ -31,8 +33,8 @@ def test_simple():
 
         @R.function
         def foo(
-            x1: 'R.DTensor((128, 128), "float32", "mesh[0]", "R")',
-            x2: 'R.DTensor((128, 128), "float32", "mesh[0]", "S[0]")',
+            x1: R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+            x2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
         ):
             R.func_attr({"num_input": 1})
             # scatter
@@ -48,12 +50,12 @@ def test_simple():
 
         @R.function
         def foo(
-            x1: 'R.DTensor((128, 128), "float32", "mesh[0]", "R")',
-            x2: 'R.DTensor((128, 128), "float32", "mesh[0]", "S[0]")',
-        ) -> """R.Tuple(
+            x1: R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+            x2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
+        ) -> R.Tuple(
             R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
             R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
-        )""":
+        ):
             R.func_attr({"num_input": 1})
             lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = (
                 R.dist.redistribute_replica_to_shard(x1, num_workers=2, axis=1)

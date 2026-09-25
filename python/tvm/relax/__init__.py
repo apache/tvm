@@ -133,4 +133,4 @@ def _initialize_script_namespace() -> None:
 
 from tvm.script.parser import register_namespace_initializer as _register_namespace_initializer
 
-_register_namespace_initializer(_initialize_script_namespace, aliases=("R", "relax"))
+_register_namespace_initializer(_initialize_script_namespace, aliases=("relax",))

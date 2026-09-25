@@ -39,17 +39,17 @@ def get_parallel_matmul(
 
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            x = R.arg("x", R.Tensor(lhs_shape, dtype))
+            R.func_name_("main")
+            x = R.arg_("x", R.Tensor(lhs_shape, dtype))
 
             rhs = []
             bias = []
 
             for i in range(num_branches):
-                rhs.append(R.arg("y", R.Tensor(rhs_shape, dtype)))
+                rhs.append(R.arg_("y", R.Tensor(rhs_shape, dtype)))
 
                 if with_bias and with_bias[i]:
-                    bias.append(R.arg("bias", R.Tensor((rhs_shape[1],), dtype)))
+                    bias.append(R.arg_("bias", R.Tensor((rhs_shape[1],), dtype)))
                 else:
                     bias.append(None)
 

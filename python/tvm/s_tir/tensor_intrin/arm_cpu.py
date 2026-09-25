@@ -274,8 +274,8 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
 
         with IRBuilder() as ib:
             with build_prim_func():
-                a = T.arg("a", T.handle())
-                a_t = T.arg("a_t", T.handle())
+                a = T.arg_("a", T.handle())
+                a_t = T.arg_("a_t", T.handle())
 
                 A = T.match_buffer(
                     a, (SVF2, SVF2), "float32", offset_factor=1, strides=[T.int32(), 1]
@@ -407,8 +407,8 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
     def impl():
         with IRBuilder() as ib:
             with build_prim_func():
-                a = T.arg("a", T.handle())
-                a_t = T.arg("a_t", T.handle())
+                a = T.arg_("a", T.handle())
+                a_t = T.arg_("a_t", T.handle())
 
                 A = T.match_buffer(
                     a, (SVF2, SVF), "float16", offset_factor=1, strides=[T.int32(), 1]
@@ -615,9 +615,9 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
 
         with IRBuilder() as ib:
             with build_prim_func():
-                a = T.arg("a", T.handle())
-                b = T.arg("b", T.handle())
-                c = T.arg("c", T.handle())
+                a = T.arg_("a", T.handle())
+                b = T.arg_("b", T.handle())
+                c = T.arg_("c", T.handle())
 
                 A = T.match_buffer(a, (K, SVF2), in_dtype, offset_factor=1, strides=[T.int32(), 1])
                 B = T.match_buffer(b, (K, SVF2), in_dtype, offset_factor=1, strides=[T.int32(), 1])

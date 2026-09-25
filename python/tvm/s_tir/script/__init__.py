@@ -42,7 +42,7 @@ def _initialize():
         )
         for name in (
             "function_",
-            "arg",
+            "arg_",
             "bind_",
             "check_well_formed_",
             "sblock",
@@ -60,28 +60,24 @@ def _initialize():
         for table in (
             protocol_registry.SCALAR_ANNOTATION_DTYPE,
             protocol_registry.MUTABLE_CELL_DECL,
-            protocol_registry.RESULT_SPAN,
         ):
             table.update(
                 {
-                    "Ts." + key[2:]: value
+                    "s_tir." + key[len("tirx.") :]: value
                     for key, value in list(table.items())
-                    if key.startswith("T.")
+                    if key.startswith("tirx.")
                 }
             )
         globals().update(
-            prim_func=protocol_registry.declaration_kind("Ts.prim_func", "function")(
-                entry.make_decorator(builder)
+            prim_func=entry.make_decorator(builder, namespace_path="s_tir.prim_func"),
+            inline=entry.make_macro_decorator(
+                builder, namespace_path="s_tir.inline", preserve_return=True, late_binding=True
             ),
-            inline=protocol_registry.declaration_kind("Ts.inline", "helper")(
-                entry.make_macro_decorator(builder, preserve_return=True, late_binding=True)
-            ),
-            macro=protocol_registry.declaration_kind("Ts.macro", "helper")(
-                entry.make_macro_decorator(builder, preserve_return=False)
+            macro=entry.make_macro_decorator(
+                builder, namespace_path="s_tir.macro", preserve_return=False
             ),
         )
-        for alias in ("Ts", "s_tir"):
-            register_namespace(alias, _sys.modules[__name__])
+        register_namespace("s_tir", _sys.modules[__name__])
         globals()["__all__"] = sorted(name for name in globals() if not name.startswith("_"))
         _initialized = True
     finally:

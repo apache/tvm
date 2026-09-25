@@ -16,9 +16,8 @@
 # under the License.
 """Concrete TIRx construction operations over the shared native IRBuilder stack."""
 
-from tvm.ir import is_prim_var as is_type_var
+from tvm.script.ir_builder.ir import constexpr as constexpr
 from tvm.script.ir_builder.ir import dynamic as dynamic
-from tvm.script.parser.protocol_registry import constexpr as constexpr
 from tvm.tirx.lang.alloc_pool import SMEMPool as SMEMPool
 from tvm.tirx.lang.alloc_pool import TMEMPool as TMEMPool
 
@@ -66,7 +65,6 @@ __all__ = [
     *_ir_exports,
     *_op_exports,
     *_protocol_exports,
-    "is_type_var",
     "dynamic",
     "constexpr",
     "SMEMPool",

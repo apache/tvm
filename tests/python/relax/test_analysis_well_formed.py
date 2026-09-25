@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F811, RUF005
 
+from __future__ import annotations
+
 import pytest
 
 import tvm
@@ -1207,7 +1209,7 @@ def test_call_tir_with_dtensor_arguments():
         I.module_global_infos({"mesh": [R.dist.device_mesh([4], I.Range(0, 4))]})
 
         @R.function
-        def main(A: 'R.dist.DTensor([8, 4], "float16", "mesh[0]", "S[0]")'):
+        def main(A: R.dist.DTensor([8, 4], "float16", "mesh[0]", "S[0]")):
             B = R.dist.call_tir(
                 Module.flatten, A, out_ty=R.dist.DTensor([64], "float16", "mesh[0]", "S[0]")
             )

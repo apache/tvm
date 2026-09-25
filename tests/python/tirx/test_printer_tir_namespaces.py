@@ -150,7 +150,10 @@ def test_printer_cuda_low_level_warp_intrinsics_roundtrip():
     assert "T.cuda.__shfl_down_sync(" in code
     assert "T.cuda.__shfl_xor_sync(" in code
     assert "T.tirx." not in code
-    assert tvm.script.from_source(code).script() == code
+    assert (
+        tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}).script()
+        == code
+    )
 
 
 def test_printer_webgpu_namespace_roundtrip():
@@ -165,7 +168,10 @@ def test_printer_webgpu_namespace_roundtrip():
     assert "T.webgpu.subgroup_shuffle_up(" in code
     assert "T.webgpu.subgroup_shuffle_down(" in code
     assert "T.tirx." not in code
-    assert tvm.script.from_source(code).script() == code
+    assert (
+        tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}).script()
+        == code
+    )
 
 
 def test_printer_nvshmem_more():

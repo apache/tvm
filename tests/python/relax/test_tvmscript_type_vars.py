@@ -44,7 +44,8 @@ def test_type_vars_roundtrip():
 @R.function(private=True)
 def func[M: int](x: R.Tensor((M, M * 2), "float32")):
     return x
-"""
+""",
+            extra_vars={"I": tvm.script.ir, "R": tvm.script.relax},
         )
         tvm.ir.assert_structural_equal(func, typed)
     else:
@@ -62,8 +63,13 @@ def func[M: int](x: R.Tensor((M, M * 2), "float32")):
     assert [param.name for param in func.params] == ["x"]
     assert not hasattr(func, "type_params")
     assert func.attrs.get("relax.type_vars") is None
-    tvm.ir.assert_structural_equal(func, tvm.script.from_source(script))
-    tvm.ir.assert_structural_equal(func, tvm.script.from_source(portable))
+    tvm.ir.assert_structural_equal(
+        func, tvm.script.from_source(script, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax})
+    )
+    tvm.ir.assert_structural_equal(
+        func,
+        tvm.script.from_source(portable, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax}),
+    )
 
 
 def test_dynamic_module_symbol_identity():
@@ -81,7 +87,9 @@ def test_dynamic_module_symbol_identity():
     mod = tvm.IRModule({"first": first, "second": second})
     source = mod.script()
     assert source.count('I.dynamic("n", dtype="int64")') == 2
-    restored = tvm.script.from_source(source, check_well_formed=False)
+    restored = tvm.script.from_source(
+        source, check_well_formed=False, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax}
+    )
     first_n = restored["first"].params[0].ty.shape.values[0]
     second_shape = restored["second"].params[0].ty.shape.values
     assert first_n.same_as(second_shape[0])

@@ -52,7 +52,8 @@ def main(
     compound: T.Buffer((n + 1,), "float32"),
 ) -> T.Buffer((n,), "float32"):
     return repeated
-"""
+""",
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
     )
 
     n, direct, repeated, compound = func.params
@@ -70,7 +71,8 @@ class Module:
     @T.prim_func
     def main(n: T.int32, A: T.Buffer((n + 1,), "float32")):
         T.evaluate(n)
-"""
+""",
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
     )
 
     n, A = mod["main"].params
@@ -84,7 +86,8 @@ n = T.dynamic("n", "int32")
 @T.prim_func
 def main(A: T.Buffer((n,), "float32"), n: n):
     T.evaluate(n)
-"""
+""",
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
     )
 
     A, n = func.params
@@ -99,7 +102,8 @@ class Module:
     @T.prim_func
     def main(A: T.Buffer((n,), "float32"), n: n):
         T.evaluate(n)
-"""
+""",
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
     )
 
     A, n = mod["main"].params
@@ -114,7 +118,8 @@ n = T.dynamic("n", "int64")
 @T.prim_func
 def main(A: T.Buffer((n,), "float32"), n: n):
     T.evaluate(n)
-"""
+""",
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
     )
 
     A, n = func.params
@@ -129,7 +134,8 @@ n = T.dynamic("n", "int64")
 @T.prim_func
 def main(A: T.Buffer((n,), "float32")):
     T.evaluate(n)
-"""
+""",
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
     )
 
     n = func.params[0].ty.shape[0]
@@ -144,7 +150,8 @@ def test_tir_undeclared_shape_symbol_is_undefined():
 @T.prim_func
 def main(A: T.Buffer((n, n), "float32")):
     T.evaluate(0)
-"""
+""",
+            extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
         )
 
 
@@ -167,7 +174,9 @@ class Module:
 )
 def test_tir_direct_later_prim_param_is_undefined(source):
     with pytest.raises(NameError):
-        tvm.script.from_source(source)
+        tvm.script.from_source(
+            source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+        )
 
 
 def test_tir_return_annotation_does_not_define_symbolic_var():
@@ -178,7 +187,8 @@ def test_tir_return_annotation_does_not_define_symbolic_var():
 def main() -> T.Buffer((n,), "float32"):
     A = T.alloc_buffer((n,), "float32")
     return A
-"""
+""",
+            extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
         )
 
 

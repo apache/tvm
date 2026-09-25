@@ -231,7 +231,9 @@ def test_ptx_red_vector_codegen_and_roundtrip():
     ) in src
     assert "red.global.add.v4.f32 [%0], {%1, %2, %3, %4};" in src
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     with pytest.raises(ValueError, match="already a 32-bit pair"):
@@ -283,7 +285,9 @@ def test_ptx_atom_bitbucket_codegen_and_roundtrip():
         assert text in src, text
     assert "atom.global.add.v2.f32 {_," not in src
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
@@ -666,7 +670,9 @@ def test_ptx_92_cp_bulk_roundtrip():
             dst.ptr_to([0]), smem.ptr_to([0]), T.uint32(16)
         )
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
@@ -890,7 +896,9 @@ def test_ptx_optional_operand_arity_dispatch():
     # The predicated no-count arrive survives a print/parse round trip as
     # itself -- the pred marker is what stops the count entry from absorbing
     # the predicate as a count.
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
@@ -954,7 +962,9 @@ def test_ptx_mbarrier_92_shapes_render_and_roundtrip():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
@@ -1124,7 +1134,9 @@ def test_ptx_vec256_cache_policy():
             A.ptr_to([0]), x0, x1, x2, x3, x4, x5, x6, x7, policy
         )
 
-    reparsed = tvm.script.from_source(vec256_calls.script())
+    reparsed = tvm.script.from_source(
+        vec256_calls.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(vec256_calls, reparsed)
 
 
@@ -1178,7 +1190,9 @@ def test_ptx_st_bulk_size_carriers_and_st_async_byte_bridge():
         T.ptx.st_async.release.sys.global_.u8(A.ptr_to([4]), T.uint8(0xFF))
         T.ptx.st_async.release.sys.global_.s8(A.ptr_to([5]), T.int8(-1))
 
-    reparsed = tvm.script.from_source(carrier_calls.script())
+    reparsed = tvm.script.from_source(
+        carrier_calls.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(carrier_calls, reparsed)
     _assert_ptxas_ok(_cuda_source(carrier_calls), arch="sm_100")
 
@@ -1240,7 +1254,9 @@ def test_ptx_integer_arithmetic_dispatch():
     assert "popc.b32 %0, %1;" in src
     assert "dp4a.s32.s32 %0, %1, %2, %3;" in src
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # A derived dtype is enforced at trace time like any other: `.wide.s32`
@@ -1346,7 +1362,9 @@ def test_ptx_floating_point_dispatch():
     # selp, with the real .pred register living inside the asm block.
     assert ".reg .pred pd0; testp.notanumber.f32 pd0, %1; selp.b32 %0, 1, 0, pd0;" in src
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # sqrt has no f64 approximation at any spelling, unlike rcp (9.7.3.14).
@@ -1422,7 +1440,9 @@ def test_ptx_half_precision_dispatch():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # The `.oob` line spells neither .ftz nor .sat beside it.
@@ -1493,7 +1513,9 @@ def test_ptx_mixed_precision_dispatch():
     # Two carriers in one helper: the converted source is 16-bit, the rest f32.
     assert '"=f"(__d) : "h"(__a), "f"(__b)' in src
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # The mixed line spells no .ftz, unlike the .f32 line it shares an entry with.
@@ -1568,7 +1590,9 @@ def test_ptx_comparison_selection_dispatch():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # Each source type takes its own operator set, and ptxas agrees with every
@@ -1709,7 +1733,9 @@ def test_ptx_half_comparison_dispatch():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # Every rejection below was probed against ptxas before being written into
@@ -1829,7 +1855,7 @@ def test_ptx_logic_shift_dispatch():
     # The load-bearing one: `and`/`or`/`not` have to survive being printed.
     script = kernel.script()
     assert "T.ptx.and_(" in script and "T.ptx.not_(" in script
-    reparsed = tvm.script.from_source(script)
+    reparsed = tvm.script.from_source(script, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # cnot has no predicate line -- ptxas: "Unexpected instruction types
@@ -2007,7 +2033,9 @@ def test_ptx_data_movement_dispatch():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # Every rejection below was probed against ptxas before it was written into
@@ -2127,7 +2155,9 @@ def test_ptx_parallel_sync_dispatch():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # Every rejection below was probed against ptxas first. redux pairs the
@@ -2217,7 +2247,9 @@ def test_ptx_parser_roundtrip():
         T.cuda.cta_sync()
         B[tx] = smem[tx % 4]
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
@@ -2247,7 +2279,9 @@ def test_ptx_pred_operand_roundtrip():
             )
         A[tx] = A[tx]
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
@@ -2279,7 +2313,9 @@ def test_ptx_wgmma_scale_d_runtime_predicate_roundtrip():
     assert "setp.ne.b32 ps0," in src
     assert "}, %4, %5, ps0;" in src
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # There is deliberately no compatibility overload for the old integer
@@ -2359,7 +2395,12 @@ def test_ptx_tcgen05_mma_ws_collector_dispatch(form, collector):
     src = _cuda_source(kernel, tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}))
     a_operand = "%1" if form == "ss" else "[%1]"
     assert f"{opcode} [%0], {a_operand}, %2, %3, ps0, %5;" in src
-    tvm.ir.assert_structural_equal(kernel, tvm.script.from_source(kernel.script()))
+    tvm.ir.assert_structural_equal(
+        kernel,
+        tvm.script.from_source(
+            kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+        ),
+    )
 
 
 @requires_nvcc
@@ -2652,7 +2693,9 @@ def test_ptx_sink_lane_codegen_and_roundtrip():
     src = _cuda_source(kernel)
     assert "mov.b64 {_, %0}, %1;" in src
     assert "_sink_d0" in src
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
@@ -3042,7 +3085,9 @@ def test_ptx_94_cp_bulk_semantics_roundtrip():
             T.uint32(1),
         )
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
@@ -3265,7 +3310,9 @@ def test_ptx_tcgen05_mapa_address_roundtrip():
         T.ptx.mapa.shared__cluster.u64(mapped64, window64, T.uint32(1))
         T.ptx.mapa.shared__cluster.u32(mapped32, T.uint32(0), T.uint32(1))
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 

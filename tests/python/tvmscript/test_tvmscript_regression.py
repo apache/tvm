@@ -43,7 +43,9 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 def test_multi_element_array_in_outmost_namespace():
     func = matmul
-    rt_func = tvm.script.from_source(func.script())
+    rt_func = tvm.script.from_source(
+        func.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+    )
     tvm.ir.assert_structural_equal(func, rt_func)
 
 

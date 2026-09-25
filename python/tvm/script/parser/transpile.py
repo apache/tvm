@@ -43,8 +43,7 @@ from contextlib import contextmanager
 from types import FunctionType
 from typing import Any, NamedTuple, NoReturn, TypeVar
 
-from . import protocol_registry as protocol
-from .annotation import parse_annotation
+from . import protocol_registry
 from .inspect_source import _AnnotationScope
 from .prescan import (
     Binding,
@@ -177,7 +176,7 @@ class ModuleContext:
         exec_globals: dict[str, Any],
         root_function_kwargs: Mapping[str, Any] | None = None,
     ) -> None:
-        # Source filename used by _raise_error and parse_annotation diagnostics.
+        # Source filename used by _raise_error diagnostics.
         self.filename = filename
         # Definition/lexical lookup layers used to identify construction namespaces.
         # These preserve source meanings independently of injected execution globals.
@@ -584,7 +583,6 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         if marker is not None:
             with self._bypass_rewrite():
                 return self.visit(marker)
-        constructor = self.module.prescan_ctx._match_special_func(node.func)
         global_call = (
             isinstance(node.func, ast.Name) and node.func.id in self.module.global_func_names
         ) or (
@@ -626,8 +624,6 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         # -------------------------------------------------
         # Calls retain their construction context; bind_ owns ordinary RHS attribution.
         if self.module.track_span and callee is None:
-            if protocol.RESULT_SPAN.get(constructor, False):
-                return node if binding_value else self._attach_span(node, node)
             # _S[i].ctx(lambda: callee(*args, **keywords))
             return ast.copy_location(
                 ast.Call(
@@ -989,9 +985,9 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             #     a, (b, c) = rhs
             #
             # Builder:
-            #     first, second = X.unpack(rhs)
+            #     first, second = X.unpack_(rhs)
             #     a = X.bind_(first, name="a")
-            #     left, right = X.unpack(second)
+            #     left, right = X.unpack_(second)
             #     b = X.bind_(left, name="b")
             #     c = X.bind_(right, name="c")
             # -------------------------------------------------
@@ -1006,7 +1002,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 ast.copy_location(
                     ast.Assign(
                         [ast.Tuple(pattern, ast.Store())],
-                        self._call(self.function.dialect_prefix, "unpack", [value], target),
+                        self._call(self.function.dialect_prefix, "unpack_", [value], target),
                     ),
                     target,
                 )
@@ -1107,7 +1103,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             if node.value
             else ast.Attribute(ast.Name(self.module.ir_prefix, ast.Load()), "MISSING", ast.Load())
         )
-        annotation = parse_annotation(node.annotation, self.module.filename)
+        annotation = node.annotation
         names = set(collect_annotation_free_names(annotation))
         with self._rewrite_annotation(annotation):
             helper = self._create_lambda([], self.visit(annotation))
@@ -1522,7 +1518,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         #
         # Builder:
         #     with X.function_(decl=True, local=True) as frame:
-        #         X.func_name("nested")
+        #         X.func_name_("nested")
         #     nested = frame.local_var
         #     with frame:
         #         def build():
@@ -1572,10 +1568,13 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             key = self.module.prescan_ctx._match_special_func(target)
             if key is None:
                 continue
-            kind = protocol.DECLARATION_KIND.get(key)
-            if kind == "helper":
+            kind = protocol_registry.DEFINITION_KIND.get(key)
+            if kind in (
+                protocol_registry.DefinitionKind.MACRO,
+                protocol_registry.DefinitionKind.PYTHON,
+            ):
                 return None, ast.Dict([], [])
-            if kind != "function":
+            if kind != protocol_registry.DefinitionKind.FUNCTION:
                 continue
             # A matched decorator is a direct member of a fixed root. Construction
             # needs that root's actual builder, not another syntax/value resolution.
@@ -1633,13 +1632,8 @@ class IRBuilderTranspiler(ast.NodeTransformer):
     ) -> tuple[list[ast.expr | None], ast.expr | None, set[str]]:
         """Find definition-scope names needed by signatures and body annotations."""
         declared_names = {item.name for item in getattr(node, "type_params", ())}
-        annotations = [
-            parse_annotation(parameter.annotation, self.module.filename)
-            if parameter.annotation
-            else None
-            for parameter in parameters
-        ]
-        returns = parse_annotation(node.returns, self.module.filename) if node.returns else None
+        annotations = [parameter.annotation for parameter in parameters]
+        returns = node.returns
         annotation_names = {
             name
             for annotation in [*annotations, returns]
@@ -1647,7 +1641,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             for name in collect_annotation_free_names(annotation)
         }
         body_annotations = [
-            parse_annotation(item.annotation, self.module.filename)
+            item.annotation
             for item in facts
             if item.annotation is not None
             and item.kind not in ("parameter", "mutable_parameter", "symbol")
@@ -1757,7 +1751,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             dtype = self.module.prescan_ctx.sites[parameter].dtype
             if bound is not None and not (isinstance(bound, ast.Name) and bound.id == "int"):
                 if (
-                    protocol.SCALAR_ANNOTATION_DTYPE.get(
+                    protocol_registry.SCALAR_ANNOTATION_DTYPE.get(
                         self.module.prescan_ctx._match_special_func(bound)
                     )
                     is None
@@ -1869,8 +1863,8 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                         [translated, ast.Name(const_args, ast.Load())],
                         [],
                     )
-                # x = X.arg("x", annotation, span=_S[i])
-                fallback = self._call_dialect("arg", [ast.Constant(name), translated], parameter)
+                # x = X.arg_("x", annotation, span=_S[i])
+                fallback = self._call_dialect("arg_", [ast.Constant(name), translated], parameter)
             # Specialized parameters have no runtime ABI slot. The annotation
             # thunk is absent from the selected generated Python branch.
             value = (
@@ -1904,8 +1898,8 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         #
         # Builder:
         #     with X.function_(decl=True) as frame:
-        #         X.func_name("f")
-        #         parameter = X.arg("x", X.int32)
+        #         X.func_name_("f")
+        #         parameter = X.arg_("x", X.int32)
         #     f = frame.global_var
         # -------------------------------------------------
         keywords = [ast.keyword(None, options)] if options.keys else []
@@ -2091,7 +2085,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 statements.extend(self._create_const_args(node, const_args=const_args))
             declaration: list[ast.stmt] = [
                 ast.copy_location(
-                    ast.Expr(self._call(builder, "func_name", [ast.Constant(node.name)], node)),
+                    ast.Expr(self._call(builder, "func_name_", [ast.Constant(node.name)], node)),
                     node,
                 )
             ]
@@ -2108,7 +2102,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                         ast.Expr(
                             self._call(
                                 builder,
-                                "func_ret_type",
+                                "func_ret_type_",
                                 [self._create_lambda([], translated_return)],
                                 returns,
                             )
@@ -2358,9 +2352,9 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         #     with IRBuilder() as builder:
         #         with I.ir_module():
         #             with X.function_(decl=True) as f_frame:
-        #                 X.func_name("f")
+        #                 X.func_name_("f")
         #             with X.function_(decl=True) as g_frame:
-        #                 X.func_name("g")
+        #                 X.func_name_("g")
         #             with f_frame:
         #                 def build_f():
         #                     X.emit_(first())

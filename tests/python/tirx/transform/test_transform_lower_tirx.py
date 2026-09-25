@@ -24,7 +24,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.parser import register_namespace
-from tvm.script.parser.protocol_registry import mutable_cell_decl
+from tvm.script.parser.protocol_registry import register_mutable_decl
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.function import PrimFunc
 from tvm.tirx.layout import laneid, warpid, wg_local_layout
@@ -1489,7 +1489,7 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
             self.B = T.alloc_local([1], "float16")
             self.C = T.decl_buffer([1], "float16", smem, elem_offset=0, scope="shared.dyn")
 
-    @mutable_cell_decl("TestMutableCells.int_var1")
+    @register_mutable_decl("TestMutableCells.int_var1")
     def int_var1(val):
         buf = T.local_scalar("int32")
         if val is not None:

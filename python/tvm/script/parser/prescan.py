@@ -25,8 +25,7 @@ from collections.abc import Mapping
 from types import ModuleType
 from typing import NamedTuple, NoReturn
 
-from . import protocol_registry as protocol
-from .annotation import parse_annotation
+from . import protocol_registry
 
 
 def collect_annotation_free_names(node: ast.expr) -> dict[str, ast.Name]:
@@ -304,6 +303,34 @@ class PrescanCollector(ast.NodeVisitor):
             ),
         )
 
+    def _check_annotation(self, node: ast.expr | None) -> None:
+        if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+            return
+        if self.functions:
+            # Host helpers retain Python annotations. Their bodies are still scanned,
+            # so a separately decorated DSL function gets its own syntax checks.
+            paths = (
+                _match_special_func(
+                    decorator.func if isinstance(decorator, ast.Call) else decorator,
+                    self.namespaces,
+                )
+                for decorator in self.functions[-1].decorator_list
+            )
+            if not any(
+                protocol_registry.DEFINITION_KIND.get(path)
+                in (
+                    protocol_registry.DefinitionKind.FUNCTION,
+                    protocol_registry.DefinitionKind.MACRO,
+                )
+                for path in paths
+            ):
+                return
+        self._raise_error(
+            node,
+            "Quoted annotations are not supported in script source; "
+            "write the annotation expression without quotes",
+        )
+
     def _check_reserved(self, name: str, node: ast.AST) -> None:
         if name in self.namespaces:
             self._raise_error(node, f"Script namespace {name!r} cannot be rebound or shadowed")
@@ -357,9 +384,10 @@ class PrescanCollector(ast.NodeVisitor):
         #         body(x)
         #
         # Builder:
-        #     x = X.arg("x", ty)
+        #     x = X.arg_("x", ty)
         # -------------------------------------------------
         # Parameter names cannot shadow registered namespaces.
+        self._check_annotation(node.annotation)
         self._check_reserved(node.arg, node)
         self.names.add(node.arg)
         self.generic_visit(node)
@@ -419,7 +447,7 @@ class PrescanCollector(ast.NodeVisitor):
         # Builder:
         #     with I.ir_module():
         #         with X.function_(decl=True):
-        #             X.func_name("f")
+        #             X.func_name_("f")
         # -------------------------------------------------
         # Class host bindings and members share one lexical scope.
         self._check_reserved(node.name, node)
@@ -438,8 +466,8 @@ class PrescanCollector(ast.NodeVisitor):
         #
         # Builder:
         #     with X.function_(decl=True):
-        #         X.func_name("f")
-        #         x = X.arg("x", ty)
+        #         X.func_name_("f")
+        #         x = X.arg_("x", ty)
         # -------------------------------------------------
         # Collect this function separately from its enclosing scope.
         self._record_binding(node.name, node, "function")
@@ -449,9 +477,13 @@ class PrescanCollector(ast.NodeVisitor):
         self.bindings[node] = []
         for decorator in node.decorator_list:
             target = decorator.func if isinstance(decorator, ast.Call) else decorator
-            if isinstance(target, ast.Attribute) and protocol.DECLARATION_KIND.get(
+            if isinstance(target, ast.Attribute) and protocol_registry.DEFINITION_KIND.get(
                 _match_special_func(target, self.namespaces)
-            ) in ("function", "helper"):
+            ) in (
+                protocol_registry.DefinitionKind.FUNCTION,
+                protocol_registry.DefinitionKind.MACRO,
+                protocol_registry.DefinitionKind.PYTHON,
+            ):
                 namespace = resolve_namespace_value(target.value, self.environment)
                 if namespace is not None:
                     self.builder = namespace
@@ -469,7 +501,7 @@ class PrescanCollector(ast.NodeVisitor):
             dtype = (
                 "int64"
                 if bound is None or (isinstance(bound, ast.Name) and bound.id == "int")
-                else protocol.SCALAR_ANNOTATION_DTYPE.get(
+                else protocol_registry.SCALAR_ANNOTATION_DTYPE.get(
                     _match_special_func(bound, self.namespaces)
                 )
             )
@@ -481,13 +513,12 @@ class PrescanCollector(ast.NodeVisitor):
             #         body(x, tensor)
             #
             # Builder:
-            #     x = X.arg("x", X.int32)
-            #     tensor = X.arg("tensor", X.Tensor(shape))
+            #     x = X.arg_("x", X.int32)
+            #     tensor = X.arg_("tensor", X.Tensor(shape))
             # -------------------------------------------------
             # Registered annotation metadata distinguishes mutable parameters
             # without evaluating types.
-            annotation = parse_annotation(arg.annotation, self.filename) if arg.annotation else None
-            arg.annotation = annotation
+            annotation = arg.annotation
             constructor = _match_special_func(
                 annotation.func if isinstance(annotation, ast.Call) else annotation,
                 self.namespaces,
@@ -498,7 +529,7 @@ class PrescanCollector(ast.NodeVisitor):
                 "mutable_parameter"
                 if inspect.getattr_static(self.builder, "supports_mutable_declarations", True)
                 is True
-                and "parameter" in protocol.MUTABLE_CELL_DECL.get(constructor, ())
+                and "parameter" in protocol_registry.MUTABLE_CELL_DECL.get(constructor, ())
                 else "parameter",
                 arg.annotation,
             )
@@ -512,7 +543,7 @@ class PrescanCollector(ast.NodeVisitor):
         for decorator in node.decorator_list:
             self.visit(decorator)
         if node.returns:
-            node.returns = parse_annotation(node.returns, self.filename)
+            self._check_annotation(node.returns)
             self.visit(node.returns)
         self._validate_symbols(node)
         self.functions.pop()
@@ -579,11 +610,11 @@ class PrescanCollector(ast.NodeVisitor):
         )
         if isinstance(target, ast.Name):
             if getattr(self.builder, "supports_mutable_declarations", True) and (
-                "call" in protocol.MUTABLE_CELL_DECL.get(constructor, ())
+                "call" in protocol_registry.MUTABLE_CELL_DECL.get(constructor, ())
                 or (
                     annotation is not None
                     and "annotation"
-                    in protocol.MUTABLE_CELL_DECL.get(
+                    in protocol_registry.MUTABLE_CELL_DECL.get(
                         _match_special_func(
                             annotation.value
                             if isinstance(annotation, ast.Subscript)
@@ -646,8 +677,7 @@ class PrescanCollector(ast.NodeVisitor):
         # Builder:
         #     x = X.bind_(rhs, ty=annotation, name="x")
         # -------------------------------------------------
-        # Retain decoded annotation syntax and its declaration location.
-        node.annotation = parse_annotation(node.annotation, self.filename)
+        self._check_annotation(node.annotation)
         self._collect_target(node.target, node.value, node.annotation)
         self.visit(node.annotation)
         if node.value:

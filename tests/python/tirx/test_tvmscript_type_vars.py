@@ -30,7 +30,8 @@ UNUSED = I.dynamic("UNUSED")
 @T.prim_func(private=True)
 def func(A: T.Buffer((M, M * 2), "float32")):
     A[0, 0] = T.float32(1)
-"""
+""",
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
     )
 
     script = func.script()
@@ -44,7 +45,8 @@ def func(A: T.Buffer((M, M * 2), "float32")):
 @T.prim_func(private=True)
 def func[M: int](A: T.Buffer((M, M * 2), "float32")):
     A[0, 0] = T.float32(1)
-"""
+""",
+            extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
         )
         tvm.ir.assert_structural_equal(func, typed)
     else:
@@ -61,8 +63,13 @@ def func[M: int](A: T.Buffer((M, M * 2), "float32")):
     assert len(func.params) == 1
     assert not hasattr(func, "type_params")
     assert func.attrs.get("tirx.type_vars") is None
-    tvm.ir.assert_structural_equal(func, tvm.script.from_source(script))
-    tvm.ir.assert_structural_equal(func, tvm.script.from_source(portable))
+    tvm.ir.assert_structural_equal(
+        func, tvm.script.from_source(script, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+    )
+    tvm.ir.assert_structural_equal(
+        func,
+        tvm.script.from_source(portable, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}),
+    )
 
 
 def test_dynamic_int32_roundtrip():
@@ -72,7 +79,8 @@ n = I.dynamic("n", "int32")
 @T.prim_func(private=True)
 def func(A: T.Buffer((n,), "float32")):
     A[0] = T.float32(1)
-"""
+""",
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
     )
     source = func.script()
     if sys.version_info >= (3, 12):
@@ -81,8 +89,13 @@ def func(A: T.Buffer((n,), "float32")):
         assert 'n = I.dynamic("n", dtype="int32")' in source
     portable = func.script(extra_config={"script.use_pep695": False})
     assert 'n = I.dynamic("n", dtype="int32")' in portable
-    tvm.ir.assert_structural_equal(func, tvm.script.from_source(source))
-    tvm.ir.assert_structural_equal(func, tvm.script.from_source(portable))
+    tvm.ir.assert_structural_equal(
+        func, tvm.script.from_source(source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+    )
+    tvm.ir.assert_structural_equal(
+        func,
+        tvm.script.from_source(portable, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}),
+    )
 
 
 def test_dynamic_module_body_identity():
@@ -100,10 +113,13 @@ class Module:
         T.evaluate(n + m)
 """,
         check_well_formed=False,
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
     )
     source = mod.script()
     assert source.count('I.dynamic("n", dtype="int32")') == 2
-    restored = tvm.script.from_source(source, check_well_formed=False)
+    restored = tvm.script.from_source(
+        source, check_well_formed=False, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     shared = restored["first"].body.value
     summed = restored["second"].body.value
     assert shared.same_as(summed.a)

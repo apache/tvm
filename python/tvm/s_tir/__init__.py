@@ -70,7 +70,7 @@ def _initialize_script_namespace():
 
 from tvm.script.parser import register_namespace_initializer as _register_namespace_initializer
 
-_register_namespace_initializer(_initialize_script_namespace, aliases=("Ts", "s_tir"))
+_register_namespace_initializer(_initialize_script_namespace, aliases=("s_tir",))
 
 
 def _check_script_module(module):

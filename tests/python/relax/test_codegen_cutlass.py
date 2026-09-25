@@ -160,11 +160,11 @@ def get_relax_conv2d_module(
 ):
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            data = R.arg("data", R.Tensor(data_shape, dtype))
-            weight = R.arg("weight", R.Tensor(weight_shape, dtype))
+            R.func_name_("main")
+            data = R.arg_("data", R.Tensor(data_shape, dtype))
+            weight = R.arg_("weight", R.Tensor(weight_shape, dtype))
             if with_bias:
-                bias = R.arg("bias", R.Tensor((1, 1, 1, weight_shape[0]), dtype))
+                bias = R.arg_("bias", R.Tensor((1, 1, 1, weight_shape[0]), dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(
@@ -898,12 +898,12 @@ def get_relax_attention_rewrite_module(
 
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            q = R.arg("q", R.Tensor(q_shape, dtype))
-            k = R.arg("k", R.Tensor(k_shape, dtype))
-            v = R.arg("v", R.Tensor(v_shape, dtype))
+            R.func_name_("main")
+            q = R.arg_("q", R.Tensor(q_shape, dtype))
+            k = R.arg_("k", R.Tensor(k_shape, dtype))
+            v = R.arg_("v", R.Tensor(v_shape, dtype))
             if bias_shape is not None:
-                bias = R.arg("bias", R.Tensor(bias_shape, dtype))
+                bias = R.arg_("bias", R.Tensor(bias_shape, dtype))
             with R.dataflow() as frame:
                 if len(q_shape) == 4:
                     q = R.emit(R.permute_dims(q, axes=[0, 2, 1, 3]))
@@ -950,12 +950,12 @@ def get_relax_attention_rewrite_module(
 
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            q = R.arg("q", R.Tensor(q_shape, dtype))
-            k = R.arg("k", R.Tensor(k_shape, dtype))
-            v = R.arg("v", R.Tensor(v_shape, dtype))
+            R.func_name_("main")
+            q = R.arg_("q", R.Tensor(q_shape, dtype))
+            k = R.arg_("k", R.Tensor(k_shape, dtype))
+            v = R.arg_("v", R.Tensor(v_shape, dtype))
             if bias_shape is not None:
-                bias = R.arg("bias", R.Tensor(bias_shape, dtype))
+                bias = R.arg_("bias", R.Tensor(bias_shape, dtype))
             with R.dataflow() as frame:
                 if len(q_shape) == 3:
                     q = R.emit(R.reshape(q, [q_shape[0], q_shape[1], 1, q_shape[2]]))
@@ -1054,11 +1054,11 @@ def test_conv2d_residual_broadcast():
     def get_mod(residual_batch):
         with IRBuilder() as builder:
             with relax_builder.function():
-                R.func_name("main")
-                data = R.arg("data", R.Tensor(data_shape, dtype))
-                weight = R.arg("weight", R.Tensor(weight_shape, dtype))
-                bias = R.arg("bias", R.Tensor((1, 1, weight_shape[0]), dtype))
-                residual = R.arg(
+                R.func_name_("main")
+                data = R.arg_("data", R.Tensor(data_shape, dtype))
+                weight = R.arg_("weight", R.Tensor(weight_shape, dtype))
+                bias = R.arg_("bias", R.Tensor((1, 1, weight_shape[0]), dtype))
+                residual = R.arg_(
                     "residual", R.Tensor((residual_batch, 1, 1, weight_shape[0]), dtype)
                 )
 
@@ -1113,10 +1113,10 @@ def test_layer_norm(data_shape, dtype, axes):
         reduced_shape = [data_shape[axis] for axis in axes]
         with IRBuilder() as builder:
             with relax_builder.function():
-                R.func_name("main")
-                inp = R.arg("input", R.Tensor(data_shape, dtype))
-                gamma = R.arg("gamma", R.Tensor(reduced_shape, dtype))
-                beta = R.arg("beta", R.Tensor(reduced_shape, dtype))
+                R.func_name_("main")
+                inp = R.arg_("input", R.Tensor(data_shape, dtype))
+                gamma = R.arg_("gamma", R.Tensor(reduced_shape, dtype))
+                beta = R.arg_("beta", R.Tensor(reduced_shape, dtype))
 
                 with R.dataflow() as frame:
                     output = R.emit(R.nn.layer_norm(inp, gamma, beta, axes))

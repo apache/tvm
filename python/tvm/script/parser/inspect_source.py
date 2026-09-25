@@ -39,8 +39,7 @@ from tvm_ffi.dataclasses import MISSING
 
 from tvm.ir import SourceName, Span
 
-from . import protocol_registry as protocol
-from .annotation import parse_annotation
+from . import protocol_registry
 from .prescan import collect_annotation_free_names, resolve_namespace_key, resolve_namespace_value
 
 
@@ -218,23 +217,27 @@ def capture_annotation_bindings(
     OSError
         If source text cannot be recovered for the function.
     SyntaxError
-        If source or a quoted annotation is not valid Python syntax.
+        If source is not valid Python syntax.
 
     Notes
     -----
     JIT and macros own this small mapping while their source callable remains
     usable. Unrelated outer locals and frame objects never enter it.
     """
-    tree, filename, _ = acquire_source(source)
+    tree, _, _ = acquire_source(source)
     names: set[str] = set()
     # Deferred construction still selects its namespace from the source decorator.
     # Retain its owner alias even when no annotation or body reads that alias.
     environment = ChainMap(definition_scope, source.__globals__)
     for decorator in tree.body[-1].decorator_list:
         target = decorator.func if isinstance(decorator, ast.Call) else decorator
-        if isinstance(target, ast.Attribute) and protocol.DECLARATION_KIND.get(
+        if isinstance(target, ast.Attribute) and protocol_registry.DEFINITION_KIND.get(
             resolve_namespace_key(target, environment)
-        ) in ("function", "helper"):
+        ) in (
+            protocol_registry.DefinitionKind.FUNCTION,
+            protocol_registry.DefinitionKind.MACRO,
+            protocol_registry.DefinitionKind.PYTHON,
+        ):
             names.update(collect_annotation_free_names(target.value))
     for node in ast.walk(tree):
         annotation = (
@@ -245,7 +248,7 @@ def capture_annotation_bindings(
             else None
         )
         if annotation is not None:
-            names.update(collect_annotation_free_names(parse_annotation(annotation, filename)))
+            names.update(collect_annotation_free_names(annotation))
     return {name: definition_scope[name] for name in names if name in definition_scope}
 
 

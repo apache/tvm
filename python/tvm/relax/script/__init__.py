@@ -44,7 +44,6 @@ def _initialize() -> None:
     _initializing = True
     try:
         from tvm.script.parser import entry, register_namespace
-        from tvm.script.parser.protocol_registry import declaration_kind
 
         from . import ir_builder as builder
 
@@ -52,14 +51,11 @@ def _initialize() -> None:
             (name, value) for name, value in vars(builder).items() if not name.startswith("_")
         )
         globals()["__tvm_value_if__"] = builder.__tvm_value_if__
-        globals()["function"] = declaration_kind("R.function", "function")(
-            entry.make_decorator(builder)
-        )
-        globals()["macro"] = declaration_kind("R.macro", "helper")(
-            entry.make_macro_decorator(builder, preserve_return=True)
+        globals()["function"] = entry.make_decorator(builder, namespace_path="relax.function")
+        globals()["macro"] = entry.make_macro_decorator(
+            builder, namespace_path="relax.macro", preserve_return=True
         )
         namespace = _sys.modules[__name__]
-        register_namespace("R", namespace)
         register_namespace("relax", namespace)
         globals()["__all__"] = sorted(name for name in globals() if not name.startswith("_"))
         _initialized = True

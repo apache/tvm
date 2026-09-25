@@ -17,6 +17,8 @@
 # ruff: noqa: F401
 
 #  type: ignore
+from __future__ import annotations
+
 import tvm
 import tvm.testing
 from tvm import relax
@@ -96,10 +98,10 @@ def test_mlp():
 
         @R.function
         def foo(
-            x: 'R.DTensor((128, 128), "float32", "mesh[0]", "R")',
-            weight1: 'R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")',
-            weight2: 'R.DTensor((128, 128), "float32", "mesh[0]", "S[0]")',
-        ) -> 'R.DTensor((128, 128), "float32", "mesh[0]", "R")':
+            x: R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+            weight1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
+            weight2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
+        ) -> R.DTensor((128, 128), "float32", "mesh[0]", "R"):
             cls = MLP
             lv0 = R.dist.call_tir(
                 cls.matmul,
@@ -202,10 +204,10 @@ def test_mlp():
 
         @R.function
         def foo(
-            x: 'R.DTensor((128, 128), "float32", "mesh[0]", "R")',
-            weight1: 'R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")',
-            weight2: 'R.DTensor((128, 128), "float32", "mesh[0]", "S[0]")',
-        ) -> 'R.DTensor((128, 128), "float32", "mesh[0]", "R")':
+            x: R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+            weight1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
+            weight2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
+        ) -> R.DTensor((128, 128), "float32", "mesh[0]", "R"):
             cls = Expected
             lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.dist.call_tir_local_view(
                 cls.matmul1,
@@ -648,19 +650,19 @@ def test_llama_attention():
 
         @R.function(pure=False)
         def foo(
-            input_tokens: 'R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")',
-            mask: 'R.DTensor((1, 1, 256, 256), "float16", "mesh[0]", "R")',
-            div_const: 'R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")',
-            maximum_const: 'R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")',
+            input_tokens: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+            mask: R.DTensor((1, 1, 256, 256), "float16", "mesh[0]", "R"),
+            div_const: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+            maximum_const: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
             kv_cache: R.Tuple(R.Any, R.Any),
-            linear_weight: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")',
-            linear_weight1: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")',
-            linear_weight2: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")',
-            linear_weight3: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]")',
-            rms_norm_weight: 'R.DTensor((4096,), "float16", "mesh[0]", "R")',
-            cos_cached: 'R.DTensor((2048, 128), "float16", "mesh[0]", "R")',
-            sin_cached: 'R.DTensor((2048, 128), "float16", "mesh[0]", "R")',
-        ) -> 'R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")':
+            linear_weight: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+            linear_weight1: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+            linear_weight2: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+            linear_weight3: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+            rms_norm_weight: R.DTensor((4096,), "float16", "mesh[0]", "R"),
+            cos_cached: R.DTensor((2048, 128), "float16", "mesh[0]", "R"),
+            sin_cached: R.DTensor((2048, 128), "float16", "mesh[0]", "R"),
+        ) -> R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"):
             cls = LlamaAttentionLayer
             lv6 = R.dist.call_tir(
                 cls.rms_norm,
@@ -1320,19 +1322,19 @@ def test_llama_attention():
 
         @R.function(pure=False)
         def foo(
-            input_tokens: 'R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")',
-            mask: 'R.DTensor((1, 1, 256, 256), "float16", "mesh[0]", "R")',
-            div_const: 'R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")',
-            maximum_const: 'R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")',
+            input_tokens: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+            mask: R.DTensor((1, 1, 256, 256), "float16", "mesh[0]", "R"),
+            div_const: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+            maximum_const: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
             kv_cache: R.Tuple(R.Any, R.Any),
-            linear_weight: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")',
-            linear_weight1: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")',
-            linear_weight2: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")',
-            linear_weight3: 'R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]")',
-            rms_norm_weight: 'R.DTensor((4096,), "float16", "mesh[0]", "R")',
-            cos_cached: 'R.DTensor((2048, 128), "float16", "mesh[0]", "R")',
-            sin_cached: 'R.DTensor((2048, 128), "float16", "mesh[0]", "R")',
-        ) -> 'R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")':
+            linear_weight: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+            linear_weight1: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+            linear_weight2: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+            linear_weight3: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+            rms_norm_weight: R.DTensor((4096,), "float16", "mesh[0]", "R"),
+            cos_cached: R.DTensor((2048, 128), "float16", "mesh[0]", "R"),
+            sin_cached: R.DTensor((2048, 128), "float16", "mesh[0]", "R"),
+        ) -> R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"):
             cls = Expected
             lv6: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = R.dist.call_tir_local_view(
                 cls.rms_norm,

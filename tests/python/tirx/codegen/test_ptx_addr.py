@@ -301,7 +301,10 @@ def test_ptx_addr_printer_script_and_json_roundtrip():
 
     script = kernel.script()
     assert script.count("T.ptx.addr(") == 2
-    tvm.ir.assert_structural_equal(kernel, tvm.script.from_source(script))
+    tvm.ir.assert_structural_equal(
+        kernel,
+        tvm.script.from_source(script, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}),
+    )
     tvm.ir.assert_structural_equal(kernel, tvm.ir.load_json(tvm.ir.save_json(kernel)))
 
 

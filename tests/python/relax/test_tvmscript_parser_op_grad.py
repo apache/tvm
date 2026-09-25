@@ -27,7 +27,9 @@ def _check(
     expect: relax.Function | IRModule | None,
 ):
     test = parsed.script(show_meta=True)
-    roundtrip_mod = tvm.script.from_source(test)
+    roundtrip_mod = tvm.script.from_source(
+        test, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax}
+    )
     tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
     if expect:
         tvm.ir.assert_structural_equal(parsed, expect)

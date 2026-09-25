@@ -29,9 +29,6 @@ from tvm import ir as _ir
 from tvm.ir import TensorRegion
 from tvm.script.ir_builder.base import annotation_constructor as _annotation_constructor
 from tvm.script.ir_builder.base import at as _at
-from tvm.script.parser.protocol_registry import (
-    result_span as _result_span,
-)
 
 # isort: off
 from typing import Literal
@@ -45,7 +42,7 @@ from tvm.ir import TensorLoad, Type, is_prim_expr
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.ir import meta_var
 from tvm.script.parser.protocol_registry import (
-    mutable_cell_decl as _mutable_cell_decl,
+    register_mutable_decl as _register_mutable_decl,
 )
 from tvm.script.parser.protocol_registry import (
     register_scalar_annotation as _register_scalar_annotation,
@@ -210,8 +207,7 @@ def _record_meta_resource(value: Any, skip_frames: int = 2) -> None:
         scope.record(value, frame_info)
 
 
-@_result_span("T.Buffer")
-@_mutable_cell_decl("T.Buffer", syntax="parameter")
+@_register_mutable_decl("tirx.Buffer", syntax="parameter")
 @_annotation_constructor
 def buffer(
     shape: list[Expr] | tuple[Expr] | Expr | Integral,
@@ -310,7 +306,7 @@ def Tuple(*fields: Type) -> Type:  # pylint: disable=invalid-name
     return ir.TupleType(normalized_fields)
 
 
-@_mutable_cell_decl("T.match_buffer")
+@_register_mutable_decl("tirx.match_buffer")
 def match_buffer(
     param: Var | TensorLoad | TensorRegion,
     shape: list[Expr] | tuple[Expr] | Expr | Integral = None,
@@ -573,7 +569,7 @@ def thread_id_in_wg(
     return tuple(ret)
 
 
-@_mutable_cell_decl("T.alloc_buffer")
+@_register_mutable_decl("tirx.alloc_buffer")
 def alloc_buffer(
     shape: list[Expr] | tuple[Expr] | Expr | Integral,
     dtype: str = "float32",
@@ -724,7 +720,7 @@ class LetAnnotation:
 let = LetAnnotation()  # Singleton for T.let (no subscript)
 
 
-@_mutable_cell_decl("T.LocalVectorAnnotation", syntax="annotation")
+@_register_mutable_decl("tirx.LocalVectorAnnotation", syntax="annotation")
 class LocalVectorAnnotation:
     """Marker for local vector/tensor allocation via type annotation subscript.
 
@@ -772,7 +768,7 @@ class DtypeConstructor:
         return f"DtypeConstructor({self._dtype_str!r})"
 
 
-@_mutable_cell_decl("T.decl_buffer")
+@_register_mutable_decl("tirx.decl_buffer")
 def decl_buffer(
     shape,
     dtype="float32",
@@ -858,16 +854,16 @@ def decl_buffer(
 alloc_shared = functools.partial(alloc_buffer, scope="shared")
 
 
-_mutable_cell_decl("T.alloc_shared")(alloc_shared)
+_register_mutable_decl("tirx.alloc_shared")(alloc_shared)
 
 
 alloc_local = functools.partial(alloc_buffer, scope="local")
 
 
-_mutable_cell_decl("T.alloc_local")(alloc_local)
+_register_mutable_decl("tirx.alloc_local")(alloc_local)
 
 
-smem = _mutable_cell_decl("T.smem")(alloc_shared)
+smem = _register_mutable_decl("tirx.smem")(alloc_shared)
 
 
 tmem = functools.partial(alloc_buffer, scope="tmem")
@@ -962,7 +958,7 @@ def alloc_cast_frag(src, dtype):
     return flat.view(rows, cols, layout=src.ty.layout)
 
 
-@_mutable_cell_decl("T.alloc_scalar")
+@_register_mutable_decl("tirx.alloc_scalar")
 def alloc_scalar(dtype: str = "float32", scope: str = "global") -> TensorLoad:
     """Allocate a zero-dimensional buffer (scalar)."""
     buf = alloc_buffer(shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]))
@@ -971,7 +967,7 @@ def alloc_scalar(dtype: str = "float32", scope: str = "global") -> TensorLoad:
     return scalar
 
 
-@_mutable_cell_decl("T.decl_scalar")
+@_register_mutable_decl("tirx.decl_scalar")
 def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> TensorLoad:
     """Declare a zero-dimensional buffer (scalar) from a pointer."""
     buf = decl_buffer(
@@ -990,13 +986,13 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Tenso
     return scalar
 
 
-@_mutable_cell_decl("T.shared_scalar")
+@_register_mutable_decl("tirx.shared_scalar")
 def shared_scalar(dtype: str = "float32") -> TensorLoad:
     """Allocate a zero-dimensional buffer in shared memory."""
     return alloc_scalar(dtype=dtype, scope="shared")
 
 
-@_mutable_cell_decl("T.local_scalar")
+@_register_mutable_decl("tirx.local_scalar")
 def local_scalar(dtype: str = "float32") -> TensorLoad:
     """Allocate a zero-dimensional buffer in local memory."""
     return alloc_scalar(dtype=dtype, scope="local")
@@ -1119,8 +1115,8 @@ def func_gen(name: str):
     """
     dtype = _ffi_name_to_dtype(name)
     constructor = DtypeConstructor(name, dtype)
-    _register_scalar_annotation(f"T.{dtype}", constructor, dtype=dtype)
-    _mutable_cell_decl(f"T.{dtype}", syntax="annotation")(constructor)
+    _register_scalar_annotation(f"tirx.{dtype}", constructor, dtype=dtype)
+    _register_mutable_decl(f"tirx.{dtype}", syntax="annotation")(constructor)
     return constructor
 
 
@@ -1593,31 +1589,31 @@ float4_e2m1fnx64 = func_gen("Float4E2M1FNx64")
 bfloat16 = func_gen("BFloat16")
 
 # Shorthand aliases
-f16 = _register_scalar_annotation("T.f16", float16, dtype="float16")
-_mutable_cell_decl("T.f16", syntax="annotation")(f16)
-f32 = _register_scalar_annotation("T.f32", float32, dtype="float32")
-_mutable_cell_decl("T.f32", syntax="annotation")(f32)
-f64 = _register_scalar_annotation("T.f64", float64, dtype="float64")
-_mutable_cell_decl("T.f64", syntax="annotation")(f64)
-bf16 = _register_scalar_annotation("T.bf16", bfloat16, dtype="bfloat16")
-_mutable_cell_decl("T.bf16", syntax="annotation")(bf16)
-i8 = _register_scalar_annotation("T.i8", int8, dtype="int8")
-_mutable_cell_decl("T.i8", syntax="annotation")(i8)
-i16 = _register_scalar_annotation("T.i16", int16, dtype="int16")
-_mutable_cell_decl("T.i16", syntax="annotation")(i16)
-i32 = _register_scalar_annotation("T.i32", int32, dtype="int32")
-_mutable_cell_decl("T.i32", syntax="annotation")(i32)
-i64 = _register_scalar_annotation("T.i64", int64, dtype="int64")
-_mutable_cell_decl("T.i64", syntax="annotation")(i64)
-u8 = _register_scalar_annotation("T.u8", uint8, dtype="uint8")
-_mutable_cell_decl("T.u8", syntax="annotation")(u8)
-u16 = _register_scalar_annotation("T.u16", uint16, dtype="uint16")
-_mutable_cell_decl("T.u16", syntax="annotation")(u16)
-u32 = _register_scalar_annotation("T.u32", uint32, dtype="uint32")
-_mutable_cell_decl("T.u32", syntax="annotation")(u32)
-u64 = _register_scalar_annotation("T.u64", uint64, dtype="uint64")
+f16 = _register_scalar_annotation("tirx.f16", float16, dtype="float16")
+_register_mutable_decl("tirx.f16", syntax="annotation")(f16)
+f32 = _register_scalar_annotation("tirx.f32", float32, dtype="float32")
+_register_mutable_decl("tirx.f32", syntax="annotation")(f32)
+f64 = _register_scalar_annotation("tirx.f64", float64, dtype="float64")
+_register_mutable_decl("tirx.f64", syntax="annotation")(f64)
+bf16 = _register_scalar_annotation("tirx.bf16", bfloat16, dtype="bfloat16")
+_register_mutable_decl("tirx.bf16", syntax="annotation")(bf16)
+i8 = _register_scalar_annotation("tirx.i8", int8, dtype="int8")
+_register_mutable_decl("tirx.i8", syntax="annotation")(i8)
+i16 = _register_scalar_annotation("tirx.i16", int16, dtype="int16")
+_register_mutable_decl("tirx.i16", syntax="annotation")(i16)
+i32 = _register_scalar_annotation("tirx.i32", int32, dtype="int32")
+_register_mutable_decl("tirx.i32", syntax="annotation")(i32)
+i64 = _register_scalar_annotation("tirx.i64", int64, dtype="int64")
+_register_mutable_decl("tirx.i64", syntax="annotation")(i64)
+u8 = _register_scalar_annotation("tirx.u8", uint8, dtype="uint8")
+_register_mutable_decl("tirx.u8", syntax="annotation")(u8)
+u16 = _register_scalar_annotation("tirx.u16", uint16, dtype="uint16")
+_register_mutable_decl("tirx.u16", syntax="annotation")(u16)
+u32 = _register_scalar_annotation("tirx.u32", uint32, dtype="uint32")
+_register_mutable_decl("tirx.u32", syntax="annotation")(u32)
+u64 = _register_scalar_annotation("tirx.u64", uint64, dtype="uint64")
 
-_mutable_cell_decl("T.u64", syntax="annotation")(u64)
+_register_mutable_decl("tirx.u64", syntax="annotation")(u64)
 
 
 def boolean(expr: Expr | None = None) -> Expr:
@@ -1868,7 +1864,7 @@ def Ptr(dtype, storage_scope="global", *, span=None):
 
 
 Buffer = buffer
-_mutable_cell_decl("T.buffer", syntax="parameter")(buffer)
+_register_mutable_decl("tirx.buffer", syntax="parameter")(buffer)
 
 __all__ = [
     "Buffer",

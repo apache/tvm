@@ -1774,7 +1774,15 @@ def test_module_define():
 
 def test_matmul_original():
     func = matmul_original()
-    rt_func = tvm.script.from_source(func.script())
+    rt_func = tvm.script.from_source(
+        func.script(),
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
+    )
     tvm.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body.block, s_tir.SBlock)
@@ -1788,7 +1796,15 @@ def test_matmul_original():
 
 def test_element_wise():
     func = element_wise()
-    rt_func = tvm.script.from_source(func.script())
+    rt_func = tvm.script.from_source(
+        func.script(),
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
+    )
     tvm.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body.block, s_tir.SBlock)
@@ -1804,7 +1820,15 @@ def test_element_wise():
 
 def test_predicate():
     func = predicate()
-    rt_func = tvm.script.from_source(func.script())
+    rt_func = tvm.script.from_source(
+        func.script(),
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
+    )
     tvm.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body.block, s_tir.SBlock)
@@ -1831,7 +1855,15 @@ def for_thread_binding():
 
 def test_for_thread_binding():
     func = for_thread_binding()
-    rt_func = tvm.script.from_source(func.script())
+    rt_func = tvm.script.from_source(
+        func.script(),
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
+    )
     tvm.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body, tirx.stmt.For)
@@ -1865,7 +1897,15 @@ def match_buffer_region():
 
 def test_match_buffer_region():
     func = match_buffer_region()
-    rt_func = tvm.script.from_source(func.script())
+    rt_func = tvm.script.from_source(
+        func.script(),
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
+    )
     tvm.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body, s_tir.SBlockRealize)
@@ -1910,7 +1950,15 @@ def block_elements():
 
 def test_block_elements():
     func = block_elements()
-    rt_func = tvm.script.from_source(func.script())
+    rt_func = tvm.script.from_source(
+        func.script(),
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
+    )
     tvm.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body.block, s_tir.SBlock)
@@ -1946,7 +1994,15 @@ def opaque_block():
 
 def test_opaque_block():
     func = opaque_block()
-    rt_func = tvm.script.from_source(func.script())
+    rt_func = tvm.script.from_source(
+        func.script(),
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
+    )
     tvm.ir.assert_structural_equal(func, rt_func)
 
     root_block = rt_func.body.block
@@ -2064,7 +2120,15 @@ def var_with_same_name():
 def test_same_name_var():
     func = var_with_same_name()
     out_str = func.script()
-    rt_func = tvm.script.from_source(out_str)
+    rt_func = tvm.script.from_source(
+        out_str,
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
+    )
     tvm.ir.assert_structural_equal(func, rt_func)
     assert out_str.count("for i, j in T.grid(16, 16)") == 2
     assert out_str.find("i_") == -1
@@ -2180,7 +2244,16 @@ def func_div_mod():
 
 def test_div_mod():
     func = func_div_mod()
-    rt_func = tvm.script.from_source(func.script(), check_well_formed=False)
+    rt_func = tvm.script.from_source(
+        func.script(),
+        check_well_formed=False,
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
+    )
     tvm.ir.assert_structural_equal(func, rt_func, True)
 
     assert isinstance(func.body[0].value, tvm.tirx.FloorDiv)
@@ -2508,7 +2581,18 @@ def test_void_ptr_vs_handle():
     script = void_ptr.script()
     assert "out_ret_value: T.handle" in script
     assert 'T.handle("void")' not in script
-    tvm.ir.assert_structural_equal(void_ptr, tvm.script.from_source(script))
+    tvm.ir.assert_structural_equal(
+        void_ptr,
+        tvm.script.from_source(
+            script,
+            extra_vars={
+                "I": tvm.script.ir,
+                "T": tvm.script.tirx,
+                "Ts": tvm.script.s_tir,
+                "R": tvm.script.relax,
+            },
+        ),
+    )
 
     @Ts.prim_func
     def scoped_void_ptr(out_ret_value: T.handle("void", "shared")):
@@ -2517,7 +2601,18 @@ def test_void_ptr_vs_handle():
     scoped_script = scoped_void_ptr.script()
     assert 'out_ret_value: T.handle(storage_scope="shared")' in scoped_script
     assert 'T.handle("void"' not in scoped_script
-    tvm.ir.assert_structural_equal(scoped_void_ptr, tvm.script.from_source(scoped_script))
+    tvm.ir.assert_structural_equal(
+        scoped_void_ptr,
+        tvm.script.from_source(
+            scoped_script,
+            extra_vars={
+                "I": tvm.script.ir,
+                "T": tvm.script.tirx,
+                "Ts": tvm.script.s_tir,
+                "R": tvm.script.relax,
+            },
+        ),
+    )
 
 
 def void_ptr():
@@ -3332,7 +3427,14 @@ def test_roundtrip(ir_generator):
         pytest.skip(f"{ir_generator.__name__}: not round-trip stable here")
     original = ir_generator()
     after_roundtrip = tvm.script.from_source(
-        original.script(show_meta=True), check_well_formed=False
+        original.script(show_meta=True),
+        check_well_formed=False,
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
     )
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)
 
@@ -3343,7 +3445,13 @@ def test_relax_roundtrip(relax_ir_generator, show_all_relax_ty):
         original.script(
             show_meta=True,
             show_all_ty=show_all_relax_ty,
-        )
+        ),
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
     )
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)
 
@@ -3371,7 +3479,16 @@ def test_assert_stmt_roundtrip_runtime_error():
         assert x > 0, ("RuntimeError", ["x must be positive"])
 
     script = func.script(show_meta=True)
-    roundtrip = tvm.script.from_source(script, check_well_formed=False)
+    roundtrip = tvm.script.from_source(
+        script,
+        check_well_formed=False,
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
+    )
     tvm.ir.assert_structural_equal(func, roundtrip, map_free_vars=True)
 
 
@@ -3383,7 +3500,16 @@ def test_assert_stmt_roundtrip_value_error():
         assert x > 0, ("ValueError", ["Shape mismatch"])
 
     script = func.script(show_meta=True)
-    roundtrip = tvm.script.from_source(script, check_well_formed=False)
+    roundtrip = tvm.script.from_source(
+        script,
+        check_well_formed=False,
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
+    )
     tvm.ir.assert_structural_equal(func, roundtrip, map_free_vars=True)
 
 
@@ -3395,7 +3521,16 @@ def test_assert_stmt_roundtrip_type_error():
         assert x > 0, ("TypeError", ["Expected Tensor but got int"])
 
     script = func.script(show_meta=True)
-    roundtrip = tvm.script.from_source(script, check_well_formed=False)
+    roundtrip = tvm.script.from_source(
+        script,
+        check_well_formed=False,
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
+    )
     tvm.ir.assert_structural_equal(func, roundtrip, map_free_vars=True)
 
 
@@ -3407,7 +3542,16 @@ def test_assert_stmt_roundtrip_multi_parts():
         assert x > 0, ("TypeError", ["Expected ", "Tensor", " but got ", "int"])
 
     script = func.script(show_meta=True)
-    roundtrip = tvm.script.from_source(script, check_well_formed=False)
+    roundtrip = tvm.script.from_source(
+        script,
+        check_well_formed=False,
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
+    )
     tvm.ir.assert_structural_equal(func, roundtrip, map_free_vars=True)
 
 

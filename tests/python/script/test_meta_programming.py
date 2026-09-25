@@ -35,7 +35,7 @@ import pytest
 from tvm import ir
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script.parser import entry, protocol_registry
+from tvm.script.parser import entry
 
 EXTENT = 11
 VALUE = 1
@@ -127,7 +127,7 @@ def test_body_local_shadows_capture_for_later_annotation(language):
 
 def test_unrelated_same_file_caller_does_not_supply_annotation_locals(language):
     # Before: unrelated caller locals shadow both annotation and body global names.
-    # Expected builder: X.arg receives global 11; X.record receives global 1.
+    # Expected builder: X.arg_ receives global 11; X.record receives global 1.
     M = language.M
 
     def build():
@@ -299,7 +299,7 @@ def test_class_annotation_scope_keeps_distinct_method_closure(language):
 def test_actual_decorator_preserves_annotation_definition_and_body_scopes(language):
     # A decorated function uses the enclosing extent in its annotation and a body local.
     # Expected builder program:
-    # X.arg("x", X.Tensor((definition_extent,))); local_extent = X.bind_(2, name="local_extent")
+    # X.arg_("x", X.Tensor((definition_extent,))); local_extent = X.bind_(2, name="local_extent")
     M = language.M
     calls = []
 
@@ -417,7 +417,7 @@ def test_macro_local_annotation_captures_definition_and_argument_names(
     language, hygienic, monkeypatch
 ):
     M = language.M
-    M.macro = protocol_registry.declaration_kind("M.macro", "helper")(entry.make_macro_decorator(M))
+    M.macro = entry.make_macro_decorator(M, namespace_path="M.macro")
     MACRO_VALUE = 7  # noqa: F841 — captured only by the postponed local annotation.
     observed = []
 
@@ -446,7 +446,7 @@ def test_macro_local_annotation_captures_definition_and_argument_names(
 def test_macro_capture_policy_remains_explicit(language, monkeypatch):
     # A changed global must distinguish captured macro scope from caller scope: values 2 then 1.
     M = language.M
-    M.macro = protocol_registry.declaration_kind("M.macro", "helper")(entry.make_macro_decorator(M))
+    M.macro = entry.make_macro_decorator(M, namespace_path="M.macro")
     monkeypatch.setitem(globals(), "MACRO_VALUE", 2)
 
     @M.macro
@@ -470,7 +470,7 @@ def test_macro_capture_policy_remains_explicit(language, monkeypatch):
 def test_macro_dynamic_global_lookup_uses_temporary_invocation_namespace(language, monkeypatch):
     # Dynamic global lookup inside a macro must see names absent from its static bytecode reads.
     M = language.M
-    M.macro = protocol_registry.declaration_kind("M.macro", "helper")(entry.make_macro_decorator(M))
+    M.macro = entry.make_macro_decorator(M, namespace_path="M.macro")
     monkeypatch.setitem(globals(), "_macro_dynamic_value", 7)
 
     @M.macro
@@ -524,7 +524,7 @@ def test_eager_entry_releases_unused_scope_but_keeps_annotation_value(language):
 def test_live_macro_does_not_snapshot_unrelated_module_globals(language, monkeypatch):
     # A live macro must retain its closure value without snapshotting unrelated module globals.
     M = language.M
-    M.macro = protocol_registry.declaration_kind("M.macro", "helper")(entry.make_macro_decorator(M))
+    M.macro = entry.make_macro_decorator(M, namespace_path="M.macro")
     monkeypatch.setitem(globals(), "_unrelated_macro_payload", Payload())
     reference = weakref.ref(globals()["_unrelated_macro_payload"])
     offset = 3

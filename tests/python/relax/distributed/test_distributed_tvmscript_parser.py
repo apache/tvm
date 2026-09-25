@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F401
 
+from __future__ import annotations
+
 from typing import Optional, Union
 
 import pytest
@@ -38,7 +40,15 @@ def _check(
     expect: relax.Function | IRModule | None = None,
 ):
     test = parsed.script(show_meta=True)
-    roundtrip_mod = tvm.script.from_source(test)
+    roundtrip_mod = tvm.script.from_source(
+        test,
+        extra_vars={
+            "I": tvm.script.ir,
+            "R": tvm.script.relax,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+        },
+    )
     tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
     if expect:
         tvm.ir.assert_structural_equal(parsed, expect)
@@ -70,8 +80,8 @@ def test_call_tir_dtensor():
 
         @R.function
         def foo(
-            x: 'R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R")',
-        ) -> 'R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R")':
+            x: R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"),
+        ) -> R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"):
             gv0 = R.dist.call_tir(
                 TestModule.tir_func,
                 x,
@@ -133,8 +143,8 @@ def test_explicit_device_id():
 
         @R.function
         def foo(
-            x: 'R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R")',
-        ) -> 'R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R")':
+            x: R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"),
+        ) -> R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"):
             gv0 = R.dist.call_tir(
                 TestModule.tir_func,
                 x,
@@ -173,8 +183,8 @@ def test_constant():
 
         @R.function
         def foo(
-            x: 'R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R")',
-        ) -> 'R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R")':
+            x: R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"),
+        ) -> R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"):
             gv0 = R.dist.call_tir(
                 TestModule.tir_func,
                 x,

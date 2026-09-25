@@ -178,7 +178,10 @@ def gemm_dyn_shape(a: T.handle, b: T.handle, c: T.handle):
 
 
 def test_dynamic_shape_gemm():
-    gemm_dyn_shape_roundtrip = from_source(gemm_dyn_shape.script())
+    gemm_dyn_shape_roundtrip = from_source(
+        gemm_dyn_shape.script(),
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+    )
     assert_structural_equal_ignore_global_symbol(gemm_dyn_shape, gemm_dyn_shape_roundtrip)
 
 
@@ -472,7 +475,8 @@ def func():
     for i in T.serial(16):
         j{annotation} = i // 4
         T.evaluate(j)
-"""
+""",
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
     )
     binding = func.body.body.seq[0]
     if mutable:

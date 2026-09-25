@@ -49,12 +49,10 @@ from tvm.runtime._tensor import (
     vulkan,
     webgpu,
 )
-from tvm.script.ir_builder.base import IRBuilder
-from tvm.script.ir_builder.base import IRBuilder as _IRBuilder
 from tvm.script.ir_builder.base import SpanEntry as _SpanEntry
 from tvm.script.ir_builder.base import resolve_global_info_args as _resolve_global_info_args
-from tvm.script.ir_builder.frame import IRModuleFrame as _IRModuleFrame
-from tvm.script.ir_builder.ir import _class_global_infos
+from tvm.script.ir_builder.ir import _global_infos
+from tvm.script.ir_builder.parser_protocol import resolve_global_info_ as _resolve_global_info
 
 from . import _ffi_api
 
@@ -62,54 +60,47 @@ py_tuple = _python.tuple
 py_str = _python.str
 
 
-def resolve_global_info_(content: object) -> object:
-    """Resolve a module-owned selector or retain a concrete object.
+def resolve_global_info_(content: py_str) -> _ir.GlobalInfo:
+    """Resolve a module-owned named-list or virtual-device selector.
 
     Parameters
     ----------
-    content : str or Any
-        Original global-info selector or concrete value. "mesh[0]" indexes a named list;
+    content : str
+        Original global-info selector. "mesh[0]" indexes a named list;
         "cuda:1" selects the second CUDA vdevice; "vdevice:0" selects by absolute index.
         A trailing memory-scope suffix is accepted without changing device selection.
 
     Returns
     -------
-    Any
-        The exact registered global-info object, or the unchanged non-string input.
+    GlobalInfo
+        The exact registered global-info object.
 
     Notes
     -----
-    String lookup requires the nearest active native module frame and creates no metadata.
+    Lookup requires the nearest active native module frame and creates no metadata.
     Missing context, malformed selectors or unmatched devices raise ValueError; missing map
-    entries or out-of-range indices propagate KeyError/IndexError. Non-string values require
-    no frame. No source span is attached to an existing metadata object.
+    entries or out-of-range indices propagate KeyError/IndexError. Non-string inputs
+    raise TypeError; constructor argument handling preserves concrete objects before
+    calling this hook. No source span is attached to an existing metadata object.
 
     .. code:: python
 
         # The constructor decorator calls this resolver for string selectors.
         R.Tensor((n,), "float32", vdevice="cuda:0")
-        # Direct resolution requires the same active module frame.
+        # Direct resolution uses the same module metadata.
         device = R.resolve_global_info_("cuda:0")
     """
     if not isinstance(content, _python.str):
-        return content
-    if not _IRBuilder.is_in_scope():
-        raise ValueError("Global-info lookup requires an enclosing module frame")
-    for frame in reversed(_IRBuilder.current().frames):
-        if isinstance(frame, _IRModuleFrame):
-            break
-    else:
-        raise ValueError("Global-info lookup requires an enclosing module frame")
-    match = _re.fullmatch(r"([^\[\]]+)\[(\d+)\]", content)
-    if match:
-        name, index = match.groups()
-        return frame.global_infos[name][int(index)]
+        raise TypeError("Global-info selectors must be strings")
+    if "[" in content or "]" in content:
+        return _resolve_global_info(content)
+    infos = _global_infos()
     selector = _re.fullmatch(r"([^:\[\]]+)(?::(\d+)(?::([^:]+))?)?", content)
     if selector is None:
         raise ValueError(f"Invalid global-info reference: {content!r}")
     target, index, _scope = selector.groups()
     ordinal = int(index) if index is not None else 0
-    devices = frame.global_infos.get("vdevice", ())
+    devices = infos.get("vdevice", ())
     if target == "vdevice":
         return devices[ordinal]
     for vdevice in devices:
@@ -151,7 +142,7 @@ def vdevice(target=None, vdevice_id: int = 0, memory_scope: py_str = "global") -
 
 
 def lookup_vdevice(target_kind: py_str | None = None, device_index: int = -1) -> VDevice:
-    """Retrieve a virtual device from the globalinfo vdevice list.
+    """Retrieve a virtual device from the active module's global-info list.
 
     Parameters
     ----------
@@ -167,22 +158,8 @@ def lookup_vdevice(target_kind: py_str | None = None, device_index: int = -1) ->
     res : VDevice
         The result virtual device.
     """
-    if IRBuilder.is_in_scope():
-        return _ffi_api.LookupVDevice(target_kind, device_index)
-    infos = _class_global_infos()
-    if not infos:
-        raise ValueError("The GlobalInfos in the IRModule is not defined.")
-    vdevices = infos["vdevice"]
-    if device_index < 0 or device_index >= len(vdevices):
-        raise ValueError("The target VDevice in the GlobalInfos was not found.")
-    if not all(isinstance(value, VDevice) for value in vdevices):
-        raise TypeError("The vdevice global infos must contain VDevice values.")
-    if target_kind == "vdevice":
-        return vdevices[device_index]
-    matches = [value for value in vdevices if value.target.kind.name == target_kind]
-    if device_index >= len(matches):
-        raise ValueError("The target VDevice in the GlobalInfos was not found.")
-    return matches[device_index]
+    _global_infos()  # Native lookup otherwise permits a default device without a module.
+    return _ffi_api.LookupVDevice(target_kind, device_index)
 
 
 def rewriter(rewriter_mod: IRModule | type) -> PatternMatchingRewriter:
@@ -342,9 +319,9 @@ def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
         Element type; None leaves the element type unknown.
     vdevice : VDevice or str, optional
         Concrete virtual device or a module metadata selector, such as "cuda:0".
-        None leaves the virtual device unspecified. Strings require an active module
-        builder; use a quoted whole annotation or postponed annotations when defining
-        a Python function before its module builder opens.
+        None leaves the virtual device unspecified. Strings use metadata from an
+        active module builder. Use postponed annotations to defer resolution
+        until function construction.
     ndim : int, optional
         Rank when shape is unknown; -1 means unknown rank. Do not supply
         an explicit rank together with a known shape.
@@ -355,7 +332,7 @@ def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
     -------
     result : TensorType
         The constructed tensor type.
-        String selectors outside an active module always raise ValueError.
+        String selectors outside an active module raise ValueError.
     """
     if isinstance(shape, _python.str) and dtype is None:
         dtype, shape = shape, None
@@ -377,8 +354,8 @@ def DTensor(shape=None, dtype=None, device_mesh=None, placement="", *, ndim=-1, 
         Element type; None leaves the element type unknown.
     device_mesh : DeviceMesh or str, optional
         Concrete mesh or module metadata selector. None creates an empty mesh
-        placeholder. A string selector requires an active module builder; use a quoted
-        whole annotation or postponed annotations before the builder opens.
+        placeholder. Strings require an active module builder. Use postponed
+        annotations to defer resolution until function construction.
     placement : Placement or str, optional
         Distribution placement. Text, including the default empty string, is
         parsed with Placement.from_text.
@@ -391,7 +368,7 @@ def DTensor(shape=None, dtype=None, device_mesh=None, placement="", *, ndim=-1, 
     -------
     result : DTensorType
         The constructed distributed type.
-        String selectors outside an active module always raise ValueError.
+        String selectors outside an active module raise ValueError.
     """
     if device_mesh is None:
         device_mesh = _DeviceMesh([], _ir.Range(0, 1))
@@ -598,7 +575,6 @@ def match_cast(value, ty, *, span=None):
 
 Any = Object
 Range = _ir.Range
-is_type_var = _ir.is_prim_var
 
 __all__ = [
     "Any",
@@ -621,7 +597,6 @@ __all__ = [
     "dummy_global_info",
     "ext_dev",
     "hexagon",
-    "is_type_var",
     "lookup_vdevice",
     "match_cast",
     "metal",

@@ -138,6 +138,4 @@ def _initialize_script_namespace() -> None:
 
 from tvm.script.parser import register_namespace_initializer as _register_namespace_initializer
 
-_register_namespace_initializer(
-    _initialize_script_namespace, aliases=("T", "tir", "tirx", "Tx", "Axis")
-)
+_register_namespace_initializer(_initialize_script_namespace, aliases=("tirx", "Tx", "Axis"))

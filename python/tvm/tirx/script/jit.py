@@ -24,7 +24,8 @@ from collections.abc import Callable, Mapping
 from types import FunctionType
 from typing import Any
 
-from tvm.script.parser import protocol_registry as protocol
+from tvm.script.ir_builder.ir import constexpr
+from tvm.script.parser import protocol_registry
 from tvm.tirx import PrimFunc
 
 
@@ -38,7 +39,7 @@ class OptionalAnnotation:
         return self.annotation
 
 
-def make_jit(builder: object) -> Callable[..., Any]:
+def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
     """Create a definition-site JIT decorator for a construction namespace.
 
     Parameters
@@ -47,6 +48,8 @@ def make_jit(builder: object) -> Callable[..., Any]:
         Namespace associated with the public decorator. The decorated source
         must name its registered namespace; parsing selects construction hooks
         from that syntax rather than accepting a root namespace override.
+    namespace_path : str
+        Canonical registered syntax key, such as "tirx.jit".
 
     Returns
     -------
@@ -54,6 +57,8 @@ def make_jit(builder: object) -> Callable[..., Any]:
         Decorator accepting a function at its definition site or keyword options
         for that application. Its result defers construction until specialization.
     """
+
+    protocol_registry.DEFINITION_KIND[namespace_path] = protocol_registry.DefinitionKind.FUNCTION
 
     def jit(
         func: FunctionType | None = None,
@@ -209,7 +214,7 @@ class TIRJit:
         OSError
             If source inspection cannot recover the function.
         SyntaxError
-            If the function's source or a quoted annotation cannot be parsed.
+            If the function's source cannot be parsed.
         """
         from tvm.script.parser.inspect_source import (
             capture_annotation_bindings,
@@ -256,18 +261,18 @@ class TIRJit:
                         else None
                     )
                     if key is not None and key.endswith(".constexpr"):
-                        ann = protocol.constexpr
+                        ann = constexpr
                     else:
                         ann = resolve_namespace_value(
                             node.func if isinstance(node, ast.Call) else node, annotation_scope
                         )
-                        if ann is protocol.constexpr or (
+                        if ann is constexpr or (
                             isinstance(node, ast.Call) and ann is not OptionalAnnotation
                         ):
                             ann = None
                 except SyntaxError:
                     ann = None
-            if ann is protocol.constexpr:
+            if ann is constexpr:
                 constexpr_names.add(name)
                 if param.default is not inspect.Parameter.empty:
                     constexpr_defaults[name] = param.default

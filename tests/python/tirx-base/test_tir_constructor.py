@@ -141,7 +141,12 @@ def test_expr_constructor():
     assert "attrs" in script
     assert "disable_tma" in script
     func = tvm.tirx.PrimFunc([attr_arg], tvm.tirx.Evaluate(x_with_attrs))
-    assert tvm.script.from_source(func.script()).script() == func.script()
+    assert (
+        tvm.script.from_source(
+            func.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+        ).script()
+        == func.script()
+    )
 
     y = tvm.tirx.Var("y", "float32")
     mutated = tvm_ffi.structural_map(

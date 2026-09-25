@@ -181,7 +181,15 @@ def test_extern_func_with_ty_roundtrip():
             ),
         }
     )
-    roundtrip = tvm.script.from_source(mod.script(verbose_expr=True))
+    roundtrip = tvm.script.from_source(
+        mod.script(verbose_expr=True),
+        extra_vars={
+            "I": tvm.script.ir,
+            "R": tvm.script.relax,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+        },
+    )
     tvm.ir.assert_structural_equal(mod, roundtrip)
 
 
@@ -380,7 +388,18 @@ def func() -> T.int64:
     float_script = float_func.script(verbose_expr=True)
     assert "R.prim_value" not in float_script
     assert "return T.float32(" in float_script
-    tvm.ir.assert_structural_equal(tvm.script.from_source(float_script), float_func)
+    tvm.ir.assert_structural_equal(
+        tvm.script.from_source(
+            float_script,
+            extra_vars={
+                "I": tvm.script.ir,
+                "R": tvm.script.relax,
+                "T": tvm.script.tirx,
+                "Ts": tvm.script.s_tir,
+            },
+        ),
+        float_func,
+    )
 
 
 def test_primitive_bindings_roundtrip_without_prim_value_marker():
@@ -395,7 +414,18 @@ def test_primitive_bindings_roundtrip_without_prim_value_marker():
         assert "R.prim_value" not in source
         assert "plus_one: T.int64" in source
         assert "alias: T.int64" in source
-        tvm.ir.assert_structural_equal(tvm.script.from_source(source), func)
+        tvm.ir.assert_structural_equal(
+            tvm.script.from_source(
+                source,
+                extra_vars={
+                    "I": tvm.script.ir,
+                    "R": tvm.script.relax,
+                    "T": tvm.script.tirx,
+                    "Ts": tvm.script.s_tir,
+                },
+            ),
+            func,
+        )
 
 
 def test_string_imm():

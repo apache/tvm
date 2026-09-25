@@ -69,8 +69,9 @@ fresh native variable, defaulting to int64. Reuse that object in ordinary Python
 stride and offset expressions to share identity; strings in those fields are not
 parsed as expressions. On Python 3.12+, explicit headers such as
 ``def f[n, k: T.int32](...)`` declare local symbols; ``n: int`` retains the int64
-default. Quote the whole annotation or use ``from __future__ import annotations``
-to defer eager Python evaluation of header symbols. Captured runtime ``typing.TypeVar``
+default. Use ``from __future__ import annotations`` to defer eager Python evaluation
+of header symbols. Explicit whole quoted annotations are rejected in script source;
+normal string arguments inside annotation constructors remain valid. Captured runtime ``typing.TypeVar``
 objects are not script symbols; ordinary Python typing uses remain unaffected.
 
 An explicit scalar annotation ``n: n`` preserves a captured native symbol's identity.
@@ -91,10 +92,23 @@ decorator options. Builder hooks own option defaults; ``check_well_formed`` rema
 separate parser setting.
 
 ``tvm.script.parser.protocol_registry`` records syntax policies under registered
-namespace paths. These policies identify scalar annotations, mutable declarations and
-result span handling. Symbolic shapes use concrete expressions. Source aliases resolve to those paths;
+canonical namespace paths rooted at ``tirx``, ``relax``, ``ir`` and ``s_tir``.
+Source code selects its own aliases through imports or explicit environments; the parser
+does not provide implicit ``T``, ``R``, ``I`` or ``Ts`` bindings. For example,
+``from tvm.script import tirx as X`` makes ``X.prim_func`` resolve to
+``tirx.prim_func`` without changing the callable. Printed scripts show suggested imports
+as comments: include those imports in executable source or pass equivalent
+``extra_vars`` when parsing a printed script. The public registration helpers
+identify scalar annotations and mutable
+declarations. Entry factories populate ``DEFINITION_KIND`` with ``DefinitionKind``
+values: ``FUNCTION`` for regular and JIT IR definitions, ``MACRO`` for inline and macro
+expansion, and ``PYTHON`` for retained ``I.pyfunc`` runtime callables. Macro bodies
+construct IR in the caller's context; Python bodies retain ordinary execution and do
+not need builder span context.
+All calls retain their source context, with binding hooks owning result attachment.
+Symbolic shapes use concrete expressions. Source aliases resolve to those paths;
 ordinary Python calls remain calls in the generated program. Explicit ``constexpr``
-markers select host control flow during construction.
+markers from the shared builder select host control flow during construction.
 
 JIT supplies ``const_args``, a mapping from parameter names to fixed values. Explicit
 ``None`` values mark absent optional arguments and skip their annotation evaluation.

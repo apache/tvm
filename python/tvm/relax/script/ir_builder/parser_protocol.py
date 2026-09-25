@@ -45,104 +45,13 @@ from . import frame as _frame
 from . import ir as _native
 from . import op as _op
 from .ir import resolve_global_info_
-from .op import and_, eq_, ge_, gt_, if_then_else_, le_, lt_, ne_, not_, or_
 
 _Span = _base.SpanEntry | _ir.Span | None
 
 
 # --------------------------------------
-# Section: control flow
+# Function
 # --------------------------------------
-#
-# ``with X.if_(cond):`` opens a conditional frame.
-# ``with X.then_():`` enters its true branch.
-# ``with X.else_():`` enters its false branch.
-# ``with X.for_(loop) as i:`` binds a loop iterator.
-# ``with X.while_(cond):`` builds a while loop.
-# ``X.range_(start, stop)`` constructs a loop descriptor.
-# ``X.break_()`` emits a loop exit.
-# ``X.continue_()`` emits a loop continuation.
-
-
-def if_(condition: Any, *, span: _Span = None) -> _frame.IfFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.if_`."""
-    if not isinstance(condition, _relax.Expr):
-        condition = _relax.prim_value(condition)
-    return _base.at_(span, _ffi_api.If(condition))
-
-
-def then_(*, span: _Span = None) -> _frame.ThenFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.then_`."""
-    return _base.at_(span, _ffi_api.Then())
-
-
-def else_(*, span: _Span = None) -> _frame.ElseFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.else_`."""
-    return _base.at_(span, _ffi_api.Else())
-
-
-def for_(
-    iterable: Any, *, names: str | Sequence[str] | None = None, span: _Span = None
-) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.for_`.
-
-    Relax rejects source loops; use supported functional control flow.
-    """
-    raise TypeError("Relax does not support imperative for loops")
-
-
-def while_(condition: Any, *, span: _Span = None) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.while_`."""
-    raise TypeError("Relax does not support imperative while loops")
-
-
-def range_(*args: Any, annotations: dict[str, Any] | None = None) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.range_`."""
-    raise TypeError("Relax does not support imperative for loops")
-
-
-def break_(*, span: _Span = None) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.break_`.
-
-    Relax rejects loop-control statements.
-    """
-    raise TypeError("Relax does not support break")
-
-
-def continue_(*, span: _Span = None) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.continue_`.
-
-    Relax rejects loop-control statements.
-    """
-    raise TypeError("Relax does not support continue")
-
-
-def resolve_type_var_(
-    name: str,
-    dtype: str | _ir.Type | _ir.Var | None = None,
-    *,
-    value: _ir.Var | None = None,
-    span: _Span = None,
-) -> _ir.Var:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.resolve_type_var_`."""
-    return _base._current_function_frame().resolve_type_var(name, dtype, value=value, span=span)
-
-
-def call_global_var_(function: _ir.GlobalVar, args: Sequence[Any]) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.call_global_var_`."""
-    return _relax.Call(function, [_relax.utils.convert_to_expr(value) for value in args])
-
-
-# --------------------------------------
-# Section: special protocol
-# --------------------------------------
-#
-# Syntax markers live in tvm.script.parser.protocol_registry.
-# ``with X.function_(...) as fn:`` builds a function frame.
-# ``a = X.arg("a", ty)`` declares a parameter.
-# ``X.func_name("main")`` sets the function name.
-# ``X.func_ret_type(ty)`` sets the result annotation.
-# ``X.check_well_formed_(result)`` validates completed IR.
 
 
 def function(is_pure: bool = True, is_private: bool = False) -> _frame.FunctionFrame:
@@ -187,7 +96,7 @@ def function_(
     return _base.at_(span, _ffi_api.Function(pure, private))
 
 
-def arg(name: str, ty: Any, *, span: _Span = None) -> _ir.Var:
+def arg_(name: str, ty: Any, *, span: _Span = None) -> _ir.Var:
     """Declare a Relax parameter using the shared argument-hook contract.
 
     Parameters
@@ -196,7 +105,7 @@ def arg(name: str, ty: Any, *, span: _Span = None) -> _ir.Var:
         Source parameter name.
     ty : Type, Var, or callable
         Parameter annotation; corresponds to ``annotation`` in the shared
-        :func:`tvm.script.ir_builder.parser_protocol.arg` contract. Primitive
+        :func:`tvm.script.ir_builder.parser_protocol.arg_` contract. Primitive
         annotations resolve through the active signature symbol context; an
         existing variable retains its identity.
     span : SpanEntry, Span or None, optional
@@ -216,8 +125,8 @@ def arg(name: str, ty: Any, *, span: _Span = None) -> _ir.Var:
     return _base.at_(span, _ffi_api.Arg(name, _native._type(ty)))
 
 
-def func_name(name: str) -> None:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.func_name`."""
+def func_name_(name: str) -> None:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.func_name_`."""
     return _ffi_api.FuncName(name)
 
 
@@ -232,8 +141,8 @@ def func_attr(attrs: dict[str, tvm_Object]) -> None:
     return _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def func_ret_type(annotation: Any, *, span: _Span = None) -> None:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.func_ret_type`."""
+def func_ret_type_(annotation: Any, *, span: _Span = None) -> None:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.func_ret_type_`."""
     return _ffi_api.FuncRetType(_native._type(_base._return_annotation(annotation)))
 
 
@@ -282,13 +191,24 @@ def _check_module_well_formed(module: _ir.IRModule) -> None:
 
 
 # --------------------------------------
-# Section: binding
+# Bindings
 # --------------------------------------
-#
-# ``a = X.bind_(value, name="a")`` binds a source name.
-# ``X.decl_mutable_cell_(value, ty=ty)`` declares mutable storage.
-# ``X.set_mutable_cell_(cell, value)`` updates mutable storage.
-# ``a, b = X.unpack(value)`` destructures a binding.
+
+
+def resolve_type_var_(
+    name: str,
+    dtype: str | _ir.Type | _ir.Var | None = None,
+    *,
+    value: _ir.Var | None = None,
+    span: _Span = None,
+) -> _ir.Var:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.resolve_type_var_`."""
+    return _base._current_function_frame().resolve_type_var(name, dtype, value=value, span=span)
+
+
+def call_global_var_(function: _ir.GlobalVar, args: Sequence[Any]) -> _ir.Expr:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.call_global_var_`."""
+    return _relax.Call(function, [_relax.utils.convert_to_expr(value) for value in args])
 
 
 def dataflow(*, span=None):
@@ -408,24 +328,13 @@ def set_mutable_cell_(target: Any, value: Any, *, span: _Span = None) -> NoRetur
     raise TypeError("Relax does not support mutable local storage")
 
 
-def unpack(value: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.unpack`."""
+def unpack_(value: Any) -> Any:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.unpack_`."""
     if isinstance(value, _relax.Tuple):
         return _python.tuple(value.fields)
     if isinstance(value, _relax.Expr) and isinstance(value.ty, _ir.TupleType):
         return _python.tuple(_relax.TupleGetItem(value, i) for i in range(len(value.ty.fields)))
     return value
-
-
-# --------------------------------------
-# Section: statement
-# --------------------------------------
-#
-# ``X.emit_(value)`` emits an expression statement.
-# ``X.return_(value)`` emits a function return.
-# ``X.setitem_(a, i, value)`` emits an indexed store.
-# ``X.setattr_(a, "field", value)`` emits an attribute store.
-# ``X.assert_(condition, message)`` emits an assertion.
 
 
 def emit(value: Expr, annotate_ty: Type | None = None) -> Var:
@@ -533,6 +442,82 @@ def emit_(value: Any, *, span: _Span = None) -> None:
         )
 
 
+def setitem_(target: Any, key: Any, value: Any, *, span: _Span = None) -> NoReturn:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.setitem_`."""
+    raise TypeError("Relax does not support indexed assignment")
+
+
+def setattr_(target: Any, name: str, value: Any, *, span: _Span = None) -> NoReturn:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.setattr_`."""
+    raise TypeError("Relax does not support attribute assignment")
+
+
+# --------------------------------------
+# Special protocol remarks
+# --------------------------------------
+# Syntax policies use canonical registered namespace paths. Entry factories own
+# function/helper classification; source-call contexts preserve provenance while
+# bind_ owns binding result attribution.
+
+
+# --------------------------------------
+# Control
+# --------------------------------------
+
+
+def if_(condition: Any, *, span: _Span = None) -> _frame.IfFrame:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.if_`."""
+    if not isinstance(condition, _relax.Expr):
+        condition = _relax.prim_value(condition)
+    return _base.at_(span, _ffi_api.If(condition))
+
+
+def then_(*, span: _Span = None) -> _frame.ThenFrame:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.then_`."""
+    return _base.at_(span, _ffi_api.Then())
+
+
+def else_(*, span: _Span = None) -> _frame.ElseFrame:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.else_`."""
+    return _base.at_(span, _ffi_api.Else())
+
+
+def for_(
+    iterable: Any, *, names: str | Sequence[str] | None = None, span: _Span = None
+) -> NoReturn:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.for_`.
+
+    Relax rejects source loops; use supported functional control flow.
+    """
+    raise TypeError("Relax does not support imperative for loops")
+
+
+def while_(condition: Any, *, span: _Span = None) -> NoReturn:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.while_`."""
+    raise TypeError("Relax does not support imperative while loops")
+
+
+def range_(*args: Any, annotations: dict[str, Any] | None = None) -> NoReturn:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.range_`."""
+    raise TypeError("Relax does not support imperative for loops")
+
+
+def break_(*, span: _Span = None) -> NoReturn:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.break_`.
+
+    Relax rejects loop-control statements.
+    """
+    raise TypeError("Relax does not support break")
+
+
+def continue_(*, span: _Span = None) -> NoReturn:
+    """Implements :func:`tvm.script.ir_builder.parser_protocol.continue_`.
+
+    Relax rejects loop-control statements.
+    """
+    raise TypeError("Relax does not support continue")
+
+
 def func_ret_value(value: Expr) -> None:
     """Specify the return value of the last function frame.
 
@@ -552,16 +537,6 @@ def return_(value: Any = None, *, span: _Span = None) -> None:
     _base.with_at_group_(span, lambda: _ffi_api.FuncRetValue(_native._value(value)))
 
 
-def setitem_(target: Any, key: Any, value: Any, *, span: _Span = None) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.setitem_`."""
-    raise TypeError("Relax does not support indexed assignment")
-
-
-def setattr_(target: Any, name: str, value: Any, *, span: _Span = None) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.setattr_`."""
-    raise TypeError("Relax does not support attribute assignment")
-
-
 def assert_(
     condition: Any,
     message: str | tuple[str, Sequence[Any]] | Sequence[Any] = "",
@@ -574,12 +549,28 @@ def assert_(
     emit_(_base.at_(span, _op.assert_op(condition, format=message)), span=span)
 
 
+# --------------------------------------
+# Operators
+# --------------------------------------
+
+if_then_else_ = _op.if_then_else_
+and_ = _op.and_
+or_ = _op.or_
+not_ = _op.not_
+lt_ = _op.lt_
+le_ = _op.le_
+gt_ = _op.gt_
+ge_ = _op.ge_
+eq_ = _op.eq_
+ne_ = _op.ne_
+
+
 supports_mutable_declarations = False
 __tvm_value_if__ = True
 
 __all__ = [
     "and_",
-    "arg",
+    "arg_",
     "assert_",
     "bind_",
     "break_",
@@ -597,8 +588,8 @@ __all__ = [
     "eq_",
     "for_",
     "func_attr",
-    "func_name",
-    "func_ret_type",
+    "func_name_",
+    "func_ret_type_",
     "func_ret_value",
     "function",
     "function_",
@@ -621,6 +612,6 @@ __all__ = [
     "setattr_",
     "setitem_",
     "then_",
-    "unpack",
+    "unpack_",
     "while_",
 ]
