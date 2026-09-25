@@ -39,8 +39,9 @@ from tvm_ffi.dataclasses import MISSING
 
 from tvm.ir import SourceName, Span
 
+from . import protocol_registry as protocol
 from .annotation import parse_annotation
-from .prescan import collect_annotation_free_names, resolve_namespace_value
+from .prescan import collect_annotation_free_names, resolve_namespace_key, resolve_namespace_value
 
 
 class _AnnotationScope(dict):
@@ -228,9 +229,12 @@ def capture_annotation_bindings(
     names: set[str] = set()
     # Deferred construction still selects its namespace from the source decorator.
     # Retain its owner alias even when no annotation or body reads that alias.
+    environment = ChainMap(definition_scope, source.__globals__)
     for decorator in tree.body[-1].decorator_list:
         target = decorator.func if isinstance(decorator, ast.Call) else decorator
-        if isinstance(target, ast.Attribute):
+        if isinstance(target, ast.Attribute) and protocol.DECLARATION_KIND.get(
+            resolve_namespace_key(target, environment)
+        ) in ("function", "helper"):
             names.update(collect_annotation_free_names(target.value))
     for node in ast.walk(tree):
         annotation = (

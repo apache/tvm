@@ -234,3 +234,26 @@ def test_jit_preserves_namespace_used_only_by_decorator(jit_language):
 
     result = function.specialize()
     assert result.params == [] and result.body == []
+
+
+def test_jit_does_not_retain_ordinary_decorator_owners(jit_language):
+    M = jit_language.M
+
+    class Owner:
+        def decorate(self, function):
+            return function
+
+    def make():
+        owner = Owner()
+        reference = weakref.ref(owner)
+
+        @M.jit
+        @owner.decorate
+        def function():
+            pass
+
+        return function, reference
+
+    function, reference = make()
+    assert reference() is None
+    assert function.specialize().body == []

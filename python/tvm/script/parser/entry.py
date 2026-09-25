@@ -298,7 +298,10 @@ def make_decorator(
     ValueError
         When the returned decorator receives a non-function positional value.
     SyntaxError
-        When standalone source violates a parser restriction.
+        When application is not a qualified definition-site decorator, or source
+        violates a parser restriction.
+    OSError
+        When the decorated function's source cannot be recovered.
 
     Notes
     -----
@@ -408,6 +411,11 @@ def make_macro_decorator(
         When the returned decorator receives a non-function positional value.
     TypeError
         When a helper invocation cannot bind its Python signature.
+    SyntaxError
+        When application is not a qualified definition-site decorator, or source
+        violates a parser restriction.
+    OSError
+        When the decorated helper's source cannot be recovered.
 
     Notes
     -----
