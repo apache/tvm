@@ -22,19 +22,15 @@ import ast
 import builtins
 import inspect
 from collections.abc import Mapping
+from enum import IntEnum, auto
 from types import ModuleType
 from typing import NamedTuple, NoReturn
 
 from . import protocol_registry
 
 
-def collect_annotation_free_names(node: ast.expr) -> dict[str, ast.Name]:
-    """Find annotation captures and their source introduction locations."""
-    return {reference.id: reference for reference in collect_annotation_free_reads(node)}
-
-
 def collect_annotation_free_reads(node: ast.expr, bound: set[str] | None = None) -> list[ast.Name]:
-    """Collect original free reads for captures and lazy missing-name checks."""
+    """Collect lexical free reads for definition capture and shadowing checks."""
     bound = set() if bound is None else bound
     if isinstance(node, ast.Name):
         return [node] if isinstance(node.ctx, ast.Load) and node.id not in bound else []
@@ -155,14 +151,25 @@ def _match_special_func(node: ast.AST | None, namespaces: Mapping[str, str]) -> 
     return None
 
 
+class BindingKind(IntEnum):
+    """Syntax categories used by binding lowering and explicit-symbol checks."""
+
+    ORDINARY = auto()
+    PARAMETER = auto()
+    MUTABLE_PARAMETER = auto()
+    SYMBOL = auto()
+    MUTABLE = auto()
+    LOOP = auto()
+    MODULE_ALIAS = auto()
+    MUTABLE_UPDATE = auto()
+
+
 class Binding(NamedTuple):
     """A source binding site, retained through rewriting without value state."""
 
     name: str
     node: ast.AST
-    kind: str
-    annotation: ast.expr | None = None
-    dtype: object = None
+    kind: BindingKind
 
 
 class PrescanContext:
@@ -197,7 +204,11 @@ class PrescanContext:
         # Derive mutable-name sets once for assignment dispatch, then read them only;
         # these are syntax categories, not independently updated runtime value state.
         self.mutable_names = {
-            scope: {item.name for item in items if item.kind in ("mutable", "mutable_parameter")}
+            scope: {
+                item.name
+                for item in items
+                if item.kind in (BindingKind.MUTABLE, BindingKind.MUTABLE_PARAMETER)
+            }
             for scope, items in bindings.items()
         }
         # Collected branch-ending names select conditional results without later updates.
@@ -343,13 +354,11 @@ class PrescanCollector(ast.NodeVisitor):
         self,
         name: str,
         node: ast.AST,
-        kind: str = "ordinary",
-        annotation: ast.expr | None = None,
-        dtype: object = None,
+        kind: BindingKind = BindingKind.ORDINARY,
     ) -> None:
         self._check_reserved(name, node)
         self.names.add(name)
-        item = Binding(name, node, kind, annotation, dtype)
+        item = Binding(name, node, kind)
         self.bindings[self.scope].append(item)
         self.sites[node] = item
 
@@ -470,7 +479,7 @@ class PrescanCollector(ast.NodeVisitor):
         #         x = X.arg_("x", ty)
         # -------------------------------------------------
         # Collect this function separately from its enclosing scope.
-        self._record_binding(node.name, node, "function")
+        self._record_binding(node.name, node)
         old_scope, old_builder = self.scope, self.builder
         self.scope = node
         self.functions.append(node)
@@ -497,15 +506,7 @@ class PrescanCollector(ast.NodeVisitor):
             # Builder:
             #     n = X.resolve_type_var_("n")
             # -------------------------------------------------
-            bound = getattr(parameter, "bound", None)
-            dtype = (
-                "int64"
-                if bound is None or (isinstance(bound, ast.Name) and bound.id == "int")
-                else protocol_registry.SCALAR_ANNOTATION_DTYPE.get(
-                    _match_special_func(bound, self.namespaces)
-                )
-            )
-            self._record_binding(parameter.name, parameter, "symbol", dtype=dtype)
+            self._record_binding(parameter.name, parameter, BindingKind.SYMBOL)
         for arg in [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]:
             # -------------------- Pattern --------------------
             # Python source:
@@ -526,12 +527,11 @@ class PrescanCollector(ast.NodeVisitor):
             self._record_binding(
                 arg.arg,
                 arg,
-                "mutable_parameter"
+                BindingKind.MUTABLE_PARAMETER
                 if inspect.getattr_static(self.builder, "supports_mutable_declarations", True)
                 is True
                 and "parameter" in protocol_registry.MUTABLE_CELL_DECL.get(constructor, ())
-                else "parameter",
-                arg.annotation,
+                else BindingKind.PARAMETER,
             )
         # Parameters, defaults and annotation-local binders are part of the same
         # fixed-name invariant, even when signature lowering handles them separately.
@@ -560,19 +560,25 @@ class PrescanCollector(ast.NodeVisitor):
         assignable = {
             item.name
             for item in facts
-            if item.kind in ("parameter", "mutable_parameter", "mutable", "loop")
+            if item.kind
+            in (
+                BindingKind.PARAMETER,
+                BindingKind.MUTABLE_PARAMETER,
+                BindingKind.MUTABLE,
+                BindingKind.LOOP,
+            )
         }
         # This temporary diagnostic index is derived from existing source facts;
         # it is not retained in the prescan result or used as value state.
         origins: dict[str, ast.AST] = {}
         for item in facts:
-            if item.kind == "symbol":
+            if item.kind == BindingKind.SYMBOL:
                 origin = origins.get(item.name)
                 if origin is None or item.node.lineno < origin.lineno:
                     origins[item.name] = item.node
         for item in facts:
             # Explicit declarations and mutable updates are not symbol rebindings.
-            if item.kind == "symbol" or item.name in assignable:
+            if item.kind == BindingKind.SYMBOL or item.name in assignable:
                 continue
             origin = origins.get(item.name)
             if origin is not None and (item.node.lineno, item.node.col_offset) > (
@@ -591,7 +597,7 @@ class PrescanCollector(ast.NodeVisitor):
         value: ast.expr | None = None,
         annotation: ast.expr | None = None,
         *,
-        kind: str = "ordinary",
+        kind: BindingKind = BindingKind.ORDINARY,
     ) -> None:
         if self.functions:
             values = [value]
@@ -625,11 +631,11 @@ class PrescanCollector(ast.NodeVisitor):
                     )
                 )
             ):
-                self._record_binding(target.id, target, "mutable", annotation)
+                self._record_binding(target.id, target, BindingKind.MUTABLE)
             elif isinstance(value, ast.Name) and value.id == self.module_name:
-                self._record_binding(target.id, target, "module_alias")
+                self._record_binding(target.id, target, BindingKind.MODULE_ALIAS)
             elif isinstance(value, ast.Name) and any(
-                item.name == value.id and item.kind == "module_alias"
+                item.name == value.id and item.kind == BindingKind.MODULE_ALIAS
                 for item in self.bindings[self.scope]
             ):
                 # -------------------- Pattern --------------------
@@ -640,9 +646,9 @@ class PrescanCollector(ast.NodeVisitor):
                 #     second_alias = first_alias
                 # -------------------------------------------------
                 # Preserve the active module frame identity.
-                self._record_binding(target.id, target, "module_alias")
+                self._record_binding(target.id, target, BindingKind.MODULE_ALIAS)
             else:
-                self._record_binding(target.id, target, kind, annotation=annotation)
+                self._record_binding(target.id, target, kind)
         elif isinstance(target, ast.Tuple | ast.List):
             values = (
                 value.elts
@@ -760,7 +766,7 @@ class PrescanCollector(ast.NodeVisitor):
         #         X.emit_(body(i))
         # -------------------------------------------------
         # Loop binders remain assignable and are never signature declarations.
-        self._collect_target(node.target, kind="loop")
+        self._collect_target(node.target, kind=BindingKind.LOOP)
         self.visit(node.iter)
         for statement in node.body + node.orelse:
             self.visit(statement)

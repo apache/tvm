@@ -40,7 +40,7 @@ from tvm_ffi.dataclasses import MISSING
 from tvm.ir import SourceName, Span
 
 from . import protocol_registry
-from .prescan import collect_annotation_free_names, resolve_namespace_key, resolve_namespace_value
+from .prescan import collect_annotation_free_reads, resolve_namespace_key, resolve_namespace_value
 
 
 class _AnnotationScope(dict):
@@ -238,7 +238,7 @@ def capture_annotation_bindings(
             protocol_registry.DefinitionKind.MACRO,
             protocol_registry.DefinitionKind.PYTHON,
         ):
-            names.update(collect_annotation_free_names(target.value))
+            names.update(read.id for read in collect_annotation_free_reads(target.value))
     for node in ast.walk(tree):
         annotation = (
             node.annotation
@@ -248,7 +248,7 @@ def capture_annotation_bindings(
             else None
         )
         if annotation is not None:
-            names.update(collect_annotation_free_names(annotation))
+            names.update(read.id for read in collect_annotation_free_reads(annotation))
     return {name: definition_scope[name] for name in names if name in definition_scope}
 
 
