@@ -188,6 +188,7 @@ class PrescanContext:
         namespaces: dict[str, str],
         with_outputs: dict[ast.With, list[str]],
         recursive_functions: set[ast.FunctionDef | ast.AsyncFunctionDef],
+        environment: Mapping[str, object],
     ) -> None:
         # Collected source/entry names seed the allocator; this set stays read-only.
         self.reserved_names = reserved_names
@@ -206,12 +207,22 @@ class PrescanContext:
         self.conditional_outputs = conditional_outputs
         # Fixed source roots map to canonical dialect names; the map stays read-only.
         self.namespaces = namespaces
+        # Borrow qualified module metadata for configuration/expression-string lookup.
+        self._namespace_environment = environment
         # Collected explicit output names select exports after each with-region exits;
         # rewriting reads the original lists without adding inferred outputs.
         self.with_outputs = with_outputs
         # Collected self-reference facts select standalone declaration-before-body
         # lowering; rewriting does not add or remove functions from this set.
         self.recursive_functions = recursive_functions
+
+    def resolve_namespace_key(self, node: ast.AST | None) -> str | None:
+        """Normalize namespace/configuration paths without evaluating source expressions."""
+        return resolve_namespace_key(node, self._namespace_environment)
+
+    def _match_special_func(self, node: ast.AST | None) -> str | None:
+        """Match direct source syntax against the roots fixed by this prescan."""
+        return _match_special_func(node, self.namespaces)
 
 
 class PrescanCollector(ast.NodeVisitor):
@@ -288,6 +299,7 @@ class PrescanCollector(ast.NodeVisitor):
             self.namespaces,
             self.exports,
             self.recursive,
+            self.environment,
         )
 
     def _raise_error(self, node: ast.AST, message: str) -> NoReturn:

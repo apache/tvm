@@ -51,9 +51,6 @@ from .prescan import (
     PrescanContext,
     collect_annotation_free_names,
     collect_annotation_free_reads,
-    _match_special_func,
-    resolve_namespace_key,
-    resolve_namespace_value,
 )
 
 _Node = TypeVar("_Node", bound=ast.AST)
@@ -423,15 +420,6 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         finally:
             self.annotation_reads = previous_reads
 
-
-
-
-
-
-
-    def _match_special_func(self, node: ast.AST | None) -> str | None:
-        return _match_special_func(node, self.module.prescan_ctx.namespaces)
-
     def _read_constexpr_operand(self, node: ast.expr) -> ast.expr | None:
         # -------------------- Pattern --------------------
         # Python source:
@@ -441,11 +429,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         #     expr
         # -------------------------------------------------
         # The same visitor keeps Python operators and still instruments nested source calls.
-        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
-            return None
-        if node.func.attr != "constexpr" or not isinstance(node.func.value, ast.Name):
-            return None
-        if node.func.value.id not in self.module.prescan_ctx.namespaces:
+        if not isinstance(node, ast.Call) or not self._is_constexpr_annotation(node.func):
             return None
         if len(node.args) != 1 or node.keywords or isinstance(node.args[0], ast.Starred):
             self._raise_error(node, "constexpr expects exactly one controlling value")
@@ -457,7 +441,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         #     value: X.Tensor((n,))
         #
         # Builder:
-        #     value_type = X.Tensor((I.require_defined(I.annotation_value_("n", n), "n"),))
+        #     value_type = X.Tensor((_require_annotation_value(n, "n"),))
         # -------------------------------------------------
         # Helpers bind captured values under their original names. Python handles
         # lambda/comprehension locals and preceding signature parameters directly.
@@ -570,7 +554,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
     def _visit_direct_operand(self, node: ast.expr) -> ast.expr:
         """Preserve an existing payload's span without bypassing child operations."""
         if isinstance(node, ast.Name):
-            return self.visit(node) if self.annotation_expression else node
+            return self.visit(node)
         if isinstance(node, ast.Attribute):
             node.value = self._visit_direct_operand(node.value)
             return node
@@ -595,7 +579,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         if marker is not None:
             with self._bypass_rewrite():
                 return self.visit(marker)
-        constructor = self._match_special_func(node.func)
+        constructor = self.module.prescan_ctx._match_special_func(node.func)
         global_call = (
             isinstance(node.func, ast.Name) and node.func.id in self.module.global_func_names
         ) or (
@@ -1577,7 +1561,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         """Read the construction namespace from a qualified source decorator."""
         for decorator in node.decorator_list:
             target = decorator.func if isinstance(decorator, ast.Call) else decorator
-            key = self._match_special_func(target)
+            key = self.module.prescan_ctx._match_special_func(target)
             if key is None:
                 continue
             kind = protocol.DECLARATION_KIND.get(key)
@@ -1585,13 +1569,9 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 return None, ast.Dict([], [])
             if kind != "function":
                 continue
-            namespace = (
-                resolve_namespace_value(target.value, self.module.environment)
-                if isinstance(target, ast.Attribute)
-                else None
-            )
-            if namespace is None:
-                continue
+            # A matched decorator is a direct member of a fixed root. Construction
+            # needs that root's actual builder, not another syntax/value resolution.
+            namespace = self.module.environment[target.value.id]
             if (
                 self.module.root_function_kwargs is not None
                 and self.module.module_name is None
@@ -1763,12 +1743,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             bound = getattr(parameter, "bound", None)
             dtype = self.module.prescan_ctx.sites[parameter].dtype
             if bound is not None and not (isinstance(bound, ast.Name) and bound.id == "int"):
-                if (
-                    protocol.SCALAR_ANNOTATION_DTYPE.get(
-                        self._match_special_func(bound)
-                    )
-                    is None
-                ):
+                if protocol.SCALAR_ANNOTATION_DTYPE.get(self.module.prescan_ctx._match_special_func(bound)) is None:
                     self._raise_error(
                         parameter,
                         "A symbolic type parameter bound must be int or a registered scalar dtype",
@@ -1812,8 +1787,9 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         )
 
     def _is_constexpr_annotation(self, annotation: ast.expr | None) -> bool:
-        """Recognize the registered marker identity, including ordinary aliases."""
-        return resolve_namespace_value(annotation, self.module.environment) is protocol.constexpr
+        """Recognize constexpr syntax through a canonical registered root/member key."""
+        key = self.module.prescan_ctx._match_special_func(annotation)
+        return key is not None and key.endswith(".constexpr")
 
     def _rewrite_parameters(
         self,
