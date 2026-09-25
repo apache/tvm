@@ -30,8 +30,8 @@ from types import SimpleNamespace
 
 from tvm.script.ir_builder import IRBuilder, resolve_global_info_args
 from tvm.script.ir_builder.base import MISSING, AlreadyEmitted
-from tvm.script.parser import entry
-from tvm.script.parser import protocol_registry as registry
+from tvm.script.ir_builder.ir import constexpr
+from tvm.script.parser import entry, protocol_registry
 
 
 @dataclass(eq=False)
@@ -162,19 +162,19 @@ class Language:
             module_member_=lambda name, value: value,
             MISSING=self.missing,
             check_well_formed_=lambda result: None,
-            constexpr=registry.constexpr,
+            constexpr=constexpr,
         )
         self.M = SimpleNamespace(
             supports_mutable_declarations=True,
             function_=lambda **kwargs: Frame(self, "function", **kwargs),
-            func_name=self.func_name,
-            arg=self.arg,
-            func_ret_type=self.func_ret_type,
+            func_name_=self.func_name_,
+            arg_=self.arg_,
+            func_ret_type_=self.func_ret_type_,
             func_ret_value=self.func_ret_value,
             return_=lambda value=None, **kwargs: self.func_ret_value(value),
             setitem_=self.setitem_,
             setattr_=self.setattr_,
-            unpack=lambda value: value,
+            unpack_=lambda value: value,
             assert_=lambda condition, message="", **kwargs: self.statement(
                 "assert", condition, message
             ),
@@ -200,7 +200,7 @@ class Language:
             and_=lambda *args, **kwargs: Value("and", args),
             or_=lambda *args: Value("or", args),
             not_=lambda value: Value("not", (value,)),
-            constexpr=registry.constexpr,
+            constexpr=constexpr,
             value=lambda *args: Value("value", args),
             record=self.record,
         )
@@ -211,9 +211,7 @@ class Language:
 
             setattr(self.M, name + "_", operation)
         entry.register_namespace("M", self.M)
-        self.M.function = registry.declaration_kind("M.function", "function")(
-            entry.make_decorator(self.M)
-        )
+        self.M.function = entry.make_decorator(self.M, namespace_path="M.function")
 
         @resolve_global_info_args("device", resolver=self.resolve_global_info)
         def Tensor(shape=None, dtype="float32", device=None, placement="S[0]"):
@@ -227,8 +225,10 @@ class Language:
 
         self.M.Tensor = Tensor
         self.M.dynamic = dynamic
-        self.M.int32 = registry.register_scalar_annotation("M.int32", lambda: None, dtype="int32")
-        self.M.cell = registry.mutable_cell_decl("M.cell")(cell)
+        self.M.int32 = protocol_registry.register_scalar_annotation(
+            "M.int32", lambda: None, dtype="int32"
+        )
+        self.M.cell = protocol_registry.register_mutable_decl("M.cell")(cell)
 
     @contextmanager
     def context(self):
@@ -241,11 +241,11 @@ class Language:
     def frame(self):
         return next(frame for frame in reversed(self.stack) if frame.kind == "function")
 
-    def func_name(self, name):
+    def func_name_(self, name):
         self.frame().function.name = name
         self.frame().global_var = self.references.setdefault(name, Value("global", (name,)))
 
-    def arg(self, name, annotation, *, span=None, **kwargs):
+    def arg_(self, name, annotation, *, span=None, **kwargs):
         value = Value("arg", (annotation,), name)
         if span is not None:
             value = span(value)
@@ -254,7 +254,7 @@ class Language:
         frame.function.params.append(value)
         return value
 
-    def func_ret_type(self, annotation):
+    def func_ret_type_(self, annotation):
         self.frame().function.ret_type = annotation() if callable(annotation) else annotation
 
     def func_ret_value(self, value):

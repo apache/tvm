@@ -77,8 +77,8 @@ def test_callable_entry_emits_the_expected_builder_program(language, monkeypatch
             with M.function_() as _fn0:
 
                 def _declare0(*, M=_definition0.get('M', _I0.MISSING)):
-                    M.func_name('identity')
-                    x = M.arg('x', M.Tensor((4,)))
+                    M.func_name_('identity')
+                    x = M.arg_('x', M.Tensor((4,)))
 
                 _declare0()
 
@@ -101,7 +101,7 @@ def test_source_prefix_and_lazy_annotation_capture(language):
     source = """
 extent = 3
 @M.function
-def main(x: M.Tensor((missing if I.constexpr(False) else extent,))):
+def main(x: M.Tensor((missing if M.constexpr(False) else extent,))):
     extent = 5
     M.record(extent)
 """

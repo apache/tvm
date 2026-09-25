@@ -16,8 +16,7 @@
 # under the License.
 """Package tvm.script.ir_builder.ir"""
 
-import inspect
-from typing import TypeVar
+from typing import NoReturn, TypeVar
 
 from tvm.ir import GlobalInfo, Span, Var
 from tvm.runtime import Object as tvm_Object
@@ -48,6 +47,39 @@ def dynamic(name: str, dtype: str = "int64", *, span: SpanEntry | Span | None = 
         and function bodies, including outside an ``I.ir_module`` definition.
     """
     return Var(name, dtype, span.span if isinstance(span, SpanEntry) else span)
+
+
+def constexpr(value: object) -> NoReturn:
+    """Mark host control syntax or a JIT specialization annotation.
+
+    Parameters
+    ----------
+    value : object
+        Source expression to evaluate with ordinary Python semantics in a
+        supported control-flow position. The marker itself can also appear
+        as an annotation identifying a JIT specialization parameter.
+
+    Raises
+    ------
+    TypeError
+        If invoked directly instead of being recognized in parsed source.
+
+    Notes
+    -----
+    The parser recognizes this marker through its fixed namespace path and
+    removes it before execution. Host operators retain ordinary Python behavior.
+    Direct invocation raises TypeError; no builder frame or IR is constructed.
+
+    .. code:: python
+
+        # Source
+        if I.constexpr(enabled):
+            T.evaluate(1)
+        # Builder
+        if enabled:
+            X.emit_(X.evaluate(1))
+    """
+    raise TypeError("constexpr is a parser syntax marker, not a runtime operation")
 
 
 def meta_var(value: T) -> T:
@@ -123,72 +155,16 @@ def module_global_infos(global_infos: dict[str, list[GlobalInfo]]) -> None:
     global_infos: Dict[str, List[GlobalInfo]]
         The module global infos.
     """
-    if IRBuilder.is_in_scope():
-        return _ffi_api.ModuleGlobalInfos(global_infos)
-    # Keep native argument validation even before Python has applied the module decorator.
-    _ffi_api.ModuleGlobalInfos(global_infos)
-    frame = inspect.currentframe().f_back
-    try:
-        if _is_class_frame(frame):
-            previous = frame.f_locals.get("__tvm_script_global_infos__")
-            if previous:
-                raise ValueError(f"Duplicate module global_infos, previous one is:\n{previous}")
-            frame.f_locals["__tvm_script_global_infos__"] = {
-                name: tuple(values) for name, values in global_infos.items()
-            }
-    finally:
-        del frame
+    return _ffi_api.ModuleGlobalInfos(global_infos)
 
 
-def _is_class_frame(frame):
-    return (
-        not frame.f_code.co_flags & inspect.CO_NEWLOCALS
-        and frame.f_locals is not frame.f_globals
-        and "__module__" in frame.f_locals
-        and frame.f_locals.get("__qualname__", "").split(".")[-1] == frame.f_code.co_name
-    )
-
-
-def _class_global_infos():
-    # Only a still-executing class owns eager signature context. Never retain its frame,
-    # and do not fall through an inner class to an unrelated outer module declaration.
-    frame = inspect.currentframe().f_back
-    try:
-        while frame is not None:
-            if _is_class_frame(frame):
-                return frame.f_locals.get("__tvm_script_global_infos__", {})
-            frame = frame.f_back
-    finally:
-        del frame
-    return {}
-
-
-def lookup_global_info(name: str, index: int) -> GlobalInfo:
-    """Resolve a concrete global info in a builder or an executing module class."""
+def _global_infos():
+    """Read metadata from the nearest active native module frame."""
     if IRBuilder.is_in_scope():
         for frame in reversed(IRBuilder.current().frames):
             if isinstance(frame, IRModuleFrame):
-                return frame.global_infos[name][index]
-        raise ValueError("The GlobalInfos in the IRModule is not defined.")
-    infos = _class_global_infos()
-    if not infos:
-        raise ValueError("The GlobalInfos in the IRModule is not defined.")
-    return infos[name][index]
-
-
-def lookup_name(name: str) -> bool:
-    """Check if a global variable with the given name exists.
-    Parameters
-    ----------
-    name: str
-        The name of the global variable.
-
-    Returns
-    -------
-    res : bool
-        True if the global variable exists, False otherwise.
-    """
-    return _ffi_api.LookupName(name)  # type: ignore[attr-defined] # pylint: disable=no-member
+                return frame.global_infos
+    raise ValueError("Global-info lookup requires an enclosing module frame")
 
 
 def _get_dialect_builder(name: str):

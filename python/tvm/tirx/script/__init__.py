@@ -32,7 +32,6 @@ def _initialize() -> None:
     _initializing = True
     try:
         from tvm.script.parser import entry, register_namespace
-        from tvm.script.parser.protocol_registry import declaration_kind
         from tvm.tirx.layout import Axis
 
         from . import ir_builder as builder
@@ -44,21 +43,20 @@ def _initialize() -> None:
         )
         globals().update(
             bind=builder.bind,
-            prim_func=declaration_kind("T.prim_func", "function")(entry.make_decorator(builder)),
-            inline=declaration_kind("T.inline", "helper")(
-                entry.make_macro_decorator(builder, preserve_return=True, late_binding=True)
+            prim_func=entry.make_decorator(builder, namespace_path="tirx.prim_func"),
+            inline=entry.make_macro_decorator(
+                builder, namespace_path="tirx.inline", preserve_return=True, late_binding=True
             ),
-            macro=declaration_kind("T.macro", "helper")(
-                entry.make_macro_decorator(builder, preserve_return=False)
+            macro=entry.make_macro_decorator(
+                builder, namespace_path="tirx.macro", preserve_return=False
             ),
-            jit=declaration_kind("T.jit", "function")(make_jit(builder)),
+            jit=make_jit(builder, namespace_path="tirx.jit"),
             tile=tile,
         )
         for name in ("cluster", "cta", "thread", "warp", "warpgroup", "wg"):
             globals()[name] = getattr(tile, name)
         namespace = _sys.modules[__name__]
-        for alias in ("T", "tir", "tirx"):
-            register_namespace(alias, namespace)
+        register_namespace("tirx", namespace)
         register_namespace("Tx", tile)
         register_namespace("Axis", Axis)
         globals()["__all__"] = sorted(name for name in globals() if not name.startswith("_"))

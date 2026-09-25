@@ -135,7 +135,12 @@ def test_mapa_pointer_bind_codegen():
     assert decl_buffers[0].data.same_as(binds[0].var)
     assert any(load.source.same_as(decl_buffers[0].buffer) for load in loads)
 
-    assert_structural_equal(main, tvm.script.from_source(main.script()))
+    assert_structural_equal(
+        main,
+        tvm.script.from_source(
+            main.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+        ),
+    )
     src = _get_source(main)
     assert "uint64_t* remote_ptr" in src
     assert "A_ptr[0] = remote_ptr[0]" in src

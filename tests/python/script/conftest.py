@@ -20,7 +20,7 @@ import pytest
 from minilang import Language, RecordingSpanEntry
 
 from tvm.script.ir_builder import base
-from tvm.script.parser import entry, protocol_registry
+from tvm.script.parser import entry
 
 
 @pytest.fixture
@@ -41,9 +41,7 @@ def spanned_language(language, monkeypatch):
     monkeypatch.setattr(entry, "SpanEntry", base.SpanEntry)
     language.I.at_ = base.at_
     language.I.with_at_group_ = base.with_at_group_
-    language.M.inline = protocol_registry.declaration_kind("M.inline", "helper")(
-        entry.make_macro_decorator(language.M)
-    )
+    language.M.inline = entry.make_macro_decorator(language.M, namespace_path="M.inline")
     return language
 
 

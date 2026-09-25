@@ -57,8 +57,8 @@ def test_statement_receipts_keep_emitted_nodes_and_spans():
     location = ir.Span(ir.SourceName("direct_builder.py"), 5, 5, 3, 17)
     with I.IRBuilder():
         with T.function_(private=True) as frame:
-            T.func_name("receipts")
-            output = T.arg("output", T.Buffer((1,), "int32"))
+            T.func_name_("receipts")
+            output = T.arg_("output", T.Buffer((1,), "int32"))
             stored = T.setitem_(value=3, target=output, key=0, span=location)
             holder = SimpleNamespace(value=output)
             updated = T.setattr_(holder, "value", 4, span=location)
