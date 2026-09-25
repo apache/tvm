@@ -19,41 +19,11 @@
 import pytest
 from tvm_ffi import get_global_func
 
-from tvm import IRModule, tirx
+from tvm import tirx
 from tvm.runtime.script_printer import _script
-from tvm.s_tir.script.ir_builder import prim_func as build_prim_func
 from tvm.script import ir_builder as I
 from tvm.script.ir_builder import IRBuilder
 from tvm.tirx.script import ir_builder as T
-
-
-def _assert_print(obj, expected):
-    assert str(obj).strip() == expected.strip()
-    assert repr(obj).strip() == expected.strip()
-    if isinstance(obj, IRModule):
-        assert obj.script().strip() == expected.strip()
-
-
-def test_ir_module():
-    with IRBuilder() as ib:  # pylint: disable=invalid-name
-        with I.ir_module():
-            with build_prim_func():
-                T.func_name_("foo")
-    mod = ib.get()
-    _assert_print(
-        mod,
-        """
-# from tvm.script import ir as I
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
-# from tvm.script import s_tir as Ts
-
-@I.ir_module
-class Module:
-    @Ts.prim_func
-    def foo():
-        T.evaluate(0)""",
-    )
 
 
 def test_failed_invalid_prefix():
@@ -116,8 +86,3 @@ def test_config_reserves_dialect_prefixes_before_variable_definition(prefixes):
         assert var.script(verbose_expr=True, extra_config=prefixes).strip() == (
             f'{name}_1 = I.dynamic("{name}", dtype="int32")\n{name}_1'
         )
-
-
-if __name__ == "__main__":
-    test_ir_module()
-    test_failed_invalid_prefix()

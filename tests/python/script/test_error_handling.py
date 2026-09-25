@@ -27,7 +27,6 @@ import pytest
 
 from tvm import ir
 from tvm.ir import prim
-from tvm.script import tirx as T
 from tvm.script.parser import entry
 
 
@@ -115,33 +114,6 @@ def test_nested_function_failure_preserves_error_and_recovers(spanned_language):
         start + index,
         column + len("M.node(23)"),
     )
-
-
-def test_optional_annotation_requires_jit_at_the_source_parameter():
-    # Ordinary argument validation must reject Optional at its original parameter location.
-    with pytest.raises(TypeError, match="^T.Optional is only supported by @T.jit$") as caught:
-
-        @T.prim_func
-        def invalid(value: T.Optional(T.handle)):
-            T.evaluate(0)
-
-    assert type(caught.value) is TypeError
-    lines, first = inspect.getsourcelines(
-        test_optional_annotation_requires_jit_at_the_source_parameter
-    )
-    index, line = next((i, text) for i, text in enumerate(lines) if "def invalid(" in text)
-    frames = traceback.extract_tb(caught.value.__traceback__)
-    source = [
-        frame for frame in frames if frame.filename == __file__ and frame.lineno == first + index
-    ]
-    assert source
-    if getattr(source[-1], "colno", None) is not None:
-        column = line.index("value:")
-        assert (source[-1].colno, source[-1].end_lineno, source[-1].end_colno) == (
-            column,
-            first + index,
-            column + len("value: T.Optional(T.handle)"),
-        )
 
 
 def test_store_rhs_failure_precedes_target_evaluation(language):

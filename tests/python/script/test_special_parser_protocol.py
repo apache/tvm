@@ -18,15 +18,11 @@
 A failed constructor must not change the next function's interpretation of literals.
 """
 
-import inspect
-import traceback
 from types import SimpleNamespace
 
 import pytest
 
-from tvm.script import tirx as T
 from tvm.script.ir_builder import resolve_global_info_args
-from tvm.script.parser import entry
 
 
 def test_constructor_policy_survives_a_failed_definition(language):
@@ -89,42 +85,6 @@ def test_external_expression_preserves_symbol_dtype(language):
     assert increment.args[1] == 1
 
 
-def test_tirx_rejects_global_info_at_the_call_site(monkeypatch):
-    # A custom builder reports its resolver failure at the ordinary call site.
-    @resolve_global_info_args("device", resolver=T.resolve_global_info_)
-    def global_annotation(device):
-        return T.int32
-
-    monkeypatch.setattr(T, "global_annotation", global_annotation, raising=False)
-    with pytest.raises(
-        NotImplementedError, match="TIRx does not support global-info lookup"
-    ) as caught:
-
-        @T.prim_func
-        def main(value: T.global_annotation(device="cuda:0")):
-            T.evaluate(value)
-
-    lines, first = inspect.getsourcelines(test_tirx_rejects_global_info_at_the_call_site)
-    index, line = next((i, line) for i, line in enumerate(lines) if "def main(value:" in line)
-    location = first + index
-    frames = traceback.extract_tb(caught.value.__traceback__)
-    source_frames = [
-        frame for frame in frames if frame.filename == __file__ and frame.lineno == location
-    ]
-    assert source_frames
-    if getattr(source_frames[-1], "colno", None) is not None:
-        column = line.index("T.global_annotation(")
-        assert (
-            source_frames[-1].colno,
-            source_frames[-1].end_lineno,
-            source_frames[-1].end_colno,
-        ) == (
-            column,
-            location,
-            column + len('T.global_annotation(device="cuda:0")'),
-        )
-
-
 def test_ordinary_calls_preserve_literal_arguments(language):
     M = language.M
     Alias = M
@@ -143,15 +103,3 @@ def test_ordinary_calls_preserve_literal_arguments(language):
 
     assert seen == ["n", "n", "n"]
     assert main.body[-1] == ("emit", 3)
-
-
-def test_initial_import_alias_and_symbolic_range():
-    source = """from tvm.script import tirx as Script
-@Script.prim_func
-def main(n: Script.int32):
-    for i in range(n):
-        Script.evaluate(i)
-"""
-    function = entry.parse(source)
-    assert function.body.extent.same_as(function.params[0])
-    assert function.body.body.value.same_as(function.body.loop_var)

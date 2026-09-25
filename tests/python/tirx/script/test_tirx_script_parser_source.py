@@ -161,12 +161,8 @@ def test_parser_spans_do_not_affect_structural_identity():
     source_a = """@T.prim_func\ndef f():\n    T.evaluate(1)\n"""
     source_b = """\n\n@T.prim_func\ndef f():\n    T.evaluate(1)\n"""
 
-    func_a = tvm.script.from_source(
-        source_a, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
-    )
-    func_b = tvm.script.from_source(
-        source_b, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
-    )
+    func_a = tvm.script.from_source(source_a, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+    func_b = tvm.script.from_source(source_b, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
 
     assert _span_range(func_a.body.span) == ("<str>", 3, 5, 3, 18)
     assert _span_range(func_b.body.span) == ("<str>", 5, 5, 5, 18)

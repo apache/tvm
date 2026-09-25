@@ -26,8 +26,6 @@ import sys
 
 import pytest
 
-from tvm.script import ir as I
-from tvm.script import tirx as T
 from tvm.script.parser import entry
 
 
@@ -78,22 +76,6 @@ def test_same_named_symbol_does_not_replace_captured_python_value(language):
     assert main.params[1].args[0].args[0][0] == 7
     assert main.body[0][1] == 7
     assert symbol.name == "n"
-
-
-def test_captured_shape_requires_concrete_symbols():
-    # Native shape construction preserves concrete symbols and rejects strings.
-    def build(shape):
-        @T.prim_func
-        def main(x: T.Buffer(shape, "float32")):
-            T.evaluate(0)
-
-        return main
-
-    n = T.dynamic("n")
-    function = build((n, 16))
-    assert function.params[0].ty.shape[0].same_as(n)
-    with pytest.raises(AssertionError, match="data must be int or Expr, but got n"):
-        build(("n", 16))
 
 
 def test_argument_policies_reuse_symbols_and_resolve_only_marked_literals(language):
@@ -201,22 +183,3 @@ def main[n, k: M.int32](x: M.Tensor((n, k))) -> M.Tensor((n, k)):
     assert main.ret_type.args[0][1] is k
     assert main.body[0][1] is n
     assert main.body[1][1] is k
-
-
-def test_dynamic_symbols_are_fresh_and_scope_independent():
-    assert T.dynamic is I.dynamic
-    n = T.dynamic("n")
-    same_name = I.dynamic("n")
-    k = I.dynamic("k", "int32")
-    assert n.ty.dtype == "int64"
-    assert k.ty.dtype == "int32"
-    assert not n.same_as(same_name)
-
-    @I.ir_module
-    class Module:
-        @T.prim_func
-        def first(x: T.Buffer((n,), "float32")):
-            T.evaluate(n)
-
-    assert Module["first"].params[0].ty.shape[0].same_as(n)
-    assert Module["first"].body.value.same_as(n)

@@ -17,23 +17,9 @@
 """Recording builder fixtures for the production source-to-builder parser."""
 
 import pytest
-from minilang import Language, RecordingSpanEntry
 
 from tvm.script.ir_builder import base
 from tvm.script.parser import entry
-
-
-@pytest.fixture
-def language(monkeypatch):
-    monkeypatch.setattr(
-        entry,
-        "register_namespace",
-        lambda alias, namespace: monkeypatch.setitem(entry._NAMESPACES, alias, namespace),
-    )
-    language = Language()
-    monkeypatch.setattr(entry, "builder_ir", language.I)
-    monkeypatch.setattr(entry, "SpanEntry", lambda span: RecordingSpanEntry(language, span))
-    return language
 
 
 @pytest.fixture

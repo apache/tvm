@@ -15,24 +15,35 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F401
-"""Unittests for tvm.script.parser.ir"""
-
-import inspect
 
 import pytest
 
+import tvm
 import tvm.testing
-from tvm.ir import IRModule
-from tvm.script.parser import ir_module
+from tvm.script import tirx as T
+from tvm.script.printer.highlight import _format, cprint
 
 
-def test_ir_base():
-    @ir_module
-    class BlankIRModule:
-        pass
+def test_highlight_script():
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def main(  # type: ignore
+            A: T.Buffer([16, 128, 128]),
+            B: T.Buffer([16, 128, 128]),
+            C: T.Buffer([16, 128, 128]),
+        ) -> None:  # pylint: disable=no-self-argument
+            T.func_attr({"global_symbol": "main", "tirx.noalias": True})
+            for n, i, j in T.grid(16, 128, 128):
+                C[n, i, j] = 0.0  # type: ignore
+                for k in T.serial(128):
+                    C[n, i, j] = C[n, i, j] + A[n, i, k] * B[n, j, k]
 
-    assert isinstance(BlankIRModule, IRModule) and len(BlankIRModule.functions.items()) == 0
-    assert BlankIRModule.__name__ == "BlankIRModule"
+    Module.show()
+    Module["main"].show()
+    Module["main"].show(style="light")
+    Module["main"].show(style="dark")
+    Module["main"].show(style="ansi")
 
 
 if __name__ == "__main__":

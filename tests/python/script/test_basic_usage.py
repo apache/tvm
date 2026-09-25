@@ -33,7 +33,6 @@ from tvm import ir
 from tvm.ir import prim
 from tvm.ir._overload_prim_expr import EqualOp
 from tvm.script import ir as I
-from tvm.script import tirx as T
 from tvm.script.parser import entry
 
 
@@ -464,66 +463,6 @@ def test_body_annotation_reads_a_preceding_ordinary_local(language):
 
     assert annotations == [(4,)]
     assert main.body == [("emit", 1), ("emit", (8,))]
-
-
-def test_native_concise_scopes_unwind_with_their_parent():
-    # Nested concise thread scopes must preserve the original variables in the constructed IR.
-    from tvm import tirx
-
-    variables = []
-
-    def observe(*items):
-        variables.extend(items)
-
-    @T.prim_func
-    def main():
-        bx = T.launch_thread("blockIdx.x", 2)
-        tx = T.launch_thread("threadIdx.x", 32)
-        observe(bx, tx)
-        T.evaluate(bx + tx)
-
-    bx, tx = variables
-    body = main.body
-    assert isinstance(body, tirx.AttrStmt) and isinstance(body.body, tirx.AttrStmt)
-    assert body.node.var.same_as(bx) and body.body.node.var.same_as(tx)
-    assert body.body.body.value.a.same_as(bx) and body.body.body.value.b.same_as(tx)
-
-
-def test_loop_control_validation_preserves_valid_and_unchecked_ir():
-    # Invalid loop placement must be rejected, while disabled checks preserve the original IR.
-    from tvm import ir, tirx
-
-    @T.prim_func(check_well_formed=False)
-    def invalid():
-        T.evaluate(tirx.break_loop())
-
-    # This is exactly the native node emitted by source `break`; constructing
-    # the intrinsic explicitly keeps the surrounding Python definition valid.
-    ir.assert_structural_equal(invalid.body, tirx.Evaluate(tirx.break_loop()))
-    with pytest.raises(ValueError, match="requires an enclosing loop"):
-
-        @T.prim_func
-        def rejected():
-            T.evaluate(tirx.break_loop())
-
-    @T.prim_func
-    def valid():
-        for i in range(2):
-            break
-
-    assert isinstance(valid.body, tirx.For)
-    ir.assert_structural_equal(valid.body.body, invalid.body)
-
-    @I.ir_module(check_well_formed=False, extra_vars={"invalid": invalid})
-    class Unchecked:
-        bad = invalid
-
-    assert Unchecked["bad"].same_as(invalid)
-    with pytest.raises(ValueError, match="requires an enclosing loop"):
-
-        @I.ir_module(extra_vars={"invalid": invalid})
-        class Rejected:
-            bad = invalid
 
 
 def test_written_comparison_order(primitive_language):

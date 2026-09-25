@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
 
 import pytest
 from tvm_ffi.access_path import AccessPath
@@ -22,7 +21,6 @@ from tvm_ffi.access_path import AccessPath
 import tvm
 from tvm.ir import assert_structural_equal
 from tvm.script import ir as I
-from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -56,11 +54,11 @@ def test_prim_type_hidden_path_exact_message():
 
 
 def test_prim_func_buffer_param():
-    @Ts.prim_func
+    @T.prim_func
     def func1(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))):
         pass
 
-    @Ts.prim_func
+    @T.prim_func
     def func2(A: T.Buffer((128, 128)), B: T.Buffer((128, 256))):
         pass
 
@@ -92,13 +90,13 @@ def test_prim_func_buffer_param():
 def test_evaluate():
     @I.ir_module
     class module1:
-        @Ts.prim_func
+        @T.prim_func
         def func():
             T.evaluate(0)
 
     @I.ir_module
     class module2:
-        @Ts.prim_func
+        @T.prim_func
         def func():
             T.evaluate(1)
 
@@ -123,11 +121,11 @@ def test_evaluate():
 
 
 def test_allocate():
-    @Ts.prim_func
+    @T.prim_func
     def func1():
         a = T.alloc_buffer((128, 128), dtype="float32")
 
-    @Ts.prim_func
+    @T.prim_func
     def func2():
         a = T.alloc_buffer((256, 128), dtype="float32")
 
@@ -158,17 +156,15 @@ def test_allocate():
 
 
 def test_for():
-    @Ts.prim_func
+    @T.prim_func
     def func1():
         for i, j in T.grid(128, 128):
-            with Ts.sblock():
-                pass
+            T.evaluate(0)
 
-    @Ts.prim_func
+    @T.prim_func
     def func2():
         for i, j, k in T.grid(128, 128, 128):
-            with Ts.sblock():
-                pass
+            T.evaluate(0)
 
     func1 = func1.with_attr("global_symbol", "main")
     func2 = func2.with_attr("global_symbol", "main")
@@ -178,8 +174,8 @@ def test_for():
     assert _error_message(ve.value) == _expected_result(
         func1,
         func2,
-        AccessPath.root().attr("body").attr("block").attr("body").attr("body").attr("body"),
-        AccessPath.root().attr("body").attr("block").attr("body").attr("body").attr("body"),
+        AccessPath.root().attr("body").attr("body").attr("body"),
+        AccessPath.root().attr("body").attr("body").attr("body"),
     )
 
 

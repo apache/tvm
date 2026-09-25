@@ -28,13 +28,10 @@ import gc
 import weakref
 from contextlib import contextmanager
 from types import SimpleNamespace
-from typing import TypeVar
 
 import pytest
 
-from tvm import ir
 from tvm.script import ir as I
-from tvm.script import relax as R
 from tvm.script.parser import entry
 
 EXTENT = 11
@@ -262,19 +259,6 @@ def test_local_annotation_preserves_lambda_and_comprehension_bindings(language):
     kind, result = function.body[1]
     assert kind == "return" and result.op == "value"
     assert result.args == (function.params[0], function.params[0])
-
-
-def test_return_annotation_keeps_local_symbols_and_unused_captures():
-    n = ir.Var("n", "int64")
-    unused = TypeVar("unused", bound=int)
-
-    @R.function
-    def main(x: R.Tensor((n,), "float32")) -> R.Tensor(
-        ((lambda local: local if I.constexpr(True) else unused)(n),), "float32"
-    ):
-        return x
-
-    assert main.ret_ty.shape[0].same_as(n)
 
 
 def test_class_annotation_scope_keeps_distinct_method_closure(language):

@@ -124,7 +124,14 @@ def test_roundtrip(ir_generator):
         pytest.skip(f"{ir_generator.__name__}: not round-trip stable here")
     original = ir_generator()
     after_roundtrip = tvm.script.from_source(
-        original.script(show_meta=True), check_well_formed=False
+        original.script(show_meta=True),
+        check_well_formed=False,
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
     )
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)
 
@@ -135,7 +142,13 @@ def test_relax_roundtrip(relax_ir_generator, show_all_relax_ty):
         original.script(
             show_meta=True,
             show_all_ty=show_all_relax_ty,
-        )
+        ),
+        extra_vars={
+            "I": tvm.script.ir,
+            "T": tvm.script.tirx,
+            "Ts": tvm.script.s_tir,
+            "R": tvm.script.relax,
+        },
     )
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)
 

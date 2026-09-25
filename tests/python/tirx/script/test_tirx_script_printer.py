@@ -147,7 +147,7 @@ while v < 10:
 def test_allocate():
     with IRBuilder() as ib:
         with T.prim_func():
-            T.func_name("test")
+            T.func_name_("test")
             buf = T.alloc_buffer([128, 128], "float32")
             T.evaluate(1)
     obj = ib.get()
@@ -164,7 +164,7 @@ def test_allocate_with_decl_buffer_sugar():
     # AllocBuffer and DeclBuffer are flat siblings
     with IRBuilder() as ib:
         with T.prim_func():
-            T.func_name("test")
+            T.func_name_("test")
             buf = T.alloc_buffer([128, 128], "float32")
             buf2 = T.decl_buffer([128, 128], "float32", data=buf.data)
             T.evaluate(1)
@@ -183,7 +183,7 @@ def test_allocate_with_decl_buffer_sugar_multi_usage():
     # AllocBuffer and DeclBuffer are flat siblings
     with IRBuilder() as ib:
         with T.prim_func():
-            T.func_name("test")
+            T.func_name_("test")
             buf = T.alloc_buffer([128, 128], "float32")
             buf2 = T.decl_buffer([128, 128], "float32", data=buf.data)
             T.evaluate(buf.data)
@@ -201,7 +201,7 @@ T.evaluate(buffer.data)
 def test_allocate_with_decl_buffer_no_sugar_mismatch():
     with IRBuilder() as ib:
         with T.prim_func():
-            T.func_name("test")
+            T.func_name_("test")
             buf = T.alloc_buffer([128, 128], "float32")
             buf2 = T.decl_buffer([256, 256], "float32", data=buf.data)
             T.evaluate(buf.data)
@@ -220,7 +220,7 @@ def test_decl_buffer():
     # DeclBuffer is flat: we need a frame to hold multiple stmts
     with IRBuilder() as ib:
         with T.prim_func():
-            T.func_name("test")
+            T.func_name_("test")
             buf = T.decl_buffer((10, 10), data=T.ptr("float32"))
             T.evaluate(1)
     obj = ib.get()
