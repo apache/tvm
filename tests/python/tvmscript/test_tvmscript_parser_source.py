@@ -27,6 +27,7 @@ from tvm_ffi import structural_walk
 import tvm
 import tvm.testing
 from tvm.ir import Call, SequentialSpan, TensorLoad, assert_structural_equal
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.script.parser.inspect_source import Source
 from tvm.script.tirx import tile as Tx
@@ -46,8 +47,8 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j, k in T.grid(128, 128, 128):
-        with T.sblock("update"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+        with Ts.sblock("update"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
@@ -242,7 +243,7 @@ def test_nesting_parsing():
 
         @tvm.script.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def impl(
                 A: T.Buffer((12, 196, 64), "float32"),
             ) -> None:

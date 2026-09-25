@@ -18,6 +18,7 @@
 import tvm
 import tvm.testing
 from tvm.s_tir import SBlock
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.tirx.buffer import Buffer
 from tvm.tirx.function import PrimFunc
@@ -48,18 +49,18 @@ def _check_block_signature_remap(lhs: SBlock, rhs: SBlock):
 
 
 def test_simple():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     # Buffer A should be remapped
     def elementwise(A: T.Buffer((128, 128), "float32")):
         # Buffer B should be remapped
-        B = T.sblock_alloc_buffer((128, 128), "float32")
+        B = Ts.sblock_alloc_buffer((128, 128), "float32")
         # i, j should be remapped
         for i, j in T.grid(128, 128):
-            with T.sblock("B"):
+            with Ts.sblock("B"):
                 # vi, vj should be remapped
-                vi, vj = T.axis.remap("SS", [i, j])
-                T.reads(A[vi, vj])
-                T.writes(B[vi, vj])
+                vi, vj = Ts.axis.remap("SS", [i, j])
+                Ts.reads(A[vi, vj])
+                Ts.writes(B[vi, vj])
                 B[vi, vj] = A[vi, vj] * 2.0
 
     f1 = elementwise
@@ -84,10 +85,10 @@ def test_simple():
 def test_match_buffer():
     # well-formed checker complains about multiple definitions for variable A0_s1,
     # likely stemming from strides=[s, s]
-    @T.prim_func(check_well_formed=False, s_tir=True)
+    @Ts.prim_func(check_well_formed=False)
     # A and B should be remapped
     def func_match_buffer(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")):
-        with T.sblock("root"):
+        with Ts.sblock("root"):
             s = T.int32()
             e = T.int32()
             # A0 should be remapped
@@ -100,8 +101,8 @@ def test_match_buffer():
                 elem_offset=e,
             )
             for i, j in T.grid(128, 128):
-                with T.sblock("B"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("B"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A0[vi, vj] * 2.0
 
     f1 = func_match_buffer
@@ -132,7 +133,7 @@ def test_match_buffer():
 
 
 def test_undefined_buffer():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def access_alloc():
         # Buffer A should be remapped
         A = T.alloc_buffer((128,), "float16")
@@ -155,7 +156,7 @@ def test_undefined_buffer():
 
 
 def test_symbolic_func():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def symbolic_func(a: T.handle, b: T.handle, n: T.int32):
         m = T.int32()
         A = T.match_buffer(a, (n, m))
@@ -170,14 +171,14 @@ def test_symbolic_func():
 
 
 def test_buffer_params():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle):
         m = T.int64()
         A = T.match_buffer(a, (m * 2,))
         B = T.match_buffer(b, (m, 2))
         for i, j in T.grid(m, 2):
-            with T.sblock("B"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("B"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi * 2 + vj]
 
     f1 = main
@@ -198,17 +199,17 @@ def test_compound_buffer_param_shape_var():
 
 
 def test_gather():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def take(
         A: T.Buffer((4096, 4096), "float16"),
         B: T.Buffer((1,), "int32"),
         T_take: T.Buffer((1, 4096), "float16"),
     ):
         for ax0, ax1 in T.grid(1, 4096):
-            with T.sblock("T_take"):
-                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                T.reads(A[B[v_ax0], v_ax1], B[v_ax0])
-                T.writes(T_take[v_ax0, v_ax1])
+            with Ts.sblock("T_take"):
+                v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                Ts.reads(A[B[v_ax0], v_ax1], B[v_ax0])
+                Ts.writes(T_take[v_ax0, v_ax1])
                 T_take[v_ax0, v_ax1] = A[B[v_ax0], v_ax1]
 
     f1 = take

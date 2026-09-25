@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tirx/ir/script/script_complete.cc
+ * \file s_tir/script/builder/script_complete.cc
  * \brief Used by TVM Script parser to expand incomplete TIR input
  */
 
@@ -35,7 +35,9 @@
 #include <utility>
 
 namespace tvm {
-namespace tirx {
+namespace s_tir {
+
+using namespace tvm::tirx;
 
 /*! \brief Generate surrounding loops automatically */
 class ScriptCompleter : public s_tir::StmtExprMutator {
@@ -46,8 +48,8 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
     return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
   }
 
-  explicit ScriptCompleter(ffi::Map<Var, BufferVar>* buffer_var_map, bool s_tir = false)
-      : buffer_var_map_(buffer_var_map), s_tir_(s_tir) {}
+  explicit ScriptCompleter(ffi::Map<Var, BufferVar>* buffer_var_map)
+      : buffer_var_map_(buffer_var_map) {}
 
  private:
   ffi::Map<Var, BufferVar>* buffer_var_map_;
@@ -93,7 +95,7 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
       mask = (*it).second.as_or_throw<IntImm>()->value.as<int>().value();
     }
     // ignore root block or blocks which already has reads/writes regions
-    if (mask != 0 && s_tir_) {
+    if (mask != 0) {
       auto access_region = GetSBlockAccessRegion(block, *buffer_var_map_);
       const ffi::Array<TensorRegion>& reads = access_region[0];
       const ffi::Array<TensorRegion>& writes = access_region[1];
@@ -131,10 +133,9 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
   }
 
   bool is_root_block_ = true;
-  bool s_tir_ = false;
 };
 
-PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocates, bool s_tir) {
+PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocates) {
   ffi::Map<Var, BufferVar> buffer_var_map;
   for (const Var& param : func->params) {
     if (auto buffer = param.as<BufferVar>()) {
@@ -148,8 +149,8 @@ PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocat
   Stmt res = func->body;
 
   // Generate root block automatically.  This is done before
-  // ScriptCompleter, in order to fill the root block's T.reads() and
-  // T.writes() annotations, as if it had been explicitly written.
+  // ScriptCompleter, in order to fill the root block's Ts.reads() and
+  // Ts.writes() annotations, as if it had been explicitly written.
   bool should_insert_root = [&]() -> bool {
     if (root_allocates.size()) {
       return true;
@@ -164,13 +165,13 @@ PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocat
     return false;
   }();
 
-  if (s_tir && should_insert_root) {
+  if (should_insert_root) {
     s_tir::SBlock root_block({}, {}, {}, "root", std::move(res), std::nullopt, root_allocates);
     res = s_tir::SBlockRealize({}, IntImm::Bool(true), std::move(root_block));
   }
 
   // generate surrounding loops automatically
-  auto script_completer = ffi::make_object<ScriptCompleter>(&buffer_var_map, s_tir);
+  auto script_completer = ffi::make_object<ScriptCompleter>(&buffer_var_map);
   res = script_completer->Mutate(res, InplaceMode::kAllow).ValueOrUnchanged(std::move(res));
 
   if (func->body.same_as(res)) {
@@ -184,8 +185,8 @@ PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocat
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.Complete", ScriptComplete);
+  refl::GlobalDef().def("s_tir.script.Complete", ScriptComplete);
 }
 
-}  // namespace tirx
+}  // namespace s_tir
 }  // namespace tvm

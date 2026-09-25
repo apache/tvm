@@ -31,7 +31,7 @@ def test_static_init():
 
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def ramp(A: T.handle):
             T.func_attr({"global_symbol": "ramp"})
             n = T.int64()

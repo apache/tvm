@@ -30,6 +30,7 @@ import tvm
 from tvm.relax.relax_to_pyfunc_converter import RelaxToPyFuncConverter
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -37,7 +38,7 @@ from tvm.script import tirx as T
 class ComprehensiveTestModule:
     """Test module covering all converter features."""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def add_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
         """TIR function for addition."""
         x = T.match_buffer(var_x, (5,), "float32")
@@ -46,7 +47,7 @@ class ComprehensiveTestModule:
         for i in range(5):
             out[i] = x[i] + y[i]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mul_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
         """TIR function for multiplication."""
         x = T.match_buffer(var_x, (3, 4), "float32")
@@ -869,7 +870,7 @@ class TestDLPackAndTupleSupport:
 
         @I.ir_module
         class DLPackTestModule:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def test_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
                 x = T.match_buffer(var_x, (4,), "float32")
                 y = T.match_buffer(var_y, (4,), "float32")
@@ -922,7 +923,7 @@ class TestDLPackAndTupleSupport:
 
         @I.ir_module
         class RuntimeAPITestModule:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def test_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
                 x = T.match_buffer(var_x, (3,), "float32")
                 y = T.match_buffer(var_y, (3,), "float32")
@@ -980,7 +981,7 @@ class TestDLPackAndTupleSupport:
 
         @I.ir_module
         class MixedOpsTestModule:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def add_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
                 x = T.match_buffer(var_x, (4,), "float32")
                 y = T.match_buffer(var_y, (4,), "float32")

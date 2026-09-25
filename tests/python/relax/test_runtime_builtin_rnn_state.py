@@ -25,6 +25,7 @@ import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.s_tir import dlight as dl
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -211,7 +212,7 @@ def rnn_state_get(
     dtype: str,
 ):
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def _rnn_state_get(
         var_storage: T.handle,
         var_seq_slot_ids: T.handle,
@@ -227,8 +228,8 @@ def rnn_state_get(
 
         for i in range(batch_size):
             for (*s,) in T.grid(*shape):
-                with T.sblock("copy"):
-                    vi, *vs = T.axis.remap("S" * (len(shape) + 1), [i, *s])
+                with Ts.sblock("copy"):
+                    vi, *vs = Ts.axis.remap("S" * (len(shape) + 1), [i, *s])
                     seq_id: T.let[T.int32] = seq_slot_ids[vi]
                     history_id: T.let[T.int32] = history_slot_ids[vi]
                     # The following line is equivalent to:
@@ -246,7 +247,7 @@ def rnn_state_set(
     dtype: str,
 ):
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def _rnn_state_set(
         var_storage: T.handle,
         var_seq_slot_ids: T.handle,
@@ -262,8 +263,8 @@ def rnn_state_set(
 
         for i in range(batch_size):
             for (*s,) in T.grid(*shape):
-                with T.sblock("copy"):
-                    vi, *vs = T.axis.remap("S" * (len(shape) + 1), [i, *s])
+                with Ts.sblock("copy"):
+                    vi, *vs = Ts.axis.remap("S" * (len(shape) + 1), [i, *s])
                     seq_id: T.let[T.int32] = seq_slot_ids[vi]
                     history_id: T.let[T.int32] = (history_slot_ids[vi] + 1) % T.cast(
                         max_history, "int32"

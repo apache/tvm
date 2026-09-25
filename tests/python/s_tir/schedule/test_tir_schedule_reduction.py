@@ -29,194 +29,195 @@ from tvm.s_tir.schedule.testing import (
     verify_trace_roundtrip,
 )
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def rowsum_blockized(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [32, 4])
     A = T.match_buffer(a, [32, 4, 128])
     for i0, i2_0 in T.grid(32, 16):
-        with T.sblock("blockized_B"):
-            io, ko = T.axis.remap("SR", [i0, i2_0])
-            with T.init():
+        with Ts.sblock("blockized_B"):
+            io, ko = Ts.axis.remap("SR", [i0, i2_0])
+            with Ts.init():
                 for i1 in T.serial(0, 4):
-                    with T.sblock("B_init"):
-                        ii_init = T.axis.S(4, i1)
+                    with Ts.sblock("B_init"):
+                        ii_init = Ts.axis.S(4, i1)
                         B[io, ii_init] = 0.0
             for i1_1, i2_1 in T.grid(4, 8):
-                with T.sblock("B"):
-                    ii = T.axis.S(4, i1_1)
-                    k = T.axis.R(128, ko * 8 + i2_1)
+                with Ts.sblock("B"):
+                    ii = Ts.axis.S(4, i1_1)
+                    k = Ts.axis.R(128, ko * 8 + i2_1)
                     B[io, ii] = B[io, ii] + A[io, ii, k]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j, k in T.grid(128, 128, 128):
-        with T.sblock("update"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("update"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_decompose0(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
 
     for i, j in T.grid(128, 128):
-        with T.sblock("init"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("init"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = 0.0
 
     for i, j, k in T.grid(128, 128, 128):
-        with T.sblock("update"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+        with Ts.sblock("update"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_decompose1(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [32, 4, 128], elem_offset=0, align=64, offset_factor=1)
     B = T.match_buffer(b, [32, 4], elem_offset=0, align=64, offset_factor=1)
 
     for i0 in T.serial(0, 32):
-        with T.sblock("blockized_B_init"):
-            io = T.axis.S(32, i0)
+        with Ts.sblock("blockized_B_init"):
+            io = Ts.axis.S(32, i0)
             for i1 in T.serial(0, 4):
-                with T.sblock("B_init"):
-                    ii = T.axis.S(4, i1)
+                with Ts.sblock("B_init"):
+                    ii = Ts.axis.S(4, i1)
                     B[io, ii] = T.float32(0)
     for i0, i2_o in T.grid(32, 16):
-        with T.sblock("blockized_B_update"):
-            io, ko = T.axis.remap("SR", [i0, i2_o])
+        with Ts.sblock("blockized_B_update"):
+            io, ko = Ts.axis.remap("SR", [i0, i2_o])
             for i1, i2_i in T.grid(4, 8):
-                with T.sblock("B"):
-                    ii = T.axis.S(4, i1)
-                    k = T.axis.R(128, ko * 8 + i2_i)
+                with Ts.sblock("B"):
+                    ii = Ts.axis.S(4, i1)
+                    k = Ts.axis.R(128, ko * 8 + i2_i)
                     B[io, ii] = B[io, ii] + A[io, ii, k]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_decompose2(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     B = T.match_buffer(b, [128, 128], elem_offset=0, align=64, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
 
     for i0, i1 in T.grid(128, 128):
-        with T.sblock("update_init"):
-            vi_init, vj_init = T.axis.remap("SS", [i0, i1])
+        with Ts.sblock("update_init"):
+            vi_init, vj_init = Ts.axis.remap("SS", [i0, i1])
             C[vi_init, vj_init] = T.float32(0)
         for i2 in T.serial(0, 128):
-            with T.sblock("update_update"):
-                vi, vj, vk = T.axis.remap("SSR", [i0, i1, i2])
+            with Ts.sblock("update_update"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i0, i1, i2])
                 C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_decompose_fail3(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
 
     for i, k, j in T.grid(128, 128, 128):
-        with T.sblock("update"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("update"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_decompose4(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     B = T.match_buffer(b, [128, 128], elem_offset=0, align=64, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
     # body
-    with T.sblock("root"):
-        T.reads([])
-        T.writes([])
+    with Ts.sblock("root"):
+        Ts.reads([])
+        Ts.writes([])
         for i0_0 in T.serial(0, 16):
             for i0_1_init, i1_init in T.grid(8, 128):
-                with T.sblock("update_init"):
-                    vi_init = T.axis.S(128, i0_0 * 8 + i0_1_init)
-                    vj_init = T.axis.S(128, i1_init)
+                with Ts.sblock("update_init"):
+                    vi_init = Ts.axis.S(128, i0_0 * 8 + i0_1_init)
+                    vj_init = Ts.axis.S(128, i1_init)
                     C[vi_init, vj_init] = T.float32(0)
             for i0_1, i1, i2_0, i2_1 in T.grid(8, 128, 19, 7):
-                with T.sblock("update_update"):
-                    T.where(((i2_0 * 7) + i2_1) < 128)
-                    vi = T.axis.S(128, i0_0 * 8 + i0_1)
-                    vj = T.axis.S(128, i1)
-                    vk = T.axis.R(128, i2_0 * 7 + i2_1)
+                with Ts.sblock("update_update"):
+                    Ts.where(((i2_0 * 7) + i2_1) < 128)
+                    vi = Ts.axis.S(128, i0_0 * 8 + i0_1)
+                    vj = Ts.axis.S(128, i1)
+                    vk = Ts.axis.R(128, i2_0 * 7 + i2_1)
                     C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_with_annotation(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j, k in T.grid(128, 128, 128):
-        with T.sblock("update"):
-            T.sblock_attr({"test_annotation": 1})
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("update"):
+            Ts.sblock_attr({"test_annotation": 1})
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_decompose_with_annotation(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
 
     for i, j in T.grid(128, 128):
-        with T.sblock("init"):
-            T.sblock_attr({"test_annotation": 1})
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("init"):
+            Ts.sblock_attr({"test_annotation": 1})
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = 0.0
 
     for i, j, k in T.grid(128, 128, 128):
-        with T.sblock("update"):
-            T.sblock_attr({"test_annotation": 1})
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+        with Ts.sblock("update"):
+            Ts.sblock_attr({"test_annotation": 1})
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def colsum_with_vectorization(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 32], dtype="float32")
     B = T.match_buffer(b, [32], dtype="float32")
     for k in T.serial(0, 128):
         for i in T.vectorized(0, 32):
-            with T.sblock("B"):
-                vk, vi = T.axis.remap("RS", [k, i])
-                with T.init():
+            with Ts.sblock("B"):
+                vk, vi = Ts.axis.remap("RS", [k, i])
+                with Ts.init():
                     B[vi] = T.float32(0)
                 B[vi] = B[vi] + A[vk, vi]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def colsum_decompose_with_vectorization(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 32], dtype="float32")
     B = T.match_buffer(b, [32], dtype="float32")
     for i in T.vectorized(0, 32):
-        with T.sblock("B_init"):
-            vi = T.axis.S(32, i)
+        with Ts.sblock("B_init"):
+            vi = Ts.axis.S(32, i)
             B[vi] = T.float32(0)
     for k in T.serial(0, 128):
         for i in T.vectorized(0, 32):
-            with T.sblock("B"):
-                vk, vi = T.axis.remap("RS", [k, i])
+            with Ts.sblock("B"):
+                vk, vi = Ts.axis.remap("RS", [k, i])
                 B[vi] = B[vi] + A[vk, vi]
 
 
@@ -304,48 +305,48 @@ def test_decompose_reduction_ref_hash_check():
 
 
 def test_decompose_reduction_nested_block():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def nested_block(A: T.Buffer((1, 64), "float32"), B: T.Buffer((1,), "float32")):
         for i, ko in T.grid(1, 2):
-            with T.sblock("outer"):
-                vi, vko = T.axis.remap("SR", [i, ko])
-                C = T.sblock_alloc_buffer((32,), dtype="float32")
-                with T.init():
+            with Ts.sblock("outer"):
+                vi, vko = Ts.axis.remap("SR", [i, ko])
+                C = Ts.sblock_alloc_buffer((32,), dtype="float32")
+                with Ts.init():
                     B[vi] = T.float32(0)
                 for ki in T.serial(32):
-                    with T.sblock("inner_1"):
-                        vki = T.axis.remap("S", [ki])
+                    with Ts.sblock("inner_1"):
+                        vki = Ts.axis.remap("S", [ki])
                         C[vki] = A[vi, vko * 32 + vki]
                 for ki in T.serial(32):
-                    with T.sblock("inner_2"):
-                        vki = T.axis.remap("R", [ki])
+                    with Ts.sblock("inner_2"):
+                        vki = Ts.axis.remap("R", [ki])
                         B[vi] += C[vki]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def decomposed_nested_block(A: T.Buffer((1, 64), "float32"), B: T.Buffer((1,), "float32")):
         for i in range(1):
-            with T.sblock("outer_init"):
-                vi = T.axis.spatial(1, i)
-                T.reads()
-                T.writes(B[vi])
+            with Ts.sblock("outer_init"):
+                vi = Ts.axis.spatial(1, i)
+                Ts.reads()
+                Ts.writes(B[vi])
                 B[vi] = T.float32(0)
             for ko in range(2):
-                with T.sblock("outer_update"):
-                    vi, vko = T.axis.remap("SR", [i, ko])
-                    T.reads(B[vi], A[vi, vko * 32 : vko * 32 + 32])
-                    T.writes(B[vi])
-                    C = T.sblock_alloc_buffer((32,))
+                with Ts.sblock("outer_update"):
+                    vi, vko = Ts.axis.remap("SR", [i, ko])
+                    Ts.reads(B[vi], A[vi, vko * 32 : vko * 32 + 32])
+                    Ts.writes(B[vi])
+                    C = Ts.sblock_alloc_buffer((32,))
                     for ki in range(32):
-                        with T.sblock("inner_1"):
-                            vki = T.axis.spatial(32, ki)
-                            T.reads(A[vi, vko * 32 + vki])
-                            T.writes(C[vki])
+                        with Ts.sblock("inner_1"):
+                            vki = Ts.axis.spatial(32, ki)
+                            Ts.reads(A[vi, vko * 32 + vki])
+                            Ts.writes(C[vki])
                             C[vki] = A[vi, vko * 32 + vki]
                     for ki in range(32):
-                        with T.sblock("inner_2"):
-                            vki = T.axis.reduce(32, ki)
-                            T.reads(B[vi], C[vki])
-                            T.writes(B[vi])
+                        with Ts.sblock("inner_2"):
+                            vki = Ts.axis.reduce(32, ki)
+                            Ts.reads(B[vi], C[vki])
+                            Ts.writes(B[vi])
                             B[vi] = B[vi] + C[vki]
 
     sch = tvm.s_tir.Schedule(nested_block, debug_mask="all")
@@ -358,30 +359,30 @@ def test_decompose_reduction_nested_block():
 
 
 def test_decompose_reduction_with_thread_binding():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((32, 16), "float32"), B: T.Buffer((32,), "float32")):
             for t in T.thread_binding(0, 32, thread="threadIdx.x"):
                 for r in T.serial(16):
-                    with T.sblock("B"):
-                        vi, vr = T.axis.remap("SR", [t, r])
-                        with T.init():
+                    with Ts.sblock("B"):
+                        vi, vr = Ts.axis.remap("SR", [t, r])
+                        with Ts.init():
                             B[vi] = T.float32(0)
                         B[vi] += A[vi, vr]
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((32, 16), "float32"), B: T.Buffer((32,), "float32")):
             for t_init in T.thread_binding(0, 32, thread="threadIdx.x"):
-                with T.sblock("B_init"):
-                    vi = T.axis.remap("S", [t_init])
+                with Ts.sblock("B_init"):
+                    vi = Ts.axis.remap("S", [t_init])
                     B[vi] = T.float32(0)
             for t in T.thread_binding(0, 32, thread="threadIdx.x"):
                 for r in T.serial(16):
-                    with T.sblock("B"):
-                        vi, vr = T.axis.remap("SR", [t, r])
+                    with Ts.sblock("B"):
+                        vi, vr = Ts.axis.remap("SR", [t, r])
                         B[vi] += A[vi, vr]
 
     sch = tvm.s_tir.Schedule(Before)
@@ -392,33 +393,33 @@ def test_decompose_reduction_with_thread_binding():
 
 
 def test_decompose_reduction_preserves_general_spatial_predicates():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((8, 8), "float32"), B: T.Buffer((8,), "float32")):
             for i, k in T.grid(10, 10):
-                with T.sblock("B"):
-                    T.where(1 <= i and i < 9 and 1 <= k and k < 9)
-                    vi = T.axis.spatial(8, i - 1)
-                    vk = T.axis.reduce(8, k - 1)
-                    with T.init():
+                with Ts.sblock("B"):
+                    Ts.where(1 <= i and i < 9 and 1 <= k and k < 9)
+                    vi = Ts.axis.spatial(8, i - 1)
+                    vk = Ts.axis.reduce(8, k - 1)
+                    with Ts.init():
                         B[vi] = T.float32(0)
                     B[vi] += A[vi, vk]
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((8, 8), "float32"), B: T.Buffer((8,), "float32")):
             for i_init in range(10):
-                with T.sblock("B_init"):
-                    T.where(1 <= i_init and i_init < 9)
-                    vi = T.axis.spatial(8, i_init - 1)
+                with Ts.sblock("B_init"):
+                    Ts.where(1 <= i_init and i_init < 9)
+                    vi = Ts.axis.spatial(8, i_init - 1)
                     B[vi] = T.float32(0)
             for i, k in T.grid(10, 10):
-                with T.sblock("B_update"):
-                    T.where(1 <= i and i < 9 and 1 <= k and k < 9)
-                    vi = T.axis.spatial(8, i - 1)
-                    vk = T.axis.reduce(8, k - 1)
+                with Ts.sblock("B_update"):
+                    Ts.where(1 <= i and i < 9 and 1 <= k and k < 9)
+                    vi = Ts.axis.spatial(8, i - 1)
+                    vk = Ts.axis.reduce(8, k - 1)
                     B[vi] += A[vi, vk]
 
     sch = tvm.s_tir.Schedule(Before)
@@ -428,35 +429,35 @@ def test_decompose_reduction_preserves_general_spatial_predicates():
 
 
 def test_decompose_reduction_drops_mixed_rfactor_bound():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((20,), "float32"), B: T.Buffer((), "float32")):
             for k in range(20):
-                with T.sblock("B"):
-                    vk = T.axis.reduce(20, k)
-                    with T.init():
+                with Ts.sblock("B"):
+                    vk = Ts.axis.reduce(20, k)
+                    with Ts.init():
                         B[()] = T.float32(0)
                     B[()] += A[vk]
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((20,), "float32"), B: T.Buffer((), "float32")):
-            B_rf = T.sblock_alloc_buffer((16,), elem_offset=T.int64(0))
+            B_rf = Ts.sblock_alloc_buffer((16,), elem_offset=T.int64(0))
             for k_1_init in range(16):
-                with T.sblock("B_rf_init"):
-                    vk_1 = T.axis.spatial(16, k_1_init)
+                with Ts.sblock("B_rf_init"):
+                    vk_1 = Ts.axis.spatial(16, k_1_init)
                     B_rf[vk_1] = T.float32(0)
             for k_0, k_1 in T.grid(2, 16):
-                with T.sblock("B_rf_update"):
-                    vk_1, vk_0 = T.axis.remap("SR", [k_1, k_0])
-                    T.where(k_0 * 16 + k_1 < 20)
+                with Ts.sblock("B_rf_update"):
+                    vk_1, vk_0 = Ts.axis.remap("SR", [k_1, k_0])
+                    Ts.where(k_0 * 16 + k_1 < 20)
                     B_rf[vk_1] += A[vk_0 * 16 + vk_1]
             for k_1 in range(16):
-                with T.sblock("B"):
-                    vk_1 = T.axis.reduce(16, k_1)
-                    with T.init():
+                with Ts.sblock("B"):
+                    vk_1 = Ts.axis.reduce(16, k_1)
+                    with Ts.init():
                         B[()] = T.float32(0)
                     B[()] += B_rf[vk_1]
 

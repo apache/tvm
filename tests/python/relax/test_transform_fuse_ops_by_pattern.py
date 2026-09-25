@@ -32,6 +32,7 @@ from tvm.relax.dpl.pattern import (
 from tvm.relax.transform import PatternCheckContext
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -614,7 +615,7 @@ def test_compare_with_merge_composite_path():
     )
     tvm.relax.analysis.well_formed(mod1)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected1:
         @R.function
         def fused_relax_multiply_cutlass(
@@ -655,7 +656,7 @@ def test_compare_with_merge_composite_path():
     mod2 = relax.transform.MergeCompositeFunctions()(mod2)
     tvm.relax.analysis.well_formed(mod2)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def fused_relax_multiply1_cutlass(
@@ -698,16 +699,16 @@ def test_multiple_entries_multiple_calls_same_extern():
 
 
 def test_ignore_call_tir():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Conv2dReLUCallTIR:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def relu(
             data: T.Buffer((1, 64, 56, 56), "float32"),
             out: T.Buffer((1, 64, 56, 56), "float32"),
         ):
             for ax0, ax1, ax2, ax3 in T.grid(1, 64, 56, 56):
-                with T.sblock("root"):
-                    i, j, k, l = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                with Ts.sblock("root"):
+                    i, j, k, l = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     out[i, j, k, l] = T.max(data[i, j, k, l], 0.0)
 
         @R.function
@@ -726,19 +727,19 @@ def test_ignore_call_tir():
 
             return relu1
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Conv2dReLUCallTIR_partitioned:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def relu(
             data: T.Buffer((1, 64, 56, 56), "float32"),
             out: T.Buffer((1, 64, 56, 56), "float32"),
         ):
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(1, 64, 56, 56):
-                with T.sblock("root"):
-                    i, j, k, l = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(data[i, j, k, l])
-                    T.writes(out[i, j, k, l])
+                with Ts.sblock("root"):
+                    i, j, k, l = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    Ts.reads(data[i, j, k, l])
+                    Ts.writes(out[i, j, k, l])
                     out[i, j, k, l] = T.max(data[i, j, k, l], T.float32(0))
 
         @R.function(private=True)
@@ -779,7 +780,7 @@ def test_ignore_call_tir():
 
 
 def test_unused():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Conv2dReLU:
         @R.function
         def main(
@@ -793,7 +794,7 @@ def test_unused():
 
             return conv1
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Conv2dReLU_partitioned:
         @R.function(private=True)
         def fused_relax_nn_conv2d(
@@ -849,7 +850,7 @@ def test_check_pattern():
 def test_bind_constants():
     weight = np.random.randn(64, 64, 3, 3).astype("float32")
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Conv2dWithConstantWeight:
         @R.function
         def main(
@@ -861,7 +862,7 @@ def test_bind_constants():
                 R.output(conv1)
             return conv1
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Conv2dWithConstantWeight_partitioned:
         @R.function(private=True)
         def fused_relax_nn_conv2d(
@@ -935,7 +936,7 @@ def test_split():
                 R.output(out)
             return out
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function(private=True)
         def fused_relax_split_relax_add(inp: R.Tensor((16, 32), dtype="float32")) -> R.Tensor(
@@ -981,7 +982,7 @@ def test_clip():
             R.output(gv)
         return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected1:
         @R.function(private=True)
         def fused_relax_clip(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor(
@@ -1017,7 +1018,7 @@ def test_clip():
             R.output(gv0, gv1)
         return gv0, gv1
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function(private=True)
         def fused_relax_clip(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor(
@@ -1059,7 +1060,7 @@ def test_clip():
 
 
 def test_matmul_add3():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         @R.function
         def main(
@@ -1087,7 +1088,7 @@ def test_matmul_add3():
 def test_intermediate_var_to_var_binding():
     """test the intermediate binding y1 will break the fusion"""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         @R.function
         def main(
@@ -1137,7 +1138,7 @@ def test_error_on_repeated_variable_definitions():
 
 
 def test_matmul_symbolic_var():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main(
@@ -1152,7 +1153,7 @@ def test_matmul_symbolic_var():
                 R.output(out)
             return out
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -1258,7 +1259,7 @@ def test_dataflow_inside_branch():
 
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main(
@@ -1279,7 +1280,7 @@ def test_dataflow_inside_branch():
                 out = out_else
             return out
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -1364,7 +1365,7 @@ def test_concat():
             R.output(gv)
         return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected1:
         @R.function(private=True)
         def fused_relax_abs_relax_abs_relax_concat(
@@ -1396,7 +1397,7 @@ def test_concat():
 
     check(mod, [("x.concat_abs_abs", pat_clip)], Expected1)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function(private=True)
         def fused_relax_concat(

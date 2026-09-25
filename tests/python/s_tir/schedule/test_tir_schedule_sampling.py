@@ -24,33 +24,34 @@ import pytest
 import tvm.testing
 from tvm import tirx
 from tvm.s_tir.schedule.testing import verify_trace_roundtrip
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 257, 1470))
     B = T.match_buffer(b, (128, 257, 1470))
     for i, j, k in T.grid(128, 257, 1470):
-        with T.sblock("B"):
-            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+        with Ts.sblock("B"):
+            vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def tiled_conv2d_with_padding(
     inputs: T.Buffer((1, 224, 224, 3), "float32"),
     weight: T.Buffer((7, 7, 3, 64), "float32"),
     conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32"),
 ) -> None:
-    PadInput = T.sblock_alloc_buffer([1, 230, 230, 3], dtype="float32")
+    PadInput = Ts.sblock_alloc_buffer([1, 230, 230, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
-        with T.sblock("PadInput"):
-            i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-            T.reads(inputs[i0_1, i1_1 - 3, i2_1 - 3, i3_1])
-            T.writes(PadInput[i0_1, i1_1, i2_1, i3_1])
+        with Ts.sblock("PadInput"):
+            i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+            Ts.reads(inputs[i0_1, i1_1 - 3, i2_1 - 3, i3_1])
+            Ts.writes(PadInput[i0_1, i1_1, i2_1, i3_1])
             PadInput[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(
                 3 <= i1_1 and i1_1 < 227 and 3 <= i2_1 and i2_1 < 227,
                 inputs[i0_1, i1_1 - 3, i2_1 - 3, i3_1],
@@ -81,18 +82,18 @@ def tiled_conv2d_with_padding(
         i2_3,
         i3_3,
     ) in T.grid(1, 1, 4, 1, 1, 2, 4, 1, 7, 7, 1, 1, 1, 1, 1, 1, 1, 3, 1, 56, 7, 64):
-        with T.sblock("conv2d_nhwc"):
-            n = T.axis.spatial(1, 0)
-            h = T.axis.spatial(112, i1_1_1 * 56 + i1_3)
-            w = T.axis.spatial(112, i2_0 * 28 + i2_1_1 * 7 + i2_3)
-            co, rh, rw, rc = T.axis.remap("SRRR", [i3_3, i4_0, i5_0, i6_1])
-            T.reads(
+        with Ts.sblock("conv2d_nhwc"):
+            n = Ts.axis.spatial(1, 0)
+            h = Ts.axis.spatial(112, i1_1_1 * 56 + i1_3)
+            w = Ts.axis.spatial(112, i2_0 * 28 + i2_1_1 * 7 + i2_3)
+            co, rh, rw, rc = Ts.axis.remap("SRRR", [i3_3, i4_0, i5_0, i6_1])
+            Ts.reads(
                 conv2d_nhwc[n, h, w, co],
                 PadInput[n, h * 2 + rh, w * 2 + rw, co // 64 * 3 + rc],
                 weight[rh, rw, rc, co],
             )
-            T.writes(conv2d_nhwc[n, h, w, co])
-            with T.init():
+            Ts.writes(conv2d_nhwc[n, h, w, co])
+            with Ts.init():
                 conv2d_nhwc[n, h, w, co] = T.float32(0)
             conv2d_nhwc[n, h, w, co] = (
                 conv2d_nhwc[n, h, w, co]
@@ -215,13 +216,13 @@ def test_sample_perfect_tile_after_copy():
 def test_sample_perfect_tile_on_dynamic_loops():
     """Currently dynamic loop is trivially tiled"""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def workload(a: T.handle) -> None:
         n = T.int32()
         A = T.match_buffer(a, (n, 1024))
         for i, j in T.grid(n, 1024):
-            with T.sblock("B"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("B"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 A[vi, vj] = 1.0
 
     sch = tvm.s_tir.Schedule(workload, debug_mask="all")

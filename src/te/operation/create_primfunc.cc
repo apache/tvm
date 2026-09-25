@@ -738,7 +738,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
   }
 
   // The access region does not need to be collected here, as it will
-  // be generated with the later application of "script.Complete" in
+  // be generated with the later application of "s_tir.script.Complete" in
   // GenerateAndCompletePrimFunc.  Waiting until later also handles
   // the case where there is only a single BlockNode, which then
   // becomes the root s_tir::SBlock of the function, and should not have
@@ -845,9 +845,9 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<te::Tensor>& arg_list,
                /*body=*/std::move(body),
                /*ret_type=*/VoidType()),
       {{"global_symbol", ffi::String("main")}, {"tirx.noalias", true}, {tvm::attr::kSTir, true}});
-  const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
+  const auto fcomplete = tvm::ffi::Function::GetGlobal("s_tir.script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
-  func = (*fcomplete)(std::move(func), info->root_alloc, true).cast<PrimFunc>();
+  func = (*fcomplete)(std::move(func), info->root_alloc).cast<PrimFunc>();
   return func;
 }
 
@@ -916,9 +916,9 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_v
                /*body=*/std::move(body),
                /*ret_type=*/VoidType()),
       {{"global_symbol", ffi::String("main")}, {"tirx.noalias", true}, {tvm::attr::kSTir, true}});
-  const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
+  const auto fcomplete = tvm::ffi::Function::GetGlobal("s_tir.script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
-  func = (*fcomplete)(std::move(func), info->root_alloc, true).cast<PrimFunc>();
+  func = (*fcomplete)(std::move(func), info->root_alloc).cast<PrimFunc>();
   return func;
 }
 

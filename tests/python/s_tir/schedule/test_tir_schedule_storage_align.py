@@ -25,82 +25,83 @@ from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def element_wise(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
     # body
-    with T.sblock("root"):
-        T.reads([])
-        T.writes([])
-        B = T.sblock_alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
+    with Ts.sblock("root"):
+        Ts.reads([])
+        Ts.writes([])
+        B = Ts.sblock_alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
-                with T.sblock("B"):
-                    vi, vj = T.axis.remap("SS", [i0, ax1])
-                    T.reads([A[vi, vj]])
-                    T.writes([B[vi, vj]])
+                with Ts.sblock("B"):
+                    vi, vj = Ts.axis.remap("SS", [i0, ax1])
+                    Ts.reads([A[vi, vj]])
+                    Ts.writes([B[vi, vj]])
                     B[vi, vj] = (A[vi, vj]*T.float32(2))
             for i1 in T.serial(0, 128):
-                with T.sblock("C"):
-                    vi_1, vj_1 = T.axis.remap("SS", [i0, i1])
-                    T.reads([B[vi_1, vj_1]])
-                    T.writes([C[vi_1, vj_1]])
+                with Ts.sblock("C"):
+                    vi_1, vj_1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads([B[vi_1, vj_1]])
+                    Ts.writes([C[vi_1, vj_1]])
                     C[vi_1, vj_1] = (B[vi_1, vj_1] + T.float32(1))
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
     # body
-    with T.sblock("root"):
-        T.reads([])
-        T.writes([])
-        B = T.sblock_alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
+    with Ts.sblock("root"):
+        Ts.reads([])
+        Ts.writes([])
+        B = Ts.sblock_alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
-                with T.sblock("B"):
-                    vi, vj = T.axis.remap("SS", [i0, ax1])
-                    T.reads([A[vi, vj]])
-                    T.writes([B[vi, vj]])
-                    T.sblock_attr({"buffer_dim_align":[[0, 0, 128, 127]]})
+                with Ts.sblock("B"):
+                    vi, vj = Ts.axis.remap("SS", [i0, ax1])
+                    Ts.reads([A[vi, vj]])
+                    Ts.writes([B[vi, vj]])
+                    Ts.sblock_attr({"buffer_dim_align":[[0, 0, 128, 127]]})
                     B[vi, vj] = (A[vi, vj]*T.float32(2))
             for i1 in T.serial(0, 128):
-                with T.sblock("C"):
-                    vi_1, vj_1 = T.axis.remap("SS", [i0, i1])
-                    T.reads([B[vi_1, vj_1]])
-                    T.writes([C[vi_1, vj_1]])
+                with Ts.sblock("C"):
+                    vi_1, vj_1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads([B[vi_1, vj_1]])
+                    Ts.writes([C[vi_1, vj_1]])
                     C[vi_1, vj_1] = (B[vi_1, vj_1] + T.float32(1))
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def element_wise_invalid_annotation(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
     # body
-    with T.sblock("root"):
-        T.reads([])
-        T.writes([])
-        B = T.sblock_alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
+    with Ts.sblock("root"):
+        Ts.reads([])
+        Ts.writes([])
+        B = Ts.sblock_alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
-                with T.sblock("B"):
-                    T.sblock_attr({"buffer_dim_align": [0]})
-                    vi, vj = T.axis.remap("SS", [i0, ax1])
-                    T.reads([A[vi, vj]])
-                    T.writes([B[vi, vj]])
+                with Ts.sblock("B"):
+                    Ts.sblock_attr({"buffer_dim_align": [0]})
+                    vi, vj = Ts.axis.remap("SS", [i0, ax1])
+                    Ts.reads([A[vi, vj]])
+                    Ts.writes([B[vi, vj]])
                     B[vi, vj] = (A[vi, vj]*T.float32(2))
             for i1 in T.serial(0, 128):
-                with T.sblock("C"):
-                    vi_1, vj_1 = T.axis.remap("SS", [i0, i1])
-                    T.reads([B[vi_1, vj_1]])
-                    T.writes([C[vi_1, vj_1]])
+                with Ts.sblock("C"):
+                    vi_1, vj_1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads([B[vi_1, vj_1]])
+                    Ts.writes([C[vi_1, vj_1]])
                     C[vi_1, vj_1] = (B[vi_1, vj_1] + T.float32(1))
 
 

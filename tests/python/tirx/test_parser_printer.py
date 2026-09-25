@@ -45,7 +45,7 @@ def _make_minimal_tirx_prim_func():
 
 
 def from_source_tir(code):
-    return tvm.script.from_source(code, s_tir=True)
+    return tvm.script.from_source(code)
 
 
 def test_roundtrip_scopeid1():
@@ -2263,13 +2263,13 @@ def test_buffer_slice_region():
 
 
 def test_global_call_realizes_buffer_elements():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
+        @T.prim_func(private=True)
         def add(a: T.float32, b: T.float32) -> T.float32:
             return a + b
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(
             A: T.Buffer((16,), "float32"),
             B: T.Buffer((16,), "float32"),

@@ -31,6 +31,7 @@ Contents:
 import math
 from typing import Any
 
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -56,7 +57,7 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
     if sliding_window:
         global_symbol += "_sliding_window"
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_decode_paged_kv(
         Q_handle: T.handle,
         pages_handle: T.handle,
@@ -101,20 +102,20 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
         length_info = _declare_length_info(var_length_info, B, sliding_window, length_info_elem_offset)
 
         for b in T.serial(B):
-            with T.sblock("attn"):
-                O_local = T.sblock_alloc_buffer((D,), "float32")
-                Q_local = T.sblock_alloc_buffer((D,), "float32")
-                K_local = T.sblock_alloc_buffer((D,), "float32")
-                V_local = T.sblock_alloc_buffer((D,), "float32")
+            with Ts.sblock("attn"):
+                O_local = Ts.sblock_alloc_buffer((D,), "float32")
+                Q_local = Ts.sblock_alloc_buffer((D,), "float32")
+                K_local = Ts.sblock_alloc_buffer((D,), "float32")
+                V_local = Ts.sblock_alloc_buffer((D,), "float32")
 
-                kv_chunk_len = T.sblock_alloc_buffer((1,), "int32")
+                kv_chunk_len = Ts.sblock_alloc_buffer((1,), "int32")
 
-                m_val = T.sblock_alloc_buffer((1,), "float32")
-                new_m = T.sblock_alloc_buffer((1,), "float32")
-                d_val = T.sblock_alloc_buffer((1,), "float32")
-                S_val = T.sblock_alloc_buffer((1,), "float32")
-                scale_O = T.sblock_alloc_buffer((1,), "float32")
-                factor = T.sblock_alloc_buffer((1,), "float32")
+                m_val = Ts.sblock_alloc_buffer((1,), "float32")
+                new_m = Ts.sblock_alloc_buffer((1,), "float32")
+                d_val = Ts.sblock_alloc_buffer((1,), "float32")
+                S_val = Ts.sblock_alloc_buffer((1,), "float32")
+                scale_O = Ts.sblock_alloc_buffer((1,), "float32")
+                factor = Ts.sblock_alloc_buffer((1,), "float32")
 
                 cur_page_indptr_begin: T.let[T.int32] = page_table_indptr[b]
                 cur_page_indptr_end: T.let[T.int32] = page_table_indptr[b + 1]
@@ -211,7 +212,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
         global_symbol += "_sliding_window"
 
     # pylint: disable=too-many-branches
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_decode_paged_kv(
         Q_handle: T.handle,
         pages_handle: T.handle,
@@ -253,29 +254,29 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                 for ty in T.thread_binding(bdy, thread="threadIdx.y"):
                     for tx in T.thread_binding(bdx, thread="threadIdx.x"):
                         for tz in T.thread_binding(bdz, thread="threadIdx.z"):
-                            with T.sblock("attn"):
-                                Q_local = T.sblock_alloc_buffer((VEC_SIZE,), qkv_dtype, scope="local")
-                                kv_chunk_len = T.sblock_alloc_buffer((1,), "int32", scope="local")
-                                K_smem = T.sblock_alloc_buffer((bdz * bdy * tile_size_per_bdx, D), qkv_dtype, scope="shared")
-                                V_smem = T.sblock_alloc_buffer((bdz * bdy * tile_size_per_bdx, D), qkv_dtype, scope="shared")
-                                O_allreduce = T.sblock_alloc_buffer((bdz, bdy, D), "float32", scope="shared")
-                                md_allreduce = T.sblock_alloc_buffer((bdz, bdy, 2), "float32", scope="shared")
-                                S_reduce_local = T.sblock_alloc_buffer((1,), "float32", scope="local")
-                                t0 = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                            with Ts.sblock("attn"):
+                                Q_local = Ts.sblock_alloc_buffer((VEC_SIZE,), qkv_dtype, scope="local")
+                                kv_chunk_len = Ts.sblock_alloc_buffer((1,), "int32", scope="local")
+                                K_smem = Ts.sblock_alloc_buffer((bdz * bdy * tile_size_per_bdx, D), qkv_dtype, scope="shared")
+                                V_smem = Ts.sblock_alloc_buffer((bdz * bdy * tile_size_per_bdx, D), qkv_dtype, scope="shared")
+                                O_allreduce = Ts.sblock_alloc_buffer((bdz, bdy, D), "float32", scope="shared")
+                                md_allreduce = Ts.sblock_alloc_buffer((bdz, bdy, 2), "float32", scope="shared")
+                                S_reduce_local = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
+                                t0 = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
 
-                                S_local = T.sblock_alloc_buffer((bdy * tile_size_per_bdx), "float32", scope="local")
-                                QK_local = T.sblock_alloc_buffer((VEC_SIZE,), "float32", scope="local")
-                                V_local = T.sblock_alloc_buffer((VEC_SIZE,), qkv_dtype, scope="local")
-                                m_prev = T.sblock_alloc_buffer((1,), "float32", scope="local")
-                                d_prev = T.sblock_alloc_buffer((1,), "float32", scope="local")
-                                other_m = T.sblock_alloc_buffer((1,), "float32", scope="local")
-                                other_d = T.sblock_alloc_buffer((1,), "float32", scope="local")
-                                exp_mprev = T.sblock_alloc_buffer((1,), "float32", scope="local")
-                                exp_otherm = T.sblock_alloc_buffer((1,), "float32", scope="local")
-                                other_o = T.sblock_alloc_buffer((VEC_SIZE,), "float32", scope="local")
-                                st_m = T.sblock_alloc_buffer((1,), "float32", scope="local")
-                                st_d = T.sblock_alloc_buffer((1,), "float32", scope="local")
-                                O_local = T.sblock_alloc_buffer((VEC_SIZE,), "float32", scope="local")
+                                S_local = Ts.sblock_alloc_buffer((bdy * tile_size_per_bdx), "float32", scope="local")
+                                QK_local = Ts.sblock_alloc_buffer((VEC_SIZE,), "float32", scope="local")
+                                V_local = Ts.sblock_alloc_buffer((VEC_SIZE,), qkv_dtype, scope="local")
+                                m_prev = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
+                                d_prev = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
+                                other_m = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
+                                other_d = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
+                                exp_mprev = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
+                                exp_otherm = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
+                                other_o = Ts.sblock_alloc_buffer((VEC_SIZE,), "float32", scope="local")
+                                st_m = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
+                                st_d = Ts.sblock_alloc_buffer((1,), "float32", scope="local")
+                                O_local = Ts.sblock_alloc_buffer((VEC_SIZE,), "float32", scope="local")
 
                                 by: T.let[T.int32] = fused_by_bz % H_kv
                                 bz: T.let[T.int32] = fused_by_bz // H_kv
@@ -307,9 +308,9 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                     tile_start_g: T.let[T.int32()] = ((iterator * bdz + tz) * bdy + ty) * tile_size_per_bdx  # type: ignore
                                     # load KV from global memory to shared memory
                                     for j in T.serial(tile_size_per_bdx):
-                                        with T.sblock("KV_load"):
-                                            T.reads()
-                                            T.writes()
+                                        with Ts.sblock("KV_load"):
+                                            Ts.reads()
+                                            Ts.writes()
                                             row_g: T.let[T.int32()] = tile_start_g + j  # type: ignore
                                             if row_g < kv_chunk_len[0]:
                                                 seq_offset: T.let[T.int32()] = _get_seq_offset(row_g, batch_idx, length_info, sliding_window)  # type: ignore
@@ -337,9 +338,9 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                         for vec in T.unroll(VEC_SIZE):
                                             S_reduce_local[0] += QK_local[vec]
 
-                                        with T.sblock("block_cross_thread"):
-                                            T.reads(S_reduce_local[0])
-                                            T.writes(t0[0])
+                                        with Ts.sblock("block_cross_thread"):
+                                            Ts.reads(S_reduce_local[0])
+                                            Ts.writes(t0[0])
                                             T.attr(
                                                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                                                 "reduce_scope",
@@ -412,7 +413,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
 
 
 def _merge_state_inplace_cpu(v_dtype):
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def merge_state_inplace_cpu(
         v: T.handle,
         s: T.handle,
@@ -431,7 +432,7 @@ def _merge_state_inplace_cpu(v_dtype):
 
         for n in T.serial(N):
             for h in T.serial(H):
-                with T.sblock("merge"):
+                with Ts.sblock("merge"):
                     s_val = _var_cpu("float32")
                     s_other_val = _var_cpu("float32")
                     s_max = _var_cpu("float32")
@@ -463,7 +464,7 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_sy
     gdy = num_heads // bdy
     check_thread_limits(target, bdx=bdx, bdy=bdy, bdz=1, gdz=1)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def merge_state_inplace(
         v: T.handle,
         s: T.handle,
@@ -484,15 +485,15 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_sy
             for by in T.thread_binding(gdy, thread="blockIdx.y"):
                 for ty in T.thread_binding(bdy, thread="threadIdx.y"):
                     for tx in T.thread_binding(bdx, thread="threadIdx.x"):
-                        with T.sblock("merge"):
+                        with Ts.sblock("merge"):
                             s_val = _var("float32")
                             s_other_val = _var("float32")
                             s_max = _var("float32")
                             scale = _var("float32")
                             other_scale = _var("float32")
 
-                            v_vec = T.sblock_alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
-                            v_other_vec = T.sblock_alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
+                            v_vec = Ts.sblock_alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
+                            v_other_vec = Ts.sblock_alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
 
                             s_val[0] = S[bx, ty + by * bdy]
                             s_other_val[0] = S_other[bx, ty + by * bdy]

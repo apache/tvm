@@ -19,6 +19,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.s_tir import dlight as dl
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -29,20 +30,20 @@ def _narrow(func):
 
 
 def test_block():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(8)):
-                with T.sblock():
-                    vi = T.axis.spatial(T.int64(128), i * T.int64(8) + j)
+                with Ts.sblock():
+                    vi = Ts.axis.spatial(T.int64(128), i * T.int64(8) + j)
                     B[vi] = A[vi] + T.float32(1)
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int32(16)):
             for j in T.serial(0, T.int32(8)):
-                with T.sblock():
-                    vi = T.axis.spatial(T.int32(128), i * T.int32(8) + j)
+                with Ts.sblock():
+                    vi = Ts.axis.spatial(T.int32(128), i * T.int32(8) + j)
                     B[vi] = A[vi] + T.float32(1)
 
     tvm.ir.assert_structural_equal(_narrow(before), expected)
@@ -51,21 +52,21 @@ def test_block():
 def test_block_iters_used_only_in_regions():
     """Blockized blocks use their iterators only in access and match_buffer regions."""
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         A: T.Buffer((T.int64(16), T.int64(16)), "float32"),
         B: T.Buffer((T.int64(16), T.int64(16)), "float32"),
     ):
         for i_o, j_o in T.grid(T.int64(2), T.int64(2)):
-            with T.sblock("tile_o"):
-                vi_o, vj_o = T.axis.remap("SS", [i_o, j_o])
-                T.reads(
+            with Ts.sblock("tile_o"):
+                vi_o, vj_o = Ts.axis.remap("SS", [i_o, j_o])
+                Ts.reads(
                     A[
                         vi_o * T.int64(8) : vi_o * T.int64(8) + T.int64(8),
                         vj_o * T.int64(8) : vj_o * T.int64(8) + T.int64(8),
                     ]
                 )
-                T.writes(
+                Ts.writes(
                     B[
                         vi_o * T.int64(8) : vi_o * T.int64(8) + T.int64(8),
                         vj_o * T.int64(8) : vj_o * T.int64(8) + T.int64(8),
@@ -88,17 +89,17 @@ def test_block_iters_used_only_in_regions():
                     offset_factor=1,
                 )
                 for i_i, j_i in T.grid(T.int64(8), T.int64(8)):
-                    with T.sblock("tile"):
-                        vi_i, vj_i = T.axis.remap("SS", [i_i, j_i])
+                    with Ts.sblock("tile"):
+                        vi_i, vj_i = Ts.axis.remap("SS", [i_i, j_i])
                         B_tile[vi_i, vj_i] = A_tile[vi_i, vj_i] + T.float32(1)
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
         for i_o, j_o in T.grid(2, 2):
-            with T.sblock("tile_o"):
-                vi_o, vj_o = T.axis.remap("SS", [i_o, j_o])
-                T.reads(A[vi_o * 8 : vi_o * 8 + 8, vj_o * 8 : vj_o * 8 + 8])
-                T.writes(B[vi_o * 8 : vi_o * 8 + 8, vj_o * 8 : vj_o * 8 + 8])
+            with Ts.sblock("tile_o"):
+                vi_o, vj_o = Ts.axis.remap("SS", [i_o, j_o])
+                Ts.reads(A[vi_o * 8 : vi_o * 8 + 8, vj_o * 8 : vj_o * 8 + 8])
+                Ts.writes(B[vi_o * 8 : vi_o * 8 + 8, vj_o * 8 : vj_o * 8 + 8])
                 A_tile = T.match_buffer(
                     A[vi_o * 8 : vi_o * 8 + 8, vj_o * 8 : vj_o * 8 + 8], (8, 8), offset_factor=1
                 )
@@ -106,20 +107,20 @@ def test_block_iters_used_only_in_regions():
                     B[vi_o * 8 : vi_o * 8 + 8, vj_o * 8 : vj_o * 8 + 8], (8, 8), offset_factor=1
                 )
                 for i_i, j_i in T.grid(8, 8):
-                    with T.sblock("tile"):
-                        vi_i, vj_i = T.axis.remap("SS", [i_i, j_i])
+                    with Ts.sblock("tile"):
+                        vi_i, vj_i = Ts.axis.remap("SS", [i_i, j_i])
                         B_tile[vi_i, vj_i] = A_tile[vi_i, vj_i] + T.float32(1)
 
     tvm.ir.assert_structural_equal(_narrow(before), expected)
 
 
 def test_fail_on_buffer_param():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def func(A: T.Buffer((128,), "int64"), B: T.Buffer((128,), "int64")):
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
-                with T.sblock():
-                    vi = T.axis.spatial(128, i * 8 + j)
+                with Ts.sblock():
+                    vi = Ts.axis.spatial(128, i * 8 + j)
                     B[vi] = A[vi] + T.int64(1)
 
     with pytest.raises(RuntimeError):
@@ -127,18 +128,18 @@ def test_fail_on_buffer_param():
 
 
 def test_fail_on_block_alloc_buffer():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def func(A: T.Buffer((128,), "int32"), B: T.Buffer((128,), "int32")):
-        C = T.sblock_alloc_buffer((128,), "int64")
+        C = Ts.sblock_alloc_buffer((128,), "int64")
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
-                with T.sblock():
-                    vi = T.axis.spatial(128, i * 8 + j)
+                with Ts.sblock():
+                    vi = Ts.axis.spatial(128, i * 8 + j)
                     C[vi] = T.cast(A[vi], "int64") + T.int64(1)
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
-                with T.sblock():
-                    vi = T.axis.spatial(128, i * 8 + j)
+                with Ts.sblock():
+                    vi = Ts.axis.spatial(128, i * 8 + j)
                     B[vi] = T.cast(C[vi] + T.int64(1), "int32")
 
     with pytest.raises(RuntimeError):
@@ -149,7 +150,7 @@ def test_fail_on_block_alloc_buffer():
 def test_metal_simdgroup_matmul_builds():
     """Narrowing a DLight-scheduled Metal matmul keeps its tensorized blocks consistent."""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         var_A: T.handle, B: T.Buffer((T.int64(256), T.int64(256)), "float16"), var_C: T.handle
     ):
@@ -157,9 +158,9 @@ def test_metal_simdgroup_matmul_builds():
         A = T.match_buffer(var_A, (T.int64(1), n, T.int64(256)), "float16")
         C = T.match_buffer(var_C, (T.int64(1), n, T.int64(256)), "float16")
         for i0, i1, i2, k in T.grid(T.int64(1), n, T.int64(256), T.int64(256)):
-            with T.sblock("NT_matmul"):
-                v0, v1, v2, vk = T.axis.remap("SSSR", [i0, i1, i2, k])
-                with T.init():
+            with Ts.sblock("NT_matmul"):
+                v0, v1, v2, vk = Ts.axis.remap("SSSR", [i0, i1, i2, k])
+                with Ts.init():
                     C[v0, v1, v2] = T.float16(0)
                 C[v0, v1, v2] = C[v0, v1, v2] + A[v0, v1, vk] * B[v2, vk]
 

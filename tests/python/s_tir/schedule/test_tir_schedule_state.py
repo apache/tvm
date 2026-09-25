@@ -26,66 +26,67 @@ import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.ir import IRModule
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
-    B = T.sblock_alloc_buffer((128, 128), "float32")
+    B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j in T.grid(128, 128):
-        with T.sblock("init"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("init"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = T.float32(0)
         for k in range(0, 128):
-            with T.sblock("update"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with Ts.sblock("update"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     B = T.match_buffer(b, (128, 128), "float32")
     for i in range(128):
-        with T.sblock("B"):
-            vi = T.axis.S(128, i)
-            T.reads([A[0:128, 0:128]])
-            T.writes([B[0:128, 0:128]])
+        with Ts.sblock("B"):
+            vi = Ts.axis.S(128, i)
+            Ts.reads([A[0:128, 0:128]])
+            Ts.writes([B[0:128, 0:128]])
             B[vi, 0] = A[vi, 0]
             if A[vi, 0] == 0.0:
-                with T.sblock("C"):
-                    T.reads([A[0:128, 0:128]])
-                    T.writes([B[0:128, 0:128]])
+                with Ts.sblock("C"):
+                    Ts.reads([A[0:128, 0:128]])
+                    Ts.writes([B[0:128, 0:128]])
                     for j in range(128):
-                        with T.sblock("D"):
-                            vj = T.axis.S(128, j)
+                        with Ts.sblock("D"):
+                            vj = Ts.axis.S(128, j)
                             B[vi, vj] = A[vi, vj] * 3.0
             else:
-                with T.sblock("E"):
-                    T.reads([A[0:128, 0:128]])
-                    T.writes([B[0:128, 0:128]])
+                with Ts.sblock("E"):
+                    Ts.reads([A[0:128, 0:128]])
+                    Ts.writes([B[0:128, 0:128]])
                     for j in range(128):
-                        with T.sblock("F"):
-                            vj = T.axis.S(128, j)
+                        with Ts.sblock("F"):
+                            vj = Ts.axis.S(128, j)
                             B[vi, vj] = A[vi, vj] * 2.0
 
 

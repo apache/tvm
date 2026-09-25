@@ -50,7 +50,7 @@ def test_codegen_vscale(target):
         pytest.skip(f"{target} not enabled")
     vscale = tvm.tirx.vscale()
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def main(A: T.Buffer((5,), "int32")):
         for i in range(5):
             A[i] = 2 * vscale
@@ -82,7 +82,7 @@ def test_scalable_buffer_load_store(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def my_func(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (128,), "float32")
         B = T.match_buffer(b, (128,), "float32")
@@ -117,7 +117,7 @@ def test_scalable_broadcast(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def my_func(a: T.handle):
         A = T.match_buffer(a, (128,), "float32")
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
@@ -156,7 +156,7 @@ def test_get_active_lane_mask(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def before(a: T.handle):
         A = T.match_buffer(a, (30,), "int1")
         for i in range(T.ceildiv(30, T.vscale() * 4)):
@@ -189,7 +189,7 @@ def test_predicated_scalable_buffer(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def before(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")

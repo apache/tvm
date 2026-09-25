@@ -21,6 +21,7 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -29,27 +30,27 @@ from tvm.target import Target
 
 @tvm.script.ir_module
 class Add:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(a: T.handle, b: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main"})
         A = T.match_buffer(a, [2048, 2048, 2048], dtype="float32")
         B = T.match_buffer(b, [2048, 2048, 2048], dtype="float32")
-        A_cached = T.sblock_alloc_buffer([2048, 2048, 2048], dtype="float32")
+        A_cached = Ts.sblock_alloc_buffer([2048, 2048, 2048], dtype="float32")
         # body
         for i, j, k in T.grid(2048, 2048, 2048):
-            with T.sblock("move"):
-                vi, vj, vk = T.axis.remap("SSS", [i, j, k])
-                T.reads([A[vi, vj, vk]])
-                T.writes([A_cached[vi, vj, vk]])
+            with Ts.sblock("move"):
+                vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
+                Ts.reads([A[vi, vj, vk]])
+                Ts.writes([A_cached[vi, vj, vk]])
                 A_cached[vi, vj, vk] = A[vi, vj, vk]
         for i0, j0, i1, j1, k0, i2, j2, k1 in T.grid(128, 64, 4, 4, 64, 4, 8, 32):
-            with T.sblock("add"):
-                vi = T.axis.spatial(2048, i0 * 16 + i1 * 4 + i2)
-                vj = T.axis.spatial(2048, j0 * 32 + j1 * 8 + j2)
-                vk = T.axis.spatial(2048, k0 * 32 + k1)
-                T.reads([A_cached[vi, vj, vk]])
-                T.writes([B[vi, vj, vk]])
+            with Ts.sblock("add"):
+                vi = Ts.axis.spatial(2048, i0 * 16 + i1 * 4 + i2)
+                vj = Ts.axis.spatial(2048, j0 * 32 + j1 * 8 + j2)
+                vk = Ts.axis.spatial(2048, k0 * 32 + k1)
+                Ts.reads([A_cached[vi, vj, vk]])
+                Ts.writes([B[vi, vj, vk]])
                 B[vi, vj, vk] = A_cached[vi, vj, vk] + T.float32(1)
 
 # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
@@ -57,7 +58,7 @@ class Add:
 
 
 def test_random_compute_location():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def add_0(
         A: T.Buffer((2048, 2048, 2048), "float32"),
         B: T.Buffer((2048, 2048, 2048), "float32"),
@@ -65,24 +66,24 @@ def test_random_compute_location():
         # function attr dict
         T.func_attr({"global_symbol": "main"})
         # body
-        # with T.sblock("root")
-        A_cached = T.sblock_alloc_buffer([2048, 2048, 2048], dtype="float32")
+        # with Ts.sblock("root")
+        A_cached = Ts.sblock_alloc_buffer([2048, 2048, 2048], dtype="float32")
         for i0, j0, i1, j1, k0, i2 in T.grid(128, 64, 4, 4, 64, 4):
             for ax0, ax1, ax2 in T.grid(1, 8, 32):
-                with T.sblock("move"):
-                    vi = T.axis.spatial(2048, i0 * 16 + i1 * 4 + i2 + ax0)
-                    vj = T.axis.spatial(2048, j0 * 32 + j1 * 8 + ax1)
-                    vk = T.axis.spatial(2048, k0 * 32 + ax2)
-                    T.reads(A[vi, vj, vk])
-                    T.writes(A_cached[vi, vj, vk])
+                with Ts.sblock("move"):
+                    vi = Ts.axis.spatial(2048, i0 * 16 + i1 * 4 + i2 + ax0)
+                    vj = Ts.axis.spatial(2048, j0 * 32 + j1 * 8 + ax1)
+                    vk = Ts.axis.spatial(2048, k0 * 32 + ax2)
+                    Ts.reads(A[vi, vj, vk])
+                    Ts.writes(A_cached[vi, vj, vk])
                     A_cached[vi, vj, vk] = A[vi, vj, vk]
             for j2, k1 in T.grid(8, 32):
-                with T.sblock("add"):
-                    vi = T.axis.spatial(2048, i0 * 16 + i1 * 4 + i2)
-                    vj = T.axis.spatial(2048, j0 * 32 + j1 * 8 + j2)
-                    vk = T.axis.spatial(2048, k0 * 32 + k1)
-                    T.reads(A_cached[vi, vj, vk])
-                    T.writes(B[vi, vj, vk])
+                with Ts.sblock("add"):
+                    vi = Ts.axis.spatial(2048, i0 * 16 + i1 * 4 + i2)
+                    vj = Ts.axis.spatial(2048, j0 * 32 + j1 * 8 + j2)
+                    vk = Ts.axis.spatial(2048, k0 * 32 + k1)
+                    Ts.reads(A_cached[vi, vj, vk])
+                    Ts.writes(B[vi, vj, vk])
                     B[vi, vj, vk] = A_cached[vi, vj, vk] + T.float32(1)
 
     decision_0 = [

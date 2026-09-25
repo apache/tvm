@@ -74,7 +74,7 @@ Doc PrintBlock(IRDocsifier d, s_tir::SBlock block, AccessPath block_p,  //
   auto print_single_iter_var = [&](int i) {
     tirx::IterVar iter_var = block->iter_vars[i];
     AccessPath iter_var_p = block_p->Attr("iter_var")->ArrayItem(i);
-    ExprDoc rhs = TIR(d, "axis");
+    ExprDoc rhs = STIR(d, "axis");
     if (iter_var->iter_type == tirx::IterVarType::kDataPar) {
       rhs = rhs->Attr("spatial");
     } else if (iter_var->iter_type == tirx::IterVarType::kCommReduce) {
@@ -131,7 +131,7 @@ Doc PrintBlock(IRDocsifier d, s_tir::SBlock block, AccessPath block_p,  //
         binding_paths.push_back(iter_var_p->Attr("iter_type"));
         binding_type += iter_var->iter_type == tirx::IterVarType::kDataPar ? "S" : "R";
       }
-      ExprDoc rhs = TIR(d, "axis")->Attr("remap");
+      ExprDoc rhs = STIR(d, "axis")->Attr("remap");
       ExprDoc binding_str = LiteralDoc::Str(binding_type, std::nullopt);
       binding_str->source_paths = std::move(binding_paths);
       rhs = rhs->Call({binding_str, ListDoc(loop_var_doc)});
@@ -157,7 +157,7 @@ Doc PrintBlock(IRDocsifier d, s_tir::SBlock block, AccessPath block_p,  //
                    predicate_ty.MatchesCode(DLDataTypeCode::kDLBool));
     if (!tvm::prim::is_one(realize->predicate)) {
       (*frame)->stmts.push_back(ExprStmtDoc(
-          TIR(d, "where")
+          STIR(d, "where")
               ->Call({d->AsDoc<ExprDoc>(realize->predicate, realize_p->Attr("predicate"))})));
     }
   }
@@ -167,17 +167,17 @@ Doc PrintBlock(IRDocsifier d, s_tir::SBlock block, AccessPath block_p,  //
     for (int i = 0, n = block->reads.size(); i < n; ++i) {
       reads.push_back(d->AsDoc<ExprDoc>(block->reads[i], block_p->Attr("reads")->ArrayItem(i)));
     }
-    (*frame)->stmts.push_back(ExprStmtDoc(TIR(d, "reads")->Call(reads)));
+    (*frame)->stmts.push_back(ExprStmtDoc(STIR(d, "reads")->Call(reads)));
     ffi::Array<ExprDoc> writes;
     for (int i = 0, n = block->writes.size(); i < n; ++i) {
       writes.push_back(d->AsDoc<ExprDoc>(block->writes[i], block_p->Attr("writes")->ArrayItem(i)));
     }
-    (*frame)->stmts.push_back(ExprStmtDoc(TIR(d, "writes")->Call(writes)));
+    (*frame)->stmts.push_back(ExprStmtDoc(STIR(d, "writes")->Call(writes)));
   }
   // Step 4. Handle block attributes
   if (!block->annotations.empty()) {
     (*frame)->stmts.push_back(ExprStmtDoc(
-        TIR(d, "sblock_attr")
+        STIR(d, "sblock_attr")
             ->Call({d->AsDoc<ExprDoc>(block->annotations, block_p->Attr("annotations"))})));
   }
   // Step 5. Handle `alloc_buffer`
@@ -202,7 +202,7 @@ Doc PrintBlock(IRDocsifier d, s_tir::SBlock block, AccessPath block_p,  //
     With<TIRFrame> init_frame(d, init);
     AsDocBody(init, block_p->Attr("init"), init_frame->get(), d);
     (*frame)->stmts.push_back(
-        ScopeDoc(std::nullopt, TIR(d, "init")->Call({}), (*init_frame)->stmts));
+        ScopeDoc(std::nullopt, STIR(d, "init")->Call({}), (*init_frame)->stmts));
   }
   // Step 8. Handle block body
   AsDocBody(block->body, block_p->Attr("body"), frame->get(), d);
@@ -213,7 +213,7 @@ Doc PrintBlock(IRDocsifier d, s_tir::SBlock block, AccessPath block_p,  //
     kwargs_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
   }
   return ScopeDoc(std::nullopt,
-                  TIR(d, "sblock")  //
+                  STIR(d, "sblock")  //
                       ->Call({LiteralDoc::Str(block->name_hint, block_p->Attr("name_hint"))},
                              kwargs_keys, kwargs_values),
                   (*frame)->stmts);

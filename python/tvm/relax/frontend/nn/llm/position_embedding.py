@@ -24,6 +24,7 @@ from typing import Any
 
 from tvm import tirx
 from tvm.relax.frontend.nn import Tensor, op
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=invalid-name
@@ -390,7 +391,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
             expr = tirx.Let(var, value, expr)
         return expr
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
         var_q: T.handle,
@@ -411,8 +412,8 @@ def llama_rope(  # pylint: disable=too-many-arguments
         k = T.match_buffer(var_k, (batch_size, seq_len, num_kv_heads, head_dim), dtype)
         v = T.match_buffer(var_v, (batch_size, seq_len, num_kv_heads, head_dim), dtype)
         for iters in T.grid(batch_size, seq_len, fused_heads, head_dim):
-            with T.sblock("llama_fused_rope"):
-                b, s, h, d = T.axis.remap("SSSS", iters)
+            with Ts.sblock("llama_fused_rope"):
+                b, s, h, d = Ts.axis.remap("SSSS", iters)
                 if h < num_q_heads:
                     q[b, s, h, d] = T.if_then_else(
                         d < rotary_dim,
@@ -522,7 +523,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
             expr = tirx.Let(var, value, expr)
         return expr
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
         var_position_map: T.handle,
@@ -547,8 +548,8 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
             var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
         )
         for iters in T.grid(seq_len, fused_heads, head_dim):
-            with T.sblock("llama_fused_rope"):
-                s, h, d = T.axis.remap("SSS", iters)
+            with Ts.sblock("llama_fused_rope"):
+                s, h, d = Ts.axis.remap("SSS", iters)
                 if h < num_q_heads:
                     q[s, h, d] = T.if_then_else(
                         apply_rope > 0 and d < rotary_dim,
@@ -564,7 +565,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                 else:
                     v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
         var_position_map: T.handle,
@@ -599,8 +600,8 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
 
         if seq_len > original_max_position_embeddings:
             for iters in T.grid(seq_len, fused_heads, head_dim):
-                with T.sblock("llama_fused_rope"):
-                    s, h, d = T.axis.remap("SSS", iters)
+                with Ts.sblock("llama_fused_rope"):
+                    s, h, d = Ts.axis.remap("SSS", iters)
                     if h < num_q_heads:
                         q[s, h, d] = T.if_then_else(
                             d < rotary_dim,
@@ -631,8 +632,8 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                         v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
         else:
             for iters in T.grid(seq_len, fused_heads, head_dim):
-                with T.sblock("llama_fused_rope"):
-                    s, h, d = T.axis.remap("SSS", iters)
+                with Ts.sblock("llama_fused_rope"):
+                    s, h, d = Ts.axis.remap("SSS", iters)
                     if h < num_q_heads:
                         q[s, h, d] = T.if_then_else(
                             d < rotary_dim,
@@ -749,7 +750,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
             expr = tirx.Let(var, value, expr)
         return expr
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
         var_position_map: T.handle,
@@ -774,8 +775,8 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
             var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
         )
         for iters in T.grid(seq_len, fused_heads, head_dim):
-            with T.sblock("llama_fused_rope"):
-                s, h, d = T.axis.remap("SSS", iters)
+            with Ts.sblock("llama_fused_rope"):
+                s, h, d = Ts.axis.remap("SSS", iters)
                 if h < num_q_heads:
                     q[s, h, d] = T.if_then_else(
                         apply_rope > 0 and d < rotary_dim,
@@ -791,7 +792,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
                 else:
                     v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
         var_position_map: T.handle,
@@ -826,8 +827,8 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
 
         if seq_len > original_max_position_embeddings:
             for iters in T.grid(seq_len, fused_heads, head_dim):
-                with T.sblock("llama_fused_rope"):
-                    s, h, d = T.axis.remap("SSS", iters)
+                with Ts.sblock("llama_fused_rope"):
+                    s, h, d = Ts.axis.remap("SSS", iters)
                     if h < num_q_heads:
                         q[s, h, d] = T.if_then_else(
                             d < rotary_dim,
@@ -858,8 +859,8 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
                         v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
         else:
             for iters in T.grid(seq_len, fused_heads, head_dim):
-                with T.sblock("llama_fused_rope"):
-                    s, h, d = T.axis.remap("SSS", iters)
+                with Ts.sblock("llama_fused_rope"):
+                    s, h, d = Ts.axis.remap("SSS", iters)
                     if h < num_q_heads:
                         q[s, h, d] = T.if_then_else(
                             d < rotary_dim,

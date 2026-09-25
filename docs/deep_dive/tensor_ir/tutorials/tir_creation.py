@@ -57,12 +57,13 @@ import tvm_ffi
 
 import tvm
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 @I.ir_module
 class MyModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mm_relu(
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128, 128), "float32"),
@@ -72,22 +73,22 @@ class MyModule:
         for i in range(128):
             for j in range(128):
                 for k in range(128):
-                    with T.sblock("Y"):
-                        vi = T.axis.spatial(128, i)
-                        vj = T.axis.spatial(128, j)
-                        vk = T.axis.reduce(128, k)
-                        T.reads(A[vi, vk], B[vk, vj])
-                        T.writes(Y[vi, vj])
-                        with T.init():
+                    with Ts.sblock("Y"):
+                        vi = Ts.axis.spatial(128, i)
+                        vj = Ts.axis.spatial(128, j)
+                        vk = Ts.axis.reduce(128, k)
+                        Ts.reads(A[vi, vk], B[vk, vj])
+                        Ts.writes(Y[vi, vj])
+                        with Ts.init():
                             Y[vi, vj] = T.float32(0)
                         Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i in range(128):
             for j in range(128):
-                with T.sblock("C"):
-                    vi = T.axis.spatial(128, i)
-                    vj = T.axis.spatial(128, j)
-                    T.reads(Y[vi, vj])
-                    T.writes(C[vi, vj])
+                with Ts.sblock("C"):
+                    vi = Ts.axis.spatial(128, i)
+                    vj = Ts.axis.spatial(128, j)
+                    Ts.reads(Y[vi, vj])
+                    Ts.writes(C[vi, vj])
                     C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
 
 
@@ -98,14 +99,14 @@ class MyModule:
 # streamline the code:
 #
 # - Utilize ``T.grid`` to condense nested loops;
-# - Employ ``T.axis.remap`` to abbreviate block iterator annotations;
-# - Exclude ``T.reads`` and ``T.writes`` for blocks whose content can
+# - Employ ``Ts.axis.remap`` to abbreviate block iterator annotations;
+# - Exclude ``Ts.reads`` and ``Ts.writes`` for blocks whose content can
 #   be inferred from the block body;
 
 
 @I.ir_module
 class ConciseModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mm_relu(
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128, 128), "float32"),
@@ -113,14 +114,14 @@ class ConciseModule:
     ):
         Y = T.alloc_buffer((128, 128), dtype="float32")
         for i, j, k in T.grid(128, 128, 128):
-            with T.sblock("Y"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("Y"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     Y[vi, vj] = T.float32(0)
                 Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(128, 128):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("C"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
 
 
@@ -144,7 +145,7 @@ dtype = "float32"
 # IRModule in TVMScript
 @I.ir_module
 class ConciseModuleFromPython:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mm_relu(
         A: T.Buffer((M, K), dtype),
         B: T.Buffer((K, N), dtype),
@@ -152,14 +153,14 @@ class ConciseModuleFromPython:
     ):
         Y = T.alloc_buffer((M, N), dtype)
         for i, j, k in T.grid(M, N, K):
-            with T.sblock("Y"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("Y"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     Y[vi, vj] = T.cast(T.float32(0), dtype)
                 Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(M, N):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("C"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 C[vi, vj] = T.max(Y[vi, vj], T.cast(T.float32(0), dtype))
 
 
@@ -179,7 +180,7 @@ print(tvm_ffi.structural_equal(ConciseModule, ConciseModuleFromPython))
 
 @I.ir_module
 class DynamicShapeModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mm_relu(a: T.handle, b: T.handle, c: T.handle):
         # Dynamic shape definition
         M = T.int32()
@@ -192,14 +193,14 @@ class DynamicShapeModule:
         C = T.match_buffer(c, [M, N], dtype)
         Y = T.alloc_buffer((M, N), dtype)
         for i, j, k in T.grid(M, N, K):
-            with T.sblock("Y"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("Y"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     Y[vi, vj] = T.cast(T.float32(0), dtype)
                 Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(M, N):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("C"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 C[vi, vj] = T.max(Y[vi, vj], T.cast(T.float32(0), dtype))
 
 

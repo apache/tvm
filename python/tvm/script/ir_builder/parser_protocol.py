@@ -852,7 +852,7 @@ def module_member_(name: str, value: Any) -> Any:
         # Source
         class Module:
             helper = existing_function
-        # Generated builder, inside I.ir_module()
+        # Generated builder, inside I.ir_module
         helper = I.module_member_("helper", existing_function)
     """
     from tvm.ir import BaseFunc
@@ -898,7 +898,7 @@ def function_(*, decl: bool = False, span: _Span = None, **options: Any) -> IRBu
         unspecified; active source-call provenance is composed by the builder. Frames
         retain their location until finalization.
     options : Any
-        Language variant options: TIRx ``private``, ``s_tir`` and ``persistent``
+        Language variant options: primitive function ``private`` and ``persistent``
         default to False. Relax ``pure`` defaults to True and ``private``/``local``
         to False; ``local=True`` requires a declared reference when building its
         body. See :func:`tvm.tirx.script.ir_builder.function_` and

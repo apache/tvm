@@ -40,6 +40,7 @@ and relax NNModule API.
 from tvm import relax, topi
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -71,15 +72,15 @@ RelaxModule.show()
 
 @I.ir_module
 class RelaxModuleWithTIR:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def relu(x: T.handle, y: T.handle):
         n = T.int64()
         m = T.int64()
         X = T.match_buffer(x, (n, m), "float32")
         Y = T.match_buffer(y, (n, m), "float32")
         for i, j in T.grid(n, m):
-            with T.sblock("relu"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("relu"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 Y[vi, vj] = T.max(X[vi, vj], T.float32(0))
 
     @R.function
@@ -164,7 +165,7 @@ mod.show()
 # Tensor Expression(TE), TensorIR functions or other TVM packed functions.
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def tir_linear(x: T.handle, w: T.handle, b: T.handle, z: T.handle):
     M = T.int64()
     N = T.int64()
@@ -174,14 +175,14 @@ def tir_linear(x: T.handle, w: T.handle, b: T.handle, z: T.handle):
     B = T.match_buffer(b, (N,), "float32")
     Z = T.match_buffer(z, (M, N), "float32")
     for i, j, k in T.grid(M, N, K):
-        with T.sblock("linear"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("linear"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 Z[vi, vj] = 0
             Z[vi, vj] = Z[vi, vj] + X[vi, vk] * W[vj, vk]
     for i, j in T.grid(M, N):
-        with T.sblock("add"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("add"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             Z[vi, vj] = Z[vi, vj] + B[vj]
 
 

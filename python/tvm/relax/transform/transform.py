@@ -112,7 +112,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(
@@ -131,7 +131,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class After:
             @R.function
             def main(
@@ -170,7 +170,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(
@@ -188,7 +188,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(
@@ -1147,7 +1147,7 @@ def LegalizeOps(
                 r = R.call_tir(multiply, (y, z), (2, 3), dtype="float32")
                 return r
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def add(
                 A: T.Buffer((2, 3), "float32"),
                 B: T.Buffer((2, 3), "float32"),
@@ -1155,13 +1155,13 @@ def LegalizeOps(
             ):
                 T.func_attr({"tirx.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
-                    with T.sblock("T_add"):
-                        v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                        T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
-                        T.writes(T_add[v_ax0, v_ax1])
+                    with Ts.sblock("T_add"):
+                        v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                        Ts.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                        Ts.writes(T_add[v_ax0, v_ax1])
                         T_add[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def multiply(
                 A: T.Buffer((2, 3), "float32"),
                 B: T.Buffer((2, 3), "float32"),
@@ -1169,10 +1169,10 @@ def LegalizeOps(
             ):
                 T.func_attr({"tirx.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
-                    with T.sblock("T_multiply"):
-                        v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                        T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
-                        T.writes(T_multiply[v_ax0, v_ax1])
+                    with Ts.sblock("T_multiply"):
+                        v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                        Ts.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                        Ts.writes(T_multiply[v_ax0, v_ax1])
                         T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[v_ax0, v_ax1]
     """
 

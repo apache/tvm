@@ -33,6 +33,7 @@ from tvm.s_tir.meta_schedule.builder import (
     LocalBuilder,
     PyBuilder,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -41,23 +42,23 @@ from tvm.target import Target
 
 @script.ir_module
 class MatmulModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "matmul", "tirx.noalias": True})
         A = T.match_buffer(a, (1024, 1024), "float32")
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
 @script.ir_module
 class MatmulReluModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def matmul_relu(  # pylint: disable=no-self-argument
         a: T.handle, b: T.handle, d: T.handle
     ) -> None:
@@ -65,22 +66,22 @@ class MatmulReluModule:
         A = T.match_buffer(a, (1024, 1024), "float32")
         B = T.match_buffer(b, (1024, 1024), "float32")
         D = T.match_buffer(d, (1024, 1024), "float32")
-        C = T.sblock_alloc_buffer((1024, 1024), "float32")
+        C = Ts.sblock_alloc_buffer((1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(1024, 1024):
-            with T.sblock("relu"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("relu"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
 @script.ir_module
 class BatchMatmulModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_matmul(  # pylint: disable=no-self-argument
         a: T.handle, b: T.handle, c: T.handle
     ) -> None:
@@ -89,9 +90,9 @@ class BatchMatmulModule:
         B = T.match_buffer(b, [16, 128, 128])
         C = T.match_buffer(c, [16, 128, 128])
         for n, i, j, k in T.grid(16, 128, 128, 128):
-            with T.sblock("update"):
-                vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
-                with T.init():
+            with Ts.sblock("update"):
+                vn, vi, vj, vk = Ts.axis.remap("SSSR", [n, i, j, k])
+                with Ts.init():
                     C[vn, vi, vj] = 0.0
                 C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
 

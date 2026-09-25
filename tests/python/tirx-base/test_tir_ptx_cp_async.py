@@ -24,31 +24,24 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func(s_tir=True)
+@T.prim_func
 def ptx_cp_async(A: T.Buffer((32, 128), "float16"), B: T.Buffer((32, 128), "float16")) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     bx = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    with T.sblock():
-        A_shared = T.sblock_alloc_buffer([32, 128], "float16", scope="shared")
-        T.reads(A[0:32, 0:128])
-        T.writes(B[0:32, 0:128])
-
-        for i in range(16):
-            T.evaluate(
-                T.s_tir.cp_async_raw.legacy(
-                    A_shared.data, tx * 128 + 8 * i, A.data, tx * 128 + 8 * i, 16, dtype="float16"
-                )
+    A_shared = T.alloc_buffer([32, 128], "float16", scope="shared")
+    for i in range(16):
+        T.evaluate(
+            T.s_tir.cp_async_raw.legacy(
+                A_shared.data, tx * 128 + 8 * i, A.data, tx * 128 + 8 * i, 16, dtype="float16"
             )
-
-        # TODO(masahi): Remove dtype requirement from TVMScript parser
-        T.evaluate(T.ptx.cp.async_.commit_group())
-        T.evaluate(T.ptx.cp.async_.wait_group(0))
-
-        for i in range(128):
-            B[tx, i] = A_shared[tx, i]
+        )
+    T.evaluate(T.ptx.cp.async_.commit_group())
+    T.evaluate(T.ptx.cp.async_.wait_group(0))
+    for i in range(128):
+        B[tx, i] = A_shared[tx, i]
 
 
 @pytest.mark.gpu

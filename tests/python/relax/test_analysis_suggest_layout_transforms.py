@@ -20,6 +20,7 @@ import pytest
 
 import tvm.testing
 from tvm import relax, s_tir, tirx
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -43,21 +44,21 @@ def apply_transformations(func, suggested_transfoms, print_transformation=False)
 
 
 def test_nested_blocks():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def nested_block(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         relu: T.Buffer((32, 64, 224, 224), "float32"),
     ):
         for i, j in T.grid(32, 64):
-            with T.sblock("outer"):
-                v_i, v_j = T.axis.remap("SS", [i, j])
-                T.reads(arg[v_i, v_j, 0:224, 0:224])
-                T.writes(relu[v_i, v_j, 0:224, 0:224])
+            with Ts.sblock("outer"):
+                v_i, v_j = Ts.axis.remap("SS", [i, j])
+                Ts.reads(arg[v_i, v_j, 0:224, 0:224])
+                Ts.writes(relu[v_i, v_j, 0:224, 0:224])
                 for k, l in T.grid(224, 224):
-                    with T.sblock("inner"):
-                        v_k, v_l = T.axis.remap("SS", [k, l])
-                        T.reads(arg[v_i, v_j, v_k, v_l])
-                        T.writes(relu[v_i, v_j, v_k, v_l])
+                    with Ts.sblock("inner"):
+                        v_k, v_l = Ts.axis.remap("SS", [k, l])
+                        Ts.reads(arg[v_i, v_j, v_k, v_l])
+                        Ts.writes(relu[v_i, v_j, v_k, v_l])
                         relu[v_i, v_j, v_k, v_l] = T.max(arg[v_i, v_j, v_k, v_l], T.float32(0))
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
@@ -68,16 +69,16 @@ def test_nested_blocks():
 
 
 def test_mismatch_transformations_and_num_params():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def elemwise(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         relu: T.Buffer((32, 64, 224, 224), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 224, 224):
-            with T.sblock("compute"):
-                v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                T.reads(arg[v_i0, v_i1, v_i2, v_i3])
-                T.writes(relu[v_i0, v_i1, v_i2, v_i3])
+            with Ts.sblock("compute"):
+                v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                Ts.reads(arg[v_i0, v_i1, v_i2, v_i3])
+                Ts.writes(relu[v_i0, v_i1, v_i2, v_i3])
                 relu[v_i0, v_i1, v_i2, v_i3] = T.max(arg[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
     with pytest.raises(RuntimeError, match="Incompatible PrimFunc and write_transformations"):
@@ -92,16 +93,16 @@ def test_mismatch_transformations_and_num_params():
 
 
 def test_empty_write_transformations():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def elemwise(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         relu: T.Buffer((32, 64, 224, 224), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 224, 224):
-            with T.sblock("compute"):
-                v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                T.reads(arg[v_i0, v_i1, v_i2, v_i3])
-                T.writes(relu[v_i0, v_i1, v_i2, v_i3])
+            with Ts.sblock("compute"):
+                v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                Ts.reads(arg[v_i0, v_i1, v_i2, v_i3])
+                Ts.writes(relu[v_i0, v_i1, v_i2, v_i3])
                 relu[v_i0, v_i1, v_i2, v_i3] = T.max(arg[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
@@ -111,16 +112,16 @@ def test_empty_write_transformations():
 
 
 def test_non_bijective_block_transform():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64), "float32"),
         output: T.Buffer((32, 64), "float32"),
     ):
         for ax0, ax1 in T.grid(32, 64):
-            with T.sblock("compute"):
-                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                T.reads(arg[v_ax0, v_ax1])
-                T.writes(output[v_ax0, v_ax1])
+            with Ts.sblock("compute"):
+                v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                Ts.reads(arg[v_ax0, v_ax1])
+                Ts.writes(output[v_ax0, v_ax1])
                 output[v_ax0, v_ax1] = arg[v_ax0, v_ax1]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
@@ -130,16 +131,16 @@ def test_non_bijective_block_transform():
 
 
 def test_non_affine_access():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64), "float32"),
         output: T.Buffer((32 * 64, 10), "float32"),
     ):
         for ax0, ax1, ax2 in T.grid(32, 64, 10):
-            with T.sblock("compute"):
-                v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
-                T.reads(arg[v_ax0, v_ax1])
-                T.writes(output[v_ax0 * v_ax1, v_ax2])
+            with Ts.sblock("compute"):
+                v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
+                Ts.reads(arg[v_ax0, v_ax1])
+                Ts.writes(output[v_ax0 * v_ax1, v_ax2])
                 output[v_ax0 * v_ax1, v_ax2] = arg[v_ax0, v_ax1]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
@@ -149,16 +150,16 @@ def test_non_affine_access():
 
 
 def test_unsupported_write_spatial_layout():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((4, 4), "float32"),
         output: T.Buffer((16), "float32"),
     ):
         for ax0, ax1 in T.grid(4, 4):
-            with T.sblock("flatten"):
-                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                T.reads(arg[v_ax0, v_ax1])
-                T.writes(output[v_ax0 * 4 + v_ax1])
+            with Ts.sblock("flatten"):
+                v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                Ts.reads(arg[v_ax0, v_ax1])
+                Ts.writes(output[v_ax0 * 4 + v_ax1])
                 output[v_ax0 * 4 + v_ax1] = arg[v_ax0, v_ax1]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
@@ -168,28 +169,28 @@ def test_unsupported_write_spatial_layout():
 
 
 def test_unpacked_iter_used_in_read_access():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((8, 4), "float32"),
         output: T.Buffer((4, 8), "float32"),
     ):
         for ax0, ax1, ax2 in T.grid(4, 8, 4):
-            with T.sblock("compute"):
-                v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
-                T.reads(arg[v_ax1, v_ax2])
-                T.writes(output[v_ax0, v_ax1])
+            with Ts.sblock("compute"):
+                v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
+                Ts.reads(arg[v_ax1, v_ax2])
+                Ts.writes(output[v_ax0, v_ax1])
                 output[v_ax0, v_ax1] = arg[v_ax1, v_ax2]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((8, 4), "float32"),
         output: T.Buffer((32), "float32"),
     ):
         for ax0, ax2 in T.grid(32, 4):
-            with T.sblock("compute"):
-                v_ax0, v_ax2 = T.axis.remap("SS", [ax0, ax2])
-                T.reads(arg[v_ax0 % 8, v_ax2])
-                T.writes(output[v_ax0])
+            with Ts.sblock("compute"):
+                v_ax0, v_ax2 = Ts.axis.remap("SS", [ax0, ax2])
+                Ts.reads(arg[v_ax0 % 8, v_ax2])
+                Ts.writes(output[v_ax0])
                 output[v_ax0] = arg[v_ax0 % 8, v_ax2]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
@@ -200,16 +201,16 @@ def test_unpacked_iter_used_in_read_access():
 
 
 def test_invalid_index_map():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def elemwise(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         relu: T.Buffer((32, 64, 224, 224), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 224, 224):
-            with T.sblock("compute"):
-                v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                T.reads(arg[v_i0, v_i1, v_i2, v_i3])
-                T.writes(relu[v_i0, v_i1, v_i2, v_i3])
+            with Ts.sblock("compute"):
+                v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                Ts.reads(arg[v_i0, v_i1, v_i2, v_i3])
+                Ts.writes(relu[v_i0, v_i1, v_i2, v_i3])
                 relu[v_i0, v_i1, v_i2, v_i3] = T.max(arg[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
     with pytest.raises(RuntimeError, match="Mismatch between output buffer shape and index map"):
@@ -221,31 +222,31 @@ def test_invalid_index_map():
 
 
 def test_SRSR_block():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 224, 64, 224), "float32"),
         sum: T.Buffer((32, 64), "float32"),
     ):
         for ax0, k2, ax1, k3 in T.grid(32, 224, 64, 224):
-            with T.sblock("rxplaceholder_red"):
-                v_ax0, v_k2, v_ax1, v_k3 = T.axis.remap("SRSR", [ax0, k2, ax1, k3])
-                T.reads(arg[v_ax0, v_ax1, v_k2, v_k3])
-                T.writes(sum[v_ax0, v_ax1])
-                with T.init():
+            with Ts.sblock("rxplaceholder_red"):
+                v_ax0, v_k2, v_ax1, v_k3 = Ts.axis.remap("SRSR", [ax0, k2, ax1, k3])
+                Ts.reads(arg[v_ax0, v_ax1, v_k2, v_k3])
+                Ts.writes(sum[v_ax0, v_ax1])
+                with Ts.init():
                     sum[v_ax0, v_ax1] = T.float32(0)
                 sum[v_ax0, v_ax1] = sum[v_ax0, v_ax1] + arg[v_ax0, v_k2, v_ax1, v_k3]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 16, 224, 4), "float32"),
         sum: T.Buffer((32, 16, 4), "float32"),
     ):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 224, 16, 224, 4):
-            with T.sblock("rxplaceholder_red"):
-                v0, v1, v2, v3, v4 = T.axis.remap("SRSRS", [ax0, ax1, ax2, ax3, ax4])
-                T.reads(arg[v0, v1, v2, v3, v4])
-                T.writes(sum[v0, v2, v4])
-                with T.init():
+            with Ts.sblock("rxplaceholder_red"):
+                v0, v1, v2, v3, v4 = Ts.axis.remap("SRSRS", [ax0, ax1, ax2, ax3, ax4])
+                Ts.reads(arg[v0, v1, v2, v3, v4])
+                Ts.writes(sum[v0, v2, v4])
+                with Ts.init():
                     sum[v0, v2, v4] = T.float32(0)
                 sum[v0, v2, v4] = sum[v0, v2, v4] + arg[v0, v1, v2, v3, v4]
 
@@ -257,7 +258,7 @@ def test_SRSR_block():
 
 
 def test_op_elemwise_symbolic():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(arg: T.handle, relu: T.handle):
         N = T.int64()
         C = T.int64()
@@ -266,13 +267,13 @@ def test_op_elemwise_symbolic():
         Arg = T.match_buffer(arg, (N, C, H, W))
         Relu = T.match_buffer(relu, (N, C, H, W))
         for i0, i1, i2, i3 in T.grid(N, C, H, W):
-            with T.sblock("compute"):
-                v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                T.reads(Arg[v_i0, v_i1, v_i2, v_i3])
-                T.writes(Relu[v_i0, v_i1, v_i2, v_i3])
+            with Ts.sblock("compute"):
+                v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                Ts.reads(Arg[v_i0, v_i1, v_i2, v_i3])
+                Ts.writes(Relu[v_i0, v_i1, v_i2, v_i3])
                 Relu[v_i0, v_i1, v_i2, v_i3] = T.max(Arg[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(arg: T.handle, relu: T.handle):
         N = T.int64()
         C = T.int64()
@@ -280,12 +281,12 @@ def test_op_elemwise_symbolic():
         W = T.int64()
         Arg = T.match_buffer(arg, (N, H, W, C))
         Relu = T.match_buffer(relu, (N, H, W, C))
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3 in T.grid(N, H, W, C):
-            with T.sblock("compute"):
-                v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                T.reads(Arg[v0, v1, v2, v3])
-                T.writes(Relu[v0, v1, v2, v3])
+            with Ts.sblock("compute"):
+                v0, v1, v2, v3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Ts.reads(Arg[v0, v1, v2, v3])
+                Ts.writes(Relu[v0, v1, v2, v3])
                 Relu[v0, v1, v2, v3] = T.max(Arg[v0, v1, v2, v3], T.float32(0))
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
@@ -296,28 +297,28 @@ def test_op_elemwise_symbolic():
 
 
 def test_op_elemwise():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         relu: T.Buffer((32, 64, 224, 224), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 224, 224):
-            with T.sblock("compute"):
-                v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                T.reads(arg[v_i0, v_i1, v_i2, v_i3])
-                T.writes(relu[v_i0, v_i1, v_i2, v_i3])
+            with Ts.sblock("compute"):
+                v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                Ts.reads(arg[v_i0, v_i1, v_i2, v_i3])
+                Ts.writes(relu[v_i0, v_i1, v_i2, v_i3])
                 relu[v_i0, v_i1, v_i2, v_i3] = T.max(arg[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 224, 64), "float32"),
         relu: T.Buffer((32, 224, 224, 64), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 224, 224, 64):
-            with T.sblock("compute"):
-                v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                T.reads(arg[v0, v1, v2, v3])
-                T.writes(relu[v0, v1, v2, v3])
+            with Ts.sblock("compute"):
+                v0, v1, v2, v3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Ts.reads(arg[v0, v1, v2, v3])
+                Ts.writes(relu[v0, v1, v2, v3])
                 relu[v0, v1, v2, v3] = T.max(arg[v0, v1, v2, v3], T.float32(0))
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
@@ -328,17 +329,17 @@ def test_op_elemwise():
 
 
 def test_op_pool_nchw_nhwc():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         pool_max: T.Buffer((32, 64, 111, 223), "float32"),
     ):
         for ax0, ax1, ax2, ax3, rv0, rv1 in T.grid(32, 64, 111, 223, 2, 2):
-            with T.sblock("pool_max"):
-                v_ax0, v_ax1, v_ax2, v_ax3, v_rv0, v_rv1 = T.axis.remap(
+            with Ts.sblock("pool_max"):
+                v_ax0, v_ax1, v_ax2, v_ax3, v_rv0, v_rv1 = Ts.axis.remap(
                     "SSSSRR", [ax0, ax1, ax2, ax3, rv0, rv1]
                 )
-                T.reads(
+                Ts.reads(
                     arg[
                         v_ax0,
                         v_ax1,
@@ -346,9 +347,9 @@ def test_op_pool_nchw_nhwc():
                         v_ax3 + v_rv1,
                     ]
                 )
-                T.writes(pool_max[v_ax0, v_ax1, v_ax2, v_ax3])
-                T.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
-                with T.init():
+                Ts.writes(pool_max[v_ax0, v_ax1, v_ax2, v_ax3])
+                Ts.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
+                with Ts.init():
                     pool_max[v_ax0, v_ax1, v_ax2, v_ax3] = T.float32(-3.4028234663852886e38)
                 pool_max[v_ax0, v_ax1, v_ax2, v_ax3] = T.max(
                     pool_max[v_ax0, v_ax1, v_ax2, v_ax3],
@@ -360,19 +361,19 @@ def test_op_pool_nchw_nhwc():
                     ],
                 )
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 224, 64), "float32"),
         pool_max: T.Buffer((32, 111, 223, 64), "float32"),
     ):
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3, ax4, ax5 in T.grid(32, 111, 223, 64, 2, 2):
-            with T.sblock("pool_max"):
-                v0, v1, v2, v3, v4, v5 = T.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, ax4, ax5])
-                T.reads(arg[v0, v1 * 2 + v4 * 2, v2 + v5, v3])
-                T.writes(pool_max[v0, v1, v2, v3])
-                T.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
-                with T.init():
+            with Ts.sblock("pool_max"):
+                v0, v1, v2, v3, v4, v5 = Ts.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, ax4, ax5])
+                Ts.reads(arg[v0, v1 * 2 + v4 * 2, v2 + v5, v3])
+                Ts.writes(pool_max[v0, v1, v2, v3])
+                Ts.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
+                with Ts.init():
                     pool_max[v0, v1, v2, v3] = T.float32(-3.4028234663852886e38)
                 pool_max[v0, v1, v2, v3] = T.max(
                     pool_max[v0, v1, v2, v3],
@@ -388,7 +389,7 @@ def test_op_pool_nchw_nhwc():
 
 
 def test_op_pool_nchw16c_nhwc():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer(
             (32, 4, 224, 224, 16),
@@ -400,32 +401,32 @@ def test_op_pool_nchw16c_nhwc():
         ),
     ):
         for ax0, ax1, ax2, ax3, ax4, rv0, rv1 in T.grid(32, 4, 110, 220, 16, 5, 5):
-            with T.sblock("pool_max"):
-                v_ax0, v_ax1, v_ax2, v_ax3, v_ax4, v_rv0, v_rv1 = T.axis.remap(
+            with Ts.sblock("pool_max"):
+                v_ax0, v_ax1, v_ax2, v_ax3, v_ax4, v_rv0, v_rv1 = Ts.axis.remap(
                     "SSSSSRR", [ax0, ax1, ax2, ax3, ax4, rv0, rv1]
                 )
-                T.reads(arg[v_ax0, v_ax1, v_ax2 * 2 + v_rv0, v_ax3 + v_rv1, v_ax4])
-                T.writes(pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
-                T.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
-                with T.init():
+                Ts.reads(arg[v_ax0, v_ax1, v_ax2 * 2 + v_rv0, v_ax3 + v_rv1, v_ax4])
+                Ts.writes(pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
+                Ts.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
+                with Ts.init():
                     pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.float32(-3.4028234663852886e38)
                 pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.max(
                     pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4],
                     arg[v_ax0, v_ax1, v_ax2 * 2 + v_rv0, v_ax3 + v_rv1, v_ax4],
                 )
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 224, 64), "float32"),
         pool_max: T.Buffer((32, 110, 220, 64), "float32"),
     ):
         for ax0, ax1, ax2, ax3, ax4, ax5 in T.grid(32, 110, 220, 64, 5, 5):
-            with T.sblock("pool_max"):
-                v0, v1, v2, v3, v4, v5 = T.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, ax4, ax5])
-                T.reads(arg[v0, v1 * 2 + v4, v2 + v5, v3])
-                T.writes(pool_max[v0, v1, v2, v3])
-                T.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
-                with T.init():
+            with Ts.sblock("pool_max"):
+                v0, v1, v2, v3, v4, v5 = Ts.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, ax4, ax5])
+                Ts.reads(arg[v0, v1 * 2 + v4, v2 + v5, v3])
+                Ts.writes(pool_max[v0, v1, v2, v3])
+                Ts.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
+                with Ts.init():
                     pool_max[v0, v1, v2, v3] = T.float32(-3.4028234663852886e38)
                 pool_max[v0, v1, v2, v3] = T.max(
                     pool_max[v0, v1, v2, v3],
@@ -441,31 +442,31 @@ def test_op_pool_nchw16c_nhwc():
 
 
 def test_op_reduce():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         sum: T.Buffer((32, 64), "float32"),
     ):
         for ax0, ax1, k2, k3 in T.grid(32, 64, 224, 224):
-            with T.sblock("rxplaceholder_red"):
-                v_ax0, v_ax1, v_k2, v_k3 = T.axis.remap("SSRR", [ax0, ax1, k2, k3])
-                T.reads(arg[v_ax0, v_ax1, v_k2, v_k3])
-                T.writes(sum[v_ax0, v_ax1])
-                with T.init():
+            with Ts.sblock("rxplaceholder_red"):
+                v_ax0, v_ax1, v_k2, v_k3 = Ts.axis.remap("SSRR", [ax0, ax1, k2, k3])
+                Ts.reads(arg[v_ax0, v_ax1, v_k2, v_k3])
+                Ts.writes(sum[v_ax0, v_ax1])
+                with Ts.init():
                     sum[v_ax0, v_ax1] = T.float32(0)
                 sum[v_ax0, v_ax1] = sum[v_ax0, v_ax1] + arg[v_ax0, v_ax1, v_k2, v_k3]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 4, 224, 224, 16), "float32"),
         sum: T.Buffer((32, 4, 16), "float32"),
     ):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 4, 224, 224, 16):
-            with T.sblock("rxplaceholder_red"):
-                v0, v1, v2, v3, v4 = T.axis.remap("SSRRS", [ax0, ax1, ax2, ax3, ax4])
-                T.reads(arg[v0, v1, v2, v3, v4])
-                T.writes(sum[v0, v1, v4])
-                with T.init():
+            with Ts.sblock("rxplaceholder_red"):
+                v0, v1, v2, v3, v4 = Ts.axis.remap("SSRRS", [ax0, ax1, ax2, ax3, ax4])
+                Ts.reads(arg[v0, v1, v2, v3, v4])
+                Ts.writes(sum[v0, v1, v4])
+                with Ts.init():
                     sum[v0, v1, v4] = T.float32(0)
                 sum[v0, v1, v4] = sum[v0, v1, v4] + arg[v0, v1, v2, v3, v4]
 
@@ -478,16 +479,16 @@ def test_op_reduce():
 
 def test_op_upsampling():
     # relax materializes the layout if H, W or D dimensions are moved or tiled.
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         resize: T.Buffer((32, 64, 202, 246), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 202, 246):
-            with T.sblock("resize"):
-                v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                T.reads(arg[v_i0, v_i1, 0:224, 0:224])
-                T.writes(resize[v_i0, v_i1, v_i2, v_i3])
+            with Ts.sblock("resize"):
+                v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                Ts.reads(arg[v_i0, v_i1, 0:224, 0:224])
+                Ts.writes(resize[v_i0, v_i1, v_i2, v_i3])
                 resize[v_i0, v_i1, v_i2, v_i3] = arg[
                     v_i0,
                     v_i1,
@@ -519,17 +520,17 @@ def test_op_upsampling():
                     ),
                 ]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         resize: T.Buffer((32, 202, 246, 64), "float32"),
     ):
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3 in T.grid(32, 202, 246, 64):
-            with T.sblock("resize"):
-                v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                T.reads(arg[v0, v3, 0:224, 0:224])
-                T.writes(resize[v0, v1, v2, v3])
+            with Ts.sblock("resize"):
+                v0, v1, v2, v3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Ts.reads(arg[v0, v3, 0:224, 0:224])
+                Ts.writes(resize[v0, v1, v2, v3])
                 resize[v0, v1, v2, v3] = arg[
                     v0,
                     v3,
@@ -569,15 +570,15 @@ def test_op_upsampling():
 
 
 def test_op_strided_slice():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         T_strided_slice_with_axes: T.Buffer((32, 64, 10, 8), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 64, 10, 8):
-            with T.sblock("T_strided_slice_with_axes"):
-                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                T.reads(
+            with Ts.sblock("T_strided_slice_with_axes"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Ts.reads(
                     arg[
                         v_ax0,
                         v_ax1,
@@ -585,7 +586,7 @@ def test_op_strided_slice():
                         v_ax3 * 7 + 4,
                     ]
                 )
-                T.writes(T_strided_slice_with_axes[v_ax0, v_ax1, v_ax2, v_ax3])
+                Ts.writes(T_strided_slice_with_axes[v_ax0, v_ax1, v_ax2, v_ax3])
                 T_strided_slice_with_axes[v_ax0, v_ax1, v_ax2, v_ax3] = arg[
                     v_ax0,
                     v_ax1,
@@ -593,17 +594,17 @@ def test_op_strided_slice():
                     v_ax3 * 7 + 4,
                 ]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 224, 16, 4), "float32"),
         T_strided_slice_with_axes: T.Buffer((32, 10, 8, 16, 4), "float32"),
     ):
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 10, 8, 16, 4):
-            with T.sblock("T_strided_slice_with_axes"):
-                v0, v1, v2, v3, v4 = T.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
-                T.reads(arg[v0, v1 * 5 + 2, v2 * 7 + 4, v3, v4])
-                T.writes(T_strided_slice_with_axes[v0, v1, v2, v3, v4])
+            with Ts.sblock("T_strided_slice_with_axes"):
+                v0, v1, v2, v3, v4 = Ts.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
+                Ts.reads(arg[v0, v1 * 5 + 2, v2 * 7 + 4, v3, v4])
+                Ts.writes(T_strided_slice_with_axes[v0, v1, v2, v3, v4])
                 T_strided_slice_with_axes[v0, v1, v2, v3, v4] = arg[
                     v0, v1 * 5 + 2, v2 * 7 + 4, v3, v4
                 ]
@@ -616,39 +617,39 @@ def test_op_strided_slice():
 
 
 def test_op_binary_broadcast():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg0: T.Buffer((32, 64, 224, 224), "float32"),
         arg1: T.Buffer((64, 224, 224), "float32"),
         T_add: T.Buffer((32, 64, 224, 224), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3 in T.grid(32, 64, 224, 224):
-            with T.sblock("T_add"):
-                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                T.reads(
+            with Ts.sblock("T_add"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Ts.reads(
                     arg0[v_ax0, v_ax1, v_ax2, v_ax3],
                     arg1[v_ax1, v_ax2, v_ax3],
                 )
-                T.writes(T_add[v_ax0, v_ax1, v_ax2, v_ax3])
+                Ts.writes(T_add[v_ax0, v_ax1, v_ax2, v_ax3])
                 T_add[v_ax0, v_ax1, v_ax2, v_ax3] = (
                     arg0[v_ax0, v_ax1, v_ax2, v_ax3] + arg1[v_ax1, v_ax2, v_ax3]
                 )
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg0: T.Buffer((32, 224, 224, 16, 4), "float32"),
         arg1: T.Buffer((224, 224, 16, 4), "float32"),
         T_add: T.Buffer((32, 224, 224, 16, 4), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 224, 224, 16, 4):
-            with T.sblock("T_add"):
-                v0, v1, v2, v3, v4 = T.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
-                T.reads(arg0[v0, v1, v2, v3, v4], arg1[v1, v2, v3, v4])
-                T.writes(T_add[v0, v1, v2, v3, v4])
+            with Ts.sblock("T_add"):
+                v0, v1, v2, v3, v4 = Ts.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
+                Ts.reads(arg0[v0, v1, v2, v3, v4], arg1[v1, v2, v3, v4])
+                Ts.writes(T_add[v0, v1, v2, v3, v4])
                 T_add[v0, v1, v2, v3, v4] = arg0[v0, v1, v2, v3, v4] + arg1[v1, v2, v3, v4]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
@@ -659,28 +660,28 @@ def test_op_binary_broadcast():
 
 
 def test_op_transpose():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         T_transpose: T.Buffer((32, 224, 224, 64), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 224, 224, 64):
-            with T.sblock("T_transpose"):
-                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                T.reads(arg[v_ax0, v_ax3, v_ax1, v_ax2])
-                T.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
+            with Ts.sblock("T_transpose"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Ts.reads(arg[v_ax0, v_ax3, v_ax1, v_ax2])
+                Ts.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
                 T_transpose[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax3, v_ax1, v_ax2]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         T_transpose: T.Buffer((32, 224, 64, 224), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 224, 64, 224):
-            with T.sblock("T_transpose"):
-                v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                T.reads(arg[v0, v2, v3, v1])
-                T.writes(T_transpose[v0, v1, v2, v3])
+            with Ts.sblock("T_transpose"):
+                v0, v1, v2, v3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Ts.reads(arg[v0, v2, v3, v1])
+                Ts.writes(T_transpose[v0, v1, v2, v3])
                 T_transpose[v0, v1, v2, v3] = arg[v0, v2, v3, v1]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
@@ -691,32 +692,32 @@ def test_op_transpose():
 
 
 def test_op_pad():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         PadInput: T.Buffer((32, 64, 230, 230), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 230, 230):
-            with T.sblock("PadInput"):
-                v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                T.reads(arg[v_i0, v_i1, v_i2 - 2, v_i3 - 2])
-                T.writes(PadInput[v_i0, v_i1, v_i2, v_i3])
+            with Ts.sblock("PadInput"):
+                v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                Ts.reads(arg[v_i0, v_i1, v_i2 - 2, v_i3 - 2])
+                Ts.writes(PadInput[v_i0, v_i1, v_i2, v_i3])
                 PadInput[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(
                     2 <= v_i2 and v_i2 < 226 and 2 <= v_i3 and v_i3 < 226,
                     arg[v_i0, v_i1, v_i2 - 2, v_i3 - 2],
                     T.float32(2),
                 )
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 224, 16, 4), "float32"),
         PadInput: T.Buffer((32, 230, 230, 16, 4), "float32"),
     ):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 230, 230, 16, 4):
-            with T.sblock("PadInput"):
-                v0, v1, v2, v3, v4 = T.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
-                T.reads(arg[v0, v1 - 2, v2 - 2, v3, v4])
-                T.writes(PadInput[v0, v1, v2, v3, v4])
+            with Ts.sblock("PadInput"):
+                v0, v1, v2, v3, v4 = Ts.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
+                Ts.reads(arg[v0, v1 - 2, v2 - 2, v3, v4])
+                Ts.writes(PadInput[v0, v1, v2, v3, v4])
                 PadInput[v0, v1, v2, v3, v4] = T.if_then_else(
                     2 <= v1 and v1 < 226 and 2 <= v2 and v2 < 226,
                     arg[v0, v1 - 2, v2 - 2, v3, v4],
@@ -731,42 +732,42 @@ def test_op_pad():
 
 
 def test_op_split():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         split0: T.Buffer((32, 32, 224, 224), "float32"),
         split1: T.Buffer((32, 32, 224, 224), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
-            with T.sblock("T_split_sections"):
-                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                T.reads(arg[v_ax0, v_ax1, v_ax2, v_ax3])
-                T.writes(split0[v_ax0, v_ax1, v_ax2, v_ax3])
+            with Ts.sblock("T_split_sections"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Ts.reads(arg[v_ax0, v_ax1, v_ax2, v_ax3])
+                Ts.writes(split0[v_ax0, v_ax1, v_ax2, v_ax3])
                 split0[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1, v_ax2, v_ax3]
         for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
-            with T.sblock("T_split_sections_1"):
-                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                T.reads(arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3])
-                T.writes(split1[v_ax0, v_ax1, v_ax2, v_ax3])
+            with Ts.sblock("T_split_sections_1"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Ts.reads(arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3])
+                Ts.writes(split1[v_ax0, v_ax1, v_ax2, v_ax3])
                 split1[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 224, 64), "float32"),
         split0: T.Buffer((32, 224, 224, 32), "float32"),
         split1: T.Buffer((32, 224, 224, 32), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 224, 224, 32):
-            with T.sblock("T_split_sections"):
-                v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                T.reads(arg[v0, v1, v2, v3])
-                T.writes(split0[v0, v1, v2, v3])
+            with Ts.sblock("T_split_sections"):
+                v0, v1, v2, v3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Ts.reads(arg[v0, v1, v2, v3])
+                Ts.writes(split0[v0, v1, v2, v3])
                 split0[v0, v1, v2, v3] = arg[v0, v1, v2, v3]
         for ax0, ax1, ax2, ax3 in T.grid(32, 224, 224, 32):
-            with T.sblock("T_split_sections_1"):
-                v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                T.reads(arg[v0, v1, v2, v3 + 32])
-                T.writes(split1[v0, v1, v2, v3])
+            with Ts.sblock("T_split_sections_1"):
+                v0, v1, v2, v3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Ts.reads(arg[v0, v1, v2, v3 + 32])
+                Ts.writes(split1[v0, v1, v2, v3])
                 split1[v0, v1, v2, v3] = arg[v0, v1, v2, v3 + 32]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
@@ -779,43 +780,43 @@ def test_op_split():
 
 @pytest.mark.skip("temp disable, due to minor sym regression")
 def test_op_split_tiling_split_dim():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         split0: T.Buffer((32, 32, 224, 224), "float32"),
         split1: T.Buffer((32, 32, 224, 224), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
-            with T.sblock("T_split_sections"):
-                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                T.reads(arg[v_ax0, v_ax1, v_ax2, v_ax3])
-                T.writes(split0[v_ax0, v_ax1, v_ax2, v_ax3])
+            with Ts.sblock("T_split_sections"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Ts.reads(arg[v_ax0, v_ax1, v_ax2, v_ax3])
+                Ts.writes(split0[v_ax0, v_ax1, v_ax2, v_ax3])
                 split0[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1, v_ax2, v_ax3]
         for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
-            with T.sblock("T_split_sections_1"):
-                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                T.reads(arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3])
-                T.writes(split1[v_ax0, v_ax1, v_ax2, v_ax3])
+            with Ts.sblock("T_split_sections_1"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Ts.reads(arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3])
+                Ts.writes(split1[v_ax0, v_ax1, v_ax2, v_ax3])
                 split1[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(
         arg: T.Buffer((32, 224, 224, 16, 4), "float32"),
         split0: T.Buffer((32, 224, 224, 8, 4), "float32"),
         split1: T.Buffer((32, 224, 224, 8, 4), "float32"),
     ):
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 224, 224, 8, 4):
-            with T.sblock("T_split_sections"):
-                v0, v1, v2, v3, v4 = T.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
-                T.reads(arg[v0, v1, v2, v3, v4])
-                T.writes(split0[v0, v1, v2, v3, v4])
+            with Ts.sblock("T_split_sections"):
+                v0, v1, v2, v3, v4 = Ts.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
+                Ts.reads(arg[v0, v1, v2, v3, v4])
+                Ts.writes(split0[v0, v1, v2, v3, v4])
                 split0[v0, v1, v2, v3, v4] = arg[v0, v1, v2, v3, v4]
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 224, 224, 8, 4):
-            with T.sblock("T_split_sections_1"):
-                v0, v1, v2, v3, v4 = T.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
-                T.reads(arg[v0, v1, v2, v3 + 8, v4])
-                T.writes(split1[v0, v1, v2, v3, v4])
+            with Ts.sblock("T_split_sections_1"):
+                v0, v1, v2, v3, v4 = Ts.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
+                Ts.reads(arg[v0, v1, v2, v3 + 8, v4])
+                Ts.writes(split1[v0, v1, v2, v3, v4])
                 split1[v0, v1, v2, v3, v4] = arg[v0, v1, v2, v3 + 8, v4]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(

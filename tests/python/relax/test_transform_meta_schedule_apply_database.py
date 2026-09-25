@@ -21,35 +21,36 @@ import tvm.testing
 from tvm import relax, tirx
 from tvm.s_tir import meta_schedule as ms
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
 
 
 def test_apply_to_func_with_different_block_name():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class RecordModule:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             for i in T.serial(2):
-                with T.sblock("block"):
-                    vi = T.axis.spatial(2, i)
+                with Ts.sblock("block"):
+                    vi = Ts.axis.spatial(2, i)
                     B[vi] = A[vi]
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class BlockRenamedModule:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             for i in T.serial(2):
-                with T.sblock("renamed_block"):
-                    vi = T.axis.spatial(2, i)
+                with Ts.sblock("renamed_block"):
+                    vi = Ts.axis.spatial(2, i)
                     B[vi] = A[vi]
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
             T.func_attr(
                 {
@@ -59,8 +60,8 @@ def test_apply_to_func_with_different_block_name():
                 }
             )
             for i in T.serial(2):
-                with T.sblock("renamed_block"):
-                    vi = T.axis.spatial(2, i)
+                with Ts.sblock("renamed_block"):
+                    vi = Ts.axis.spatial(2, i)
                     B[vi] = A[vi]
 
     def create_trace(mod: tvm.IRModule):

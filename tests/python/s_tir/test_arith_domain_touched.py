@@ -18,10 +18,11 @@ import pytest
 import tvm_ffi
 
 import tvm
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def scalar_func(a: T.handle, b: T.handle):
     m = T.int32()
     A = T.match_buffer(a, (100, m))
@@ -73,7 +74,7 @@ def test_domain_touched_vector():
     pytest.skip("BufferRegion arithmetic in expressions not supported")
     m = tvm.runtime.convert(128)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(a: T.handle, b: T.handle, n: T.int32):
         A = T.match_buffer(a, (n * m,))
         B = T.match_buffer(b, (n * m,))

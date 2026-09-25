@@ -24,13 +24,14 @@ from tvm import relax, tirx
 from tvm.ir import assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 def test_basic():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             m = T.int64()
             n = T.int64()
@@ -40,9 +41,9 @@ def test_basic():
             C = T.match_buffer(z, (m, k))
 
             for i, j, k in T.grid(m, k, n):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -56,7 +57,7 @@ def test_basic():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
             m = T.int64()
@@ -67,9 +68,9 @@ def test_basic():
             C = T.match_buffer(z, (m, k))
 
             for i, j, k in T.grid(m, k, n):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -92,7 +93,7 @@ def test_system_lib_prefix():
     class Before:
         I.module_attrs({"system_lib_prefix": "hello_"})
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_zeros(x: T.Buffer((2), "float32")) -> None:
             x[0] = T.float32(0)
 
@@ -105,7 +106,7 @@ def test_system_lib_prefix():
     class Expected:
         I.module_attrs({"system_lib_prefix": "hello_"})
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def hello_tir_zeros(x: T.Buffer((2), "float32")) -> None:
             T.func_attr({"global_symbol": "hello_tir_zeros"})
             x[0] = T.float32(0)

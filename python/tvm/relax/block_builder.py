@@ -472,7 +472,7 @@ class BlockBuilder(Object):
 
             @tvm.script.ir_module
             class Module:
-                @T.prim_func(s_tir=True)
+                @Ts.prim_func
                 def te_func(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle,
                             var_compute: T.handle) -> None:
                     # function attr dict
@@ -483,12 +483,12 @@ class BlockBuilder(Object):
                     rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [n, m], dtype="float32")
                     compute = T.match_buffer(var_compute, [128, 128], dtype="float32")
                     # body
-                    # with T.sblock("root")
+                    # with Ts.sblock("root")
                     for i0, i1 in T.grid(128, 128):
-                        with T.sblock("compute"):
-                            i, j = T.axis.remap("SS", [i0, i1])
-                            T.reads([rxplaceholder[i, j], rxplaceholder_1[i, j]])
-                            T.writes([compute[i, j]])
+                        with Ts.sblock("compute"):
+                            i, j = Ts.axis.remap("SS", [i0, i1])
+                            Ts.reads([rxplaceholder[i, j], rxplaceholder_1[i, j]])
+                            Ts.writes([compute[i, j]])
                             compute[i, j] = rxplaceholder[i, j] + rxplaceholder_1[i, j]
 
                 @R.function
@@ -521,18 +521,18 @@ class BlockBuilder(Object):
 
             @tvm.script.ir_module
             class Module:
-                @T.prim_func(s_tir=True)
+                @Ts.prim_func
                 def te_func(var_rxplaceholder: T.handle, var_compute: T.handle, n: T.int64) -> None:
                     rxplaceholder = T.match_buffer(var_rxplaceholder, [n + T.int64(1)],
                                                    dtype="float32")
                     compute = T.match_buffer(var_compute, [n + T.int64(1)], dtype="float32")
                     # body
-                    # with T.sblock("root")
+                    # with Ts.sblock("root")
                     for i0 in T.serial(0, n + T.int64(1)):
-                        with T.sblock("compute"):
-                            i = T.axis.spatial(n + T.int64(1), i0)
-                            T.reads([rxplaceholder[i]])
-                            T.writes([compute[i]])
+                        with Ts.sblock("compute"):
+                            i = Ts.axis.spatial(n + T.int64(1), i0)
+                            Ts.reads([rxplaceholder[i]])
+                            Ts.writes([compute[i]])
                             compute[i] = rxplaceholder[i]
 
                 @R.function

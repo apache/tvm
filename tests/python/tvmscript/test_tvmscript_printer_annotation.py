@@ -21,10 +21,11 @@ from typing import Optional
 import pytest
 from tvm_ffi.access_path import AccessPath
 
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def _func():
     T.evaluate(-1)
     T.evaluate(1)
@@ -49,8 +50,9 @@ def test_annotation_multi_access_paths():
         result
         == """# from tvm.script import tirx as T
 # from tvm.tirx.layout import Axis
+# from tvm.script import s_tir as Ts
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def main():
     T.evaluate(-1)
     T.evaluate(1)  # annotation 1
@@ -76,8 +78,9 @@ def test_annotate_from_multi_obj():
         result
         == """# from tvm.script import tirx as T
 # from tvm.tirx.layout import Axis
+# from tvm.script import s_tir as Ts
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def main():
     T.evaluate(-1)
     T.evaluate(1)  # annotation 1
@@ -91,7 +94,7 @@ def main():
 
 
 def test_disable_concise_scoping_when_scope_annotated():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def _func():
         x: T.int32 = 1
         y: T.int32 = x + 1
@@ -108,8 +111,9 @@ def test_disable_concise_scoping_when_scope_annotated():
         result
         == """# from tvm.script import tirx as T
 # from tvm.tirx.layout import Axis
+# from tvm.script import s_tir as Ts
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def main():
     x: T.int32 = 1
     y: T.int32 = x + 1  # annotation 1

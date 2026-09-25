@@ -26,12 +26,13 @@ from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_clipping_before(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -40,21 +41,21 @@ def matmul_clipping_before(
     upper: T.float32,
 ) -> None:
     """Original function with separate reduction and clipping epilogue blocks."""
-    temp = T.sblock_alloc_buffer((16, 16), dtype="float32")
+    temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.sblock("matmul"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("matmul"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 temp[vi, vj] = T.float32(0)
             temp[vi, vj] = temp[vi, vj] + A[vi, vk] * B[vj, vk]
 
     for i, j in T.grid(16, 16):
-        with T.sblock("clipping"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("clipping"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             D[vi, vj] = T.min(T.max(temp[vi, vj], lower), upper)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_clipping_expected(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -63,13 +64,13 @@ def matmul_clipping_expected(
     upper: T.float32,
 ) -> None:
     """Expected function after fusion (Clipping)."""
-    temp = T.sblock_alloc_buffer((16, 16), dtype="float32")
+    temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.sblock("matmul"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            T.reads(A[vi, vk], B[vj, vk])
-            T.writes(D[vi, vj])
-            with T.init():
+        with Ts.sblock("matmul"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            Ts.reads(A[vi, vk], B[vj, vk])
+            Ts.writes(D[vi, vj])
+            with Ts.init():
                 D[vi, vj] = T.min(T.max(T.float32(0), lower), upper)
             D[vi, vj] = T.min(T.max(D[vi, vj] + A[vi, vk] * B[vj, vk], lower), upper)
 
@@ -82,30 +83,30 @@ def test_matmul_clipping():
     verify_trace_roundtrip(sch=sch, mod=matmul_clipping_before)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_clipping_before_per_iteration(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
     D: T.Buffer((16, 16), "float32"),
 ) -> None:
     """Original function with per-iteration clipping (same semantics as fused)."""
-    temp = T.sblock_alloc_buffer((16, 16), dtype="float32")
+    temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")
     lower = T.float32(-5.0)
     upper = T.float32(5.0)
     for i, j in T.grid(16, 16):
-        with T.sblock("init"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("init"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             temp[vi, vj] = T.min(T.max(T.float32(0), lower), upper)  # Clip init
 
     for i, j, k in T.grid(16, 16, 16):
-        with T.sblock("matmul"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+        with Ts.sblock("matmul"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
             # Per-iteration clipping
             temp[vi, vj] = T.min(T.max(temp[vi, vj] + A[vi, vk] * B[vj, vk], lower), upper)
 
     for i, j in T.grid(16, 16):
-        with T.sblock("copy"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("copy"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             D[vi, vj] = temp[vi, vj]
 
 
@@ -153,7 +154,7 @@ def test_matmul_clipping_correctness_unified():
     np.testing.assert_allclose(D_original, D_fused, rtol=1e-5, atol=1e-6)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_clipping_multiple_epilogue_before(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -163,26 +164,26 @@ def matmul_clipping_multiple_epilogue_before(
     upper: T.float32,
 ) -> None:
     """Original function with separate reduction and multiple epilogue blocks (one with clipping, one without)."""
-    temp = T.sblock_alloc_buffer((16, 16), dtype="float32")
+    temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.sblock("matmul"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("matmul"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 temp[vi, vj] = T.float32(0)
             temp[vi, vj] = temp[vi, vj] + A[vi, vk] * B[vj, vk]
 
     for i, j in T.grid(16, 16):
-        with T.sblock("clipping"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("clipping"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             D[vi, vj] = T.min(T.max(temp[vi, vj], lower), upper)
 
     for i, j in T.grid(16, 16):
-        with T.sblock("copy"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("copy"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             E[vi, vj] = temp[vi, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_clipping_multiple_epilogue_expected(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -192,20 +193,20 @@ def matmul_clipping_multiple_epilogue_expected(
     upper: T.float32,
 ) -> None:
     """Expected function after fusion (Clipping) with multiple epilogue blocks."""
-    temp = T.sblock_alloc_buffer((16, 16), dtype="float32")
+    temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.sblock("matmul"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            T.reads(A[vi, vk], B[vj, vk])
-            T.writes(D[vi, vj])
-            with T.init():
+        with Ts.sblock("matmul"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            Ts.reads(A[vi, vk], B[vj, vk])
+            Ts.writes(D[vi, vj])
+            with Ts.init():
                 D[vi, vj] = T.min(T.max(T.float32(0), lower), upper)
             D[vi, vj] = T.min(T.max(D[vi, vj] + A[vi, vk] * B[vj, vk], lower), upper)
     for i, j in T.grid(16, 16):
-        with T.sblock("copy"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.reads(temp[vi, vj])
-            T.writes(E[vi, vj])
+        with Ts.sblock("copy"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.reads(temp[vi, vj])
+            Ts.writes(E[vi, vj])
             E[vi, vj] = temp[vi, vj]
 
 
@@ -244,23 +245,23 @@ def test_matmul_clipping_commutative_variants(pattern_func):
     lower = -5.0
     upper = 5.0
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def test_func(
         A: T.Buffer((8, 8), "float32"),
         B: T.Buffer((8, 8), "float32"),
         D: T.Buffer((8, 8), "float32"),
     ) -> None:
-        temp = T.sblock_alloc_buffer((8, 8), dtype="float32")
+        temp = Ts.sblock_alloc_buffer((8, 8), dtype="float32")
         for i, j, k in T.grid(8, 8, 8):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     temp[vi, vj] = T.float32(0)
                 temp[vi, vj] = temp[vi, vj] + A[vi, vk] * B[vj, vk]
 
         for i, j in T.grid(8, 8):
-            with T.sblock("clipping"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("clipping"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 D[vi, vj] = pattern_func(temp[vi, vj], T.float32(lower), T.float32(upper))
 
     sch = tvm.s_tir.Schedule(test_func, debug_mask="all")

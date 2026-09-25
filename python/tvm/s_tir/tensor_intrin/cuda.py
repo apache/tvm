@@ -24,6 +24,7 @@ from tvm_ffi import register_global_func
 
 from tvm.runtime import convert
 from tvm.s_tir import TensorIntrin
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.tirx import Cast, IntImm
 from tvm.tirx.function import PrimFunc
@@ -149,7 +150,7 @@ def get_ldmatrix_intrin(
 
     offset_factor = smem_tile_col
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def ldmatrix_desc(warp_handle: T.handle, shared_handle: T.handle) -> None:
         shared = T.match_buffer(
             shared_handle,
@@ -168,20 +169,20 @@ def get_ldmatrix_intrin(
             scope="warp",
         )
 
-        with T.sblock("root"):
-            T.reads(shared[0:smem_tile_row, 0:smem_tile_col])
-            T.writes(warp[0:WARP_SIZE, 0:local_size])
+        with Ts.sblock("root"):
+            Ts.reads(shared[0:smem_tile_row, 0:smem_tile_col])
+            Ts.writes(warp[0:WARP_SIZE, 0:local_size])
 
             for ax0, ax1 in T.grid(smem_tile_row, smem_tile_col):
-                with T.sblock("shared_warp"):
-                    v0, v1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(shared[v0, v1])
+                with Ts.sblock("shared_warp"):
+                    v0, v1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(shared[v0, v1])
 
                     warp_indices = index_map(v0, v1)
-                    T.writes(warp[warp_indices[0], warp_indices[1]])
+                    Ts.writes(warp[warp_indices[0], warp_indices[1]])
                     warp[warp_indices[0], warp_indices[1]] = shared[v0, v1]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def ldmatrix_impl(warp_handle: T.handle, shared_handle: T.handle) -> None:
         s0 = T.int32()
         s1 = T.int32()
@@ -203,9 +204,9 @@ def get_ldmatrix_intrin(
             scope="warp",
         )
 
-        with T.sblock("root"):
-            T.reads(shared[0:smem_tile_row, 0:smem_tile_col])
-            T.writes(warp[0:WARP_SIZE, 0:local_size])
+        with Ts.sblock("root"):
+            Ts.reads(shared[0:smem_tile_row, 0:smem_tile_col])
+            Ts.writes(warp[0:WARP_SIZE, 0:local_size])
             for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                 T.evaluate(
                     T.ptx_legacy.ldmatrix(
@@ -338,7 +339,7 @@ def get_mma_intrin(
     B_offset_factor = k_dim if b_transposed else N_DIM
     out_offset_factor = N_DIM
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mma_sync_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
             a,
@@ -365,17 +366,17 @@ def get_mma_intrin(
             scope="warp",
         )
 
-        with T.sblock("root"):
-            T.reads(
+        with Ts.sblock("root"):
+            Ts.reads(
                 C[0:WARP_SIZE, 0:local_size_out],
                 A[0:WARP_SIZE, 0:local_size],
                 B[0:WARP_SIZE, 0:local_size],
             )
-            T.writes(C[0:WARP_SIZE, 0:local_size_out])
+            Ts.writes(C[0:WARP_SIZE, 0:local_size_out])
 
             for i, j, k in T.grid(M_DIM, N_DIM, k_dim):
-                with T.sblock("C"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with Ts.sblock("C"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                     a_indices = swap_if_flag(vi, vk, a_transposed)
                     b_indices = swap_if_flag(vk, vj, b_transposed)
 
@@ -383,18 +384,18 @@ def get_mma_intrin(
                     a_warp_indices = index_map_A(a_indices[0], a_indices[1])
                     b_warp_indices = index_map_B(b_indices[0], b_indices[1])
 
-                    T.reads(
+                    Ts.reads(
                         C[c_warp_indices[0], c_warp_indices[1]],
                         A[a_warp_indices[0], a_warp_indices[1]],
                         B[b_warp_indices[0], b_warp_indices[1]],
                     )
-                    T.writes(C[c_warp_indices[0], c_warp_indices[1]])
+                    Ts.writes(C[c_warp_indices[0], c_warp_indices[1]])
 
                     C[c_warp_indices[0], c_warp_indices[1]] += cast_to_out_dtype(
                         A[a_warp_indices[0], a_warp_indices[1]]
                     ) * cast_to_out_dtype(B[b_warp_indices[0], b_warp_indices[1]])
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mma_sync_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
             a,
@@ -421,13 +422,13 @@ def get_mma_intrin(
             scope="warp",
         )
 
-        with T.sblock("root"):
-            T.reads(
+        with Ts.sblock("root"):
+            Ts.reads(
                 C[0:WARP_SIZE, 0:local_size_out],
                 A[0:WARP_SIZE, 0:local_size],
                 B[0:WARP_SIZE, 0:local_size],
             )
-            T.writes(C[0:WARP_SIZE, 0:local_size_out])
+            Ts.writes(C[0:WARP_SIZE, 0:local_size_out])
 
             for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                 T.evaluate(
@@ -554,30 +555,30 @@ def get_mma_fill_intrin(dtype, local_size):
     # Assume M = N = 16
     index_map = shared_16x16_to_ldmatrix_32x8_layout
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mma_fill_desc(a: T.handle) -> None:
         C_warp = T.match_buffer(a, [WARP_SIZE, local_size], dtype=dtype, scope="warp")
 
-        with T.sblock("root"):
-            T.reads()
-            T.writes(C_warp[0:WARP_SIZE, 0:local_size])
+        with Ts.sblock("root"):
+            Ts.reads()
+            Ts.writes(C_warp[0:WARP_SIZE, 0:local_size])
             for i0, i1 in T.grid(M_DIM, N_DIM):
-                with T.sblock("C_warp"):
-                    i, j = T.axis.remap("SS", [i0, i1])
+                with Ts.sblock("C_warp"):
+                    i, j = Ts.axis.remap("SS", [i0, i1])
                     warp_indices = index_map(i, j)
-                    T.reads()
-                    T.writes(C_warp[warp_indices[0], warp_indices[1]])
+                    Ts.reads()
+                    Ts.writes(C_warp[warp_indices[0], warp_indices[1]])
                     C_warp[warp_indices[0], warp_indices[1]] = zero
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mma_fill_impl(a: T.handle) -> None:
         C_warp = T.match_buffer(
             a, [WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1
         )
 
-        with T.sblock("root"):
-            T.reads()
-            T.writes(C_warp[0:WARP_SIZE, 0:local_size])
+        with Ts.sblock("root"):
+            Ts.reads()
+            Ts.writes(C_warp[0:WARP_SIZE, 0:local_size])
 
             for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                 T.evaluate(
@@ -602,25 +603,25 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
     index_map = shared_16x16_to_ldmatrix_32x8_layout
     index_map_rev = ldmatrix_32x8_to_shared_16x16_layout
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mma_store_desc(a: T.handle, c: T.handle) -> None:
         C_warp = T.match_buffer(a, [WARP_SIZE, local_size], dtype=dtype, scope="warp")
         C = T.match_buffer(c, [M_DIM, N_DIM], dtype=dtype, scope=scope)
 
-        with T.sblock("root"):
-            T.reads(C_warp[0:WARP_SIZE, 0:local_size])
-            T.writes(C[0:M_DIM, 0:N_DIM])
+        with Ts.sblock("root"):
+            Ts.reads(C_warp[0:WARP_SIZE, 0:local_size])
+            Ts.writes(C[0:M_DIM, 0:N_DIM])
             for i0, i1 in T.grid(M_DIM, N_DIM):
-                with T.sblock("C_warp"):
-                    v0, v1 = T.axis.remap("SS", [i0, i1])
+                with Ts.sblock("C_warp"):
+                    v0, v1 = Ts.axis.remap("SS", [i0, i1])
                     warp_indices = index_map(v0, v1)
-                    T.reads(C_warp[warp_indices[0], warp_indices[1]])
-                    T.writes(C[v0, v1])
+                    Ts.reads(C_warp[warp_indices[0], warp_indices[1]])
+                    Ts.writes(C[v0, v1])
                     C[v0, v1] = C_warp[warp_indices[0], warp_indices[1]]
 
     if use_mma_store_intrinic:
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def mma_store_impl(a: T.handle, c: T.handle) -> None:
             s0 = T.int32()
             s1 = T.int32()
@@ -632,9 +633,9 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
                 c, [M_DIM, N_DIM], dtype=dtype, scope=scope, offset_factor=1, strides=[s0, s1]
             )
 
-            with T.sblock("root"):
-                T.reads(C_warp[0:WARP_SIZE, 0:local_size])
-                T.writes(C[0:M_DIM, 0:N_DIM])
+            with Ts.sblock("root"):
+                Ts.reads(C_warp[0:WARP_SIZE, 0:local_size])
+                Ts.writes(C[0:M_DIM, 0:N_DIM])
 
                 for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                     T.evaluate(
@@ -651,7 +652,7 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
 
     else:
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def mma_store_impl(a: T.handle, c: T.handle) -> None:
             s0 = T.int32()
             s1 = T.int32()
@@ -663,9 +664,9 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
                 c, [M_DIM, N_DIM], dtype=dtype, scope=scope, offset_factor=1, strides=[s0, s1]
             )
 
-            with T.sblock("root"):
-                T.reads(C_warp[0:WARP_SIZE, 0:local_size])
-                T.writes(C[0:M_DIM, 0:N_DIM])
+            with Ts.sblock("root"):
+                Ts.reads(C_warp[0:WARP_SIZE, 0:local_size])
+                Ts.writes(C[0:M_DIM, 0:N_DIM])
 
                 for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                     for local_id in T.serial(local_size):
@@ -835,7 +836,7 @@ def get_wmma_load_intrin(
         frag_m, frag_n = frag_n, frag_m
     offset_factor = frag_n
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def wmma_load_desc(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
             a, (frag_m, frag_n), dtype, align=64, offset_factor=offset_factor, scope=shared_scope
@@ -848,15 +849,15 @@ def get_wmma_load_intrin(
             offset_factor=offset_factor,
             scope=wmma_fragment_scope,
         )
-        with T.sblock("root"):
-            T.reads(A[0:frag_m, 0:frag_n])
-            T.writes(C[0:frag_m, 0:frag_n])
+        with Ts.sblock("root"):
+            Ts.reads(A[0:frag_m, 0:frag_n])
+            Ts.writes(C[0:frag_m, 0:frag_n])
             for i, j in T.grid(frag_m, frag_n):
-                with T.sblock("load"):
-                    vii, vjj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("load"):
+                    vii, vjj = Ts.axis.remap("SS", [i, j])
                     C[vii, vjj] = A[vii, vjj]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def wmma_load_impl(a: T.handle, c: T.handle) -> None:
         s1 = T.int32()
         s0 = T.int32()
@@ -880,9 +881,9 @@ def get_wmma_load_intrin(
             scope=wmma_fragment_scope,
             strides=[d1, d0],
         )
-        with T.sblock("root"):
-            T.reads(A[0:frag_m, 0:frag_n])
-            T.writes(C[0:frag_m, 0:frag_n])
+        with Ts.sblock("root"):
+            Ts.reads(A[0:frag_m, 0:frag_n])
+            Ts.writes(C[0:frag_m, 0:frag_n])
             T.evaluate(
                 T.tvm_load_matrix_sync(
                     C.data,
@@ -907,7 +908,7 @@ def get_wmma_fill_intrin(
     zero = IntImm("int32", 0).astype(dtype)
     offset_factor = n_dim
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def wmma_fill_desc(c: T.handle) -> None:
         C = T.match_buffer(
             c,
@@ -917,15 +918,15 @@ def get_wmma_fill_intrin(
             offset_factor=offset_factor,
             scope="wmma.accumulator",
         )
-        with T.sblock("root"):
-            T.reads()
-            T.writes(C[0:m_dim, 0:n_dim])
+        with Ts.sblock("root"):
+            Ts.reads()
+            Ts.writes(C[0:m_dim, 0:n_dim])
             for i, j in T.grid(m_dim, n_dim):
-                with T.sblock("init"):
-                    vii, vjj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("init"):
+                    vii, vjj = Ts.axis.remap("SS", [i, j])
                     C[vii, vjj] = zero
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def wmma_fill_impl(c: T.handle) -> None:
         d1 = T.int32()
         d0 = T.int32()
@@ -938,9 +939,9 @@ def get_wmma_fill_intrin(
             scope="wmma.accumulator",
             strides=[d1, d0],
         )
-        with T.sblock("root"):
-            T.reads()
-            T.writes(C[0:m_dim, 0:n_dim])
+        with Ts.sblock("root"):
+            Ts.reads()
+            Ts.writes(C[0:m_dim, 0:n_dim])
             T.evaluate(
                 T.tvm_fill_fragment(
                     C.data,
@@ -962,7 +963,7 @@ def get_wmma_store_intrin(
     """Generator of wmma_store intrins"""
     offset_factor = n_dim
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def wmma_store_desc(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
             a,
@@ -975,15 +976,15 @@ def get_wmma_store_intrin(
         C = T.match_buffer(
             c, (m_dim, n_dim), dtype, align=64, offset_factor=offset_factor, scope=scope
         )
-        with T.sblock("root"):
-            T.reads(A[0:m_dim, 0:n_dim])
-            T.writes(C[0:m_dim, 0:n_dim])
+        with Ts.sblock("root"):
+            Ts.reads(A[0:m_dim, 0:n_dim])
+            Ts.writes(C[0:m_dim, 0:n_dim])
             for i, j in T.grid(m_dim, n_dim):
-                with T.sblock("store"):
-                    vii, vjj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("store"):
+                    vii, vjj = Ts.axis.remap("SS", [i, j])
                     C[vii, vjj] = A[vii, vjj]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def wmma_store_impl(a: T.handle, c: T.handle) -> None:
         s1 = T.int32()
         s0 = T.int32()
@@ -1007,9 +1008,9 @@ def get_wmma_store_intrin(
             scope=scope,
             strides=[s1, s0],
         )
-        with T.sblock("root"):
-            T.reads(A[0:m_dim, 0:n_dim])
-            T.writes(C[0:m_dim, 0:n_dim])
+        with Ts.sblock("root"):
+            Ts.reads(A[0:m_dim, 0:n_dim])
+            Ts.writes(C[0:m_dim, 0:n_dim])
             T.evaluate(
                 T.tvm_store_matrix_sync(
                     A.data,
@@ -1048,7 +1049,7 @@ def get_wmma_sync_intrin(
     B_offset_factor = b_shape_1
     out_offset_factor = n_dim
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def wmma_sync_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
             a,
@@ -1075,18 +1076,18 @@ def get_wmma_sync_intrin(
             scope="wmma.accumulator",
         )
 
-        with T.sblock("root"):
-            T.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:b_shape_0, 0:b_shape_1])
-            T.writes(C[0:m_dim, 0:n_dim])
+        with Ts.sblock("root"):
+            Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:b_shape_0, 0:b_shape_1])
+            Ts.writes(C[0:m_dim, 0:n_dim])
             for i, j, k in T.grid(m_dim, n_dim, k_dim):
-                with T.sblock(""):
-                    vii, vjj, vkk = T.axis.remap("SSR", [i, j, k])
+                with Ts.sblock(""):
+                    vii, vjj, vkk = Ts.axis.remap("SSR", [i, j, k])
                     b_indices = maybe_swap(vkk, vjj)
                     C[vii, vjj] = C[vii, vjj] + maybe_cast(A[vii, vkk]) * maybe_cast(
                         B[b_indices[0], b_indices[1]]
                     )
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def wmma_sync_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
         a1 = T.int32()
         a0 = T.int32()
@@ -1123,9 +1124,9 @@ def get_wmma_sync_intrin(
             strides=[c1, c0],
         )
 
-        with T.sblock("root"):
-            T.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:b_shape_0, 0:b_shape_1])
-            T.writes(C[0:m_dim, 0:n_dim])
+        with Ts.sblock("root"):
+            Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:b_shape_0, 0:b_shape_1])
+            Ts.writes(C[0:m_dim, 0:n_dim])
             T.evaluate(
                 T.tvm_mma_sync(
                     C.data,
@@ -1484,28 +1485,28 @@ def get_mma_init_intrin(
     assert dtype in ["float16", "float32"]
     assert n_dim // 4 * int(dtype[-2:]) <= 128, "n_dim vectorize failed"
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mma_init_desc(c: T.handle) -> None:
         dst = T.match_buffer(
             c, (m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"
         )
-        with T.sblock("root"):
-            T.reads()
-            T.writes(dst[0:m_dim, 0:n_dim])
+        with Ts.sblock("root"):
+            Ts.reads()
+            Ts.writes(dst[0:m_dim, 0:n_dim])
             for i, j in T.grid(m_dim, n_dim):
-                with T.sblock("init"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("init"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     dst[vi, vj] = zero
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mma_init_impl(c: T.handle) -> None:
         dst = T.match_buffer(
             c, (m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"
         )
 
-        with T.sblock("root"):
-            T.reads()
-            T.writes(dst[0:m_dim, 0:n_dim])
+        with Ts.sblock("root"):
+            Ts.reads()
+            Ts.writes(dst[0:m_dim, 0:n_dim])
 
             for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                 for b in range(m_dim // 8):
@@ -1535,7 +1536,7 @@ def get_mma_load_intrin(
         (lambda tx, s0: (tx % 8) * s0 + (tx // 8) * 8) if trans else (lambda tx, s0: tx * s0)
     )
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mma_load_desc(a: T.handle, c: T.handle) -> None:
         src = T.match_buffer(
             a, (frag_m, frag_n), dtype, align=64, offset_factor=1, scope=shared_scope
@@ -1544,15 +1545,15 @@ def get_mma_load_intrin(
             c, (frag_m, frag_n), dtype, align=64, offset_factor=1, scope=mma_fragment_scope
         )
 
-        with T.sblock("root"):
-            T.reads(src[0:frag_m, 0:frag_n])
-            T.writes(dst[0:frag_m, 0:frag_n])
+        with Ts.sblock("root"):
+            Ts.reads(src[0:frag_m, 0:frag_n])
+            Ts.writes(dst[0:frag_m, 0:frag_n])
             for i, j in T.grid(frag_m, frag_n):
-                with T.sblock("root"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("root"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     dst[vi, vj] = src[vi, vj]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mma_load_impl(a: T.handle, c: T.handle) -> None:
         s0 = T.int32()
         s1 = T.int32()
@@ -1577,9 +1578,9 @@ def get_mma_load_intrin(
             strides=[d0, d1],
         )
 
-        with T.sblock("root"):
-            T.reads(src[0:frag_m, 0:frag_n])
-            T.writes(dst[0:frag_m, 0:frag_n])
+        with Ts.sblock("root"):
+            Ts.reads(src[0:frag_m, 0:frag_n])
+            Ts.writes(dst[0:frag_m, 0:frag_n])
 
             for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                 T.evaluate(
@@ -1615,7 +1616,7 @@ def get_mma_sync_intrin(
 
     B_shape_0, B_shape_1 = maybe_swap(k_dim, n_dim)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mma_sync_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
             a, (m_dim, k_dim), in_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixA"
@@ -1627,18 +1628,18 @@ def get_mma_sync_intrin(
             c, (m_dim, n_dim), out_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"
         )
 
-        with T.sblock("root"):
-            T.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:B_shape_0, 0:B_shape_1])
-            T.writes(C[0:m_dim, 0:n_dim])
+        with Ts.sblock("root"):
+            Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:B_shape_0, 0:B_shape_1])
+            Ts.writes(C[0:m_dim, 0:n_dim])
             for i, j, k in T.grid(m_dim, n_dim, k_dim):
-                with T.sblock("m16n8k8_sync"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with Ts.sblock("m16n8k8_sync"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                     b_indices = maybe_swap(vk, vj)
                     C[vi, vj] = C[vi, vj] + maybe_cast(A[vi, vk]) * maybe_cast(
                         B[b_indices[0], b_indices[1]]
                     )
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mma_sync_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
         a0 = T.int32()
         a1 = T.int32()
@@ -1674,9 +1675,9 @@ def get_mma_sync_intrin(
             strides=[c0, c1],
         )
 
-        with T.sblock("root"):
-            T.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:B_shape_0, 0:B_shape_1])
-            T.writes(C[0:m_dim, 0:n_dim])
+        with Ts.sblock("root"):
+            Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:B_shape_0, 0:B_shape_1])
+            Ts.writes(C[0:m_dim, 0:n_dim])
             T.evaluate(
                 T.ptx_legacy.mma(
                     f"m{m_dim}n{n_dim}k{k_dim}",
@@ -1705,7 +1706,7 @@ def get_mma_store_dummy_intrin(
     """Disable mma store intrin for now."""
     del k_dim  # unused
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def mma_store_desc(a: T.handle, c: T.handle) -> None:
         src = T.match_buffer(
             a, (m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"
@@ -1714,12 +1715,12 @@ def get_mma_store_dummy_intrin(
             c, (m_dim, n_dim), dtype, align=64, offset_factor=1, scope="shared.dyn"
         )
 
-        with T.sblock("root"):
-            T.reads(src[0:m_dim, 0:n_dim])
-            T.writes(dst[0:m_dim, 0:n_dim])
+        with Ts.sblock("root"):
+            Ts.reads(src[0:m_dim, 0:n_dim])
+            Ts.writes(dst[0:m_dim, 0:n_dim])
             for i, j in T.grid(m_dim, n_dim):
-                with T.sblock("m16n8k8_store"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("m16n8k8_store"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     dst[vi, vj] = src[vi, vj]
 
     return mma_store_desc, mma_store_desc

@@ -31,6 +31,7 @@ from typing import Any, Literal
 
 import tvm
 from tvm import tirx
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -68,7 +69,7 @@ def _attention_prefill_cpu(
     group_size = h_q // h_kv
 
     # pylint: disable=too-many-branches
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_prefill_paged_kv_cpu(
         var_q: T.handle, # [total_len, h_q, d]
         var_q_indptr: T.handle, # [batch_size + 1]
@@ -120,20 +121,20 @@ def _attention_prefill_cpu(
 
         for h_qo in T.serial(h_q):
             for b_idx in T.serial(batch_size):
-                with T.sblock("attn"):
-                    O_local = T.sblock_alloc_buffer((d, ), "float32")
-                    Q_local = T.sblock_alloc_buffer((d, ), "float32")
-                    K_local = T.sblock_alloc_buffer((d, ), "float32")
-                    V_local = T.sblock_alloc_buffer((d, ), "float32")
+                with Ts.sblock("attn"):
+                    O_local = Ts.sblock_alloc_buffer((d, ), "float32")
+                    Q_local = Ts.sblock_alloc_buffer((d, ), "float32")
+                    K_local = Ts.sblock_alloc_buffer((d, ), "float32")
+                    V_local = Ts.sblock_alloc_buffer((d, ), "float32")
 
-                    kv_chunk_len = T.sblock_alloc_buffer((1, ), "int32")
+                    kv_chunk_len = Ts.sblock_alloc_buffer((1, ), "int32")
 
-                    m_val = T.sblock_alloc_buffer((1, ), "float32")
-                    new_m = T.sblock_alloc_buffer((1, ), "float32")
-                    d_val = T.sblock_alloc_buffer((1, ), "float32")
-                    S_val = T.sblock_alloc_buffer((1, ), "float32")
-                    scale_O = T.sblock_alloc_buffer((1, ), "float32")
-                    factor = T.sblock_alloc_buffer((1, ), "float32")
+                    m_val = Ts.sblock_alloc_buffer((1, ), "float32")
+                    new_m = Ts.sblock_alloc_buffer((1, ), "float32")
+                    d_val = Ts.sblock_alloc_buffer((1, ), "float32")
+                    S_val = Ts.sblock_alloc_buffer((1, ), "float32")
+                    scale_O = Ts.sblock_alloc_buffer((1, ), "float32")
+                    factor = Ts.sblock_alloc_buffer((1, ), "float32")
                     cur_page_indptr_begin: T.let[T.int32] = page_indptr[b_idx]
                     cur_page_indptr_end: T.let[T.int32] = page_indptr[b_idx + 1]
                     #max_kv_len: T.let[T.int32] = max_num_pages * page_size
@@ -234,7 +235,7 @@ def _attention_prefill(
     init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, _, advance_tile_batch, paged_store_output_lse, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, tile_y, bdx, num_warps, group_size)
 
     # pylint: disable=too-many-branches
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_prefill_paged_kv(
         var_q: T.handle, # [total_len, h_q, d]
         var_q_indptr: T.handle, # [batch_size + 1]
@@ -289,10 +290,10 @@ def _attention_prefill(
             for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
                 for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
                     for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
-                        with T.sblock("attn"):
-                            bx, by, ty, tx = T.axis.remap("SSSS", [lbx, lby, lty, ltx])
-                            T.reads()
-                            T.writes()
+                        with Ts.sblock("attn"):
+                            bx, by, ty, tx = Ts.axis.remap("SSSS", [lbx, lby, lty, ltx])
+                            Ts.reads()
+                            Ts.writes()
                             tile_id, batch_idx, batch_tiles, batch_rows, iterator, kv_chunk_len = _alloc_tile_walk_state()
                             Q_smem, K_smem, V_smem, O_local = _alloc_mha_qkvo_buffers(tile_x, tile_z, d, d, dtype)
                             S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new = (
@@ -324,10 +325,10 @@ def _attention_prefill(
 
                                     # Load Q from gmem to smem
                                     for li, lj in T.grid(tile_x, tile_y):
-                                        with T.sblock("Q_load"):
-                                            i, j = T.axis.remap("SS", [li, lj])
-                                            T.reads()
-                                            T.writes()
+                                        with Ts.sblock("Q_load"):
+                                            i, j = Ts.axis.remap("SS", [li, lj])
+                                            Ts.reads()
+                                            Ts.writes()
                                             cur_L: T.let[T.int32] = q_indptr_val + (LH_start + i) // group_size
                                             cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                                             if cur_L < q_indptr[b_idx + 1]:
@@ -343,10 +344,10 @@ def _attention_prefill(
                                     for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_z)):
                                         L_kv_start: T.let[T.int32] = iterator * tile_z
                                         for lz, ly in T.grid(tile_z, tile_y):
-                                            with T.sblock("K_load"):
-                                                i, j = T.axis.remap("SS", [lz, ly])
-                                                T.reads()
-                                                T.writes()
+                                            with Ts.sblock("K_load"):
+                                                i, j = Ts.axis.remap("SS", [lz, ly])
+                                                Ts.reads()
+                                                Ts.writes()
                                                 cur_L: T.let[T.int32] = L_kv_start + i
                                                 if cur_L < kv_chunk_len[0]:
                                                     seq_offset: T.let[T.int32()] = _get_seq_offset(cur_L, b_idx, length_info, sliding_window)  # type: ignore
@@ -361,10 +362,10 @@ def _attention_prefill(
                                                     K_smem[i, j] = 0.0
                                         T.tvm_storage_sync("shared")
                                         for lz, ly in T.grid(tile_z, tile_y):
-                                            with T.sblock("V_load"):
-                                                i, j = T.axis.remap("SS", [lz, ly])
-                                                T.reads()
-                                                T.writes()
+                                            with Ts.sblock("V_load"):
+                                                i, j = Ts.axis.remap("SS", [lz, ly])
+                                                Ts.reads()
+                                                Ts.writes()
                                                 cur_L: T.let[T.int32] = L_kv_start + i
                                                 if cur_L < kv_chunk_len[0]:
                                                     seq_offset: T.let[T.int32()] = _get_seq_offset(cur_L, b_idx, length_info, sliding_window)  # type: ignore
@@ -396,7 +397,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
     _, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d, dtype, target)
     init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, tile_y, bdx, num_warps, group_size)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_sequence_prefill_kv(  # pylint: disable=too-many-branches
         var_q: T.handle, # [total_len, h_q, d]
         var_k: T.handle, # [total_len, h_kv, d]
@@ -420,10 +421,10 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
             for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
                 for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
                     for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
-                        with T.sblock("attn"):
-                            vbx, by, ty, tx = T.axis.remap("SSSS", [lbx, lby, lty, ltx])
-                            T.reads()
-                            T.writes()
+                        with Ts.sblock("attn"):
+                            vbx, by, ty, tx = Ts.axis.remap("SSSS", [lbx, lby, lty, ltx])
+                            Ts.reads()
+                            Ts.writes()
 
                             Q_smem, K_smem, V_smem, O_local = _alloc_mha_qkvo_buffers(tile_x, tile_z, d, d, dtype)
                             S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new = (
@@ -439,10 +440,10 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
 
                             # Load Q from gmem to smem
                             for li, lj in T.grid(tile_x, tile_y):
-                                with T.sblock("Q_load"):
-                                    i, j = T.axis.remap("SS", [li, lj])
-                                    T.reads()
-                                    T.writes()
+                                with Ts.sblock("Q_load"):
+                                    i, j = Ts.axis.remap("SS", [li, lj])
+                                    Ts.reads()
+                                    Ts.writes()
                                     cur_L: T.let[T.int32] = (LH_start + i) // group_size
                                     cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                                     if cur_L < qo_len:
@@ -455,10 +456,10 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
                                 L_kv_start: T.let[T.int32] = iterator * tile_z
                                 L_kv_base: T.let[T.int32] = 0
                                 for lz, ly in T.grid(tile_z, tile_y):
-                                    with T.sblock("K_load"):
-                                        i, j = T.axis.remap("SS", [lz, ly])
-                                        T.reads()
-                                        T.writes()
+                                    with Ts.sblock("K_load"):
+                                        i, j = Ts.axis.remap("SS", [lz, ly])
+                                        Ts.reads()
+                                        Ts.writes()
                                         cur_L: T.let[T.int32] = L_kv_start + i
                                         if cur_L < kv_len:
                                             K_smem[i, j] = k[
@@ -468,10 +469,10 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
                                             K_smem[i, j] = 0.0
                                 T.tvm_storage_sync("shared")
                                 for lz, ly in T.grid(tile_z, tile_y):
-                                    with T.sblock("V_load"):
-                                        i, j = T.axis.remap("SS", [lz, ly])
-                                        T.reads()
-                                        T.writes()
+                                    with Ts.sblock("V_load"):
+                                        i, j = Ts.axis.remap("SS", [lz, ly])
+                                        Ts.reads()
+                                        Ts.writes()
                                         cur_L: T.let[T.int32] = L_kv_start + i
                                         if cur_L < kv_len:
                                             V_smem[i, j] = v[b_idx, L_kv_base + cur_L, by, j]
@@ -485,8 +486,8 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
 
                             # Store O from smem to gmem
                             for li, lj in T.grid(tile_x, tile_y):
-                                with T.sblock("O_store"):
-                                    i, j = T.axis.remap("SS", [li, lj])
+                                with Ts.sblock("O_store"):
+                                    i, j = Ts.axis.remap("SS", [li, lj])
                                     cur_L: T.let[T.int32] = 0 + (LH_start + i) // group_size
                                     cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                                     if cur_L < qo_len:
@@ -494,8 +495,8 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
 
                             # Store LSE to gmem
                             for li in T.grid(tile_x):
-                                with T.sblock("lse_store"):
-                                    i = T.axis.remap("S", [li])
+                                with Ts.sblock("lse_store"):
+                                    i = Ts.axis.remap("S", [li])
                                     cur_L: T.let[T.int32] = 0 + (LH_start + i) // group_size
                                     cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                                     if cur_L < qo_len:
@@ -563,7 +564,7 @@ def _attention_sequence_prefill_with_mask(
         pad = kv_len - valid_len
         return tirx.And(col < kv_len, col >= pad)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_sequence_prefill_kv_masked(  # pylint: disable=too-many-branches
         var_q: T.handle, # [batch_size, qo_len, h_q, d]
         var_k: T.handle, # [batch_size, kv_len, h_kv, d]
@@ -588,10 +589,10 @@ def _attention_sequence_prefill_with_mask(
             for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
                 for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
                     for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
-                        with T.sblock("attn"):
-                            vbx, by, ty, tx = T.axis.remap("SSSS", [lbx, lby, lty, ltx])
-                            T.reads()
-                            T.writes()
+                        with Ts.sblock("attn"):
+                            vbx, by, ty, tx = Ts.axis.remap("SSSS", [lbx, lby, lty, ltx])
+                            Ts.reads()
+                            Ts.writes()
 
                             Q_smem, K_smem, V_smem, O_local = _alloc_mha_qkvo_buffers(tile_x, tile_z, d, d, dtype)
                             S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new = (
@@ -608,10 +609,10 @@ def _attention_sequence_prefill_with_mask(
 
                             # Load Q; rows outside the valid range are zeroed so they contribute nothing downstream.
                             for li, lj in T.grid(tile_x, tile_y):
-                                with T.sblock("Q_load"):
-                                    i, j = T.axis.remap("SS", [li, lj])
-                                    T.reads()
-                                    T.writes()
+                                with Ts.sblock("Q_load"):
+                                    i, j = Ts.axis.remap("SS", [li, lj])
+                                    Ts.reads()
+                                    Ts.writes()
                                     cur_L: T.let[T.int32] = (LH_start + i) // group_size
                                     cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                                     if _q_row_valid(cur_L, valid_len, qo_len):
@@ -624,10 +625,10 @@ def _attention_sequence_prefill_with_mask(
                                 L_kv_start: T.let[T.int32] = iterator * tile_z
                                 L_kv_base: T.let[T.int32] = 0
                                 for lz, ly in T.grid(tile_z, tile_y):
-                                    with T.sblock("K_load"):
-                                        i, j = T.axis.remap("SS", [lz, ly])
-                                        T.reads()
-                                        T.writes()
+                                    with Ts.sblock("K_load"):
+                                        i, j = Ts.axis.remap("SS", [lz, ly])
+                                        Ts.reads()
+                                        Ts.writes()
                                         cur_L: T.let[T.int32] = L_kv_start + i
                                         if _kv_col_valid(cur_L, valid_len, kv_len):
                                             K_smem[i, j] = k[b_idx, L_kv_base + cur_L, by, j]
@@ -635,10 +636,10 @@ def _attention_sequence_prefill_with_mask(
                                             K_smem[i, j] = 0.0
                                 T.tvm_storage_sync("shared")
                                 for lz, ly in T.grid(tile_z, tile_y):
-                                    with T.sblock("V_load"):
-                                        i, j = T.axis.remap("SS", [lz, ly])
-                                        T.reads()
-                                        T.writes()
+                                    with Ts.sblock("V_load"):
+                                        i, j = Ts.axis.remap("SS", [lz, ly])
+                                        Ts.reads()
+                                        Ts.writes()
                                         cur_L: T.let[T.int32] = L_kv_start + i
                                         if _kv_col_valid(cur_L, valid_len, kv_len):
                                             V_smem[i, j] = v[b_idx, L_kv_base + cur_L, by, j]
@@ -652,8 +653,8 @@ def _attention_sequence_prefill_with_mask(
 
                             # Store O
                             for li, lj in T.grid(tile_x, tile_y):
-                                with T.sblock("O_store"):
-                                    i, j = T.axis.remap("SS", [li, lj])
+                                with Ts.sblock("O_store"):
+                                    i, j = Ts.axis.remap("SS", [li, lj])
                                     cur_L: T.let[T.int32] = 0 + (LH_start + i) // group_size
                                     cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                                     if cur_L < qo_len:
@@ -661,8 +662,8 @@ def _attention_sequence_prefill_with_mask(
 
                             # Store LSE
                             for li in T.grid(tile_x):
-                                with T.sblock("lse_store"):
-                                    i = T.axis.remap("S", [li])
+                                with Ts.sblock("lse_store"):
+                                    i = Ts.axis.remap("S", [li])
                                     cur_L: T.let[T.int32] = 0 + (LH_start + i) // group_size
                                     cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                                     if cur_L < qo_len:
@@ -677,7 +678,7 @@ def _attention_sequence_prefill_with_mask(
 def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[str, Any]):
     group_size = h_q // h_kv
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_prefill_ragged_kv(  # pylint: disable=too-many-branches
         var_q: T.handle,  # [total_len, h_q, d_qk]
         var_q_indptr: T.handle,  # [batch_size + 1]
@@ -713,20 +714,20 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
         lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")  # pylint: disable=unused-variable
 
         for b in T.serial(batch_size):
-            with T.sblock("attn"):
-                softmax_sum = T.sblock_alloc_buffer([h_q], "float32")
-                m_prev = T.sblock_alloc_buffer([h_q], "float32")
-                m_new = T.sblock_alloc_buffer([h_q], "float32")
-                d_prev = T.sblock_alloc_buffer([h_q], "float32")
-                d_new = T.sblock_alloc_buffer([h_q], "float32")
-                p_sum = T.sblock_alloc_buffer([d_v], "float32")
-                max_score = T.sblock_alloc_buffer([h_q], "float32")
-                attention_scores = T.sblock_alloc_buffer([kv_len, h_q], "float32")
-                exp_scores = T.sblock_alloc_buffer([kv_len, h_q], "float32")
-                attention_score = T.sblock_alloc_buffer([1], "float32")
-                query_val = T.sblock_alloc_buffer([1], "float32")
-                key_val = T.sblock_alloc_buffer([1], "float32")
-                result = T.sblock_alloc_buffer([1], "float32")
+            with Ts.sblock("attn"):
+                softmax_sum = Ts.sblock_alloc_buffer([h_q], "float32")
+                m_prev = Ts.sblock_alloc_buffer([h_q], "float32")
+                m_new = Ts.sblock_alloc_buffer([h_q], "float32")
+                d_prev = Ts.sblock_alloc_buffer([h_q], "float32")
+                d_new = Ts.sblock_alloc_buffer([h_q], "float32")
+                p_sum = Ts.sblock_alloc_buffer([d_v], "float32")
+                max_score = Ts.sblock_alloc_buffer([h_q], "float32")
+                attention_scores = Ts.sblock_alloc_buffer([kv_len, h_q], "float32")
+                exp_scores = Ts.sblock_alloc_buffer([kv_len, h_q], "float32")
+                attention_score = Ts.sblock_alloc_buffer([1], "float32")
+                query_val = Ts.sblock_alloc_buffer([1], "float32")
+                key_val = Ts.sblock_alloc_buffer([1], "float32")
+                result = Ts.sblock_alloc_buffer([1], "float32")
 
                 for q_idx in T.serial(q_indptr[b + 1] - q_indptr[b]):
                     for i in T.serial(h_q):
@@ -796,7 +797,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
     NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d_qk, dtype, target, d_v=d_v)
     init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, _, advance_tile_batch, paged_store_output_lse, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, d_v, bdx, num_warps, group_size)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_prefill_ragged_kv(  # pylint: disable=too-many-branches
         var_q: T.handle, # [total_len, h_q, d_qk]
         var_q_indptr: T.handle, # [batch_size + 1]
@@ -836,10 +837,10 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
             for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
                 for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
                     for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
-                        with T.sblock("attn"):
-                            bx, by, ty, tx = T.axis.remap("SSSS", [lbx, lby, lty, ltx])
-                            T.reads()
-                            T.writes()
+                        with Ts.sblock("attn"):
+                            bx, by, ty, tx = Ts.axis.remap("SSSS", [lbx, lby, lty, ltx])
+                            Ts.reads()
+                            Ts.writes()
                             tile_id, batch_idx, batch_tiles, batch_rows, iterator, kv_chunk_len = _alloc_tile_walk_state()
                             Q_smem, K_smem, V_smem, O_local = _alloc_mha_qkvo_buffers(tile_x, tile_z, d_qk, d_v, dtype)
                             S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new = (
@@ -865,10 +866,10 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
 
                                     # Load Q from gmem to smem
                                     for li, lj in T.grid(tile_x, tile_y):
-                                        with T.sblock("Q_load"):
-                                            i, j = T.axis.remap("SS", [li, lj])
-                                            T.reads()
-                                            T.writes()
+                                        with Ts.sblock("Q_load"):
+                                            i, j = Ts.axis.remap("SS", [li, lj])
+                                            Ts.reads()
+                                            Ts.writes()
                                             cur_L: T.let[T.int32] = q_indptr_val + (LH_start + i) // group_size
                                             cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                                             if cur_L < q_indptr[b_idx + 1]:
@@ -885,8 +886,8 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
                                         L_kv_start: T.let[T.int32] = iterator * tile_z
                                         L_kv_base: T.let[T.int32] = kv_indptr[b_idx]
                                         for lz, ly in T.grid(tile_z, tile_y):
-                                            with T.sblock("K_load"):
-                                                i, j = T.axis.remap("SS", [lz, ly])
+                                            with Ts.sblock("K_load"):
+                                                i, j = Ts.axis.remap("SS", [lz, ly])
                                                 cur_L: T.let[T.int32] = L_kv_start + i
                                                 if cur_L < kv_chunk_len[0]:
                                                     K_smem[i, j] = T.if_then_else(
@@ -898,10 +899,10 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
                                                     K_smem[i, j] = 0.0
                                         T.tvm_storage_sync("shared")
                                         for lz, ly in T.grid(tile_z, d_v):
-                                            with T.sblock("V_load"):
-                                                i, j = T.axis.remap("SS", [lz, ly])
-                                                T.reads()
-                                                T.writes()
+                                            with Ts.sblock("V_load"):
+                                                i, j = Ts.axis.remap("SS", [lz, ly])
+                                                Ts.reads()
+                                                Ts.writes()
                                                 cur_L: T.let[T.int32] = L_kv_start + i
                                                 if cur_L < kv_chunk_len[0]:
                                                     V_smem[i, j] = v[L_kv_base + cur_L, by, j]
@@ -934,7 +935,7 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
         global_symbol += "_sliding_window"
 
     # pylint: disable=too-many-branches
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_prefill_paged_kv_mla(
         var_q: T.handle, # [total_len, h_q, d_qk]
         var_q_indptr: T.handle, # [batch_size + 1]
@@ -979,10 +980,10 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
         for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
             for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
                 for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
-                    with T.sblock("attn"):
-                        bx, ty, tx = T.axis.remap("SSS", [lbx, lty, ltx])
-                        T.reads()
-                        T.writes()
+                    with Ts.sblock("attn"):
+                        bx, ty, tx = Ts.axis.remap("SSS", [lbx, lty, ltx])
+                        Ts.reads()
+                        Ts.writes()
                         tile_id, batch_idx, batch_tiles, batch_rows, iterator, kv_chunk_len = _alloc_tile_walk_state()
                         Q_smem, KV_smem, O_local = _alloc_mla_qkvo_buffers(tile_x, tile_z, d_qk, d_latent, dtype)
                         S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new = (
@@ -1014,10 +1015,10 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
 
                                 # Load Q from gmem to smem
                                 for li, lj in T.grid(tile_x, tile_y):
-                                    with T.sblock("Q_load"):
-                                        i, j = T.axis.remap("SS", [li, lj])
-                                        T.reads()
-                                        T.writes()
+                                    with Ts.sblock("Q_load"):
+                                        i, j = Ts.axis.remap("SS", [li, lj])
+                                        Ts.reads()
+                                        Ts.writes()
                                         cur_L: T.let[T.int32] = q_indptr_val + (LH_start + i) // group_size
                                         cur_H_qo: T.let[T.int32] = (LH_start + i) % group_size
                                         if cur_L < q_indptr[b_idx + 1]:
@@ -1029,10 +1030,10 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
                                 for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_z)):
                                     L_kv_start: T.let[T.int32] = iterator * tile_z
                                     for lz, ly in T.grid(tile_z, tile_y):
-                                        with T.sblock("KV_load"):
-                                            i, j = T.axis.remap("SS", [lz, ly])
-                                            T.reads()
-                                            T.writes()
+                                        with Ts.sblock("KV_load"):
+                                            i, j = Ts.axis.remap("SS", [lz, ly])
+                                            Ts.reads()
+                                            Ts.writes()
                                             cur_L: T.let[T.int32] = L_kv_start + i
                                             if cur_L < kv_chunk_len[0]:
                                                 seq_offset: T.let[T.int32()] = _get_seq_offset(cur_L, b_idx, length_info, sliding_window)  # type: ignore

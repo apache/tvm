@@ -23,6 +23,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -30,27 +31,27 @@ def test_basic():
     # fmt: off
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(rxplaceholder: T.Buffer(T.int64(8), "float32"), rxplaceholder_1: T.Buffer((), "float32"), T_add: T.Buffer(T.int64(8), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def reshape(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), T_reshape: T.Buffer(T.int64(8), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def relu(rxplaceholder: T.Buffer(T.int64(8), "float32"), compute: T.Buffer(T.int64(8), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def log(rxplaceholder: T.Buffer(T.int64(10), "float32"), compute: T.Buffer(T.int64(10), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def pad(rxplaceholder: T.Buffer(T.int64(8), "float32"), PadInput: T.Buffer(T.int64(10), "float32")):
             T.evaluate(0)
 
@@ -79,27 +80,27 @@ def test_basic():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(rxplaceholder: T.Buffer(T.int64(8), "float32"), rxplaceholder_1: T.Buffer((), "float32"), T_add: T.Buffer(T.int64(8), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def reshape(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), T_reshape: T.Buffer(T.int64(8), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def relu(rxplaceholder: T.Buffer(T.int64(8), "float32"), compute: T.Buffer(T.int64(8), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def log(rxplaceholder: T.Buffer(T.int64(10), "float32"), compute: T.Buffer(T.int64(10), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def pad(rxplaceholder: T.Buffer(T.int64(8), "float32"), PadInput: T.Buffer(T.int64(10), "float32")):
             T.evaluate(0)
 
@@ -129,27 +130,27 @@ def test_basic():
 
     @I.ir_module
     class ExpectedLowered:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(rxplaceholder: T.Buffer((T.int64(8),), "float32"), rxplaceholder_1: T.Buffer((), "float32"), T_add: T.Buffer((T.int64(8),), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def log(rxplaceholder: T.Buffer((T.int64(10),), "float32"), compute: T.Buffer((T.int64(10),), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def pad(rxplaceholder: T.Buffer((T.int64(8),), "float32"), PadInput: T.Buffer((T.int64(10),), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def relu(rxplaceholder: T.Buffer((T.int64(8),), "float32"), compute: T.Buffer((T.int64(8),), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def reshape(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), T_reshape: T.Buffer((T.int64(8),), "float32")):
             T.evaluate(0)
 
@@ -193,7 +194,7 @@ def test_basic():
 def test_different_dtype():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(
             A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
@@ -201,7 +202,7 @@ def test_different_dtype():
         ):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add1(
             A: T.Buffer((T.int64(2), T.int64(3)), "int32"),
             B: T.Buffer((T.int64(2), T.int64(3)), "int32"),
@@ -229,7 +230,7 @@ def test_different_dtype():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(
             A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
@@ -237,7 +238,7 @@ def test_different_dtype():
         ):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add1(
             A: T.Buffer((T.int64(2), T.int64(3)), "int32"),
             B: T.Buffer((T.int64(2), T.int64(3)), "int32"),
@@ -276,7 +277,7 @@ def test_different_dtype():
 def test_dtype_bool():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add1(
             A: T.Buffer((T.int64(2), T.int64(3)), "bool"),
             B: T.Buffer((T.int64(2), T.int64(3)), "bool"),
@@ -297,7 +298,7 @@ def test_dtype_bool():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add1(
             A: T.Buffer((T.int64(2), T.int64(3)), "bool"),
             B: T.Buffer((T.int64(2), T.int64(3)), "bool"),
@@ -326,7 +327,7 @@ def test_dtype_bool():
 def test_same_dtype():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(
             A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
@@ -354,7 +355,7 @@ def test_same_dtype():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(
             A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
@@ -390,11 +391,11 @@ def test_same_dtype():
 def test_if_cond():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def all_less_than_zero(A: T.Buffer((2, 3), "float32"), B: T.Buffer((), "bool")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
             T.evaluate(0)
 
@@ -426,7 +427,7 @@ def test_if_cond():
 def test_if_then_else():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
             T.evaluate(0)
 
@@ -455,7 +456,7 @@ def test_if_then_else():
 def test_cross_block_use():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
             T.evaluate(0)
 
@@ -494,7 +495,7 @@ def test_cross_block_use():
 def test_nested_tuple():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
             T.evaluate(0)
 
@@ -550,7 +551,7 @@ def test_nested_tuple():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
             T.evaluate(0)
 
@@ -682,7 +683,7 @@ def test_call_packed_external_func():
 def test_symbolic_shape():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(var_A: T.handle, var_B: T.handle):
             m = T.int64()
             n = T.int64()
@@ -704,7 +705,7 @@ def test_symbolic_shape():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(var_A: T.handle, var_B: T.handle):
             m = T.int64()
             n = T.int64()
@@ -763,7 +764,7 @@ def test_zero_reference():
 def test_reshape_param():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(
             A: T.Buffer((T.int64(2), T.int64(25), T.int64(2)), "float32"),
             B: T.Buffer((T.int64(2), T.int64(25), T.int64(2)), "float32"),
@@ -793,7 +794,7 @@ def test_reshape_param():
 def test_multiple_functions():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(
             A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
@@ -801,7 +802,7 @@ def test_multiple_functions():
         ):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add1(
             A: T.Buffer((T.int64(2), T.int64(3)), "int32"),
             B: T.Buffer((T.int64(2), T.int64(3)), "int32"),
@@ -847,7 +848,7 @@ def test_multiple_functions():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(
             A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
@@ -855,7 +856,7 @@ def test_multiple_functions():
         ):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add1(
             A: T.Buffer((T.int64(2), T.int64(3)), "int32"),
             B: T.Buffer((T.int64(2), T.int64(3)), "int32"),
@@ -916,27 +917,27 @@ def test_tir_var_upper_bound():
     # fmt: off
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(rxplaceholder: T.handle, rxplaceholder_1: T.handle, T_add: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def reshape(rxplaceholder: T.handle, T_reshape: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def relu(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def log(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def pad(rxplaceholder: T.handle, PadInput: T.handle):
             T.evaluate(0)
 
@@ -965,27 +966,27 @@ def test_tir_var_upper_bound():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(rxplaceholder: T.handle, rxplaceholder_1: T.handle, T_add: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def log(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def pad(rxplaceholder: T.handle, PadInput: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def relu(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def reshape(rxplaceholder: T.handle, T_reshape: T.handle):
             T.evaluate(0)
 
@@ -1023,27 +1024,27 @@ def test_lower_bound_only():
     # fmt: off
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(rxplaceholder: T.handle, rxplaceholder_1: T.handle, T_add: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def reshape(rxplaceholder: T.handle, T_reshape: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def relu(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def log(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def pad(rxplaceholder: T.handle, PadInput: T.handle):
             T.evaluate(0)
 
@@ -1072,27 +1073,27 @@ def test_lower_bound_only():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(rxplaceholder: T.handle, rxplaceholder_1: T.handle, T_add: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def log(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def pad(rxplaceholder: T.handle, PadInput: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def relu(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def reshape(rxplaceholder: T.handle, T_reshape: T.handle):
             T.evaluate(0)
 
@@ -1131,27 +1132,27 @@ def test_upper_and_lower_bounds():
     # fmt: off
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(rxplaceholder: T.handle, rxplaceholder_1: T.handle, T_add: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def reshape(rxplaceholder: T.handle, T_reshape: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def relu(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def log(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def pad(rxplaceholder: T.handle, PadInput: T.handle):
             T.evaluate(0)
 
@@ -1180,27 +1181,27 @@ def test_upper_and_lower_bounds():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(rxplaceholder: T.handle, rxplaceholder_1: T.handle, T_add: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def log(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def pad(rxplaceholder: T.handle, PadInput: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def relu(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def reshape(rxplaceholder: T.handle, T_reshape: T.handle):
             T.evaluate(0)
 
@@ -1262,7 +1263,7 @@ def test_tir_var_decreasing_monotone():
     # fmt: off
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
@@ -1285,7 +1286,7 @@ def test_tir_var_decreasing_monotone():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
@@ -1317,11 +1318,11 @@ def test_call_tir_dyn():
     # fmt: off
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_full(var_full: T.handle, n: T.int64):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
@@ -1343,11 +1344,11 @@ def test_call_tir_dyn():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_full(var_full: T.handle, n: T.int64):
             T.evaluate(0)
 
@@ -1378,11 +1379,11 @@ def test_call_tir_dyn_plan_dynamic_func_output():
     # fmt: off
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_full(var_full: T.handle, n: T.int64):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
@@ -1404,11 +1405,11 @@ def test_call_tir_dyn_plan_dynamic_func_output():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_full(var_full: T.handle, n: T.int64):
             T.evaluate(0)
 
@@ -1440,11 +1441,11 @@ def test_call_tir_dyn_plan_partially_dynamic():
     # fmt: off
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_full(var_full: T.handle, n: T.int64, m: T.int64):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
@@ -1470,11 +1471,11 @@ def test_call_tir_dyn_plan_partially_dynamic():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_full(var_full: T.handle, n: T.int64, m: T.int64):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
@@ -1510,7 +1511,7 @@ def test_function_independence():
     # fmt: off
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(A: T.handle, B: T.handle):
             T.evaluate(0)
 
@@ -1540,7 +1541,7 @@ def test_function_independence():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(A: T.handle, B: T.handle):
             T.evaluate(0)
 
@@ -1578,7 +1579,7 @@ def test_function_independence():
 def test_add():
     @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def cumsum(var_A: T.handle, var_A_1: T.handle, var_exclusive_scan_thrust: T.handle):
             T.evaluate(0)
 
@@ -1624,7 +1625,7 @@ def test_add():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def cumsum(var_A: T.handle, var_A_1: T.handle, var_exclusive_scan_thrust: T.handle):
             T.evaluate(0)
 
@@ -1683,7 +1684,7 @@ def test_add():
 def test_view():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
@@ -1701,7 +1702,7 @@ def test_view():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
@@ -1738,11 +1739,11 @@ def test_view():
 def test_match_cast_preserves_storage_liveness():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def copy(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add(
             A: T.Buffer((16,), "float32"),
             B: T.Buffer((16,), "float32"),
@@ -1778,7 +1779,7 @@ def test_match_cast_preserves_storage_liveness():
 def test_builtin_reshape_preserves_storage_liveness():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def copy(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
             T.evaluate(0)
 
@@ -1815,7 +1816,7 @@ def test_builtin_reshape_preserves_storage_liveness():
 def test_with_dataflow():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(A: T.handle, B: T.handle):
             T.evaluate(0)
 
@@ -1833,7 +1834,7 @@ def test_with_dataflow():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def exp(A: T.handle, B: T.handle):
             T.evaluate(0)
 

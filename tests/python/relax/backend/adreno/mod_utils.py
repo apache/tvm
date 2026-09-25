@@ -29,6 +29,7 @@ from tvm.relax.backend.adreno import clml
 from tvm.relax.script import ir_builder as relax_builder
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 
@@ -726,7 +727,7 @@ def get_global_maxpool_expected_codegen(input_shape, pool_size, stride, padding,
 
 
 def get_dequant_matmul_module(K, N):
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class DequantMatmul:
         @R.function
         def main(
@@ -748,19 +749,19 @@ def get_dequant_matmul_module(K, N):
                 R.output(gv)
             return gv
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def dequantize(weight: T.handle, scale: T.handle, var_dequantize: T.handle):
             T.func_attr({"tirx.noalias": T.bool(True)})
             lm_head_q_weight1 = T.match_buffer(weight, (T.int64(K // 8), T.int64(N)), "uint32")
             lm_head_q_scale1 = T.match_buffer(scale, (T.int64(K // 32), T.int64(N)), "float16")
             dequantize = T.match_buffer(var_dequantize, (T.int64(K), T.int64(N)), "float16")
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             compute = T.alloc_buffer((T.int64(K), T.int64(N)), "float16")
             for i0, i1 in T.grid(T.int64(K), T.int64(N)):
-                with T.sblock("compute"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(lm_head_q_weight1[v_i0 // T.int64(8), v_i1])
-                    T.writes(compute[v_i0, v_i1])
+                with Ts.sblock("compute"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(lm_head_q_weight1[v_i0 // T.int64(8), v_i1])
+                    Ts.writes(compute[v_i0, v_i1])
                     compute[v_i0, v_i1] = T.Cast(
                         "float16",
                         T.bitwise_and(
@@ -772,10 +773,10 @@ def get_dequant_matmul_module(K, N):
                         ),
                     )
             for i0, i1 in T.grid(T.int64(K), T.int64(N)):
-                with T.sblock("dequantize"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(compute[v_i0, v_i1], lm_head_q_scale1[v_i0 // T.int64(32), v_i1])
-                    T.writes(dequantize[v_i0, v_i1])
+                with Ts.sblock("dequantize"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(compute[v_i0, v_i1], lm_head_q_scale1[v_i0 // T.int64(32), v_i1])
+                    Ts.writes(dequantize[v_i0, v_i1])
                     dequantize[v_i0, v_i1] = (
                         compute[v_i0, v_i1] - T.float16(7.0)
                     ) * lm_head_q_scale1[v_i0 // T.int64(32), v_i1]
@@ -784,7 +785,7 @@ def get_dequant_matmul_module(K, N):
 
 
 def get_dequant_vec_matmul_module(K, N):
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class DequantVecMatmul:
         @R.function
         def main(
@@ -806,20 +807,20 @@ def get_dequant_vec_matmul_module(K, N):
                 R.output(gv)
             return gv
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def dequantize(weight: T.handle, scale: T.handle, var_dequantize: T.handle):
             T.func_attr({"tirx.noalias": T.bool(True)})
             vocab_size = T.int64()
             lm_head_q_weight1 = T.match_buffer(weight, (T.int64(K // 8), vocab_size), "uint32")
             lm_head_q_scale1 = T.match_buffer(scale, (T.int64(K // 32), vocab_size), "float16")
             dequantize = T.match_buffer(var_dequantize, (T.int64(K), vocab_size), "float16")
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             compute = T.alloc_buffer((T.int64(K), vocab_size), "float16")
             for i0, i1 in T.grid(T.int64(K), vocab_size):
-                with T.sblock("compute"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(lm_head_q_weight1[v_i0 // T.int64(8), v_i1])
-                    T.writes(compute[v_i0, v_i1])
+                with Ts.sblock("compute"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(lm_head_q_weight1[v_i0 // T.int64(8), v_i1])
+                    Ts.writes(compute[v_i0, v_i1])
                     compute[v_i0, v_i1] = T.Cast(
                         "float16",
                         T.bitwise_and(
@@ -831,10 +832,10 @@ def get_dequant_vec_matmul_module(K, N):
                         ),
                     )
             for i0, i1 in T.grid(T.int64(K), vocab_size):
-                with T.sblock("dequantize"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(compute[v_i0, v_i1], lm_head_q_scale1[v_i0 // T.int64(32), v_i1])
-                    T.writes(dequantize[v_i0, v_i1])
+                with Ts.sblock("dequantize"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(compute[v_i0, v_i1], lm_head_q_scale1[v_i0 // T.int64(32), v_i1])
+                    Ts.writes(dequantize[v_i0, v_i1])
                     dequantize[v_i0, v_i1] = (
                         compute[v_i0, v_i1] - T.float16(7.0)
                     ) * lm_head_q_scale1[v_i0 // T.int64(32), v_i1]

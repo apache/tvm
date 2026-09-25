@@ -19,6 +19,7 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -40,7 +41,7 @@ def test_prim_value_in_assert_condition():
             _ = R.assert_op(condition)
             return A
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def compute_symbolic_expr(N: T.int64) -> T.bool:
             T.func_attr({"tirx.is_host_func": True})
             return N % 16 == 0
@@ -73,7 +74,7 @@ def test_prim_value_in_branch_condition():
                 out = R.call_packed("slow_non_vectorized_impl", A, ty_args=[A.ty])
             return out
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def compute_symbolic_expr(N: T.int64) -> T.bool:
             T.func_attr({"tirx.is_host_func": True})
             return N % 16 == 0

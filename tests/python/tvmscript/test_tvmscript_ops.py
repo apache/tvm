@@ -20,11 +20,12 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def get_valid_counts(
     data: T.handle,
     valid_count: T.handle,
@@ -39,14 +40,14 @@ def get_valid_counts(
     out_buf = T.match_buffer(out, (1, 2500, 6), "float32")
     out_indices_buf = T.match_buffer(out_indices, (1, 2500), "int32")
 
-    with T.sblock("init"):
-        vi = T.axis.S(1, 0)
+    with Ts.sblock("init"):
+        vi = Ts.axis.S(1, 0)
         valid_count_buf[vi] = T.int32(0)
         for j in range(2500):
-            with T.sblock("update"):
-                vj = T.axis.S(2500, j)
-                T.reads([data_buf[vi, vj, 6]])
-                T.writes([valid_count_buf[vi], out_indices_buf[vi, vj], out_buf[vi, vj, 6]])
+            with Ts.sblock("update"):
+                vj = Ts.axis.S(2500, j)
+                Ts.reads([data_buf[vi, vj, 6]])
+                Ts.writes([valid_count_buf[vi], out_indices_buf[vi, vj], out_buf[vi, vj, 6]])
                 if (data_buf[vi, vj, score_index] > score_threshold) and (
                     (id_index < 0) or (data_buf[vi, vj, id_index] >= T.float32(0))
                 ):
@@ -106,26 +107,26 @@ def test_get_valid_counts_script_func():
     _check_get_valid_counts_with_numpy(f, (1, 2500, 6), 0.0, 0, 1)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def alloc_zero_dim_buffer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [], dtype="float32")
     B = T.match_buffer(b, [], dtype="float32")
     # body
     # tirx.with block("root")
-    C = T.sblock_alloc_buffer([], dtype="float32")
+    C = Ts.sblock_alloc_buffer([], dtype="float32")
     A[()] = T.float32(2)
     C[()] = A[()] + B[()]
     B[()] = C[()]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def alloc_zero_dim_buffer_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (), "float32")
     B = T.match_buffer(b, (), "float32")
-    with T.sblock("root"):
-        T.reads([])
-        T.writes([])
-        C = T.sblock_alloc_buffer((), "float32")
+    with Ts.sblock("root"):
+        Ts.reads([])
+        Ts.writes([])
+        C = Ts.sblock_alloc_buffer((), "float32")
         A[()] = T.float32(2)
         C[()] = A[()] + B[()]
         B[()] = C[()]
@@ -169,7 +170,7 @@ def test_alloc_zero_dim_buffer_round_trip():
     _check_alloc_zero_dim_buffer(rt_mod_with_block)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def ceildiv_test(A: T.Buffer(16, "int32")):
     for i in range(16):
         A[i] = T.ceildiv(A[i], 4)
@@ -186,7 +187,7 @@ def test_ceildiv():
 
 try:
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def slice_op_test(
         A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32"), C: T.Buffer((10,), "uint32")
     ):
@@ -217,7 +218,7 @@ try:
         T.evaluate((A[0:5] < 0) and (1 > 0))
         T.evaluate((A[0:5] > 0) or (1 > 0))
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def slice_op_test_ref(
         A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32"), C: T.Buffer((10,), "uint32")
     ):

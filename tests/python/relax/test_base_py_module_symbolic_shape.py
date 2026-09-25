@@ -24,6 +24,7 @@ from tvm import relax, tirx
 from tvm.ir import IRModule
 from tvm.relax.base_py_module import BasePyModule
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -64,7 +65,7 @@ def test_infer_concrete_shape_error_when_uninferrable():
 
 @R.py_module
 class AddModuleSymbolic(BasePyModule):
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def add_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
         T.func_attr({"global_symbol": "add_tir"})
         n = T.int64()
@@ -194,7 +195,7 @@ def test_infer_concrete_shape_wrong_ndim():
 
 @R.py_module
 class MatrixModuleSymbolic(BasePyModule):
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def matmul_tir(var_a: T.handle, var_b: T.handle, var_c: T.handle):
         T.func_attr({"global_symbol": "matmul_tir"})
         m = T.int64()

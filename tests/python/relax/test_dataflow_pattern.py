@@ -28,12 +28,13 @@ from tvm import tirx
 from tvm.relax.analysis import get_var2val
 from tvm.relax.dpl import *
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
 class Module:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
         T.func_attr({"global_symbol": "tir_matmul"})
         A = T.match_buffer(x, (32, 32))
@@ -41,29 +42,29 @@ class Module:
         C = T.match_buffer(z, (32, 32))
 
         for i0, j0, k0 in T.grid(32, 32, 32):
-            with T.sblock():
-                i, j, k = T.axis.remap("SSR", [i0, j0, k0])
-                with T.init():
+            with Ts.sblock():
+                i, j, k = Ts.axis.remap("SSR", [i0, j0, k0])
+                with Ts.init():
                     C[i, j] = 0.0
                 C[i, j] += A[i, k] * B[j, k]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tir_relu(x: T.handle, y: T.handle):
         T.func_attr({"global_symbol": "tir_relu"})
         A = T.match_buffer(x, (32, 32))
         B = T.match_buffer(y, (32, 32))
         for i, j in T.grid(32, 32):
-            with T.sblock():
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock():
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tir_zeros(n: T.int64, x: T.handle):
         T.func_attr({"global_symbol": "tir_zeros"})
         A = T.match_buffer(x, [n])
         for i in range(n):
-            with T.sblock():
-                vi = T.axis.remap("S", [i])
+            with Ts.sblock():
+                vi = Ts.axis.remap("S", [i])
                 A[vi] = 1.0
 
     @R.function

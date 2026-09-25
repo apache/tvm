@@ -18,21 +18,21 @@
  */
 
 /*!
- * \file tirx/ir/script/script_complete.h
+ * \file s_tir/script/builder/script_complete.h
  * \brief Used by TVM Script parser to expand incomplete TIR input
  */
-#ifndef TVM_TIR_IR_SCRIPT_SCRIPT_COMPLETE_H_
-#define TVM_TIR_IR_SCRIPT_SCRIPT_COMPLETE_H_
+#ifndef TVM_S_TIR_SCRIPT_BUILDER_SCRIPT_COMPLETE_H_
+#define TVM_S_TIR_SCRIPT_BUILDER_SCRIPT_COMPLETE_H_
 #include <tvm/ffi/function.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
-namespace tirx {
+namespace s_tir {
 
-PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocates,
-                        bool s_tir = false);
+tvm::tirx::PrimFunc ScriptComplete(tvm::tirx::PrimFunc func,
+                                   const ffi::Array<tvm::tirx::BufferVar>& root_allocates);
 
-}  // namespace tirx
+}  // namespace s_tir
 }  // namespace tvm
-#endif  // TVM_TIR_IR_SCRIPT_SCRIPT_COMPLETE_H_
+#endif  // TVM_S_TIR_SCRIPT_BUILDER_SCRIPT_COMPLETE_H_

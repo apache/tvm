@@ -25,10 +25,11 @@ from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def indirect_mem_access(a: T.handle, idx_a: T.handle, b: T.handle, idx_b: T.handle) -> None:
     A = T.match_buffer(a, [128], dtype="float32")
     IA = T.match_buffer(idx_a, [10], dtype="int32")
@@ -36,14 +37,14 @@ def indirect_mem_access(a: T.handle, idx_a: T.handle, b: T.handle, idx_b: T.hand
     IB = T.match_buffer(idx_b, [10], dtype="int32")
 
     for i in range(10):
-        with T.sblock("B"):
-            vi = T.axis.spatial(10, i)
-            T.reads(A[IA[vi]], IA[vi])
-            T.writes(B[IB[vi]], IB[vi])
+        with Ts.sblock("B"):
+            vi = Ts.axis.spatial(10, i)
+            Ts.reads(A[IA[vi]], IA[vi])
+            Ts.writes(B[IB[vi]], IB[vi])
             B[IB[vi]] = A[IA[vi]]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def indirect_mem_access_hide_ia(a: T.handle, idx_a: T.handle, b: T.handle, idx_b: T.handle) -> None:
     A = T.match_buffer(a, [128], dtype="float32")
     IA = T.match_buffer(idx_a, [10], dtype="int32")
@@ -51,14 +52,14 @@ def indirect_mem_access_hide_ia(a: T.handle, idx_a: T.handle, b: T.handle, idx_b
     IB = T.match_buffer(idx_b, [10], dtype="int32")
 
     for i in range(10):
-        with T.sblock("B"):
-            vi = T.axis.spatial(10, i)
-            T.reads(A[IA[vi]])
-            T.writes(B[IB[vi]], IB[vi])
+        with Ts.sblock("B"):
+            vi = Ts.axis.spatial(10, i)
+            Ts.reads(A[IA[vi]])
+            Ts.writes(B[IB[vi]], IB[vi])
             B[IB[vi]] = A[IA[vi]]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def indirect_mem_access_hide_ib(a: T.handle, idx_a: T.handle, b: T.handle, idx_b: T.handle) -> None:
     A = T.match_buffer(a, [128], dtype="float32")
     IA = T.match_buffer(idx_a, [10], dtype="int32")
@@ -66,10 +67,10 @@ def indirect_mem_access_hide_ib(a: T.handle, idx_a: T.handle, b: T.handle, idx_b
     IB = T.match_buffer(idx_b, [10], dtype="int32")
 
     for i in range(10):
-        with T.sblock("B"):
-            vi = T.axis.spatial(10, i)
-            T.reads(A[IA[vi]], IA[vi])
-            T.writes(B[IB[vi]])
+        with Ts.sblock("B"):
+            vi = Ts.axis.spatial(10, i)
+            Ts.reads(A[IA[vi]], IA[vi])
+            Ts.writes(B[IB[vi]])
             B[IB[vi]] = A[IA[vi]]
 
 

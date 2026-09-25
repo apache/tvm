@@ -18,6 +18,10 @@
 # pylint: disable=invalid-name
 """S-TIR namespace for scheduable TensorIR"""
 
+import tvm.script
+
+tvm.script.register_dialect("s_tir", "tvm.s_tir.script", builder_path="tvm.s_tir.script.ir_builder")
+
 from ._tensor_intrin import TensorIntrin
 from .stmt import MatchBufferRegion, SBlock, SBlockRealize
 
@@ -56,3 +60,26 @@ def renew_defs(func):
         The new generated func.
     """
     return _ffi_api.RenewDefs(func)
+
+
+def _initialize_script_namespace():
+    from . import script
+
+    script._initialize()
+
+
+from tvm.script.parser import register_namespace_initializer as _register_namespace_initializer
+
+_register_namespace_initializer(_initialize_script_namespace, aliases=("Ts", "s_tir"))
+
+
+def _check_script_module(module):
+    from tvm.tirx import PrimFunc
+
+    if any(isinstance(fn, PrimFunc) and not fn.is_tirx for fn in module.functions.values()):
+        from tvm.s_tir.script.ir_builder import _check_module_well_formed
+
+        _check_module_well_formed(module)
+
+
+tvm.script.register_module_validator(_check_script_module)

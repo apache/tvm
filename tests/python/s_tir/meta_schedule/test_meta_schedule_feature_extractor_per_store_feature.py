@@ -26,12 +26,13 @@ import tvm
 import tvm.testing
 from tvm import s_tir, te, tirx
 from tvm.s_tir import meta_schedule as ms
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 N_FEATURES = 164
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul(
     A: T.Buffer((512, 512), "float32"),
     B: T.Buffer((512, 512), "float32"),
@@ -40,13 +41,13 @@ def matmul(
     # function attr dict
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     # body
-    # with T.sblock("root")
+    # with Ts.sblock("root")
     for i0, i1, i2 in T.grid(512, 512, 512):
-        with T.sblock("C"):
-            i, j, k = T.axis.remap("SSR", [i0, i1, i2])
-            T.reads(C[i, j], A[i, k], B[k, j])
-            T.writes(C[i, j])
-            with T.init():
+        with Ts.sblock("C"):
+            i, j, k = Ts.axis.remap("SSR", [i0, i1, i2])
+            Ts.reads(C[i, j], A[i, k], B[k, j])
+            Ts.writes(C[i, j])
+            with Ts.init():
                 C[i, j] = T.float32(0)
             C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -57,21 +58,21 @@ def matmul(
 # from tvm.script import tirx as T
 @tvm.script.ir_module
 class LayoutTransform:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(placeholder: T.Buffer((1, 16, 7, 7, 32), "float32"), placeholder_1: T.Buffer((25088,), "float32"), T_layout_trans: T.Buffer((1, 1, 7, 7, 512), "float32")) -> None:
         # function attr dict
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # body
-        # with T.sblock("root")
+        # with Ts.sblock("root")
         for i0_i1_i2_i3_i4_fused in T.parallel(25088, annotations={"pragma_auto_unroll_max_step":64, "pragma_unroll_explicit":1}):
-            with T.sblock("T_layout_trans_1"):
-                ax0 = T.axis.spatial(1, 0)
-                ax1 = T.axis.spatial(1, 0)
-                ax2 = T.axis.spatial(7, i0_i1_i2_i3_i4_fused // 3584)
-                ax3 = T.axis.spatial(7, i0_i1_i2_i3_i4_fused % 3584 // 512)
-                ax4 = T.axis.spatial(512, i0_i1_i2_i3_i4_fused % 512)
-                T.reads(placeholder[0, (ax4 * 49 + ax2 * 7 + ax3) % 25088 // 1568, (ax2 * 7 + ax3) % 49 // 7, ax3 % 7, (ax4 * 49 + ax2 * 7 + ax3) % 1568 // 49], placeholder_1[(ax4 * 49 + ax2 * 7 + ax3) % 25088])
-                T.writes(T_layout_trans[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_layout_trans_1"):
+                ax0 = Ts.axis.spatial(1, 0)
+                ax1 = Ts.axis.spatial(1, 0)
+                ax2 = Ts.axis.spatial(7, i0_i1_i2_i3_i4_fused // 3584)
+                ax3 = Ts.axis.spatial(7, i0_i1_i2_i3_i4_fused % 3584 // 512)
+                ax4 = Ts.axis.spatial(512, i0_i1_i2_i3_i4_fused % 512)
+                Ts.reads(placeholder[0, (ax4 * 49 + ax2 * 7 + ax3) % 25088 // 1568, (ax2 * 7 + ax3) % 49 // 7, ax3 % 7, (ax4 * 49 + ax2 * 7 + ax3) % 1568 // 49], placeholder_1[(ax4 * 49 + ax2 * 7 + ax3) % 25088])
+                Ts.writes(T_layout_trans[ax0, ax1, ax2, ax3, ax4])
                 T_layout_trans[ax0, ax1, ax2, ax3, ax4] = T.if_then_else(ax0 < 1 and ax1 * 512 + ax4 < 512 and ax2 < 7 and ax3 < 7, T.Select(T.float32(0) < T.if_then_else(T.LT(0, 1) and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 < 512 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7 < 7 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7 < 7, placeholder[0, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 // 32, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 % 32], T.float32(0), dtype="float32"), T.if_then_else(T.LT(0, 1) and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 < 512 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7 < 7 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7 < 7, placeholder[0, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 // 32, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 % 32], T.float32(0), dtype="float32"), T.if_then_else(T.LT(0, 1) and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 < 512 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7 < 7 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7 < 7, placeholder[0, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 // 32, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 % 32], T.float32(0), dtype="float32") * placeholder_1[((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088]), T.float32(0), dtype="float32")
 
 
@@ -417,22 +418,22 @@ def test_cpu_matmul():
 
 def test_cpu_fusion():
     # pylint: disable=all
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, [64, 32], dtype="float32")
         B = T.match_buffer(b, [64, 32], dtype="float32")
         C = T.match_buffer(c, [64, 32], dtype="float32")
         for i, j in T.grid(64, 32):  # type: ignore
-            with T.sblock():
-                T.reads([A[i, j], B[i, j]])  # type: ignore
-                T.writes([B[i, j], C[i, j]])  # type: ignore
-                with T.sblock("B"):
-                    T.reads([A[i, j]])  # type: ignore
-                    T.writes([B[i, j]])  # type: ignore
+            with Ts.sblock():
+                Ts.reads([A[i, j], B[i, j]])  # type: ignore
+                Ts.writes([B[i, j], C[i, j]])  # type: ignore
+                with Ts.sblock("B"):
+                    Ts.reads([A[i, j]])  # type: ignore
+                    Ts.writes([B[i, j]])  # type: ignore
                     B[i, j] = A[i, j]  # type: ignore
-                with T.sblock("C"):
-                    T.reads([B[i, j]])  # type: ignore
-                    T.writes([C[i, j]])  # type: ignore
+                with Ts.sblock("C"):
+                    Ts.reads([B[i, j]])  # type: ignore
+                    Ts.writes([C[i, j]])  # type: ignore
                     C[i, j] = B[i, j]  # type: ignore
 
     # pylint: enable=all
@@ -714,13 +715,13 @@ def test_cpu_fusion():
 
 
 def test_empty_feature():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def full(T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-            with T.sblock("T_full"):
-                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                T.reads()
-                T.writes(T_full[v_ax0, v_ax1])
+            with Ts.sblock("T_full"):
+                v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                Ts.reads()
+                Ts.writes(T_full[v_ax0, v_ax1])
                 T_full[v_ax0, v_ax1] = T.float32(1)
 
     def _create_schedule():
@@ -1625,7 +1626,7 @@ def test_cpu_layout_transform():
     )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def negative_extent(A: T.Buffer((1,), "float32")):
     for j in range(0, -1):
         A[j] = A[j] + 1.0

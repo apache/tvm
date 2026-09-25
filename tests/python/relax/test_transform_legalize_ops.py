@@ -25,6 +25,7 @@ from tvm.relax.transform import LegalizeOps
 from tvm.relax.transform.legalize_ops.common import register_legalize
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -46,14 +47,14 @@ def test_customize_legalize():
             gv = R.call_tir(cls.add, (y, x), R.Tensor((4, 3, 2, 3), dtype="float32"))
             return gv
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def add(rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
-                with T.sblock("T_add"):
-                    ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                    T.reads(rxplaceholder_1[ax0, ax1, ax2, T.int64(0)], rxplaceholder[T.int64(0), ax2, ax3])
-                    T.writes(T_add[ax0, ax1, ax2, ax3])
+                with Ts.sblock("T_add"):
+                    ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                    Ts.reads(rxplaceholder_1[ax0, ax1, ax2, T.int64(0)], rxplaceholder[T.int64(0), ax2, ax3])
+                    Ts.writes(T_add[ax0, ax1, ax2, ax3])
                     T_add[ax0, ax1, ax2, ax3] = rxplaceholder_1[ax0, ax1, ax2, T.int64(0)] + rxplaceholder[T.int64(0), ax2, ax3]
     # fmt: on
 
@@ -75,13 +76,13 @@ def test_legalize_multiple_types_of_call():
             gv = R.multiply(x, R.const(2.0, "float32"))
             return gv
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def identity(rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"), T_id: T.Buffer((T.int64(3), T.int64(3)), "float32")):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
-                with T.sblock("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(rxplaceholder[v_ax0, v_ax1])
-                    T.writes(T_id[v_ax0, v_ax1])
+                with Ts.sblock("T_add"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(rxplaceholder[v_ax0, v_ax1])
+                    Ts.writes(T_id[v_ax0, v_ax1])
                     T_id[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1]
 
         @R.function
@@ -100,23 +101,23 @@ def test_legalize_multiple_types_of_call():
             gv = R.call_tir(cls.multiply, (x,), R.Tensor((3, 3), dtype="float32"))
             return gv
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def identity(rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"), T_id: T.Buffer((T.int64(3), T.int64(3)), "float32")):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
-                with T.sblock("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(rxplaceholder[v_ax0, v_ax1])
-                    T.writes(T_id[v_ax0, v_ax1])
+                with Ts.sblock("T_add"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(rxplaceholder[v_ax0, v_ax1])
+                    Ts.writes(T_id[v_ax0, v_ax1])
                     T_id[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def multiply(rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"), T_multiply: T.Buffer((T.int64(3), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
-                with T.sblock("T_multiply"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(rxplaceholder[v_ax0, v_ax1])
-                    T.writes(T_multiply[v_ax0, v_ax1])
+                with Ts.sblock("T_multiply"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(rxplaceholder[v_ax0, v_ax1])
+                    Ts.writes(T_multiply[v_ax0, v_ax1])
                     T_multiply[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] * T.float32(2)
 
         @R.function
@@ -190,18 +191,18 @@ def test_legalize_scalar_data_type_preserve():
 
     @tvm.script.ir_module
     class Expected0:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def multiply(
             rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float16"),
             T_multiply: T.Buffer((T.int64(3), T.int64(3)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
-                with T.sblock("T_multiply"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(rxplaceholder[v_ax0, v_ax1])
-                    T.writes(T_multiply[v_ax0, v_ax1])
+                with Ts.sblock("T_multiply"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(rxplaceholder[v_ax0, v_ax1])
+                    Ts.writes(T_multiply[v_ax0, v_ax1])
                     T_multiply[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] * T.float16(
                         1.1455078125
                     )
@@ -214,18 +215,18 @@ def test_legalize_scalar_data_type_preserve():
 
     @tvm.script.ir_module
     class Expected1:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def multiply(
             rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "uint8"),
             T_multiply: T.Buffer((T.int64(3), T.int64(3)), "uint8"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
-                with T.sblock("T_multiply"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(rxplaceholder[v_ax0, v_ax1])
-                    T.writes(T_multiply[v_ax0, v_ax1])
+                with Ts.sblock("T_multiply"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(rxplaceholder[v_ax0, v_ax1])
+                    Ts.writes(T_multiply[v_ax0, v_ax1])
                     T_multiply[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] * T.uint8(2)
 
         @R.function
@@ -236,18 +237,18 @@ def test_legalize_scalar_data_type_preserve():
 
     @tvm.script.ir_module
     class Expected2:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def equal(
             rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "bool"),
             T_equal: T.Buffer((T.int64(3), T.int64(3)), "bool"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
-                with T.sblock("T_equal"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(rxplaceholder[v_ax0, v_ax1])
-                    T.writes(T_equal[v_ax0, v_ax1])
+                with Ts.sblock("T_equal"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(rxplaceholder[v_ax0, v_ax1])
+                    Ts.writes(T_equal[v_ax0, v_ax1])
                     T_equal[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] == tvm.tirx.const(True, "bool")
 
         @R.function
@@ -266,7 +267,7 @@ def test_legalize_scalar_data_type_preserve():
 
 
 def test_matmul_legalization_requires_known_dtype():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class ArbitraryDtype:
         @R.function
         def main(A: R.Tensor([16, 32]), B: R.Tensor([32, 8])) -> R.Tensor([16, 8]):
@@ -335,7 +336,7 @@ def custom_op(emit_legalization_through_builder):
 def test_recursive_legalization(custom_op):
     """Legalization of an operator may produce new operators requiring legalization"""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main(
@@ -364,7 +365,7 @@ def test_legalize_with_vdevice():
 
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         I.module_global_infos({"vdevice": [R.vdevice("llvm")]})
 
@@ -380,7 +381,7 @@ def test_legalize_with_vdevice():
             C = R.add(A, B)
             return C
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         I.module_global_infos({"vdevice": [R.vdevice("llvm")]})
 
@@ -393,7 +394,7 @@ def test_legalize_with_vdevice():
             C = R.call_tir(cls.add, (A, B), out_ty=R.Tensor((32, 32), dtype="float32"))
             return C
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def add(
             A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
@@ -401,8 +402,8 @@ def test_legalize_with_vdevice():
         ):
             T.func_attr({"tirx.noalias": True})
             for (*iters,) in T.grid(T.int64(32), T.int64(32)):
-                with T.sblock("T_add"):
-                    ax0, ax1 = T.axis.remap("SS", iters)
+                with Ts.sblock("T_add"):
+                    ax0, ax1 = Ts.axis.remap("SS", iters)
                     C[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
 
         @R.function
@@ -418,7 +419,7 @@ def test_legalize_with_vdevice():
             )
             return C
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def add_llvm(
             A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
@@ -426,8 +427,8 @@ def test_legalize_with_vdevice():
         ):
             T.func_attr({"target": T.target("llvm"), "tirx.noalias": True})
             for (*iters,) in T.grid(T.int64(32), T.int64(32)):
-                with T.sblock("T_add"):
-                    ax0, ax1 = T.axis.remap("SS", iters)
+                with Ts.sblock("T_add"):
+                    ax0, ax1 = Ts.axis.remap("SS", iters)
                     C[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
 
     with tvm.target.Target("cuda"):

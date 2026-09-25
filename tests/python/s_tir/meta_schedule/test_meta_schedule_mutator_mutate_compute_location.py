@@ -17,33 +17,34 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
 # pylint: disable=invalid-name, no-member
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def add(a: T.handle, b: T.handle) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main"})
     A = T.match_buffer(a, [2048, 2048, 2048], dtype="float32")
     B = T.match_buffer(b, [2048, 2048, 2048], dtype="float32")
-    A_cached = T.sblock_alloc_buffer([2048, 2048, 2048], dtype="float32")
+    A_cached = Ts.sblock_alloc_buffer([2048, 2048, 2048], dtype="float32")
     # body
     for i, j, k in T.grid(2048, 2048, 2048):
-        with T.sblock("move"):
-            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
-            T.reads([A[vi, vj, vk]])
-            T.writes([A_cached[vi, vj, vk]])
+        with Ts.sblock("move"):
+            vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
+            Ts.reads([A[vi, vj, vk]])
+            Ts.writes([A_cached[vi, vj, vk]])
             A_cached[vi, vj, vk] = A[vi, vj, vk]
     for i0, j0, i1, j1, k0, i2, j2, k1 in T.grid(128, 64, 4, 4, 64, 4, 8, 32):
-        with T.sblock("add"):
-            vi = T.axis.spatial(2048, i0 * 16 + i1 * 4 + i2)
-            vj = T.axis.spatial(2048, j0 * 32 + j1 * 8 + j2)
-            vk = T.axis.spatial(2048, k0 * 32 + k1)
-            T.reads([A_cached[vi, vj, vk]])
-            T.writes([B[vi, vj, vk]])
+        with Ts.sblock("add"):
+            vi = Ts.axis.spatial(2048, i0 * 16 + i1 * 4 + i2)
+            vj = Ts.axis.spatial(2048, j0 * 32 + j1 * 8 + j2)
+            vk = Ts.axis.spatial(2048, k0 * 32 + k1)
+            Ts.reads([A_cached[vi, vj, vk]])
+            Ts.writes([B[vi, vj, vk]])
             B[vi, vj, vk] = A_cached[vi, vj, vk] + T.float32(1)
 
 

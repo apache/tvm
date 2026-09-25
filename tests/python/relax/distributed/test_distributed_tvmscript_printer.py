@@ -20,6 +20,7 @@ import tvm.testing
 from tvm.ir import Range
 from tvm.relax import TensorType
 from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -65,7 +66,7 @@ def test_dtensor_type():
     )
 
 
-@I.ir_module(s_tir=True)
+@I.ir_module
 class TestModule:
     I.module_attrs({"device_num": 10})
     I.module_global_infos(
@@ -77,15 +78,15 @@ class TestModule:
         }
     )
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tir_func(
         x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
         for i, j in T.grid(T.int64(128), T.int64(128)):
-            with T.sblock():
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock():
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 y[vi, vj] = x[vi, vj] + 1.0
 
     @R.function
@@ -125,21 +126,22 @@ from __future__ import annotations
 # from tvm.script import ir as I
 # from tvm.script import tirx as T
 # from tvm.tirx.layout import Axis
+# from tvm.script import s_tir as Ts
 # from tvm.script import relax as R
 
 @I.ir_module
 class Module:
     I.module_attrs({"device_num": 10})
     I.module_global_infos({"mesh": [R.device_mesh((2, 2), I.Range(0, 4)), R.device_mesh((1,), I.Range(4, 5))]})
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tir_func(x: T.Buffer((T.int64(128), T.int64(128)), "float32"), y: T.Buffer((T.int64(128), T.int64(128)), "float32")):
         T.func_attr({"tirx.noalias": True})
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for i, j in T.grid(T.int64(128), T.int64(128)):
-            with T.sblock(""):
-                v, v_1 = T.axis.remap("SS", [i, j])
-                T.reads(x[v, v_1])
-                T.writes(y[v, v_1])
+            with Ts.sblock(""):
+                v, v_1 = Ts.axis.remap("SS", [i, j])
+                Ts.reads(x[v, v_1])
+                Ts.writes(y[v, v_1])
                 y[v, v_1] = x[v, v_1] + T.float32(1.0)
 
     @R.function

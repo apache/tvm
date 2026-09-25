@@ -20,6 +20,7 @@ import pytest
 
 import tvm
 from tvm import tirx
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # fmt: off
@@ -27,21 +28,21 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class Module:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def scale_by_two(a: T.Buffer((128,), "int8"), c: T.Buffer((128,), "int8")):
         for i in T.serial(128):
-            with T.sblock("C"):
+            with Ts.sblock("C"):
                 c[i] = a[i] * T.int8(2)
 
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def scale_by_two_three(a: T.Buffer((128,), "int8"), c: T.Buffer((128,), "int8")):
-        B = T.sblock_alloc_buffer([128], dtype="int8", scope="global.vtcm")
+        B = Ts.sblock_alloc_buffer([128], dtype="int8", scope="global.vtcm")
         for i in T.serial(128):
-            with T.sblock("B"):
+            with Ts.sblock("B"):
                 B[i] = a[i] * T.int8(2)
         for i in T.serial(128):
-            with T.sblock("C"):
+            with Ts.sblock("C"):
                 c[i] = B[i] * T.int8(3)
 
 # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
@@ -69,31 +70,31 @@ def test_scale_by(primFunc, size):
     assert sizes.get("global.vtcm", 0) == size
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_mix_scope(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], scope="global")
     B = T.match_buffer(b, [128, 128], scope="global")
     C = T.match_buffer(c, [128, 128], scope="global")
-    A_allocated = T.sblock_alloc_buffer([128, 128], dtype="float32", scope="global.texture")
-    B_allocated = T.sblock_alloc_buffer([128, 128], dtype="float32", scope="global.texture")
-    C_allocated = T.sblock_alloc_buffer([128, 128], dtype="float32", scope="global")
+    A_allocated = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="global.texture")
+    B_allocated = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="global.texture")
+    C_allocated = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="global")
 
     for i, j in T.grid(128, 128):
-        with T.sblock("A.allocated"):
+        with Ts.sblock("A.allocated"):
             A_allocated[i, j] = A[i, j]
     for i, j in T.grid(128, 128):
-        with T.sblock("B.allocated"):
+        with Ts.sblock("B.allocated"):
             B_allocated[i, j] = B[i, j]
 
     for i, j, k in T.grid(128, 128, 128):
-        with T.sblock("update"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("update"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 C_allocated[vi, vj] = 0.0
             C_allocated[vi, vj] = C[vi, vj] + A_allocated[vi, vk] * B_allocated[vj, vk]
 
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
+        with Ts.sblock("C"):
             C[i, j] = C_allocated[i, j]
 
 
