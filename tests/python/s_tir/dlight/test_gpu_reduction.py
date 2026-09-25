@@ -862,12 +862,13 @@ def test_reduction_inner_no_broadcasting2():
 
 def test_reduction_inner_spatial_choose_perfect_factor():
     # fmt: off
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @Ts.prim_func
         def main(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(100)), "float16")):
             T.func_attr({"tirx.noalias": True})
-            n = T.int64()
             A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
             B = T.match_buffer(var_B, (T.int64(1), T.int64(32), n, T.int64(100)), "float16")
             # with Ts.sblock("root"):
@@ -879,12 +880,13 @@ def test_reduction_inner_spatial_choose_perfect_factor():
                     with Ts.init():
                         matmul[v_i0, v_i1, v_i2, v_i3] = T.float16(0)
                     matmul[v_i0, v_i1, v_i2, v_i3] = matmul[v_i0, v_i1, v_i2, v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
         @Ts.prim_func
         def main(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(100)), "float16")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            n = T.int64()
             A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
             B = T.match_buffer(var_B, (T.int64(1), T.int64(32), n, T.int64(100)), "float16")
             # with Ts.sblock("root"):
@@ -1100,12 +1102,13 @@ def test_reduction_inner_spatial_uses_normalized_split_extent():
 def test_repeat_transpose_gemv():
     # fmt: off
 
+    kv_seq_len = T.dynamic("kv_seq_len")
+
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
         def fused_relax_repeat_relax_permute_dims_relax_matmul1(p_lv716: T.handle, p_astype66: T.handle, var_matmul_intermediate: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
             T.func_attr({"tirx.noalias": True})
-            kv_seq_len = T.int64()
             lv716 = T.match_buffer(p_lv716, (T.int64(1), kv_seq_len, T.int64(8), T.int64(128)), "float16")
             astype66 = T.match_buffer(p_astype66, (T.int64(1), T.int64(32), T.int64(1), kv_seq_len), "float16")
             # with Ts.sblock("root"):
@@ -1131,12 +1134,13 @@ def test_repeat_transpose_gemv():
                     with Ts.init():
                         var_matmul_intermediate[v_i0, v_i1, v_i2, v_i3] = T.float16(0)
                     var_matmul_intermediate[v_i0, v_i1, v_i2, v_i3] = var_matmul_intermediate[v_i0, v_i1, v_i2, v_i3] + astype66[v_i0, v_i1, v_i2, v_k] * var_T_transpose_intermediate[v_i0, v_i1, v_k, v_i3]
+    kv_seq_len = T.dynamic("kv_seq_len")
+
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def fused_relax_repeat_relax_permute_dims_relax_matmul1(p_lv716: T.handle, p_astype66: T.handle, var_matmul_intermediate: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            kv_seq_len = T.int64()
             lv716 = T.match_buffer(p_lv716, (T.int64(1), kv_seq_len, T.int64(8), T.int64(128)), "float16")
             astype66 = T.match_buffer(p_astype66, (T.int64(1), T.int64(32), T.int64(1), kv_seq_len), "float16")
             # with Ts.sblock("root"):
@@ -1182,6 +1186,8 @@ def test_repeat_transpose_gemv():
 
 
 def test_gemv_dyn_shape_epilogue():
+    vocab_size = T.dynamic("vocab_size")
+
     @I.ir_module
     class Module:
         @Ts.prim_func(private=True)
@@ -1191,7 +1197,6 @@ def test_gemv_dyn_shape_epilogue():
             var_C: T.handle,
         ):
             T.func_attr({"tirx.noalias": True})
-            vocab_size = T.int64()
             A = T.match_buffer(var_A, (T.int64(4096), vocab_size), "float16")
             C = T.match_buffer(var_C, (T.int64(1), T.int64(1), vocab_size))
             C_temp = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1), vocab_size), "float16")
@@ -1213,12 +1218,13 @@ def test_gemv_dyn_shape_epilogue():
                     C[v_i0, v_i1, v_i2] = T.Cast("float32", C_temp[v_i0, v_i1, v_i2])
 
     # fmt: off
+    vocab_size = T.dynamic("vocab_size")
+
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def main(var_A: T.handle, B: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), var_C: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-            vocab_size = T.int64()
             A = T.match_buffer(var_A, (T.int64(4096), vocab_size), "float16")
             C = T.match_buffer(var_C, (T.int64(1), T.int64(1), vocab_size))
             # with Ts.sblock("root"):

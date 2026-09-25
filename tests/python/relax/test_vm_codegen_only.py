@@ -221,13 +221,15 @@ def test_shape_check_builtin(exec_mode):
     # 0: n, 1: m
     sindex = {"n": 0, "m": 1}
 
+    n = T.dynamic("n")
+    k = T.dynamic("k")
+    m = T.dynamic("m")
+
     @tvm.script.ir_module
     class TestVMShapeCheck:
         @R.function(pure=False)
-        def main(x: R.Tensor(["n", "m"], "float32")) -> R.Shape(ndim=3):
+        def main(x: R.Tensor([n, m], "float32")) -> R.Shape(ndim=3):
             R.func_attr({"global_symbol": "main"})
-            n = T.int64()
-            k = T.int64()
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(3)],

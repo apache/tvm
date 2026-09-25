@@ -27,10 +27,11 @@ from tvm.target import Target
 
 def test_gemv_basic():
     # fmt: off
+    n = T.dynamic("n", "int32")
+
     @Ts.prim_func(private=True)
     def before(lv1637: T.Buffer((1, 32, 1, 128), "float16"), p_lv1638: T.handle, p_lv1614: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.noalias": True})
-        n = T.int32()
         lv1638 = T.match_buffer(p_lv1638, (1, 32, n, 128), "float16")
         lv1614 = T.match_buffer(p_lv1614, (1, 1, 1, n), "float16")
         var_compute_intermediate = T.match_buffer(p_output0, (1, 32, 1, n))
@@ -72,10 +73,11 @@ def test_gemv_basic():
                 Ts.writes(var_compute_intermediate[v_i0, v_i1, v_i2, v_i3])
                 var_compute_intermediate[v_i0, v_i1, v_i2, v_i3] = T.Cast("float32", var_T_minimum_intermediate[v_i0, v_i1, v_i2, v_i3])
 
+    n = T.dynamic("n", "int32")
+
     @Ts.prim_func(private=True)
     def expected(lv1637: T.Buffer((1, 32, 1, 128), "float16"), p_lv1638: T.handle, p_lv1614: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
-        n = T.int32()
         lv1638 = T.match_buffer(p_lv1638, (1, 32, n, 128), "float16")
         lv1614 = T.match_buffer(p_lv1614, (1, 1, 1, n), "float16")
         var_compute_intermediate = T.match_buffer(p_output0, (1, 32, 1, n))
@@ -433,10 +435,11 @@ def test_outer_reduction_adreno():
 
 def test_outer_reduction_adreno_dynamic():
     # fmt: off
+    v = T.dynamic("v")
+
     @Ts.prim_func(private=True)
     def before(p_lv612: T.handle, p_lv613: T.handle, lv1607: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0: T.handle):
         T.func_attr({"tirx.noalias": True})
-        v = T.int64()
         lv612 = T.match_buffer(p_lv612, (T.int64(512), v), "uint32")
         lv613 = T.match_buffer(p_lv613, (T.int64(128), v), "float16")
         p_output0_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(1), v))
@@ -464,10 +467,11 @@ def test_outer_reduction_adreno_dynamic():
                 Ts.writes(p_output0_intermediate[v_i0, v_i1, v_i2])
                 p_output0_intermediate[v_i0, v_i1, v_i2] = T.Cast("float32", var_matmul_intermediate[v_i0, v_i1, v_i2])
 
+    v = T.dynamic("v")
+
     @Ts.prim_func(private=True)
     def expected(p_lv612: T.handle, p_lv613: T.handle, lv1607: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0: T.handle):
         T.func_attr({"tirx.noalias": True})
-        v = T.int64()
         lv612 = T.match_buffer(p_lv612, (T.int64(512), v), "uint32")
         lv613 = T.match_buffer(p_lv613, (T.int64(128), v), "float16")
         p_output0_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(1), v))

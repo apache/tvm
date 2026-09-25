@@ -48,16 +48,16 @@ def test_tir_bound_prim_param_reused_in_dependent_annotations():
 def main(
     n: T.int32,
     direct: T.Buffer((n,), "float32"),
-    string_direct: T.Buffer(("n",), "float32"),
-    compound: T.Buffer(("n + 1",), "float32"),
-) -> T.Buffer(("n",), "float32"):
-    return string_direct
+    repeated: T.Buffer((n,), "float32"),
+    compound: T.Buffer((n + 1,), "float32"),
+) -> T.Buffer((n,), "float32"):
+    return repeated
 """
     )
 
-    n, direct, string_direct, compound = func.params
+    n, direct, repeated, compound = func.params
     assert direct.ty.shape[0].same_as(n)
-    assert string_direct.ty.shape[0].same_as(n)
+    assert repeated.ty.shape[0].same_as(n)
     assert compound.ty.shape[0].a.same_as(n)
     assert func.ret_type.shape[0].same_as(n)
 
@@ -68,7 +68,7 @@ def test_tir_bound_prim_param_reused_in_declared_function_signature():
 @I.ir_module
 class Module:
     @T.prim_func
-    def main(n: T.int32, A: T.Buffer(("n + 1",), "float32")):
+    def main(n: T.int32, A: T.Buffer((n + 1,), "float32")):
         T.evaluate(n)
 """
     )
@@ -77,11 +77,12 @@ class Module:
     assert A.ty.shape[0].a.same_as(n)
 
 
-def test_tir_string_defined_symbol_adopted_by_later_prim_param():
+def test_tir_external_symbol_adopted_by_later_prim_param():
     func = tvm.script.from_source(
         """
+n = T.dynamic("n", "int32")
 @T.prim_func
-def main(A: T.Buffer(("n",), "float32"), n: T.int32):
+def main(A: T.Buffer((n,), "float32"), n: T.int32):
     T.evaluate(n)
 """
     )
@@ -92,10 +93,11 @@ def main(A: T.Buffer(("n",), "float32"), n: T.int32):
 
     mod = tvm.script.from_source(
         """
+n = T.dynamic("n", "int32")
 @I.ir_module
 class Module:
     @T.prim_func
-    def main(A: T.Buffer(("n",), "float32"), n: T.int32):
+    def main(A: T.Buffer((n,), "float32"), n: T.int32):
         T.evaluate(n)
 """
     )
@@ -105,11 +107,12 @@ class Module:
     assert str(n.ty.dtype) == "int32"
 
 
-def test_tir_string_defined_symbol_preserves_later_prim_param_dtype():
+def test_tir_external_symbol_preserves_later_prim_param_dtype():
     func = tvm.script.from_source(
         """
+n = T.dynamic("n", "int64")
 @T.prim_func
-def main(A: T.Buffer(("n",), "float32"), n: T.int64):
+def main(A: T.Buffer((n,), "float32"), n: T.int64):
     T.evaluate(n)
 """
     )
@@ -119,12 +122,12 @@ def main(A: T.Buffer(("n",), "float32"), n: T.int64):
     assert str(n.ty.dtype) == "int64"
 
 
-def test_tir_string_defined_symbol_uses_prescanned_body_dtype():
+def test_tir_external_dynamic_symbol_preserves_dtype():
     func = tvm.script.from_source(
         """
+n = T.dynamic("n", "int64")
 @T.prim_func
-def main(A: T.Buffer(("n",), "float32")):
-    n = T.int64()
+def main(A: T.Buffer((n,), "float32")):
     T.evaluate(n)
 """
     )
@@ -134,12 +137,12 @@ def main(A: T.Buffer(("n",), "float32")):
     assert func.body.value.same_as(n)
 
 
-def test_tir_direct_use_before_string_definition_is_undefined():
+def test_tir_undeclared_shape_symbol_is_undefined():
     with pytest.raises(NameError):
         tvm.script.from_source(
             """
 @T.prim_func
-def main(A: T.Buffer((n, "n"), "float32")):
+def main(A: T.Buffer((n, n), "float32")):
     T.evaluate(0)
 """
         )
@@ -168,12 +171,11 @@ def test_tir_direct_later_prim_param_is_undefined(source):
 
 
 def test_tir_return_annotation_does_not_define_symbolic_var():
-    with pytest.raises(ValueError):
+    with pytest.raises(NameError):
         tvm.script.from_source(
             """
 @T.prim_func
-def main() -> T.Buffer(("n",), "float32"):
-    n = T.int32()
+def main() -> T.Buffer((n,), "float32"):
     A = T.alloc_buffer((n,), "float32")
     return A
 """
@@ -631,10 +633,11 @@ def test_inferred_ty_with_output_buffer():
 def test_inferred_ty_with_dynamic_buffer():
     """The inferred Type may contain dynamic shapes"""
 
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
+
     @Ts.prim_func
     def func(a_handle: T.handle, b_handle: T.handle):
-        M = T.int64()
-        N = T.int64()
         A = T.match_buffer(a_handle, [M, N], "float32")
         B = T.match_buffer(b_handle, [M * N], "float32")
         for i, j in T.grid(M, N):

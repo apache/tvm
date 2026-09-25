@@ -22,7 +22,6 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax as rx
-from tvm import tirx
 from tvm.relax.analysis import (
     all_global_vars,
     all_vars,
@@ -45,8 +44,8 @@ def var_name_set(vars: list[rx.Var | rx.GlobalVar]) -> set[str]:
 
 
 def test_use_def():
-    m = tirx.Var("m", "int64")
-    n = tirx.Var("n", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
     x = rx.Var("x", R.Tensor([m, n], "float16"))
     y = rx.Var("y", R.Tensor([n], "float16"))
     ib = rx.BlockBuilder()
@@ -75,8 +74,8 @@ def test_use_def():
     ids=["binary_op", "self_reference", "tuple"],
 )
 def test_used_vars(expr_fn, expected_var_names):
-    m = tirx.Var("m", "int64")
-    n = tirx.Var("n", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
     x = rx.Var("x", R.Tensor([m, n], "float16"))
     y = rx.Var("y", R.Tensor([n], "float16"))
     z = rx.Var("z", R.Tensor([m], "float16"))
@@ -293,13 +292,14 @@ def test_edge_binding_block_fake_unused_remove_all_unused():
 
 
 def test_edge_binding_block_fake_unused_remove_all_unused2():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+    k = T.dynamic("k")
+
     @tvm.script.ir_module
     class IdentityUnused:
         @R.function
         def main(x: R.Tensor((3,), dtype="int64")) -> R.Tensor(dtype="int32", ndim=3):
-            m = T.int64()
-            n = T.int64()
-            k = T.int64()
             with R.dataflow():
                 lv: R.Shape(ndim=3) = R.call_pure_packed(
                     "vm.builtin.tensor_to_shape", x, ty_args=(R.Shape(ndim=3),)
@@ -380,6 +380,8 @@ def test_retain_impure_calls_unused_in_binding_block():
 
 
 def test_retain_calls_to_impure_builtin_ops():
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @Ts.prim_func(private=True)
@@ -387,9 +389,8 @@ def test_retain_calls_to_impure_builtin_ops():
             T.evaluate(0)
 
         @R.function(pure=False)
-        def main(x: R.Tensor(("n",), "float32")):
+        def main(x: R.Tensor((n,), "float32")):
             cls = Module
-            n = T.int64()
             storage = R.memory.alloc_storage((n * 4,), 0, "global", "float32")
             alloc = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([n]), "float32")
             # "call_tir_dyn" is impure which shouldn't be removed.
@@ -522,7 +523,7 @@ def test_free_vars():
 
 @pytest.mark.parametrize("definition_site", ["parameter", "match_cast"])
 def test_free_vars_primitive_definition_sites(definition_site):
-    n = tirx.Var("n", "int64")
+    n = T.dynamic("n", "int64")
     if definition_site == "parameter":
         y = rx.Var("y", rx.TensorType([n], "float32"))
     else:
@@ -650,9 +651,10 @@ def test_reshape_pattern_expand_dims():
 
 
 def test_reshape_pattern_dyn_1():
+    n = T.dynamic("n")
+
     @Ts.prim_func
     def reshape(var_A: T.handle, var_T_reshape: T.handle):
-        n = T.int64()
         A = T.match_buffer(var_A, (n, T.int64(32), T.int64(128)), "float16")
         T_reshape = T.match_buffer(
             var_T_reshape, (T.int64(1), n, T.int64(32), T.int64(128)), "float16"
@@ -678,9 +680,10 @@ def test_reshape_pattern_dyn_1():
 
 
 def test_reshape_pattern_dyn_2():
+    n = T.dynamic("n")
+
     @Ts.prim_func
     def reshape(var_A: T.handle, var_T_reshape: T.handle):
-        n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n), "int32")
         T_reshape = T.match_buffer(var_T_reshape, (n,), "int32")
         for ax0 in range(n):
@@ -694,10 +697,11 @@ def test_reshape_pattern_dyn_2():
 
 
 def test_reshape_pattern_dyn_3():
+    n = T.dynamic("n")
+
     @Ts.prim_func
     def reshape(var_A: T.handle, var_T_reshape: T.handle):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True})
-        n = T.int64()
         A = T.match_buffer(var_A, (n, T.int64(4096)), "float16")
         T_reshape = T.match_buffer(var_T_reshape, (T.int64(1), n, T.int64(4096)), "float16")
         for ax0, ax1, ax2 in T.grid(T.int64(1), n, T.int64(4096)):
@@ -713,10 +717,11 @@ def test_reshape_pattern_dyn_3():
 
 
 def test_reshape_pattern_dyn_4():
+    n = T.dynamic("n")
+
     @Ts.prim_func
     def reshape(var_A: T.handle, var_T_reshape: T.handle):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True})
-        n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)), "float16")
         T_reshape = T.match_buffer(
             var_T_reshape, (T.int64(1), n, T.int64(32), T.int64(128)), "float16"
@@ -742,10 +747,11 @@ def test_reshape_pattern_dyn_4():
 
 
 def test_reshape_pattern_dyn_5():
+    n = T.dynamic("n")
+
     @Ts.prim_func
     def reshape(var_A: T.handle, var_T_reshape: T.handle):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True})
-        n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n, T.int64(32), T.int64(128)), "float16")
         T_reshape = T.match_buffer(var_T_reshape, (T.int64(1), n, T.int64(4096)), "float16")
         # with Ts.sblock("root"):

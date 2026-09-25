@@ -1310,10 +1310,12 @@ def test_reverse_compute_inline_producer_is_reduction():
 
 def test_compute_inline_softmax():
     # fmt: off
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @Ts.prim_func
     def before(p_lv44: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.noalias": True})
-        n, m = T.int64(), T.int64()
         lv44 = T.match_buffer(p_lv44, (T.int64(1), T.int64(32), n, m))
         var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), n, m), "float16")
         T_softmax_maxelem = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), n))
@@ -1356,10 +1358,12 @@ def test_compute_inline_softmax():
                 Ts.writes(var_compute_intermediate[v_i0, v_i1, v_i2, v_i3])
                 var_compute_intermediate[v_i0, v_i1, v_i2, v_i3] = T.Cast("float16", var_T_softmax_norm_intermediate[v_i0, v_i1, v_i2, v_i3])
 
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @Ts.prim_func
     def after(p_lv44: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.noalias": True})
-        n, m = T.int64(), T.int64()
         lv44 = T.match_buffer(p_lv44, (T.int64(1), T.int64(32), n, m))
         var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), n, m), "float16")
         # with Ts.sblock("root"):
@@ -1404,10 +1408,11 @@ def test_compute_inline_softmax():
 
 def test_reverse_compute_inline_layer_norm():
     # fmt: off
+    n = T.dynamic("n")
+
     @Ts.prim_func
     def before(p_lv6: T.handle, weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), p_output0: T.handle):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        n = T.int64()
         lv6 = T.match_buffer(p_lv6, (T.int64(1), n, T.int64(2560)))
         var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), n, T.int64(2560)), "float16")
         A_red_temp_v0_shared = Ts.sblock_alloc_buffer((T.int64(1), n), scope="shared")
@@ -1445,10 +1450,11 @@ def test_reverse_compute_inline_layer_norm():
                 Ts.writes(var_compute_intermediate[v_i0, v_i1, v_i2])
                 var_compute_intermediate[v_i0, v_i1, v_i2] = T.Cast("float16", var_T_layer_norm_intermediate[v_i0, v_i1, v_i2])
 
+    n = T.dynamic("n")
+
     @Ts.prim_func
     def after(p_lv6: T.handle, weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), p_output0: T.handle):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        n = T.int64()
         lv6 = T.match_buffer(p_lv6, (T.int64(1), n, T.int64(2560)))
         var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), n, T.int64(2560)), "float16")
         # with Ts.sblock("root"):

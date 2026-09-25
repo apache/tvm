@@ -281,6 +281,16 @@ def test_tracking_through_externally_exposed_func(provide_entry_func_name):
 
 def test_unused_relax_func_symbolic_shape():
     # Test with relax function w/ symbolic shape.
+    m_tir_matmul = T.dynamic("m")
+    n_tir_matmul = T.dynamic("n")
+    k_tir_matmul = T.dynamic("k")
+    m_unused_func = T.dynamic("m")
+    n_unused_func = T.dynamic("n")
+    k_unused_func = T.dynamic("k")
+    m_main = T.dynamic("m")
+    k_main = T.dynamic("k")
+    n_main = T.dynamic("n")
+
     @tvm.script.ir_module(check_well_formed=False)
     class InputModule:
         @Ts.prim_func
@@ -289,28 +299,31 @@ def test_unused_relax_func_symbolic_shape():
             y_handle: T.handle,
             z_handle: T.handle,
         ) -> None:
-            m = T.int64()
-            n = T.int64()
-            k = T.int64()
-            x = T.match_buffer(x_handle, (m, n), "float32")
-            y = T.match_buffer(y_handle, (n, k), "float32")
-            z = T.match_buffer(z_handle, (m, k), "float32")
-            for i, j, k in T.grid(m, k, n):
+            x = T.match_buffer(x_handle, (m_tir_matmul, n_tir_matmul), "float32")
+            y = T.match_buffer(y_handle, (n_tir_matmul, k_tir_matmul), "float32")
+            z = T.match_buffer(z_handle, (m_tir_matmul, k_tir_matmul), "float32")
+            for i, j, k_tir_matmul_index in T.grid(m_tir_matmul, k_tir_matmul, n_tir_matmul):
                 with Ts.sblock("matmul"):
-                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k_tir_matmul_index])
                     with Ts.init():
                         z[vi, vj] = 0.0
                     z[vi, vj] = z[vi, vj] + x[vi, vk] * y[vk, vj]
 
         @R.function(private=True)
-        def unused_func(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")):
+        def unused_func(
+            x: R.Tensor((m_unused_func, n_unused_func), "float32"),
+            w: R.Tensor((n_unused_func, k_unused_func), "float32"),
+        ):
             gv0 = R.add(x, w)
             return gv0
 
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")):
-            m, k = T.int64(), T.int64()
-            gv0 = R.call_tir(InputModule.tir_matmul, (x, w), R.Tensor((m, k), dtype="float32"))
+        def main(
+            x: R.Tensor((m_main, n_main), "float32"), w: R.Tensor((n_main, k_main), "float32")
+        ):
+            gv0 = R.call_tir(
+                InputModule.tir_matmul, (x, w), R.Tensor((m_main, k_main), dtype="float32")
+            )
             return gv0
 
     mod = InputModule

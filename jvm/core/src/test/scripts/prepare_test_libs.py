@@ -21,16 +21,18 @@ import sys
 
 import tvm
 from tvm import relax, te
+from tvm.script import ir as I
 from tvm.script import relax as R
 
 
 def prepare_relax_lib(base_path):
     pipeline = relax.get_pipeline()
+    n = I.dynamic("n")
 
     @tvm.script.ir_module
     class Mod:
         @R.function
-        def main(x: R.Tensor(["n"], "float32"), y: R.Tensor(["n"], "float32")):
+        def main(x: R.Tensor([n], "float32"), y: R.Tensor([n], "float32")):
             lv0 = R.add(x, y)
             return lv0
 

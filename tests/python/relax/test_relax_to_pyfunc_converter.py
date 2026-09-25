@@ -33,6 +33,14 @@ from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
+n_symbolic_add = T.dynamic("n")
+batch_symbolic_matmul = T.dynamic("batch")
+m = T.dynamic("m")
+k = T.dynamic("k")
+n_symbolic_matmul = T.dynamic("n")
+batch_symbolic_expand_dims = T.dynamic("batch")
+seq_len = T.dynamic("seq_len")
+
 
 @I.ir_module
 class ComprehensiveTestModule:
@@ -91,21 +99,22 @@ class ComprehensiveTestModule:
         return R.nn.relu(tir_result)
 
     @R.function
-    def symbolic_add(x: R.Tensor(("n",), "float32"), y: R.Tensor(("n",), "float32")) -> R.Tensor(
-        ("n",), "float32"
-    ):
+    def symbolic_add(
+        x: R.Tensor((n_symbolic_add,), "float32"), y: R.Tensor((n_symbolic_add,), "float32")
+    ) -> R.Tensor((n_symbolic_add,), "float32"):
         return R.add(x, y)
 
     @R.function
     def symbolic_matmul(
-        x: R.Tensor(("batch", "m", "k"), "float32"), y: R.Tensor(("batch", "k", "n"), "float32")
-    ) -> R.Tensor(("batch", "m", "n"), "float32"):
+        x: R.Tensor((batch_symbolic_matmul, m, k), "float32"),
+        y: R.Tensor((batch_symbolic_matmul, k, n_symbolic_matmul), "float32"),
+    ) -> R.Tensor((batch_symbolic_matmul, m, n_symbolic_matmul), "float32"):
         return R.matmul(x, y)
 
     @R.function
-    def symbolic_expand_dims(x: R.Tensor(("batch", "seq_len"), "float32")) -> R.Tensor(
-        ("batch", "seq_len", 1), "float32"
-    ):
+    def symbolic_expand_dims(
+        x: R.Tensor((batch_symbolic_expand_dims, seq_len), "float32"),
+    ) -> R.Tensor((batch_symbolic_expand_dims, seq_len, 1), "float32"):
         return R.expand_dims(x, axis=2)
 
     @R.function

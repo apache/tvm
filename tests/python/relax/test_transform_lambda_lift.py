@@ -440,6 +440,9 @@ def test_lambda_function_with_same_name_as_global():
 
 
 def test_symbolic_variable_defined_by_inner_func():
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @I.ir_module
     class Before:
         @R.function
@@ -447,12 +450,15 @@ def test_symbolic_variable_defined_by_inner_func():
             (10, 5), "float32"
         ):
             @R.function
-            def inner(x2: R.Tensor(("n", "m"), "float32"), y2: R.Tensor(("n", "m"), "float32")):
+            def inner(x2: R.Tensor((n, m), "float32"), y2: R.Tensor((n, m), "float32")):
                 sum_inner = R.add(x2, y2)
                 return sum_inner
 
             sum_main = inner(x1, y1)
             return sum_main
+
+    n = T.dynamic("n")
+    m = T.dynamic("m")
 
     @I.ir_module
     class Expected:
@@ -465,8 +471,8 @@ def test_symbolic_variable_defined_by_inner_func():
 
         @R.function(private=True)
         def main_inner(
-            x2: R.Tensor(("n", "m"), "float32"), y2: R.Tensor(("n", "m"), "float32")
-        ) -> R.Tensor(("n", "m"), "float32"):
+            x2: R.Tensor((n, m), "float32"), y2: R.Tensor((n, m), "float32")
+        ) -> R.Tensor((n, m), "float32"):
             sum_inner = R.add(x2, y2)
             return sum_inner
 
@@ -475,21 +481,22 @@ def test_symbolic_variable_defined_by_inner_func():
 
 
 def test_runtime_symbolic_variable_defined_by_inner_func():
+    n_from_param = T.dynamic("n")
+    n_from_match_cast = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @R.function
         def main(x: R.Tensor((4,), "float32")):
             @R.function
-            def from_param(y: R.Tensor(("n",), "float32")):
-                n = T.int64()
-                z = R.ones((n,), "float32")
+            def from_param(y: R.Tensor((n_from_param,), "float32")):
+                z = R.ones((n_from_param,), "float32")
                 return z
 
             @R.function
             def from_match_cast(y: R.Tensor(ndim=1, dtype="float32")):
-                n = T.int64()
-                y2 = R.match_cast(y, R.Tensor((n,), "float32"))
-                z = R.ones((n,), "float32")
+                y2 = R.match_cast(y, R.Tensor((n_from_match_cast,), "float32"))
+                z = R.ones((n_from_match_cast,), "float32")
                 return z
 
             a = from_param(x)
@@ -503,15 +510,15 @@ def test_runtime_symbolic_variable_defined_by_inner_func():
 
 
 def test_symbolic_variable_defined_by_outer_func():
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @I.ir_module
     class Before:
         @R.function
-        def main(
-            x1: R.Tensor(("n", "m"), "float32"), y1: R.Tensor(("n", "m"), "float32")
-        ) -> R.Tensor(("n", "m"), "float32"):
-            n = T.int64()
-            m = T.int64()
-
+        def main(x1: R.Tensor((n, m), "float32"), y1: R.Tensor((n, m), "float32")) -> R.Tensor(
+            (n, m), "float32"
+        ):
             @R.function
             def inner(x2: R.Tensor((n, m), "float32"), y2: R.Tensor((n, m), "float32")):
                 sum_inner = R.add(x2, y2)
@@ -520,19 +527,25 @@ def test_symbolic_variable_defined_by_outer_func():
             sum_main = inner(x1, y1)
             return sum_main
 
+    n_main = T.dynamic("n")
+    m_main = T.dynamic("m")
+    n_main_inner = T.dynamic("n")
+    m_main_inner = T.dynamic("m")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x1: R.Tensor(("n", "m"), "float32"), y1: R.Tensor(("n", "m"), "float32")
-        ) -> R.Tensor(("n", "m"), "float32"):
+            x1: R.Tensor((n_main, m_main), "float32"), y1: R.Tensor((n_main, m_main), "float32")
+        ) -> R.Tensor((n_main, m_main), "float32"):
             sum_main = Expected.main_inner(x1, y1)
             return sum_main
 
         @R.function(private=True)
         def main_inner(
-            x2: R.Tensor(("n", "m"), "float32"), y2: R.Tensor(("n", "m"), "float32")
-        ) -> R.Tensor(("n", "m"), "float32"):
+            x2: R.Tensor((n_main_inner, m_main_inner), "float32"),
+            y2: R.Tensor((n_main_inner, m_main_inner), "float32"),
+        ) -> R.Tensor((n_main_inner, m_main_inner), "float32"):
             sum_inner = R.add(x2, y2)
             return sum_inner
 

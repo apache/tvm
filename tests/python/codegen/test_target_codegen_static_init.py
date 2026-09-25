@@ -29,12 +29,13 @@ def test_static_init():
         assert isinstance(sh, ctypes.c_void_p)
         return sh
 
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @T.prim_func
         def ramp(A: T.handle):
             T.func_attr({"global_symbol": "ramp"})
-            n = T.int64()
             Ab = T.match_buffer(A, (n,), "int64")
             T.call_packed(
                 "test_static_callback",

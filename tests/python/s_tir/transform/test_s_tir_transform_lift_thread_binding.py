@@ -23,9 +23,10 @@ from tvm.script import tirx as T
 
 def test_lift_tx_beyond_local():
     # fmt: off
+    n = T.dynamic("n", "int32")
+
     @Ts.prim_func
     def before(a: T.handle, b: T.handle, c: T.handle):
-        n = T.int32()
         A = T.match_buffer(a, (32, 1, 128))
         B = T.match_buffer(b, (32, n, 128))
         C = T.match_buffer(c, (32, 1, n))
@@ -78,9 +79,10 @@ def test_lift_tx_beyond_local():
                     Ts.writes(C[ax0_ax1_fused // n, 0, ax0_ax1_fused % n])
                     C[ax0_ax1_fused // n, 0, ax0_ax1_fused % n] = D_local[ax0_ax1_fused // n, 0, ax0_ax1_fused % n] * T.float32(0.088397790055248615)
 
+    n = T.dynamic("n", "int32")
+
     @Ts.prim_func
     def expected(A: T.Buffer((32, 1, 128), "float32"), b: T.handle, c: T.handle):
-        n = T.int32()
         B = T.match_buffer(b, (32, n, 128))
         C = T.match_buffer(c, (32, 1, n))
         # with Ts.sblock("root"):

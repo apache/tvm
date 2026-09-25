@@ -33,8 +33,10 @@ from tvm.script import tirx as T
 def test_shared_operations_and_aliases():
     from tvm.script import s_tir as S
 
+    n = S.dynamic("n")
+
     @S.prim_func
-    def shared(A: S.Buffer(("n",), "float32")):
+    def shared(A: S.Buffer((n,), "float32")):
         for i in T.serial(A.shape[0]):
             with S.sblock("copy"):
                 v = Ts.axis.spatial(A.shape[0], i)

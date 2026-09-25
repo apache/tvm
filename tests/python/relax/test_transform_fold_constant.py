@@ -180,16 +180,21 @@ def test_dataflow_fold():
 
 
 def test_fold_mixed_case():
+    n_addone = T.dynamic("n", "int32")
+    m_addone = T.dynamic("m", "int32")
+    n_before = T.dynamic("n")
+    m_before = T.dynamic("m")
+    n_expected = T.dynamic("n")
+    m_expected = T.dynamic("m")
+
     @tvm.script.ir_module
     class Module:
         # TIR function can handle different cases.
         @Ts.prim_func
         def addone(a: T.handle, b: T.handle) -> None:
-            n = T.int32()
-            m = T.int32()
-            A = T.match_buffer(a, (n, m))
-            B = T.match_buffer(b, (n, m))
-            for i, j in T.grid(n, m):
+            A = T.match_buffer(a, (n_addone, m_addone))
+            B = T.match_buffer(b, (n_addone, m_addone))
+            for i, j in T.grid(n_addone, m_addone):
                 with Ts.sblock("addone"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] + T.float32(1)
@@ -207,11 +212,10 @@ def test_fold_mixed_case():
 
         @R.function
         def before(c0: R.Tensor((16, 16), "float32"), x: R.Tensor("float32", ndim=2)):
-            n, m = T.int64(), T.int64()
             cls = Module
-            x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
+            x0 = R.match_cast(x, R.Tensor((n_before, m_before), "float32"))
             # this line cannot be folded because n is unknown
-            lv0 = relax.call_tir(cls.addone, (c0,), R.Tensor((n, 16), dtype="float32"))
+            lv0 = relax.call_tir(cls.addone, (c0,), R.Tensor((n_before, 16), dtype="float32"))
             # this line can be folded
             lv1 = relax.call_tir(cls.addone, (c0,), R.Tensor((16, 16), dtype="float32"))
             # this line can be folded because all inputs are const
@@ -227,11 +231,10 @@ def test_fold_mixed_case():
             c2: R.Tensor((16, 16), "float32"),
             x: R.Tensor("float32", ndim=2),
         ):
-            n, m = T.int64(), T.int64()
             cls = Module
-            x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
+            x0 = R.match_cast(x, R.Tensor((n_expected, m_expected), "float32"))
             # this line cannot be folded because n is unknown
-            lv0 = relax.call_tir(cls.addone, (c0,), R.Tensor((n, 16), dtype="float32"))
+            lv0 = relax.call_tir(cls.addone, (c0,), R.Tensor((n_expected, 16), dtype="float32"))
             # this line can not be folded because x's shape is unknown
             lv3 = relax.call_tir(cls.sub, (c2, x), R.Tensor((16, 16), dtype="float32"))
             return (lv0, lv3)
@@ -589,6 +592,8 @@ def test_fold_large_op_with_tensor_input():
 def test_call_tir_with_primitive_args_not_folded():
     """call_tir with symbolic primitive arguments cannot be const-evaluated."""
 
+    m = T.dynamic("m")
+
     @tvm.script.ir_module
     class Module:
         @Ts.prim_func(private=True)
@@ -599,8 +604,7 @@ def test_call_tir_with_primitive_args_not_folded():
                     out[vi] = m
 
         @R.function
-        def main(x: R.Tensor(("m",), "float32")):
-            m = T.int64()
+        def main(x: R.Tensor((m,), "float32")):
             cls = Module
             gv = relax.call_tir(cls.shape_to_tensor, (m,), R.Tensor((1,), "int64"))
             return gv

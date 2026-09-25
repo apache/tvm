@@ -1055,14 +1055,15 @@ def _make_expected_broadcast_ir_min(
         Expected IR module for the Min operation.
     """
 
+    n = T.dynamic("n")
+
     @I.ir_module
     class ExpectedMin:
         @R.function
         def main(
-            x: R.Tensor(("n", x_shape[1]), dtype="float32"),
-            y: R.Tensor(("n", y_shape[1]), dtype="float32"),
-        ) -> R.Tensor(("n", 4), dtype="float32"):
-            n = T.int64()
+            x: R.Tensor((n, x_shape[1]), dtype="float32"),
+            y: R.Tensor((n, y_shape[1]), dtype="float32"),
+        ) -> R.Tensor((n, 4), dtype="float32"):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 lv = R.broadcast_to(x, R.shape((n, 4)))
@@ -1089,14 +1090,15 @@ def _make_expected_broadcast_ir_max(
         Expected IR module for the Max operation.
     """
 
+    n = T.dynamic("n")
+
     @I.ir_module
     class ExpectedMax:
         @R.function
         def main(
-            x: R.Tensor(("n", x_shape[1]), dtype="float32"),
-            y: R.Tensor(("n", y_shape[1]), dtype="float32"),
-        ) -> R.Tensor(("n", 4), dtype="float32"):
-            n = T.int64()
+            x: R.Tensor((n, x_shape[1]), dtype="float32"),
+            y: R.Tensor((n, y_shape[1]), dtype="float32"),
+        ) -> R.Tensor((n, 4), dtype="float32"):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 lv = R.broadcast_to(x, R.shape((n, 4)))
@@ -2420,7 +2422,7 @@ def test_scatter_dynamic_shape():
     (shared symbolic dims) it still lowers via scatter_elements and is correct;
     a dynamic indices that is *not* provably equal (e.g. a broadcast size-1 dim)
     must raise instead of silently emitting wrong values."""
-    n = tvm.tirx.Var("N", "int64")
+    n = T.dynamic("N", "int64")
     rng = np.random.RandomState(1)
     batch = 5
 
@@ -2678,6 +2680,8 @@ def test_compress():
         if axis is None:
             flat_shape = (int(np.prod(tensor_shape)),)
 
+            num_nonzero = T.dynamic("num_nonzero")
+
             @I.ir_module
             class ExpectedCompressFlat:
                 @R.function
@@ -2685,7 +2689,6 @@ def test_compress():
                     tensor: R.Tensor(tensor_shape, dtype="float32"),
                     condition: R.Tensor(condition_shape, dtype="bool"),
                 ):
-                    num_nonzero = T.int64()
                     R.func_attr({"num_input": 2})
                     with R.dataflow():
                         lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
@@ -2701,6 +2704,8 @@ def test_compress():
 
             return ExpectedCompressFlat
 
+        num_nonzero = T.dynamic("num_nonzero")
+
         @I.ir_module
         class ExpectedCompressAxis:
             @R.function
@@ -2708,7 +2713,6 @@ def test_compress():
                 tensor: R.Tensor(tensor_shape, dtype="float32"),
                 condition: R.Tensor(condition_shape, dtype="bool"),
             ):
-                num_nonzero = T.int64()
                 R.func_attr({"num_input": 2})
                 with R.dataflow():
                     lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
@@ -3390,6 +3394,11 @@ def test_unsqueeze_dynamic_axes_ir():
     model = helper.make_model(graph, producer_name="unsqueeze_dynamic_axes_ir_test")
     tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
 
+    unsqueeze_dim_0 = T.dynamic("unsqueeze_dim_0")
+    unsqueeze_dim_1 = T.dynamic("unsqueeze_dim_1")
+    unsqueeze_dim_2 = T.dynamic("unsqueeze_dim_2")
+    unsqueeze_dim_3 = T.dynamic("unsqueeze_dim_3")
+
     @I.ir_module
     class Expected:
         @R.function
@@ -3398,10 +3407,6 @@ def test_unsqueeze_dynamic_axes_ir():
             axes: R.Tensor((2,), dtype="int64"),
         ) -> R.Tensor(dtype="float32", ndim=4):
             R.func_attr({"num_input": 2})
-            unsqueeze_dim_0 = T.int64()
-            unsqueeze_dim_1 = T.int64()
-            unsqueeze_dim_2 = T.int64()
-            unsqueeze_dim_3 = T.int64()
             with R.dataflow():
                 lv: R.Shape([32, 32]) = R.shape_of(a)
                 lv1: R.Tensor((2,), dtype="bool") = R.less(axes, R.const(0, "int64"))
@@ -4220,13 +4225,14 @@ def test_shape_start_end_symbolic():
         keep_params_in_input=True,
     )
 
+    B = T.dynamic("B")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            data: R.Tensor((3, "B", 5, 6), dtype="float32"),
+            data: R.Tensor((3, B, 5, 6), dtype="float32"),
         ) -> R.Shape(ndim=2):
-            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B, 5]) = R.shape([B, 5])
@@ -4426,13 +4432,13 @@ def test_trilu_dynamic_k_ir(upper: bool):
 
         expected = ExpectedTriu
     else:
+        m = T.dynamic("m")
 
         @I.ir_module
         class ExpectedTril:
             @R.function
-            def main(x: R.Tensor(("m", 3), dtype="float32")) -> R.Tensor(("m", 3), dtype="float32"):
+            def main(x: R.Tensor((m, 3), dtype="float32")) -> R.Tensor((m, 3), dtype="float32"):
                 R.func_attr({"num_input": 1})
-                m = T.int64()
                 with R.dataflow():
                     lv: R.Tensor((1,), dtype="int64") = R.shape_to_tensor(R.shape([m]))
                     lv1: R.Tensor((3,), dtype="int64") = R.arange(0, 3, 1, dtype="int64")
@@ -5509,15 +5515,16 @@ def test_dynamic_squeeze():
     tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
     tvm_model["main"] = tvm_model["main"].without_attr("params")
 
+    A = T.dynamic("A")
+    B = T.dynamic("B")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tensor((1, "A", "B"), dtype="float32"),
+            x: R.Tensor((1, A, B), dtype="float32"),
             axes: R.Tensor((1,), dtype="int64"),
-        ) -> R.Tensor(("A", "B"), dtype="float32"):
-            A = T.int64()
-            B = T.int64()
+        ) -> R.Tensor((A, B), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B), dtype="float32") = R.squeeze(x, axis=[0])
@@ -5544,6 +5551,10 @@ def test_squeeze_dynamic_axes_ir():
     model = helper.make_model(graph, producer_name="squeeze_dynamic_axes_ir_test")
     tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
 
+    squeeze_num_keep_dims = T.dynamic("squeeze_num_keep_dims")
+    squeeze_dim_0 = T.dynamic("squeeze_dim_0")
+    squeeze_dim_1 = T.dynamic("squeeze_dim_1")
+
     @I.ir_module
     class Expected:
         @R.function
@@ -5552,9 +5563,6 @@ def test_squeeze_dynamic_axes_ir():
             axes: R.Tensor((2,), dtype="int64"),
         ) -> R.Tensor(dtype="float32", ndim=2):
             R.func_attr({"num_input": 2})
-            squeeze_num_keep_dims = T.int64()
-            squeeze_dim_0 = T.int64()
-            squeeze_dim_1 = T.int64()
             with R.dataflow():
                 lv: R.Shape([1, 32, 1, 32]) = R.shape_of(x)
                 lv1: R.Tensor((2,), dtype="bool") = R.less(axes, R.const(0, "int64"))
@@ -5637,7 +5645,7 @@ def test_dynamic_shape_squeeze(axis):
     tvm_model["main"] = tvm_model["main"].without_attr("params")
 
     # Use an ordinary symbolic Var for the dynamic shape binding.
-    a = tvm.tirx.Var("A", "int64")
+    a = T.dynamic("A", "int64")
     x = relax.Var("x", relax.TensorType([a], "float32"))
     axes = relax.Var("axes", relax.TensorType([1], "int64"))
     gv = relax.Var("gv", tvm.ir.PrimType("int64"))
@@ -7252,14 +7260,15 @@ def test_expand():
                 R.output(gv)
             return gv
 
+    batch = T.dynamic("batch")
+
     @I.ir_module
     class ExpectedDynamicShape:
         @R.function
         def main(
             in_: R.Tensor((1, 32, 32), dtype="float32"),
-            in_2: R.Tensor(("batch", 32, 32), dtype="float32"),
-        ) -> R.Tensor(("batch", 32, 32), dtype="float32"):
-            batch = T.int64()
+            in_2: R.Tensor((batch, 32, 32), dtype="float32"),
+        ) -> R.Tensor((batch, 32, 32), dtype="float32"):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 gv: R.Tensor((batch, 32, 32), dtype="float32") = R.broadcast_to(
@@ -7845,67 +7854,71 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
+    A = T.dynamic("A")
+
     @I.ir_module
     class ExpectedShapeSlice1:
         @R.function
         def main(
-            x: R.Tensor(("A", 10, 5), dtype="float32"),
+            x: R.Tensor((A, 10, 5), dtype="float32"),
             starts: R.Tensor((1,), dtype="int64"),
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([A, 10]) = R.shape([A, 10])
                 R.output(gv)
             return gv
 
+    A = T.dynamic("A")
+    B = T.dynamic("B")
+
     @I.ir_module
     class ExpectedShapeSlice2:
         @R.function
         def main(
-            x: R.Tensor(("A", "B", 5), dtype="float32"),
+            x: R.Tensor((A, B, 5), dtype="float32"),
             starts: R.Tensor((1,), dtype="int64"),
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64()
-            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([A, B]) = R.shape([A, B])
                 R.output(gv)
             return gv
 
+    C = T.dynamic("C")
+
     @I.ir_module
     class ExpectedShapeSlice3:
         @R.function
         def main(
-            x: R.Tensor((20, 10, "C"), dtype="float32"),
+            x: R.Tensor((20, 10, C), dtype="float32"),
             starts: R.Tensor((1,), dtype="int64"),
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((2,), dtype="int64"):
-            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((2,), dtype="int64") = R.const([20, 10], "int64")
                 R.output(gv)
             return gv
 
+    A = T.dynamic("A")
+    B = T.dynamic("B")
+    C = T.dynamic("C")
+
     @I.ir_module
     class ExpectedShapeSlice4:
         @R.function
         def main(
-            x: R.Tensor(("A", "B", "C"), dtype="float32"),
+            x: R.Tensor((A, B, C), dtype="float32"),
             starts: R.Tensor((1,), dtype="int64"),
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64()
-            B = T.int64()
-            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([A, B]) = R.shape([A, B])
@@ -7927,67 +7940,71 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
+    A = T.dynamic("A")
+
     @I.ir_module
     class ExpectedShapeSlice6:
         @R.function
         def main(
-            x: R.Tensor(("A", 10, 5), dtype="float32"),
+            x: R.Tensor((A, 10, 5), dtype="float32"),
             starts: R.Tensor((1,), dtype="int64"),
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((1,), dtype="int64"):
-            A = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((1,), dtype="int64") = R.const([10], "int64")
                 R.output(gv)
             return gv
 
+    A = T.dynamic("A")
+    B = T.dynamic("B")
+
     @I.ir_module
     class ExpectedShapeSlice7:
         @R.function
         def main(
-            x: R.Tensor(("A", "B", 5), dtype="float32"),
+            x: R.Tensor((A, B, 5), dtype="float32"),
             starts: R.Tensor((1,), dtype="int64"),
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=1):
-            A = T.int64()
-            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B]) = R.shape([B])
                 R.output(gv)
             return gv
 
+    C = T.dynamic("C")
+
     @I.ir_module
     class ExpectedShapeSlice8:
         @R.function
         def main(
-            x: R.Tensor((20, 10, "C"), dtype="float32"),
+            x: R.Tensor((20, 10, C), dtype="float32"),
             starts: R.Tensor((1,), dtype="int64"),
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((1,), dtype="int64"):
-            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((1,), dtype="int64") = R.const([10], "int64")
                 R.output(gv)
             return gv
 
+    A = T.dynamic("A")
+    B = T.dynamic("B")
+    C = T.dynamic("C")
+
     @I.ir_module
     class ExpectedShapeSlice9:
         @R.function
         def main(
-            x: R.Tensor(("A", "B", "C"), dtype="float32"),
+            x: R.Tensor((A, B, C), dtype="float32"),
             starts: R.Tensor((1,), dtype="int64"),
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=1):
-            A = T.int64()
-            B = T.int64()
-            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B]) = R.shape([B])
@@ -8009,67 +8026,71 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
+    A = T.dynamic("A")
+
     @I.ir_module
     class ExpectedShapeSlice11:
         @R.function
         def main(
-            x: R.Tensor(("A", 10, 5), dtype="float32"),
+            x: R.Tensor((A, 10, 5), dtype="float32"),
             starts: R.Tensor((1,), dtype="int64"),
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((2,), dtype="int64"):
-            A = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((2,), dtype="int64") = R.const([10, 5], "int64")
                 R.output(gv)
             return gv
 
+    A = T.dynamic("A")
+    B = T.dynamic("B")
+
     @I.ir_module
     class ExpectedShapeSlice12:
         @R.function
         def main(
-            x: R.Tensor(("A", "B", 5), dtype="float32"),
+            x: R.Tensor((A, B, 5), dtype="float32"),
             starts: R.Tensor((1,), dtype="int64"),
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64()
-            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B, 5]) = R.shape([B, 5])
                 R.output(gv)
             return gv
 
+    C = T.dynamic("C")
+
     @I.ir_module
     class ExpectedShapeSlice13:
         @R.function
         def main(
-            x: R.Tensor((20, 10, "C"), dtype="float32"),
+            x: R.Tensor((20, 10, C), dtype="float32"),
             starts: R.Tensor((1,), dtype="int64"),
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([10, C]) = R.shape([10, C])
                 R.output(gv)
             return gv
 
+    A = T.dynamic("A")
+    B = T.dynamic("B")
+    C = T.dynamic("C")
+
     @I.ir_module
     class ExpectedShapeSlice14:
         @R.function
         def main(
-            x: R.Tensor(("A", "B", "C"), dtype="float32"),
+            x: R.Tensor((A, B, C), dtype="float32"),
             starts: R.Tensor((1,), dtype="int64"),
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64()
-            B = T.int64()
-            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B, C]) = R.shape([B, C])
@@ -8970,6 +8991,11 @@ def test_tile():
         expected.update_func(expected.get_global_var("tile"), tvm_model["tile"])
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
+    tile_input_dim_0 = T.dynamic("tile_input_dim_0")
+    tile_input_dim_1 = T.dynamic("tile_input_dim_1")
+    tile_input_dim_2 = T.dynamic("tile_input_dim_2")
+    tile_input_dim_3 = T.dynamic("tile_input_dim_3")
+
     @I.ir_module
     class ExpectedTileDynamicInput:
         @Ts.prim_func(private=True)
@@ -8980,27 +9006,23 @@ def test_tile():
         def main(
             input: R.Tensor(
                 (
-                    "tile_input_dim_0",
-                    "tile_input_dim_1",
-                    "tile_input_dim_2",
-                    "tile_input_dim_3",
+                    tile_input_dim_0,
+                    tile_input_dim_1,
+                    tile_input_dim_2,
+                    tile_input_dim_3,
                 ),
                 dtype="float32",
             ),
             repeats: R.Tensor((4,), dtype="int64"),
         ) -> R.Tensor(
             (
-                "tile_input_dim_0 * 2",
-                "tile_input_dim_1",
-                "tile_input_dim_2 * 3",
-                "tile_input_dim_3 * 2",
+                tile_input_dim_0 * 2,
+                tile_input_dim_1,
+                tile_input_dim_2 * 3,
+                tile_input_dim_3 * 2,
             ),
             dtype="float32",
         ):
-            tile_input_dim_0 = T.int64()
-            tile_input_dim_1 = T.int64()
-            tile_input_dim_2 = T.int64()
-            tile_input_dim_3 = T.int64()
             R.func_attr({"num_input": 1})
             cls = ExpectedTileDynamicInput
             with R.dataflow():
@@ -9096,6 +9118,8 @@ def test_tile_dynamic_repeats():
         )
 
         if rank == 2:
+            tile_dim_0 = T.dynamic("tile_dim_0")
+            tile_dim_1 = T.dynamic("tile_dim_1")
 
             @I.ir_module
             class ExpectedTileRank2:
@@ -9108,8 +9132,6 @@ def test_tile_dynamic_repeats():
                     input: R.Tensor(input_shape, dtype="float32"),
                     repeats: R.Tensor((2,), dtype="int64"),
                 ) -> R.Tensor(dtype="float32", ndim=2):
-                    tile_dim_0 = T.int64()
-                    tile_dim_1 = T.int64()
                     R.func_attr({"num_input": 2})
                     cls = ExpectedTileRank2
                     with R.dataflow():
@@ -9131,6 +9153,9 @@ def test_tile_dynamic_repeats():
             return ExpectedTileRank2
 
         if rank == 3:
+            tile_dim_0 = T.dynamic("tile_dim_0")
+            tile_dim_1 = T.dynamic("tile_dim_1")
+            tile_dim_2 = T.dynamic("tile_dim_2")
 
             @I.ir_module
             class ExpectedTileRank3:
@@ -9143,9 +9168,6 @@ def test_tile_dynamic_repeats():
                     input: R.Tensor(input_shape, dtype="float32"),
                     repeats: R.Tensor((3,), dtype="int64"),
                 ) -> R.Tensor(dtype="float32", ndim=3):
-                    tile_dim_0 = T.int64()
-                    tile_dim_1 = T.int64()
-                    tile_dim_2 = T.int64()
                     R.func_attr({"num_input": 2})
                     cls = ExpectedTileRank3
                     with R.dataflow():
@@ -9168,6 +9190,10 @@ def test_tile_dynamic_repeats():
             return ExpectedTileRank3
 
         if rank == 4:
+            tile_dim_0 = T.dynamic("tile_dim_0")
+            tile_dim_1 = T.dynamic("tile_dim_1")
+            tile_dim_2 = T.dynamic("tile_dim_2")
+            tile_dim_3 = T.dynamic("tile_dim_3")
 
             @I.ir_module
             class ExpectedTileRank4:
@@ -9180,10 +9206,6 @@ def test_tile_dynamic_repeats():
                     input: R.Tensor(input_shape, dtype="float32"),
                     repeats: R.Tensor((4,), dtype="int64"),
                 ) -> R.Tensor(dtype="float32", ndim=4):
-                    tile_dim_0 = T.int64()
-                    tile_dim_1 = T.int64()
-                    tile_dim_2 = T.int64()
-                    tile_dim_3 = T.int64()
                     R.func_attr({"num_input": 2})
                     cls = ExpectedTileRank4
                     with R.dataflow():
@@ -10628,14 +10650,15 @@ def test_flatten_dynamic():
         tvm_model = from_onnx(model, keep_params_in_input=True)
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
+    A = T.dynamic("A")
+    B = T.dynamic("B")
+
     @I.ir_module
     class ExpectedDynamicAxis0:
         @R.function
-        def main(x: R.Tensor((1, "A", "B", 32), dtype="float32")) -> R.Tensor(
-            (1, "A * B * 32"), dtype="float32"
+        def main(x: R.Tensor((1, A, B, 32), dtype="float32")) -> R.Tensor(
+            (1, A * B * 32), dtype="float32"
         ):
-            A = T.int64()
-            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((1, A * B * 32), dtype="float32") = R.reshape(
@@ -10644,28 +10667,30 @@ def test_flatten_dynamic():
                 R.output(gv)
             return gv
 
+    A = T.dynamic("A")
+    B = T.dynamic("B")
+
     @I.ir_module
     class ExpectedDynamicAxisNegative1:
         @R.function
-        def main(x: R.Tensor((1, "A", "B", 32), dtype="float32")) -> R.Tensor(
-            ("A * B", 32), dtype="float32"
+        def main(x: R.Tensor((1, A, B, 32), dtype="float32")) -> R.Tensor(
+            (A * B, 32), dtype="float32"
         ):
-            A = T.int64()
-            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A * B, 32), dtype="float32") = R.reshape(x, R.shape([A * B, 32]))
                 R.output(gv)
             return gv
 
+    A = T.dynamic("A")
+    B = T.dynamic("B")
+
     @I.ir_module
     class ExpectedDynamicAxis2:
         @R.function
-        def main(x: R.Tensor((1, "A", "B", 32), dtype="float32")) -> R.Tensor(
-            ("A", "B * 32"), dtype="float32"
+        def main(x: R.Tensor((1, A, B, 32), dtype="float32")) -> R.Tensor(
+            (A, B * 32), dtype="float32"
         ):
-            A = T.int64()
-            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B * 32), dtype="float32") = R.reshape(x, R.shape([A, B * 32]))
@@ -10771,11 +10796,12 @@ def test_nonzero():
         tvm_model = from_onnx(model, keep_params_in_input=True)
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
+    nonzero_numbers = T.dynamic("nonzero_numbers")
+
     @I.ir_module
     class ExpectedScalar:
         @R.function
         def main(x: R.Tensor((), dtype="bool")):
-            nonzero_numbers = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 lv: R.Tensor((1, nonzero_numbers), dtype="int64") = R.match_cast(
@@ -10784,12 +10810,13 @@ def test_nonzero():
                 gv: R.Tensor((1, nonzero_numbers), dtype="int64") = lv
                 R.output(gv)
             return gv
+
+    nonzero_numbers = T.dynamic("nonzero_numbers")
 
     @I.ir_module
     class ExpectedRank1:
         @R.function
         def main(x: R.Tensor((1,), dtype="bool")):
-            nonzero_numbers = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 lv: R.Tensor((1, nonzero_numbers), dtype="int64") = R.match_cast(
@@ -10799,11 +10826,12 @@ def test_nonzero():
                 R.output(gv)
             return gv
 
+    nonzero_numbers = T.dynamic("nonzero_numbers")
+
     @I.ir_module
     class ExpectedRank2:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="bool")):
-            nonzero_numbers = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 lv: R.Tensor((2, nonzero_numbers), dtype="int64") = R.match_cast(
@@ -10813,11 +10841,12 @@ def test_nonzero():
                 R.output(gv)
             return gv
 
+    nonzero_numbers = T.dynamic("nonzero_numbers")
+
     @I.ir_module
     class ExpectedRank3:
         @R.function
         def main(x: R.Tensor((4, 5, 6), dtype="bool")):
-            nonzero_numbers = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 lv: R.Tensor((3, nonzero_numbers), dtype="int64") = R.match_cast(
@@ -10827,11 +10856,12 @@ def test_nonzero():
                 R.output(gv)
             return gv
 
+    nonzero_numbers = T.dynamic("nonzero_numbers")
+
     @I.ir_module
     class ExpectedRank4:
         @R.function
         def main(x: R.Tensor((7, 8, 9, 10), dtype="bool")):
-            nonzero_numbers = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 lv: R.Tensor((4, nonzero_numbers), dtype="int64") = R.match_cast(
@@ -11662,16 +11692,17 @@ def test_symbolic_shape_deduction():
         tvm_model = from_onnx(model, keep_params_in_input=True)
         tvm.ir.assert_structural_equal(tvm_model["main"].without_attr("params"), expected["main"])
 
+    batch = T.dynamic("batch")
+    seq = T.dynamic("seq")
+
     @I.ir_module
     class ExpectedWithReshapeFlatten:
         @R.function
         def main(
-            data: R.Tensor(("batch", "seq"), dtype="float32"),
+            data: R.Tensor((batch, seq), dtype="float32"),
             axes: R.Tensor((1,), dtype="int64"),
             target_shape: R.Tensor((1,), dtype="int64"),
-        ) -> R.Tensor(("batch",), dtype="float32"):
-            batch = T.int64()
-            seq = T.int64()
+        ) -> R.Tensor((batch,), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((batch,), dtype="float32") = R.broadcast_to(
@@ -11680,15 +11711,16 @@ def test_symbolic_shape_deduction():
                 R.output(gv)
             return gv
 
+    batch = T.dynamic("batch")
+    seq = T.dynamic("seq")
+
     @I.ir_module
     class ExpectedWithoutReshapeFlatten:
         @R.function
         def main(
-            data: R.Tensor(("batch", "seq"), dtype="float32"),
+            data: R.Tensor((batch, seq), dtype="float32"),
             axes: R.Tensor((1,), dtype="int64"),
-        ) -> R.Tensor(("batch",), dtype="float32"):
-            batch = T.int64()
-            seq = T.int64()
+        ) -> R.Tensor((batch,), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((batch,), dtype="float32") = R.broadcast_to(
@@ -11716,14 +11748,15 @@ def test_multi_inputs_with_same_symbolic_shape():
     model = helper.make_model(graph, producer_name="test_multi_symbolic_shape_input")
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
+    batch = T.dynamic("batch")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            data1: R.Tensor(("batch", 1), dtype="float32"),
-            data2: R.Tensor(("batch", 1), dtype="float32"),
-        ) -> R.Tensor(("batch", 2), dtype="float32"):
-            batch = T.int64()
+            data1: R.Tensor((batch, 1), dtype="float32"),
+            data2: R.Tensor((batch, 1), dtype="float32"),
+        ) -> R.Tensor((batch, 2), dtype="float32"):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 gv: R.Tensor((batch, 2), dtype="float32") = R.concat((data1, data2), axis=1)
@@ -11859,12 +11892,13 @@ def test_shape_dim_string_expression_graph_add():
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
     # fmt: off
+    A = T.dynamic("A")
+    B = T.dynamic("B")
+
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(("A", "B", "A + B"), dtype="float32")) -> R.Tensor(("A", "B", "A + B"), dtype="float32"):
-            A = T.int64()
-            B = T.int64()
+        def main(x: R.Tensor((A, B, A + B), dtype="float32")) -> R.Tensor((A, B, A + B), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A + B), dtype="float32") = x
@@ -11893,12 +11927,13 @@ def test_shape_dim_string_expression_graph_subtract():
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
     # fmt: off
+    A = T.dynamic("A")
+    B = T.dynamic("B")
+
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(("A", "B", "A - B"), dtype="float32")) -> R.Tensor(("A", "B", "A - B"), dtype="float32"):
-            A = T.int64()
-            B = T.int64()
+        def main(x: R.Tensor((A, B, A - B), dtype="float32")) -> R.Tensor((A, B, A - B), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A - B), dtype="float32") = x
@@ -11927,12 +11962,13 @@ def test_shape_dim_string_expression_graph_mul():
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
     # fmt: off
+    A = T.dynamic("A")
+    B = T.dynamic("B")
+
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(("A", "B", "A * B"), dtype="float32")) -> R.Tensor(("A", "B", "A * B"), dtype="float32"):
-            A = T.int64()
-            B = T.int64()
+        def main(x: R.Tensor((A, B, A * B), dtype="float32")) -> R.Tensor((A, B, A * B), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A * B), dtype="float32") = x
@@ -11962,12 +11998,13 @@ def test_shape_dim_string_expression_graph_div_1():
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
     # fmt: off
+    A = T.dynamic("A")
+    B = T.dynamic("B")
+
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(("A", "B", "A // B"), dtype="float32")) -> R.Tensor(("A", "B", "A // B"), dtype="float32"):
-            A = T.int64()
-            B = T.int64()
+        def main(x: R.Tensor((A, B, A // B), dtype="float32")) -> R.Tensor((A, B, A // B), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A // B), dtype="float32") = x
@@ -11997,12 +12034,13 @@ def test_shape_dim_string_expression_graph_div_2():
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
     # fmt: off
+    A = T.dynamic("A")
+    B = T.dynamic("B")
+
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(("A", "B", "A // B"), dtype="float32")) -> R.Tensor(("A", "B", "A // B"), dtype="float32"):
-            A = T.int64()
-            B = T.int64()
+        def main(x: R.Tensor((A, B, A // B), dtype="float32")) -> R.Tensor((A, B, A // B), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A // B), dtype="float32") = x

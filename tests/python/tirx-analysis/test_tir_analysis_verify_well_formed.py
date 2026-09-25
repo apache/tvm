@@ -74,9 +74,10 @@ def test_error_for_out_of_scope_usage():
 def test_error_for_nested_rebind_usage():
     """A variable may not be re-defined within the initial scope"""
 
+    i = T.dynamic("i", "int32")
+
     @T.prim_func(check_well_formed=False)
     def func():
-        i = T.int32()
         T.bind(42, var=i)
         T.bind(42, var=i)
         T.evaluate(i)
@@ -96,9 +97,10 @@ def test_error_for_repeated_binding():
     scope extends to all subsequent siblings).
     """
 
+    i = T.dynamic("i", "int32")
+
     @T.prim_func(check_well_formed=False)
     def func():
-        i = T.int32()
         T.bind(42, var=i)
         T.evaluate(i)
         T.bind(17, var=i)
@@ -113,7 +115,7 @@ def test_error_for_repeated_binding():
 def test_error_for_cross_function_reuse():
     """A variable may not be re-defined in another function"""
 
-    i = tvm.tirx.Var("i", "int32")
+    i = T.dynamic("i", "int32")
 
     @I.ir_module(check_well_formed=False)
     class mod:
@@ -181,7 +183,7 @@ def test_reuse_of_env_thread_across_functions_is_ill_formed():
     PrimFuncs.
     """
 
-    threadIdx_x = tvm.tirx.Var("threadIdx_x", "int32")
+    threadIdx_x = T.dynamic("threadIdx_x", "int32")
 
     @I.ir_module(check_well_formed=False)
     class mod:
@@ -241,10 +243,10 @@ def test_error_message_without_previous_definition_location():
     IS known, so the message includes location info.
     """
 
+    x = T.dynamic("x", "int32")
+
     @T.prim_func(check_well_formed=False)
     def func():
-        x = T.int32()
-
         T.bind(42, var=x)
         T.evaluate(x)
 
@@ -268,10 +270,10 @@ def test_error_message_with_previous_definition_location():
     contain 'It was first defined at' with the location information.
     """
 
+    x = T.dynamic("x", "int32")
+
     @T.prim_func(check_well_formed=False)
     def func():
-        x = T.int32()
-
         T.bind(42, var=x)
         T.bind(99, var=x)  # This should trigger the error
         T.evaluate(x)
@@ -297,10 +299,10 @@ def test_sequential_redefinition_with_location():
     are treated as nested definitions with location info.
     """
 
+    x = T.dynamic("x", "int32")
+
     @T.prim_func(check_well_formed=False)
     def func():
-        x = T.int32()
-
         T.bind(1, var=x)
         T.evaluate(x)
 

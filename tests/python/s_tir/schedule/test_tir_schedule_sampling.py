@@ -216,9 +216,10 @@ def test_sample_perfect_tile_after_copy():
 def test_sample_perfect_tile_on_dynamic_loops():
     """Currently dynamic loop is trivially tiled"""
 
+    n = T.dynamic("n", "int32")
+
     @Ts.prim_func
     def workload(a: T.handle) -> None:
-        n = T.int32()
         A = T.match_buffer(a, (n, 1024))
         for i, j in T.grid(n, 1024):
             with Ts.sblock("B"):

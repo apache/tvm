@@ -125,10 +125,12 @@ def test_dynamic_shape():
         debug=False,
     )
 
+    batch_size = T.dynamic("batch_size")
+
     @I.ir_module
     class Expected:
         @R.function
-        def forward(x: R.Tensor(["batch_size", 8], dtype="float32")):
+        def forward(x: R.Tensor([batch_size, 8], dtype="float32")):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 relu = R.nn.relu(x)
@@ -158,10 +160,13 @@ def test_dynamic_shape_in_multiple_functions():
         debug=False,
     )
 
+    batch_size_forward_relu = T.dynamic("batch_size")
+    batch_size_forward_silu = T.dynamic("batch_size")
+
     @I.ir_module
     class Expected:
         @R.function
-        def forward_relu(x: R.Tensor(["batch_size", 8], dtype="float32")):
+        def forward_relu(x: R.Tensor([batch_size_forward_relu, 8], dtype="float32")):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 relu = R.nn.relu(x)
@@ -170,7 +175,7 @@ def test_dynamic_shape_in_multiple_functions():
             return relu
 
         @R.function
-        def forward_silu(x: R.Tensor(["batch_size", 8], dtype="float32")):
+        def forward_silu(x: R.Tensor([batch_size_forward_silu, 8], dtype="float32")):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 silu = R.nn.silu(x)
@@ -227,17 +232,18 @@ def test_export_nested_module():
         debug=False,
     )
 
+    batch_size = T.dynamic("batch_size")
+
     @I.ir_module
     class Expected:
         @R.function
         def forward(
-            x: R.Tensor(["batch_size", hidden_size], "float16"),
+            x: R.Tensor([batch_size, hidden_size], "float16"),
             gate_proj_weights: R.Tensor([intermediate_size, hidden_size], "float16"),
             up_proj_weights: R.Tensor([intermediate_size, hidden_size], "float16"),
             down_proj_weights: R.Tensor([hidden_size, intermediate_size], "float16"),
         ):
             R.func_attr({"num_input": 1})
-            batch_size = T.int64()
             with R.dataflow():
                 gate: R.Tensor([batch_size, intermediate_size]) = R.matmul(
                     x, R.permute_dims(gate_proj_weights)
@@ -351,11 +357,13 @@ def test_generate_parameters():
         debug=False,
     )
 
+    batch_size = T.dynamic("batch_size")
+
     @I.ir_module
     class Expected:
         @R.function
         def forward(
-            x: R.Tensor(["batch_size", hidden_size], "float16"),
+            x: R.Tensor([batch_size, hidden_size], "float16"),
             # The function's parameters are defined by the
             # `nn.Parameter` instances, and still reference the
             # original `gate_proj` and `up_proj` weights.  This
@@ -366,7 +374,6 @@ def test_generate_parameters():
             down_proj_weights: R.Tensor([hidden_size, intermediate_size], "float16"),
         ):
             R.func_attr({"num_input": 1})
-            batch_size = T.int64()
             with R.dataflow():
                 # At this stage of compilation, the concatenation is
                 # written within the body of the function.  This will
@@ -389,11 +396,13 @@ def test_generate_parameters():
 
     assert_structural_equal(exported_mod, Expected)
 
+    batch_size = T.dynamic("batch_size")
+
     @I.ir_module
     class ExpectedAfterLift:
         @R.function
         def forward(
-            x: R.Tensor(["batch_size", hidden_size], "float16"),
+            x: R.Tensor([batch_size, hidden_size], "float16"),
             # After `relax.transform.LiftTransformParams`, the
             # `gate_proj` and `up_proj` weights have been concatenated
             # together.
@@ -403,7 +412,6 @@ def test_generate_parameters():
             down_proj_weights_transpose: R.Tensor([intermediate_size, hidden_size], "float16"),
         ):
             R.func_attr({"num_input": 1})
-            batch_size = T.int64()
             with R.dataflow():
                 gate_up: R.Tensor([batch_size, intermediate_size * 2], "float16") = R.matmul(
                     x, gate_up_proj_weights_transpose
@@ -459,14 +467,15 @@ def test_linear_dynamic_shape():
     Even if dynamic, the weight/bias must be the same value.
     """
 
+    n = T.dynamic("n")
+
     @R.function
     def forward(
         x: R.Tensor((1, 4), dtype="float32"),
         _io: R.Any,
-        weight: R.Tensor(("n", 4), dtype="float32"),
-        bias: R.Tensor(("n",), dtype="float32"),
-    ) -> R.Tuple(R.Tensor((1, "n"), dtype="float32"), R.Tuple(R.Any)):
-        n = T.int64()
+        weight: R.Tensor((n, 4), dtype="float32"),
+        bias: R.Tensor((n,), dtype="float32"),
+    ) -> R.Tuple(R.Tensor((1, n), dtype="float32"), R.Tuple(R.Any)):
         R.func_attr({"num_input": 2})
         with R.dataflow():
             permute_dims: R.Tensor((4, n), dtype="float32") = R.permute_dims(weight, axes=None)
@@ -563,19 +572,20 @@ def test_duplicate_names(dynamic_type):
     )
 
     def get_expected_with_intermediate_size():
+        batch_size = T.dynamic("batch_size")
+        hidden_size = T.dynamic("hidden_size")
+        intermediate_size = T.dynamic("intermediate_size")
+
         @I.ir_module
         class Expected:
             @R.function
             def forward(
-                state: R.Tensor(["batch_size", 1024], "float32"),
-                embedding_weights: R.Tensor(["hidden_size", 1024], "float32"),
-                up_weights: R.Tensor(["intermediate_size", "hidden_size"], "float32"),
-                down_weights: R.Tensor(["hidden_size", "intermediate_size"], "float32"),
+                state: R.Tensor([batch_size, 1024], "float32"),
+                embedding_weights: R.Tensor([hidden_size, 1024], "float32"),
+                up_weights: R.Tensor([intermediate_size, hidden_size], "float32"),
+                down_weights: R.Tensor([hidden_size, intermediate_size], "float32"),
             ):
                 R.func_attr({"num_input": 1})
-                batch_size = T.int64()
-                hidden_size = T.int64()
-                intermediate_size = T.int64()
                 with R.dataflow():
                     state: R.Tensor([batch_size, hidden_size], "float32") = R.matmul(
                         state, R.permute_dims(embedding_weights)
@@ -594,18 +604,19 @@ def test_duplicate_names(dynamic_type):
         return Expected
 
     def get_expected_without_intermediate_size():
+        batch_size = T.dynamic("batch_size")
+        hidden_size = T.dynamic("hidden_size")
+
         @I.ir_module
         class Expected:
             @R.function
             def forward(
-                state: R.Tensor(["batch_size", 1024], "float32"),
-                embedding_weights: R.Tensor(["hidden_size", 1024], "float32"),
-                up_weights: R.Tensor(["hidden_size", "hidden_size"], "float32"),
-                down_weights: R.Tensor(["hidden_size", "hidden_size"], "float32"),
+                state: R.Tensor([batch_size, 1024], "float32"),
+                embedding_weights: R.Tensor([hidden_size, 1024], "float32"),
+                up_weights: R.Tensor([hidden_size, hidden_size], "float32"),
+                down_weights: R.Tensor([hidden_size, hidden_size], "float32"),
             ):
                 R.func_attr({"num_input": 1})
-                batch_size = T.int64()
-                hidden_size = T.int64()
                 with R.dataflow():
                     state: R.Tensor([batch_size, hidden_size], "float32") = R.matmul(
                         state, R.permute_dims(embedding_weights)

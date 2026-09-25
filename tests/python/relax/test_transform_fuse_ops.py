@@ -1275,10 +1275,13 @@ def test_dead_group():
 
 
 def test_symbolic_shape_aware_fuse():
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @I.ir_module
     class Before:
         @R.function
-        def main(x: R.Tensor(["n", "m"], "float32")):
+        def main(x: R.Tensor([n, m], "float32")):
             with R.dataflow():
                 lv0 = R.emit_te(topi.add, x, R.const(1, "float32"))
                 lv1 = R.emit_te(topi.exp, lv0)
@@ -1286,12 +1289,18 @@ def test_symbolic_shape_aware_fuse():
                 R.output(gv)
             return gv
 
+    n_fused_add_exp_squeeze = T.dynamic("n")
+    m_fused_add_exp_squeeze = T.dynamic("m")
+    n_main = T.dynamic("n")
+    m_main = T.dynamic("m")
+
     @I.ir_module
     class Expected:
         @R.function(private=True)
         def fused_add_exp_squeeze(
-            x: R.Tensor(["n", "m"], "float32"), p0: R.Tensor([], "float32")
-        ) -> R.Tensor(["n", "m"], dtype="float32"):
+            x: R.Tensor([n_fused_add_exp_squeeze, m_fused_add_exp_squeeze], "float32"),
+            p0: R.Tensor([], "float32"),
+        ) -> R.Tensor([n_fused_add_exp_squeeze, m_fused_add_exp_squeeze], dtype="float32"):
             R.func_attr({"Primitive": True})
             with R.dataflow():
                 lv0 = R.emit_te(topi.add, x, p0)
@@ -1301,7 +1310,9 @@ def test_symbolic_shape_aware_fuse():
             return gv
 
         @R.function
-        def main(x: R.Tensor(["n", "m"], "float32")) -> R.Tensor(["n", "m"], dtype="float32"):
+        def main(x: R.Tensor([n_main, m_main], "float32")) -> R.Tensor(
+            [n_main, m_main], dtype="float32"
+        ):
             cls = Expected
             with R.dataflow():
                 gv = cls.fused_add_exp_squeeze(x, R.const(1, "float32"))
@@ -1312,40 +1323,53 @@ def test_symbolic_shape_aware_fuse():
 
 
 def test_symbolic_shape_aware_fuse_2():
+    n = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @R.function
-        def main(s: R.Shape(["n"])):
-            n = T.int64()
+        def main(s: R.Shape([n])):
             with R.dataflow():
                 lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
                 lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
                 gv = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
                 R.output(gv)
             return gv
+
+    n_fused_full_trilu_broadcast_to = T.dynamic("n")
+    n_main = T.dynamic("n")
 
     @I.ir_module
     class Expected:
         @R.function(private=True)
         def fused_full_trilu_broadcast_to(
-            s: R.Shape(["n"]),
-        ) -> R.Tensor([1, 1, "n", "n"], "float32"):
+            s: R.Shape([n_fused_full_trilu_broadcast_to]),
+        ) -> R.Tensor(
+            [1, 1, n_fused_full_trilu_broadcast_to, n_fused_full_trilu_broadcast_to], "float32"
+        ):
             R.func_attr({"Primitive": True})
-            n = T.int64()
             with R.dataflow():
-                lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
+                lv0 = R.emit_te(
+                    topi.full,
+                    [n_fused_full_trilu_broadcast_to, n_fused_full_trilu_broadcast_to],
+                    "float32",
+                    0,
+                )
                 lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
-                gv = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
+                gv = R.emit_te(
+                    topi.broadcast_to,
+                    lv1,
+                    [1, 1, n_fused_full_trilu_broadcast_to, n_fused_full_trilu_broadcast_to],
+                )
                 R.output(gv)
             return gv
 
         @R.function
-        def main(s: R.Shape(["n"])) -> R.Tensor((1, 1, "n", "n"), dtype="float32"):
+        def main(s: R.Shape([n_main])) -> R.Tensor((1, 1, n_main, n_main), dtype="float32"):
             cls = Expected
-            n = T.int64()
             with R.dataflow():
-                gv: R.Tensor([1, 1, n, n], "float32") = cls.fused_full_trilu_broadcast_to(
-                    R.shape([n])
+                gv: R.Tensor([1, 1, n_main, n_main], "float32") = cls.fused_full_trilu_broadcast_to(
+                    R.shape([n_main])
                 )
                 R.output(gv)
             return gv
@@ -1354,6 +1378,8 @@ def test_symbolic_shape_aware_fuse_2():
 
 
 def test_symbolic_prim_arg_after_tensor_arg():
+    n = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
@@ -1378,9 +1404,8 @@ def test_symbolic_prim_arg_after_tensor_arg():
 
         @R.function
         def main(
-            x: R.Tensor((1, "n"), dtype="float32"),
-        ) -> R.Tensor((1, "n"), dtype="float32"):
-            n = T.int64()
+            x: R.Tensor((1, n), dtype="float32"),
+        ) -> R.Tensor((1, n), dtype="float32"):
             cls = Before
             with R.dataflow():
                 lv = R.call_tir(
@@ -1420,6 +1445,8 @@ def test_symbolic_prim_arg_after_tensor_arg():
 
 
 def test_symbolic_prim_arg_before_tensor_arg():
+    n = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
@@ -1444,9 +1471,8 @@ def test_symbolic_prim_arg_before_tensor_arg():
 
         @R.function
         def main(
-            x: R.Tensor((1, "n"), dtype="float32"),
-        ) -> R.Tensor((1, "n"), dtype="float32"):
-            n = T.int64()
+            x: R.Tensor((1, n), dtype="float32"),
+        ) -> R.Tensor((1, n), dtype="float32"):
             cls = Before
             with R.dataflow():
                 lv = R.call_tir(
@@ -1486,6 +1512,8 @@ def test_symbolic_prim_arg_before_tensor_arg():
 
 
 def test_symbolic_prim_arg_reused_from_derived_tensor_shape():
+    n = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
@@ -1526,10 +1554,9 @@ def test_symbolic_prim_arg_reused_from_derived_tensor_shape():
 
         @R.function
         def main(
-            source: R.Tensor(("n",), dtype="float32"),
-            x: R.Tensor((1, "(n - 1) // 4 + 1"), dtype="float32"),
-        ) -> R.Tensor((1, "(n - 1) // 4 + 1"), dtype="float32"):
-            n = T.int64()
+            source: R.Tensor((n,), dtype="float32"),
+            x: R.Tensor((1, (n - 1) // 4 + 1), dtype="float32"),
+        ) -> R.Tensor((1, (n - 1) // 4 + 1), dtype="float32"):
             cls = Before
             with R.dataflow():
                 lv = R.call_tir(
@@ -1567,6 +1594,9 @@ def test_symbolic_prim_arg_reused_from_derived_tensor_shape():
 
 
 def test_symbolic_prim_arg_not_bound_by_derived_tensor_shape():
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
@@ -1591,11 +1621,9 @@ def test_symbolic_prim_arg_not_bound_by_derived_tensor_shape():
 
         @R.function
         def main(
-            shape: R.Shape(["n", "m"]),
-            x: R.Tensor((1, "n + 1"), dtype="float32"),
-        ) -> R.Tensor((1, "n + 1"), dtype="float32"):
-            n = T.int64()
-            m = T.int64()
+            shape: R.Shape([n, m]),
+            x: R.Tensor((1, n + 1), dtype="float32"),
+        ) -> R.Tensor((1, n + 1), dtype="float32"):
             cls = Before
             with R.dataflow():
                 lv = R.call_tir(
@@ -1761,6 +1789,8 @@ def test_primitive_call_arg_used_by_output_shape_not_inlined():
 
 
 def test_symbolic_prim_arg_used_only_by_output_shape():
+    n = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
@@ -1784,9 +1814,8 @@ def test_symbolic_prim_arg_used_only_by_output_shape():
 
         @R.function
         def main(
-            source: R.Tensor(("n",), dtype="float32"),
-        ) -> R.Tensor(("n",), dtype="float32"):
-            n = T.int64()
+            source: R.Tensor((n,), dtype="float32"),
+        ) -> R.Tensor((n,), dtype="float32"):
             cls = Before
             with R.dataflow():
                 lv = R.call_tir(
@@ -1826,11 +1855,12 @@ def test_symbolic_prim_arg_used_only_by_output_shape():
 
 
 def test_shape_expr_arg():
+    n = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @R.function
-        def main(s: R.Shape(["n"]), kv_cache: R.Any):
-            n = T.int64()
+        def main(s: R.Shape([n]), kv_cache: R.Any):
             with R.dataflow():
                 lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
                 lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
@@ -1844,34 +1874,46 @@ def test_shape_expr_arg():
                 R.output(gv, lv2)
             return gv, lv2
 
+    n_fused_full_trilu_broadcast_to = T.dynamic("n")
+    n_main = T.dynamic("n")
+
     @I.ir_module
     class Expected:
         @R.function(private=True)
         def fused_full_trilu_broadcast_to(
-            s: R.Shape(["n"]),
-        ) -> R.Tensor([1, 1, "n", "n"], "float32"):
+            s: R.Shape([n_fused_full_trilu_broadcast_to]),
+        ) -> R.Tensor(
+            [1, 1, n_fused_full_trilu_broadcast_to, n_fused_full_trilu_broadcast_to], "float32"
+        ):
             R.func_attr({"Primitive": True})
-            n = T.int64()
             with R.dataflow():
-                lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
+                lv0 = R.emit_te(
+                    topi.full,
+                    [n_fused_full_trilu_broadcast_to, n_fused_full_trilu_broadcast_to],
+                    "float32",
+                    0,
+                )
                 lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
-                gv = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
+                gv = R.emit_te(
+                    topi.broadcast_to,
+                    lv1,
+                    [1, 1, n_fused_full_trilu_broadcast_to, n_fused_full_trilu_broadcast_to],
+                )
                 R.output(gv)
             return gv
 
         @R.function
-        def main(s: R.Shape(["n"]), kv_cache: R.Any):
+        def main(s: R.Shape([n_main]), kv_cache: R.Any):
             cls = Expected
-            n = T.int64()
             with R.dataflow():
-                lv: R.Tensor([1, 1, n, n], "float32") = cls.fused_full_trilu_broadcast_to(
-                    R.shape([n])
+                lv: R.Tensor([1, 1, n_main, n_main], "float32") = cls.fused_full_trilu_broadcast_to(
+                    R.shape([n_main])
                 )
                 gv = R.call_pure_packed(
                     "vm.builtin.attention_kv_cache_view",
                     kv_cache,
-                    R.shape([1 + n, 32, 128]),
-                    ty_args=(R.Tensor((1 + n, 32, 128), dtype="float32"),),
+                    R.shape([1 + n_main, 32, 128]),
+                    ty_args=(R.Tensor((1 + n_main, 32, 128), dtype="float32"),),
                 )
                 R.output(gv, lv)
             return gv, lv
@@ -1880,12 +1922,13 @@ def test_shape_expr_arg():
 
 
 def test_skipping_match_cast():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @R.function
         def main(A: R.Tensor((10, 20), dtype="float32")) -> R.Tensor(dtype="float32", ndim=2):
-            m = T.int64()
-            n = T.int64()
             with R.dataflow():
                 lv: R.Tensor((m, n), dtype="float32") = R.match_cast(
                     A, R.Tensor((m, n), dtype="float32")

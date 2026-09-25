@@ -270,6 +270,9 @@ def test_optimize_transform_layout_pass_two_args():
 
 
 def test_tranform_layout_tir_remove_pad_transform_layout():
+    p0 = T.dynamic("p0")
+    i0 = T.dynamic("i0")
+
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
@@ -288,9 +291,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
         @Ts.prim_func(private=True)
         def remove_pad(var_input: T.handle, var_output: T.handle):
             T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
-            p0 = T.int64()
             input = T.match_buffer(var_input, (p0,))
-            i0 = T.int64()
             output = T.match_buffer(var_output, (i0,))
             # with Ts.sblock("root"):
             for ax0 in range(i0):
@@ -343,6 +344,9 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                 R.output(gv)
             return gv
 
+    p0 = T.dynamic("p0")
+    i0 = T.dynamic("i0")
+
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
@@ -361,9 +365,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
         @Ts.prim_func(private=True)
         def remove_pad(var_input: T.handle, var_output: T.handle):
             T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
-            p0 = T.int64()
             input = T.match_buffer(var_input, (p0,))
-            i0 = T.int64()
             output = T.match_buffer(var_output, (i0,))
             # with Ts.sblock("root"):
             for ax0 in range(i0):

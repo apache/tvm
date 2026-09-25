@@ -39,20 +39,23 @@ from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
-
 # The test function uses an undefined symbolic var in Relax.
 # In principle, this should be attached to an argument.
 # pylint: disable=no-self-argument,invalid-name,line-too-long,no-method-argument
 # fmt: off
+full1_n = T.dynamic("n")
+full2_n = T.dynamic("n")
+matmul1_n = T.dynamic("n")
+_test_n = T.dynamic("n")
+
 @I.ir_module(check_well_formed=False)
 class Module:
     @Ts.prim_func
     def full1(var_T_full: T.handle):
         T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-        n = T.int64()
-        T_full = T.match_buffer(var_T_full, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
+        T_full = T.match_buffer(var_T_full, (T.int64(1), T.int64(32), T.int64(1), full1_n), "float16")
         # with Ts.sblock("root"):
-        for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), T.int64(1), n):
+        for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), T.int64(1), full1_n):
             with Ts.sblock("T_full"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 Ts.reads()
@@ -62,10 +65,9 @@ class Module:
     @Ts.prim_func
     def full2(var_T_full: T.handle):
         T.func_attr({"op_pattern": 0, "tirx.noalias": True})
-        n = T.int64()
-        T_full = T.match_buffer(var_T_full, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
+        T_full = T.match_buffer(var_T_full, (T.int64(1), T.int64(32), full2_n, T.int64(128)), "float16")
         # with Ts.sblock("root"):
-        for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), n, T.int64(128)):
+        for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), full2_n, T.int64(128)):
             with Ts.sblock("T_full"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 Ts.reads()
@@ -75,11 +77,10 @@ class Module:
     @Ts.prim_func
     def matmul1(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})
-        n = T.int64()
-        A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
-        B = T.match_buffer(var_B, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
+        A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), matmul1_n), "float16")
+        B = T.match_buffer(var_B, (T.int64(1), T.int64(32), matmul1_n, T.int64(128)), "float16")
         # with Ts.sblock("root"):
-        for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(32), T.int64(1), T.int64(128), n):
+        for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(32), T.int64(1), T.int64(128), matmul1_n):
             with Ts.sblock("matmul"):
                 v_i0, v_i1, v_i2, v_i3, v_k = Ts.axis.remap("SSSSR", [i0, i1, i2, i3, k])
                 Ts.reads(A[v_i0, v_i1, v_i2, v_k], B[v_i0, v_i1, v_k, v_i3])
@@ -90,23 +91,23 @@ class Module:
 
     @R.function
     def test():
-        n = T.int64()
         R.func_attr({"tir_var_upper_bound": {"n": 2048}})
         cls = Module
         with R.dataflow():
-            lv1 = R.call_tir(cls.full1,(), out_ty=R.Tensor((1, 32, 1, n), dtype="float16"))
-            lv1_1 = R.call_tir(cls.full1,(), out_ty=R.Tensor((1, 32, 1, n), dtype="float16"))
-            lv1_2 = R.call_tir(cls.full1,(), out_ty=R.Tensor((1, 32, 1, n), dtype="float16"))
-            lv2 = R.call_tir(cls.full2,(), out_ty=R.Tensor((1, 32, n, 128), dtype="float16"))
-            lv2_1 = R.call_tir(cls.full2,(), out_ty=R.Tensor((1, 32, n, 128), dtype="float16"))
+            lv1 = R.call_tir(cls.full1,(), out_ty=R.Tensor((1, 32, 1, _test_n), dtype="float16"))
+            lv1_1 = R.call_tir(cls.full1,(), out_ty=R.Tensor((1, 32, 1, _test_n), dtype="float16"))
+            lv1_2 = R.call_tir(cls.full1,(), out_ty=R.Tensor((1, 32, 1, _test_n), dtype="float16"))
+            lv2 = R.call_tir(cls.full2,(), out_ty=R.Tensor((1, 32, _test_n, 128), dtype="float16"))
+            lv2_1 = R.call_tir(cls.full2,(), out_ty=R.Tensor((1, 32, _test_n, 128), dtype="float16"))
             lv3 = R.call_tir(cls.matmul1, (lv1, lv2), out_ty=R.Tensor((1, 32, 1, 128), dtype="float16"))
             R.output(lv3)
         return lv3
 
+m = T.dynamic("m")
+
 @Ts.prim_func
 def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
     T.func_attr({"tirx.is_scheduled": True})
-    m = T.int64()
     inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
     matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
     # with Ts.sblock("root"):

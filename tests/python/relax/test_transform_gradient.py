@@ -1077,14 +1077,16 @@ def test_function_copy():
 
 
 def test_tir_copy():
+    n = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @R.function
         def main(
-            x0: R.Tensor(("n", "n"), "float32"),
-            x1: R.Tensor(("n", "n"), "float32"),
-            x2: R.Tensor(("n", "n"), "float32"),
-            x3: R.Tensor(("n", "n"), "float32"),
+            x0: R.Tensor((n, n), "float32"),
+            x1: R.Tensor((n, n), "float32"),
+            x2: R.Tensor((n, n), "float32"),
+            x3: R.Tensor((n, n), "float32"),
         ):
             with R.dataflow():
                 lv0 = R.add(x0, x1)

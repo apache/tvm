@@ -150,11 +150,12 @@ def test_fail_on_block_alloc_buffer():
 def test_metal_simdgroup_matmul_builds():
     """Narrowing a DLight-scheduled Metal matmul keeps its tensorized blocks consistent."""
 
+    n = T.dynamic("n")
+
     @Ts.prim_func
     def main(
         var_A: T.handle, B: T.Buffer((T.int64(256), T.int64(256)), "float16"), var_C: T.handle
     ):
-        n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n, T.int64(256)), "float16")
         C = T.match_buffer(var_C, (T.int64(1), n, T.int64(256)), "float16")
         for i0, i1, i2, k in T.grid(T.int64(1), n, T.int64(256), T.int64(256)):

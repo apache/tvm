@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
 """NNAPI integration operator tests."""
 
 import numpy as np
@@ -23,7 +22,6 @@ import pytest
 import tvm
 import tvm.script
 import tvm.script.relax as R
-import tvm.script.tirx as T
 from test_nnapi.conftest import remote
 from test_nnapi.infrastructure import build_and_run
 
@@ -269,7 +267,6 @@ def test_mean():
             def main(
                 i0: R.Tensor((1, 10, 15), "float32"),
             ) -> R.Tensor((1, 10, 1), "float32"):
-                n = T.int64()
                 with R.dataflow():
                     t0: R.Tensor((1, 10, 1), "float32") = R.mean(i0, axis=[-1], keepdims=True)
                     R.output(t0)

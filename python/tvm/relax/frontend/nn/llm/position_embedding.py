@@ -391,6 +391,9 @@ def llama_rope(  # pylint: disable=too-many-arguments
             expr = tirx.Let(var, value, expr)
         return expr
 
+    batch_size = T.dynamic("batch_size")
+    seq_len = T.dynamic("seq_len")
+
     @Ts.prim_func(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
@@ -405,8 +408,6 @@ def llama_rope(  # pylint: disable=too-many-arguments
                 "tirx.noalias": True,
             }
         )
-        batch_size = T.int64()
-        seq_len = T.int64()
         qkv = T.match_buffer(var_qkv, (batch_size, seq_len, fused_heads, head_dim), dtype)
         q = T.match_buffer(var_q, (batch_size, seq_len, num_q_heads, head_dim), dtype)
         k = T.match_buffer(var_k, (batch_size, seq_len, num_kv_heads, head_dim), dtype)
@@ -523,6 +524,9 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
             expr = tirx.Let(var, value, expr)
         return expr
 
+    seq_len = T.dynamic("seq_len", "int32")
+    position_map_elem_offset = T.dynamic("position_map_elem_offset", "int32")
+
     @Ts.prim_func
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
@@ -538,8 +542,6 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                 "tirx.noalias": True,
             }
         )
-        seq_len = T.int32()
-        position_map_elem_offset = T.int32()
         qkv = T.match_buffer(var_qkv, (seq_len, fused_heads, head_dim), dtype)
         q = T.match_buffer(var_q, (seq_len, num_q_heads, head_dim), dtype)
         k = T.match_buffer(var_k, (seq_len, num_kv_heads, head_dim), dtype)
@@ -565,6 +567,9 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                 else:
                     v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
 
+    seq_len = T.dynamic("seq_len")
+    position_map_elem_offset = T.dynamic("position_map_elem_offset")
+
     @Ts.prim_func
     def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
@@ -580,8 +585,6 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                 "tirx.noalias": True,
             }
         )
-        seq_len = T.int64()
-        position_map_elem_offset = T.int64()
         qkv = T.match_buffer(var_qkv, (seq_len, fused_heads, head_dim), dtype)
         q = T.match_buffer(var_q, (seq_len, num_q_heads, head_dim), dtype)
         k = T.match_buffer(var_k, (seq_len, num_kv_heads, head_dim), dtype)
@@ -750,6 +753,9 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
             expr = tirx.Let(var, value, expr)
         return expr
 
+    seq_len = T.dynamic("seq_len", "int32")
+    position_map_elem_offset = T.dynamic("position_map_elem_offset", "int32")
+
     @Ts.prim_func(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
@@ -765,8 +771,6 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
                 "tirx.noalias": True,
             }
         )
-        seq_len = T.int32()
-        position_map_elem_offset = T.int32()
         qkv = T.match_buffer(var_qkv, (seq_len, fused_heads, head_dim), dtype)
         q = T.match_buffer(var_q, (seq_len, num_q_heads, head_dim), dtype)
         k = T.match_buffer(var_k, (seq_len, num_kv_heads, head_dim), dtype)
@@ -792,6 +796,9 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
                 else:
                     v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
 
+    seq_len = T.dynamic("seq_len")
+    position_map_elem_offset = T.dynamic("position_map_elem_offset")
+
     @Ts.prim_func
     def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
@@ -807,8 +814,6 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
                 "tirx.noalias": True,
             }
         )
-        seq_len = T.int64()
-        position_map_elem_offset = T.int64()
         qkv = T.match_buffer(var_qkv, (seq_len, fused_heads, head_dim), dtype)
         q = T.match_buffer(var_q, (seq_len, num_q_heads, head_dim), dtype)
         k = T.match_buffer(var_k, (seq_len, num_kv_heads, head_dim), dtype)

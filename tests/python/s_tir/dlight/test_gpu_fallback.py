@@ -132,6 +132,14 @@ def test_fallback_reduction():
 
 
 def test_fallback_irregular_spatial():
+    nhead = T.dynamic("nhead", "int32")
+    nlayer = T.dynamic("nlayer", "int32")
+    seqlen = T.dynamic("seqlen", "int32")
+    npage = T.dynamic("npage", "int32")
+    page_size = T.dynamic("page_size", "int32")
+    num_total_pages = T.dynamic("num_total_pages", "int32")
+    num_total_seqs_plus_1 = T.dynamic("num_total_seqs_plus_1", "int32")
+
     @Ts.prim_func(private=True)
     def func(
         var_pages: T.handle,
@@ -140,14 +148,6 @@ def test_fallback_irregular_spatial():
         var_values: T.handle,
         seq_id: T.int32,
     ):
-        nhead = T.int32()
-        nlayer = T.int32()
-        seqlen = T.int32()
-        npage = T.int32()
-        page_size = T.int32()
-        num_total_pages = T.int32()
-        num_total_seqs_plus_1 = T.int32()
-
         pages = T.match_buffer(var_pages, (num_total_pages, nlayer, nhead, page_size), "float16")
         page_table_indptr = T.match_buffer(var_page_table_indptr, (num_total_seqs_plus_1,), "int32")
         page_table_values = T.match_buffer(var_page_table_values, (npage,), "int32")
@@ -164,16 +164,17 @@ def test_fallback_irregular_spatial():
                 ]
 
     # fmt: off
+    nhead = T.dynamic("nhead", "int32")
+    nlayer = T.dynamic("nlayer", "int32")
+    seqlen = T.dynamic("seqlen", "int32")
+    npage = T.dynamic("npage", "int32")
+    page_size = T.dynamic("page_size", "int32")
+    num_total_pages = T.dynamic("num_total_pages", "int32")
+    num_total_seqs_plus_1 = T.dynamic("num_total_seqs_plus_1", "int32")
+
     @Ts.prim_func(private=True)
     def expected(var_pages: T.handle, var_page_table_indptr: T.handle, var_page_table_values: T.handle, var_values: T.handle, seq_id: T.int32):
         T.func_attr({"tirx.is_scheduled": True})
-        nhead = T.int32()
-        nlayer = T.int32()
-        seqlen = T.int32()
-        npage = T.int32()
-        page_size = T.int32()
-        num_total_pages = T.int32()
-        num_total_seqs_plus_1 = T.int32()
 
         pages = T.match_buffer(var_pages, (num_total_pages, nlayer, nhead, page_size), "float16")
         page_table_indptr = T.match_buffer(var_page_table_indptr, (num_total_seqs_plus_1,), "int32")

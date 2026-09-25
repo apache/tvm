@@ -58,8 +58,7 @@ def _initialize():
             globals()[name] = getattr(builder, name)
         # The operations are shared, but syntax is keyed by the registered namespace.
         for table in (
-            protocol_registry.ARGS_POLICIES,
-            protocol_registry.TYPE_VAR_DECL,
+            protocol_registry.SCALAR_ANNOTATION_DTYPE,
             protocol_registry.MUTABLE_CELL_DECL,
             protocol_registry.RESULT_SPAN,
         ):

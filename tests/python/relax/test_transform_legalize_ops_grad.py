@@ -197,9 +197,9 @@ def test_nll_loss_backward_no_batch():
                 Ts.reads(T_broadcast_to[()], all_weights[()])
                 Ts.writes(T_divide[()])
                 T_divide[()] = T_broadcast_to[()] / all_weights[()]
-            for i in range(T.int64(4)):
+            for i_index in range(T.int64(4)):
                 with Ts.sblock("pred_grad"):
-                    v_i = Ts.axis.spatial(T.int64(4), i)
+                    v_i = Ts.axis.spatial(T.int64(4), i_index)
                     Ts.reads(rxplaceholder_2[()], all_weights[()], T_divide[()])
                     Ts.writes(pred_grad[v_i])
                     pred_grad[v_i] = T.Select(v_i == rxplaceholder_2[()], all_weights[()] * T.float32(-1) * T_divide[()], T.float32(0))
@@ -319,8 +319,8 @@ def test_take_backward():
             rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, (T.int64(2),), "int32", offset_factor=1)
             with Ts.sblock("take_backward"):
                 T.attr(0, "pragma_scope", "seq")
-                for i in range(T.int64(60)):
-                    out_buf[i // T.int64(5) // T.int64(4), i // T.int64(5) % T.int64(4), i % T.int64(5)] = T.float32(0)
+                for i_index in range(T.int64(60)):
+                    out_buf[i_index // T.int64(5) // T.int64(4), i_index // T.int64(5) % T.int64(4), i_index % T.int64(5)] = T.float32(0)
                 for parallel, serial in T.grid(T.int64(15), T.int64(2)):
                     out_buf[(parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) // T.int64(5) // T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) // T.int64(5) % T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) % T.int64(5)] = out_buf[(parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) // T.int64(5) // T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) // T.int64(5) % T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) % T.int64(5)] + rxplaceholder[(parallel // T.int64(5) * T.int64(5) * T.int64(2) + serial * T.int64(5) + parallel % T.int64(5)) // T.int64(5) // T.int64(2), (parallel // T.int64(5) * T.int64(5) * T.int64(2) + serial * T.int64(5) + parallel % T.int64(5)) // T.int64(5) % T.int64(2), (parallel // T.int64(5) * T.int64(5) * T.int64(2) + serial * T.int64(5) + parallel % T.int64(5)) % T.int64(5)]
 
@@ -337,40 +337,44 @@ def test_take_backward():
 
 def test_take_backward_symbolic():
     # fmt: off
+    m = T.dynamic("m")
+    i = T.dynamic("i")
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class TakeBackward:
         @R.function
-        def main(output_grad: R.Tensor(("m", "i"), "float32"), x: R.Tensor(("m", "n"), "float32"), indices: R.Tensor(("i",), "int32")):
-            m = T.int64()
-            i = T.int64()
+        def main(output_grad: R.Tensor((m, i), "float32"), x: R.Tensor((m, n), "float32"), indices: R.Tensor((i,), "int32")):
             gv = R.grad.take_backward(output_grad, x, indices, axis=1)
             return gv
+
+    m_take_backward = T.dynamic("m")
+    i_take_backward = T.dynamic("i")
+    n_take_backward = T.dynamic("n")
+    m_main = T.dynamic("m")
+    n_main = T.dynamic("n")
+    i_main = T.dynamic("i")
 
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
         def take_backward(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, var_take_backward: T.handle):
             T.func_attr({"tirx.noalias": True})
-            m, i = T.int64(), T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (m, i), offset_factor=1)
-            n = T.int64()
-            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (m, n), offset_factor=1)
-            rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, (i,), "int32", offset_factor=1)
-            out_buf = T.match_buffer(var_take_backward, (m, n))
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (m_take_backward, i_take_backward), offset_factor=1)
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (m_take_backward, n_take_backward), offset_factor=1)
+            rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, (i_take_backward,), "int32", offset_factor=1)
+            out_buf = T.match_buffer(var_take_backward, (m_take_backward, n_take_backward))
             with Ts.sblock("take_backward"):
                 T.attr(0, "pragma_scope", "seq")
-                for i_1 in range(m * n):
-                    out_buf[i_1 // n, i_1 % n] = T.float32(0)
-                for parallel, serial in T.grid(m, i):
-                    out_buf[(parallel * n + T.Cast("int64", rxplaceholder_2[serial])) // n, (parallel * n + T.Cast("int64", rxplaceholder_2[serial])) % n] = out_buf[(parallel * n + T.Cast("int64", rxplaceholder_2[serial])) // n, (parallel * n + T.Cast("int64", rxplaceholder_2[serial])) % n] + rxplaceholder[(parallel * i + serial) // i, (parallel * i + serial) % i]
+                for i_1 in range(m_take_backward * n_take_backward):
+                    out_buf[i_1 // n_take_backward, i_1 % n_take_backward] = T.float32(0)
+                for parallel, serial in T.grid(m_take_backward, i_take_backward):
+                    out_buf[(parallel * n_take_backward + T.Cast("int64", rxplaceholder_2[serial])) // n_take_backward, (parallel * n_take_backward + T.Cast("int64", rxplaceholder_2[serial])) % n_take_backward] = out_buf[(parallel * n_take_backward + T.Cast("int64", rxplaceholder_2[serial])) // n_take_backward, (parallel * n_take_backward + T.Cast("int64", rxplaceholder_2[serial])) % n_take_backward] + rxplaceholder[(parallel * i_take_backward + serial) // i_take_backward, (parallel * i_take_backward + serial) % i_take_backward]
 
         @R.function
-        def main(output_grad: R.Tensor(("m", "i"), dtype="float32"), x: R.Tensor(("m", "n"), dtype="float32"), indices: R.Tensor(("i",), dtype="int32")) -> R.Tensor(("m", "n"), dtype="float32"):
-            m = T.int64()
-            n = T.int64()
-            i = T.int64()
+        def main(output_grad: R.Tensor((m_main, i_main), dtype="float32"), x: R.Tensor((m_main, n_main), dtype="float32"), indices: R.Tensor((i_main,), dtype="int32")) -> R.Tensor((m_main, n_main), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.take_backward, (output_grad, x, indices), out_ty=R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(cls.take_backward, (output_grad, x, indices), out_ty=R.Tensor((m_main, n_main), dtype="float32"))
             return gv
     # fmt: on
 

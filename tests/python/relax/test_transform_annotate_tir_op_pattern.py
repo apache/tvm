@@ -37,21 +37,22 @@ class OpPatternKind(enum.IntEnum):
 
 
 def test_annotate_opkind_outewisefusable():
+    m = T.dynamic("m", "int32")
+    n = T.dynamic("n", "int32")
+    k = T.dynamic("k", "int32")
+
     @tvm.script.ir_module
     class InputModule:
         @Ts.prim_func
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.int32()
-            n = T.int32()
-            k = T.int32()
             A = T.match_buffer(x, (m, n))
             B = T.match_buffer(y, (n, k))
             C = T.match_buffer(z, (m, k))
 
-            for i, j, k in T.grid(m, k, n):
+            for i, j, k_index in T.grid(m, k, n):
                 with Ts.sblock("matmul"):
-                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k_index])
                     with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
@@ -70,21 +71,22 @@ def test_annotate_opkind_outewisefusable():
     ],
 )
 def test_annotate_opkind_outewisefusable_with_cast(cast_pattern):
+    m = T.dynamic("m", "int32")
+    n = T.dynamic("n", "int32")
+    k = T.dynamic("k", "int32")
+
     @tvm.script.ir_module
     class InputModule:
         @Ts.prim_func
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.int32()
-            n = T.int32()
-            k = T.int32()
             A = T.match_buffer(x, (m, n), "float16")
             B = T.match_buffer(y, (n, k), "float16")
             C = T.match_buffer(z, (m, k), "float32")
 
-            for i, j, k in T.grid(m, k, n):
+            for i, j, k_index in T.grid(m, k, n):
                 with Ts.sblock("matmul"):
-                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k_index])
                     with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + cast_pattern(A[vi, vk], B[vk, vj])
@@ -104,9 +106,9 @@ def test_annotate_opkind_outewisefusable_int_var_signature():
             B = T.match_buffer(y, (n, k))
             C = T.match_buffer(z, (m, k))
 
-            for i, j, k in T.grid(m, k, n):
+            for i, j, k_index in T.grid(m, k, n):
                 with Ts.sblock("matmul"):
-                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k_index])
                     with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]

@@ -17,7 +17,9 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: E501, F401, F841
 
+import io
 import re
+import tokenize
 
 import pytest
 
@@ -25,6 +27,7 @@ import tvm.testing
 from tvm import ir, s_tir, tirx
 from tvm.ir import Range
 from tvm.s_tir.script.ir_builder import prim_func as build_prim_func
+from tvm.script import ir as I
 from tvm.script import s_tir as Ts
 from tvm.script.ir_builder import IRBuilder
 from tvm.tirx.script import ir_builder as T
@@ -68,9 +71,9 @@ def test_prim_func_symbolic_buffer_param_roundtrip():
         .with_attr("s_tir", True)
     )
 
-    source = func.script()
-    assert 'T.Buffer(("n + 1", "n")' in source
-    assert source.index("n = T.int32()") < source.index("T.evaluate(n)")
+    source = func.script(extra_config={"script.use_pep695": False})
+    assert "T.Buffer((n + 1, n)" in source
+    assert source.index('n = I.dynamic("n", dtype="int32")') < source.index("T.evaluate(n)")
     tvm.ir.assert_structural_equal(tvm.script.from_source(source), func)
 
 
@@ -83,9 +86,9 @@ def test_prim_func_compound_buffer_shape_first_use_roundtrip():
         .with_attr("s_tir", True)
     )
 
-    source = func.script()
-    assert 'T.Buffer(("T.max(n, 1)",)' in source
-    assert source.index("n = T.int32()") < source.index("T.evaluate(n)")
+    source = func.script(extra_config={"script.use_pep695": False})
+    assert "T.Buffer((T.max(n, 1),)" in source
+    assert source.index('n = I.dynamic("n", dtype="int32")') < source.index("T.evaluate(n)")
     tvm.ir.assert_structural_equal(tvm.script.from_source(source), func)
 
 
@@ -171,9 +174,9 @@ def test_block_realize():
     _assert_print(
         obj,
         """
-i = T.int32()
-j = T.int32()
-k = T.int32()
+i = I.dynamic("i", dtype="int32")
+j = I.dynamic("j", dtype="int32")
+k = I.dynamic("k", dtype="int32")
 with Ts.sblock("block"):
     vi = Ts.axis.spatial(128, i)
     vj = Ts.axis.spatial(64, j)
@@ -352,14 +355,14 @@ T.evaluate(0)
 
 def test_while():
     with IRBuilder() as ib:
-        x = T.int32()
+        x = I.dynamic("v", "int32")
         with T.While(x < 10):
             T.evaluate(0)
     obj = ib.get()
     _assert_print(
         obj,
         """
-v = T.int32()
+v = I.dynamic("v", dtype="int32")
 while v < 10:
     T.evaluate(0)
 """,
@@ -474,7 +477,7 @@ T.evaluate(2)
 
 def test_if_then_else():
     with IRBuilder() as ib:
-        with T.If(T.int32() == 1):
+        with T.If(I.dynamic("v", "int32") == 1):
             with T.Then():
                 T.evaluate(0)
 
@@ -482,7 +485,7 @@ def test_if_then_else():
     _assert_print(
         obj,
         """
-v = T.int32()
+v = I.dynamic("v", dtype="int32")
 if v == 1:
     T.evaluate(0)
 """,
@@ -506,7 +509,7 @@ def test_var():
     _assert_print(
         a,
         """
-a = T.float32()
+a = I.dynamic("a", dtype="float32")
 a""",
     )
 
@@ -532,7 +535,7 @@ def test_iter_var():
     _assert_print(
         a,
         """
-a = T.int32()
+a = I.dynamic("a", dtype="int32")
 T.iter_var(a, T.Range(0, 8), "DataPar", "")
 """,
     )
@@ -548,7 +551,7 @@ def test_cast():
     _assert_print(
         obj,
         """
-a = T.float32()
+a = I.dynamic("a", dtype="float32")
 T.Cast("float64", a)
 """,
     )
@@ -581,13 +584,13 @@ def test_binary_arith():
         obj = op(a, b)
         if sign.isalpha():
             expected = f"""
-a = T.int32()
-b = T.int32()
+a = I.dynamic("a", dtype="int32")
+b = I.dynamic("b", dtype="int32")
 T.{sign}(a, b)"""
         else:
             expected = f"""
-a = T.int32()
-b = T.int32()
+a = I.dynamic("a", dtype="int32")
+b = I.dynamic("b", dtype="int32")
 a {sign} b"""
         _assert_print(obj, expected)
 
@@ -622,8 +625,8 @@ def test_int_div():
     _assert_print(
         tirx.Div(a, b),
         """
-a = T.int32()
-b = T.int32()
+a = I.dynamic("a", dtype="int32")
+b = I.dynamic("b", dtype="int32")
 T.Div(a, b)
 """,
     )
@@ -635,23 +638,23 @@ def test_logical():
     _assert_print(
         tirx.And(a, b),
         """
-a = T.bool()
-b = T.bool()
+a = I.dynamic("a", dtype="bool")
+b = I.dynamic("b", dtype="bool")
 a and b
 """,
     )
     _assert_print(
         tirx.Or(a, b),
         """
-a = T.bool()
-b = T.bool()
+a = I.dynamic("a", dtype="bool")
+b = I.dynamic("b", dtype="bool")
 a or b
 """,
     )
     _assert_print(
         tirx.Not(a),
         """
-a = T.bool()
+a = I.dynamic("a", dtype="bool")
 not a
 """,
     )
@@ -675,7 +678,7 @@ def test_ramp(lanes, scripted_lanes):
     _assert_print(
         obj,
         f"""
-a = T.int32()
+a = I.dynamic("a", dtype="int32")
 T.Ramp(a, 1, {scripted_lanes})
 """,
     )
@@ -700,7 +703,7 @@ def test_let_expr():
     _assert_print(
         obj,
         """
-x = T.int32()
+x = I.dynamic("x", dtype="int32")
 T.Let(x + 1, where={x: 1})
 """,
     )
@@ -917,9 +920,10 @@ def test_variable_with_cpp_address():
     # The test function has all named objects suffixed with "_name",
     # to avoid spurious replacement when generating the expected
     # regex.
+    N_name = I.dynamic("N_name")
+
     @Ts.prim_func
     def func(a_name: T.handle):
-        N_name = T.int64()
         A_name = T.match_buffer(a_name, N_name, "float32")
         for i_name in range(N_name):
             A_name[i_name] = A_name[i_name] + 1.0
@@ -927,16 +931,27 @@ def test_variable_with_cpp_address():
     without_address = func.script(show_object_address=False)
     script = func.script(show_object_address=True)
 
-    expected_regex = re.escape(without_address)
-    for name in ["a_name", "A_name", "N_name", "i_name"]:
-        # Replace all occurrences with a backref to an earlier match
-        expected_regex = expected_regex.replace(name, rf"(?P={name})")
-        # Then replace the first such backref with a capturing group.
-        expected_regex = expected_regex.replace(
-            rf"(?P={name})", rf"(?P<{name}>{name}_0x[A-Fa-f0-9]+)", 1
-        )
-
-    assert re.match(expected_regex, script)
+    # Address suffixes belong to identifiers, not display-name string literals
+    # passed to constructors such as I.dynamic("N_name").
+    names = {"a_name", "A_name", "N_name", "i_name"}
+    line_offsets = [0]
+    for line in without_address.splitlines(keepends=True):
+        line_offsets.append(line_offsets[-1] + len(line))
+    parts = []
+    seen = set()
+    cursor = 0
+    for token in tokenize.generate_tokens(io.StringIO(without_address).readline):
+        name = token.string
+        if token.type != tokenize.NAME or name not in names:
+            continue
+        start = line_offsets[token.start[0] - 1] + token.start[1]
+        end = line_offsets[token.end[0] - 1] + token.end[1]
+        parts.append(re.escape(without_address[cursor:start]))
+        parts.append(rf"(?P={name})" if name in seen else rf"(?P<{name}>{name}_0x[A-Fa-f0-9]+)")
+        seen.add(name)
+        cursor = end
+    parts.append(re.escape(without_address[cursor:]))
+    assert re.fullmatch("".join(parts), script)
 
 
 def test_return_statement():

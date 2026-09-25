@@ -5505,14 +5505,15 @@ def test_slice_with_symbolic_end():
             return x[:, :seq_len] + 0.0  # +0.0 to ensure output is a new tensor
 
     # The identity slice is elided; only x + 0.0 remains.
+    s0 = T.dynamic("s0")
+    s1 = T.dynamic("s1")
+
     @I.ir_module
     class ExpectedIdentity:
         @R.function
-        def main(x: R.Tensor(("s0", "s1", 4), dtype="float32")) -> R.Tuple(
-            R.Tensor(("s0", "s1", 4), dtype="float32")
+        def main(x: R.Tensor((s0, s1, 4), dtype="float32")) -> R.Tuple(
+            R.Tensor((s0, s1, 4), dtype="float32")
         ):
-            s0 = T.int64()
-            s1 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s27": 2, "s77": 2}})
             with R.dataflow():
                 lv: R.Tensor((s0, s1, 4), dtype="float32") = R.add(x, R.const(0.0, "float32"))
@@ -6463,6 +6464,8 @@ def test_masked_select():
         def forward(self, data: torch.Tensor, mask: torch.Tensor):
             return torch.masked_select(data, mask)
 
+    u0 = T.dynamic("u0")
+
     @tvm.script.ir_module
     class Expected:
         @R.function
@@ -6470,7 +6473,6 @@ def test_masked_select():
             data: R.Tensor((2, 3), dtype="float32"), mask: R.Tensor((2, 3), dtype="bool")
         ) -> R.Tuple(R.Tensor(dtype="float32", ndim=1)):
             R.func_attr({"tir_var_lower_bound": {"u0": 0}, "tir_var_upper_bound": {"u0": 6}})
-            u0 = T.int64()
             with R.dataflow():
                 lv: R.Tensor((6,), dtype="float32") = R.reshape(data, R.shape([6]))
                 lv1: R.Tensor((6,), dtype="bool") = R.reshape(mask, R.shape([6]))
@@ -7787,14 +7789,15 @@ def test_dynamic_shape():
         def forward(self, x1, x2):
             return torch.ops.aten.add.Tensor(x1, x2)
 
+    s0 = T.dynamic("s0")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            lhs: R.Tensor(("s0", 4), dtype="float32"),
-            rhs: R.Tensor(("s0", 4), dtype="float32"),
-        ) -> R.Tuple(R.Tensor(("s0", 4), dtype="float32")):
-            s0 = T.int64()
+            lhs: R.Tensor((s0, 4), dtype="float32"),
+            rhs: R.Tensor((s0, 4), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((s0, 4), dtype="float32")):
             R.func_attr({"tir_var_lower_bound": {"s24": 0}})
             with R.dataflow():
                 lv: R.Tensor((s0, 4), dtype="float32") = R.add(lhs, rhs)
@@ -8388,13 +8391,14 @@ def test_dynamic_shape_with_range_constraints():
         def forward(self, x1, x2):
             return torch.ops.aten.add.Tensor(x1, x2)
 
+    s0 = T.dynamic("s0")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x1: R.Tensor(("s0", 4), dtype="float32"), x2: R.Tensor(("s0", 4), dtype="float32")
-        ) -> R.Tuple(R.Tensor(("s0", 4), dtype="float32")):
-            s0 = T.int64()
+            x1: R.Tensor((s0, 4), dtype="float32"), x2: R.Tensor((s0, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((s0, 4), dtype="float32")):
             R.func_attr({"tir_var_lower_bound": {"s24": 1}, "tir_var_upper_bound": {"s24": 64}})
             with R.dataflow():
                 lv: R.Tensor((s0, 4), dtype="float32") = R.add(x1, x2)
@@ -8421,13 +8425,14 @@ def test_dynamic_shape_with_addition_constraints():
         def forward(self, x, y):
             return torch.cat([x, y], dim=0)
 
+    s0 = T.dynamic("s0")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("1 + s0", 4), dtype="float32")
-        ) -> R.Tuple(R.Tensor(("s0 + (1 + s0)", 4), dtype="float32")):
-            s0 = T.int64()
+            x: R.Tensor((s0, 4), dtype="float32"), y: R.Tensor((1 + s0, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((s0 + (1 + s0), 4), dtype="float32")):
             R.func_attr(
                 {
                     "tir_var_lower_bound": {"s77": 1},
@@ -8454,13 +8459,14 @@ def test_dynamic_shape_with_multiplication_constraints():
         def forward(self, x, y):
             return torch.cat([x, y], dim=0)
 
+    s0 = T.dynamic("s0")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("2 * s0", 4), dtype="float32")
-        ) -> R.Tuple(R.Tensor(("s0 + 2 * s0", 4), dtype="float32")):
-            s0 = T.int64()
+            x: R.Tensor((s0, 4), dtype="float32"), y: R.Tensor((2 * s0, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((s0 + 2 * s0, 4), dtype="float32")):
             R.func_attr(
                 {
                     "tir_var_lower_bound": {"s77": 1},
@@ -8487,13 +8493,14 @@ def test_dynamic_shape_with_unbounded_constraints():
         def forward(self, x):
             return torch.ops.aten.add.Tensor(x, x)
 
+    s0 = T.dynamic("s0")
+
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(("s0", 4), dtype="float32")) -> R.Tuple(
-            R.Tensor(("s0", 4), dtype="float32")
+        def main(x: R.Tensor((s0, 4), dtype="float32")) -> R.Tuple(
+            R.Tensor((s0, 4), dtype="float32")
         ):
-            s0 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s77": 2}})
             with R.dataflow():
                 lv: R.Tensor((s0, 4), dtype="float32") = R.add(x, x)
@@ -8521,13 +8528,14 @@ def test_sym_size_int():
             shape_dim = torch.ops.aten.sym_size.int(x, 0)
             return x.reshape(shape_dim, -1)
 
+    s0 = T.dynamic("s0")
+
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(("s0", 3, 4), dtype="float32")) -> R.Tuple(
-            R.Tensor(("s0", 12), dtype="float32")
+        def main(x: R.Tensor((s0, 3, 4), dtype="float32")) -> R.Tuple(
+            R.Tensor((s0, 12), dtype="float32")
         ):
-            s0 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s77": 0}})
             with R.dataflow():
                 lv: R.Tensor((s0, 12), dtype="float32") = R.reshape(x, R.shape([s0, 12]))
@@ -8931,40 +8939,45 @@ def test_cond_shape_predicate():
 
             return torch.cond(x.shape[0] > 4, true_fn, false_fn, (x,))
 
+    s77_cond_true_branch_0 = T.dynamic("s77")
+    s77_cond_false_branch_1 = T.dynamic("s77")
+    s77_main = T.dynamic("s77")
+
     @tvm.script.ir_module
     class expected:
         @R.function
         def cond_true_branch_0(
-            x: R.Tensor(("s77", 4), dtype="float32"),
-        ) -> R.Tensor(("s77", 4), dtype="float32"):
-            s77 = T.int64()
-            gv: R.Tensor((s77, 4), dtype="float32") = R.add(x, R.const(1.0, "float32"))
-            gv1: R.Tensor((s77, 4), dtype="float32") = gv
+            x: R.Tensor((s77_cond_true_branch_0, 4), dtype="float32"),
+        ) -> R.Tensor((s77_cond_true_branch_0, 4), dtype="float32"):
+            gv: R.Tensor((s77_cond_true_branch_0, 4), dtype="float32") = R.add(
+                x, R.const(1.0, "float32")
+            )
+            gv1: R.Tensor((s77_cond_true_branch_0, 4), dtype="float32") = gv
             return gv1
 
         @R.function
         def cond_false_branch_1(
-            x: R.Tensor(("s77", 4), dtype="float32"),
-        ) -> R.Tensor(("s77", 4), dtype="float32"):
-            s77 = T.int64()
-            gv: R.Tensor((s77, 4), dtype="float32") = R.subtract(x, R.const(1.0, "float32"))
-            gv1: R.Tensor((s77, 4), dtype="float32") = gv
+            x: R.Tensor((s77_cond_false_branch_1, 4), dtype="float32"),
+        ) -> R.Tensor((s77_cond_false_branch_1, 4), dtype="float32"):
+            gv: R.Tensor((s77_cond_false_branch_1, 4), dtype="float32") = R.subtract(
+                x, R.const(1.0, "float32")
+            )
+            gv1: R.Tensor((s77_cond_false_branch_1, 4), dtype="float32") = gv
             return gv1
 
         @R.function
         def main(
-            x: R.Tensor(("s77", 4), dtype="float32"),
-        ) -> R.Tuple(R.Tensor(("s77", 4), dtype="float32")):
-            s77 = T.int64()
+            x: R.Tensor((s77_main, 4), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((s77_main, 4), dtype="float32")):
             R.func_attr({"tir_var_lower_bound": {"s77": 1}})
             cls = expected
-            gv: T.bool = s77 > 4
+            gv: T.bool = s77_main > 4
             if gv:
-                gv1: R.Tensor((s77, 4), dtype="float32") = cls.cond_true_branch_0(x)
-                cond_result: R.Tensor((s77, 4), dtype="float32") = gv1
+                gv1: R.Tensor((s77_main, 4), dtype="float32") = cls.cond_true_branch_0(x)
+                cond_result: R.Tensor((s77_main, 4), dtype="float32") = gv1
             else:
-                gv2: R.Tensor((s77, 4), dtype="float32") = cls.cond_false_branch_1(x)
-                cond_result: R.Tensor((s77, 4), dtype="float32") = gv2
+                gv2: R.Tensor((s77_main, 4), dtype="float32") = cls.cond_false_branch_1(x)
+                cond_result: R.Tensor((s77_main, 4), dtype="float32") = gv2
             return (cond_result,)
 
     batch = torch.export.Dim("batch", min=1)

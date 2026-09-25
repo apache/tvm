@@ -297,57 +297,62 @@ def test_default_entry_func():
 def test_dynamic_shape():
     import tvm.relax.backend.cuda.cublas
 
+    r1_main = T.dynamic("r1")
+    r2 = T.dynamic("r2")
+    r1_fused_relax_matmul_cublas = T.dynamic("r1")
+
     @I.ir_module
     class Before:
         @R.function
         def main(
             x: R.Tensor((1, 4096), dtype="float16"),
-            w1: R.Tensor((4096, "r1"), dtype="float16"),
-            w2: R.Tensor((4096, "r2"), dtype="float16"),
-        ) -> R.Tuple(R.Tensor((1, "r1"), dtype="float16"), R.Tensor((1, "r2"), dtype="float16")):
-            r1 = T.int64()
-            r2 = T.int64()
+            w1: R.Tensor((4096, r1_main), dtype="float16"),
+            w2: R.Tensor((4096, r2), dtype="float16"),
+        ) -> R.Tuple(R.Tensor((1, r1_main), dtype="float16"), R.Tensor((1, r2), dtype="float16")):
             cls = Before
             with R.dataflow():
-                lv: R.Tensor((1, r1), dtype="float16") = cls.fused_relax_matmul_cublas(x, w1)
+                lv: R.Tensor((1, r1_main), dtype="float16") = cls.fused_relax_matmul_cublas(x, w1)
                 lv1: R.Tensor((1, r2), dtype="float16") = cls.fused_relax_matmul_cublas(x, w2)
                 gv: R.Tuple(
-                    R.Tensor((1, r1), dtype="float16"), R.Tensor((1, r2), dtype="float16")
+                    R.Tensor((1, r1_main), dtype="float16"), R.Tensor((1, r2), dtype="float16")
                 ) = (lv, lv1)
                 R.output(gv)
             return gv
 
         @R.function
         def fused_relax_matmul_cublas(
-            x: R.Tensor((1, 4096), dtype="float16"), w1: R.Tensor((4096, "r1"), dtype="float16")
-        ) -> R.Tensor((1, "r1"), dtype="float16"):
-            r1 = T.int64()
+            x: R.Tensor((1, 4096), dtype="float16"),
+            w1: R.Tensor((4096, r1_fused_relax_matmul_cublas), dtype="float16"),
+        ) -> R.Tensor((1, r1_fused_relax_matmul_cublas), dtype="float16"):
             R.func_attr({"Codegen": "cublas"})
 
             @R.function
             def gv(
                 x_1: R.Tensor((1, 4096), dtype="float16"),
-                w1_1: R.Tensor((4096, r1), dtype="float16"),
-            ) -> R.Tensor((1, r1), dtype="float16"):
+                w1_1: R.Tensor((4096, r1_fused_relax_matmul_cublas), dtype="float16"),
+            ) -> R.Tensor((1, r1_fused_relax_matmul_cublas), dtype="float16"):
                 R.func_attr({"Composite": "cublas.matmul"})
                 with R.dataflow():
-                    gv_1: R.Tensor((1, r1), dtype="float16") = R.matmul(x_1, w1_1, out_dtype=None)
+                    gv_1: R.Tensor((1, r1_fused_relax_matmul_cublas), dtype="float16") = R.matmul(
+                        x_1, w1_1, out_dtype=None
+                    )
                     R.output(gv_1)
                 return gv_1
 
-            gv1: R.Tensor((1, r1), dtype="float16") = gv(x, w1)
+            gv1: R.Tensor((1, r1_fused_relax_matmul_cublas), dtype="float16") = gv(x, w1)
             return gv1
+
+    r1 = T.dynamic("r1")
+    r2 = T.dynamic("r2")
 
     @I.ir_module
     class Expected:
         @R.function
         def main(
             x: R.Tensor((1, 4096), dtype="float16"),
-            w1: R.Tensor((4096, "r1"), dtype="float16"),
-            w2: R.Tensor((4096, "r2"), dtype="float16"),
-        ) -> R.Tuple(R.Tensor((1, "r1"), dtype="float16"), R.Tensor((1, "r2"), dtype="float16")):
-            r1 = T.int64()
-            r2 = T.int64()
+            w1: R.Tensor((4096, r1), dtype="float16"),
+            w2: R.Tensor((4096, r2), dtype="float16"),
+        ) -> R.Tuple(R.Tensor((1, r1), dtype="float16"), R.Tensor((1, r2), dtype="float16")):
             with R.dataflow():
                 lv = R.call_dps_packed(
                     "fused_relax_matmul_cublas",

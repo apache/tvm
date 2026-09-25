@@ -182,12 +182,13 @@ def after_postproc_add(
                     add_compute[v0, v1, v2, v3, v4] = lhs[v0, v1, v2, v3, v4] + rhs[v0, v1, v2, v3, v4]
 
 
+n = T.dynamic("n")
+
 @Ts.prim_func
 def before_postproc_dynamic_shape_vectorize(
     a: T.handle,
     b: T.handle,
 ) -> None:
-    n = T.int64()
     A = T.match_buffer(a, (n,), dtype="float32")
     B = T.match_buffer(b, (n,), dtype="float32")
     with Ts.sblock("root"):

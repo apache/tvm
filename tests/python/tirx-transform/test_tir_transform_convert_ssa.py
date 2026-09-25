@@ -314,7 +314,7 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
     Var/IterVar usage across the two PrimFuncs.
     """
 
-    threadIdx_x = tvm.tirx.Var("threadIdx_x", "int32")
+    threadIdx_x = T.dynamic("threadIdx_x", "int32")
 
     # threadIdx_x is defined outside
     @I.ir_module(check_well_formed=False)
@@ -337,27 +337,28 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
+    kernel_1_threadIdx_x = T.dynamic("threadIdx_x", "int32")
+    kernel_2_threadIdx_x = T.dynamic("threadIdx_x", "int32")
+
     @I.ir_module
     class expected:
         @T.prim_func
         def kernel_1(A: T.Buffer([256], "float32")):
-            threadIdx_x = T.int32()
             T.attr(
-                T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
+                T.iter_var(kernel_1_threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
                 "thread_extent",
                 256,
             )
-            A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
+            A[kernel_1_threadIdx_x] = A[kernel_1_threadIdx_x] + T.float32(1)
 
         @T.prim_func
         def kernel_2(A: T.Buffer([256], "float32")):
-            threadIdx_x = T.int32()
             T.attr(
-                T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
+                T.iter_var(kernel_2_threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
                 "thread_extent",
                 256,
             )
-            A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
+            A[kernel_2_threadIdx_x] = A[kernel_2_threadIdx_x] + T.float32(1)
 
     after = tvm.tirx.transform.ConvertSSA()(before)
     tvm.ir.assert_structural_equal(after, expected)
@@ -371,7 +372,7 @@ def test_de_duplicate_thread_idx_iter_var_across_multiple_functions():
     PrimFuncs, not just the `tirx.Var` inside the `IterVar`.
     """
 
-    threadIdx_x = tvm.tirx.Var("threadIdx_x", "int32")
+    threadIdx_x = T.dynamic("threadIdx_x", "int32")
     iter_var = tvm.tirx.IterVar(
         tvm.ir.Range(0, 256), threadIdx_x, tvm.tirx.IterVar.ThreadIndex, "threadIdx.x"
     )
@@ -389,27 +390,28 @@ def test_de_duplicate_thread_idx_iter_var_across_multiple_functions():
             T.attr(iter_var, "thread_extent", 256)
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
+    kernel_1_threadIdx_x = T.dynamic("threadIdx_x", "int32")
+    kernel_2_threadIdx_x = T.dynamic("threadIdx_x", "int32")
+
     @I.ir_module(check_well_formed=False)
     class expected:
         @T.prim_func
         def kernel_1(A: T.Buffer([256], "float32")):
-            threadIdx_x = T.int32()
             T.attr(
-                T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
+                T.iter_var(kernel_1_threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
                 "thread_extent",
                 256,
             )
-            A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
+            A[kernel_1_threadIdx_x] = A[kernel_1_threadIdx_x] + T.float32(1)
 
         @T.prim_func
         def kernel_2(A: T.Buffer([256], "float32")):
-            threadIdx_x = T.int32()
             T.attr(
-                T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
+                T.iter_var(kernel_2_threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
                 "thread_extent",
                 256,
             )
-            A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
+            A[kernel_2_threadIdx_x] = A[kernel_2_threadIdx_x] + T.float32(1)
 
     after = tvm.tirx.transform.ConvertSSA()(before)
     tvm.ir.assert_structural_equal(after, expected)
@@ -425,7 +427,7 @@ def test_thread_idx_reused_within_and_across_functions():
     de-duplicated.
     """
 
-    threadIdx_x = tvm.tirx.Var("threadIdx_x", "int32")
+    threadIdx_x = T.dynamic("threadIdx_x", "int32")
     iter_var = tvm.tirx.IterVar(
         tvm.ir.Range(0, 256), threadIdx_x, tvm.tirx.IterVar.ThreadIndex, "threadIdx.x"
     )

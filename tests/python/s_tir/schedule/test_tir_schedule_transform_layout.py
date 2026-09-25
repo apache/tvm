@@ -1171,10 +1171,11 @@ def test_index_map_dtype_legalize_with_constant():
 def test_transform_layout_with_symbolic_bound():
     # fmt: off
     # pylint: disable=invalid-name,line-too-long,too-many-locals
+    n = T.dynamic("n")
+
     @Ts.prim_func
     def before(a: T.handle, b: T.handle, c: T.handle):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        n = T.int64()
         A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
         C = T.match_buffer(c, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
@@ -1187,10 +1188,11 @@ def test_transform_layout_with_symbolic_bound():
                     C[v_i0, v_i1, v_i2, v_i3] = T.float16(0)
                 C[v_i0, v_i1, v_i2, v_i3] = C[v_i0, v_i1, v_i2, v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_i3, v_k]
 
+    n = T.dynamic("n")
+
     @Ts.prim_func
     def after(a: T.handle, b: T.handle, c: T.handle):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        n = T.int64()
         A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
         C = T.match_buffer(c, (n * T.int64(32),), "float16")
@@ -1221,10 +1223,11 @@ def test_transform_layout_with_symbolic_bound():
 def test_transform_block_layout_with_symbolic_bound():
     # fmt: off
     # pylint: disable=invalid-name,line-too-long,too-many-locals
+    n = T.dynamic("n")
+
     @Ts.prim_func
     def before(a: T.handle, b: T.handle, c: T.handle):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        n = T.int64()
         A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
         C = T.match_buffer(c, (n * T.int64(32),), "float16")
@@ -1237,10 +1240,11 @@ def test_transform_block_layout_with_symbolic_bound():
                     C[v_i1 * n + v_i3] = T.float16(0)
                 C[v_i1 * n + v_i3] = C[v_i1 * n + v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_i3, v_k]
 
+    n = T.dynamic("n")
+
     @Ts.prim_func
     def after(a: T.handle, b: T.handle, c: T.handle):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        n = T.int64()
         A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
         C = T.match_buffer(c, (n * T.int64(32),), "float16")

@@ -89,6 +89,15 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any]):
     group_size = h_q // h_kv
 
     # fmt: off
+    qo_len = T.dynamic("qo_len", "int32")
+    kv_len = T.dynamic("kv_len", "int32")
+    q_indptr_elem_offset = T.dynamic("q_indptr_elem_offset", "int32")
+    kv_indptr_elem_offset = T.dynamic("kv_indptr_elem_offset", "int32")
+    q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
+    mn_indptr_elem_offset = T.dynamic("mn_indptr_elem_offset", "int32")
+    mask_elem_offset = T.dynamic("mask_elem_offset", "int32")
+    tree_size = T.dynamic("tree_size", "int32")
+    batch_size_plus_1 = T.dynamic("batch_size_plus_1", "int32")
     @Ts.prim_func
     def batch_tree_attn(  # pylint: disable=too-many-branches,line-too-long
         var_q: T.handle,  # [total_len, h_q, d]
@@ -106,15 +115,6 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any]):
         rope_theta: T.float32,
         sm_scale: T.float32,
     ):
-        qo_len = T.int32()
-        kv_len = T.int32()
-        q_indptr_elem_offset = T.int32()
-        kv_indptr_elem_offset = T.int32()
-        q_rope_position_elem_offset = T.int32()
-        mn_indptr_elem_offset = T.int32()
-        mask_elem_offset = T.int32()
-        tree_size = T.int32()
-        batch_size_plus_1 = T.int32()
 
         q = T.match_buffer(var_q, (qo_len, h_q, d), dtype)
         q_indptr = T.match_buffer(
@@ -288,6 +288,15 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
     )
 
     # fmt: off
+    qo_len = T.dynamic("qo_len", "int32")
+    kv_len = T.dynamic("kv_len", "int32")
+    q_indptr_elem_offset = T.dynamic("q_indptr_elem_offset", "int32")
+    kv_indptr_elem_offset = T.dynamic("kv_indptr_elem_offset", "int32")
+    q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
+    mn_indptr_elem_offset = T.dynamic("mn_indptr_elem_offset", "int32")
+    mask_elem_offset = T.dynamic("mask_elem_offset", "int32")
+    tree_size = T.dynamic("tree_size", "int32")
+    batch_size_plus_1 = T.dynamic("batch_size_plus_1", "int32")
     @Ts.prim_func
     def batch_tree_attn(  # pylint: disable=too-many-branches
         var_q: T.handle, # [total_len, h_q, d]
@@ -305,15 +314,6 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
         rope_theta: T.float32,
         sm_scale: T.float32,
     ):
-        qo_len = T.int32()
-        kv_len = T.int32()
-        q_indptr_elem_offset = T.int32()
-        kv_indptr_elem_offset = T.int32()
-        q_rope_position_elem_offset = T.int32()
-        mn_indptr_elem_offset = T.int32()
-        mask_elem_offset = T.int32()
-        tree_size = T.int32()
-        batch_size_plus_1 = T.int32()
 
         q = T.match_buffer(var_q, (qo_len, h_q, d), dtype)
         q_indptr = T.match_buffer(var_q_indptr, (batch_size_plus_1,), "int32", elem_offset=q_indptr_elem_offset)
@@ -608,6 +608,19 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
 
     # pylint: disable=line-too-long,too-many-branches
     # fmt: off
+    batch_size = T.dynamic("batch_size", "int32")
+    total_len = T.dynamic("total_len", "int32")
+    nnz_pages = T.dynamic("nnz_pages", "int32")
+    max_num_pages = T.dynamic("max_num_pages", "int32")
+    q_indptr_elem_offset = T.dynamic("q_indptr_elem_offset", "int32")
+    page_indptr_elem_offset = T.dynamic("page_indptr_elem_offset", "int32")
+    page_values_elem_offset = T.dynamic("page_values_elem_offset", "int32")
+    k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
+    q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
+    length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
+    tree_order_elem_offset = T.dynamic("tree_order_elem_offset", "int32")
+    tree_order_indptr_elem_offset = T.dynamic("tree_order_indptr_elem_offset", "int32")
+    total_tree_order_len = T.dynamic("total_tree_order_len", "int32")
     @Ts.prim_func
     def tree_attn_paged_kv_cpu(
         var_q: T.handle, # [total_len, h_q, d]
@@ -628,18 +641,6 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
         tree_order_handle: T.handle,  # [total_len, 2]
     ):
         T.func_attr({"global_symbol": global_symbol})
-        batch_size = T.int32()
-        total_len = T.int32()
-        nnz_pages = T.int32()
-        max_num_pages = T.int32()
-        q_indptr_elem_offset = T.int32()
-        page_indptr_elem_offset = T.int32()
-        page_values_elem_offset = T.int32()
-        k_rope_pos_offset_elem_offset = T.int32()
-        q_rope_position_elem_offset = T.int32()
-        length_info_elem_offset = T.int32()
-        tree_order_elem_offset = T.int32()
-        tree_order_indptr_elem_offset = T.int32()
 
         q = T.match_buffer(var_q, (total_len, h_q, d), dtype)
         q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
@@ -656,7 +657,6 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
             "int32",
             elem_offset=tree_order_indptr_elem_offset,
         )
-        total_tree_order_len = T.int32()
         tree_order = T.match_buffer(
             tree_order_handle,
             (total_tree_order_len, 2),
@@ -805,6 +805,19 @@ def tree_attn_with_paged_kv_cache(
     sliding_window = False  # Sliding window is not supported in this kernel.
 
     # fmt: off
+    batch_size = T.dynamic("batch_size", "int32")
+    total_len = T.dynamic("total_len", "int32")
+    nnz_pages = T.dynamic("nnz_pages", "int32")
+    max_num_pages = T.dynamic("max_num_pages", "int32")
+    q_indptr_elem_offset = T.dynamic("q_indptr_elem_offset", "int32")
+    k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
+    q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
+    page_indptr_elem_offset = T.dynamic("page_indptr_elem_offset", "int32")
+    page_values_elem_offset = T.dynamic("page_values_elem_offset", "int32")
+    length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
+    tree_order_elem_offset = T.dynamic("tree_order_elem_offset", "int32")
+    tree_order_indptr_elem_offset = T.dynamic("tree_order_indptr_elem_offset", "int32")
+    total_tree_order_len = T.dynamic("total_tree_order_len", "int32")
     @Ts.prim_func
     def tree_attn_paged_kv(
         var_q: T.handle,  # [total_len, h_q, d]
@@ -826,18 +839,6 @@ def tree_attn_with_paged_kv_cache(
     ):
         # pylint: disable=unused-variable, too-many-branches
         T.func_attr({"global_symbol": global_symbol})
-        batch_size = T.int32()
-        total_len = T.int32()
-        nnz_pages = T.int32()
-        max_num_pages = T.int32()
-        q_indptr_elem_offset = T.int32()
-        k_rope_pos_offset_elem_offset = T.int32()
-        q_rope_position_elem_offset = T.int32()
-        page_indptr_elem_offset = T.int32()
-        page_values_elem_offset = T.int32()
-        length_info_elem_offset = T.int32()
-        tree_order_elem_offset = T.int32()
-        tree_order_indptr_elem_offset = T.int32()
 
         q = T.match_buffer(var_q, (total_len, h_q, d), dtype)
         q_indptr = T.match_buffer(
@@ -866,7 +867,6 @@ def tree_attn_with_paged_kv_cache(
             "int32",
             elem_offset=tree_order_indptr_elem_offset,
         )
-        total_tree_order_len = T.int32()
         tree_order = T.match_buffer(
             tree_order_handle,
             (total_tree_order_len, 2),

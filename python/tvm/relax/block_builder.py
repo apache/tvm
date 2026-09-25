@@ -470,6 +470,9 @@ class BlockBuilder(Object):
 
         .. code-block:: python
 
+            m = T.dynamic("m")
+            n = T.dynamic("n")
+
             @tvm.script.ir_module
             class Module:
                 @Ts.prim_func
@@ -477,8 +480,6 @@ class BlockBuilder(Object):
                             var_compute: T.handle) -> None:
                     # function attr dict
                     T.func_attr({"tirx.noalias": True})
-                    m = T.int64()
-                    n = T.int64()
                     rxplaceholder = T.match_buffer(var_rxplaceholder, [n, m], dtype="float32")
                     rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [n, m], dtype="float32")
                     compute = T.match_buffer(var_compute, [128, 128], dtype="float32")
@@ -518,6 +519,9 @@ class BlockBuilder(Object):
         will result in TVMScript
 
         .. code-block:: python
+
+            m = T.dynamic("m")
+            n = T.dynamic("n")
 
             @tvm.script.ir_module
             class Module:
@@ -642,7 +646,7 @@ class BlockBuilder(Object):
         # `bb.function()`, then any variables provided from the params
         # are not in scope.  Otherwise, TIR variables used in dynamic
         # inputs are removed as undefined (e.g. Replacing
-        # `R.Tensor(["batch_size"])` with `R.Tensor(ndims=1)`).
+        # `R.Tensor([batch_size])` with `R.Tensor(ndims=1)`).
         self.begin_scope(self._func._params)
         try:
             seqe = self.normalize(seqe)

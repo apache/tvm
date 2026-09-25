@@ -226,11 +226,11 @@ def get_mfma_load_intrin(
                     Ts.writes(reg[warp_indices[0], warp_indices[1]])
                     reg[warp_indices[0], warp_indices[1]] = memory[v0, v1]
 
+    s0 = T.dynamic("s0", "int32")
+    s1 = T.dynamic("s1", "int32")
+
     @Ts.prim_func
     def mfma_load_impl(reg_handle: T.handle, memory_handle: T.handle) -> None:
-        s0 = T.int32()
-        s1 = T.int32()
-
         memory = T.match_buffer(
             memory_handle,
             memory_shape,
@@ -407,11 +407,11 @@ def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
                     Ts.writes(C[v0, v1])
                     C[v0, v1] = C_warp[warp_indices[0], warp_indices[1]]
 
+    s0 = T.dynamic("s0", "int32")
+    s1 = T.dynamic("s1", "int32")
+
     @Ts.prim_func
     def mfma_store_impl(a: T.handle, c: T.handle) -> None:
-        s0 = T.int32()
-        s1 = T.int32()
-
         C_warp = T.match_buffer(
             a, [WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1
         )

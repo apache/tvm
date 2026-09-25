@@ -259,6 +259,10 @@ def gpu_multinomial_from_uniform(
 
             aggregate[()] += step_aggregate[()]
 
+    n = T.dynamic("n")
+    vocab_size = T.dynamic("vocab_size")
+    batch_size = T.dynamic("batch_size")
+
     @Ts.prim_func
     def parallel_sampling_from_prob(
         var_prob: T.handle,
@@ -267,7 +271,6 @@ def gpu_multinomial_from_uniform(
         var_sampled_token_ids: T.handle,
     ):
         T.func_attr({"tirx.is_scheduled": True})
-        n, vocab_size, batch_size = T.int64(), T.int64(), T.int64()
         # match buffers
         prob = T.match_buffer(var_prob, (n, vocab_size), prob_dtype)
         uniform_samples = T.match_buffer(var_uniform_samples, (batch_size, 1), sample_dtype)
@@ -318,11 +321,13 @@ def generic_get_sample_index(
 ):
     """Generate a generic get_sample_index kernel."""
 
+    batch = T.dynamic("batch")
+    vocab_size = T.dynamic("vocab_size")
+    out_batch = T.dynamic("out_batch")
+
     @Ts.prim_func(private=True)
     def _get_sample_index(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
-        batch, vocab_size = T.int64(), T.int64()
         prob = T.match_buffer(A, (batch, vocab_size), prob_dtype)
-        out_batch = T.int64()
         usample = T.match_buffer(B, (out_batch, 1), sample_dtype)
         sample_indices = T.match_buffer(C, (out_batch, 1), sample_indices_dtype)
         output_index = T.match_buffer(D, (out_batch, 1), dtype)

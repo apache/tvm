@@ -49,7 +49,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             AccessPath shape_p = n_p->Attr("shape")->Attr("values");
             ffi::Array<ExprDoc> shape_docs;
             for (int i = 0, ndim = shape_expr->values.size(); i < ndim; ++i) {
-              shape_docs.push_back(PrintShapeVar(shape_expr->values[i], shape_p->ArrayItem(i), d));
+              shape_docs.push_back(d->AsDoc<ExprDoc>(shape_expr->values[i], shape_p->ArrayItem(i)));
             }
             args.push_back(TupleDoc(shape_docs));
           } else {

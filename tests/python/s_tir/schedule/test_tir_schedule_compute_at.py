@@ -1752,9 +1752,10 @@ def test_reverse_compute_at_layout_trans():
 
 def test_shape_var_as_bound():
     # fmt: off
+    n = T.dynamic("n", "int32")
+
     @Ts.prim_func
     def before(a: T.handle, b: T.handle, c: T.handle):
-        n = T.int32()
         A = T.match_buffer(a, (32, 1, 128))
         B = T.match_buffer(b, (32, n, 128))
         C = T.match_buffer(c, (32, 1, n))
@@ -1782,9 +1783,10 @@ def test_shape_var_as_bound():
                     C[v0, 0, v1] = T.float32(0)
                 C[v0, 0, v1] = C[v0, 0, v1] + C_rf[vax2_fused_1, v0, 0, v1]
 
+    n = T.dynamic("n", "int32")
+
     @Ts.prim_func
     def expected(A: T.Buffer((32, 1, 128), "float32"), b: T.handle, c: T.handle):
-        n = T.int32()
         B = T.match_buffer(b, (32, n, 128))
         C = T.match_buffer(c, (32, 1, n))
         # with Ts.sblock("root"):

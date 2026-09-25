@@ -421,12 +421,14 @@ class TransformedGlobalToSharedWithLocalStage:
                                         B[bx * 128 + ax0, by * 128 + ax1] = A_shared_dyn[ax0, ax1]
 
 
+s0 = T.dynamic("s0", "int32")
+s1 = T.dynamic("s1", "int32")
+
+
 @tvm.script.ir_module
 class TransformedSharedToWmma:
     @Ts.prim_func
     def main() -> None:
-        s0 = T.int32()
-        s1 = T.int32()
         # body
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -502,12 +504,14 @@ class TransformedSharedToWmma:
                                         )
 
 
+s0 = T.dynamic("s0", "int32")
+s1 = T.dynamic("s1", "int32")
+
+
 @tvm.script.ir_module
 class TransformedWmmaToShared:
     @Ts.prim_func
     def main() -> None:
-        s0 = T.int32()
-        s1 = T.int32()
         # body
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -583,6 +587,10 @@ class TransformedWmmaToShared:
                                         )
 
 
+s1 = T.dynamic("s1", "int32")
+s0 = T.dynamic("s0", "int32")
+
+
 @tvm.script.ir_module
 class TransformedWmmaToGlobal:
     @Ts.prim_func
@@ -622,8 +630,6 @@ class TransformedWmmaToGlobal:
                                                 scope="wmma.accumulator",
                                                 offset_factor=16,
                                             )
-                                            s1 = T.int32()
-                                            s0 = T.int32()
                                             tgt = T.match_buffer(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16],
                                                 (16, 16),
@@ -780,12 +786,16 @@ class TransformedWmmaToGlobal:
                                                     ]
 
 
+s0_0 = T.dynamic("s0_0", "int32")
+s1_0 = T.dynamic("s1_0", "int32")
+s1_1 = T.dynamic("s1_1", "int32")
+s0_1 = T.dynamic("s0_1", "int32")
+
+
 @tvm.script.ir_module
 class TransformedWmmaToGlobalWithFusion:
     @Ts.prim_func
     def main(A: T.Buffer((1024,), "float32"), C: T.Buffer((1024, 1024), "float32")) -> None:
-        s0 = T.int32()
-        s1 = T.int32()
         # body
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -824,12 +834,10 @@ class TransformedWmmaToGlobalWithFusion:
                                                 scope="wmma.accumulator",
                                                 offset_factor=16,
                                             )
-                                            s1 = T.int32()
-                                            s0 = T.int32()
                                             tgt = T.match_buffer(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16],
                                                 (16, 16),
-                                                strides=(s1, s0),
+                                                strides=(s1_1, s0_1),
                                                 scope="shared.dyn",
                                                 offset_factor=16,
                                             )
@@ -844,10 +852,10 @@ class TransformedWmmaToGlobalWithFusion:
                                                     T.type_annotation("float32"),
                                                     tgt.data,
                                                     tgt.elem_offset,
-                                                    s1 * 16,
+                                                    s1_1 * 16,
                                                     2,
                                                 ),
-                                                s1,
+                                                s1_1,
                                                 "row_major",
                                             )
                                     for (
@@ -1005,6 +1013,10 @@ class TransformedWmmaToGlobalWithFusion:
                                                     )
 
 
+s1 = T.dynamic("s1", "int32")
+s0 = T.dynamic("s0", "int32")
+
+
 @tvm.script.ir_module
 class TransformedMmaToGlobal:
     @Ts.prim_func
@@ -1044,7 +1056,6 @@ class TransformedMmaToGlobal:
                                                 scope="m16n8k8.matrixC",
                                                 offset_factor=8,
                                             )
-                                            s1, s0 = T.int32(), T.int32()
                                             tgt = T.match_buffer(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:8, 0:8],
                                                 (8, 8),

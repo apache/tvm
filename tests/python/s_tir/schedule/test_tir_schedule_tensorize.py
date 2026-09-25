@@ -204,6 +204,10 @@ def matmul(
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
+A_elem_offset = T.dynamic("A_elem_offset", "int32")
+B_elem_offset = T.dynamic("B_elem_offset", "int32")
+C_elem_offset = T.dynamic("C_elem_offset", "int32")
+
 @Ts.prim_func
 def tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
@@ -227,9 +231,6 @@ def tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
                     ]
                 )
                 Ts.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                A_elem_offset = T.int32()
-                B_elem_offset = T.int32()
-                C_elem_offset = T.int32()
                 A_sub = T.match_buffer(
                     A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
@@ -277,6 +278,10 @@ def batch_matmul(
             C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
 
 
+A_elem_offset = T.dynamic("A_elem_offset", "int32")
+B_elem_offset = T.dynamic("B_elem_offset", "int32")
+C_elem_offset = T.dynamic("C_elem_offset", "int32")
+
 @Ts.prim_func
 def tensorized_batch_matmul_mma(
     A: T.Buffer((16, 128, 128), "float32"),
@@ -299,9 +304,6 @@ def tensorized_batch_matmul_mma(
                     B[vn : vn + 1, vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                 )
                 Ts.writes(C[vn : vn + 1, vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                A_elem_offset = T.int32()
-                B_elem_offset = T.int32()
-                C_elem_offset = T.int32()
                 A_sub = T.match_buffer(
                     A[vn : vn + 1, vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     (16, 16),
@@ -437,6 +439,10 @@ def annotated_matmul(
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
+A_elem_offset = T.dynamic("A_elem_offset", "int32")
+B_elem_offset = T.dynamic("B_elem_offset", "int32")
+C_elem_offset = T.dynamic("C_elem_offset", "int32")
+
 @Ts.prim_func
 def annotated_tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
@@ -461,9 +467,6 @@ def annotated_tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
                     ]
                 )
                 Ts.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                A_elem_offset = T.int32()
-                B_elem_offset = T.int32()
-                C_elem_offset = T.int32()
                 A_sub = T.match_buffer(
                     A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
@@ -776,6 +779,10 @@ def test_tensorize_matmul_mixed_dtype():
                     vk = Ts.axis.reduce(T.int64(128), k_0 * T.int64(16) + k_1)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
+    A_elem_offset = T.dynamic("A_elem_offset")
+    B_elem_offset = T.dynamic("B_elem_offset")
+    C_elem_offset = T.dynamic("C_elem_offset")
+
     @Ts.prim_func
     def tensorized_matmul_int64_shape(
         A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -799,9 +806,6 @@ def test_tensorize_matmul_mixed_dtype():
                         ]
                     )
                     Ts.writes(C[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vj * T.int64(16) : vj * T.int64(16) + T.int64(16)])
-                    A_elem_offset = T.int64()
-                    B_elem_offset = T.int64()
-                    C_elem_offset = T.int64()
                     A_sub = T.match_buffer(
                         A[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vk * T.int64(16) : vk * T.int64(16) + T.int64(16)],
                         [T.int64(16), T.int64(16)],

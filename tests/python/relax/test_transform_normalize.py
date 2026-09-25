@@ -20,15 +20,15 @@ import pytest
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import relax, tirx
+from tvm import relax
 from tvm.ir.base import assert_structural_equal
 from tvm.script import relax as R
 from tvm.script import tirx as T
 
 
 def test_normalize_function():
-    m = tirx.Var("m", "int64")
-    n = tirx.Var("n", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
     x = relax.Var("x", R.Tensor([m, n], "float16"))
 
     # Note: the parser automatically normalize the IR written in TVMScript,
@@ -45,7 +45,7 @@ def test_normalize_function():
     after_mod = relax.transform.Normalize()(before_mod)
 
     @R.function(private=True)
-    def expected(x: R.Tensor(("m", "n"), "float16")) -> R.Tensor(dtype="float16", ndim=2):
+    def expected(x: R.Tensor((m, n), "float16")) -> R.Tensor(dtype="float16", ndim=2):
         gv = R.add(x, x)
         gv1 = R.add(x, x)
         return R.multiply(gv, gv1)
@@ -118,11 +118,13 @@ def test_normalize_no_op():
     after_mod = relax.transform.Normalize()(before_mod)
     assert_structural_equal(before_mod, after_mod, map_free_vars=True)
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class ANFMod2:
         @R.function
-        def foo(x: R.Tensor(("m", "n"), "float32")):
-            m, n = T.int64(), T.int64()
+        def foo(x: R.Tensor((m, n), "float32")):
             with R.dataflow():
                 lv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
                 gv0 = R.call_dps_packed(

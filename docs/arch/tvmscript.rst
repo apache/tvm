@@ -45,6 +45,13 @@ function decorators retain definitions until module construction, which can decl
 signatures before building bodies. Captured Python values belong to the source
 context; symbolic IR values are created and resolved by builders.
 
+Use ``I.dynamic("n")`` or the identical ``T.dynamic`` constructor to create a fresh
+primitive symbol, defaulting to int64. Reuse that object in ordinary Python shape,
+stride and offset expressions to share identity; strings in those fields are not
+parsed as expressions. Whole quoted Python annotations remain supported. On Python
+3.12+, function parameters such as ``def f[n, k: T.int32](...)`` introduce local
+symbols with default int64 and explicit int32 dtypes.
+
 Syntax and construction protocol
 --------------------------------
 
@@ -55,8 +62,8 @@ builder frames. The namespace owns the meaning of these operations and the suppo
 IR constructs.
 
 ``tvm.script.parser.protocol_registry`` records syntax policies under registered
-namespace paths. These policies identify declarations and arguments that need special
-handling, such as symbolic expression strings. Source aliases resolve to those paths;
+namespace paths. These policies identify declarations and scalar annotation dtypes.
+Source aliases resolve to those paths;
 ordinary Python calls remain calls in the generated program. Explicit ``constexpr``
 markers select host control flow during construction.
 

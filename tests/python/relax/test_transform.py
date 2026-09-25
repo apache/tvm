@@ -77,11 +77,13 @@ def test_dataflowblock_pass_rejects_rewriting_match_cast_role_of_binding_var():
 
 
 def test_to_non_dataflow():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class TestToNonDataflow:
         @R.function
-        def foo(x: R.Tensor(("m", "n"), "float32")):
-            m, n = T.int64(), T.int64()
+        def foo(x: R.Tensor((m, n), "float32")):
             with R.dataflow():
                 lv0 = R.call_dps_packed(
                     "test.op.identity",
@@ -136,22 +138,26 @@ def test_to_non_dataflow():
 
 
 def test_call_tir_rewrite():
+    m_exp = T.dynamic("m")
+    n_exp = T.dynamic("n")
+    m_foo = T.dynamic("m")
+    n_foo = T.dynamic("n")
+
     @tvm.script.ir_module
     class TestCallTIRRewrite:
         @Ts.prim_func
         def exp(A_handle: T.handle, B_handle: T.handle):
-            m = T.int64()
-            n = T.int64()
-            A = T.match_buffer(A_handle, (m, n), "float32")
-            B = T.match_buffer(B_handle, (m, n), "float32")
+            A = T.match_buffer(A_handle, (m_exp, n_exp), "float32")
+            B = T.match_buffer(B_handle, (m_exp, n_exp), "float32")
             T.evaluate(0)
 
         @R.function
-        def foo(x: R.Tensor(("m", "n"), "float32")):
+        def foo(x: R.Tensor((m_foo, n_foo), "float32")):
             # we expect RemovePurityChecking to have been used before this point
             R.func_attr({"relax.force_pure": True})
-            m, n = T.int64(), T.int64()
-            gv0 = R.call_tir(TestCallTIRRewrite.exp, (x,), R.Tensor((m, n), dtype="float32"))
+            gv0 = R.call_tir(
+                TestCallTIRRewrite.exp, (x,), R.Tensor((m_foo, n_foo), dtype="float32")
+            )
             return gv0
 
     mod = TestCallTIRRewrite
@@ -323,13 +329,15 @@ def test_transform_remove_purity_checking():
 
 
 def test_call_dps_packed_rewrite():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class TestCallDPSPackedRewrite:
         @R.function
-        def foo(x: R.Tensor(("m", "n"), "float32")):
+        def foo(x: R.Tensor((m, n), "float32")):
             # we expect RemovePurityChecking to have been used before this point
             R.func_attr({"relax.force_pure": True})
-            m, n = T.int64(), T.int64()
             gv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
             return gv0
 

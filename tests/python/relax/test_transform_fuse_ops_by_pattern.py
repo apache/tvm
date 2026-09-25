@@ -1138,13 +1138,16 @@ def test_error_on_repeated_variable_definitions():
 
 
 def test_matmul_symbolic_var():
+    batch_size = T.dynamic("batch_size")
+    M = T.dynamic("M")
+
     @I.ir_module
     class Before:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 1024], "float16"),
+            x: R.Tensor([batch_size, 1024], "float16"),
             w1: R.Tensor([1024, 1024], "float16"),
-            w2: R.Tensor([1024, "M"], "float16"),
+            w2: R.Tensor([1024, M], "float16"),
         ):
             with R.dataflow():
                 matmul1 = R.matmul(x, w1)
@@ -1153,16 +1156,22 @@ def test_matmul_symbolic_var():
                 R.output(out)
             return out
 
+    batch_size_main = T.dynamic("batch_size")
+    M_main = T.dynamic("M")
+    batch_size_fused_relax_matmul_cublas = T.dynamic("batch_size")
+    batch_size_fused_relax_matmul1_cublas = T.dynamic("batch_size")
+    M_fused_relax_matmul1_cublas = T.dynamic("M")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 1024], "float16"),
+            x: R.Tensor([batch_size_main, 1024], "float16"),
             w1: R.Tensor([1024, 1024], "float16"),
-            w2: R.Tensor([1024, "M"], "float16"),
+            w2: R.Tensor([1024, M_main], "float16"),
         ) -> R.Tuple(
-            R.Tensor(["batch_size", 1024], "float16"),
-            R.Tensor(["batch_size", "M"], "float16"),
+            R.Tensor([batch_size_main, 1024], "float16"),
+            R.Tensor([batch_size_main, M_main], "float16"),
         ):
             cls = Expected
             with R.dataflow():
@@ -1174,17 +1183,16 @@ def test_matmul_symbolic_var():
 
         @R.function
         def fused_relax_matmul_cublas(
-            x: R.Tensor(["batch_size", 1024], "float16"),
+            x: R.Tensor([batch_size_fused_relax_matmul_cublas, 1024], "float16"),
             w1: R.Tensor([1024, 1024], "float16"),
-        ) -> R.Tensor(["batch_size", 1024], "float16"):
-            batch_size = T.int64()
+        ) -> R.Tensor([batch_size_fused_relax_matmul_cublas, 1024], "float16"):
             R.func_attr({"Codegen": "cublas"})
 
             @R.function
             def inner_func(
-                x: R.Tensor([batch_size, 1024], "float16"),
+                x: R.Tensor([batch_size_fused_relax_matmul_cublas, 1024], "float16"),
                 w1: R.Tensor([1024, 1024], "float16"),
-            ) -> R.Tensor([batch_size, 1024], "float16"):
+            ) -> R.Tensor([batch_size_fused_relax_matmul_cublas, 1024], "float16"):
                 R.func_attr({"Composite": "cublas.matmul"})
                 with R.dataflow():
                     out = R.matmul(x, w1)
@@ -1196,18 +1204,20 @@ def test_matmul_symbolic_var():
 
         @R.function
         def fused_relax_matmul1_cublas(
-            x: R.Tensor(["batch_size", 1024], "float16"),
-            w2: R.Tensor([1024, "M"], "float16"),
-        ) -> R.Tensor(["batch_size", "M"], "float16"):
-            batch_size = T.int64()
-            M = T.int64()
+            x: R.Tensor([batch_size_fused_relax_matmul1_cublas, 1024], "float16"),
+            w2: R.Tensor([1024, M_fused_relax_matmul1_cublas], "float16"),
+        ) -> R.Tensor(
+            [batch_size_fused_relax_matmul1_cublas, M_fused_relax_matmul1_cublas], "float16"
+        ):
             R.func_attr({"Codegen": "cublas"})
 
             @R.function
             def inner_func(
-                x: R.Tensor([batch_size, 1024], "float16"),
-                w2: R.Tensor((1024, M), "float16"),
-            ) -> R.Tensor([batch_size, M], "float16"):
+                x: R.Tensor([batch_size_fused_relax_matmul1_cublas, 1024], "float16"),
+                w2: R.Tensor((1024, M_fused_relax_matmul1_cublas), "float16"),
+            ) -> R.Tensor(
+                [batch_size_fused_relax_matmul1_cublas, M_fused_relax_matmul1_cublas], "float16"
+            ):
                 R.func_attr({"Composite": "cublas.matmul"})
                 with R.dataflow():
                     out = R.matmul(x, w2)

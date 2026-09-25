@@ -465,7 +465,7 @@ def test_affine_grid_e2e(batch, target_h, target_w):
     @tvm.script.ir_module
     class AffineGridModule:
         @R.function
-        def main(theta: R.Tensor(("batch", 2, 3), "float32")) -> R.Tensor("float32", ndim=4):
+        def main(theta: R.Tensor((batch, 2, 3), "float32")) -> R.Tensor("float32", ndim=4):
             gv = R.image.affine_grid(theta, size=(target_h, target_w))
             return gv
 

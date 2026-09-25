@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
 
 import numpy as np
 import pytest
@@ -76,20 +75,21 @@ def test_bind_params(use_np_array):
 
 
 def test_bind_params_symbolic_vars():
+    batch = T.dynamic("batch")
+    k = T.dynamic("k")
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class Before:
         @R.function
         def main(
-            x: R.Tensor(("batch", "m"), dtype="float32"),
-            w0: R.Tensor(("n", "m"), dtype="float32"),
-            b0: R.Tensor(("n",), dtype="float32"),
-            w1: R.Tensor(("k", "n"), dtype="float32"),
-            b1: R.Tensor(("k",), dtype="float32"),
-        ) -> R.Tensor(("batch", "k"), dtype="float32"):
-            batch = T.int64()
-            k = T.int64()
-            m = T.int64()
-            n = T.int64()
+            x: R.Tensor((batch, m), dtype="float32"),
+            w0: R.Tensor((n, m), dtype="float32"),
+            b0: R.Tensor((n,), dtype="float32"),
+            w1: R.Tensor((k, n), dtype="float32"),
+            b1: R.Tensor((k,), dtype="float32"),
+        ) -> R.Tensor((batch, k), dtype="float32"):
             with R.dataflow():
                 lv0 = R.call_dps_packed(
                     "linear0", (x, w0, b0), out_ty=R.Tensor((batch, n), dtype="float32")

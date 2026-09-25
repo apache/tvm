@@ -37,6 +37,8 @@ from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
+n = T.dynamic("n", "int32")
+
 
 @R.py_module
 class TestPyFuncModule(BasePyModule):
@@ -65,7 +67,6 @@ class TestPyFuncModule(BasePyModule):
         var_B: T.handle,
     ):
         T.func_attr({"tirx.noalias": True})
-        n = T.int32()
         A = T.match_buffer(var_A, (n,), "float32")
         B = T.match_buffer(var_B, (n,), "float32")
 

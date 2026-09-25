@@ -27,8 +27,8 @@ from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
-m = tirx.Var("m", "int64")
-n = tirx.Var("n", "int64")
+m = T.dynamic("m", "int64")
+n = T.dynamic("n", "int64")
 x = rx.Var("x", R.Tensor([m, n], "float32"))
 cond = rx.Var("cond", R.Tensor([], "bool"))
 
@@ -542,10 +542,11 @@ def test_ty_args_tir_var_used_before_define_call_tir():
 def test_ty_erase_to_well_formed():
     # Error: The return ty contains undefined symbolic vars
     """
+    m, n = T.dynamic("m"), T.dynamic("n")
+    m1, n1 = T.dynamic("m1"), T.dynamic("n1")
+
     @R.function
-    def foo(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m1", "n1"), dtype="float32"):
-        m = T.int64()
-        n = T.int64()
+    def foo(x: R.Tensor((m, n), dtype="float32")) -> R.Tensor((m1, n1), dtype="float32"):
         gv = R.call_dps_packed("my_func", (x,), out_ty=R.Tensor((m, n), dtype="float32"))
         return gv
     """
@@ -565,7 +566,7 @@ def test_func_ty_well_formed():
     @R.function
     def foo():
         @R.function
-        def local(x: R.Tensor(["m", "n"], "float32")):
+        def local(x: R.Tensor([m, n], "float32")):
             return x
 
         return local
@@ -981,6 +982,9 @@ def test_call_tir_with_correct_dynamic_output_shape():
 
     """
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @I.ir_module
     class Module:
         @R.function
@@ -990,8 +994,6 @@ def test_call_tir_with_correct_dynamic_output_shape():
 
         @Ts.prim_func
         def reshape(A: T.Buffer(16, "float16"), B_handle: T.handle):
-            M = T.int64()
-            N = T.int64()
             B = T.match_buffer(B_handle, [M, N], dtype="float16")
 
             for i, j in T.grid(M, N):
@@ -1014,6 +1016,9 @@ def test_call_tir_with_incorrect_dynamic_output_shape():
 
     """
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @I.ir_module(check_well_formed=False)
     class Module:
         @R.function
@@ -1023,8 +1028,6 @@ def test_call_tir_with_incorrect_dynamic_output_shape():
 
         @Ts.prim_func
         def reshape(A: T.Buffer(16, "float16"), B_handle: T.handle):
-            M = T.int64()
-            N = T.int64()
             B = T.match_buffer(B_handle, [M, N], dtype="float16")
 
             for i, j in T.grid(M, N):
@@ -1049,6 +1052,9 @@ def test_call_tir_incorrect_dimensionality_of_output_shape():
 
     """
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @I.ir_module(check_well_formed=False)
     class Module:
         @R.function
@@ -1058,8 +1064,6 @@ def test_call_tir_incorrect_dimensionality_of_output_shape():
 
         @Ts.prim_func
         def reshape(A: T.Buffer(16, "float16"), B_handle: T.handle):
-            M = T.int64()
-            N = T.int64()
             B = T.match_buffer(B_handle, [M, N], dtype="float16")
 
             for i, j in T.grid(M, N):
@@ -1087,6 +1091,9 @@ def test_call_tir_output_shape_with_mixed_static_and_dynamic():
 
     """
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @I.ir_module(check_well_formed=False)
     class Module:
         @R.function
@@ -1096,8 +1103,6 @@ def test_call_tir_output_shape_with_mixed_static_and_dynamic():
 
         @Ts.prim_func
         def reshape(A: T.Buffer(256, "float16"), B_handle: T.handle):
-            M = T.int64()
-            N = T.int64()
             B = T.match_buffer(B_handle, [16, M, N], dtype="float16")
 
             for i, j, k in T.grid(16, M, N):
@@ -1119,6 +1124,9 @@ def test_call_tir_with_correct_inferred_dynamic_output_shape():
 
     """
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @I.ir_module
     class Module:
         @R.function
@@ -1128,8 +1136,6 @@ def test_call_tir_with_correct_inferred_dynamic_output_shape():
 
         @Ts.prim_func
         def flatten(A_handle: T.handle, B_handle: T.handle):
-            M = T.int64()
-            N = T.int64()
             A = T.match_buffer(A_handle, [M, N], dtype="float16")
             B = T.match_buffer(B_handle, [M * N], dtype="float16")
 
@@ -1157,6 +1163,9 @@ def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
 
     """
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @I.ir_module(check_well_formed=False)
     class Module:
         @R.function
@@ -1166,8 +1175,6 @@ def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
 
         @Ts.prim_func
         def flatten(A_handle: T.handle, B_handle: T.handle):
-            M = T.int64()
-            N = T.int64()
             A = T.match_buffer(A_handle, [M, N], dtype="float16")
             B = T.match_buffer(B_handle, [M * N], dtype="float16")
 
@@ -1191,6 +1198,9 @@ def test_call_tir_with_dtensor_arguments():
 
     # from tvm.script.parser import relax as R
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @I.ir_module
     class Module:
         I.module_attrs({"device_num": 4})
@@ -1205,8 +1215,6 @@ def test_call_tir_with_dtensor_arguments():
 
         @Ts.prim_func
         def flatten(A_handle: T.handle, B_handle: T.handle):
-            M = T.int64()
-            N = T.int64()
             A = T.match_buffer(A_handle, [M, N], dtype="float16")
             B = T.match_buffer(B_handle, [M * N], dtype="float16")
 

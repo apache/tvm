@@ -174,10 +174,12 @@ def gpu_2d_continuous_cumsum(
                                     bx > 0, source[by, src_offset + bx - 1], 0
                                 )
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @Ts.prim_func(private=True)
     def cumsum(var_a: T.handle, var_out: T.handle):
         T.func_attr({"tirx.is_scheduled": True})  # prevent further scheduling
-        m, n = T.int64(), T.int64()
         A = T.match_buffer(var_a, [m, n], dtype=in_dtype)
         Out = T.match_buffer(var_out, [m, n], dtype=out_dtype)
         Tmp = T.alloc_buffer([m, n], dtype=out_dtype)
@@ -253,10 +255,13 @@ def gpu_3d_axis_1_cumsum(
     out_dtype = out_dtype or in_dtype
     TX = T.int64(tx_len)
 
+    outer = T.dynamic("outer")
+    scan = T.dynamic("scan")
+    inner = T.dynamic("inner")
+
     @Ts.prim_func(private=True)
     def cumsum(var_a: T.handle, var_out: T.handle):
         T.func_attr({"tirx.is_scheduled": True})
-        outer, scan, inner = T.int64(), T.int64(), T.int64()
         A = T.match_buffer(var_a, [outer, scan, inner], dtype=in_dtype)
         Out = T.match_buffer(var_out, [outer, scan, inner], dtype=out_dtype)
 

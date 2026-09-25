@@ -36,10 +36,14 @@ from tvm.script import tirx as T
 exec_mode = tvm.testing.parameter("bytecode", "compiled")
 
 
+m = T.dynamic("m")
+n = T.dynamic("n")
+
+
 @tvm.script.ir_module
 class InputModule:
     @R.function
-    def foo(x: R.Tensor(("m", "n"), "int64")):
+    def foo(x: R.Tensor((m, n), "int64")):
         y = R.unique(x, sorted=False)
         y_sorted = R.unique(x)
         return y, y_sorted
@@ -190,9 +194,10 @@ def test_assert_on_argument_fails(exec_mode):
 
 
 def test_assert_on_symbolic_var_passes(exec_mode):
+    N = T.dynamic("N")
+
     @R.function(pure=False)
-    def func(x: R.Tensor(["N"], "int32")):
-        N = T.int64()
+    def func(x: R.Tensor([N], "int32")):
         _ = R.assert_op(R.prim_value(N % 8 == 0))
         return x
 
@@ -201,9 +206,10 @@ def test_assert_on_symbolic_var_passes(exec_mode):
 
 
 def test_assert_on_symbolic_var_fails(exec_mode):
+    N = T.dynamic("N")
+
     @R.function(pure=False)
-    def func(x: R.Tensor(["N"], "int32")):
-        N = T.int64()
+    def func(x: R.Tensor([N], "int32")):
         _ = R.assert_op(R.prim_value(N % 8 == 0))
         return x
 
@@ -268,6 +274,10 @@ def test_op_shape_of(exec_mode):
     assert constrained_shape == tvm_ffi.Shape([1])
 
 
+m = T.dynamic("m")
+n = T.dynamic("n")
+
+
 @tvm.script.ir_module
 class ShapeToTensorTest:
     @R.function
@@ -275,9 +285,7 @@ class ShapeToTensorTest:
         return R.shape_to_tensor(shape)
 
     @R.function
-    def symbolic_shape(shape: R.Shape(("m", "n"))) -> R.Tensor(ndim=-1):
-        m = T.int64()
-        n = T.int64()
+    def symbolic_shape(shape: R.Shape((m, n))) -> R.Tensor(ndim=-1):
         return R.shape_to_tensor(shape)
 
 
@@ -586,9 +594,10 @@ def test_prim_value_as_branch_condition(exec_mode):
 def test_computed_prim_value_as_branch_condition(exec_mode):
     """The primitive scalar condition may be computed within the function"""
 
+    N = T.dynamic("N")
+
     @R.function
-    def func(x: R.Tensor(["N"], "int64")):
-        N = T.int64()
+    def func(x: R.Tensor([N], "int64")):
         if R.prim_value(N % 16 == 0):
             out = R.prim_value(5)
         else:

@@ -21,10 +21,11 @@ import tvm
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
+m = T.dynamic("m", "int32")
+
 
 @Ts.prim_func
 def scalar_func(a: T.handle, b: T.handle):
-    m = T.int32()
     A = T.match_buffer(a, (100, m))
     B = T.match_buffer(b, (100, m))
 

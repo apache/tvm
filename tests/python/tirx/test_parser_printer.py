@@ -988,8 +988,8 @@ def test_buffer_shape_repeated_var_prints_out_of_line():
     buffer = tvm.tirx.decl_buffer((n + n,), name="A")
     func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(0))
 
-    code = func.script()
-    assert "n = T.int32()" in code
+    code = func.script(extra_config={"script.use_pep695": False})
+    assert 'n = I.dynamic("n", dtype="int32")' in code
     assert_structural_equal(func, from_source(code))
 
 
