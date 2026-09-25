@@ -26,9 +26,7 @@ from .base import (
     MISSING,
     AlreadyEmitted,
     IRBuilder,
-    annotation_value_,
     at_,
-    require_defined,
     resolve_global_info_args,
     with_at_group_,
 )
@@ -57,7 +55,6 @@ __all__ = [
     "Range",
     "StringImm",
     "StringType",
-    "annotation_value_",
     "at_",
     "check_well_formed_",
     "constexpr",
@@ -72,7 +69,6 @@ __all__ = [
     "module_global_infos",
     "module_member_",
     "module_set_attr",
-    "require_defined",
     "resolve_global_info_args",
     "with_at_group_",
 ]
