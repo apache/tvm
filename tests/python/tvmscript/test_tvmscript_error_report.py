@@ -177,6 +177,7 @@ def test_invalid_block_axes():
 
 
 def test_duplicate_block_axes():
+    @Ts.prim_func
     def duplicate_block_axes() -> None:
         for i, j in T.grid(16, 16):
             with Ts.sblock():
@@ -184,6 +185,7 @@ def test_duplicate_block_axes():
                 vi = Ts.axis.S(16, j)
                 T.evaluate(vi)
 
+    @Ts.prim_func
     def duplicate_block_axes_remap() -> None:
         for i, j in T.grid(16, 16):
             with Ts.sblock():
@@ -191,8 +193,7 @@ def test_duplicate_block_axes():
                 T.evaluate(vi)
 
     # Python spelling does not rename or merge independently created native axes.
-    for source in (duplicate_block_axes, duplicate_block_axes_remap):
-        parsed = Ts.prim_func(source)
+    for parsed in (duplicate_block_axes, duplicate_block_axes_remap):
         block = parsed.body.block.body.body.body.block
         assert len(block.iter_vars) == 2
         first, second = (axis.var for axis in block.iter_vars)
@@ -290,6 +291,7 @@ def test_duplicate_block_signature():
                 with Ts.init():  # error
                     T.evaluate(1.0)
 
+    @Ts.prim_func
     def duplicate_axes() -> None:
         for i, j in T.grid(16, 16):
             with Ts.sblock():
@@ -309,7 +311,7 @@ def test_duplicate_block_signature():
     check_error(duplicate_writes, 7, tvm.error.InternalError)
     check_error(duplicate_predicate, 6, tvm.error.InternalError)
     check_error(duplicate_init, 7, ValueError)
-    parsed = Ts.prim_func(duplicate_axes)
+    parsed = duplicate_axes
     axes = parsed.body.block.body.body.body.block.iter_vars
     assert len(axes) == 3
     assert not axes[0].var.same_as(axes[2].var)

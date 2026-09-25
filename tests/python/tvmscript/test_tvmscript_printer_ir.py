@@ -114,7 +114,7 @@ def test_config_reserves_dialect_prefixes_before_variable_definition(prefixes):
     for name in [tir_prefix, relax_prefix, prefixes.get("s_tir.prefix", "Ts")]:
         var = tirx.Var(name, "int32")
         assert var.script(verbose_expr=True, extra_config=prefixes).strip() == (
-            f"{name}_1 = {tir_prefix}.int32()\n{name}_1"
+            f'{name}_1 = I.dynamic("{name}", dtype="int32")\n{name}_1'
         )
 
 

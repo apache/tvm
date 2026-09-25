@@ -82,7 +82,7 @@ def test_tir_external_symbol_adopted_by_later_prim_param():
         """
 n = T.dynamic("n", "int32")
 @T.prim_func
-def main(A: T.Buffer((n,), "float32"), n: T.int32):
+def main(A: T.Buffer((n,), "float32"), n: n):
     T.evaluate(n)
 """
     )
@@ -97,7 +97,7 @@ n = T.dynamic("n", "int32")
 @I.ir_module
 class Module:
     @T.prim_func
-    def main(A: T.Buffer((n,), "float32"), n: T.int32):
+    def main(A: T.Buffer((n,), "float32"), n: n):
         T.evaluate(n)
 """
     )
@@ -112,7 +112,7 @@ def test_tir_external_symbol_preserves_later_prim_param_dtype():
         """
 n = T.dynamic("n", "int64")
 @T.prim_func
-def main(A: T.Buffer((n,), "float32"), n: T.int64):
+def main(A: T.Buffer((n,), "float32"), n: n):
     T.evaluate(n)
 """
     )

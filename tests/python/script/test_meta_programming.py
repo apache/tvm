@@ -497,3 +497,119 @@ def test_constexpr_uses_registered_namespace_in_source(language):
         @M.function
         def specialized(value: I.constexpr):
             M.record(value)
+
+
+def test_definition_defaults_preserve_names_and_nested_body_globals(language, monkeypatch):
+    M = language.M
+    parse = entry.parse
+    recompose = entry._recompose_builder
+    captured = []
+
+    def with_definition_scope(source, **kwargs):
+        kwargs["definition_scope"]["EXTENT"] = 128
+        return parse(source, **kwargs)
+
+    def observe(*args, **kwargs):
+        builder = recompose(*args, **kwargs)
+        captured.append((builder.__kwdefaults__["EXTENT"], builder.__globals__["EXTENT"]))
+        assert not any(name.startswith("_definition_scope") for name in builder.__globals__)
+        return builder
+
+    monkeypatch.setattr(entry, "parse", with_definition_scope)
+    monkeypatch.setattr(entry, "_recompose_builder", observe)
+
+    @M.function
+    def function(x: M.Tensor((EXTENT,))):
+        def helper():
+            return EXTENT
+
+        M.record(helper())
+        M.record((lambda: EXTENT)())
+        M.record(tuple(EXTENT for _ in range(1)))
+
+    assert captured == [(128, 11)]
+    assert function.params[0].args[0].args[0] == (128,)
+    assert function.body == [("emit", 11), ("emit", 11), ("emit", (11,))]
+
+
+def test_class_captures_follow_each_source_declaration(language):
+    M = language.M
+
+    @I.ir_module
+    class Module:
+        extent = 3
+
+        @M.function
+        def first(x: M.Tensor((extent,))):
+            M.record(x)
+
+        extent = 5
+
+        @M.function
+        def second(x: M.Tensor((extent,))):
+            M.record(x)
+
+    assert Module["first"].params[0].args[0].args[0] == (3,)
+    assert Module["second"].params[0].args[0].args[0] == (5,)
+
+
+def test_namespace_alias_preserves_evaluated_root_kwargs(language):
+    Alias = language.M
+    events = []
+
+    def private():
+        events.append("private")
+        return True
+
+    @Alias.function(private=private())
+    def function(x: Alias.Tensor((2,))):
+        Alias.record(x)
+
+    assert events == ["private"]
+    assert function.body == [("emit", function.params[0])]
+
+
+def test_empty_root_kwargs_do_not_reexecute_decorator_arguments(language):
+    M = language.M
+    calls = []
+
+    def options():
+        calls.append("options")
+        return {}
+
+    @M.function(**options())
+    def function():
+        M.record(1)
+
+    assert calls == ["options"]
+    assert function.body == [("emit", 1)]
+
+
+def test_construction_rejects_later_application_even_with_decorator_source(language):
+    M = language.M
+    originals = []
+
+    def retain(function):
+        originals.append(function)
+        return function
+
+    @M.function
+    @retain
+    def function():
+        M.record(1)
+
+    assert function.body == [("emit", 1)]
+    with pytest.raises(SyntaxError, match="definition site"):
+        M.function(originals[0])
+    with pytest.raises(SyntaxError, match="definition site"):
+        M.function(private=True)(originals[0])
+
+
+@pytest.mark.parametrize("configured", [False, True])
+def test_callable_decorator_alias_has_explicit_restriction(language, configured):
+    decorator = language.M.function(private=True) if configured else language.M.function
+    with pytest.raises(SyntaxError, match="bare and preconfigured decorator aliases"):
+
+        @decorator
+        def function():
+            pass

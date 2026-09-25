@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import importlib
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any
 
 _NAMESPACES: dict[str, object] = {}
 _NAMESPACE_INITIALIZERS: list[Callable[[], None]] = []
@@ -104,7 +104,6 @@ def _initialize() -> None:
     _initializing = True
     try:
         importlib.import_module(__name__ + ".ir")
-        register_namespace("TypeVar", TypeVar)
         for initialize in _NAMESPACE_INITIALIZERS:
             initialize()
         _initialized = True

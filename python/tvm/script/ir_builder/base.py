@@ -23,7 +23,7 @@ from inspect import signature
 from typing import Any, Generic, TypeVar
 
 from tvm_ffi import register_object as _register_object
-from tvm_ffi.dataclasses import MISSING
+from tvm_ffi.dataclasses import MISSING as MISSING
 
 from tvm import ir
 from tvm.runtime import Object as _Object
@@ -377,32 +377,6 @@ def at(
     return value
 
 
-def require_defined(value, name):
-    """Report a source name whose designated region output was not produced.
-
-    Parameters
-    ----------
-    value : Any
-        Candidate binding. Only the canonical ``MISSING`` singleton denotes an
-        absent value; explicit None is a defined value.
-    name : str
-        Source identifier to include in the missing-name diagnostic.
-
-    Returns
-    -------
-    Any
-        The exact ``value`` when it is defined.
-
-    Raises
-    ------
-    NameError
-        If ``value`` is ``MISSING``.
-    """
-    if value is MISSING:
-        raise NameError(f"name {name!r} is not defined")
-    return value
-
-
 def with_at_group_(
     location: SpanEntry | ir.Span | tuple[str | ir.SourceName, int, int, int, int] | None,
     thunk: Callable[[], _T],
@@ -465,7 +439,7 @@ def _resolve_type_var(frame, ffi_resolver, name, dtype=None, *, value=None, span
 
 
 def _current_function_frame():
-    """Find the nearest function for eager shared annotation constructors."""
+    """Find the nearest native function frame for explicit symbol declarations."""
     if IRBuilder.is_in_scope():
         for frame in reversed(IRBuilder.current().frames):
             if callable(getattr(frame, "resolve_type_var", None)):
@@ -473,108 +447,26 @@ def _current_function_frame():
     raise ValueError("Symbol resolution requires an active function frame")
 
 
-def annotation_constructor(*fields: str, as_type: bool = False):
-    """Adapt eager Python type parameters on concrete annotation constructors.
-
-    Unresolved ``typing.TypeVar`` values defer annotations outside a builder;
-    an active native function owns their resolution. Ordinary values, including
-    strings, are passed unchanged to the concrete API.
-    """
-
-    def decorate(constructor):
-        call_signature = signature(constructor)
-
-        def unresolved(value):
-            if isinstance(value, TypeVar):
-                return True
-            if isinstance(value, tuple | list):
-                return any(unresolved(item) for item in value)
-            return False
-
-        def resolve(value):
-            if isinstance(value, TypeVar):
-                if value.__bound__ is not None or value.__constraints__:
-                    raise TypeError("A symbolic TypeVar cannot have constraints or a bound")
-                return _current_function_frame().resolve_type_var(value.__name__)
-            if isinstance(value, tuple):
-                return tuple(resolve(item) for item in value)
-            if isinstance(value, list):
-                return [resolve(item) for item in value]
-            return value
-
-        @wraps(constructor)
-        def invoke(*args, **kwargs):
-            bound = call_signature.bind(*args, **kwargs)
-            for field in fields:
-                if field not in bound.arguments:
-                    continue
-                value = bound.arguments[field]
-                if IRBuilder.is_in_scope():
-                    bound.arguments[field] = resolve(value)
-                elif unresolved(value):
-                    return ir.Type.missing()
-            return constructor(*bound.args, **bound.kwargs)
-
-        if not as_type:
-            return invoke
-        # A real annotation class supports Python unions while constructing
-        # ordinary native types, with no proxy values or parser policy state.
-        return type(
-            constructor.__name__,
-            (),
-            {
-                "__new__": lambda cls, *args, **kwargs: invoke(*args, **kwargs),
-                "__signature__": call_signature,
-                "__doc__": constructor.__doc__,
-                "__module__": constructor.__module__,
-            },
-        )
-
-    return decorate
-
-
 def _return_annotation(annotation):
-    """Evaluate a return annotation without introducing return-only symbols."""
-    if not callable(annotation) or isinstance(annotation, ir.Expr | ir.Type):
-        return annotation
-    frame = _current_function_frame()
-    declared = set(frame.type_var_map)
-    annotation = annotation()
-    introduced = set(frame.type_var_map) - declared
-    if introduced:
-        raise ValueError(f"Return annotation introduces unbound symbol {sorted(introduced)[0]!r}")
+    """Evaluate the deferred return expression before normalizing its annotation value."""
+    if callable(annotation) and not isinstance(annotation, ir.Expr | ir.Type):
+        return annotation()
     return annotation
 
 
-def annotation_value_(name, value):
-    """Adapt a real definition-context symbol using the native function map.
+def annotation_constructor(constructor):
+    """Expose a constructor as a real annotation class supporting Python unions.
 
-    Parameters
-    ----------
-    name : str
-        Source spelling used to resolve the symbol in the nearest active
-        function frame.
-    value : TypeVar, Var or Any
-        Captured definition-context value. An unconstrained ``typing.TypeVar``
-        resolves a symbolic variable; a primitive IR Var supplies its existing
-        value to the resolver. Other values pass through unchanged.
-
-    Returns
-    -------
-    Any
-        The function frame's resolved symbol, or the unchanged nonsymbolic value.
-
-    Raises
-    ------
-    TypeError
-        If a TypeVar has a bound or constraints.
-    ValueError
-        If a symbolic value requires resolution without an active function frame.
+    Calls construct ordinary native values directly. The class preserves the
+    constructor's signature and documentation without adapting its arguments.
     """
-    if isinstance(value, TypeVar):
-        if value.__bound__ is not None or value.__constraints__:
-            raise TypeError("A symbolic TypeVar cannot have constraints or a bound")
-        return _current_function_frame().resolve_type_var(name)
-    if ir.is_prim_var(value):
-        return _current_function_frame().resolve_type_var(name, value=value)
-    return value
+    return type(
+        constructor.__name__,
+        (),
+        {
+            "__new__": lambda cls, *args, **kwargs: constructor(*args, **kwargs),
+            "__signature__": signature(constructor),
+            "__doc__": constructor.__doc__,
+            "__module__": constructor.__module__,
+        },
+    )
