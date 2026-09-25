@@ -262,6 +262,7 @@ def gpu_multinomial_from_uniform(
     n = T.dynamic("n")
     vocab_size = T.dynamic("vocab_size")
     batch_size = T.dynamic("batch_size")
+
     @Ts.prim_func
     def parallel_sampling_from_prob(
         var_prob: T.handle,
@@ -323,6 +324,7 @@ def generic_get_sample_index(
     batch = T.dynamic("batch")
     vocab_size = T.dynamic("vocab_size")
     out_batch = T.dynamic("out_batch")
+
     @Ts.prim_func(private=True)
     def _get_sample_index(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
         prob = T.match_buffer(A, (batch, vocab_size), prob_dtype)

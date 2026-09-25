@@ -2799,6 +2799,7 @@ def sample_top_p_top_k_from_sorted_prob(
 
     batch = T.dynamic("batch")
     vocab_size = T.dynamic("vocab_size")
+
     @Ts.prim_func(private=True)
     def _get_renorm_prob(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
         cumsum_sorted = T.match_buffer(A, (batch, vocab_size), prob_dtype)
@@ -2908,6 +2909,7 @@ def renormalize_top_p_top_k_prob(prob, sorted_prob, top_p, top_k):
 
     kernel_batch = T.dynamic("batch")
     vocab_size = T.dynamic("vocab_size")
+
     @Ts.prim_func(private=True)
     def _get_renorm_cutoff(A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle):
         sorted_prob = T.match_buffer(A, (kernel_batch, vocab_size), prob_dtype)

@@ -176,6 +176,7 @@ def gpu_2d_continuous_cumsum(
 
     m = T.dynamic("m")
     n = T.dynamic("n")
+
     @Ts.prim_func(private=True)
     def cumsum(var_a: T.handle, var_out: T.handle):
         T.func_attr({"tirx.is_scheduled": True})  # prevent further scheduling
@@ -257,6 +258,7 @@ def gpu_3d_axis_1_cumsum(
     outer = T.dynamic("outer")
     scan = T.dynamic("scan")
     inner = T.dynamic("inner")
+
     @Ts.prim_func(private=True)
     def cumsum(var_a: T.handle, var_out: T.handle):
         T.func_attr({"tirx.is_scheduled": True})

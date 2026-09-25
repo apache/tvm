@@ -184,6 +184,7 @@ def get_ldmatrix_intrin(
 
     s0 = T.dynamic("s0", "int32")
     s1 = T.dynamic("s1", "int32")
+
     @Ts.prim_func
     def ldmatrix_impl(warp_handle: T.handle, shared_handle: T.handle) -> None:
         shared = T.match_buffer(
@@ -859,6 +860,7 @@ def get_wmma_load_intrin(
     s0 = T.dynamic("s0", "int32")
     d1 = T.dynamic("d1", "int32")
     d0 = T.dynamic("d0", "int32")
+
     @Ts.prim_func
     def wmma_load_impl(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
@@ -926,6 +928,7 @@ def get_wmma_fill_intrin(
 
     d1 = T.dynamic("d1", "int32")
     d0 = T.dynamic("d0", "int32")
+
     @Ts.prim_func
     def wmma_fill_impl(c: T.handle) -> None:
         C = T.match_buffer(
@@ -986,6 +989,7 @@ def get_wmma_store_intrin(
     s0 = T.dynamic("s0", "int32")
     d1 = T.dynamic("d1", "int32")
     d0 = T.dynamic("d0", "int32")
+
     @Ts.prim_func
     def wmma_store_impl(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
@@ -1091,6 +1095,7 @@ def get_wmma_sync_intrin(
     b0 = T.dynamic("b0", "int32")
     c1 = T.dynamic("c1", "int32")
     c0 = T.dynamic("c0", "int32")
+
     @Ts.prim_func
     def wmma_sync_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
@@ -1554,6 +1559,7 @@ def get_mma_load_intrin(
     s1 = T.dynamic("s1", "int32")
     d0 = T.dynamic("d0", "int32")
     d1 = T.dynamic("d1", "int32")
+
     @Ts.prim_func
     def mma_load_impl(a: T.handle, c: T.handle) -> None:
         src = T.match_buffer(
@@ -1642,6 +1648,7 @@ def get_mma_sync_intrin(
     b1 = T.dynamic("b1", "int32")
     c0 = T.dynamic("c0", "int32")
     c1 = T.dynamic("c1", "int32")
+
     @Ts.prim_func
     def mma_sync_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(

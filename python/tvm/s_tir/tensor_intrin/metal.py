@@ -55,6 +55,7 @@ def get_make_filled_simdgroup_matrix_intrin(
 
     d0 = T.dynamic("d0", "int32")
     d1 = T.dynamic("d1", "int32")
+
     @Ts.prim_func
     def impl(a: T.handle) -> None:
         A = T.match_buffer(
@@ -105,6 +106,7 @@ def get_simdgroup_load_intrin(
     s1 = T.dynamic("s1", "int32")
     d0 = T.dynamic("d0", "int32")
     d1 = T.dynamic("d1", "int32")
+
     @Ts.prim_func
     def impl(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
@@ -171,6 +173,7 @@ def get_simdgroup_store_intrin(
     s1 = T.dynamic("s1", "int32")
     d0 = T.dynamic("d0", "int32")
     d1 = T.dynamic("d1", "int32")
+
     @Ts.prim_func
     def impl(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
@@ -223,6 +226,7 @@ def get_simdgroup_multiply_accumulate_intrin(
     b1 = T.dynamic("b1", "int32")
     c0 = T.dynamic("c0", "int32")
     c1 = T.dynamic("c1", "int32")
+
     @Ts.prim_func
     def impl(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(

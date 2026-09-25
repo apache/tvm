@@ -17,7 +17,9 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: E501, F401, F841
 
+import io
 import re
+import tokenize
 
 import pytest
 
@@ -25,8 +27,8 @@ import tvm.testing
 from tvm import ir, s_tir, tirx
 from tvm.ir import Range
 from tvm.s_tir.script.ir_builder import prim_func as build_prim_func
-from tvm.script import s_tir as Ts
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script.ir_builder import IRBuilder
 from tvm.tirx.script import ir_builder as T
 
@@ -929,16 +931,27 @@ def test_variable_with_cpp_address():
     without_address = func.script(show_object_address=False)
     script = func.script(show_object_address=True)
 
-    expected_regex = re.escape(without_address)
-    for name in ["a_name", "A_name", "N_name", "i_name"]:
-        # Replace all occurrences with a backref to an earlier match
-        expected_regex = expected_regex.replace(name, rf"(?P={name})")
-        # Then replace the first such backref with a capturing group.
-        expected_regex = expected_regex.replace(
-            rf"(?P={name})", rf"(?P<{name}>{name}_0x[A-Fa-f0-9]+)", 1
-        )
-
-    assert re.match(expected_regex, script)
+    # Address suffixes belong to identifiers, not display-name string literals
+    # passed to constructors such as I.dynamic("N_name").
+    names = {"a_name", "A_name", "N_name", "i_name"}
+    line_offsets = [0]
+    for line in without_address.splitlines(keepends=True):
+        line_offsets.append(line_offsets[-1] + len(line))
+    parts = []
+    seen = set()
+    cursor = 0
+    for token in tokenize.generate_tokens(io.StringIO(without_address).readline):
+        name = token.string
+        if token.type != tokenize.NAME or name not in names:
+            continue
+        start = line_offsets[token.start[0] - 1] + token.start[1]
+        end = line_offsets[token.end[0] - 1] + token.end[1]
+        parts.append(re.escape(without_address[cursor:start]))
+        parts.append(rf"(?P={name})" if name in seen else rf"(?P<{name}>{name}_0x[A-Fa-f0-9]+)")
+        seen.add(name)
+        cursor = end
+    parts.append(re.escape(without_address[cursor:]))
+    assert re.fullmatch("".join(parts), script)
 
 
 def test_return_statement():

@@ -393,6 +393,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
 
     batch_size = T.dynamic("batch_size")
     seq_len = T.dynamic("seq_len")
+
     @Ts.prim_func(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
@@ -525,6 +526,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
 
     seq_len = T.dynamic("seq_len", "int32")
     position_map_elem_offset = T.dynamic("position_map_elem_offset", "int32")
+
     @Ts.prim_func
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
@@ -567,6 +569,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
 
     seq_len = T.dynamic("seq_len")
     position_map_elem_offset = T.dynamic("position_map_elem_offset")
+
     @Ts.prim_func
     def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
@@ -752,6 +755,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
 
     seq_len = T.dynamic("seq_len", "int32")
     position_map_elem_offset = T.dynamic("position_map_elem_offset", "int32")
+
     @Ts.prim_func(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
@@ -794,6 +798,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
 
     seq_len = T.dynamic("seq_len")
     position_map_elem_offset = T.dynamic("position_map_elem_offset")
+
     @Ts.prim_func
     def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
