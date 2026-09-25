@@ -25,8 +25,8 @@ import tvm.testing
 from tvm import ir, s_tir, tirx
 from tvm.ir import Range
 from tvm.s_tir.script.ir_builder import prim_func as build_prim_func
-from tvm.script import s_tir as Ts
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script.ir_builder import IRBuilder
 from tvm.tirx.script import ir_builder as T
 

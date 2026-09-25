@@ -45,6 +45,20 @@ function decorators retain definitions until module construction, which can decl
 signatures before building bodies. Captured Python values belong to the source
 context; symbolic IR values are created and resolved by builders.
 
+Annotations read concrete values from their definition scope, preserving missing-name
+errors when a value is used. Create external symbols with ``n = I.dynamic("n")``
+or the identical ``T.dynamic`` and ``Ts.dynamic`` constructors. Each call creates a
+fresh native variable, defaulting to int64. On Python 3.12+, explicit headers such as
+``def f[n, k: T.int32](...)`` declare local symbols; ``n: int`` retains the int64
+default. Quote the whole annotation or use ``from __future__ import annotations``
+to defer eager Python evaluation of header symbols. Captured runtime ``typing.TypeVar``
+objects are not script symbols; ordinary Python typing uses remain unaffected.
+
+An explicit scalar annotation ``n: n`` preserves a captured native symbol's identity.
+An independently typed parameter such as ``n: T.int32`` and ordinary body locals
+shadow definition captures normally. Annotation classes, Python unions and deferred
+return-constructor evaluation retain their builder behavior.
+
 Syntax and construction protocol
 --------------------------------
 
@@ -55,8 +69,8 @@ builder frames. The namespace owns the meaning of these operations and the suppo
 IR constructs.
 
 ``tvm.script.parser.protocol_registry`` records syntax policies under registered
-namespace paths. These policies identify declarations and arguments that need special
-handling, such as symbolic expression strings. Source aliases resolve to those paths;
+namespace paths. These policies identify scalar annotations, mutable declarations and
+result span handling. Symbolic shapes use concrete expressions. Source aliases resolve to those paths;
 ordinary Python calls remain calls in the generated program. Explicit ``constexpr``
 markers select host control flow during construction.
 
