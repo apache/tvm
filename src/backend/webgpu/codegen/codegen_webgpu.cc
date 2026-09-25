@@ -332,8 +332,8 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
                << "  @builtin(num_workgroups) gridDim : vec3<u32>,\n"
                << "  @builtin(local_invocation_id) threadIdx : vec3<u32>\n"
                << ") {\n";
-  // skip out of bound grids
-  this->stream << "  if (blockIdx.z * gridDim.x + blockIdx.x > "  // NOLINT(*)
+  // skip out of bound grids; valid packed ids are [0, packGridDimX)
+  this->stream << "  if (blockIdx.z * gridDim.x + blockIdx.x >= "  // NOLINT(*)
                << val_pod_args << "." << packGridDimX << ") { return; }\n";
   // the function scope.
   int func_scope = this->BeginScope();
