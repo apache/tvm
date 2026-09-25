@@ -108,9 +108,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         auto scoped_callee = [&](const ffi::String& op_name) -> ExprDoc {
           ffi::Optional<ffi::String> ns = scope_ns(op_call->scope->kind);
           if (ns.has_value()) {
-            return TIRx(d, ns.value())->Attr(op_name);
+            return TIR(d, ns.value())->Attr(op_name);
           }
-          return TIRx(d, "tile")->Attr(op_name);
+          return TIR(d, "tile")->Attr(op_name);
         };
         // Trim trailing None args (e.g. optional bias=None, scale=None)
         size_t n_args = op_call->args.size();
@@ -144,7 +144,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                          d->AsDoc<DictDoc>(op_call->config, p->Attr("config")), disp);
       });
 }
-TVM_SCRIPT_REPR(tirx::TilePrimitiveCallNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::TilePrimitiveCallNode, ReprPrintTIR);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tirx::Evaluate>(
@@ -840,18 +840,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_SCRIPT_REPR(tirx::BindNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::AttrStmtNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::AssertStmtNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::WhileNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::AllocBufferNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::ReturnNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::BreakNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::ContinueNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::DeclBufferNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::SeqStmtNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::IfThenElseNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::EvaluateNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::BindNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::AttrStmtNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::AssertStmtNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::WhileNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::AllocBufferNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::ReturnNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::BreakNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::ContinueNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::DeclBufferNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::SeqStmtNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::IfThenElseNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::EvaluateNode, ReprPrintTIR);
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

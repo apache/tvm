@@ -22,12 +22,15 @@
 #include <cmath>
 #include <limits>
 
+#include "../../../script/printer/dialect_prefix.h"
 #include "../../../tirx/script/printer/utils.h"
 #include "./utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
+
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterDialectPrefix("relax.prefix", "R"); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<StringImm>(
