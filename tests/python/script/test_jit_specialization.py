@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import gc
 import weakref
+from types import SimpleNamespace
 
 import pytest
 
@@ -257,3 +258,54 @@ def test_jit_does_not_retain_ordinary_decorator_owners(jit_language):
     function, reference = make()
     assert reference() is None
     assert function.specialize().body == []
+
+
+@pytest.mark.parametrize("postponed", [False, True])
+def test_jit_initial_alias_preserves_annotation_forms(tmp_path, postponed):
+    source = """@Script.jit(private=True)
+def kernel(output: Script.Buffer((1,), "int32"), *, value: Script.constexpr,
+           optional: Script.Optional(Script.Buffer((1,), "int32"))):
+    output[0] = value
+"""
+    if postponed:
+        source = "from __future__ import annotations\n" + source.replace(
+            "value: Script.constexpr", "value: 'Script.constexpr'"
+        )
+    path = tmp_path / "aliased_jit.py"
+    path.write_text(source)
+    namespace = {"Script": T}
+    exec(compile(source, str(path), "exec", dont_inherit=True), namespace)
+    kernel = namespace["kernel"]
+    assert kernel.constexpr_names == {"value"}
+    assert kernel.optional_names == {"optional"}
+    result = kernel.specialize(value=3, optional=None)
+    assert len(result.params) == 1
+    assert int(result.body.value) == 3
+
+
+def test_postponed_jit_uses_registered_constexpr_syntax(jit_language, monkeypatch):
+    M = jit_language.M
+    Alias = M
+    # Syntax classification must not inspect the value behind a registered marker name.
+    monkeypatch.setattr(M, "constexpr", object())
+    Ordinary = SimpleNamespace(constexpr=I.constexpr, Optional=T.Optional)
+    M.marker_alias = I.constexpr
+
+    def unavailable():
+        pytest.fail("Unselected annotations must remain unevaluated")
+
+    @M.jit
+    def specialized(value: Alias.constexpr):
+        M.record(value)
+
+    assert specialized.specialize(value=4).body == [("emit", 4)]
+
+    @M.jit
+    def ordinary(
+        value: Ordinary.constexpr,
+        optional: Ordinary.Optional(unavailable()),
+        alias: M.marker_alias,
+    ):
+        M.record(value)
+
+    assert ordinary.constexpr_names == ordinary.optional_names == set()

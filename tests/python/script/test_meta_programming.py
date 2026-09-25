@@ -28,10 +28,13 @@ import gc
 import weakref
 from contextlib import contextmanager
 from types import SimpleNamespace
+from typing import TypeVar
 
 import pytest
 
+from tvm import ir
 from tvm.script import ir as I
+from tvm.script import relax as R
 from tvm.script.parser import entry, protocol_registry
 
 EXTENT = 11
@@ -99,6 +102,27 @@ def test_module_parameter_does_not_replace_another_functions_capture(language):
     assert Module["second"].params[0].args[0].args[0] == (4,)
     for function in (Module["first"], Module["second"]):
         assert function.body == [("emit", function.params[0])]
+
+
+def test_body_local_shadows_capture_for_later_annotation(language):
+    M = language.M
+    extent = 7
+    seen = []
+
+    def annotation(shape):
+        seen.append(shape)
+        return M.Tensor(shape)
+
+    @M.function
+    def main(x: M.Tensor((extent,))):
+        extent = 3
+        value: annotation((extent,)) = x
+        M.record(value)
+
+    assert main.params[0].args[0].args[0] == (7,)
+    assert seen == [(3,)]
+    assert extent == 7
+    assert main.body == [("emit", main.params[0])]
 
 
 def test_unrelated_same_file_caller_does_not_supply_annotation_locals(language):
@@ -240,6 +264,19 @@ def test_local_annotation_preserves_lambda_and_comprehension_bindings(language):
     assert result.args == (function.params[0], function.params[0])
 
 
+def test_return_annotation_keeps_local_symbols_and_unused_captures():
+    n = ir.Var("n", "int64")
+    unused = TypeVar("unused", bound=int)
+
+    @R.function
+    def main(x: R.Tensor((n,), "float32")) -> R.Tensor(
+        ((lambda local: local if I.constexpr(True) else unused)(n),), "float32"
+    ):
+        return x
+
+    assert main.ret_ty.shape[0].same_as(n)
+
+
 def test_class_annotation_scope_keeps_distinct_method_closure(language):
     # Before: an enclosing extent=7 and class extent=3 share a method spelling.
     # Expected builder program: the annotation reads class 3, the body closes over 7.
@@ -373,6 +410,37 @@ def test_nonlocal_declaration_preserves_captured_values(language):
     assert main.body[0] == ("emit", 4)
     assert main.body[1][0] == "return" and main.body[1][1] is main.params[0]
     assert dtype == "float32" and value == 3
+
+
+@pytest.mark.parametrize("hygienic", [True, False])
+def test_macro_local_annotation_captures_definition_and_argument_names(
+    language, hygienic, monkeypatch
+):
+    M = language.M
+    M.macro = protocol_registry.declaration_kind("M.macro", "helper")(entry.make_macro_decorator(M))
+    MACRO_VALUE = 7  # noqa: F841 — captured only by the postponed local annotation.
+    observed = []
+
+    def annotation(shape):
+        observed.append(shape)
+        return M.Tensor(shape, "float32")
+
+    monkeypatch.setitem(globals(), "annotation", annotation)
+
+    @M.macro(hygienic=hygienic)
+    def typed_local(size):
+        value: annotation((MACRO_VALUE, size)) = M.value(1, 2)
+        M.record(value)
+
+    monkeypatch.setitem(globals(), "MACRO_VALUE", 9)
+
+    @M.function
+    def function():
+        typed_local(3)
+
+    assert observed == [(7 if hygienic else 9, 3)]
+    assert function.body[0][0] == "emit"
+    assert function.body[0][1].op == "value"
 
 
 def test_macro_capture_policy_remains_explicit(language, monkeypatch):

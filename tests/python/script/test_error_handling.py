@@ -28,6 +28,7 @@ import pytest
 from tvm import ir
 from tvm.ir import prim
 from tvm.script import tirx as T
+from tvm.script.parser import entry
 
 
 def test_nested_function_failure_preserves_error_and_recovers(spanned_language):
@@ -187,6 +188,99 @@ def test_namespace_rebinding_reports_source_location(language):
     line = first + next(i for i, text in enumerate(lines) if text.strip().startswith("M = 1"))
     assert (error.filename, error.lineno, error.end_lineno) == (__file__, line, line)
     assert (error.offset, error.end_offset) == (13, 14)
+    assert not language.functions
+
+
+@pytest.mark.parametrize(
+    "name, statement",
+    [
+        ("range", "range = 1"),
+        ("int", "int: object = 1"),
+        ("M", "M += 1"),
+        ("range", "(range, other) = (1, 2)"),
+        ("int", "for int in M.grid(2):\n    pass"),
+        ("M", "with M.grid(2) as M:\n    pass"),
+        ("range", "def range():\n    pass"),
+        ("int", "class int:\n    pass"),
+        ("M", "import math as M"),
+        ("range", "from math import floor as range"),
+        ("int", "values = [0 for int in (1,)]"),
+        ("M", "value = lambda M: 0"),
+        ("range", "value = (range := 1)"),
+        ("int", "del int"),
+        ("M", "try:\n    pass\nexcept ValueError as M:\n    pass"),
+        ("range", "match 1:\n    case range:\n        pass"),
+        ("int", "match [1]:\n    case [*int]:\n        pass"),
+        ("M", "match {}:\n    case {**M}:\n        pass"),
+    ],
+)
+def test_reserved_bindings_fail_before_construction(language, name, statement):
+    source = "@M.function\ndef main():\n    effect()\n" + "\n".join(
+        "    " + line for line in statement.splitlines()
+    )
+    effects = []
+    with pytest.raises(SyntaxError, match=repr(name)) as caught:
+        entry.parse(
+            source, {"M": language.M, "effect": lambda: effects.append(1)}, filename="reserved.py"
+        )
+    error = caught.value
+    assert error.filename == "reserved.py"
+    assert error.lineno >= 4
+    assert name in source.splitlines()[error.lineno - 1]
+    assert error.offset > 0
+    assert not language.functions
+    assert not effects
+
+
+@pytest.mark.parametrize(
+    "name, parameter", [("M", "M: object"), ("range", "*range"), ("int", "**int")]
+)
+def test_reserved_parameters_fail_before_construction(language, name, parameter):
+    source = "@M.function\ndef main(" + parameter.format(name=name) + "):\n    pass"
+    with pytest.raises(SyntaxError, match=repr(name)) as caught:
+        entry.parse(source, {"M": language.M}, filename="parameter.py")
+    assert (caught.value.filename, caught.value.lineno) == ("parameter.py", 2)
+    assert source.splitlines()[1][caught.value.offset - 1 :].startswith(name)
+    assert not language.functions
+
+
+@pytest.mark.parametrize("name", ["range", "int"])
+def test_reserved_captured_builtin_reports_its_use(language, name):
+    source = f"@M.function\ndef main():\n    {name}(2)"
+    with pytest.raises(SyntaxError, match=repr(name)) as caught:
+        entry.parse(source, {"M": language.M, name: lambda value: value}, filename="capture.py")
+    assert (caught.value.filename, caught.value.lineno, caught.value.offset) == ("capture.py", 3, 5)
+    assert not language.functions
+
+
+@pytest.mark.parametrize("binding", ["alias, *other = M, 1, 2", "value = (alias := M)"])
+def test_local_namespace_alias_is_rejected(language, binding):
+    source = "@M.function\ndef main():\n    " + binding
+    with pytest.raises(SyntaxError, match="namespace 'M'.*alias") as caught:
+        entry.parse(source, {"M": language.M}, filename="alias.py")
+    assert (caught.value.filename, caught.value.lineno) == ("alias.py", 3)
+    assert source.splitlines()[2][caught.value.offset - 1] == "M"
+    assert not language.functions
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    ["class Module:", "if True:"],
+)
+def test_host_import_cannot_replace_reserved_names(language, prefix):
+    effects = []
+    source = prefix + "\n    from math import floor as range\n    effect()\n"
+    source += (
+        "    @M.function\n    def main():\n        pass"
+        if prefix.startswith("class")
+        else "@M.function\ndef main():\n    pass"
+    )
+    with pytest.raises(SyntaxError, match="'range'.*reserved") as caught:
+        entry.parse(
+            source, {"M": language.M, "effect": lambda: effects.append(1)}, filename="import.py"
+        )
+    assert (caught.value.filename, caught.value.lineno) == ("import.py", 2)
+    assert not effects
     assert not language.functions
 
 

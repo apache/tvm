@@ -503,7 +503,9 @@ def make_macro_decorator(
                     {**environment, **bound.arguments},
                     set(bound.arguments),
                     preserve_return=preserve_return,
-                    definition_scope=definition_scope,
+                    definition_scope=(
+                        definition_scope if options.get("hygienic", True) else environment
+                    ),
                 )
 
             return invoke
@@ -672,7 +674,16 @@ def _run_statements(
     )
     namespace[transformer.function.dialect_prefix] = builder
     node = tree.body[-1]
-    statements = transformer.transform_statements(node.body)
+    # Macros enter through their body instead of function declaration lowering.
+    # Snapshot annotations before defining the helper, in the definition scope.
+    # Bound arguments remain original-name parameters of the macro body.
+    _, _, annotation_names = transformer._read_function_annotations(
+        node, [], transformer.module.prescan_ctx.bindings.get(node, ())
+    )
+    captures = transformer.module.make_fresh_name("_definition")
+    transformer.function.definition_captures = captures
+    statements = transformer._create_definition_bindings(node, annotation_names, captures=captures)
+    body = transformer.transform_statements(node.body)
     names = sorted(name for name in bound_names if name in namespace)
     helper_name = transformer.module.make_fresh_name("_macro")
     helper = ast.copy_location(
@@ -685,7 +696,7 @@ def _run_statements(
                 kw_defaults=[],
                 defaults=[],
             ),
-            statements or [ast.Pass()],
+            body or [ast.Pass()],
             [],
             None,
         ),
@@ -693,17 +704,23 @@ def _run_statements(
     )
     if "type_params" in ast.FunctionDef._fields:
         helper.type_params = []
+    transformer.module.generated_builders.append(
+        GeneratedBuilder(
+            helper, node.name, set(names) | transformer.module.prescan_ctx.namespaces.keys()
+        )
+    )
     runnable = _recompose_builder(
-        ast.Module([helper], []),
+        ast.Module([*statements, helper], []),
         source_fn=source,
         definition_scope=transformer.module.definition_scope,
         generated_builders=transformer.module.generated_builders,
         filename=filename,
         flags=flags,
-        name=helper_name,
+        name=transformer.module.make_fresh_name("_builder"),
         make_fresh_name=transformer.module.make_fresh_name,
         environment=namespace,
-    )
+        result=helper_name,
+    )()
     return runnable(*(namespace[name] for name in names))
 
 
@@ -893,8 +910,5 @@ def ir_module(module: type | None = None, **options: Any) -> IRModule | Callable
 
     return apply(module) if module is not None else apply
 
-
-syntax_protocol.module_decorator("I.ir_module")(ir_module)
-syntax_protocol.module_decorator("script.ir_module")(ir_module)
 
 from_source = parse
