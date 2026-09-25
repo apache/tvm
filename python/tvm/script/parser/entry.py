@@ -26,7 +26,7 @@ import sys
 from collections import ChainMap
 from collections.abc import Callable, Mapping, Sequence
 from functools import wraps
-from types import FrameType, FunctionType
+from types import CodeType, FrameType, FunctionType
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from tvm.ir import SourceName, Span
@@ -38,13 +38,15 @@ from . import _NAMESPACES, _initialize, jit_support
 from . import protocol_registry as syntax_protocol
 from . import register_namespace as register_namespace
 from .inspect_source import (
+    _AnnotationScope,
     acquire_source,
     capture_annotation_bindings,
     capture_definition_scope,
     capture_lexical_bindings,
+    require_definition_site,
 )
 from .prescan import PrescanCollector
-from .transpile import FunctionContext, IRBuilderTranspiler, ModuleContext
+from .transpile import FunctionContext, GeneratedBuilder, IRBuilderTranspiler, ModuleContext
 
 if TYPE_CHECKING:
     from tvm.ir import IRModule
@@ -80,11 +82,10 @@ def _recompose_builder(
     filename: str,
     flags: int,
     name: str,
-    fresh: Callable[[str], str],
+    make_fresh_name: Callable[[str], str],
     environment: Mapping[str, Any],
     result: str | None = None,
-    definition_scope_name: str | None = None,
-    body_sources: Sequence[tuple[ast.FunctionDef, str, set[str]]] = (),
+    generated_builders: Sequence[GeneratedBuilder] = (),
 ) -> Callable[..., Any]:
     """Compile one builder callable with source lexical and annotation scopes.
 
@@ -93,6 +94,21 @@ def _recompose_builder(
     execute in separate definition-site scopes inside builder declaration frames.
     """
     namespace = dict(environment)
+    # Capture loaded source names and the exact requested keys of lazy snapshots.
+    # An arbitrary string literal must not retain a same-named definition local.
+    required = {
+        item.id
+        for item in ast.walk(translated)
+        if isinstance(item, ast.Name) and isinstance(item.ctx, ast.Load)
+    }
+    for item in ast.walk(translated):
+        if (
+            isinstance(item, ast.Call)
+            and isinstance(item.func, ast.Name)
+            and namespace.get(item.func.id) is _AnnotationScope
+        ):
+            required.update(key.value for key in item.args[0].elts)
+    definition_scope = {key: value for key, value in definition_scope.items() if key in required}
     originals = (
         {key: value for key, value in vars(source_fn).items() if inspect.isfunction(value)}
         if inspect.isclass(source_fn)
@@ -100,12 +116,50 @@ def _recompose_builder(
         if inspect.isfunction(source_fn)
         else {}
     )
-    if definition_scope_name is not None:
-        namespace[definition_scope_name] = definition_scope
+    definition = None
+    if result is not None:
+        location = translated.body[-1]
+        definition = ast.copy_location(
+            ast.FunctionDef(
+                name,
+                ast.arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]),
+                [
+                    *translated.body,
+                    ast.copy_location(ast.Return(ast.Name(result, ast.Load())), location),
+                ],
+                [],
+                None,
+            ),
+            location,
+        )
+        if "type_params" in ast.FunctionDef._fields:
+            definition.type_params = []
+        translated = ast.Module([definition], [])
 
-    for body, source_name, retained in body_sources:
-        original = originals.get(source_name)
-        if original is None:
+    text_codes = {}
+    if isinstance(source_fn, str) and definition_scope:
+        # Text has no original callable. Compile the wrapper before adding defaults
+        # to distinguish existing prefix/class closures from execution-global reads.
+        # This executes neither source setup nor decorators/annotation expressions.
+        codes = [
+            compile(
+                ast.fix_missing_locations(translated),
+                filename,
+                "exec",
+                flags=flags,
+                dont_inherit=True,
+            )
+        ]
+        while codes:
+            code = codes.pop()
+            text_codes[code.co_name] = code
+            codes.extend(item for item in code.co_consts if isinstance(item, CodeType))
+
+    for generated in generated_builders:
+        body, retained = generated.body, generated.protected_names
+        original = originals.get(generated.original_func_name)
+        original_code = original.__code__ if original is not None else text_codes.get(body.name)
+        if original_code is None:
             continue
         parameters = {argument.arg for argument in body.args.args}
         # co_names also contains attribute spellings. Only actual global
@@ -113,11 +167,29 @@ def _recompose_builder(
         # the same spelling as a captured closure cell (for example C.dtype).
         global_names = {
             instruction.argval
-            for instruction in dis.get_instructions(original)
+            for instruction in dis.get_instructions(original_code)
             if instruction.opname in ("LOAD_GLOBAL", "STORE_GLOBAL", "DELETE_GLOBAL")
         }
+        # Nested Python helpers/lambdas may read globals absent from the outer
+        # bytecode. A definition default must not turn those reads into closures.
+        nested_codes = [item for item in original_code.co_consts if isinstance(item, CodeType)]
+        original_locals = set(
+            original_code.co_varnames + original_code.co_cellvars + original_code.co_freevars
+        )
+        while nested_codes:
+            code = nested_codes.pop()
+            nested_codes.extend(item for item in code.co_consts if isinstance(item, CodeType))
+            global_names.update(
+                instruction.argval
+                for instruction in dis.get_instructions(code)
+                if instruction.opname in ("LOAD_GLOBAL", "STORE_GLOBAL", "DELETE_GLOBAL")
+                and instruction.argval not in original_locals
+            )
         global_names -= retained | parameters
-        source_closure = _read_closure_values(original)
+        if original is None:
+            # Only new defaults can redirect the already-translated text scopes.
+            global_names.intersection_update(definition_scope)
+        source_closure = _read_closure_values(original) if original is not None else {}
         for captured in sorted(source_closure.keys() - retained - parameters):
             value = (
                 environment.get(captured, source_closure[captured])
@@ -140,7 +212,7 @@ def _recompose_builder(
             # A class method may close over a different value than its class's
             # same-named member. Only that concrete conflict needs an injected
             # binding; the body itself still reads the original source name.
-            alias = fresh("_lexical")
+            alias = make_fresh_name("_lexical")
             namespace[alias] = value
             reference = ast.copy_location(ast.Name(alias, ast.Load()), body)
             body.args.kwonlyargs.append(ast.arg(captured))
@@ -151,32 +223,37 @@ def _recompose_builder(
         if global_names:
             body.body.insert(0, ast.copy_location(ast.Global(sorted(global_names)), body))
 
-    if result is not None:
-        location = translated.body[-1]
-        definition = ast.copy_location(
-            ast.FunctionDef(
-                name,
-                ast.arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]),
-                [
-                    *translated.body,
-                    ast.copy_location(ast.Return(ast.Name(result, ast.Load())), location),
-                ],
-                [],
-                None,
-            ),
-            location,
-        )
-        if "type_params" in ast.FunctionDef._fields:
-            definition.type_params = []
-        translated = ast.Module([definition], [])
+    if definition is not None:
+        # A nested `global n` also makes CPython compile a module-level n=n
+        # default as LOAD_GLOBAL. Inject only that conflicting default value;
+        # the parameter and every source reference retain their original name.
+        declared_globals = {
+            key
+            for item in ast.walk(translated)
+            if isinstance(item, ast.Global)
+            for key in item.names
+        }
+        defaults = []
+        for key, value in definition_scope.items():
+            default_name = key
+            if key in declared_globals:
+                default_name = make_fresh_name("_capture")
+                namespace[default_name] = value
+            defaults.append(ast.Name(default_name, ast.Load()))
+        definition.args.kwonlyargs = [ast.arg(key) for key in definition_scope]
+        definition.args.kw_defaults = defaults
+    # Defaults resolve in the actual definition context, while the callable's
+    # __globals__ remains the source execution namespace. Do not inject a scope
+    # dictionary into those globals or retain the outer callable there.
+    definition_locals = dict(definition_scope)
     exec(
         compile(
             ast.fix_missing_locations(translated), filename, "exec", flags=flags, dont_inherit=True
         ),
         namespace,
+        definition_locals,
     )
-    # Pop the generated callable: its globals must never own it in return.
-    return namespace.pop(name)
+    return definition_locals.pop(name)
 
 
 def _is_inside_ir_module(function: FunctionType, frame: FrameType) -> bool:
@@ -212,15 +289,19 @@ def make_decorator(
     Returns
     -------
     decorator : callable
-        Callable supporting ``@decorator``, ``@decorator(**options)``, and
-        ``decorator(function)``.
+        Callable used through a registered namespace at the definition site,
+        such as ``@T.prim_func`` or ``@T.prim_func(**options)``. Bare callable
+        aliases and later application to an existing function are unsupported.
 
     Raises
     ------
     ValueError
         When the returned decorator receives a non-function positional value.
     SyntaxError
-        When standalone source violates a parser restriction.
+        When application is not a qualified definition-site decorator, or source
+        violates a parser restriction.
+    OSError
+        When the decorated function's source cannot be recovered.
 
     Notes
     -----
@@ -277,6 +358,7 @@ def make_decorator(
             try:
                 if frame.f_code is decorator.__code__:
                     frame = frame.f_back
+                require_definition_site(function, frame, decorator)
                 deferred = _is_inside_ir_module(function, frame)
                 # The module root supplies one scope for all deferred members.
                 definition_scope = {} if deferred else capture_definition_scope(frame)
@@ -287,8 +369,7 @@ def make_decorator(
             result = parse(
                 function,
                 definition_scope=definition_scope,
-                root_builder=builder,
-                root_function_options={
+                root_function_kwargs={
                     key: value for key, value in options.items() if key != "check_well_formed"
                 },
                 check_well_formed=options.get("check_well_formed", True),
@@ -318,8 +399,9 @@ def make_macro_decorator(
     Returns
     -------
     decorator : callable
-        Accepts a function directly or keyword options. The ``hygienic``
-        option defaults to True and snapshots the definition environment;
+        Accepts definition-site applications through a registered namespace,
+        with optional keyword options. The ``hygienic`` option defaults to True
+        and snapshots the definition environment;
         False captures the calling environment on each invocation. Other
         keyword options are accepted but do not affect helper construction.
 
@@ -329,6 +411,11 @@ def make_macro_decorator(
         When the returned decorator receives a non-function positional value.
     TypeError
         When a helper invocation cannot bind its Python signature.
+    SyntaxError
+        When application is not a qualified definition-site decorator, or source
+        violates a parser restriction.
+    OSError
+        When the decorated helper's source cannot be recovered.
 
     Notes
     -----
@@ -390,6 +477,7 @@ def make_macro_decorator(
             try:
                 if frame.f_code is decorator.__code__:
                     frame = frame.f_back
+                require_definition_site(function, frame, decorator)
                 definition_scope = capture_definition_scope(frame)
             finally:
                 del frame
@@ -456,9 +544,8 @@ def _prepare_transpiler(
     filename: str,
     *,
     track_span: bool = True,
-    specialize: bool = False,
-    root_builder: object | None = None,
-    root_function_options: Mapping[str, Any] | None = None,
+    enable_jit_map: bool = False,
+    root_function_kwargs: Mapping[str, Any] | None = None,
     **options: Any,
 ) -> tuple[IRBuilderTranspiler, dict[str, Any]]:
     """Prescan an owned tree and inject collision-free execution bindings.
@@ -470,7 +557,6 @@ def _prepare_transpiler(
     No builder frame or expression is created here.
     """
     namespace = {
-        "TypeVar": TypeVar,
         "tvm": sys.modules.get("tvm"),
         **_NAMESPACES,
         **environment,
@@ -487,12 +573,11 @@ def _prepare_transpiler(
     metadata = ChainMap(
         vars(source) if inspect.isclass(source) else {}, definition_scope, namespace
     )
-    # Direct application supplies construction policy explicitly, even when the
-    # original function has no source decorator. No source-function record survives.
-    prescan = PrescanCollector(metadata, filename=filename).collect(tree, root_builder=root_builder)
-    names = dict.fromkeys([*namespace, *prescan.reserved_names], 0)
+    # Construction policy comes from the source declaration's namespace.
+    prescan_ctx = PrescanCollector(metadata, filename=filename).collect(tree)
+    names = dict.fromkeys([*namespace, *prescan_ctx.reserved_names], 0)
 
-    def fresh(prefix: str = "_t") -> str:
+    def make_fresh_name(prefix: str = "_t") -> str:
         """Allocate a name without changing any source identifier."""
         counter = names.get(prefix, 0)
         while f"{prefix}{counter}" in names:
@@ -501,10 +586,9 @@ def _prepare_transpiler(
         names[prefix], names[name] = counter + 1, 0
         return name
 
-    builder_name, infrastructure_name = fresh("_X"), fresh("_I")
-    definition_scope_name = fresh("_definition_scope")
-    namespace[infrastructure_name] = builder_ir
-    span_table_name = fresh("_S") if track_span else None
+    builder_name, ir_prefix = make_fresh_name("_X"), make_fresh_name("_I")
+    namespace[ir_prefix] = builder_ir
+    span_table_name = make_fresh_name("_S") if track_span else None
     if track_span:
         # Entries contain fixed native metadata only. The existing rewrite creates
         # them on demand; there is no location collection pass or retained AST.
@@ -513,7 +597,7 @@ def _prepare_transpiler(
         span_indices: dict[tuple[int, int, int, int], int] = {}
         namespace[span_table_name] = span_entries
 
-    def span(node: ast.AST) -> ast.expr:
+    def make_span_expr(node: ast.AST) -> ast.expr:
         """Materialize a needed location and emit its injected table reference."""
         if not track_span:
             return ast.copy_location(ast.Constant(None), node)
@@ -536,24 +620,22 @@ def _prepare_transpiler(
     context = ModuleContext(
         filename,
         metadata,
-        infrastructure_name,
-        span,
-        fresh,
+        ir_prefix,
+        make_span_expr,
+        make_fresh_name,
         track_span=track_span,
-        specialize=specialize,
+        enable_jit_map=enable_jit_map,
         definition_scope=definition_scope,
-        definition_scope_name=definition_scope_name,
-        source_functions=(
+        original_func_map=(
             {key: value for key, value in vars(source).items() if inspect.isfunction(value)}
             if inspect.isclass(source)
             else {source.__name__: source}
             if inspect.isfunction(source)
             else {}
         ),
-        prescan=prescan,
-        bindings=namespace,
-        root_builder=root_builder,
-        root_function_options=root_function_options,
+        prescan_ctx=prescan_ctx,
+        exec_globals=namespace,
+        root_function_kwargs=root_function_kwargs,
     )
     transformer = IRBuilderTranspiler(
         context, FunctionContext(options.pop("current_scope", None), builder_name), **options
@@ -587,13 +669,12 @@ def _run_statements(
         filename,
         preserve_return=preserve_return,
         current_scope=tree.body[-1],
-        root_builder=builder,
     )
     namespace[transformer.function.dialect_prefix] = builder
     node = tree.body[-1]
     statements = transformer.transform_statements(node.body)
     names = sorted(name for name in bound_names if name in namespace)
-    helper_name = transformer.module.fresh("_macro")
+    helper_name = transformer.module.make_fresh_name("_macro")
     helper = ast.copy_location(
         ast.FunctionDef(
             helper_name,
@@ -616,11 +697,11 @@ def _run_statements(
         ast.Module([helper], []),
         source_fn=source,
         definition_scope=transformer.module.definition_scope,
-        body_sources=transformer.module.body_sources,
+        generated_builders=transformer.module.generated_builders,
         filename=filename,
         flags=flags,
         name=helper_name,
-        fresh=transformer.module.fresh,
+        make_fresh_name=transformer.module.make_fresh_name,
         environment=namespace,
     )
     return runnable(*(namespace[name] for name in names))
@@ -633,8 +714,7 @@ def parse(
     filename: str | None = None,
     track_span: bool = True,
     definition_scope: Mapping[str, Any] | None = None,
-    root_builder: object | None = None,
-    root_function_options: Mapping[str, Any] | None = None,
+    root_function_kwargs: Mapping[str, Any] | None = None,
     **options: Any,
 ) -> Any:
     """Transpile and execute a source string, Python function, or Python class.
@@ -654,18 +734,20 @@ def parse(
         Default is True. False retains Python source locations only.
     definition_scope : mapping of str to object, optional
         Temporary definition-site bindings for annotation reconstruction. None
-        adds no external scope; parse never inspects its caller for bindings.
-    root_builder : object, optional
-        Explicit language variant construction namespace for a directly applied function
-        decorator. None selects the namespace from source decorator syntax.
-    root_function_options : mapping of str to object, optional
-        Temporary public options forwarded to ``root_builder.function_``.
-        Defaults are owned by that hook; this mapping is never registered.
+        and an empty mapping both add no external scope; parse never inspects its
+        caller for bindings. These values do not replace body globals or closures.
+    root_function_kwargs : mapping of str to object, optional
+        Already-evaluated kwargs forwarded to ``function_`` for a standalone
+        root function. None reads options from its source decorator; an empty
+        mapping supplies no kwargs and does not re-evaluate source arguments.
+        Nested functions and module members use their own source decorators.
+        Defaults are owned by the builder hook; check_well_formed is separate.
     **options
-        ``_specialization_bindings`` carries selected constexpr values and
-        explicit optional-parameter absence in one mapping. ``check_well_formed``
+        ``_const_args`` maps parameter names to fixed constexpr values
+        and explicit optional-parameter absence. None selects ordinary parsing;
+        an empty mapping still selects root JIT construction. ``check_well_formed``
         controls completed-result validation; construction policy otherwise
-        comes from source decorators or the explicit root inputs.
+        comes from qualified source decorators.
 
     Returns
     -------
@@ -705,11 +787,10 @@ def parse(
     )
     # Acquisition returns a fresh tree; prescan and rewriting own it directly.
     _builder = None
-    definition_scope_name = None
     try:
         root = tree.body[-1]
         root_name = root.name if isinstance(root, ast.FunctionDef) else None
-        specialization = options.get("_specialization_bindings")
+        const_args = options.get("_const_args")
         check_well_formed = options.get("check_well_formed")
         if check_well_formed is None:
             check_well_formed = True
@@ -729,37 +810,32 @@ def parse(
             definition_scope,
             filename,
             track_span=track_span,
-            specialize=specialization is not None and root_name is not None,
-            root_builder=root_builder,
-            root_function_options=root_function_options,
+            enable_jit_map=const_args is not None and root_name is not None,
+            root_function_kwargs=root_function_kwargs,
         )
         transformed, result_name = transformer.rewrite_module(
             tree, check_well_formed=check_well_formed
         )
-        definition_scope_name = transformer.module.definition_scope_name
         # Recomposition preserves original source ranges and body globals/closures.
         _builder = _recompose_builder(
             transformed,
             source_fn=source,
             definition_scope=transformer.module.definition_scope,
-            definition_scope_name=definition_scope_name,
-            body_sources=transformer.module.body_sources,
+            generated_builders=transformer.module.generated_builders,
             filename=filename,
             flags=flags,
-            name=transformer.module.fresh("_builder"),
-            fresh=transformer.module.fresh,
+            name=transformer.module.make_fresh_name("_builder"),
+            make_fresh_name=transformer.module.make_fresh_name,
             environment=namespace,
             result=result_name,
         )
         # Important: do not retain _builder. Its globals and closures may keep
         # values from the enclosing scope alive.
-        with jit_support.use_specialization(root_name, specialization):
+        with jit_support.use_specialization(root_name, const_args):
             result = _builder()
         return result
     finally:
         # Release temporary captures on both successful and exceptional exits.
-        if _builder is not None and definition_scope_name is not None:
-            _builder.__globals__.pop(definition_scope_name, None)
         _builder = None
         definition_scope = None
 

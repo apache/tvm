@@ -30,14 +30,36 @@ import dis
 import inspect
 import linecache
 import textwrap
-from collections.abc import Mapping
+from collections import ChainMap
+from collections.abc import Callable, Mapping
 from types import CodeType, FrameType, FunctionType
 from typing import Any
 
+from tvm_ffi.dataclasses import MISSING
+
 from tvm.ir import SourceName, Span
 
+from . import protocol_registry as protocol
 from .annotation import parse_annotation
-from .prescan import collect_annotation_free_names
+from .prescan import collect_annotation_free_names, resolve_namespace_key, resolve_namespace_value
+
+
+class _AnnotationScope(dict):
+    """Snapshot selected bindings; absent names fail only when an annotation reads them."""
+
+    def __init__(self, names, *scopes):
+        super().__init__()
+        for name in names:
+            for scope in scopes:
+                if name in scope:
+                    value = scope[name]
+                    if value is not MISSING:
+                        self[name] = value
+                    # An explicit absence still shadows the remaining scopes.
+                    break
+
+    def __missing__(self, name):
+        raise NameError(f"name {name!r} is not defined")
 
 
 class Source:
@@ -141,7 +163,20 @@ class Source:
 
 
 def capture_lexical_bindings(function: FunctionType) -> dict[str, Any]:
-    """Snapshot only actual body global/closure reads for a deferred callable."""
+    """Snapshot actual body global/closure reads for a deferred callable.
+
+    Parameters
+    ----------
+    function : types.FunctionType
+        Original Python function whose bytecode and closure cells supply bindings.
+        Nested code objects are included when finding global reads.
+
+    Returns
+    -------
+    dict[str, Any]
+        Available global and closure values indexed by their original names.
+        Values retain identity; unresolved globals and empty closure cells are omitted.
+    """
     bindings: dict[str, Any] = {}
     codes: list[CodeType] = [function.__code__]
     while codes:
@@ -162,13 +197,45 @@ def capture_lexical_bindings(function: FunctionType) -> dict[str, Any]:
 def capture_annotation_bindings(
     source: FunctionType, definition_scope: Mapping[str, Any]
 ) -> dict[str, Any]:
-    """Retain only definition-time names needed by deferred annotations.
+    """Retain definition-time names needed by deferred annotations and decorators.
 
+    Parameters
+    ----------
+    source : types.FunctionType
+        Original inspectable function whose annotation and decorator syntax is read.
+    definition_scope : Mapping[str, Any]
+        Available definition-site bindings. An empty mapping contributes no captures;
+        unresolved names remain absent until their expressions are evaluated.
+
+    Returns
+    -------
+    dict[str, Any]
+        Referenced annotation values and qualified decorator namespace owners,
+        indexed by original names without copying the values.
+
+    Raises
+    ------
+    OSError
+        If source text cannot be recovered for the function.
+    SyntaxError
+        If source or a quoted annotation is not valid Python syntax.
+
+    Notes
+    -----
     JIT and macros own this small mapping while their source callable remains
     usable. Unrelated outer locals and frame objects never enter it.
     """
     tree, filename, _ = acquire_source(source)
     names: set[str] = set()
+    # Deferred construction still selects its namespace from the source decorator.
+    # Retain its owner alias even when no annotation or body reads that alias.
+    environment = ChainMap(definition_scope, source.__globals__)
+    for decorator in tree.body[-1].decorator_list:
+        target = decorator.func if isinstance(decorator, ast.Call) else decorator
+        if isinstance(target, ast.Attribute) and protocol.DECLARATION_KIND.get(
+            resolve_namespace_key(target, environment)
+        ) in ("function", "helper"):
+            names.update(collect_annotation_free_names(target.value))
     for node in ast.walk(tree):
         annotation = (
             node.annotation
@@ -182,9 +249,104 @@ def capture_annotation_bindings(
     return {name: definition_scope[name] for name in names if name in definition_scope}
 
 
+def require_definition_site(
+    function: FunctionType, frame: FrameType, decorator: Callable[..., Any]
+) -> None:
+    """Require an actual @ application, not a later call on an existing function.
+
+    Parameters
+    ----------
+    function : types.FunctionType
+        Function just created by the caller's definition statement.
+    frame : types.FrameType
+        Active source caller frame at decorator application, excluding frontend
+        wrapper frames. It is inspected synchronously and never retained.
+    decorator : Callable[..., Any]
+        Public decorator factory exported by the registered namespace. An
+        option-bearing application still passes the factory, not its returned closure.
+
+    Returns
+    -------
+    None
+        The call site and source syntax identify this definition-site decorator.
+
+    Raises
+    ------
+    SyntaxError
+        If the caller did not just create this function, or the source does not
+        name this decorator through a registered namespace. Bare callable and
+        preconfigured decorator aliases are unsupported.
+    OSError
+        If the function's source cannot be recovered.
+
+    Notes
+    -----
+    Python applies decorators directly after MAKE_FUNCTION. Reloading an existing
+    callable introduces LOAD instructions; retained decorator source text alone
+    cannot prove a definition site.
+    """
+    instructions = [
+        item for item in dis.get_instructions(frame.f_code) if item.offset <= frame.f_lasti
+    ]
+    index = len(instructions) - 1
+    machinery = {
+        "CALL",
+        "CALL_FUNCTION",
+        "PRECALL",
+        "CACHE",
+        "EXTENDED_ARG",
+        "SET_FUNCTION_ATTRIBUTE",
+    }
+    while index >= 0 and instructions[index].opname in machinery:
+        index -= 1
+    created = None
+    if index >= 0 and instructions[index].opname == "MAKE_FUNCTION":
+        # Python 3.10 also loads the qualname between the code and MAKE_FUNCTION.
+        operands = [item for item in instructions[:index] if item.opname != "EXTENDED_ARG"]
+        for item in reversed(operands[-2:]):
+            if item.opname == "LOAD_CONST" and isinstance(item.argval, CodeType):
+                created = item.argval
+                break
+    codes = [created] if created is not None else []
+    while codes:
+        code = codes.pop()
+        if code is function.__code__:
+            break
+        # PEP 695 creates the function inside a generic-parameter code object.
+        codes.extend(item for item in code.co_consts if isinstance(item, CodeType))
+    else:
+        raise SyntaxError("Construction decorators must be applied with @ at the definition site")
+    tree, _, _ = acquire_source(function)
+    environment = ChainMap(capture_definition_scope(frame), frame.f_globals)
+    if not any(
+        isinstance(target, ast.Attribute)
+        and resolve_namespace_value(target, environment) is decorator
+        for item in tree.body[-1].decorator_list
+        for target in [item.func if isinstance(item, ast.Call) else item]
+    ):
+        raise SyntaxError(
+            "Use a qualified construction decorator such as @T.prim_func; "
+            "bare and preconfigured decorator aliases are unsupported"
+        )
+
+
 def capture_definition_scope(frame: FrameType) -> dict[str, Any]:
     """Snapshot immediate locals and active enclosing Python function scopes.
 
+    Parameters
+    ----------
+    frame : types.FrameType
+        Active frame applying the source decorator. Only directly enclosing
+        lexical Python function frames contribute additional annotation bindings.
+
+    Returns
+    -------
+    dict[str, Any]
+        Available definition-site values under their source names, with nearer
+        scopes taking precedence. Values are borrowed; no frame is retained.
+
+    Notes
+    -----
     Postponed annotations do not necessarily create closure cells. Retain their
     active lexical ancestors only when each caller directly owns the child's
     code object. An unrelated caller ends this chain, even in the same file.
@@ -235,6 +397,34 @@ def acquire_source(
 ) -> tuple[ast.Module, str, int]:
     """Read source into a location-preserving AST, filename and compiler flags.
 
+    Parameters
+    ----------
+    source : str or types.FunctionType or type
+        Source text, original Python function, or class to inspect.
+    filename : str or None, optional
+        Diagnostic filename override. None uses the inspected source filename
+        for Python objects and ``"<str>"`` for source text.
+    definition_source : tuple[str, int] or None, optional
+        Decoration-site filename and line used to locate a class when normal
+        inspection is unavailable. None, the default, disables this fallback.
+
+    Returns
+    -------
+    tuple[ast.Module, str, int]
+        Fresh source AST, resolved filename and inherited future-annotation
+        compiler flags needed to compile the generated program.
+
+    Raises
+    ------
+    OSError
+        If Python source cannot be recovered.
+    TypeError
+        If source is not an inspectable function, class or text.
+    SyntaxError
+        If the recovered text is not valid Python syntax.
+
+    Notes
+    -----
     Text uses ``<str>`` unless a filename is supplied. Function/class source
     retains its original file, line and UTF-8 column offsets, including the
     decoration-site fallback used by gallery runners. Source inspection and
@@ -251,19 +441,34 @@ def acquire_source(
     if isinstance(source, str):
         text = source
         filename = filename or "<str>"
-        start, indent = 1, 0
+        start = 1
         linecache.cache[filename] = (len(text), None, text.splitlines(keepends=True), filename)
+        tree = ast.parse(textwrap.dedent(text), filename)
     else:
         lines, start, source_filename = _read_source_lines(source, definition_source)
         text = "".join(lines)
         filename = filename or source_filename
-        indent = len(lines[0]) - len(lines[0].lstrip())
-    tree = ast.parse(textwrap.dedent(text), filename)
+        if lines[0][:1].isspace():
+            # Continuation lines and multiline literals may be less indented than
+            # the definition. A temporary suite preserves their text and original
+            # columns without relying on a common indentation prefix.
+            try:
+                tree = ast.parse("if True:\n" + text, filename)
+            except SyntaxError as error:
+                # Parser errors precede AST relocation; hide the synthetic line
+                # in both the exception attributes and its location tuple.
+                location = list(error.args[1])
+                location[1] += start - 2
+                error.lineno = location[1]
+                if len(location) > 4 and location[4] is not None:
+                    location[4] += start - 2
+                    error.end_lineno = location[4]
+                error.args = (error.args[0], tuple(location))
+                raise
+            tree.body = tree.body[0].body
+            ast.increment_lineno(tree, -1)
+        else:
+            tree = ast.parse(text, filename)
     if start != 1:
         ast.increment_lineno(tree, start - 1)
-    if indent:
-        for node in ast.walk(tree):
-            if hasattr(node, "col_offset"):
-                node.col_offset += indent
-                node.end_col_offset += indent
     return tree, filename, flags

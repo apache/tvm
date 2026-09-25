@@ -27,11 +27,9 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, TypeVar
+from typing import Any
 
 # Per-execution inputs, never a second owner of native function or parameter state.
-_Value = TypeVar("_Value")
-
 # Host/JIT values and callable annotation adapters have open-ended Python types.
 _SPECIALIZATION: ContextVar[tuple[str | None, dict[str, Any]] | None] = ContextVar(
     "tvm_parser_specialization", default=None
@@ -39,14 +37,27 @@ _SPECIALIZATION: ContextVar[tuple[str | None, dict[str, Any]] | None] = ContextV
 
 
 @contextmanager
-def use_specialization(name: str | None, bindings: Mapping[str, Any] | None) -> Iterator[None]:
-    """Pass selected JIT bindings to one root builder execution.
+def use_specialization(name: str | None, const_args: Mapping[str, Any] | None) -> Iterator[None]:
+    """Pass fixed JIT arguments to one root builder execution.
 
-    ``None`` denotes ordinary parsing; an empty mapping is a specialization
-    with no compile-time values. Copy inputs so nested execution cannot alter
-    the caller's selection.
+    Parameters
+    ----------
+    name : str or None
+        Source name of the standalone root function. Readers must request this
+        exact name. None is used when the parsed root is not a function.
+    const_args : Mapping[str, Any] or None
+        Parameter names mapped to fixed values, including explicit None values for
+        omitted optional parameters. None selects ordinary parsing; an empty
+        mapping still selects specialization with no compile-time values.
+        The mapping is copied on entry, without copying its values.
+
+    Yields
+    ------
+    None
+        The enclosed builder execution sees this selection. The previous
+        selection is restored on exit, including nested parsing and exceptions.
     """
-    token = _SPECIALIZATION.set(None if bindings is None else (name, dict(bindings)))
+    token = _SPECIALIZATION.set(None if const_args is None else (name, dict(const_args)))
     try:
         yield
     finally:
@@ -54,30 +65,20 @@ def use_specialization(name: str | None, bindings: Mapping[str, Any] | None) -> 
 
 
 def read_specialization_bindings(name: str) -> dict[str, Any] | None:
-    """Read the current root's bindings, or None outside specialization."""
+    """Read the current root's fixed JIT arguments.
+
+    Parameters
+    ----------
+    name : str
+        Source function name to match against the active root selection.
+
+    Returns
+    -------
+    dict[str, Any] or None
+        Parameter names mapped to fixed values when the root name matches. An empty
+        dictionary means an active specialization with no selected values. None
+        means ordinary parsing or a different root name. The returned dictionary
+        is borrowed from the current context and should not be mutated.
+    """
     context = _SPECIALIZATION.get()
     return context[1] if context is not None and context[0] == name else None
-
-
-def unwrap_annotation(annotation: Any, specialization: Mapping[str, Any] | None = None) -> Any:
-    """Read an optional runtime annotation only within a JIT specialization.
-
-    Generated specialization calls this after checking selected values and
-    absences, so omitted parameters never evaluate their annotation. Ordinary
-    argument construction delegates annotation validation to the language variant.
-    """
-    unwrap = getattr(annotation, "__tvm_optional_annotation__", None)
-    if unwrap is not None:
-        if specialization is None:
-            raise TypeError("T.Optional is only supported by @T.jit")
-        return unwrap()
-    return annotation
-
-
-def require_constexpr_binding(value: _Value, name: str) -> _Value:
-    """Require an explicit captured value for a constexpr parameter."""
-    from tvm.script.ir_builder.base import MISSING
-
-    if value is MISSING:
-        raise TypeError(f"constexpr parameter {name!r} requires a specialization binding")
-    return value

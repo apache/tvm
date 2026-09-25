@@ -29,17 +29,19 @@ import tvm.testing
 from tvm.ir import Call, SequentialSpan, TensorLoad, assert_structural_equal
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.script.parser.inspect_source import Source
+from tvm.script.parser.inspect_source import Source, acquire_source
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.stmt import TilePrimitiveCall
 
 
-def _tirx_source(func):
-    """Leave a function intact while marking its source as TIRx."""
-    return func
+def _capture_source(sources):
+    """Keep original source coordinates before a definition-site construction."""
 
+    def capture(function):
+        sources.append(Source(function))
+        return function
 
-_tirx_source.dispatch_token = "tirx"
+    return capture
 
 
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
@@ -135,7 +137,10 @@ def test_source_to_span_matches_parser_diagnostic_coordinates():
 
 
 def test_parser_attaches_span_to_direct_call():
-    @_tirx_source
+    sources = []
+
+    @T.prim_func
+    @_capture_source(sources)
     def direct_call():
         T.device_entry()
         barriers = T.alloc_buffer((1,), "uint64", scope="shared")
@@ -144,9 +149,9 @@ def test_parser_attaches_span_to_direct_call():
             0,
         )
 
-    source = Source(direct_call)
+    source = sources[0]
     call_ast = source.as_ast().body[0].body[-1].value
-    func = T.prim_func(direct_call)
+    func = direct_call
     call = _find_ir_node(
         func,
         lambda node: (
@@ -158,15 +163,18 @@ def test_parser_attaches_span_to_direct_call():
 
 
 def test_parser_attaches_span_to_nested_tensor_load():
-    @_tirx_source
+    sources = []
+
+    @T.prim_func
+    @_capture_source(sources)
     def nested_load():
         source_buffer = T.alloc_buffer((1,), "int32")
         output = T.alloc_buffer((1,), "int32")
         output[0] = source_buffer[0] + 1
 
-    source = Source(nested_load)
+    source = sources[0]
     load_ast = source.as_ast().body[0].body[-1].value.left
-    func = T.prim_func(nested_load)
+    func = nested_load
     load = _find_ir_node(
         func,
         lambda node: (
@@ -178,22 +186,26 @@ def test_parser_attaches_span_to_nested_tensor_load():
 
 
 def test_parser_retains_inline_call_site_and_definition_spans():
+    @T.inline
     def wait_impl(barrier):
         T.cuda.mbarrier_wait(barrier, 0)
 
-    wait_source = Source(wait_impl)
+    wait_source = Source(wait_impl.__wrapped__)
     wait_call_ast = wait_source.as_ast().body[0].body[0].value
-    wait = T.inline(wait_impl)
+    wait = wait_impl
 
-    @_tirx_source
+    sources = []
+
+    @T.prim_func
+    @_capture_source(sources)
     def inline_call():
         T.device_entry()
         barriers = T.alloc_buffer((1,), "uint64", scope="shared")
         wait(T.address_of(barriers[0]))
 
-    caller_source = Source(inline_call)
+    caller_source = sources[0]
     caller_call_ast = caller_source.as_ast().body[0].body[-1].value
-    func = T.prim_func(inline_call)
+    func = inline_call
     call = _find_ir_node(
         func,
         lambda node: (
@@ -209,14 +221,17 @@ def test_parser_retains_inline_call_site_and_definition_spans():
 
 
 def test_parser_attaches_span_to_tile_primitive_call():
-    @_tirx_source
+    sources = []
+
+    @T.prim_func
+    @_capture_source(sources)
     def tile_call():
         A = T.alloc_buffer((16,), "float32")
         Tx.memset(A[0:16], T.float32(0))
 
-    source = Source(tile_call)
+    source = sources[0]
     call_ast = source.as_ast().body[0].body[-1].value
-    func = T.prim_func(tile_call)
+    func = tile_call
     call = _find_ir_node(func, lambda node: isinstance(node, TilePrimitiveCall))
 
     assert _span_range(call.span) == _span_range(source.to_span(call_ast))
@@ -248,6 +263,28 @@ def test_nesting_parsing():
                 A: T.Buffer((12, 196, 64), "float32"),
             ) -> None:
                 T.evaluate(0)
+
+
+def test_acquire_source_preserves_continuation_indentation_and_literal():
+    # fmt: off
+    def original(
+        value: int = 0,
+):
+        return """first
+  second
+"""
+    # fmt: on
+
+    tree, filename, _ = acquire_source(original)
+    definition = tree.body[0]
+    literal = definition.body[0].value
+    assert definition.lineno == original.__code__.co_firstlineno
+    assert definition.col_offset == 4
+    assert definition.body[0].col_offset == 8
+    assert literal.value == original()
+    assert filename == inspect.getsourcefile(original)
+    full_source = inspect.getsource(inspect.getmodule(original))
+    assert doc.literal_eval(doc.get_source_segment(full_source, literal)) == original()
 
 
 if __name__ == "__main__":
