@@ -88,6 +88,11 @@ TIR_DEFINE_BUILTIN_FUNC(reinterpret)
                                          static_cast<int64_t>(ScriptDtypePrintLocation::kFirst))
     .set_num_inputs(1);
 
+TIR_DEFINE_BUILTIN_FUNC(thread_return)
+    .set_attr<TCallEffectKind>("TCallEffectKind",
+                               static_cast<int64_t>(CallEffectKind::kControlJump))
+    .set_num_inputs(0);
+
 // tirx.filter: escape hatch for non-canonical thread-set filter predicates
 // used as an IfThenElse condition. (var, cond) -- ``var`` names the
 // active-set axis the compiler should collapse to a singleton if it cannot

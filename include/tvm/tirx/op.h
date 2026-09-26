@@ -77,6 +77,14 @@ TVM_DLL Type GetType(const PrimExpr& expr);
 TVM_DLL Type GetTypeFromRuntimeDataType(DLDataType dtype);
 
 /*!
+ * \brief Return from a GPU thread without returning a function value.
+ *
+ * \param span The location of this operation in the source.
+ * \return The thread return expression.
+ */
+TVM_DLL PrimExpr thread_return(Span span = Span());
+
+/*!
  * Get the value of infinity.
  * \param dtype The primitive type.
  * \param span The location of this operation in the source.

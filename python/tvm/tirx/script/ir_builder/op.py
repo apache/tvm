@@ -518,6 +518,9 @@ tan = _op_wrapper(_tir_op.tan)
 tanh = _op_wrapper(_tir_op.tanh)
 
 
+thread_return = _op_wrapper(_tir_op.thread_return)
+
+
 trunc = _op_wrapper(_tir_op.trunc)
 
 
@@ -991,6 +994,7 @@ __all__ = [
     "tan",
     "tanh",
     "tensormap_encode_tiled",
+    "thread_return",
     "trunc",
     "truncdiv",
     "truncmod",

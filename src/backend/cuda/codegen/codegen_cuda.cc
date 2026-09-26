@@ -1569,6 +1569,8 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(cuda_func_call_op) ||
              (op->op.as<Op>() && op->op.as<Op>().value()->name == "tirx.cuda.func_call")) {
     print_cuda_func_call(op, os);
+  } else if (op->op.same_as(tirx::builtin::thread_return())) {
+    os << "return";
   } else {
     CodeGenC::Dispatch_(op, os);
   }

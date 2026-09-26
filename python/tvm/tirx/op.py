@@ -3266,3 +3266,8 @@ def tvm_store_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
     return call_intrin(
         "void", "tirx.tvm_store_matrix_sync", fragment, m, n, k, index, buffer_ptr, stride, layout
     )
+
+
+def thread_return():
+    """Return from the current GPU thread without a function value."""
+    return call_intrin("", "tirx.thread_return")

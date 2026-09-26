@@ -259,6 +259,7 @@ def test_body_annotation_reads_a_preceding_ordinary_local(language):
 def test_native_concise_scopes_unwind_with_their_parent():
     # Nested concise thread scopes must preserve the original variables in the constructed IR.
     from tvm import tirx
+    from tvm.script import tirx as T
 
     variables = []
 
@@ -282,6 +283,7 @@ def test_native_concise_scopes_unwind_with_their_parent():
 def test_loop_control_validation_preserves_valid_and_unchecked_ir():
     # Invalid loop placement must be rejected, while direct IR construction preserves the node.
     from tvm import ir, tirx
+    from tvm.script import tirx as T
 
     invalid = tirx.PrimFunc(params=[], body=tirx.Break())
     ir.assert_structural_equal(invalid.body, tirx.Break())

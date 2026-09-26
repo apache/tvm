@@ -1152,9 +1152,7 @@ def test_device_host_call_same_func():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@pytest.mark.gpu
-@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_kernel_early_return():
+def test_thread_return():
     @I.ir_module
     class Module:
         @T.prim_func
@@ -1162,12 +1160,13 @@ def test_kernel_early_return():
             for bx in T.thread_binding(32, "blockIdx.x"):
                 for tx in T.thread_binding(32, "threadIdx.x"):
                     if bx >= 16 or tx >= 16:
-                        return 0
+                        T.thread_return()
                     B[bx, tx] = A[bx, tx]
 
     lib = tvm.compile(Module, target="cuda")
     cuda_code = lib.mod.imports[0].inspect_source()
     assert "return;" in cuda_code
+    assert "return 0;" not in cuda_code
 
 
 @pytest.mark.gpu
