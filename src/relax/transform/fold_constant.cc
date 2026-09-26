@@ -400,11 +400,17 @@ class ConstantFolder : public ExprMutator {
         bool is_known = true;
         for (size_t i = 0; i < values.size(); i++) {
           PrimExpr val = values[i];
-          if (!val.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64)) {
+          const auto* int_imm = val.as<IntImmNode>();
+          if (int_imm == nullptr || !val.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64)) {
             is_known = false;
             break;
           }
-          arr.push_back(static_cast<int64_t>(val.as<IntImmNode>()->value));
+          auto value = int_imm->value.as<int64_t>();
+          if (!value.has_value()) {
+            is_known = false;
+            break;
+          }
+          arr.push_back(*value);
         }
         if (is_known) {
           const auto func = tvm::ffi::Function::GetGlobalRequired("relax.run.shape_to_tensor");
