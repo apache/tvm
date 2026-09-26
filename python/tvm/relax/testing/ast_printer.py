@@ -210,6 +210,9 @@ class ASTPrinter(ExprFunctor):
     def visit_string_imm_(self, op: tvm.ir.StringImm) -> str:
         return self.build_expr(op, "StringImm", value=wrap_quotes(op.value))
 
+    def visit_data_type_imm_(self, op: tvm.ir.DataTypeImm) -> str:
+        return self.build_expr(op, "DataTypeImm", value=str(op.value))
+
     def visit_op_(self, op: tvm.ir.Op) -> str:
         # TODO: List other attributes?
         # op is not actually a Relax expr and does not have

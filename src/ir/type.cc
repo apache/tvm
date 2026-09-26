@@ -255,6 +255,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 bool Type::IsMissing() const { return this->same_as(Type::Missing()); }
 
+AnyType::AnyType(Span span) : Type(ffi::UnsafeInit{}) {
+  ffi::ObjectPtr<AnyTypeNode> n = ffi::make_object<AnyTypeNode>();
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  AnyTypeNode::RegisterReflection();
+  refl::TypeAttrDef<AnyTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TypeVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TypeMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&TypeMaybeInplaceMutate));
+  refl::GlobalDef().def("ir.AnyType", [](Span span) { return AnyType(span); });
+}
+
 OpaqueType::OpaqueType() : Type(ffi::UnsafeInit{}) { data_ = ffi::make_object<OpaqueTypeNode>(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

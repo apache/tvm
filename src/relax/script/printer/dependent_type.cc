@@ -26,8 +26,8 @@ namespace script {
 namespace printer {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<relax::AnyType>(  //
-      "", [](relax::AnyType n, AccessPath n_p, IRDocsifier d) -> Doc { return Relax(d, "Any"); });
+  IRDocsifier::vtable().set_dispatch<AnyType>(  //
+      "", [](AnyType n, AccessPath n_p, IRDocsifier d) -> Doc { return Relax(d, "Any"); });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -125,7 +125,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           ffi::Array<ffi::String> keys;
           ffi::Array<ExprDoc, void> values;
 
-          if (!n->ret->IsInstance<relax::AnyTypeNode>()) {
+          if (!n->ret->IsInstance<AnyTypeNode>()) {
             keys.push_back("ret");
             values.push_back(ret_doc);
           }
@@ -151,7 +151,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(relax::AnyTypeNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(AnyTypeNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeTypeNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::TensorTypeNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::FuncTypeNode, ReprPrintRelax);

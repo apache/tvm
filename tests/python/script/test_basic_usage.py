@@ -26,7 +26,7 @@ import pytest
 # ruff: noqa: F841
 from minilang import Value
 
-from tvm import ir
+from tvm import DataType, ir
 from tvm.ir import prim
 from tvm.ir._overload_prim_expr import EqualOp
 from tvm.script import ir as I
@@ -458,6 +458,17 @@ def test_ir_branch_incoming_read_and_rebinding_obeys_python_scope(language):
             else:
                 y = x
             return y
+
+
+def test_datatype_value_roundtrip(language):
+    # A DataType value needs only shared IR: the minimal language parses its shared spelling
+    # into a root-typed constant, and the shared printer reproduces that spelling.
+    spelling = 'I.dtype("float32")'
+    source = f"@M.function\ndef main():\n    M.record({spelling})\n"
+    value = entry.parse(source, extra_vars={"M": language.M, "I": I}).body[0][1]
+    ir.assert_structural_equal(value, ir.DataTypeImm(DataType("float32")))
+    printed = ir.IRModule(attrs={"dtype": value}).script()
+    assert f'I.module_attrs({{"dtype": {spelling}}})' in printed
 
 
 def test_mutating_stores_and_loop_control_keep_effect_order(language):

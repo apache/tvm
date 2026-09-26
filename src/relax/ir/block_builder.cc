@@ -578,6 +578,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   RELAX_EXPR_NORMALIZER_LEAF(GenericConstNode);
   RELAX_EXPR_NORMALIZER_LEAF(ShapeExprNode);
   RELAX_EXPR_NORMALIZER_LEAF(StringImmNode);
+  RELAX_EXPR_NORMALIZER_LEAF(DataTypeImmNode);
 
   Expr VisitExprDefault_(const ffi::Object* op) final {
     Expr expr = ffi::GetRef<Expr>(static_cast<const ExprNode*>(op));

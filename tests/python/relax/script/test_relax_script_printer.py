@@ -554,8 +554,8 @@ def test_primitive_bindings_roundtrip_without_prim_value_marker():
 
 
 def test_data_type_imm():
-    obj = tvm.ir.GenericConst(tvm.DataType("float32"), tvm.relax.AnyType())
-    _assert_print_lines(obj, 'R.dtype("float32")')
+    obj = tvm.ir.DataTypeImm(tvm.DataType("float32"))
+    _assert_print_lines(obj, 'T.dtype("float32")')
 
 
 def test_var():

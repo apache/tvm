@@ -463,6 +463,24 @@ class GenericConst(_ExprCallable, Constant):
         return True
 
 
+@tvm_ffi.register_object("ir.DataTypeImm")
+class DataTypeImm(Constant):
+    """A data type literal whose expression type is AnyType.
+
+    Parameters
+    ----------
+    value : str or tvm.DataType
+        The represented data type.
+    span : Span, optional
+        The source span of the literal.
+    """
+
+    value: tvm.DataType
+
+    def __init__(self, value: str | tvm.DataType, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.DataTypeImm, value, span)
+
+
 @tvm_ffi.register_object("ir.StringImm")
 class StringImm(Constant):
     """A string literal with StringType."""

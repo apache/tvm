@@ -34,6 +34,29 @@
 
 namespace tvm {
 
+/*!
+ * \brief The top type, which admits any value.
+ *
+ * AnyType types values that have no more specific static type, such as
+ * DataType-valued generic constants and opaque runtime objects.
+ */
+class AnyTypeNode : public TypeNode {
+ public:
+  static void RegisterReflection() { ffi::reflection::ObjectDef<AnyTypeNode>(); }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.AnyType", AnyTypeNode, TypeNode);
+};
+
+/*!
+ * \brief Managed reference to AnyTypeNode.
+ * \sa AnyTypeNode
+ */
+class AnyType : public Type {
+ public:
+  TVM_DLL AnyType(Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AnyType, Type, AnyTypeNode);
+};
+
 /*! \brief Semantic string type; its physical representation is context dependent. */
 class StringTypeNode : public TypeNode {
  public:
